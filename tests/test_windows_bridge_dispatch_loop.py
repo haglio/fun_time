@@ -2534,10 +2534,12 @@ class TestHybridFunscriptHandoff:
         )
 
     def _genau(self, runner):
-        return runner.config.genau_cmd_file.read_text(encoding="utf-8")
+        # The arbiter appends its verbs (a shared single slot clobbered a
+        # handoff once), so reads strip the trailing newline.
+        return runner.config.genau_cmd_file.read_text(encoding="utf-8").strip()
 
     def _nau(self, runner):
-        return runner.config.nau_cmd_file.read_text(encoding="utf-8")
+        return runner.config.nau_cmd_file.read_text(encoding="utf-8").strip()
 
     def test_scripted_stretch_drives_from_the_funscript(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2591,8 +2593,9 @@ class TestHybridFunscriptHandoff:
         self._write_status(runner, has_funscript=True, resting=True)  # gap begins
         runner._sync_hybrid_driver()
 
-        assert self._genau(runner) == "RESUME"
-        assert self._nau(runner) == "SET_TCODE_ENABLED 0"
+        # Appended after the first flip's PAUSE; the players drain in order.
+        assert self._genau(runner).splitlines()[-1] == "RESUME"
+        assert self._nau(runner).splitlines()[-1] == "SET_TCODE_ENABLED 0"
 
     def test_no_arbitration_outside_hybrid(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2628,6 +2631,84 @@ class TestHybridFunscriptHandoff:
         runner._sync_hybrid_driver()
 
         assert self._genau(runner) == "PAUSE"
+
+    def _publish_drive(self, runner, *, waveform, center=50, amplitude=100):
+        from player_core.drive_readout import DriveHud, publish_drive
+        from fun_time.windows_bridge_dispatch_loop import GENAU_DRIVE_FILENAME
+        publish_drive(
+            Path(runner.config.genau_cmd_file).parent / GENAU_DRIVE_FILENAME,
+            DriveHud(center=center, amplitude=amplitude, trace_seconds=8.0,
+                     waveform=tuple(waveform)))
+
+    def _genau_last(self, runner):
+        return self._genau(runner).splitlines()[-1]
+
+    def test_taking_the_device_from_genau_waits_for_the_strokes_floor(self, tmp_path):
+        """Pausing Genau mid-swing left the OSR2 wherever the swing froze — the
+        trace ends Genau's turn on a floor-touch, and the device kept breaking
+        that promise.  The flip is scheduled from the published waveform's own
+        touch and fires then, not before."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=False)
+        # High for the first stretch, touching the floor partway through.
+        self._publish_drive(runner, waveform=[0.9] * 40 + [0.0] * 40)
+
+        runner._sync_hybrid_driver()
+
+        assert not runner.config.genau_cmd_file.exists()   # held: Genau keeps it
+        assert runner._hybrid_floor_flip_at is not None
+
+        runner._hybrid_floor_flip_at = time.monotonic() - 0.01  # the touch arrives
+        runner._sync_hybrid_driver()
+
+        assert self._genau_last(runner) == "PAUSE"
+        assert self._nau(runner) == "SET_TCODE_ENABLED 1"
+
+    def test_a_stroke_already_on_its_floor_hands_off_at_once(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=False)
+        self._publish_drive(runner, waveform=[0.01] + [0.9] * 79)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau_last(runner) == "PAUSE"
+
+    def test_a_stroke_that_never_comes_down_is_taken_mid_swing(self, tmp_path):
+        """A crawling stroke cannot be allowed to stall the script's turn."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=False)
+        self._publish_drive(runner, waveform=[0.9] * 80)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau_last(runner) == "PAUSE"
+
+    def test_a_raised_floor_counts_its_own_touch(self, tmp_path):
+        """At amplitude under 100 the stroke's floor sits above the park; the
+        touch is against THAT floor, not the park the stroke never visits."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=False)
+        # Center 50, amplitude 60: floor at 20%.  The wave opens on it.
+        self._publish_drive(runner, waveform=[0.21] + [0.8] * 79,
+                            center=50, amplitude=60)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau_last(runner) == "PAUSE"
+
+    def test_handing_to_genau_never_waits(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True)
+        self._publish_drive(runner, waveform=[0.9] * 40 + [0.0] * 40)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau_last(runner) == "RESUME"
 
     def test_tick_runs_the_handoff(self, tmp_path):
         runner = make_runner(tmp_path)
