@@ -14,7 +14,12 @@ import threading
 import time
 from pathlib import Path
 
-from player_core.drive_readout import first_floor_touch, read_drive, stroke_floor
+from player_core.drive_readout import (
+    FLOOR_WAIT_CAP_MS,
+    floor_touch_ms,
+    read_drive,
+    stroke_floor,
+)
 from player_core.file_channel import append_command
 
 from .command_dispatch import (
@@ -93,12 +98,10 @@ GENAU_DRIVE_FILENAME = "genau_drive.txt"
 # The hybrid handoff to the funscript waits for Genau's stroke to touch its
 # floor, so the device is set down beside the park instead of yanked from
 # mid-swing.  The touch is scheduled once from the published waveform — the
-# same forward picture, and the same touch rule, the trace draws Genau's turn
-# ending on — never by re-sampling the live position, whose brief passes
-# through the floor a polling loop aliases over.  The cap bounds the wait so a
-# stroke at crawling speed is taken mid-swing rather than allowed to stall the
-# script's turn.
-_FLOOR_WAIT_CAP_S = 2.0
+# same forward picture, the same touch rule and the same cap the trace draws
+# Genau's turn ending on — never by re-sampling the live position, whose brief
+# passes through the floor a polling loop aliases over.
+_FLOOR_WAIT_CAP_S = FLOOR_WAIT_CAP_MS / 1000
 
 
 def read_nau_notice(path) -> tuple[float, str, str]:
@@ -611,11 +614,11 @@ class DispatchLoopRunner:
         if drive is None or len(drive.waveform) < 2:
             return False
         floor = stroke_floor(drive.center, drive.amplitude)
-        touch = first_floor_touch(drive.waveform, floor)
-        if not touch:
+        pitch_ms = drive.trace_seconds * 1000 / (len(drive.waveform) - 1)
+        touch_ms = floor_touch_ms(drive.waveform, floor, pitch_ms=pitch_ms)
+        if not touch_ms:
             return False
-        pitch_s = drive.trace_seconds / (len(drive.waveform) - 1)
-        self._hybrid_floor_flip_at = now + min(touch * pitch_s, _FLOOR_WAIT_CAP_S)
+        self._hybrid_floor_flip_at = now + min(touch_ms / 1000, _FLOOR_WAIT_CAP_S)
         return True
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
