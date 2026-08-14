@@ -19,6 +19,16 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 import pytest
 from PyQt6.QtWidgets import QApplication
 
+# The same sibling-checkout override the orchestrator applies at launch: in a
+# worktree whose branch leans on unlanded genau/player_core changes, the suite
+# must test against those checkouts — they are what the verification session
+# runs — and without this the imports below resolve the primaries and a
+# cross-repo branch cannot even collect.  A no-op in the primary and in CI,
+# where no override file exists.
+from fun_time.branch_session import apply_genau_dirs_to_sys_path
+
+apply_genau_dirs_to_sys_path()
+
 from fun_time import win32, windows_bridge_orchestrator
 
 

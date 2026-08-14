@@ -9,6 +9,17 @@ import os
 from pathlib import Path
 
 from .config import DEFAULT_CONFIG_PATH, load_config
+from .branch_session import apply_genau_dirs_to_sys_path
+
+# Before the bridge imports: a worktree's genau_project_dirs override reaches
+# Genau and Nau as subprocess PYTHONPATH, but THIS process — and the dispatch
+# loop inside it — resolves player_core through the venv, which is the
+# primary's.  A branch leaning on an unlanded player_core change then imports
+# code the primary does not have, and the session dies at launch; that is how
+# a verification session reached him broken on 2026-08-13.  A no-op in every
+# ordinary session, where no override file exists.
+apply_genau_dirs_to_sys_path()
+
 from .manifest import write_windows_bridge_manifest
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from app_support.logging_utils import configure_logging, install_exception_logging

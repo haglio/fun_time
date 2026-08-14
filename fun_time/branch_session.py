@@ -515,6 +515,33 @@ def launch(worktree: Path, **kwargs) -> int:
     return subprocess.run(command, cwd=str(worktree), check=False).returncode
 
 
+def apply_genau_dirs_to_sys_path() -> list[str]:
+    """Put this checkout's genau_project_dirs override on ``sys.path``.
+
+    The override reaches Genau and Nau as subprocess PYTHONPATH, but the
+    orchestrator's own process — and the hybrid arbiter inside it — resolves
+    ``player_core`` through the venv, which is the primary checkout's.  A
+    branch that leans on an unlanded player_core change therefore imports
+    names the primary does not have yet, and the session dies at launch.
+    Called at the top of the orchestrator, ahead of the bridge imports, so a
+    verification session runs the same player_core its Genau and Nau do; a
+    no-op wherever the override file does not exist, which is every ordinary
+    session.  Returns what it added.
+    """
+    override = config_module.PROJECT_DIR / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME
+    try:
+        text = override.read_text(encoding="utf-8")
+    except OSError:
+        return []
+    dirs = [line.strip() for line in text.splitlines()
+            if line.strip() and not line.strip().startswith("#")
+            and Path(line.strip()).is_dir()]
+    for entry in reversed(dirs):
+        if entry not in sys.path:
+            sys.path.insert(0, entry)
+    return dirs
+
+
 def sibling_checkouts_line(
     worktree: Path, primary: Path, *, config_path: Path | None = None
 ) -> str:
