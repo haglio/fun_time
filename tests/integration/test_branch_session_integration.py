@@ -53,6 +53,16 @@ def _copy_checkout(destination: Path) -> Path:
         )
     for name in _COPIED_FILES:
         shutil.copyfile(CHECKOUT_DIR / name, destination / name)
+    # The stand-in models an agent worktree, and an agent worktree carrying
+    # cross-repo work carries its genau_project_dirs override — the orchestrator
+    # applies it to its own imports at launch, so without it a branch that leans
+    # on an unlanded sibling change cannot even start here, while the real
+    # shortcut (launching the checkout that HAS the file) comes up fine.
+    from fun_time.branch_session import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
+    override = CHECKOUT_DIR / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME
+    if override.is_file():
+        (destination / STATE_DIRNAME).mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(override, destination / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME)
     return destination
 
 
