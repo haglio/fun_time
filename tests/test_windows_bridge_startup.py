@@ -382,8 +382,11 @@ def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        # The switch's RESUME, taken back by the hold that follows it — see
-        # test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal.
+        # The nau-mode reset leads; the replayed switch's verbs queue behind it
+        # and the drain applies them in order, so the last of each kind wins —
+        # the switch's RESUME taken back by the hold that follows it (see
+        # test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal).
+        "PAUSE", "DISPLAY_OFF",
         "RESUME", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
     ]
     assert _nau_verbs(tmp_path) == [
@@ -433,6 +436,7 @@ def test_seed_startup_states_puts_genaus_hud_up_for_a_hybrid_session(tmp_path: P
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="hybrid")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
+        "PAUSE", "DISPLAY_OFF",
         "RESUME", "HUD_ON", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
     ]
     assert _nau_verbs(tmp_path)[:2] == ["SET_HYBRID 1", "DISPLAY_ON"]
@@ -714,6 +718,7 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     # Genau is told to come back up painting; the reveal is what then lets it
     # drive, so the switch's RESUME is taken back here and both players are held.
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
+        "PAUSE", "DISPLAY_OFF",
         "RESUME", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
     ]
     assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"

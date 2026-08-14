@@ -86,7 +86,7 @@ def test_nau_to_genau_resumes_genau_and_pauses_nau(flow_files):
     assert result.is_transition is True
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nDISPLAY_ON"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nDISPLAY_ON\n"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
 
@@ -96,7 +96,7 @@ def test_genau_to_nau_pauses_genau_and_resumes_nau(flow_files):
     assert result.next_mode == "nau"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nDISPLAY_OFF"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nDISPLAY_OFF\n"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
 
 
@@ -106,7 +106,7 @@ def test_nau_to_hybrid_keeps_nau_playing(flow_files):
     result = _mode_switch(flow_files, current="nau", target="hybrid")
 
     assert result.is_transition is True
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON\n"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
 
 
@@ -158,7 +158,7 @@ def test_hybrid_to_nau_keeps_nau_playing(flow_files):
     result = _mode_switch(flow_files, current="hybrid", target="nau")
 
     assert result.next_mode == "nau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nHUD_OFF\nDISPLAY_OFF"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nHUD_OFF\nDISPLAY_OFF\n"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
 
 
@@ -168,7 +168,7 @@ def test_hybrid_to_genau_resumes_genau(flow_files):
     result = _mode_switch(flow_files, current="hybrid", target="genau")
 
     assert result.next_mode == "genau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\nDISPLAY_ON"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\nDISPLAY_ON\n"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
 
@@ -193,7 +193,7 @@ def test_genau_to_hybrid_starts_nau(flow_files):
     result = _mode_switch(flow_files, current="genau", target="hybrid")
 
     assert result.next_mode == "hybrid"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON\n"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
 
 
@@ -329,17 +329,15 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
 
 def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
     """Nau cannot read F-mode off the playlist it is handed — a list of scripted
-    videos looks like any other — so its HUD only knows because it is told.
-
-    It has to ride along with the reload rather than follow it: the command file is
-    overwritten, not appended, so a second write would drop the first verb.
-    """
+    videos looks like any other — so its HUD only knows because it is told: the
+    flag is queued right behind the reload it belongs to."""
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
     nau_cmd_file = tmp_path / "nau_cmd.txt"
 
     def told(enabled: bool) -> list[str]:
+        nau_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
         apply_fmode(
             players=FMODE_PLAYERS,
             enabled=enabled,
@@ -741,7 +739,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
     # Both satellites are frozen via their paused flag file — a paused native
     # satellite simply cannot auto-advance, so no HTTP re-pause is needed.
@@ -770,7 +768,7 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
@@ -834,7 +832,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
     # Both satellites are unfrozen regardless of the main player mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"

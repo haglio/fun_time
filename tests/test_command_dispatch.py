@@ -416,7 +416,7 @@ def test_primary_prev_in_hybrid_writes_nau_cmd(tmp_path: Path):
 
     dispatch_command("main_prev", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
 def test_primary_next_in_hybrid_writes_nau_cmd(tmp_path: Path):
@@ -425,7 +425,7 @@ def test_primary_next_in_hybrid_writes_nau_cmd(tmp_path: Path):
 
     dispatch_command("main_next", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
 def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
@@ -434,7 +434,7 @@ def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
 
     dispatch_command("main_next", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
 def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
@@ -445,7 +445,7 @@ def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
 
     dispatch_command("main_prev", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
 # --- main_lock ---
@@ -459,7 +459,7 @@ def test_primary_lock_toggles_naus_hold_on_the_video(tmp_path: Path):
 
     dispatch_command("main_lock", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
 
 
 def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
@@ -467,10 +467,13 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     state = _make_state(main_mode="nau")
 
     dispatch_command("main_lock_on", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
+    # Queued behind the first, not overwriting it: the file is the same queue
+    # the hybrid arbiter's handoff verbs ride, and a whole-file write here is
+    # what used to erase them.
     dispatch_command("main_lock_off", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
 
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
@@ -482,7 +485,7 @@ def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
 
     dispatch_command("main_lock", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
     assert not config.nau_cmd_file.exists()
 
 
@@ -490,10 +493,10 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     config = _make_config(tmp_path)
 
     dispatch_command("main_lock_off", _make_state(main_mode="genau"), config)
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF\n"
 
     dispatch_command("main_lock_on", _make_state(main_mode="hybrid"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: Path):
@@ -516,7 +519,7 @@ def test_projection_cycle_writes_nau_cmd_while_nau_displays(tmp_path: Path):
 
     dispatch_command("projection_cycle", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_PROJECTION"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_PROJECTION\n"
 
 
 def test_projection_cycle_in_genau_mode_is_a_no_op(tmp_path: Path):
@@ -539,7 +542,7 @@ def test_recenter_writes_nau_cmd_while_nau_displays(tmp_path: Path):
 
     dispatch_command("recenter_view", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECENTER"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECENTER\n"
 
 
 def test_recenter_in_genau_mode_is_a_no_op(tmp_path: Path):
@@ -560,7 +563,7 @@ def test_nau_cycle_version_writes_nau_cmd(tmp_path: Path):
 
     dispatch_command("nau_cycle_version", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
 
 
 def test_nau_toggle_length_writes_toggle_command(tmp_path: Path):
@@ -569,7 +572,7 @@ def test_nau_toggle_length_writes_toggle_command(tmp_path: Path):
 
     dispatch_command("nau_toggle_length", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
 
 
 def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
@@ -578,7 +581,7 @@ def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
 
     dispatch_command("nau_length_shorts", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
 
 
 def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
@@ -587,7 +590,7 @@ def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
 
     dispatch_command("nau_length_full", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full\n"
 
 
 def test_end_compilation_writes_end_compilation(tmp_path: Path):
@@ -598,7 +601,7 @@ def test_end_compilation_writes_end_compilation(tmp_path: Path):
 
     dispatch_command("nau_end_compilation", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
 
 def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
@@ -608,7 +611,7 @@ def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
 
     dispatch_command("nau_length_mixed", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
 
 
 def test_nau_length_mode_written_in_hybrid_mode(tmp_path: Path):
@@ -618,7 +621,7 @@ def test_nau_length_mode_written_in_hybrid_mode(tmp_path: Path):
 
     dispatch_command("nau_length_shorts", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
 
 
 def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
@@ -637,31 +640,31 @@ def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_compilation", _make_state(main_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_full_vid", _make_state(main_mode="hybrid"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
 
 
 def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_clip_jump", _make_state(main_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_funscript_jump", _make_state(main_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_next_funscripted", _make_state(main_mode="hybrid"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
 
 
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
@@ -853,7 +856,7 @@ def test_quarter_button_writes_genau_offset_command(tmp_path: Path):
 
     new_state, ops = dispatch_command("quarter_button", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "OFFSET_QUARTER_CYCLE"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "OFFSET_QUARTER_CYCLE\n"
 
 
 # --- omnipause_toggle ---
@@ -2087,7 +2090,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_speed_down", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert new_state == state
     assert ops == []
 
@@ -2125,7 +2128,7 @@ def test_the_stroke_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
 
     dispatch_command("genau_speed_up", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.nau_cmd_file.exists()
 
 
@@ -2138,24 +2141,24 @@ def test_speed_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
 
     dispatch_command("genau_speed_up", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.nau_cmd_file.exists()
 
 
 def test_speed_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("speed_min", _make_state(main_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
     dispatch_command("speed_max", _make_state(main_mode="genau"), config)
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
 
 
 def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_speed_150", _make_state(main_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
 
 
 def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path: Path):
@@ -2165,7 +2168,7 @@ def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path:
     for mode in ("nau", "hybrid"):
         config = _make_config(tmp_path / mode)
         dispatch_command("nau_speed_up", _make_state(main_mode=mode), config)
-        assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP"
+        assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
         assert not config.genau_cmd_file.exists()
 
     config = _make_config(tmp_path / "genau")
@@ -2192,7 +2195,7 @@ def test_absolute_speed_reaches_nau_video_in_hybrid_even_when_genau_drives(tmp_p
     state = _make_state(main_mode="hybrid")
 
     dispatch_command("nau_speed_150", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
     assert not config.genau_cmd_file.exists()
 
 
@@ -2200,13 +2203,13 @@ def test_speed_max_sets_nau_video_in_hybrid(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=False)
     dispatch_command("speed_max", _make_state(main_mode="hybrid"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("nau_speed_100", _make_state(main_mode="nau"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
 
 
 def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
@@ -2350,7 +2353,7 @@ def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_next_clip", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
 def test_genau_toggle_auto_flips_genau_enabled_flag(tmp_path: Path):
@@ -2399,7 +2402,7 @@ def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Pat
 
     new_state, ops = dispatch_command("genau_cycle_shape_prev", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CYCLE_SHAPE_PREV"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CYCLE_SHAPE_PREV\n"
     assert new_state == state
     assert ops == []
 
@@ -2410,7 +2413,7 @@ def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_toggle_cruise", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_CRUISE"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_CRUISE\n"
     assert new_state == state
     assert ops == []
 
@@ -2421,7 +2424,7 @@ def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_cruise_on", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_ON"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_ON\n"
     assert new_state == state
     assert ops == []
 
@@ -2432,7 +2435,7 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_cruise_off", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_OFF"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_OFF\n"
     assert new_state == state
     assert ops == []
 
@@ -2448,7 +2451,7 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
         config = _make_config(tmp_path / command)
         new_state, ops = dispatch_command(command, _make_state(main_mode="genau"), config)
 
-        assert config.genau_cmd_file.read_text(encoding="utf-8") == verb
+        assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
         assert ops == []
 
 
@@ -2458,7 +2461,7 @@ def test_genau_clip_seconds_writes_a_numeric_cmd(tmp_path: Path):
 
     dispatch_command("genau_clip_seconds_30", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CLIP_SECONDS 30"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CLIP_SECONDS 30\n"
 
 
 def test_genau_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
@@ -2481,7 +2484,7 @@ def test_genau_amp_writes_numeric_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_amp_50", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "AMP 50"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "AMP 50\n"
     assert new_state == state
     assert ops == []
 
@@ -2492,7 +2495,7 @@ def test_genau_center_writes_numeric_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_center_80", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CENTER 80"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "CENTER 80\n"
 
 
 def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
@@ -2501,7 +2504,7 @@ def test_genau_speed_writes_numeric_cmd_file(tmp_path: Path):
 
     new_state, ops = dispatch_command("genau_speed_30", state, config)
 
-    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30"
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 30\n"
 
 
 def test_genau_numeric_cmd_noop_when_not_in_genau_mode(tmp_path: Path):
@@ -2669,7 +2672,7 @@ def test_primary_nudge_in_hybrid_writes_nau_seek(tmp_path: Path):
     new_state, ops = dispatch_command("main_nudge_prev", state, config)
 
     assert ops == []
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
 
 
 def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
@@ -2678,10 +2681,11 @@ def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
 
     new_state, ops = dispatch_command("main_nudge_prev", state, config)
     assert ops == []
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
 
     dispatch_command("main_nudge_next", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_FWD"
+    assert config.nau_cmd_file.read_text(
+        encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
 
 
 # --- nau record commands ---
@@ -2698,7 +2702,7 @@ def test_nau_record_commands_write_nau_cmd_in_nau_mode(tmp_path: Path):
         ("nau_loop_cancel", "LOOP_CANCEL"),
     ]:
         new_state, ops = dispatch_command(command, state, config)
-        assert config.nau_cmd_file.read_text(encoding="utf-8") == expected
+        assert config.nau_cmd_file.read_text(encoding="utf-8") == expected + "\n"
         assert ops == []
         config.nau_cmd_file.unlink()
 
@@ -2710,7 +2714,7 @@ def test_nau_record_commands_work_in_hybrid_mode(tmp_path: Path):
 
     new_state, ops = dispatch_command("nau_record_tap", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
     assert ops == []
 
 

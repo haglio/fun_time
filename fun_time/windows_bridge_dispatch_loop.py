@@ -85,8 +85,6 @@ PRIMARY_BLANK_SETTLE_S = 0.25
 # raised in :mod:`fun_time.command_dispatch` do.
 _NAU_NOTICE_LEVELS = {"error": FAILED_NOTICE_LEVEL, "favorite": FAVORITE}
 
-# Genau's published readout, in its state dir beside its command file — the same
-# derivation the sequencer hands both players at launch.
 
 
 def read_nau_notice(path) -> tuple[float, str, str]:
@@ -315,8 +313,8 @@ class DispatchLoopRunner:
         # funscript gap or an unscripted video).  None means "no decision applied
         # yet" — set outside hybrid so re-entry re-asserts the correct driver.
         self._hybrid_funscript_driving: bool | None = None
-        # When the scheduled handoff to the funscript fires — the moment
-        # Genau's published stroke next touches its floor; None outside a wait.
+        self._hybrid_asserted_at: float = 0.0
+        self._nau_status_snapshot = None
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
@@ -327,6 +325,11 @@ class DispatchLoopRunner:
     # by dating the switch to the bracket's midpoint).  Skipped under OmniPause,
     # where playback is frozen.
     _WATCH_SAMPLE_INTERVAL_S = 0.5
+
+    # How often the standing hybrid pair (SET_TCODE_ENABLED + PAUSE/RESUME) is
+    # re-queued without an edge, so a verb lost in transit converges instead of
+    # staying lost until the next turn boundary.
+    _HYBRID_REASSERT_S = 1.0
 
     # The satellites play ~5 s clips, so the HUD map has to track the current clip
     # almost the instant it changes — but not at the loop's own 20 Hz.  Building a
@@ -556,22 +559,34 @@ class DispatchLoopRunner:
         if self.state.main_mode != "hybrid" or self.state.omni_paused:
             self._hybrid_funscript_driving = None
             return
-        status = read_nau_status(self.config.nau_status_file)
+        status = read_nau_status(
+            self.config.nau_status_file, fallback=self._nau_status_snapshot)
+        self._nau_status_snapshot = status
         funscript_driving = status.funscript_driving
-        if funscript_driving == self._hybrid_funscript_driving:
+        now = time.monotonic()
+        if (funscript_driving == self._hybrid_funscript_driving
+                and now - self._hybrid_asserted_at < self._HYBRID_REASSERT_S):
             return
-        self._hybrid_funscript_driving = funscript_driving
-        # Appended, not overwritten: both files are single slots shared with
-        # other writers, and a handoff verb clobbered between writes froze a
-        # session — Genau paused with the funscript never enabled, both idle.
-        append_command(
+        # ASSERTED, not fired-and-forgotten.  A verb queued on a file channel
+        # can still die — a writer replacing the file whole, a drain racing the
+        # append, a locked file exhausting the retries — and an edge-triggered
+        # arbiter that assumed delivery left the session split-brained for a
+        # whole cluster: Genau paused, the funscript never enabled, everything
+        # idle and grey.  So the edge is recorded only once both verbs actually
+        # queued, and the standing pair is re-queued on a slow heartbeat — both
+        # verbs are idempotent at their players — so any lost one converges
+        # within a second instead of at the next turn boundary.
+        queued_nau = append_command(
             self.config.nau_cmd_file,
             "SET_TCODE_ENABLED 1" if funscript_driving else "SET_TCODE_ENABLED 0",
         )
-        append_command(
+        queued_genau = append_command(
             self.config.genau_cmd_file,
             "PAUSE" if funscript_driving else "RESUME",
         )
+        if queued_nau and queued_genau:
+            self._hybrid_funscript_driving = funscript_driving
+            self._hybrid_asserted_at = now
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
@@ -914,13 +929,23 @@ class DispatchLoopRunner:
             pass
 
     def _osr2_mode(self) -> str:
-        """What the device is doing: "off" when nothing is answering on the wire,
+        """What the device is doing: "off" when nothing is on the wire at all,
         "auto" while Genau has claimed it, "controlled" otherwise.
 
         Read by the dashboard's snapshot and by Nau's console — one rule, so the
         two cannot disagree about what has the OSR2.
+
+        "Off" requires BOTH serial stamps stale.  The device only emits bytes in
+        reply to traffic, so the RX stamp alone goes quiet during any stretch
+        nothing new is sent — an OmniPause, a handoff buffer — and calling that
+        "off" told the console nobody had the device at the exact moments the
+        handoff was on screen: the whole readout went dead grey with the dot
+        parked, mid-picture, over and over.  A driver sending (TX fresh) is a
+        device in use, whatever it last said back.
         """
-        if not is_osr2_device_on(self.config.osr2_serial_rx_file):
+        rx_fresh = is_osr2_device_on(self.config.osr2_serial_rx_file)
+        tx_fresh = is_osr2_device_on(self.config.osr2_serial_tx_file)
+        if not (rx_fresh or tx_fresh):
             return "off"
         return "auto" if read_flag_file(self.config.genau_mode_file, False) else "controlled"
 
@@ -1221,7 +1246,7 @@ class DispatchLoopRunner:
                     command = f"PLAY_FILE {selected}\t{mirrored}"
                 else:
                     command = f"PLAY_FILE {selected}"
-                self.config.nau_cmd_file.write_text(command, encoding="utf-8")
+                append_command(self.config.nau_cmd_file, command)
         finally:
             if manage_session:
                 self._restore_all_topmost()

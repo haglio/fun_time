@@ -323,11 +323,13 @@ def seed_startup_states(
     The defaults are a fresh session's: full, unmuted, unnarrowed, on Nau.
     """
     Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
-    Path(genau_cmd_file).write_text("PAUSE\nDISPLAY_OFF", encoding="utf-8")
-    # Before the two appends below, because a switch writes Nau's channel whole:
-    # queued after it, the level and the F-mode flag would be the verbs it drops.
+    # Written whole ONCE, here, before any player is running: the fresh
+    # session's reset, clearing whatever a crashed predecessor left queued.
+    # Everything after it appends — the player drains the queue in order, so a
+    # later verb of the same kind supersedes an earlier one and none is lost.
     # The broker is left out on purpose — startup has already parked the OSR2, and
     # a switch INTO a genau-active mode has nothing to say to it anyway.
+    Path(genau_cmd_file).write_text("PAUSE\nDISPLAY_OFF\n", encoding="utf-8")
     apply_mode_switch(
         current_mode=STARTUP_MAIN_MODE,
         target_mode=mode,
