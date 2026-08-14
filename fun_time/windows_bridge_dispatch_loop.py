@@ -14,12 +14,6 @@ import threading
 import time
 from pathlib import Path
 
-from player_core.drive_readout import (
-    FLOOR_WAIT_CAP_MS,
-    floor_touch_ms,
-    read_drive,
-    stroke_floor,
-)
 from player_core.file_channel import append_command
 
 from .command_dispatch import (
@@ -93,15 +87,6 @@ _NAU_NOTICE_LEVELS = {"error": FAILED_NOTICE_LEVEL, "favorite": FAVORITE}
 
 # Genau's published readout, in its state dir beside its command file — the same
 # derivation the sequencer hands both players at launch.
-GENAU_DRIVE_FILENAME = "genau_drive.txt"
-
-# The hybrid handoff to the funscript waits for Genau's stroke to touch its
-# floor, so the device is set down beside the park instead of yanked from
-# mid-swing.  The touch is scheduled once from the published waveform — the
-# same forward picture, the same touch rule and the same cap the trace draws
-# Genau's turn ending on — never by re-sampling the live position, whose brief
-# passes through the floor a polling loop aliases over.
-_FLOOR_WAIT_CAP_S = FLOOR_WAIT_CAP_MS / 1000
 
 
 def read_nau_notice(path) -> tuple[float, str, str]:
@@ -332,7 +317,6 @@ class DispatchLoopRunner:
         self._hybrid_funscript_driving: bool | None = None
         # When the scheduled handoff to the funscript fires — the moment
         # Genau's published stroke next touches its floor; None outside a wait.
-        self._hybrid_floor_flip_at: float | None = None
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
@@ -562,25 +546,20 @@ class DispatchLoopRunner:
         omnipause) the remembered state is cleared so re-entry re-asserts the
         driver; leaving hybrid re-enables Nau's T-Code via the mode switch.
 
-        Taking the device FROM Genau waits for the stroke to touch its floor:
-        pausing it mid-swing left the OSR2 wherever the swing froze — the trace
-        Nau draws ends Genau's turn on a floor-touch, and the device kept
-        breaking that promise.  The wait reads Genau's published readout;
-        missing or stale, or a stroke too slow to come down within the cap, and
-        the handoff goes through as before rather than stalling the script.
+        The handoff itself is not smoothed here, and nothing waits for the
+        stroke: whoever takes the device walks it from where it is to where it
+        needs to be (Nau's driver parks it over its handoff ramp; Genau climbs
+        back out of the park over the same one).  Waiting here for Genau's next
+        floor-touch made the moment depend on the live stroke, and the trace —
+        which had to draw that moment before it happened — could only guess it.
         """
         if self.state.main_mode != "hybrid" or self.state.omni_paused:
             self._hybrid_funscript_driving = None
-            self._hybrid_floor_flip_at = None
             return
         status = read_nau_status(self.config.nau_status_file)
         funscript_driving = status.funscript_driving
         if funscript_driving == self._hybrid_funscript_driving:
-            self._hybrid_floor_flip_at = None
             return
-        if funscript_driving and self._holding_for_genau_floor():
-            return
-        self._hybrid_floor_flip_at = None
         self._hybrid_funscript_driving = funscript_driving
         # Appended, not overwritten: both files are single slots shared with
         # other writers, and a handoff verb clobbered between writes froze a
@@ -593,33 +572,6 @@ class DispatchLoopRunner:
             self.config.genau_cmd_file,
             "PAUSE" if funscript_driving else "RESUME",
         )
-
-    def _holding_for_genau_floor(self) -> bool:
-        """Whether to hold the handoff for Genau's stroke to reach its floor.
-
-        Scheduled once, from the published waveform: the first sample that
-        touches the floor (the lowest point of the published center and
-        amplitude, beside the park) says when the stroke comes down, and the
-        flip fires then — the same forward picture, and the same touch rule,
-        the trace uses to draw Genau's turn ending, so the device is set down
-        where the picture says it will be.  No readout to read (an integration
-        run, a torn write), or a stroke already on its floor, or one that
-        never comes down within its published span, means no wait at all.
-        """
-        now = time.monotonic()
-        if self._hybrid_floor_flip_at is not None:
-            return now < self._hybrid_floor_flip_at
-        drive = read_drive(
-            Path(self.config.genau_cmd_file).parent / GENAU_DRIVE_FILENAME)
-        if drive is None or len(drive.waveform) < 2:
-            return False
-        floor = stroke_floor(drive.center, drive.amplitude)
-        pitch_ms = drive.trace_seconds * 1000 / (len(drive.waveform) - 1)
-        touch_ms = floor_touch_ms(drive.waveform, floor, pitch_ms=pitch_ms)
-        if not touch_ms:
-            return False
-        self._hybrid_floor_flip_at = now + min(touch_ms / 1000, _FLOOR_WAIT_CAP_S)
-        return True
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
