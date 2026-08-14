@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import logging
+
+from player_core.file_channel import append_command
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -122,21 +124,22 @@ def apply_mode_switch(
             cmd for cmd in (plan.genau_cmd, plan.hud_cmd, plan.genau_display_cmd)
             if cmd is not None
         ]
-        if cmds:
-            Path(genau_cmd_file).write_text("\n".join(cmds), encoding="utf-8")
+        for cmd in cmds:
+            append_command(Path(genau_cmd_file), cmd)
         # Nau is told which mode the main slot is in on every switch: in
         # hybrid, Genau's window is a transparent layer over Nau's and its own
         # panel holds the top-left corner, so Nau starts its own furniture past
         # it.  It is told whether it is on screen too, the mirror of the
-        # DISPLAY_ON/DISPLAY_OFF Genau gets.  All of it on one write, together
-        # with the T-Code re-enable, because this file is overwritten, not
-        # appended — a second write would drop the first.
+        # DISPLAY_ON/DISPLAY_OFF Genau gets.  Queued, never written whole: the
+        # file is a queue shared with every other writer, and replacing it here
+        # erased whatever they had appended since the last drain.
         nau_cmds = [f"SET_HYBRID {int(plan.target_mode == 'hybrid')}"]
         if plan.nau_display_cmd is not None:
             nau_cmds.append(plan.nau_display_cmd)
         if plan.reenable_nau_tcode:
             nau_cmds.append("SET_TCODE_ENABLED 1")
-        Path(nau_cmd_file).write_text("\n".join(nau_cmds), encoding="utf-8")
+        for cmd in nau_cmds:
+            append_command(Path(nau_cmd_file), cmd)
         if not will_genau and broker_cmd_file is not None:
             write_broker_command(broker_cmd_file, RESUME_CMD)
     return ModeSwitchFlowResult(
@@ -169,16 +172,16 @@ def apply_main_fmode(
     """
     paths = build_main_playlist_paths(main_sources, enabled, recent=recent)
     write_nau_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_NAU), paths)
-    # Every verb on one write: this file is overwritten, not appended, so telling
-    # Nau the flag afterwards would drop the reload that goes with it.  Nau's HUD
-    # has no other way to know — the playlist it is handed has already been
-    # narrowed, and a list of scripted videos looks like any other.  The jump goes
-    # last, so it lands on the list the reload has just taken.
+    # Queued in order — the reload first, the flag with it, the jump last so it
+    # lands on the list the reload has just taken.  Nau's HUD has no other way
+    # to know the flag: the playlist it is handed has already been narrowed,
+    # and a list of scripted videos looks like any other.
     verbs = [RELOAD_PLAYLIST_CMD, f"{SET_F_MODE_CMD} {int(enabled)}"]
     if start_at_top and paths:
         head = playlist_entry_line(paths[0], matching_funscript(paths[0]))
         verbs.append(f"{PLAY_FILE_CMD} {head}")
-    Path(nau_cmd_file).write_text("\n".join(verbs), encoding="utf-8")
+    for verb in verbs:
+        append_command(Path(nau_cmd_file), verb)
 
 
 def apply_satellite_fmode(
@@ -391,7 +394,7 @@ def apply_enter_omnipause(
     # settled state: one write holds it, with nothing to police afterwards.
     write_flag_file(portrait_paused_file, True)
     write_flag_file(landscape_paused_file, True)
-    Path(genau_cmd_file).write_text("PAUSE", encoding="utf-8")
+    append_command(Path(genau_cmd_file), "PAUSE")
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
     return OmniPauseFlowResult(
@@ -421,7 +424,7 @@ def apply_leave_omnipause(
         write_flag_file(genau_paused_file, False)
         write_flag_file(audio_paused_file, False)
     if plan.resume_genau_playback:
-        Path(genau_cmd_file).write_text("RESUME", encoding="utf-8")
+        append_command(Path(genau_cmd_file), "RESUME")
     if plan.resume_nau_playback:
         write_flag_file(nau_paused_file, False)
     if broker_cmd_file is not None:

@@ -29,6 +29,7 @@ from .media_metadata import (
     seed_family_members,
     widened_seed_members,
 )
+from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL
 
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
@@ -224,6 +225,14 @@ class BridgeConfig:
     def osr2_serial_rx_file(self) -> Path:
         """When the OSR2 last spoke, as the broker last stamped it."""
         return self.broker_state / "osr2_serial_rx.txt"
+
+    @property
+    def osr2_serial_tx_file(self) -> Path:
+        """When a driver last spoke TO the OSR2.  The device only replies to
+        traffic, so through a quiet stretch (an OmniPause, a handoff buffer) the
+        RX stamp alone goes stale on a device that is on and in use — this one
+        says somebody is still driving it."""
+        return self.broker_state / "osr2_serial_tx.txt"
 
     @property
     def regen(self) -> RegenConfig:
@@ -1267,9 +1276,8 @@ def dispatch_command(
     if command in ("main_prev", "main_next"):
         # Nau owns the main player in nau and hybrid; in genau mode the
         # paused Nau still navigates in the background.
-        config.nau_cmd_file.write_text(
-            "PREV" if command == "main_prev" else "NEXT", encoding="utf-8",
-        )
+        append_command(
+            config.nau_cmd_file, "PREV" if command == "main_prev" else "NEXT")
         return state, ops
 
     lock_verb = _PRIMARY_LOCK_COMMANDS.get(command)
@@ -1279,16 +1287,15 @@ def dispatch_command(
         # split the speed controls make, and for the same reason.
         target = (config.nau_cmd_file if nau_displays(state.main_mode)
                   else config.genau_cmd_file)
-        target.write_text(lock_verb, encoding="utf-8")
+        append_command(target, lock_verb)
         return state, ops
 
     if command in ("main_nudge_prev", "main_nudge_next"):
         # Nau owns the main player; its SEEK commands apply to a live local
         # clock, so rapid nudges stack naturally.
-        config.nau_cmd_file.write_text(
-            "SEEK_BACK" if command == "main_nudge_prev" else "SEEK_FWD",
-            encoding="utf-8",
-        )
+        append_command(
+            config.nau_cmd_file,
+            "SEEK_BACK" if command == "main_nudge_prev" else "SEEK_FWD")
         return state, ops
 
     if command == "projection_cycle":
@@ -1296,7 +1303,7 @@ def dispatch_command(
         # MKX200 → 360 and remembering the pick in the video's sidecar.  Routed
         # like every main-player verb so the desktop Nau simply logs it as unknown.
         if nau_displays(state.main_mode):
-            config.nau_cmd_file.write_text("CYCLE_PROJECTION", encoding="utf-8")
+            append_command(config.nau_cmd_file, "CYCLE_PROJECTION")
         return state, ops
 
     if command == "recenter_view":
@@ -1304,14 +1311,14 @@ def dispatch_command(
         # this instant; the runtime's own recenter UI never reaches the app.
         # Routed like every main-player verb so the desktop Nau logs it as unknown.
         if nau_displays(state.main_mode):
-            config.nau_cmd_file.write_text("RECENTER", encoding="utf-8")
+            append_command(config.nau_cmd_file, "RECENTER")
         return state, ops
 
     if command in _NAU_CMD_MAP:
         # Loop recording, versions and length only make sense while Nau owns the
         # main slot — nau and hybrid, but not genau.
         if nau_displays(state.main_mode):
-            config.nau_cmd_file.write_text(_NAU_CMD_MAP[command], encoding="utf-8")
+            append_command(config.nau_cmd_file, _NAU_CMD_MAP[command])
         return state, ops
 
     if command in _MUTE_COMMANDS:
@@ -1325,7 +1332,7 @@ def dispatch_command(
         return _dispatch_set_volume(command.partition("|")[2], state, config)
 
     if command == "quarter_button":
-        config.genau_cmd_file.write_text("OFFSET_QUARTER_CYCLE", encoding="utf-8")
+        append_command(config.genau_cmd_file, "OFFSET_QUARTER_CYCLE")
         return state, ops
 
     if command == "omnipause_toggle":
@@ -1380,20 +1387,20 @@ def dispatch_command(
         nau_cmd, genau_cmd = speed
         target = _speed_target(state)
         if target == "nau" and nau_cmd is not None:
-            config.nau_cmd_file.write_text(nau_cmd, encoding="utf-8")
+            append_command(config.nau_cmd_file, nau_cmd)
         elif target == "genau" and genau_cmd is not None:
-            config.genau_cmd_file.write_text(genau_cmd, encoding="utf-8")
+            append_command(config.genau_cmd_file, genau_cmd)
         return state, ops
 
     if command in _GENAU_CMD_MAP:
         if genau_active(state.main_mode):
-            config.genau_cmd_file.write_text(_GENAU_CMD_MAP[command], encoding="utf-8")
+            append_command(config.genau_cmd_file, _GENAU_CMD_MAP[command])
         return state, ops
 
     genau_numeric = _parse_genau_numeric_command(command)
     if genau_numeric is not None:
         if genau_active(state.main_mode):
-            config.genau_cmd_file.write_text(genau_numeric, encoding="utf-8")
+            append_command(config.genau_cmd_file, genau_numeric)
         return state, ops
 
     if command == "clipper_save":

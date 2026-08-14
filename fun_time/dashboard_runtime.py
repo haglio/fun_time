@@ -123,9 +123,18 @@ class NauStatus:
         return (self.loop_in_ms, self.loop_out_ms)
 
 
-def read_nau_status(path: Path) -> NauStatus:
+def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStatus:
+    """Nau's published status, or *fallback* (else a default) when the file is
+    missing or torn mid-replace.
+
+    The fallback matters to the hybrid arbiter: a default snapshot reads
+    ``funscript_driving`` False, so one torn read mid-cluster flipped the
+    device to Genau and the next good read flipped it straight back — a
+    spurious double handoff nobody asked for.  Handing back the last good
+    snapshot makes a failed read a non-event.
+    """
     if not path.exists():
-        return NauStatus()
+        return fallback or NauStatus()
     try:
         text = path.read_text(encoding="utf-8")
         values = dict(
@@ -144,7 +153,7 @@ def read_nau_status(path: Path) -> NauStatus:
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
         )
     except (OSError, ValueError):
-        return NauStatus()
+        return fallback or NauStatus()
 
 
 GENAU_STATUS_FILENAME = "genau_status.txt"

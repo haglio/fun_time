@@ -1739,7 +1739,7 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
-        assert command == f"PLAY_FILE {video}\t{mirrored}"
+        assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
     def test_sends_selected_file_to_nau_in_hybrid(self, tmp_path):
         """Hybrid displays Nau, so a selected file becomes a Nau PLAY_FILE
@@ -1754,7 +1754,8 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
 
-        assert runner.config.nau_cmd_file.read_text(encoding="utf-8") == r"PLAY_FILE C:\videos\movie.mp4"
+        assert runner.config.nau_cmd_file.read_text(
+            encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
         """When the user cancels the dialog, nothing is sent to Nau."""
