@@ -2542,6 +2542,73 @@ class TestHybridFunscriptHandoff:
     def _nau(self, runner):
         return runner.config.nau_cmd_file.read_text(encoding="utf-8").strip()
 
+    def _publish_drive(self, runner, *, waveform, center=50, amplitude=100,
+                       let_go=None):
+        from player_core.drive_readout import DriveHud, publish_drive
+        from fun_time.windows_bridge_dispatch_loop import GENAU_DRIVE_FILENAME
+        publish_drive(
+            Path(runner.config.state_dir) / GENAU_DRIVE_FILENAME,
+            DriveHud(center=center, amplitude=amplitude, trace_seconds=8.0,
+                     let_go=let_go, waveform=tuple(waveform)))
+
+    def test_a_stroke_on_the_park_holds_the_flip_for_its_touch_down(self, tmp_path):
+        """The trace draws that blue ending on its touch-down and the grey flat
+        from there — no ramp — so the device is set down at the same touch: the
+        flip waits for it, once, on a deadline scheduled from the published
+        wave rather than re-derived from a moving one."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True)
+        runner._sync_hybrid_driver()                        # Genau's turn first
+        self._write_status(runner, has_funscript=True, resting=False)
+        # Mid-swing now; the touch comes half the trace later.
+        self._publish_drive(runner, waveform=[0.9] * 40 + [0.0] * 24)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner) == "RESUME"              # still Genau's
+        assert runner._park_touch_deadline is not None
+
+    def test_the_held_flip_lands_when_the_deadline_does(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True)
+        runner._sync_hybrid_driver()
+        self._write_status(runner, has_funscript=True, resting=False)
+        self._publish_drive(runner, waveform=[0.9] * 40 + [0.0] * 24)
+        runner._sync_hybrid_driver()
+
+        runner._park_touch_deadline = 0.0                   # the touch's moment
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner).splitlines()[-1] == "PAUSE"
+
+    def test_a_raised_floor_flips_at_once(self, tmp_path):
+        """Amplitude under 100: the descent is the drawn ramp, walked by Nau's
+        driver from wherever the blue leaves the device — nothing to wait for."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True)
+        runner._sync_hybrid_driver()
+        self._write_status(runner, has_funscript=True, resting=False)
+        self._publish_drive(runner, waveform=[0.5, 0.9] * 32, amplitude=30)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner).splitlines()[-1] == "PAUSE"
+
+    def test_a_wave_already_on_the_park_flips_at_once(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True)
+        runner._sync_hybrid_driver()
+        self._write_status(runner, has_funscript=True, resting=False)
+        self._publish_drive(runner, waveform=[0.0] + [0.9] * 63)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner).splitlines()[-1] == "PAUSE"
+
     def test_scripted_stretch_drives_from_the_funscript(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode="hybrid")

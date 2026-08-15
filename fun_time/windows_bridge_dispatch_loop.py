@@ -14,7 +14,9 @@ import threading
 import time
 from pathlib import Path
 
+from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
+from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .command_dispatch import (
     FAILED_NOTICE_LEVEL,
@@ -72,6 +74,12 @@ from .win32 import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Genau publishes its drive readout here, in the session state dir — the
+# park-touch hold reads the same wave the trace draws its blue ending from.
+GENAU_DRIVE_FILENAME = "genau_drive.txt"
+# The same two percent of the travel the trace and the sender call the park.
+_PARK_TOUCH_EPSILON = 0.02
 
 # How long the outgoing main-slot player keeps its window before it is
 # minimized, so the DISPLAY_OFF it was sent in the same breath is on screen
@@ -315,6 +323,9 @@ class DispatchLoopRunner:
         self._hybrid_funscript_driving: bool | None = None
         self._hybrid_asserted_at: float = 0.0
         self._nau_status_snapshot = None
+        # When the park-touch hold releases the pending Genau-to-script flip;
+        # None outside one — see _holding_for_park_touch.
+        self._park_touch_deadline: float | None = None
 
     _HOTKEY_TO_BUTTON: dict[str, str] = {}
 
@@ -558,6 +569,7 @@ class DispatchLoopRunner:
         """
         if self.state.main_mode != "hybrid" or self.state.omni_paused:
             self._hybrid_funscript_driving = None
+            self._park_touch_deadline = None
             return
         status = read_nau_status(
             self.config.nau_status_file, fallback=self._nau_status_snapshot)
@@ -567,6 +579,16 @@ class DispatchLoopRunner:
         if (funscript_driving == self._hybrid_funscript_driving
                 and now - self._hybrid_asserted_at < self._HYBRID_REASSERT_S):
             return
+        if funscript_driving and self._hybrid_funscript_driving is False:
+            # Taking the device FROM Genau: a stroke whose floor rests ON the
+            # park is set down exactly where the trace draws its blue ending —
+            # on its next touch-down — so the flip holds for that one touch.
+            # A raised floor takes the ramp instead and flips at once; the
+            # heartbeat above keeps asserting Genau's level through the hold.
+            if self._holding_for_park_touch(now):
+                return
+        else:
+            self._park_touch_deadline = None
         # ASSERTED, not fired-and-forgotten.  A verb queued on a file channel
         # can still die — a writer replacing the file whole, a drain racing the
         # append, a locked file exhausting the retries — and an edge-triggered
@@ -587,6 +609,38 @@ class DispatchLoopRunner:
         if queued_nau and queued_genau:
             self._hybrid_funscript_driving = funscript_driving
             self._hybrid_asserted_at = now
+            self._park_touch_deadline = None
+
+    def _holding_for_park_touch(self, now: float) -> bool:
+        """Whether the Genau-to-script flip is still waiting for a touch-down.
+
+        Scheduled ONCE, from the published readout: only a stroke whose floor
+        rests on the park qualifies (min of the wave at the park), and the wait
+        is the first touch's ETA, capped so a stroke too slow to come down
+        cannot stall the script.  Missing or already-parked publishes flip at
+        once — the ramp path handles those.  The one-shot deadline is what
+        keeps the moment stable: re-derived per tick from a moving wave, the
+        stopping point wandered, and the drawn blue ending could never match
+        the device.
+        """
+        if self._park_touch_deadline is not None:
+            if now < self._park_touch_deadline:
+                return True
+            self._park_touch_deadline = None
+            return False
+        drive = read_drive(Path(self.config.state_dir) / GENAU_DRIVE_FILENAME)
+        if drive is None or len(drive.waveform) < 2 or drive.let_go is not None:
+            return False
+        if min(drive.waveform) > _PARK_TOUCH_EPSILON:
+            return False
+        touch = next((index for index, value in enumerate(drive.waveform)
+                      if value <= _PARK_TOUCH_EPSILON), None)
+        if not touch:
+            return False
+        pitch_s = drive.trace_seconds / (len(drive.waveform) - 1)
+        self._park_touch_deadline = now + min(
+            touch * pitch_s, PARK_TOUCH_WAIT_CAP_MS / 1000)
+        return True
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
