@@ -2526,9 +2526,11 @@ class TestHybridFunscriptHandoff:
     the unscripted ones — a funscript's quiet lead-in and its interior gaps,
     which Nau flags as ``funscript_resting``."""
 
-    def _write_status(self, runner, *, has_funscript=True, resting=False):
+    def _write_status(self, runner, *, has_funscript=True, resting=False,
+                      position_ms=10):
         runner.config.nau_status_file.write_text(
-            "video=C:\\clip.mp4\nposition_ms=10\n"
+            "video=C:\\clip.mp4\n"
+            f"position_ms={position_ms}\n"
             f"has_funscript={1 if has_funscript else 0}\n"
             f"funscript_resting={1 if resting else 0}\n",
             encoding="utf-8",
@@ -2596,6 +2598,25 @@ class TestHybridFunscriptHandoff:
         runner._sync_hybrid_driver()
 
         assert self._genau(runner).splitlines()[-1] == "PAUSE"
+
+    def test_a_seek_into_the_script_s_turn_flips_at_once(self, tmp_path):
+        """The hold honors a drawn blue ending, and a seek-entry never drew
+        one: jumped into dense action from a rest, the picture already shows
+        the script's turn running, so a hold would keep Genau swinging under a
+        pure green picture for its whole cap."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=True,
+                           position_ms=1_000)
+        runner._sync_hybrid_driver()
+        self._write_status(runner, has_funscript=True, resting=False,
+                           position_ms=41_000)          # a 40s jump
+        self._publish_drive(runner, waveform=[0.9] * 40 + [0.0] * 24)
+
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner).splitlines()[-1] == "PAUSE"
+        assert runner._park_touch_deadline is None
 
     def test_a_wave_already_on_the_park_flips_at_once(self, tmp_path):
         runner = make_runner(tmp_path)
