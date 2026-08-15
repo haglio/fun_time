@@ -571,8 +571,8 @@ class DispatchLoopRunner:
             self._hybrid_funscript_driving = None
             self._park_touch_deadline = None
             return
-        status = read_nau_status(
-            self.config.nau_status_file, fallback=self._nau_status_snapshot)
+        previous = self._nau_status_snapshot
+        status = read_nau_status(self.config.nau_status_file, fallback=previous)
         self._nau_status_snapshot = status
         funscript_driving = status.funscript_driving
         now = time.monotonic()
@@ -583,9 +583,16 @@ class DispatchLoopRunner:
             # Taking the device FROM Genau: a stroke whose floor rests ON the
             # park is set down exactly where the trace draws its blue ending —
             # on its next touch-down — so the flip holds for that one touch.
-            # A raised floor takes the ramp instead and flips at once; the
-            # heartbeat above keeps asserting Genau's level through the hold.
-            if self._holding_for_park_touch(now):
+            # A raised floor takes the ramp instead and flips at once.  Only a
+            # FLOWING boundary crossing holds: entered by a seek, there is no
+            # drawn blue ending to honor — the trace shows the script's turn
+            # already running — and a hold there kept Genau swinging under a
+            # pure green picture for its whole cap.  Nothing re-asserts during
+            # a hold; the standing pair still says Genau, which is the truth
+            # of it.
+            flowed = (previous is not None
+                      and abs(status.position_ms - previous.position_ms) < 1_500)
+            if flowed and self._holding_for_park_touch(now):
                 return
         else:
             self._park_touch_deadline = None
