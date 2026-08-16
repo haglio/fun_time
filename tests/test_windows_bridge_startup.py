@@ -3,6 +3,8 @@ from __future__ import annotations
 import configparser
 import json
 import os
+import shutil
+import sys
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlparse
@@ -1743,9 +1745,13 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
     @staticmethod
     def _interpreter(tmp_path: Path) -> Path:
+        # A real interpreter, because naming one writes a description into its
+        # version resource and only a real executable can carry one — a stub
+        # file falls back to being launched unnamed, which is the very thing
+        # these assert against.
         exe = tmp_path / ".venv" / "Scripts" / "pythonw.exe"
         exe.parent.mkdir(parents=True, exist_ok=True)
-        exe.write_bytes(b"MZ launcher")
+        shutil.copyfile(sys.executable, exe)
         return exe
 
     @staticmethod

@@ -169,33 +169,31 @@ def test_branch_launcher_says_so_when_the_worktree_has_been_deleted():
 
 
 def test_windows_launcher_runs_the_orchestrator_under_a_name_that_says_fun_time():
-    """Task Manager identifies a process by its image name and nothing else, so
-    an orchestrator started through a plain ``python.exe`` is one anonymous row
-    among the user's other Python apps — and when a session strands its children
-    (the orchestrator dies without reaping, leaving no window to close), the task
-    list is the only way back and cannot say which rows are safe to end.
+    """Windows identifies a process by its image name and by its version
+    resource's description, and a plain ``python.exe`` supplies "python.exe" and
+    "Python" — so an orchestrator started through one is an anonymous row among
+    the user's other Python apps, and when a session strands its children (the
+    orchestrator dies without reaping, leaving no window to close) the task list
+    is the only way back and cannot say which rows are safe to end.
 
-    The children get named by ``fun_time.process_identity``.  This is the one
-    process that module cannot name, because it is the process that would import
-    it, so the launcher makes the copy itself."""
+    The children are named as ``fun_time.process_identity`` launches them.  The
+    orchestrator cannot be, because writing the copy takes the interpreter being
+    launched — so the launcher picks it up when a previous session left one."""
     text = _text("launch.vbs")
 
     assert r'namedExe = fso.BuildPath(scriptDir, ".venv\Scripts\FunTime-Orchestrator.exe")' in text
-    assert "fso.CopyFile pythonExe, namedExe, True" in text
-    # Refreshed when the interpreter it was copied from changes, or a Python
-    # upgrade leaves the session running an interpreter nobody installed.
-    assert "fso.GetFile(namedExe).Size <> fso.GetFile(pythonExe).Size" in text
+    assert "If fso.FileExists(namedExe) Then pythonExe = namedExe" in text
 
 
-def test_windows_launcher_still_launches_when_it_cannot_make_that_copy():
-    """A read-only venv or an antivirus hold must cost the name, not the app.
-    Every failure path leaves ``pythonExe`` as it was, and the session starts
-    anonymous exactly as it did before."""
+def test_windows_launcher_still_launches_before_any_session_has_named_it():
+    """The naming runs one launch behind, so a checkout that has never run has
+    no copy to find.  That must cost the name and nothing else: the launcher
+    falls through to the venv interpreter it always used."""
     text = _text("launch.vbs")
 
-    assert "On Error Resume Next" in text
-    assert "If Err.Number = 0 And fso.FileExists(namedExe) Then pythonExe = namedExe" in text
-    assert "On Error Goto 0" in text
+    assert r'pythonExe = fso.BuildPath(scriptDir, ".venv\Scripts\python.exe")' in text
+    # No copying here — the launcher only ever consumes what a session left.
+    assert "CopyFile" not in text
 
 
 def test_the_launchers_compile():
