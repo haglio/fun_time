@@ -283,10 +283,12 @@ def indexed_act(index: GroupIndex, path: str) -> str:
     """*path*'s recorded act as the seed axis compares it — lowercased, spacing
     collapsed.
 
-    The library holds the same act spelled more than one way ("POV …" beside
-    "Pov …"), and the seed axis asks "is this the same act?" often enough that a
-    raw string compare splits one act's clips into two pools that cannot see each
-    other — a clip alone in its casing then has no seed row at all.
+    The seed axis asks "is this the same act?" to decide who is in a row, so a raw
+    string compare splits one act into pools that cannot see each other the moment
+    two clips are labeled with different casing — and a clip alone in its spelling
+    has no seed row at all.  The library had 179 such clips ("Pov …" beside
+    "POV …") before they were consolidated; this is what keeps the next one from
+    mattering.
     """
     return _norm_text(index.action_by_path.get(normalize_path_key(path), ""))
 
