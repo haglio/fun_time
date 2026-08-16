@@ -68,8 +68,8 @@ from .window_roles import (
 from .win32 import (
     activate_window,
     find_window_by_pid,
-    find_window_by_pid_and_title,
     find_window_by_title,
+    find_window_for_process,
     force_foreground_window,
     is_window_topmost,
     minimize_window,
@@ -470,6 +470,10 @@ class DispatchLoopRunner:
                  status_file=self.config.landscape_status_file, locked=state.locked3),
             metadata_root=self.config.regen_metadata_root,
             active_side=side_name(state.active_side),
+            # "" for a session hosting no Origenerator — the HUDs then draw no
+            # mode pair at all, rather than a switch that can only dead-end.
+            satellites_mode=(state.satellites_mode
+                             if self.config.origenerator_enabled else ""),
         )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
@@ -1071,9 +1075,20 @@ class DispatchLoopRunner:
         if role in ("origenerator_portrait", "origenerator_landscape"):
             # The region shows come and go with the slideshows, so a cached
             # handle would name a destroyed window — resolved fresh every time.
-            return find_window_by_pid_and_title(
+            # find_window_for_process: the recorded pid can be a launcher's,
+            # with the interpreter that owns the windows one child down.
+            return find_window_for_process(
                 self.origenerator_pid, ORIGENERATOR_ROLE_TITLES[role])
         hwnd = self._role_hwnds.get(role, 0)
+        if hwnd and role == "origenerator" and not window_exists(hwnd):
+            # The hosted app's boot can put a short-lived twin of this caption
+            # up first (its splash), and caching that leaves every later
+            # restore aimed at a dead handle — the switch that visibly did
+            # nothing.  Only this role heals its cache: the other windows live
+            # as long as the session, and their hidden phases (SW_HIDE behind
+            # the overlay) are exactly when a re-resolve would come up empty.
+            self._role_hwnds.pop(role, None)
+            hwnd = 0
         if hwnd:
             return hwnd
         if role == "genau":
@@ -1094,7 +1109,8 @@ class DispatchLoopRunner:
         elif role == "origenerator":
             # Pid AND title: the process owns three titled windows, and a
             # standalone Origenerator of his owns windows with the same titles.
-            hwnd = find_window_by_pid_and_title(
+            # Children included, for a recorded pid that is a launcher's.
+            hwnd = find_window_for_process(
                 self.origenerator_pid, ORIGENERATOR_ROLE_TITLES[role])
         if hwnd:
             self._role_hwnds[role] = hwnd

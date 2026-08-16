@@ -95,6 +95,7 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
         "locked": panel.locked,
         "lock_label": panel.lock_label,
         "active": panel.active,
+        "satellites_mode": panel.satellites_mode,
 
         "is_favorite": panel.is_favorite,
         "f_mode": panel.f_mode,

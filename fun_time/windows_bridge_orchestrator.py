@@ -61,7 +61,7 @@ from .windows_bridge_startup import (
 from .win32 import (
     close_window,
     find_window_by_pid,
-    find_window_by_pid_and_title,
+    find_window_for_process,
     get_process_creation_time,
     iter_zorder,
     wait_for_window_by_title,
@@ -183,7 +183,7 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     """
     if child is None or not child.pid:
         return
-    hwnd = find_window_by_pid_and_title(child.pid, "Origenerator")
+    hwnd = find_window_for_process(child.pid, "Origenerator")
     if not hwnd:
         return
     close_window(hwnd)

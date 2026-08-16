@@ -36,6 +36,7 @@ from .hud import (
     COL_LABEL_GAP,
     COL_LABEL_H,
     CTRL_BAND_H,
+    CTRL_BTN,
     ELLIPSIS_ROOM,
     FILTER_ROOM,
     MAP_BOTTOM_RESERVE,
@@ -73,6 +74,9 @@ from .hud import (
     map_column_height,
     map_reach,
     map_window,
+    mode_button_rects,
+    MODE_BUTTONS,
+    MODE_LABEL_PAD,
     panel_height,
     panel_width,
     playing_rect,
@@ -274,8 +278,17 @@ class HudRenderer:
         # The row's reach covers the action column too: it hangs under the cell
         # ``playing`` lights, which can be partway along the row.
         reach = map_reach(row, [thumb.width for thumb in action_thumbs], model.playing)
+        # The control band's own demand: with the mode pair on it (a hosted
+        # Origenerator exists), the labeled buttons can outrun a portrait map's
+        # width, and a pair the panel cannot hold would land under the star.
+        mode_widths = self._mode_label_widths(model)
+        band_width = 0
+        if mode_widths:
+            controls_end = control_button_rects(PAD, 0)[-1][0][0] + CTRL_BTN
+            pair = sum(w + 2 * MODE_LABEL_PAD for w in mode_widths) + MAP_GAP
+            band_width = controls_end + 2 * MAP_GAP + pair + MAP_GAP + CTRL_BTN + PAD
         width = panel_width(gutter_w, reach, text_width(self._body, model.lock_label),
-                            text_width(self._tiny, video))
+                            text_width(self._tiny, video), band_width=band_width)
         height = panel_height(
             map_column_height(1 + len(action_thumbs)) if corner_thumb is not None else 0,
             subtitle_h)
@@ -318,12 +331,21 @@ class HudRenderer:
         controls = control_button_rects(x, y)
         favorite = favorite_mark_rect(width - PAD, y)
         self._draw_controls(draw, controls, favorite, model)
+        # The mode pair, right of the side's own buttons: the satellite side's
+        # counterpart of the main console's Nau/Hybrid/Genau row, drawn only
+        # when the session has an Origenerator to switch to.
+        modes: list[tuple[Rect, str]] = []
+        if mode_widths:
+            modes_x = controls[-1][0][0] + CTRL_BTN + 2 * MAP_GAP
+            modes = mode_button_rects(modes_x, y, mode_widths)
+            self._draw_modes(draw, modes, model)
         y += CTRL_BAND_H
 
         if model.corner is None:
             return RenderedHud(panel.to_bgra(),
                                HudTargets(click=[], loop=[], filter=[], expand=None,
-                                          control=controls, favorite=favorite))
+                                          control=controls, favorite=favorite,
+                                          modes=modes))
 
         self._draw_counts(draw, x, y, counts)
         right, bottom = width - PAD, height - PAD
@@ -392,6 +414,7 @@ class HudRenderer:
             expand=expand_rect,
             control=controls,
             favorite=favorite,
+            modes=modes,
         )
         return RenderedHud(panel.to_bgra(), targets)
 
@@ -608,6 +631,26 @@ class HudRenderer:
         top = cy - _MINIMIZE_H / 2
         draw.rectangle([cx - _MINIMIZE_W / 2, top, cx + _MINIMIZE_W / 2, top + _MINIMIZE_H - 1],
                        fill=ink)
+
+    def _mode_label_widths(self, model: HudModel) -> list[int]:
+        """Each mode label's measured width, or [] when the session has no
+        hosted Origenerator and the pair is not drawn at all."""
+        if not model.satellites_mode:
+            return []
+        return [text_width(self._tiny, label) for _action, label, _mode in MODE_BUTTONS]
+
+    def _draw_modes(self, draw, modes: list[tuple[Rect, str]], model: HudModel) -> None:
+        """The satellite side's mode pair — labeled buttons, the session's
+        current mode lit, exactly the shape the main console draws its
+        Nau/Hybrid/Genau row in: press the other one to switch."""
+        lit_action = {mode: action for action, _label, mode in MODE_BUTTONS}.get(
+            model.satellites_mode, "")
+        labels = {action: label for action, label, _mode in MODE_BUTTONS}
+        for rect, action in modes:
+            ink = self._button_box(draw, rect, on=action == lit_action)
+            bx, by, bw, bh = rect
+            draw.text((bx + bw / 2, by + bh / 2), labels[action],
+                      font=self._tiny, anchor="mm", fill=ink)
 
     def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:

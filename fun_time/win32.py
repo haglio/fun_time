@@ -217,25 +217,71 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return best
 
 
-def find_window_by_pid_and_title(pid: int, title: str) -> int:
-    """Find *pid*'s top-level window whose title is exactly *title*, or 0.
+def list_child_pids(parent_pid: int) -> list[int]:
+    """The pids whose recorded parent is *parent_pid*, via a Toolhelp snapshot.
 
-    For a process that owns SEVERAL titled windows (the hosted Origenerator:
-    its main window plus a show per satellite region), neither lookup alone can
-    say which is which — by pid returns whichever enumerates first, and by
-    title can land on another process's window (his standalone Origenerator
-    carries the same captions).  Includes hidden/minimized windows: the main
-    window boots parked and must still resolve.
+    A recorded child pid is not always the pid that owns the windows: a venv's
+    ``Scripts`` launcher spawns the real interpreter as a child and keeps the
+    recorded pid for itself.  This is the one hop that recovers the family.
+    """
+    TH32CS_SNAPPROCESS = 0x2
+    INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", ctypes.wintypes.DWORD),
+            ("cntUsage", ctypes.wintypes.DWORD),
+            ("th32ProcessID", ctypes.wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.wintypes.ULONG)),
+            ("th32ModuleID", ctypes.wintypes.DWORD),
+            ("cntThreads", ctypes.wintypes.DWORD),
+            ("th32ParentProcessID", ctypes.wintypes.DWORD),
+            ("pcPriClassBase", ctypes.wintypes.LONG),
+            ("dwFlags", ctypes.wintypes.DWORD),
+            ("szExeFile", ctypes.c_wchar * 260),
+        ]
+
+    snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snapshot == INVALID_HANDLE_VALUE:
+        return []
+    children: list[int] = []
+    try:
+        entry = PROCESSENTRY32()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
+        if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
+            while True:
+                if entry.th32ParentProcessID == parent_pid:
+                    children.append(int(entry.th32ProcessID))
+                if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
+                    break
+    finally:
+        _kernel32.CloseHandle(snapshot)
+    return children
+
+
+def find_window_for_process(pid: int, title: str) -> int:
+    """*pid*'s — or its direct children's — window titled exactly *title*, or 0.
+
+    Pid AND title, because a process can own several titled windows (the
+    hosted Origenerator: a main window plus a show per satellite region) and a
+    title alone can land on another process's window (a standalone
+    Origenerator carries the same captions).  The children matter because a
+    recorded pid can be a launcher's: a venv's ``Scripts\\python.exe`` spawns
+    the interpreter that actually owns the windows as a child and exits the
+    lookup empty-handed.  One generation is the launcher pattern; nothing
+    spawns windows two shims deep.  Includes hidden/minimized windows: the
+    hosted app's main window boots parked and must still resolve.
     """
     if not pid:
         return 0
+    pids = {pid, *list_child_pids(pid)}
     best: int = 0
 
     def callback(hwnd: int, _lparam: int) -> bool:
         nonlocal best
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
-        if window_pid.value != pid:
+        if window_pid.value not in pids:
             return True
         length = _user32.GetWindowTextLengthW(hwnd)
         if length <= 0:

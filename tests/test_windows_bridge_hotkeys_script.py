@@ -68,8 +68,14 @@ def test_the_letter_hotkeys_yield_while_origenerator_has_the_keyboard():
     except the exempt trio (quit and the omnipause pair), which are session
     gestures wherever the focus sits and must stay above the gate."""
     text = _script_text()
-    gate = text.index('#HotIf !WinActive("Origenerator")')
+    gate = text.index("#HotIf !OrigeneratorHasKeyboard()")
     gate_close = text.index("#HotIf", gate + 1)
+    # Exact-title matching, never the script's substring mode: "Origenerator"
+    # appears in plenty of other window titles (an Explorer at the checkout, a
+    # terminal on a branch), and a substring match killed every hotkey while
+    # one of those was focused.
+    assert 'title = "Origenerator"' in text
+    assert "WinGetTitle" in text
     for exempt in ("^!q::", "Esc::QueueCommand", "+Esc::QueueCommand"):
         assert text.index(exempt) < gate, exempt
     for gated in ('x::QueueCommand("satellites_toggle")',

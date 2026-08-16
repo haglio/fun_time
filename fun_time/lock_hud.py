@@ -104,6 +104,11 @@ class HudPanel:
     # is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
+    # The satellite side's mode axis ("player" / "origenerator"), or "" for a
+    # session hosting no Origenerator.  Global like ``active``, published per
+    # side so each panel can draw the mode pair — the satellite counterpart of
+    # the main console's Nau/Hybrid/Genau row.
+    satellites_mode: str = ""
 
 
 def _others(members: list[str], current: str) -> list[str]:
@@ -291,6 +296,7 @@ def build_hud_panel(
     f_mode: bool = False,
     active: bool = False,
     is_favorite: bool = False,
+    satellites_mode: str = "",
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -417,6 +423,7 @@ def build_hud_panel(
         active=active,
         active_loop=active_loop,
         playing=playing,
+        satellites_mode=satellites_mode,
     )
 
 
@@ -448,6 +455,7 @@ class SideInputs:
 
 def _side_panel(
     inputs: SideInputs, metadata_root: Path | None, active_side: str,
+    satellites_mode: str = "",
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -468,6 +476,7 @@ def _side_panel(
         nav_anchor=inputs.nav_anchor, latest=inputs.latest,
         is_favorite=inputs.is_favorite, f_mode=inputs.f_mode,
         active=active_side == inputs.side,
+        satellites_mode=satellites_mode,
     )
 
 
@@ -489,6 +498,7 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
 def build_panels(
     portrait: SideInputs, landscape: SideInputs, *,
     metadata_root: Path | None = None, active_side: str = "",
+    satellites_mode: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -505,8 +515,8 @@ def build_panels(
     rather than the dispatcher's slot number, because that is what a side is
     called everywhere else in here; the one translation lives where the number does.
     """
-    return (_side_panel(portrait, metadata_root, active_side),
-            _side_panel(landscape, metadata_root, active_side))
+    return (_side_panel(portrait, metadata_root, active_side, satellites_mode),
+            _side_panel(landscape, metadata_root, active_side, satellites_mode))
 
 
 def panel_thumbnails(

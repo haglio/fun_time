@@ -28,6 +28,8 @@ from satellite.hud import (
     friendly_action_label,
     hit_test_targets,
     label_is_filtered,
+    mode_button_rects,
+    MODE_LABEL_PAD,
     loop_button_rects,
     looped_group_box,
     map_reach,
@@ -601,3 +603,30 @@ def test_pressing_the_filter_button_of_a_two_word_action_slugs_it():
     targets = _targets(filter=[((0, 0, FILTER_BTN, 20), "Beta Gamma")])
 
     assert clicks.press(targets, 5, 5, now=0.0) == "filter_landscape_beta_gamma"
+
+
+class TestModePair:
+    def test_the_published_mode_parses(self):
+        model = parse_hud(json.dumps({"side": "portrait", "satellites_mode": "origenerator"}))
+        assert model.satellites_mode == "origenerator"
+        assert parse_hud(json.dumps({"side": "portrait"})).satellites_mode == ""
+
+    def test_mode_buttons_run_right_with_their_commands(self):
+        rects = mode_button_rects(100, 50, [40, 80])
+        assert [command for _rect, command in rects] == [
+            "players_activate", "origenerator_activate"]
+        (first, _), (second, _) = rects
+        assert first == (100, 50, 40 + 2 * MODE_LABEL_PAD, CTRL_BTN)
+        assert second[0] == first[0] + first[2] + MAP_GAP
+
+    def test_a_mode_press_posts_the_command_verbatim(self):
+        # Side-less on purpose: the mode belongs to the whole satellite side.
+        clicks = HudClicks("portrait")
+        targets = HudTargets(click=[], loop=[], filter=[], expand=None,
+                             modes=[((0, 0, 60, 18), "origenerator_activate")])
+        assert clicks.press(targets, 5, 5, now=0.0) == "origenerator_activate"
+
+    def test_the_pair_names_itself_on_hover(self):
+        targets = HudTargets(click=[], loop=[], filter=[], expand=None,
+                             modes=[((0, 0, 60, 18), "players_activate")])
+        assert "Player mode" in button_tooltip(targets, 5, 5)

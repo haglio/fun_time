@@ -22,6 +22,7 @@ from satellite.hud import (
     STATUS_DOT,
     STATUS_TEXT_X,
     HudCell,
+    HudClicks,
     HudModel,
     ellipsis_rects,
     looped_group_box,
@@ -889,3 +890,26 @@ def test_column_labels_are_clipped_to_their_column(thumb):
     strip_y = PAD + STATUS_BAND_H + CTRL_BAND_H
     header = _rgb(rendered.bgra)[strip_y:strip_y + COL_LABEL_H, cx + cw:sx]
     assert (header > 60).sum() == 0
+
+
+def test_the_mode_pair_renders_and_is_pressable(thumb):
+    # The satellite counterpart of the console's Nau/Hybrid/Genau row: with a
+    # session mode published, the pair is on the control band with real hit
+    # targets, and a press posts the other mode's activation verbatim.
+    rendered = HudRenderer("portrait").render(
+        _model(corner=HudCell(path="c.mp4", thumb=thumb),
+               satellites_mode="player")
+    )
+
+    commands = [command for _rect, command in rendered.targets.modes]
+    assert commands == ["players_activate", "origenerator_activate"]
+    clicks = HudClicks("portrait")
+    rect, command = rendered.targets.modes[1]
+    assert clicks.press(rendered.targets, rect[0] + 2, rect[1] + 2, now=0.0) == command
+
+
+def test_no_hosted_origenerator_means_no_mode_pair(thumb):
+    rendered = HudRenderer("portrait").render(
+        _model(corner=HudCell(path="c.mp4", thumb=thumb))
+    )
+    assert rendered.targets.modes == []

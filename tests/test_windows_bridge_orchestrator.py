@@ -1263,7 +1263,7 @@ class TestOrigeneratorGracefulClose:
             "fun_time.windows_bridge_orchestrator.get_process_creation_time",
             side_effect=[8000, None],  # recorded alive, then exited after the close
         ), patch(
-            "fun_time.windows_bridge_orchestrator.find_window_by_pid_and_title",
+            "fun_time.windows_bridge_orchestrator.find_window_for_process",
             return_value=4242,
         ), patch("fun_time.windows_bridge_orchestrator.close_window",
                  side_effect=closed.append):
@@ -1273,7 +1273,7 @@ class TestOrigeneratorGracefulClose:
 
     def test_no_window_means_nothing_to_close(self):
         with patch(
-            "fun_time.windows_bridge_orchestrator.find_window_by_pid_and_title",
+            "fun_time.windows_bridge_orchestrator.find_window_for_process",
             return_value=0,
         ), patch("fun_time.windows_bridge_orchestrator.close_window") as close:
             _close_origenerator_gracefully(ChildProcess(pid=800, created_at=8000))

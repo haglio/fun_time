@@ -76,3 +76,5 @@ _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level
 # group-index cache.
 reset_group_index_cache  # noqa
+# PROCESSENTRY32.dwSize is written for the Toolhelp32 API, never read back.
+dwSize  # noqa

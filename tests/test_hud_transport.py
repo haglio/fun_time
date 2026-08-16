@@ -177,3 +177,13 @@ def test_publish_ignores_a_side_with_no_file(tmp_path: Path):
     publisher = HudPublisher({}, tmp_path / "thumbs")
 
     assert publisher.publish("portrait", _panel()) is False
+
+
+def test_payload_carries_the_satellites_mode(tmp_path):
+    # The mode pair on the satellite HUDs draws from this field; "" (the
+    # default) is a session hosting no Origenerator, and the pair stays off.
+    panel = HudPanel(side="portrait", locked=False, lock_label="", current="",
+                     seed_siblings=[], action_siblings=[],
+                     satellites_mode="origenerator")
+    payload = hud_payload(panel, tmp_path)
+    assert payload["satellites_mode"] == "origenerator"

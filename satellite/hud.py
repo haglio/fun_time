@@ -122,6 +122,10 @@ class HudModel:
     # while a loop plays a non-anchor member of the group.  Drawn bright; the
     # rest dim.
     playing: Cell = ("corner", 0)
+    # The satellite side's own mode axis ("player" / "origenerator"), or "" for
+    # a session with no hosted Origenerator — the mode pair is drawn only when
+    # this names a mode, the way the main console's Nau/Hybrid/Genau row does.
+    satellites_mode: str = ""
 
 
 # --- map geometry ------------------------------------------------------------
@@ -169,7 +173,7 @@ def map_column_height(cells: int) -> int:
 
 
 def panel_width(gutter: int, row_width: int, status_width: int,
-                subtitle_width: int = 0) -> int:
+                subtitle_width: int = 0, *, band_width: int = 0) -> int:
     """How wide the panel has to be: room for a map row *row_width* across — the
     row-label gutter, the map's left "…" slot, the row, its right "…" slot, and the
     seed-loop and expand buttons past that — or room for a status line
@@ -184,9 +188,12 @@ def panel_width(gutter: int, row_width: int, status_width: int,
     in the same column, so whichever of the two lines is longer is what the top block
     asks for.  It gives the same way the status does — a name cut off mid-word says
     nothing about which clip this is, which is the whole reason it is drawn.
+
+    *band_width* is the control band's own demand — nonzero only with the mode
+    pair drawn on it, whose labeled buttons can outrun a portrait map's width.
     """
     for_map = PAD + gutter + ELLIPSIS_ROOM + row_width + ELLIPSIS_ROOM + MAP_RIGHT_RESERVE + PAD
-    return max(for_map, STATUS_TEXT_X + max(status_width, subtitle_width) + PAD)
+    return max(for_map, STATUS_TEXT_X + max(status_width, subtitle_width) + PAD, band_width)
 
 
 def panel_height(column_height: int, subtitle_h: int = 0) -> int:
@@ -430,6 +437,33 @@ def control_button_rects(x: int, y: int) -> list[tuple[Rect, str]]:
     ]
 
 
+# The satellite side's mode pair, drawn like the main console's Nau/Hybrid/
+# Genau row: a labeled button per mode, the session's current one lit, a press
+# on the other switching to it.  Each action is the dispatch command verbatim —
+# side-less, because the mode belongs to the whole satellite side.
+MODE_BUTTONS = (
+    ("players_activate", "Player", "player"),
+    ("origenerator_activate", "Origenerator", "origenerator"),
+)
+
+# Inside a mode button, the room either side of its label.
+MODE_LABEL_PAD = 6
+
+
+def mode_button_rects(x: int, y: int, label_widths: list[int]) -> list[tuple[Rect, str]]:
+    """Each mode button's ``(rect, command)``, running right from ``(x, y)``.
+
+    *label_widths* is each label as the paint module measured it — this module
+    is font-free — in :data:`MODE_BUTTONS` order.
+    """
+    rects: list[tuple[Rect, str]] = []
+    for (action, _label, _mode), label_width in zip(MODE_BUTTONS, label_widths):
+        width = label_width + 2 * MODE_LABEL_PAD
+        rects.append(((x, y, width, CTRL_BTN), action))
+        x += width + MAP_GAP
+    return rects
+
+
 def favorite_mark_rect(right: int, y: int) -> Rect:
     """The favorite mark, at the far end of the control band.
 
@@ -477,6 +511,8 @@ class HudTargets:
     control: list[tuple[Rect, str]] = field(default_factory=list)
     # The favorite mark is a readout, so it is here only to carry its tooltip.
     favorite: Rect | None = None
+    # The mode pair, each carrying its dispatch command verbatim (side-less).
+    modes: list[tuple[Rect, str]] = field(default_factory=list)
 
 
 def build_click_targets(
@@ -593,6 +629,11 @@ CONTROL_TOOLTIPS = {
     "minimize": "Minimize this player — bring it back from the taskbar",
 }
 FAVORITE_TOOLTIP = "In the favorites"
+MODE_TOOLTIPS = {
+    "players_activate": "Player mode — the satellite players and the Random Favs Browser",
+    "origenerator_activate":
+        "Origenerator mode — Origenerator over the browser, its shows over the players",
+}
 
 
 def _in(rect: Rect | None, px: int, py: int) -> bool:
@@ -609,7 +650,9 @@ def button_tooltip(targets: HudTargets, px: int, py: int) -> str:
     — so each one names itself on hover.  Taking the whole target bundle means a
     new control needs a line in a dict here and nothing else.
     """
-    for bucket, tooltips in ((targets.control, CONTROL_TOOLTIPS), (targets.loop, LOOP_TOOLTIPS)):
+    for bucket, tooltips in ((targets.control, CONTROL_TOOLTIPS),
+                             (targets.loop, LOOP_TOOLTIPS),
+                             (targets.modes, MODE_TOOLTIPS)):
         hit = hit_test_targets(bucket, px, py)
         if hit:
             return tooltips.get(hit, "")
@@ -656,6 +699,11 @@ class HudClicks:
     def press(self, targets: HudTargets, px: int, py: int, *, now: float) -> str:
         """The command for a press at ``(px, py)``, or "" when it posts nothing
         yet (a first thumbnail click, or empty space)."""
+        mode = hit_test_targets(targets.modes, px, py)
+        if mode:
+            # Verbatim: the mode belongs to the whole satellite side, so its
+            # commands are side-less — pressing the lit one is idempotent.
+            return mode
         control = hit_test_targets(targets.control, px, py)
         if control:
             return f"{self._side}_{control}"
@@ -805,4 +853,5 @@ def parse_hud(text: str) -> HudModel | None:
         seed_count=int(raw.get("seed_count", 0) or 0),
         action_count=int(raw.get("action_count", 0) or 0),
         playing=(str(playing[0]), int(playing[1])),
+        satellites_mode=str(raw.get("satellites_mode", "") or ""),
     )
