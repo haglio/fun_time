@@ -57,6 +57,7 @@ from .windows_bridge_sequencer import (
 from .win32 import (
     close_window,
     find_window_by_pid,
+    find_window_by_pid_and_title,
     get_process_creation_time,
     iter_zorder,
     wait_for_window_by_title,
@@ -72,7 +73,7 @@ logger = logging.getLogger(__name__)
 # way to add a seventh child and have it quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("players", ("nau_pid", "portrait_pid", "landscape_pid")),
-    ("companions", ("dashboard_pid", "genau_pid", "audio_pid")),
+    ("companions", ("dashboard_pid", "genau_pid", "audio_pid", "origenerator_pid")),
 )
 
 _CHILD_PID_KEYS = tuple(key for _, keys in _CHILD_GROUPS for key in keys)
@@ -168,6 +169,28 @@ def kill_process_tree(pid: int) -> None:
         pass
 
 
+def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
+    """WM_CLOSE the hosted Origenerator and give its close a moment to finish.
+
+    Its closeEvent is where the session persists and the absence experiments
+    are handed to ComfyUI — a straight taskkill loses both.  Bounded: a close
+    that hangs falls through to the companions sweep, which kills the tree the
+    way it kills everything else.
+    """
+    if child is None or not child.pid:
+        return
+    hwnd = find_window_by_pid_and_title(child.pid, "Origenerator")
+    if not hwnd:
+        return
+    close_window(hwnd)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if get_process_creation_time(child.pid) != child.created_at:
+            return  # exited (or the pid was never ours) — nothing left to wait on
+        time.sleep(0.2)
+    logger.warning("Origenerator did not close within 5s; the kill sweep takes it")
+
+
 def _shutdown_children(
     rfb_hwnd: int, children: dict[str, ChildProcess], progress: ProgressReporter
 ) -> None:
@@ -179,6 +202,7 @@ def _shutdown_children(
     """
     progress.advance("browser")
     close_window(rfb_hwnd)
+    _close_origenerator_gracefully(children.get("origenerator_pid"))
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         for key in keys:
@@ -649,6 +673,7 @@ def run_python_orchestrated_bridge(
         portrait_pid=result.portrait_pid,
         landscape_pid=result.landscape_pid,
         dashboard_pid=result.dashboard_pid,
+        origenerator_pid=result.origenerator_pid,
         dashboard_enabled=dashboard_enabled,
         hud_publisher=hud_publisher,
         rfb_hwnd=result.rfb_hwnd,

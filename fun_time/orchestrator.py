@@ -262,6 +262,12 @@ def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> N
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
+    # A worktree's own answer to "which Origenerator does this session host" —
+    # the counterpart of the genau override applied at the top of this module,
+    # for the same reason: the machine's one config must not be repointed at an
+    # unlanded branch for every session on the machine.
+    from .branch_session import apply_origenerator_dir_override
+    config = apply_origenerator_dir_override(config)
     logger = configure_logging("fun_time.orchestrator", config.log_file("orchestrator"), console=True)
     install_exception_logging(logger)
 

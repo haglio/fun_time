@@ -13,6 +13,7 @@ from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
+    _close_origenerator_gracefully,
     ChildProcess,
     _CHILD_PID_KEYS,
     _fix_post_loading_windows,
@@ -56,6 +57,7 @@ def _fake_startup_result() -> StartupResult:
         dashboard_pid=500,
         genau_pid=600,
         audio_pid=700,
+        origenerator_pid=800,
         layout_plan=_fake_plan(),
     )
 
@@ -661,7 +663,7 @@ class TestClosingScreenLifecycle:
         assert events[0] == "cover_up"
         assert set(events[1:]) == {
             "close_browser", "kill:200", "kill:300", "kill:400",
-            "kill:500", "kill:600", "kill:700",
+            "kill:500", "kill:600", "kill:700", "kill:800",
         }
 
     def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path, monkeypatch):
@@ -1226,3 +1228,36 @@ class TestOpenEventLog:
             package_logger.setLevel(original[2])
             orch_logger.setLevel(original[3])
             orch_logger.propagate = original[4]
+
+
+class TestOrigeneratorGracefulClose:
+    def test_teardown_closes_the_window_before_the_kill_sweep(self):
+        """Its closeEvent persists the session and queues the absence
+        experiments, so the window is asked to close first; the taskkill that
+        follows is the backstop, not the normal death."""
+        closed: list[int] = []
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=[8000, None],  # recorded alive, then exited after the close
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid_and_title",
+            return_value=4242,
+        ), patch("fun_time.windows_bridge_orchestrator.close_window",
+                 side_effect=closed.append):
+            child = ChildProcess(pid=800, created_at=8000)
+            _close_origenerator_gracefully(child)
+        assert closed == [4242]
+
+    def test_no_window_means_nothing_to_close(self):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid_and_title",
+            return_value=0,
+        ), patch("fun_time.windows_bridge_orchestrator.close_window") as close:
+            _close_origenerator_gracefully(ChildProcess(pid=800, created_at=8000))
+        close.assert_not_called()
+
+    def test_a_session_without_origenerator_skips_the_close(self):
+        with patch("fun_time.windows_bridge_orchestrator.close_window") as close:
+            _close_origenerator_gracefully(ChildProcess(pid=0, created_at=0))
+            _close_origenerator_gracefully(None)
+        close.assert_not_called()

@@ -3,6 +3,7 @@ from __future__ import annotations
 from fun_time.window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
+    ORIGENERATOR_ROLES,
     PRIMARY_SLOT_ROLES,
     role_topmost,
     visible_main_slot_roles,
@@ -55,9 +56,41 @@ class TestRoleTopmost:
     def test_role_groups_partition_the_managed_set(self):
         assert set(MANAGED_ROLES) == {
             "rfb", "portrait", "landscape", "genau", "nau", "dashboard",
+            "origenerator", "origenerator_portrait", "origenerator_landscape",
         }
         assert set(FIXED_TOPMOST_ROLES) == {"rfb", "portrait", "landscape", "dashboard"}
         assert set(PRIMARY_SLOT_ROLES) == {"nau", "genau"}
-        # The two groups are disjoint and together cover every managed role.
-        assert set(FIXED_TOPMOST_ROLES) & set(PRIMARY_SLOT_ROLES) == set()
-        assert set(FIXED_TOPMOST_ROLES) | set(PRIMARY_SLOT_ROLES) == set(MANAGED_ROLES)
+        assert set(ORIGENERATOR_ROLES) == {
+            "origenerator", "origenerator_portrait", "origenerator_landscape",
+        }
+        # The three groups are disjoint and together cover every managed role.
+        groups = [set(FIXED_TOPMOST_ROLES), set(ORIGENERATOR_ROLES), set(PRIMARY_SLOT_ROLES)]
+        assert sum(len(group) for group in groups) == len(MANAGED_ROLES)
+        assert set().union(*groups) == set(MANAGED_ROLES)
+
+
+class TestOrigeneratorRoles:
+    """The hosted Origenerator's three windows join the managed set: its main
+    window over the RFB's rect, and the two region shows over the players'.
+    They are in the topmost band only while the satellites are in origenerator
+    mode — and they are promoted AFTER the fixed roles, which is what stacks
+    them above the windows they cover."""
+
+    def test_origenerator_roles_follow_the_satellites_mode(self):
+        for role in ORIGENERATOR_ROLES:
+            for main_mode in ("nau", "hybrid", "genau"):
+                assert role_topmost(role, main_mode, "origenerator") is True, role
+                assert role_topmost(role, main_mode, "player") is False, role
+
+    def test_the_other_roles_ignore_the_satellites_mode(self):
+        for satellites_mode in ("player", "origenerator"):
+            assert role_topmost("rfb", "nau", satellites_mode) is True
+            assert role_topmost("nau", "genau", satellites_mode) is False
+
+    def test_origenerator_roles_are_promoted_after_the_windows_they_cover(self):
+        # HWND_TOPMOST inserts at the top of the band, so a later promotion
+        # wins: the origenerator trio must come after the fixed roles.
+        assert MANAGED_ROLES.index("origenerator") > MANAGED_ROLES.index("rfb")
+        assert MANAGED_ROLES.index("origenerator_portrait") > MANAGED_ROLES.index("portrait")
+        assert MANAGED_ROLES.index("origenerator_landscape") > MANAGED_ROLES.index("landscape")
+

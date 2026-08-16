@@ -1265,3 +1265,60 @@ class TestWaitForNauLoaded:
                 _wait_for_nau_loaded(tmp_path / "never.txt", Cancelled())
 
         slept.assert_not_called()
+
+
+class TestOrigeneratorLaunch:
+    def test_a_configured_origenerator_launches_with_the_layout(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+            "origenerator_python_exe": str(tmp_path / "py" / "python.exe"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        captured = {}
+
+        def capture(**kwargs):
+            captured.update(kwargs)
+            return 91
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", side_effect=capture), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert result.origenerator_pid == 91
+        assert captured["origenerator_dir"] == str(tmp_path / "origenerator")
+        assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
+        assert captured["layout_plan"].random_favs_browser.width > 0
+        assert str(captured["command_file"]).endswith("origenerator_cmd.txt")
+
+    def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator") as launch, \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        launch.assert_not_called()
+        assert result.origenerator_pid == 0

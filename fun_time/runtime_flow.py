@@ -356,6 +356,50 @@ def apply_satellite_filter(
 
 
 @dataclass(frozen=True)
+class SatellitesSwitchFlowResult:
+    next_mode: str
+    is_transition: bool
+    log_message: str
+
+
+def apply_satellites_switch(
+    *,
+    current_mode: str,
+    target_mode: str,
+    omni_paused: bool,
+    origenerator_cmd_file: str | Path | None,
+    portrait_paused_file: str | Path,
+    landscape_paused_file: str | Path,
+) -> SatellitesSwitchFlowResult:
+    """Switch the satellite side between player and origenerator mode.
+
+    Like the main slot's switch, nothing is torn down: entering origenerator
+    mode is window ops alone (the caller's), because the players keep playing
+    until a show actually covers one.  Leaving tells the hosted app to close
+    its shows and unpauses both players — whichever of them a show had covered
+    resumes with the cover gone.  Under OmniPause the switch is state-only,
+    exactly as a main-mode switch is: the room is frozen, so nothing may move
+    until it resumes.
+    """
+    if current_mode == target_mode:
+        return SatellitesSwitchFlowResult(
+            next_mode=target_mode, is_transition=False,
+            log_message=f"Satellites already in {target_mode} mode")
+    if omni_paused:
+        return SatellitesSwitchFlowResult(
+            next_mode=target_mode, is_transition=False,
+            log_message=f"Satellites set to {target_mode} (omnipaused)")
+    if target_mode == "player":
+        if origenerator_cmd_file is not None:
+            append_command(Path(origenerator_cmd_file), "CLOSE_SHOWS")
+        write_flag_file(portrait_paused_file, False)
+        write_flag_file(landscape_paused_file, False)
+    return SatellitesSwitchFlowResult(
+        next_mode=target_mode, is_transition=True,
+        log_message=f"Satellites switched to {target_mode} mode")
+
+
+@dataclass(frozen=True)
 class OmniPauseFlowResult:
     next_omni_paused: bool
     log_message: str
@@ -372,6 +416,7 @@ def apply_enter_omnipause(
     genau_cmd_file: str | Path,
     nau_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
+    origenerator_paused_file: str | Path | None = None,
     relief: bool = False,
 ) -> OmniPauseFlowResult:
     """Freeze the whole session, and send the OSR2 somewhere safe.
@@ -394,6 +439,10 @@ def apply_enter_omnipause(
     # settled state: one write holds it, with nothing to police afterwards.
     write_flag_file(portrait_paused_file, True)
     write_flag_file(landscape_paused_file, True)
+    if origenerator_paused_file is not None:
+        # The hosted Origenerator obeys the same flag idiom: its shows stop
+        # their dwell clocks and playing clips until the room resumes.
+        write_flag_file(origenerator_paused_file, True)
     append_command(Path(genau_cmd_file), "PAUSE")
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
@@ -414,6 +463,9 @@ def apply_leave_omnipause(
     genau_cmd_file: str | Path,
     nau_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
+    origenerator_paused_file: str | Path | None = None,
+    portrait_covered: bool = False,
+    landscape_covered: bool = False,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
@@ -431,8 +483,12 @@ def apply_leave_omnipause(
         write_broker_command(broker_cmd_file, plan.broker_command)
     # Unfreeze both satellites; a locked one holds its clip (its lock is
     # independent of the pause flag), an unlocked one resumes auto-advancing.
-    write_flag_file(portrait_paused_file, False)
-    write_flag_file(landscape_paused_file, False)
+    # A side an Origenerator show still covers stays paused: the room resuming
+    # must not set an invisible player playing underneath the show.
+    write_flag_file(portrait_paused_file, portrait_covered)
+    write_flag_file(landscape_paused_file, landscape_covered)
+    if origenerator_paused_file is not None:
+        write_flag_file(origenerator_paused_file, False)
     return OmniPauseFlowResult(
         next_omni_paused=plan.next_omni_paused,
         log_message=plan.log_message,

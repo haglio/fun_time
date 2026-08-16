@@ -15,7 +15,7 @@ from fun_time.broker_control import PARK_CMD
 from fun_time.command_dispatch import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
-from fun_time.window_layout import WindowRect
+from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.win32 import APP_USER_MODEL_ID
 from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
@@ -26,6 +26,7 @@ from fun_time.windows_bridge_startup import (
     launch_core_apps,
     launch_genau,
     launch_nau,
+    launch_origenerator,
     launch_broker_tray,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
@@ -1872,3 +1873,53 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         ps_command = run.call_args[0][0][-1]
         assert "FunTime-" in ps_command
         assert "pythonw?" in ps_command
+
+
+def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
+    """The argv is origenerator's --fun-time contract: the RFB rect as the main
+    window's, both satellite region rects, the channel files, and the session's
+    taskbar identity — run from the checkout so ``-m`` resolves that checkout's
+    code, exactly like its own launcher does."""
+
+    class FakeProc:
+        pid = 77
+
+    plan = WindowLayoutPlan(
+        portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
+        landscape=WindowRect(x=853, y=0, width=1707, height=1440),
+        dashboard=WindowRect(x=0, y=0, width=853, height=206),
+        random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+    )
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+               return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs",
+        return_value={"creationflags": 1},
+    ):
+        pid = launch_origenerator(
+            python_exe="C:/py/python.exe",
+            origenerator_dir=tmp_path / "origenerator",
+            layout_plan=plan,
+            command_file="state/origenerator_cmd.txt",
+            paused_file="state/origenerator_paused.txt",
+            status_file="state/origenerator_status.txt",
+            dashboard_cmd_file="state/dashboard_cmd.txt",
+        )
+
+    assert pid == 77
+    command = popen.call_args.args[0]
+    assert command[:3] == ["C:/py/python.exe", "-m", "origenerator"]
+    assert "--fun-time" in command
+    for flag, value in (
+        ("--x", "0"), ("--y", "206"), ("--width", "853"), ("--height", "1234"),
+        ("--portrait_x", "2560"), ("--portrait_height", "1870"),
+        ("--landscape_x", "853"), ("--landscape_width", "1707"),
+        ("--command-file", "state/origenerator_cmd.txt"),
+        ("--paused-file", "state/origenerator_paused.txt"),
+        ("--status-file", "state/origenerator_status.txt"),
+        ("--dashboard-cmd-file", "state/dashboard_cmd.txt"),
+        ("--taskbar-identity", APP_USER_MODEL_ID),
+    ):
+        assert flag in command, flag
+        assert command[command.index(flag) + 1] == value, flag
+    # cwd is what picks the checkout: -m resolves the package from it.
+    assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")

@@ -20,6 +20,7 @@ from pathlib import Path
 from .audio_volume import MAX_VOLUME
 from .command_dispatch import BridgeState
 from .mode_plan import STARTUP_MAIN_MODE
+from .satellites_mode import STARTUP_SATELLITES_MODE
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"
 
@@ -37,6 +38,9 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "locked2": "1" if state.locked2 else "0",
         "locked3": "1" if state.locked3 else "0",
         "main_mode": state.main_mode,
+        "satellites_mode": state.satellites_mode,
+        "portrait_show_active": "1" if state.portrait_show_active else "0",
+        "landscape_show_active": "1" if state.landscape_show_active else "0",
         "main_f_mode": "1" if state.main_f_mode else "0",
         "portrait_f_mode": "1" if state.portrait_f_mode else "0",
         "landscape_f_mode": "1" if state.landscape_f_mode else "0",
@@ -88,6 +92,9 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
         main_mode=s.get("main_mode", STARTUP_MAIN_MODE),
+        satellites_mode=s.get("satellites_mode", STARTUP_SATELLITES_MODE),
+        portrait_show_active=s.get("portrait_show_active", "0") == "1",
+        landscape_show_active=s.get("landscape_show_active", "0") == "1",
         main_f_mode=s.get("main_f_mode", "0") == "1",
         portrait_f_mode=s.get("portrait_f_mode", "0") == "1",
         landscape_f_mode=s.get("landscape_f_mode", "0") == "1",

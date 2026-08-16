@@ -612,6 +612,14 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     # gets pointed at the user's session, so it goes rather than rides along.
     config.pop("genau", None)
 
+    # The hosted Origenerator brings a second app with machine ends of its own:
+    # the one ComfyUI server on its fixed port (which it would START if absent),
+    # the GPU that server generates on, and the app's one database.  None has a
+    # per-desktop or per-directory version, so a run hosts none — with the key
+    # gone the session simply has no origenerator mode.
+    config["paths"].pop("origenerator_dir", None)
+    config["paths"].pop("origenerator_python_exe", None)
+
 
 def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())

@@ -3858,3 +3858,130 @@ def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):
     dispatch_command("main_latest", BridgeState(), config)
 
     assert calls[-1]["start_at_top"] is True
+
+
+def _origenerator_config(tmp_path: Path) -> BridgeConfig:
+    """A config whose session hosts an Origenerator (the mode exists at all)."""
+    config = _make_config(tmp_path)
+    return replace(
+        config,
+        origenerator_enabled=True,
+        origenerator_cmd_file=config.state_dir / "origenerator_cmd.txt",
+        origenerator_paused_file=config.state_dir / "origenerator_paused.txt",
+    )
+
+
+def _origenerator_cmds(config: BridgeConfig) -> list[str]:
+    cmd_file = config.origenerator_cmd_file
+    if not cmd_file.exists():
+        return []
+    return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+class TestSatellitesModeSwitch:
+    def test_origenerator_activate_shows_and_restacks(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
+        assert state.satellites_mode == "origenerator"
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+            ("show_role", "origenerator"),
+            ("activate_role", "origenerator"),
+            ("restack_satellites", ""),
+        ]
+
+    def test_players_activate_closes_shows_and_unpauses_the_players(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator",
+                            portrait_show_active=True, landscape_show_active=True)
+        state, ops = dispatch_command("players_activate", state, config)
+        assert state.satellites_mode == "player"
+        # The shows are the hosted app's to close; the covered players resume.
+        assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
+        # Its windows leave the screen: the main one parks, the shows close
+        # themselves (the hides are the backstop for a hung app).
+        assert ("hide_role", "origenerator") in [(op.op, op.key) for op in ops]
+        # The stale occupancy is forgotten with the shows.
+        assert state.portrait_show_active is False
+        assert state.landscape_show_active is False
+
+    def test_satellites_toggle_flips_between_the_two(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state, _ = dispatch_command("satellites_toggle", BridgeState(), config)
+        assert state.satellites_mode == "origenerator"
+        state, _ = dispatch_command("satellites_toggle", state, config)
+        assert state.satellites_mode == "player"
+
+    def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
+        config = _make_config(tmp_path)
+        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
+        assert state.satellites_mode == "player"
+        assert any(op.op == "notice" and op.level == FAILED_NOTICE_LEVEL for op in ops)
+
+    def test_omnipaused_switch_is_state_only(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(omni_paused=True)
+        state, ops = dispatch_command("origenerator_activate", state, config)
+        assert state.satellites_mode == "origenerator"
+        assert ops == []
+
+
+class TestOrigeneratorTransport:
+    def test_side_transport_reaches_the_show_covering_that_region(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", portrait_show_active=True)
+        state, _ = dispatch_command("portrait_next", state, config)
+        assert _origenerator_cmds(config) == ["PORTRAIT_NEXT"]
+        assert _cmds(config, 2) == []  # the covered player is not driven
+
+    def test_all_four_verbs_route(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator",
+                            portrait_show_active=True, landscape_show_active=True)
+        for command in ("portrait_prev", "portrait_trash", "portrait_lock",
+                        "landscape_next", "landscape_lock"):
+            state, _ = dispatch_command(command, state, config)
+        assert _origenerator_cmds(config) == [
+            "PORTRAIT_PREV", "PORTRAIT_TRASH", "PORTRAIT_LOCK",
+            "LANDSCAPE_NEXT", "LANDSCAPE_LOCK",
+        ]
+
+    def test_an_uncovered_side_still_drives_its_player(self, tmp_path):
+        # In origenerator mode with no show on a side, that side's player is
+        # what the eye sees — the transport keeps driving it.
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", portrait_show_active=False)
+        state, _ = dispatch_command("portrait_next", state, config)
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, 2) == ["NEXT"]
+
+    def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(portrait_show_active=True)  # stale flag, player mode
+        state, _ = dispatch_command("portrait_next", state, config)
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, 2) == ["NEXT"]
+
+
+class TestOmniPauseWithOrigenerator:
+    def test_enter_freezes_the_hosted_app_too(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        state, _ = dispatch_command("enter_omnipause", state, config)
+        assert state.omni_paused
+        assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
+
+    def test_leave_keeps_a_covered_player_paused(self, tmp_path):
+        # The show still covers the portrait region, so resuming the room must
+        # not set an invisible player playing underneath it.
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", omni_paused=True,
+                            portrait_show_active=True)
+        state, _ = dispatch_command("relief_omnipause", state, config)  # enters relief
+        state = replace(state, omni_paused=True)
+        state, _ = dispatch_command("omnipause_toggle", state, config)
+        assert not state.omni_paused
+        assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"

@@ -126,6 +126,14 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Nau mode", ("N",), ("nau_activate",), voice_display=("nau mode",)),
             _Row("Hybrid mode", ("H",), ("hybrid_activate",)),
             _Row(
+                "Origenerator mode / player mode — the satellite side's own "
+                "switch: Origenerator over the Random Favs Browser, its "
+                "slideshows over the players, and back",
+                ("X",),
+                ("satellites_toggle", "origenerator_activate", "players_activate"),
+                voice_display=("origenerator mode", "player mode"),
+            ),
+            _Row(
                 "Toggle F-Mode on every player at once — spoken it needs the "
                 "word \"all\", since bare \"f mode\" reaches the active player; "
                 "each player also has its own, on its own HUD (see the sections "

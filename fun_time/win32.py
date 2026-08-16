@@ -217,6 +217,40 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return best
 
 
+def find_window_by_pid_and_title(pid: int, title: str) -> int:
+    """Find *pid*'s top-level window whose title is exactly *title*, or 0.
+
+    For a process that owns SEVERAL titled windows (the hosted Origenerator:
+    its main window plus a show per satellite region), neither lookup alone can
+    say which is which — by pid returns whichever enumerates first, and by
+    title can land on another process's window (his standalone Origenerator
+    carries the same captions).  Includes hidden/minimized windows: the main
+    window boots parked and must still resolve.
+    """
+    if not pid:
+        return 0
+    best: int = 0
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        nonlocal best
+        window_pid = ctypes.wintypes.DWORD()
+        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
+        if window_pid.value != pid:
+            return True
+        length = _user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        _user32.GetWindowTextW(hwnd, buffer, length + 1)
+        if buffer.value != title:
+            return True
+        best = hwnd
+        return False  # stop enumeration
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return best
+
+
 def wait_for_window_by_title(
     title: str, timeout_s: float = 5.0, *, exact: bool = False, include_hidden: bool = False
 ) -> int:

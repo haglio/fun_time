@@ -723,3 +723,45 @@ def test_removing_a_shortcut_that_was_never_written_is_not_an_error(primary_with
     assert branch_session.remove_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     ) is None
+
+
+def _write_origenerator_override(checkouts, text: str) -> None:
+    state = checkouts.worktree / branch_session.STATE_DIRNAME
+    state.mkdir(parents=True, exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(text, encoding="utf-8")
+
+
+def test_a_worktree_can_name_the_origenerator_checkout_its_session_hosts(checkouts):
+    """Same per-session fact as the genau override, same shape: an agent judging
+    an origenerator branch points its own session at that worktree, never the
+    machine's one config."""
+    _write_origenerator_override(checkouts, "C:/origenerator/.claude/worktrees/mine\n")
+
+    _live, branch = _live_and_branch(checkouts)
+
+    assert branch.paths.origenerator_dir == Path("C:/origenerator/.claude/worktrees/mine")
+
+
+def test_an_empty_origenerator_override_hosts_none_at_all(checkouts):
+    _write_origenerator_override(checkouts, "# none\n")
+
+    _live, branch = _live_and_branch(checkouts)
+
+    assert branch.paths.origenerator_dir is None
+
+
+def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path, monkeypatch, cfg_path):
+    """The branch-config generator runs the PRIMARY checkout's copy of this
+    module, so a branch that INTRODUCES the override cannot rely on it — the
+    orchestrator applies the file against its own checkout at launch instead."""
+    from fun_time.config import load_config
+
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
+        "C:/origenerator/.claude/worktrees/mine\n", encoding="utf-8")
+    monkeypatch.setattr(branch_session.config_module, "PROJECT_DIR", tmp_path)
+
+    config = branch_session.apply_origenerator_dir_override(load_config(cfg_path))
+
+    assert config.paths.origenerator_dir == Path("C:/origenerator/.claude/worktrees/mine")

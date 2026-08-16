@@ -12,6 +12,7 @@ import socket
 import subprocess
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -36,7 +37,9 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from .mode_plan import genau_active
 from .nau_console import console_payload
 from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_content
+from .origenerator_control import read_origenerator_status
 from .satellite_control import read_satellite_status
+from .satellites_mode import origenerator_shows
 from .shared_state import read_shared_state, write_shared_state
 from .video_timeline import VideoTimeline
 from .voice_commands import parse_command_line
@@ -51,17 +54,20 @@ from .dashboard_runtime import (
     read_genau_status,
     read_nau_status,
 )
-from .runtime_flow import read_flag_file
+from .runtime_flow import read_flag_file, write_flag_file
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
+    ORIGENERATOR_ROLES,
+    ORIGENERATOR_ROLE_TITLES,
     role_topmost,
     visible_main_slot_roles,
 )
 from .win32 import (
     activate_window,
     find_window_by_pid,
+    find_window_by_pid_and_title,
     find_window_by_title,
     force_foreground_window,
     is_window_topmost,
@@ -222,6 +228,7 @@ class DispatchLoopRunner:
         portrait_pid: int = 0,
         landscape_pid: int = 0,
         dashboard_pid: int = 0,
+        origenerator_pid: int = 0,
         dashboard_enabled: bool,
         manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
@@ -246,6 +253,13 @@ class DispatchLoopRunner:
         self.portrait_pid = portrait_pid
         self.landscape_pid = landscape_pid
         self.dashboard_pid = dashboard_pid
+        self.origenerator_pid = origenerator_pid
+        # Whether the hosted Origenerator's main window is on screen (restored
+        # over the RFB) as far as this loop has driven it.  It boots parked, and
+        # the converger below restores or parks it whenever the satellites' mode
+        # says otherwise — which is also how a session RESUMED into origenerator
+        # mode gets its window up once the slow boot finally shows one.
+        self._origenerator_shown = False
         self.dashboard_enabled = dashboard_enabled
         # The lock HUD's model: this loop holds the state the map is drawn from
         # (locks, filters, loops) and already ticks, so it builds each satellite's
@@ -410,10 +424,12 @@ class DispatchLoopRunner:
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
+            self._converge_origenerator_window()
             if self.dashboard_enabled:
                 self._update_dashboard()
         if now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
             self._last_watch_sample = now
+            self._sync_origenerator_shows()
             if not self.state.omni_paused:
                 self._sample_satellites(now=now)
                 self._sample_main()
@@ -810,9 +826,15 @@ class DispatchLoopRunner:
                 hwnd = self._resolve_role(op.key)
                 if hwnd:
                     restore_window(hwnd, activate=False)
+                if op.key == "origenerator":
+                    # Shown by op or (window still booting, hwnd 0) owed: the
+                    # converger keeps trying until the window exists.
+                    self._origenerator_shown = bool(hwnd)
                 continue
             if op.op == "hide_role":
                 self._hide_role(op.key)
+                if op.key == "origenerator":
+                    self._origenerator_shown = False
                 continue
             if op.op == "minimize_role":
                 # A player's own HUD minimize button, parking that one window.
@@ -837,6 +859,9 @@ class DispatchLoopRunner:
                 # Not integration-guarded: SetWindowPos(HWND_TOPMOST) uses
                 # SWP_NOACTIVATE, so it changes only the z-band, never focus.
                 self._restack_main_slot()
+                continue
+            if op.op == "restack_satellites":
+                self._restack_satellites()
                 continue
             if op.op == "disable_all_topmost":
                 self._remove_all_topmost()
@@ -953,7 +978,13 @@ class DispatchLoopRunner:
         A dead handle means Fun Time has no window of its own left to open into,
         and every URL handed over then is guaranteed to land in one of his: that
         is worth losing the tab over, so the launch is skipped entirely.
+
+        In origenerator mode the buffer holds instead of flushing: the RFB is
+        under the hosted app's window, and opening a tab would force Chrome over
+        it.  The locks queue, and switching back to player mode flushes them.
         """
+        if origenerator_shows(self.state.satellites_mode):
+            return
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
         if not urls or not self.rfb_shortcut_target:
@@ -1032,6 +1063,11 @@ class DispatchLoopRunner:
         window's HWND must be captured while it is visible (startup shows
         everything) and reused to show it again later.
         """
+        if role in ("origenerator_portrait", "origenerator_landscape"):
+            # The region shows come and go with the slideshows, so a cached
+            # handle would name a destroyed window — resolved fresh every time.
+            return find_window_by_pid_and_title(
+                self.origenerator_pid, ORIGENERATOR_ROLE_TITLES[role])
         hwnd = self._role_hwnds.get(role, 0)
         if hwnd:
             return hwnd
@@ -1050,13 +1086,22 @@ class DispatchLoopRunner:
             hwnd = self._find_dashboard_hwnd()
         elif role == "rfb":
             hwnd = self.rfb_hwnd
+        elif role == "origenerator":
+            # Pid AND title: the process owns three titled windows, and a
+            # standalone Origenerator of his owns windows with the same titles.
+            hwnd = find_window_by_pid_and_title(
+                self.origenerator_pid, ORIGENERATOR_ROLE_TITLES[role])
         if hwnd:
             self._role_hwnds[role] = hwnd
         return hwnd
 
     def _visible_roles(self) -> list[str]:
-        """Roles whose windows the current mode keeps on screen."""
-        return [*FIXED_TOPMOST_ROLES, *visible_main_slot_roles(self.state.main_mode)]
+        """Roles whose windows the current modes keep on screen."""
+        origenerator = (
+            ORIGENERATOR_ROLES if origenerator_shows(self.state.satellites_mode) else ()
+        )
+        return [*FIXED_TOPMOST_ROLES, *origenerator,
+                *visible_main_slot_roles(self.state.main_mode)]
 
     def _remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
@@ -1069,17 +1114,102 @@ class DispatchLoopRunner:
                 set_always_on_top(hwnd, False)
 
     def _restore_all_topmost(self) -> None:
-        """Re-apply the topmost bands for the current mode after omnipause.
+        """Re-apply the topmost bands for the current modes after omnipause.
 
-        The fixed windows (own rects) go straight back to topmost; the
-        overlapping Nau/Genau pair is re-stacked so Genau's HUD sits above Nau's
-        video in hybrid.  See :meth:`_restack_main_slot`.
+        The fixed windows (own rects) go straight back to topmost; in
+        origenerator mode the hosted trio is promoted AFTER them, which stacks
+        it above the windows it covers; the overlapping Nau/Genau pair is then
+        re-stacked so Genau's HUD sits above Nau's video in hybrid.  See
+        :meth:`_restack_main_slot`.
         """
         for role in FIXED_TOPMOST_ROLES:
             hwnd = self._resolve_role(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
+        self._restack_satellites()
         self._restack_main_slot()
+
+    def _sync_origenerator_shows(self) -> None:
+        """Track which regions the hosted app's shows cover, and pause/resume
+        the players underneath.
+
+        A show landing on a region pauses the player it covers (no point
+        decoding into a covered window); the show closing resumes it — that is
+        the whole handoff, because being covered was never being hidden.  Only
+        in origenerator mode and outside OmniPause, whose own enter/leave owns
+        every pause flag while it holds.  The occupancy lands in the shared
+        state (it round-trips through the INI every tick), so the transport
+        routing and the OmniPause exit read the same truth.
+        """
+        if not self.origenerator_pid or self.config.origenerator_status_file is None:
+            return
+        status = read_origenerator_status(self.config.origenerator_status_file)
+        changed = (
+            status.portrait_active != self.state.portrait_show_active
+            or status.landscape_active != self.state.landscape_show_active
+        )
+        if not changed:
+            return
+        if origenerator_shows(self.state.satellites_mode) and not self.state.omni_paused:
+            for side, paused_file in (
+                ("portrait", self.config.portrait_paused_file),
+                ("landscape", self.config.landscape_paused_file),
+            ):
+                covered = status.side_active(side)
+                if covered != getattr(self.state, f"{side}_show_active"):
+                    write_flag_file(paused_file, covered)
+                    logger.info(
+                        "Origenerator show %s the %s region; its player %s",
+                        "covers" if covered else "left", side,
+                        "pauses" if covered else "resumes",
+                    )
+        self.state = replace(
+            self.state,
+            portrait_show_active=status.portrait_active,
+            landscape_show_active=status.landscape_active,
+        )
+        write_shared_state(self.shared_state_file, self.state)
+
+    def _converge_origenerator_window(self) -> None:
+        """Keep the hosted app's main window where the satellites' mode says.
+
+        The mode-switch ops restore or park it when a command fires, but two
+        paths arrive with no op to run: a session RESUMED into origenerator
+        mode (the mode was seeded, never switched), and a switch made while the
+        app was still booting (the op resolved no window and fell through).
+        This converges both: whenever the window exists and its shown state
+        disagrees with the mode, drive it — never during OmniPause, whose
+        window state is its own.
+        """
+        if not self.origenerator_pid or self.state.omni_paused:
+            return
+        showing = origenerator_shows(self.state.satellites_mode)
+        if showing == self._origenerator_shown:
+            return
+        hwnd = self._resolve_role("origenerator")
+        if not hwnd:
+            return  # still booting — try again next sync
+        if showing:
+            restore_window(hwnd, activate=False)
+            self._restack_satellites()
+        else:
+            minimize_window(hwnd, activate=False)
+        self._origenerator_shown = showing
+
+    def _restack_satellites(self) -> None:
+        """Promote the hosted Origenerator's windows above the ones they cover.
+
+        Only in origenerator mode — its windows share the RFB's and the
+        players' rects, and ``HWND_TOPMOST`` inserts at the top of the band, so
+        promoting them after the fixed roles is what stacks them on top.  In
+        player mode they are parked and stay out of the band.
+        """
+        for role in ORIGENERATOR_ROLES:
+            if not role_topmost(role, self.state.main_mode, self.state.satellites_mode):
+                continue
+            hwnd = self._resolve_role(role)
+            if hwnd:
+                set_always_on_top(hwnd, True)
 
     def _restack_main_slot(self) -> None:
         """Re-establish the Nau/Genau z-order for the current mode.
@@ -1393,4 +1523,9 @@ def build_bridge_config_from_manifest(
         regen_metadata_root=Path(v) if (v := manifest.get("regen", "metadata_root", fallback="").strip()) else None,
         regen_generate_video_url=manifest.get("regen", "generate_video_url", fallback="https://example.com/video"),
         regen_generate_image_url=manifest.get("regen", "generate_image_url", fallback="https://example.com/create"),
+        origenerator_enabled=bool(
+            manifest.get("runtime", "origenerator_dir", fallback="").strip()),
+        origenerator_cmd_file=Path(v) if (v := manifest["commands"].get("origenerator_cmd_file", "").strip()) else None,
+        origenerator_paused_file=Path(v) if (v := manifest["commands"].get("origenerator_paused_file", "").strip()) else None,
+        origenerator_status_file=Path(v) if (v := manifest["commands"].get("origenerator_status_file", "").strip()) else None,
     )

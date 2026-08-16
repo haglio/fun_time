@@ -59,6 +59,10 @@ PlaylistEntries = list[tuple[Path, Path | None]]
 # keyboard-navigation selection was never a thing you could leave running.
 RESUMED_FIELDS = (
     "main_mode",
+    # The satellites' own mode axis comes back the way main_mode does; the
+    # per-region show flags deliberately do not — the hosted Origenerator
+    # relaunches with no shows open, so a resumed session starts them False.
+    "satellites_mode",
     "main_f_mode",
     "portrait_f_mode",
     "landscape_f_mode",

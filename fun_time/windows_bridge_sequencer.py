@@ -29,6 +29,7 @@ from .windows_bridge_startup import (
     SATELLITE_PORTRAIT_TITLE,
     launch_genau,
     launch_nau,
+    launch_origenerator,
     launch_ui_companions,
     start_core_session,
 )
@@ -72,6 +73,8 @@ class StartupResult:
     genau_pid: int
     audio_pid: int
     layout_plan: WindowLayoutPlan
+    # The hosted Origenerator's process, or 0 for a session with none configured.
+    origenerator_pid: int = 0
     # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
@@ -396,6 +399,27 @@ def _run_startup_phases(
     )
     launched.pids.extend([genau_pid, nau_pid])
 
+    # The hosted Origenerator, when the config names a checkout: launched with
+    # the players so its own boot (ComfyUI, the library maintenance passes)
+    # runs behind the rest of startup.  Nothing here waits on it — it comes up
+    # parked by design, and the dispatch loop adopts its window whenever it
+    # appears, restoring it only if the session is in origenerator mode.
+    origenerator_dir = m["runtime"].get("origenerator_dir", "").strip()
+    origenerator_pid = 0
+    if origenerator_dir:
+        origenerator_pid = launch_origenerator(
+            python_exe=(m["executables"].get("origenerator_python_exe", "").strip()
+                        or m["executables"]["python_exe"]),
+            origenerator_dir=origenerator_dir,
+            layout_plan=plan,
+            command_file=m["commands"]["origenerator_cmd_file"],
+            paused_file=m["commands"]["origenerator_paused_file"],
+            status_file=m["commands"]["origenerator_status_file"],
+            dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+        )
+        launched.pids.append(origenerator_pid)
+        logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
+
     # --- Phase 2: Position windows (layout computed up front) ---
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     role_hwnds: dict[str, int] = {}
@@ -537,6 +561,7 @@ def _run_startup_phases(
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
         layout_plan=plan,
+        origenerator_pid=origenerator_pid,
         main_mode=main_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,

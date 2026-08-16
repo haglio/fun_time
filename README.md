@@ -265,6 +265,8 @@ The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (i
 
 The Nau-mode voice trigger is spoken as "now now" (the reference displays it as "nau nau" — "nau" itself is not in the recognizer's vocabulary).
 
+The satellite side has a mode axis of its own, orthogonal to the three above: **player mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "generator mode" / "player mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in player mode), and the slideshows and fullscreen views it opens land on the portrait or landscape satellite region by each subject's orientation — so up to two shows can run while the Origenerator window itself stays usable. A show landing on a region pauses the player it covers; the show closing resumes it. The satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`) drive whatever holds their region — the show when one covers it, the player when none does — and the OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
+
 ### The library browser (Nau mode)
 
 The main library is filed by pipeline stage, several folders deep, and the
@@ -551,6 +553,16 @@ Cleared before every browse, so abandoning one never replays the last pick.
 ### `nau_playlist.tsv`
 
 One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
+
+### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`
+
+The hosted Origenerator's channel, spoken in the same idioms as the satellites'
+(`player_core.file_channel`). The command file carries side-prefixed transport
+verbs (`PORTRAIT_NEXT`, `LANDSCAPE_LOCK`, …) plus `CLOSE_SHOWS` and `QUIT`; the
+paused flag freezes its shows for OmniPause; the status file reports which
+satellite regions its shows cover (`portrait_active=`, `portrait_video=`,
+`portrait_locked=`, and the landscape trio), which is how the dispatch loop
+knows to pause the player a show covers and resume it when the show closes.
 
 ### `event_log.jsonl`
 

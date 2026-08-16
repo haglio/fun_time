@@ -644,6 +644,50 @@ def launch_genau(
     return proc.pid
 
 
+def launch_origenerator(
+    *,
+    python_exe: str | Path,
+    origenerator_dir: str | Path,
+    layout_plan,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    dashboard_cmd_file: str | Path,
+) -> int:
+    """Launch the hosted Origenerator, returning its PID.
+
+    Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
+    window takes the RFB's rect, the shows take the two satellite region rects,
+    and the file trio is how the session drives and observes it.  Run with
+    ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
+    way its own launcher picks a checkout, and what lets a worktree of it be
+    hosted for a branch verification.  It boots parked (its own doing), so
+    nothing waits on it: the dispatch loop adopts the window when it appears.
+    """
+    rfb = layout_plan.random_favs_browser
+    cmd = [
+        str(python_exe), "-m", "origenerator", "--fun-time",
+        "--x", str(rfb.x), "--y", str(rfb.y),
+        "--width", str(rfb.width), "--height", str(rfb.height),
+    ]
+    for prefix, rect in (("portrait", layout_plan.portrait),
+                         ("landscape", layout_plan.landscape)):
+        cmd.extend([
+            f"--{prefix}_x", str(rect.x), f"--{prefix}_y", str(rect.y),
+            f"--{prefix}_width", str(rect.width),
+            f"--{prefix}_height", str(rect.height),
+        ])
+    cmd.extend(TASKBAR_IDENTITY_ARGS)
+    cmd.extend([
+        "--command-file", str(command_file),
+        "--paused-file", str(paused_file),
+        "--status-file", str(status_file),
+        "--dashboard-cmd-file", str(dashboard_cmd_file),
+    ])
+    proc = subprocess.Popen(cmd, cwd=str(origenerator_dir), **subprocess_window_kwargs())
+    return proc.pid
+
+
 def launch_nau(
     *,
     python_exe: str | Path,

@@ -3107,3 +3107,94 @@ class TestBrowserOutlivesNothing:
         runner.stop()
 
         assert runner._browser_process is None
+
+
+class TestOrigeneratorShows:
+    def _hosting_runner(self, tmp_path):
+        config = make_config(tmp_path, origenerator_enabled=True,
+                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
+                             origenerator_paused_file=tmp_path / "origenerator_paused.txt",
+                             origenerator_status_file=tmp_path / "origenerator_status.txt")
+        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+        return runner
+
+    def _write_status(self, tmp_path, *, portrait="0", landscape="0"):
+        (tmp_path / "origenerator_status.txt").write_text(
+            f"portrait_active={portrait}\nportrait_video=\nportrait_locked=0\n"
+            f"landscape_active={landscape}\nlandscape_video=\nlandscape_locked=0\n",
+            encoding="utf-8",
+        )
+
+    def test_a_show_landing_pauses_the_player_it_covers(self, tmp_path):
+        runner = self._hosting_runner(tmp_path)
+        self._write_status(tmp_path, portrait="1")
+        runner._sync_origenerator_shows()
+        assert runner.state.portrait_show_active is True
+        assert runner.config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+        assert not runner.config.landscape_paused_file.exists()
+
+    def test_a_show_closing_resumes_the_player_underneath(self, tmp_path):
+        runner = self._hosting_runner(tmp_path)
+        self._write_status(tmp_path, portrait="1")
+        runner._sync_origenerator_shows()
+        self._write_status(tmp_path, portrait="0")
+        runner._sync_origenerator_shows()
+        assert runner.state.portrait_show_active is False
+        assert runner.config.portrait_paused_file.read_text(encoding="utf-8") == "0"
+
+    def test_occupancy_lands_in_the_shared_state(self, tmp_path):
+        runner = self._hosting_runner(tmp_path)
+        self._write_status(tmp_path, landscape="1")
+        runner._sync_origenerator_shows()
+        from fun_time.shared_state import read_shared_state
+        shared = read_shared_state(runner.shared_state_file)
+        assert shared.landscape_show_active is True
+
+    def test_omnipause_owns_the_flags_while_it_holds(self, tmp_path):
+        runner = self._hosting_runner(tmp_path)
+        runner.state = replace(runner.state, omni_paused=True)
+        self._write_status(tmp_path, portrait="1")
+        runner._sync_origenerator_shows()
+        # Occupancy still tracked, but no pause-flag writes of its own.
+        assert runner.state.portrait_show_active is True
+        assert not runner.config.portrait_paused_file.exists()
+
+    def test_rfb_tabs_hold_while_origenerator_covers_the_browser(self, tmp_path):
+        runner = self._hosting_runner(tmp_path)
+        runner.rfb_shortcut_target = "chrome.exe"
+        runner._pending_rfb_urls = ["file:///tab.html"]
+        runner._flush_rfb_tabs()
+        assert runner._pending_rfb_urls == ["file:///tab.html"]  # held, not dropped
+
+
+class TestOrigeneratorWindowConverger:
+    def test_a_resumed_origenerator_mode_restores_the_window_once_it_exists(self, tmp_path):
+        config = make_config(tmp_path)
+        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+        with patch.object(runner, "_resolve_role", return_value=0):
+            runner._converge_origenerator_window()
+        assert runner._origenerator_shown is False  # still booting — nothing to drive
+        with patch.object(runner, "_resolve_role", return_value=4242), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+            runner._converge_origenerator_window()
+        restore.assert_called_once_with(4242, activate=False)
+        assert runner._origenerator_shown is True
+
+    def test_player_mode_parks_a_window_left_up(self, tmp_path):
+        runner = make_runner(tmp_path, origenerator_pid=700)
+        runner._origenerator_shown = True
+        with patch.object(runner, "_resolve_role", return_value=4242), \
+             patch("fun_time.windows_bridge_dispatch_loop.minimize_window") as minimize:
+            runner._converge_origenerator_window()
+        minimize.assert_called_once_with(4242, activate=False)
+        assert runner._origenerator_shown is False
+
+    def test_without_a_hosted_app_the_converger_is_inert(self, tmp_path):
+        runner = make_runner(tmp_path)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+        with patch.object(runner, "_resolve_role") as resolve:
+            runner._converge_origenerator_window()
+        resolve.assert_not_called()

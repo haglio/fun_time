@@ -24,6 +24,9 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             # run instead, so a branch of it is judged before it lands.
             "genau_project_dirs": os.pathsep.join(
                 str(path) for path in config.paths.genau_project_dirs),
+            # The Origenerator checkout the session hosts, or "" for a session
+            # with no origenerator mode at all (see fun_time.satellites_mode).
+            "origenerator_dir": str(config.paths.origenerator_dir or ""),
         },
         "executables": {
             # Two interpreters: ours runs everything this repo ships (the
@@ -31,6 +34,10 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             # genau's runs the apps that live in ../genau (Genau and Nau).
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
+            # Origenerator has no venv; its deps live in a system install its
+            # own launcher would find, so a session must be told which python
+            # that is.  Empty with no origenerator configured.
+            "origenerator_python_exe": str(config.paths.origenerator_python_exe or ""),
         },
         "media": {
             "nau_library_sources": "|".join(str(path) for path in config.paths.nau_library_dirs),
@@ -79,6 +86,9 @@ def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
             "audio_volume_file": str(config.audio_volume_file),
             "dashboard_state_file": str(config.paths.state_dir / "dashboard_state.ini"),
             "dashboard_cmd_file": str(config.paths.state_dir / "dashboard_cmd.txt"),
+            "origenerator_cmd_file": str(config.origenerator_cmd_file),
+            "origenerator_paused_file": str(config.origenerator_paused_file),
+            "origenerator_status_file": str(config.origenerator_status_file),
         },
         "dashboard": {
             "enabled": "1" if dashboard_enabled else "0",

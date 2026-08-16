@@ -338,3 +338,15 @@ def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated
     ]
 
     assert survivors == []
+
+
+def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):
+    """The hosted Origenerator is a second app with machine ends of its own:
+    the one ComfyUI server on its fixed port (which it would START if absent),
+    the GPU that server generates on, and the app's one database.  None has a
+    per-desktop version, so a run hosts none — the key gone means the session
+    has no origenerator mode at all."""
+    config, _genau_config = isolated_ports
+
+    assert "origenerator_dir" not in config["paths"]
+    assert "origenerator_python_exe" not in config["paths"]

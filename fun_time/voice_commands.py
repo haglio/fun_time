@@ -81,6 +81,12 @@ VOICE_COMMANDS: dict[str, str] = {
     "now mode": "nau_activate",
     "hybrid": "hybrid_activate",
     "hybrid mode": "hybrid_activate",
+    # The satellite side's mode pair.  "origenerator" is not a vosk token, so
+    # the recognizer listens for "generator mode"; the reference displays
+    # "origenerator mode".  Spoken as the explicit pair rather than a toggle,
+    # so a phrase misheard twice cannot land on the opposite of what was asked.
+    "generator mode": "origenerator_activate",
+    "player mode": "players_activate",
     "start broker": "broker_start",
     "stop broker": "broker_stop",
     # "main next" / "next main" are generated with the satellite grid

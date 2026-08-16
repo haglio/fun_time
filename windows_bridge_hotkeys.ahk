@@ -69,6 +69,8 @@ SC01B::QueueCommand("main_next")
 g::QueueCommand("genau_activate")
 h::QueueCommand("hybrid_activate")
 n::QueueCommand("nau_activate")
+; The satellite side's own switch: player mode <-> Origenerator over the RFB.
+x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
