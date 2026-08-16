@@ -54,6 +54,10 @@ from .windows_bridge_sequencer import (
     resolve_shortcut,
     run_startup_sequence,
 )
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+)
 from .win32 import (
     close_window,
     find_window_by_pid,
@@ -434,10 +438,24 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         "Nau", timeout_s=3.0, exact=True
     )
     genau_hwnd = wait_for_window_by_title("Genau", timeout_s=3.0)
+    # By title as well as pid, like Nau above: python_exe is the venv's pythonw
+    # SHIM, so the recorded satellite pid is the launcher's rather than the
+    # interpreter that owns the SDL window, and the by-pid lookup finds
+    # nothing.  This pass is the only banding the satellites get on a
+    # loading-screen startup — with hwnd 0 it silently skipped them, and every
+    # session opened with both players out of the topmost band (the startup
+    # topmost log said so each time), buried by the first window raised over
+    # their rects.
+    portrait_hwnd = find_window_by_pid(result.portrait_pid) or wait_for_window_by_title(
+        SATELLITE_PORTRAIT_TITLE, timeout_s=3.0, exact=True
+    )
+    landscape_hwnd = find_window_by_pid(result.landscape_pid) or wait_for_window_by_title(
+        SATELLITE_LANDSCAPE_TITLE, timeout_s=3.0, exact=True
+    )
     _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
-        portrait_hwnd=find_window_by_pid(result.portrait_pid),
-        landscape_hwnd=find_window_by_pid(result.landscape_pid),
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
         genau_hwnd=genau_hwnd,
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,

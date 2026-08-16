@@ -83,6 +83,29 @@ class TestFixPostLoadingWindows:
 
         assert apply.call_args.kwargs["mode"] == "genau"
 
+    def test_satellites_resolve_by_title_when_their_pids_are_launcher_shims(self):
+        """python_exe is the venv's pythonw SHIM: the recorded satellite pid is
+        the launcher's, not the interpreter that owns the SDL window, so the
+        by-pid lookup finds nothing.  This pass was the only banding the
+        satellites got on a loading-screen startup, and with hwnd 0 it silently
+        skipped them — every session opened with both players out of the
+        topmost band, buried by the first window raised over their rects."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ) as apply, patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch("fun_time.windows_bridge_orchestrator._log_nau_obstruction"):
+            _fix_post_loading_windows(result)
+
+        assert apply.call_args.kwargs["portrait_hwnd"] == 111
+        assert apply.call_args.kwargs["landscape_hwnd"] == 222
+
 
 class TestKillProcessTree:
     def test_taskkills_the_pid_and_its_descendants(self):
