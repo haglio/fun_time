@@ -21,6 +21,7 @@ from .branch_session import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 
 from .manifest import write_windows_bridge_manifest
+from .process_identity import prepare_orchestrator_launcher
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
@@ -293,6 +294,10 @@ def main(argv: list[str] | None = None) -> int:
     # crash is logged through the excepthook installed above, so the launcher's
     # silent-failure watch has done its job.
     signal_startup_resolved(config)
+    # Leave the launcher a named interpreter to start the NEXT session through.
+    # Every child below is named as it is launched; this one process cannot be,
+    # because it is the one doing the naming -- see prepare_orchestrator_launcher.
+    prepare_orchestrator_launcher()
     refresh_content_blocklist(config, logger)
     ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)
