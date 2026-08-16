@@ -257,11 +257,21 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
 
 
 def _drained(satellite: _Satellite) -> None:
-    """Block until the player has consumed everything on its command file."""
-    _wait(
-        lambda: not satellite.cmd.read_text(encoding="utf-8").strip(),
-        timeout=10, desc="the player to drain its command file",
-    )
+    """Block until the player has consumed everything on its command file.
+
+    No file at all is the drained state, and the usual one: the player claims the
+    queue by renaming it aside and deletes what it read
+    (``player_core.file_channel.consume_command_file``), so a fully drained queue
+    leaves nothing behind.  Reading it outright raised FileNotFoundError from
+    inside the wait — a drain looked like a hang.
+    """
+    def empty() -> bool:
+        try:
+            return not satellite.cmd.read_text(encoding="utf-8").strip()
+        except FileNotFoundError:
+            return True
+
+    _wait(empty, timeout=10, desc="the player to drain its command file")
 
 
 def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
