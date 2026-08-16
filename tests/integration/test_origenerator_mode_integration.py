@@ -112,9 +112,15 @@ def _host_stub(config_path: Path, stub_root: Path) -> None:
     config_path.write_text(json.dumps(raw), encoding="utf-8")
 
 
-@pytest.fixture
+@pytest.fixture(scope="module")
 def hosted_session():
-    """A real session hosting the stub app, plus that app's main HWND."""
+    """A real session hosting the stub app, plus that app's main HWND.
+
+    One session for the whole module: launching a session is the expensive
+    half of these tests, and every extra launch is GPU and decode churn the
+    suite's perf-gated tests downstream then pay for.  The tests leave the
+    session the way they found it (player mode, satellites banded).
+    """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
     config_path = build_integration_config(temp_root)
