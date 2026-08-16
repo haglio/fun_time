@@ -1500,6 +1500,65 @@ def test_reset_rebuilds_the_side_wide_rather_than_still_in_f_mode(tmp_path: Path
     assert mock_filter.call_args.kwargs["f_mode_enabled"] is False
 
 
+def test_reset_leaves_a_side_that_is_already_at_its_defaults_alone(tmp_path: Path):
+    """Pressing it twice must do no more than pressing it once.  The rebuild
+    reshuffles and starts at the top, so the second press landed on a different
+    clip than the first and the third on another again — a button meaning "put it
+    back" was the quickest way to keep changing what was playing."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        state, ops = dispatch_command("portrait_reset", _make_state(), config)
+
+    assert mock_filter.call_count == 0
+    assert ops == []
+    assert _cmds(config, 2) == []
+    assert state.active_side == 2  # still the side a bare "next" would reach
+
+
+@pytest.mark.parametrize("narrowed", [
+    {"locked2": True},
+    {"portrait_filter": "alpha"},
+    {"portrait_f_mode": True},
+    {"portrait_latest": True},
+    {"portrait_loop": "seed"},
+    {"portrait_map_anchor": "C:/v/a.mp4"},
+    {"portrait_widen_clip": "C:/v/a.mp4"},
+])
+def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
+    tmp_path: Path, narrowed: dict
+):
+    """Every one of these is something a reset takes off, so a side holding any
+    one of them is not at its defaults.  A skip that read too few of them would
+    be the worse failure of the two: the press would do nothing while there was
+    something to undo."""
+    config = _make_config(tmp_path)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        _state, ops = dispatch_command("portrait_reset", _make_state(**narrowed), config)
+
+    assert mock_filter.call_count == 1, narrowed
+    assert [op.key for op in ops] == ["Reset"]
+
+
+def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
+    """Each side is judged on its own, so "both reset" with one side narrowed
+    rebuilds that one and leaves the other's browse where it is."""
+    config = _make_config(tmp_path)
+    state = _make_state(landscape_filter="alpha")
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        state, portrait_ops = dispatch_command("portrait_reset", state, config)
+        state, landscape_ops = dispatch_command("landscape_reset", state, config)
+
+    assert portrait_ops == []
+    assert [op.key for op in landscape_ops] == ["Reset"]
+    assert mock_filter.call_count == 1
+
+
 def test_reset_leaves_the_other_side_alone(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(locked3=True, landscape_filter="alpha", landscape_latest=True,
