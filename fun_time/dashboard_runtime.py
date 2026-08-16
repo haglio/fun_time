@@ -99,6 +99,11 @@ class NauStatus:
     # a loop alongside ``state``.
     loop_in_ms: int = 0
     loop_out_ms: int = 0
+    # The touch-down Nau's trace chose for the handoff boundary in play, in
+    # media ms — the arbiter ends Genau's turn there, so the device is set down
+    # exactly where the picture drew the blue ending.  None when there is no
+    # chosen touch (a raised floor takes the ramp and flips at once).
+    handoff_touch_ms: int | None = None
 
     @property
     def funscript_driving(self) -> bool:
@@ -151,9 +156,17 @@ def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStat
             locked=_status_bool(values, "locked", default=True),
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
+            handoff_touch_ms=_status_touch(values),
         )
     except (OSError, ValueError):
         return fallback or NauStatus()
+
+
+def _status_touch(values: dict) -> int | None:
+    """The touch-down Nau's trace chose for the boundary in play, or None —
+    absent on a raised floor, an unlatched forecast, or an older Nau."""
+    raw = values.get("handoff_touch_ms", "").strip()
+    return int(raw) if raw.isdigit() else None
 
 
 GENAU_STATUS_FILENAME = "genau_status.txt"
