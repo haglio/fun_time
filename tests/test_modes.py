@@ -695,21 +695,22 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
 
 def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     """Seed-family collapse must not merge different acts: the t2v family pins
-    the action, so a Kissing clip stays its own family."""
+    the action, so a Theta clip stays its own family."""
     source_dir, library, paths = _grouped_library(tmp_path, {
-        "clip_a": _t2v_meta("Alpha", "1"),
-        "clip_b": _t2v_meta("Alpha", "2"),
-        "kiss": _t2v_meta("Kissing", "1"),
+        "clip_a": _t2v_meta("Pov Alpha", "1"),
+        "clip_b": _t2v_meta("Pov Alpha", "2"),
+        "theta": _t2v_meta("Pov Theta", "1"),
     })
 
-    # A filter matching all three (their shared prompt) still collapses only
-    # within a seed family, so Alpha collapses to one and Kissing survives.
+    # A filter matching all three (the camera word all their acts carry) still
+    # collapses only within a seed family, so Alpha collapses to one and Theta
+    # survives.
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="same scene", recent=True, library=library,
+        filter_query="pov", recent=True, library=library,
     )
 
     assert len(built) == 2
-    assert paths["kiss"] in built
+    assert paths["theta"] in built
 
 

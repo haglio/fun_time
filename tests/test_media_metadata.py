@@ -17,7 +17,7 @@ from fun_time.media_metadata import (
     path_matches_query,
     reject_action,
     reset_group_index_cache,
-    search_haystack,
+    filter_haystack,
     seed_group_key,
     widened_seed_members,
 )
@@ -280,43 +280,57 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
 
 # --- attribute filtering: haystack + query matching ------------------------
 
-def test_search_haystack_combines_action_and_positive_prompts_lowercased():
+def test_filter_haystack_is_the_recorded_act_lowercased():
     meta = {
         "video": {"action": "Beta Gamma", "prompt": "A Subject LAYING prone"},
         "source_image": {"positive_prompt": "Subject by the Pool"},
     }
-    hay = search_haystack(meta)
-    assert "beta gamma" in hay  # from action
-    assert "laying prone" in hay  # from video prompt
-    assert "subject" in hay and "pool" in hay  # from positive_prompt
+    assert filter_haystack(meta) == "beta gamma"
 
 
-def test_search_haystack_excludes_the_negative_prompt():
+def test_filter_haystack_excludes_both_prompts():
+    """A prompt says what was asked for, not what the clip shows: an act filter
+    that read them handed back clips the HUD labels with some other act."""
     meta = {
-        "video": {"action": "Alpha", "prompt": "x"},
-        "source_image": {"positive_prompt": "y", "negative_prompt": "delta gamma"},
+        "video": {"action": "Alpha", "prompt": "delta by the pool"},
+        "source_image": {"positive_prompt": "gamma", "negative_prompt": "epsilon"},
     }
-    hay = search_haystack(meta)
-    assert "alpha" in hay
-    assert "delta" not in hay
-    assert "gamma" not in hay
+    hay = filter_haystack(meta)
+    assert hay == "alpha"
+    assert "delta" not in hay  # the video prompt
+    assert "gamma" not in hay  # the source image's positive prompt
+    assert "epsilon" not in hay  # and the negative one, as ever
 
 
-def test_search_haystack_tolerates_missing_blocks():
-    assert search_haystack({}) == ""
-    assert "epsilon" in search_haystack({"video": {"action": "Pov Epsilon"}})
+def test_filter_haystack_tolerates_missing_blocks():
+    assert filter_haystack({}) == ""
+    assert filter_haystack({"video": {}}) == ""
+    assert filter_haystack({"video": {"prompt": "epsilon"}}) == ""
+    assert "epsilon" in filter_haystack({"video": {"action": "Pov Epsilon"}})
 
 
-def test_matches_query_is_case_insensitive_substring_across_fields():
+def test_matches_query_is_a_case_insensitive_substring_of_the_act():
     meta = {
         "video": {"action": "Pov Epsilon", "prompt": "subject subject"},
         "source_image": {"positive_prompt": "pool party"},
     }
     assert matches_query(meta, "epsilon")  # substring of the action
     assert matches_query(meta, "Epsilon")  # case-insensitive
-    assert matches_query(meta, "subject")  # from the video prompt
-    assert matches_query(meta, "pool")  # from the positive prompt
+    assert not matches_query(meta, "subject")  # the video prompt is not the act
+    assert not matches_query(meta, "pool")  # nor is the source image's
     assert not matches_query(meta, "delta")
+
+
+def test_matches_query_drops_a_clip_that_has_no_act_recorded():
+    """The clip a filter used to leave on screen labeled "(unknown)": its prompts
+    named the act, its sidecar recorded none, so nothing in the map said why it
+    was there.  Un-acted clips are the backfill tool's backlog, not filter hits."""
+    unlabeled = {
+        "video": {"prompt": "epsilon, by the pool"},
+        "source_image": {"positive_prompt": "epsilon"},
+    }
+    assert not matches_query(unlabeled, "epsilon")
+    assert matches_query(unlabeled, "")  # but no filter still passes it
 
 
 def test_matches_query_empty_matches_everything():
@@ -325,11 +339,12 @@ def test_matches_query_empty_matches_everything():
 
 
 def test_matches_query_multiword_must_be_contiguous():
-    prone = {"video": {"action": "Beta Gamma", "prompt": "x"}}
-    assert matches_query(prone, "beta gamma")
-    scattered = {"video": {"action": "Alpha", "prompt": "she lies prone; a bone rests elsewhere"}}
-    assert matches_query(scattered, "prone")
-    assert not matches_query(scattered, "beta gamma")
+    joined = {"video": {"action": "Beta Gamma", "prompt": "x"}}
+    assert matches_query(joined, "beta gamma")
+    assert matches_query(joined, "gamma")  # one word of the act still catches it
+    scattered = {"video": {"action": "Beta, Theta Gamma", "prompt": "x"}}
+    assert matches_query(scattered, "theta gamma")
+    assert not matches_query(scattered, "beta gamma")  # two acts, not one
 
 
 def test_path_matches_query_reads_the_sidecar(tmp_path):
@@ -357,6 +372,28 @@ def test_path_matches_query_excludes_videos_without_a_sidecar(tmp_path):
     # An active filter can't be satisfied by a video with no metadata...
     assert not path_matches_query(str(video), metadata_root, "alpha")
     # ...but with no filter, everything passes.
+    assert path_matches_query(str(video), metadata_root, "")
+
+
+def test_path_matches_query_excludes_a_sidecar_that_records_no_act(tmp_path):
+    """A sidecar whose prompts name the act but whose ``action`` is still empty:
+    the filter used to keep it, and the HUD then labeled it "(unknown)"."""
+    media_root = tmp_path / "videos" / "videos"
+    metadata_root = tmp_path / "videos" / "metadata"
+    video = media_root / "portrait" / "provider" / "unlabeled.mp4"
+    video.parent.mkdir(parents=True)
+    video.write_bytes(b"")
+    sidecar = metadata_root / "portrait" / "provider" / "unlabeled.json"
+    sidecar.parent.mkdir(parents=True)
+    sidecar.write_text(
+        json.dumps({
+            "video": {"prompt": "alpha, by the pool"},
+            "source_image": {"positive_prompt": "alpha"},
+        }),
+        encoding="utf-8",
+    )
+
+    assert not path_matches_query(str(video), metadata_root, "alpha")
     assert path_matches_query(str(video), metadata_root, "")
 
 

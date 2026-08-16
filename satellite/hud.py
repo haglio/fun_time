@@ -561,8 +561,8 @@ def label_is_filtered(label: str, filter_query: str) -> bool:
     what the press reads to decide between narrowing and lifting.
 
     fun_time keeps a clip when the query appears as a *contiguous substring* of its
-    metadata (``media_metadata.matches_query``), so every act the query names has to
-    be one of the row's: filtered to "gamma", both a "POV Gamma" row and a "Gamma,
+    recorded act (``media_metadata.matches_query``), so every act the query names has
+    to be one of the row's: filtered to "gamma", both a "POV Gamma" row and a "Gamma,
     Theta" row are clips it keeps, while a plain "Alpha" row is *not* kept by an
     "alpha, beta" filter and must not read as though it were.
     Within a row an act still matches on a substring ("gamma" catching "theta
