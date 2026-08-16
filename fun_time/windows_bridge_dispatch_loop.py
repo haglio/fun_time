@@ -14,7 +14,6 @@ import threading
 import time
 from pathlib import Path
 
-from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
@@ -75,11 +74,6 @@ from .win32 import (
 
 logger = logging.getLogger(__name__)
 
-# Genau publishes its drive readout here, in the session state dir — the
-# park-touch hold reads the same wave the trace draws its blue ending from.
-GENAU_DRIVE_FILENAME = "genau_drive.txt"
-# The same two percent of the travel the trace and the sender call the park.
-_PARK_TOUCH_EPSILON = 0.02
 
 # How long the outgoing main-slot player keeps its window before it is
 # minimized, so the DISPLAY_OFF it was sent in the same breath is on screen
@@ -592,7 +586,7 @@ class DispatchLoopRunner:
             # of it.
             flowed = (previous is not None
                       and abs(status.position_ms - previous.position_ms) < 1_500)
-            if flowed and self._holding_for_park_touch(now):
+            if flowed and self._holding_for_park_touch(now, status):
                 return
         else:
             self._park_touch_deadline = None
@@ -618,36 +612,28 @@ class DispatchLoopRunner:
             self._hybrid_asserted_at = now
             self._park_touch_deadline = None
 
-    def _holding_for_park_touch(self, now: float) -> bool:
+    def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the Genau-to-script flip is still waiting for a touch-down.
 
-        Scheduled ONCE, from the published readout: only a stroke whose floor
-        rests on the park qualifies (min of the wave at the park), and the wait
-        is the first touch's ETA, capped so a stroke too slow to come down
-        cannot stall the script.  Missing or already-parked publishes flip at
-        once — the ramp path handles those.  The one-shot deadline is what
-        keeps the moment stable: re-derived per tick from a moving wave, the
-        stopping point wandered, and the drawn blue ending could never match
-        the device.
+        The touch is NAU'S CHOICE, published with its status: the trace picks
+        one touch-down, draws the blue ending on it, and this side simply ends
+        Genau's turn when the playhead reaches it — one chooser, so the device
+        cannot stop at a different trough than the picture drew.  When each
+        side chose from its own read of the wave, the arbiter could take an
+        earlier touch, and the leftover drawn blue vanished the moment the dot
+        reached it.  No published touch means the ramp case: flip at once.
+        The wall-clock cap keeps a stalled playhead from holding forever.
         """
-        if self._park_touch_deadline is not None:
-            if now < self._park_touch_deadline:
-                return True
+        touch = status.handoff_touch_ms
+        if touch is None or status.position_ms >= touch:
             self._park_touch_deadline = None
             return False
-        drive = read_drive(Path(self.config.state_dir) / GENAU_DRIVE_FILENAME)
-        if drive is None or len(drive.waveform) < 2 or drive.let_go is not None:
-            return False
-        if min(drive.waveform) > _PARK_TOUCH_EPSILON:
-            return False
-        touch = next((index for index, value in enumerate(drive.waveform)
-                      if value <= _PARK_TOUCH_EPSILON), None)
-        if not touch:
-            return False
-        pitch_s = drive.trace_seconds / (len(drive.waveform) - 1)
-        self._park_touch_deadline = now + min(
-            touch * pitch_s, PARK_TOUCH_WAIT_CAP_MS / 1000)
-        return True
+        if self._park_touch_deadline is None:
+            self._park_touch_deadline = now + PARK_TOUCH_WAIT_CAP_MS / 1000
+        if now < self._park_touch_deadline:
+            return True
+        self._park_touch_deadline = None
+        return False
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
         """Route one polled command (already expanded from any ``both_*``).
