@@ -10,6 +10,7 @@ from PIL import Image
 from player_core.hud_panel import ICON_GRIDS, TEXT_MUTED, WHITE
 
 from satellite.hud import (
+    COL_LABEL_H,
     CONTROL_TOOLTIPS,
     CTRL_BAND_H,
     ELLIPSIS_ROOM,
@@ -319,7 +320,7 @@ def test_render_draws_the_sides_own_controls_even_with_no_clip():
         HudModel(side="landscape", locked=False, lock_label="Unlocked"))
 
     assert [name for _rect, name in rendered.targets.control] == [
-        "prev", "next", "lock", "trash", "fmode", "minimize",
+        "prev", "next", "lock", "trash", "fmode", "reset", "minimize",
     ]
     assert rendered.targets.favorite is not None
 
@@ -834,16 +835,41 @@ def test_a_tooltip_longer_than_the_panel_is_wide_stays_on_the_panel(thumb):
 def test_the_button_glyphs_are_not_tofu():
     """Segoe UI has no U+21BB, so drawing the loop button with the UI face gives a
     ".notdef" box.  Qt fell back to Segoe UI Symbol silently; Pillow does not, so
-    the glyph font must cover both button icons itself."""
+    the glyph font must cover every button icon itself — the map's two and each of
+    the side's own controls, reset's backwards loop included."""
     from player_core.hud_panel import load_font
 
-    from satellite.hud_paint import _EXPAND_GLYPH, _LOOP_GLYPH, _SYMBOL_FONT
+    from satellite.hud_paint import (
+        _CONTROL_GLYPHS,
+        _EXPAND_GLYPH,
+        _LOOP_GLYPH,
+        _SYMBOL_FONT,
+    )
 
     glyph_font = load_font(11, _SYMBOL_FONT)
     notdef = glyph_font.getmask("").getbbox()
 
     assert glyph_font.getmask(_LOOP_GLYPH).getbbox() != notdef
     assert glyph_font.getmask(_EXPAND_GLYPH).getbbox() != notdef
+    for name, glyph in _CONTROL_GLYPHS.items():
+        assert glyph_font.getmask(glyph).getbbox() != notdef, name
+
+
+def test_the_reset_button_is_never_lit():
+    """The lock and F-mode are states the side sits in, so they light while they
+    are on; a reset is over the moment it lands, and a button that stayed lit
+    would say the side was sitting in one."""
+    for locked, f_mode in ((False, False), (True, True)):
+        rendered = HudRenderer("landscape").render(
+            HudModel(side="landscape", lock_label="Locked",
+                     locked=locked, f_mode=f_mode))
+        rects = {name: rect for rect, name in rendered.targets.control}
+        x, y, w, h = rects["reset"]
+        box = _rgb(rendered.bgra)[y:y + h, x:x + w]
+        # A lit button fills its box, so most of it would be the on-color.
+        filled = (box > 100).all(axis=2).sum()
+
+        assert filled < w * h // 2, (locked, f_mode)
 
 
 def test_column_labels_are_clipped_to_their_column(thumb):
@@ -857,7 +883,9 @@ def test_column_labels_are_clipped_to_their_column(thumb):
 
     (cx, _cy, cw, _ch), _path = rendered.targets.click[0]
     (sx, _sy, _sw, _sh), _seed = rendered.targets.click[1]
-    # The header strip sits above the thumbnails; nothing may be drawn in the gap
-    # between the corner column and the next one.
-    header = _rgb(rendered.bgra)[PAD + STATUS_BAND_H:PAD + STATUS_BAND_H + 13, cx + cw:sx]
+    # The header strip sits above the thumbnails — under the status and control
+    # bands, which is what the two band heights step past.  Nothing may be drawn in
+    # the gap between the corner column and the next one.
+    strip_y = PAD + STATUS_BAND_H + CTRL_BAND_H
+    header = _rgb(rendered.bgra)[strip_y:strip_y + COL_LABEL_H, cx + cw:sx]
     assert (header > 60).sum() == 0

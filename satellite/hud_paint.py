@@ -99,9 +99,12 @@ _LOOP_GLYPH = "↻"
 _EXPAND_GLYPH = "↔"
 # The side's own controls.  Skip-track for the browse pair rather than bare
 # arrows, so they cannot be read as "step along the map"; a padlock and a bin for
-# the two that act on the clip on screen.  They come from the same symbol face as
-# the loop glyph above — Segoe UI Bold has none of them.
-_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑"}
+# the two that act on the clip on screen.  Reset wears the loop's own mark run
+# backwards (U+21BA against the loop's U+21BB): counterclockwise is what "put it
+# back" looks like everywhere, and the two never share a band — the loop buttons
+# stand on the map's edges and this one in the control row above it.  They come
+# from the same symbol face as the loop glyph — Segoe UI Bold has none of them.
+_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑", "reset": "↺"}
 # F-mode wears its own mark rather than a glyph: no symbol says "favorites
 # only", and the mode already has a face — the pink "F" of ``fmode_icon.ico``,
 # the five-by-five letter every app in this family is marked with.  A letter set
