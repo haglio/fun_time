@@ -2119,9 +2119,10 @@ def _set_nau_driving(config, *, driving: bool) -> None:
 
 
 def test_the_stroke_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
-    """The two are separate controls on the console now, so the stroke's pair must
-    stay on the stroke: it used to follow whichever engine held the OSR2, which
-    made pressing Genau's − move the playback rate across the panel instead."""
+    """The console's ± marks sit on one readout or the other, so each must move
+    the engine it sits on: Genau's pair stayed on the stroke even mid-funscript,
+    from when one shared pair made pressing Genau's − move the playback rate
+    across the panel instead."""
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=True)
     state = _make_state(main_mode="hybrid")
@@ -2132,15 +2133,43 @@ def test_the_stroke_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     assert not config.nau_cmd_file.exists()
 
 
-def test_speed_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
+def test_the_bare_nudge_routes_to_nau_in_hybrid_while_the_funscript_drives(tmp_path: Path):
+    """Hybrid, actively scripted stretch: the funscript drives the OSR2 and Genau
+    is paused, so "speed up" tunes Nau's video — whose clock scales the script.
+    Sent to Genau it moved a number on a dimmed readout and nothing else."""
+    config = _make_config(tmp_path)
+    _set_nau_driving(config, driving=True)
+    state = _make_state(main_mode="hybrid")
+
+    dispatch_command("speed_up", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.genau_cmd_file.exists()
+
+
+def test_the_bare_nudge_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
     # Hybrid, unscripted stretch (no funscript / lead-in / gap): Genau drives the
-    # OSR2, so speed tunes Genau's stroke rate.
+    # OSR2, so the bare nudge tunes Genau's stroke rate.
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=False)
     state = _make_state(main_mode="hybrid")
 
-    dispatch_command("genau_speed_up", state, config)
+    dispatch_command("speed_down", state, config)
 
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert not config.nau_cmd_file.exists()
+
+
+def test_the_bare_nudge_follows_the_only_engine_running_outside_hybrid(tmp_path: Path):
+    """Nothing to arbitrate in the single-engine modes: nau mode has only the
+    video's rate, genau mode only the stroke's."""
+    config = _make_config(tmp_path / "nau")
+    dispatch_command("speed_up", _make_state(main_mode="nau"), config)
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert not config.genau_cmd_file.exists()
+
+    config = _make_config(tmp_path / "genau")
+    dispatch_command("speed_up", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.nau_cmd_file.exists()
 

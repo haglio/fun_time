@@ -162,9 +162,11 @@ class TestVoiceCommands:
             "browse": "browse_library",
             "clip": "clipper_save",
             "save clip": "clipper_save",
-            "slow down": "genau_speed_down",
-            "speed down": "genau_speed_down",
-            "speed up": "genau_speed_up",
+            # Engine-agnostic: routed to whichever holds the OSR2, not to Genau
+            # by name (the console's own marks are the by-name pair).
+            "slow down": "speed_down",
+            "speed down": "speed_down",
+            "speed up": "speed_up",
             "amp down": "genau_amplitude_down",
             "amp up": "genau_amplitude_up",
             "center down": "genau_center_down",
@@ -709,7 +711,7 @@ class TestVoiceController:
         cmd_file = tmp_path / "cmd.txt"
         vc = VoiceController(cmd_file=cmd_file, model_path="unused")
         vc.suspend()
-        for command in ("landscape_next", "help_reference", "pause", "genau_speed_up"):
+        for command in ("landscape_next", "help_reference", "pause", "speed_up"):
             vc._write_command(command, spoken_at=1.0)
         assert not cmd_file.exists()
 
