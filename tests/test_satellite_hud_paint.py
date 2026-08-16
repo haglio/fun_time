@@ -913,3 +913,35 @@ def test_no_hosted_origenerator_means_no_mode_pair(thumb):
         _model(corner=HudCell(path="c.mp4", thumb=thumb))
     )
     assert rendered.targets.modes == []
+
+
+def test_the_mode_row_leads_and_minimize_rides_it(thumb):
+    """Like the main console: the mode pair gets a row of its own above the
+    controls, and minimize — being about the side's window, not the clip —
+    rides that row rather than sitting among the transport."""
+    rendered = HudRenderer("portrait").render(
+        _model(corner=HudCell(path="c.mp4", thumb=thumb),
+               satellites_mode="player")
+    )
+
+    mode_y = rendered.targets.modes[0][0][1]
+    by_name = {name: rect for rect, name in rendered.targets.control}
+    # Minimize shares the mode row, to the right of the pair.
+    assert by_name["minimize"][1] == mode_y
+    assert by_name["minimize"][0] > rendered.targets.modes[-1][0][0]
+    # The rest of the controls sit on their own band, one below.
+    for name in ("prev", "next", "lock", "trash", "fmode"):
+        assert by_name[name][1] == mode_y + CTRL_BAND_H
+    # From its new home the button still posts the side's own command.
+    clicks = HudClicks("portrait")
+    rect = by_name["minimize"]
+    assert clicks.press(rendered.targets, rect[0] + 2, rect[1] + 2,
+                        now=0.0) == "portrait_minimize"
+
+
+def test_without_a_mode_row_minimize_keeps_the_control_band(thumb):
+    rendered = HudRenderer("portrait").render(
+        _model(corner=HudCell(path="c.mp4", thumb=thumb))
+    )
+    by_name = {name: rect for rect, name in rendered.targets.control}
+    assert by_name["minimize"][1] == by_name["prev"][1]  # one band, as ever

@@ -196,7 +196,7 @@ def panel_width(gutter: int, row_width: int, status_width: int,
     return max(for_map, STATUS_TEXT_X + max(status_width, subtitle_width) + PAD, band_width)
 
 
-def panel_height(column_height: int, subtitle_h: int = 0) -> int:
+def panel_height(column_height: int, subtitle_h: int = 0, mode_band_h: int = 0) -> int:
     """How tall the panel has to be: the status and control bands, then — around a
     map column *column_height* deep — the "Seed N" header strip, the column's own
     "…" slots, and the action-loop button below it.
@@ -210,10 +210,13 @@ def panel_height(column_height: int, subtitle_h: int = 0) -> int:
     first, so it grows the band rather than the width, and everything under it moves
     down by exactly the line it added.
 
+    *mode_band_h* is the mode row's band when the session hosts an Origenerator —
+    a row of its own above the controls, like the console's — and 0 otherwise.
+
     *column_height* is 0 before the satellite's first clip, when the panel is the
     two bands and nothing else: there is no map, so no room is kept for one.
     """
-    foot = PAD + STATUS_BAND_H + subtitle_h + CTRL_BAND_H
+    foot = PAD + STATUS_BAND_H + subtitle_h + mode_band_h + CTRL_BAND_H
     if column_height:
         foot += (COL_LABEL_H + COL_LABEL_GAP + ELLIPSIS_ROOM
                  + column_height + ELLIPSIS_ROOM + MAP_BOTTOM_RESERVE)
@@ -429,18 +432,29 @@ def ellipsis_rects(
 CONTROLS = ("prev", "next", "lock", "trash", "fmode", "reset", "minimize")
 
 
-def control_button_rects(x: int, y: int) -> list[tuple[Rect, str]]:
-    """Each side-control's ``(rect, name)``, in a row running right from ``(x, y)``."""
+def control_button_rects(x: int, y: int,
+                         names: tuple[str, ...] = CONTROLS) -> list[tuple[Rect, str]]:
+    """Each side-control's ``(rect, name)``, in a row running right from ``(x, y)``.
+
+    *names* is which controls the row carries: all of them by default, but with
+    a hosted Origenerator the mode row above takes minimize with it (see
+    :data:`MODE_BUTTONS`), and this row lays out the rest.
+    """
     return [
         ((x + index * (CTRL_BTN + MAP_GAP), y, CTRL_BTN, CTRL_BTN), name)
-        for index, name in enumerate(CONTROLS)
+        for index, name in enumerate(names)
     ]
 
 
 # The satellite side's mode pair, drawn like the main console's Nau/Hybrid/
 # Genau row: a labeled button per mode, the session's current one lit, a press
 # on the other switching to it.  Each action is the dispatch command verbatim —
-# side-less, because the mode belongs to the whole satellite side.
+# side-less, because the mode belongs to the whole satellite side.  Like the
+# console's, the mode row is a row of its own, leading the bands, and minimize
+# rides it: minimize is about the window the panel is drawn in rather than the
+# clip on screen, so it belongs beside the buttons that are about the side as a
+# whole, not among the transport.  (Without a hosted Origenerator there is no
+# mode row, and minimize stays at the end of the control band.)
 MODE_BUTTONS = (
     ("players_activate", "Player", "player"),
     ("origenerator_activate", "Origenerator", "origenerator"),
