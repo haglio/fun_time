@@ -418,20 +418,12 @@ class TestPlaylistFitsSources:
         assert playlist_fits_sources(tmp_path / "absent.tsv", str(tmp_path)) is True
 
 
-def test_resume_carries_the_satellites_mode_but_never_the_show_flags(tmp_path):
-    """A session closed in origenerator mode comes back in it — but the hosted
-    app relaunches with no shows open, so the per-region occupancy always
-    starts False; a stale True would pause a player under a show that is not
-    there."""
+def test_resume_carries_the_satellites_mode(tmp_path):
+    """A session closed in origenerator mode comes back in it, the same way the
+    main slot's mode does."""
     state_file = tmp_path / "shared_state.ini"
-    write_shared_state(state_file, BridgeState(
-        satellites_mode="origenerator",
-        portrait_show_active=True,
-        landscape_show_active=True,
-    ))
+    write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
 
     state = resume_shared_state(state_file, resumed=True)
 
     assert state.satellites_mode == "origenerator"
-    assert state.portrait_show_active is False
-    assert state.landscape_show_active is False

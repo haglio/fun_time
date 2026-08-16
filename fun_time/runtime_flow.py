@@ -373,13 +373,15 @@ def apply_satellites_switch(
 ) -> SatellitesSwitchFlowResult:
     """Switch the satellite side between player and origenerator mode.
 
-    Like the main slot's switch, nothing is torn down: entering origenerator
-    mode is window ops alone (the caller's), because the players keep playing
-    until a show actually covers one.  Leaving tells the hosted app to close
-    its shows and unpauses both players — whichever of them a show had covered
-    resumes with the cover gone.  Under OmniPause the switch is state-only,
-    exactly as a main-mode switch is: the room is frozen, so nothing may move
-    until it resumes.
+    Like the main slot's switch, nothing is torn down.  Entering origenerator
+    mode pauses both players: the regions belong to the hosted app now, and a
+    player that kept playing under it would be decoding for nobody — the
+    players also go BLACK for the whole mode, but that is the satellites' own
+    doing, off the mode the published HUD panel carries.  Leaving tells the
+    hosted app to close its shows and unpauses both players.  Under OmniPause
+    the switch is state-only, exactly as a main-mode switch is: the room is
+    frozen, so nothing may move until it resumes — the OmniPause exit lands
+    the pause flags where the then-current mode says.
     """
     if current_mode == target_mode:
         return SatellitesSwitchFlowResult(
@@ -394,6 +396,9 @@ def apply_satellites_switch(
             append_command(Path(origenerator_cmd_file), "CLOSE_SHOWS")
         write_flag_file(portrait_paused_file, False)
         write_flag_file(landscape_paused_file, False)
+    else:
+        write_flag_file(portrait_paused_file, True)
+        write_flag_file(landscape_paused_file, True)
     return SatellitesSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
         log_message=f"Satellites switched to {target_mode} mode")
@@ -464,8 +469,7 @@ def apply_leave_omnipause(
     nau_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
-    portrait_covered: bool = False,
-    landscape_covered: bool = False,
+    satellites_origenerator: bool = False,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
@@ -483,10 +487,11 @@ def apply_leave_omnipause(
         write_broker_command(broker_cmd_file, plan.broker_command)
     # Unfreeze both satellites; a locked one holds its clip (its lock is
     # independent of the pause flag), an unlocked one resumes auto-advancing.
-    # A side an Origenerator show still covers stays paused: the room resuming
-    # must not set an invisible player playing underneath the show.
-    write_flag_file(portrait_paused_file, portrait_covered)
-    write_flag_file(landscape_paused_file, landscape_covered)
+    # In origenerator mode they stay paused instead: the regions are the hosted
+    # app's for the whole mode, and the room resuming must not set the blacked
+    # players playing invisibly underneath it.
+    write_flag_file(portrait_paused_file, satellites_origenerator)
+    write_flag_file(landscape_paused_file, satellites_origenerator)
     if origenerator_paused_file is not None:
         write_flag_file(origenerator_paused_file, False)
     return OmniPauseFlowResult(

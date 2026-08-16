@@ -3879,7 +3879,7 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
 
 
 class TestSatellitesModeSwitch:
-    def test_origenerator_activate_shows_and_restacks(self, tmp_path):
+    def test_origenerator_activate_shows_restacks_and_pauses_the_players(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
         assert state.satellites_mode == "origenerator"
@@ -3888,23 +3888,23 @@ class TestSatellitesModeSwitch:
             ("activate_role", "origenerator"),
             ("restack_satellites", ""),
         ]
+        # The regions are the hosted app's for the whole mode: both players
+        # pause (and black themselves out, off the published HUD panel's mode).
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
 
     def test_players_activate_closes_shows_and_unpauses_the_players(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator",
-                            portrait_show_active=True, landscape_show_active=True)
+        state = BridgeState(satellites_mode="origenerator")
         state, ops = dispatch_command("players_activate", state, config)
         assert state.satellites_mode == "player"
-        # The shows are the hosted app's to close; the covered players resume.
+        # The shows are the hosted app's to close; the blacked players resume.
         assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
         assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
         assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
         # Its windows leave the screen: the main one parks, the shows close
         # themselves (the hides are the backstop for a hung app).
         assert ("hide_role", "origenerator") in [(op.op, op.key) for op in ops]
-        # The stale occupancy is forgotten with the shows.
-        assert state.portrait_show_active is False
-        assert state.landscape_show_active is False
 
     def test_satellites_toggle_flips_between_the_two(self, tmp_path):
         config = _origenerator_config(tmp_path)
@@ -3928,17 +3928,18 @@ class TestSatellitesModeSwitch:
 
 
 class TestOrigeneratorTransport:
-    def test_side_transport_reaches_the_show_covering_that_region(self, tmp_path):
+    def test_side_transport_reaches_the_hosted_app_not_the_player(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator", portrait_show_active=True)
+        state = BridgeState(satellites_mode="origenerator")
         state, _ = dispatch_command("portrait_next", state, config)
         assert _origenerator_cmds(config) == ["PORTRAIT_NEXT"]
-        assert _cmds(config, 2) == []  # the covered player is not driven
+        # The player is black and paused for the whole mode — driving it would
+        # walk its playlist invisibly (and book watch stats nobody watched).
+        assert _cmds(config, 2) == []
 
     def test_all_four_verbs_route(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator",
-                            portrait_show_active=True, landscape_show_active=True)
+        state = BridgeState(satellites_mode="origenerator")
         for command in ("portrait_prev", "portrait_trash", "portrait_lock",
                         "landscape_next", "landscape_lock"):
             state, _ = dispatch_command(command, state, config)
@@ -3947,19 +3948,9 @@ class TestOrigeneratorTransport:
             "LANDSCAPE_NEXT", "LANDSCAPE_LOCK",
         ]
 
-    def test_an_uncovered_side_still_drives_its_player(self, tmp_path):
-        # In origenerator mode with no show on a side, that side's player is
-        # what the eye sees — the transport keeps driving it.
-        config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator", portrait_show_active=False)
-        state, _ = dispatch_command("portrait_next", state, config)
-        assert _origenerator_cmds(config) == []
-        assert _cmds(config, 2) == ["NEXT"]
-
     def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(portrait_show_active=True)  # stale flag, player mode
-        state, _ = dispatch_command("portrait_next", state, config)
+        state, _ = dispatch_command("portrait_next", BridgeState(), config)
         assert _origenerator_cmds(config) == []
         assert _cmds(config, 2) == ["NEXT"]
 
@@ -3972,16 +3963,15 @@ class TestOmniPauseWithOrigenerator:
         assert state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
 
-    def test_leave_keeps_a_covered_player_paused(self, tmp_path):
-        # The show still covers the portrait region, so resuming the room must
-        # not set an invisible player playing underneath it.
+    def test_leave_keeps_the_players_paused_in_origenerator_mode(self, tmp_path):
+        # The regions are the hosted app's for the whole mode: the room
+        # resuming must not set the blacked players playing underneath it.
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator", omni_paused=True,
-                            portrait_show_active=True)
+        state = BridgeState(satellites_mode="origenerator", omni_paused=True)
         state, _ = dispatch_command("relief_omnipause", state, config)  # enters relief
         state = replace(state, omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)
         assert not state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
         assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
-        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"

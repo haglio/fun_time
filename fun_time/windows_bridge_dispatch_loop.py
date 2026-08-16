@@ -38,7 +38,6 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from .mode_plan import genau_active
 from .nau_console import console_payload
 from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_content
-from .origenerator_control import read_origenerator_status
 from .satellite_control import read_satellite_status
 from .satellites_mode import origenerator_shows
 from .shared_state import read_shared_state, write_shared_state
@@ -55,7 +54,7 @@ from .dashboard_runtime import (
     read_genau_status,
     read_nau_status,
 )
-from .runtime_flow import read_flag_file, write_flag_file
+from .runtime_flow import read_flag_file
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
@@ -430,7 +429,6 @@ class DispatchLoopRunner:
                 self._update_dashboard()
         if now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
             self._last_watch_sample = now
-            self._sync_origenerator_shows()
             if not self.state.omni_paused:
                 self._sample_satellites(now=now)
                 self._sample_main()
@@ -1150,47 +1148,6 @@ class DispatchLoopRunner:
         self._restack_satellites()
         self._restack_main_slot()
 
-    def _sync_origenerator_shows(self) -> None:
-        """Track which regions the hosted app's shows cover, and pause/resume
-        the players underneath.
-
-        A show landing on a region pauses the player it covers (no point
-        decoding into a covered window); the show closing resumes it — that is
-        the whole handoff, because being covered was never being hidden.  Only
-        in origenerator mode and outside OmniPause, whose own enter/leave owns
-        every pause flag while it holds.  The occupancy lands in the shared
-        state (it round-trips through the INI every tick), so the transport
-        routing and the OmniPause exit read the same truth.
-        """
-        if not self.origenerator_pid or self.config.origenerator_status_file is None:
-            return
-        status = read_origenerator_status(self.config.origenerator_status_file)
-        changed = (
-            status.portrait_active != self.state.portrait_show_active
-            or status.landscape_active != self.state.landscape_show_active
-        )
-        if not changed:
-            return
-        if origenerator_shows(self.state.satellites_mode) and not self.state.omni_paused:
-            for side, paused_file in (
-                ("portrait", self.config.portrait_paused_file),
-                ("landscape", self.config.landscape_paused_file),
-            ):
-                covered = status.side_active(side)
-                if covered != getattr(self.state, f"{side}_show_active"):
-                    write_flag_file(paused_file, covered)
-                    logger.info(
-                        "Origenerator show %s the %s region; its player %s",
-                        "covers" if covered else "left", side,
-                        "pauses" if covered else "resumes",
-                    )
-        self.state = replace(
-            self.state,
-            portrait_show_active=status.portrait_active,
-            landscape_show_active=status.landscape_active,
-        )
-        write_shared_state(self.shared_state_file, self.state)
-
     def _converge_origenerator_window(self) -> None:
         """Keep the hosted app's main window where the satellites' mode says.
 
@@ -1548,5 +1505,4 @@ def build_bridge_config_from_manifest(
             manifest.get("runtime", "origenerator_dir", fallback="").strip()),
         origenerator_cmd_file=Path(v) if (v := manifest["commands"].get("origenerator_cmd_file", "").strip()) else None,
         origenerator_paused_file=Path(v) if (v := manifest["commands"].get("origenerator_paused_file", "").strip()) else None,
-        origenerator_status_file=Path(v) if (v := manifest["commands"].get("origenerator_status_file", "").strip()) else None,
     )

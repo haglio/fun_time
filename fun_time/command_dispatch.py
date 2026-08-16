@@ -103,12 +103,6 @@ class BridgeState:
     # "player" is the session as ever, "origenerator" puts the hosted
     # Origenerator over the RFB and its shows over the players.
     satellites_mode: str = STARTUP_SATELLITES_MODE
-    # Which satellite regions an Origenerator show currently covers, as its
-    # status file last said.  Held here because transport routing and the
-    # OmniPause exit both need it, and this state round-trips through the
-    # shared INI every tick — an unserialized field would be undone at once.
-    portrait_show_active: bool = False
-    landscape_show_active: bool = False
     # Whether each player is in F-mode, held per player because it is set per
     # player: each HUD carries its own button, and only the bare "f mode" (and the
     # F key) still reaches all three at once.  It narrows the satellites to the
@@ -222,7 +216,6 @@ class BridgeConfig:
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_paused_file: Path | None = None
-    origenerator_status_file: Path | None = None
     # Where the broker keeps the rest of its channel.  Unset it falls back to
     # ``state_dir``, which is what the two are for every session that runs from
     # the primary checkout; a branch session moves ``state_dir`` into its worktree
@@ -1306,8 +1299,8 @@ def dispatch_command(
     if lock_action_scope is not None:
         return _dispatch_lock_action(lock_action_scope, state, config, target_path)
 
-    # In origenerator mode, a covered side's transport goes to the show holding
-    # that region, not to the player invisibly underneath it.
+    # In origenerator mode, a side's transport goes to the hosted app, never to
+    # the blacked player invisibly underneath its region.
     routed = _origenerator_transport(command, state, config)
     if routed is not None:
         return state, routed
@@ -1606,10 +1599,7 @@ def _dispatch_leave_omnipause(
         nau_paused_file=config.nau_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
-        portrait_covered=(origenerator_shows(state.satellites_mode)
-                          and state.portrait_show_active),
-        landscape_covered=(origenerator_shows(state.satellites_mode)
-                           and state.landscape_show_active),
+        satellites_origenerator=origenerator_shows(state.satellites_mode),
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
@@ -2099,9 +2089,9 @@ def _dispatch_set_filter(
     return state, ops
 
 
-# In origenerator mode, each satellite side's transport reaches the show
-# covering that region: the same four gestures, spoken as side-prefixed verbs
-# on the hosted app's one command file.
+# In origenerator mode, each satellite side's transport reaches the hosted
+# app: the same four gestures, spoken as side-prefixed verbs on its one
+# command file, answered by whatever show holds that region.
 _ORIGENERATOR_TRANSPORT: dict[str, tuple[str, str]] = {
     "portrait_prev": ("portrait", "PREV"),
     "portrait_next": ("portrait", "NEXT"),
@@ -2115,27 +2105,25 @@ _ORIGENERATOR_TRANSPORT: dict[str, tuple[str, str]] = {
 
 
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
-    """Whether *command* is a side's transport bound for the show covering it.
+    """Whether *command* is a side's transport bound for the hosted app.
 
-    Only a COVERED side routes: in origenerator mode with no show on a side,
-    that side's player is still what the eye sees, so the transport keeps
-    driving it.  Public because the dispatch loop asks the same question — its
-    watch tracking must not book a show's step or cull against the paused
+    In origenerator mode EVERY side's transport routes there: the players are
+    black and paused for the whole mode, so there is never a player worth
+    driving underneath, and a side with no show simply drops the verb at the
+    hosted end.  Public because the dispatch loop asks the same question — its
+    watch tracking must not book a show's step or cull against the blacked
     player underneath.
     """
-    target = _ORIGENERATOR_TRANSPORT.get(command)
-    if target is None or not origenerator_shows(state.satellites_mode):
+    if command not in _ORIGENERATOR_TRANSPORT:
         return False
-    side_name, _verb = target
-    covered = (state.portrait_show_active if side_name == "portrait"
-               else state.landscape_show_active)
-    return covered and config.origenerator_cmd_file is not None
+    return (origenerator_shows(state.satellites_mode)
+            and config.origenerator_cmd_file is not None)
 
 
 def _origenerator_transport(
     command: str, state: BridgeState, config: BridgeConfig
 ) -> list[WindowOp] | None:
-    """Route a side's transport to the show covering it, or ``None`` to fall
+    """Route a side's transport to the hosted app, or ``None`` to fall
     through to the player.
 
     None of the player-side bookkeeping (lock flags, favorites, RFB tabs)
@@ -2194,10 +2182,6 @@ def _dispatch_satellites_switch(
     )
     state = replace(state, satellites_mode=result.next_mode)
     if result.is_transition:
-        if not origenerator_shows(result.next_mode):
-            # The shows are closing; their regions are the players' again.
-            state = replace(state, portrait_show_active=False,
-                            landscape_show_active=False)
         ops.extend(_satellites_slot_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
