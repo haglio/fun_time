@@ -1813,6 +1813,37 @@ def _dispatch_reorder(
     return state, [WindowOp(op="notice", key=message, source=_satellite_source(which))]
 
 
+# Everything a reset takes off a satellite, as the ``BridgeState`` field holding
+# it — portrait's, then landscape's.  The "is it already reset?" test reads this
+# same list, so a narrowing the reset clears cannot be one the test forgets: that
+# side would read as untouched and the press would do nothing while there was
+# something to undo.
+#
+# The nav anchor is not here even though a reset drops it, because it is already
+# gone: every side command that is not itself a nav step clears it on the way in
+# (see :func:`dispatch_command`), so no reset has ever seen one set.
+_RESET_STATE_FIELDS: tuple[tuple[str, str], ...] = (
+    ("locked2", "locked3"),
+    ("portrait_filter", "landscape_filter"),
+    ("portrait_f_mode", "landscape_f_mode"),
+    ("portrait_latest", "landscape_latest"),
+    ("portrait_loop", "landscape_loop"),
+    ("portrait_map_anchor", "landscape_map_anchor"),
+    ("portrait_widen_clip", "landscape_widen_clip"),
+)
+
+
+def _side_is_at_defaults(state: BridgeState, which: int) -> bool:
+    """Whether satellite *which* already sits exactly where a reset would put it.
+
+    Every one of those defaults is the empty value of its field — unlocked, no
+    filter, no F-mode, shuffled rather than newest-first, no loop, no map anchor,
+    no widened row — so "at its defaults" is "nothing in the list is set".
+    """
+    return not any(getattr(state, fields[0 if which == 2 else 1])
+                   for fields in _RESET_STATE_FIELDS)
+
+
 def _dispatch_reset(
     scope: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1828,9 +1859,18 @@ def _dispatch_reset(
     them, which is a browse of a few dozen clips wearing the label of the whole
     library.  The flag goes into the state before the rebuild, because the rebuild
     reads it back to decide how wide to build.
+
+    A side already sitting at those defaults is left alone entirely.  The rebuild
+    reshuffles and starts at the top, so a second press landed on a different clip
+    than the first, and a third on another again: a button that says "put it back"
+    was the fastest way to keep changing what was playing.  Nothing is narrowed by
+    then, so there is nothing the press could put back.
     """
     ops: list[WindowOp] = []
     for which in _FILTER_TARGETS[scope]:
+        if _side_is_at_defaults(state, which):
+            logger.info("Reset %s: already at its defaults", _satellite_source(which))
+            continue
         state = _cancel_lock(which, state, config)
         state = _set_side_latest(state, which, False)
         state = _set_side_filter(state, which, "")
