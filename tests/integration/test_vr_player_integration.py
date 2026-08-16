@@ -147,7 +147,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     frame_ms: list[float] = []
     period = FRAME_BUDGET_MS / 1e3
 
-    def run_frames(count: int, *, measure: bool) -> None:
+    def run_frames(count: int, *, measure: bool, sink: list[float] | None = None) -> None:
+        if measure and sink is None:
+            sink = frame_ms
         for _ in range(count):
             started = time.perf_counter()
             for unit in units:
@@ -155,7 +157,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             glfw.poll_events()
             elapsed = time.perf_counter() - started
             if measure:
-                frame_ms.append(elapsed * 1e3)
+                sink.append(elapsed * 1e3)
             time.sleep(max(0.0, period - elapsed))
 
     try:
@@ -179,6 +181,19 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             lambda: (run_frames(9, measure=False) or any(has_picture(unit) for unit in units)),
             timeout=20, desc="a unit to render a non-black frame",
         )
+
+        # Hold the measurement until the machine has settled: in a full suite
+        # run this test starts moments after whole sessions were torn down,
+        # and their kill sweeps and mpv teardown bleed into the first seconds
+        # here — a blown median that indicts the neighbors, not the pipeline.
+        # Probe in short windows and start the real sample only once one comes
+        # in under budget; bounded, so a genuinely slow pipeline still fails.
+        for _ in range(6):
+            probe: list[float] = []
+            run_frames(120, measure=True, sink=probe)
+            probe.sort()
+            if probe[len(probe) // 2] < MEDIAN_BUDGET_MS:
+                break
 
         # The regression guard: three live decoders must not pace the loop.
         run_frames(540, measure=True)
