@@ -319,7 +319,13 @@ def build_hud_panel(
     # The widened pool, ranked once around *widen_clip* and reused: ranking it again
     # from another member would score a different set and shuffle the row underneath
     # a map that is supposed to be holding still.
-    widened_pool = widened_seed_members(index, widen_clip) if have_siblings and widen_clip else []
+    # Bounded by the side's filter, exactly as the loop this row feeds is: a row
+    # drawing clips the loop cannot reach (or the reverse) is a map of a queue
+    # that does not exist.
+    widened_pool = (
+        widened_seed_members(index, widen_clip, query=filter_query)
+        if have_siblings and widen_clip else []
+    )
     pool_keys = {normalize_path_key(member) for member in widened_pool}
     anchor = current
     active_loop = ""

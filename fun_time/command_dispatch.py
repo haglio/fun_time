@@ -783,16 +783,20 @@ def _dispatch_more_seeds(
     widened, and the HUD redraws its seed row with the near-matches ranked in.  It
     then loops that pool — the point of a wider row is to cycle it — which also
     re-shapes a seed loop that was already running onto exactly what the HUD now
-    shows.  Only a library holding nothing but this clip can fail to widen, so the
-    dead end is a real "there is no other video", not "nothing matched"."""
+    shows.  The side's filter bounds what can be ranked in, so widening never
+    reaches back out of a filter the way it once did; failing to widen is
+    therefore a real "there is no other video here", not "nothing matched"."""
     source = _satellite_source(which)
     current = target_path or _satellite_current(config, which)
     if not current:
         return state, []
     index = _satellite_group_index(which, config, current)
     current_key = normalize_path_key(current)
+    query = _side_filter(state, which)
     exact = {normalize_path_key(m) for m in seed_family_members(index, current)} - {current_key}
-    wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
+    wide = {
+        normalize_path_key(m) for m in widened_seed_members(index, current, query=query)
+    } - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
     state = _set_side_widen(state, which, current)
@@ -856,10 +860,14 @@ def _loop_members(
     # very clip ("more seeds"), loop that wider pool, not just the exact family.
     widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
     widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
-    gather = widened_seed_members if widened else (
-        action_group_members if axis == "action" else seed_family_members
-    )
-    return [member for member in gather(index, current) if Path(member).exists()], widened
+    if widened:
+        # The side's filter bounds the widen, so the loop it feeds cannot play a
+        # clip the filter excluded — the HUD row is drawn from the same bound.
+        members = widened_seed_members(index, current, query=_side_filter(state, which))
+    else:
+        gather = action_group_members if axis == "action" else seed_family_members
+        members = gather(index, current)
+    return [member for member in members if Path(member).exists()], widened
 
 
 def _dispatch_group_loop(

@@ -304,11 +304,27 @@ def seed_family_members(index: GroupIndex, path: str) -> list[str]:
 WIDEN_ADDITIONS = 6
 
 
+def index_keeps_query(index: GroupIndex, path_key: str, query: str) -> bool:
+    """Whether the clip at *path_key* is one *query* keeps, read off the index.
+
+    The same rule as :func:`matches_query`, routed through it so the two cannot
+    drift: a filter is the recorded act and nothing else, which the index already
+    holds for every clip — so a caller can stay inside an active filter without a
+    sidecar read per candidate.
+    """
+    return matches_query({"video": {"action": index.action_by_path.get(path_key, "")}}, query)
+
+
 def widened_seed_members(
-    index: GroupIndex, path: str, additions: int = WIDEN_ADDITIONS
+    index: GroupIndex,
+    path: str,
+    additions: int = WIDEN_ADDITIONS,
+    *,
+    query: str = "",
 ) -> list[str]:
     """The widened seed row for *path* — "more seeds": its exact seed family plus
-    the *additions* clips whose scene is closest to it.
+    the *additions* clips whose scene is closest to it, out of the clips *query*
+    keeps.
 
     Candidates are ranked on three keys, in this order:
 
@@ -325,6 +341,14 @@ def widened_seed_members(
     family is often just this clip, and holding any field fixed to widen
     (prompts, render settings) can match nothing at all, but *nearest* is well
     defined as long as the library holds another video.
+
+    *query* is the one hard bound on that: the side's own filter.  Nearest-first
+    ranking over the whole library reaches outside a filter almost immediately —
+    filtered to a four-clip act, every addition came from somewhere else, and
+    since the widen also loops what it drew, those clips *played*, under a HUD row
+    naming an act you had not asked for.  A widen that can then add nothing is a
+    true dead end ("there is no other video *here*"), which is what the caller's
+    failure notice already says.
     """
     key = normalize_path_key(path)
     members = list(seed_family_members(index, path))
@@ -345,7 +369,7 @@ def widened_seed_members(
                 other_key,
             )
             for other_key in index.path_by_key
-            if other_key not in seen
+            if other_key not in seen and index_keeps_query(index, other_key, query)
         ),
         # Nearest first; the path key only breaks ties, so the row is stable.
         key=lambda scored: (-scored[0], -scored[1], -scored[2], scored[3]),
