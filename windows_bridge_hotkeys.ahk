@@ -60,6 +60,15 @@ Esc::QueueCommand("omnipause_toggle")
 +Esc::QueueCommand("relief_omnipause")
 #SuspendExempt false
 
+; The hosted Origenerator is a typing app — prompts, filters, renames — and
+; these hotkeys are single bare letters.  While any of its windows is focused
+; (the main one over the RFB, or a show on a satellite region; title matching
+; is substring, so one word covers all three) the keyboard is its, wholesale:
+; a show handles its own arrows, and a prompt can contain every letter bound
+; below.  The exempt trio above stays global on purpose — quitting and the
+; omnipause pair are session gestures, wherever the focus sits.
+#HotIf !WinActive("Origenerator")
+
 Space::QueueCommand("enter_omnipause")
 [::QueueCommand("main_prev")
 SC01A::QueueCommand("main_prev")
@@ -169,6 +178,8 @@ SC035::QueueCommand("genau_toggle_auto")
 k::QueueCommand("genau_weird_clip")
 m::QueueCommand("genau_prev_clip")
 SC034::QueueCommand("genau_next_clip")
+
+#HotIf
 
 ; -------------------- CORE FUNCTIONS --------------------
 

@@ -60,3 +60,21 @@ def test_the_way_out_survives_omnipause():
     exempt = text.split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
 
     assert "^!q::ExitApp()" in exempt, "the quit is suspendable — OmniPause can trap a session"
+
+
+def test_the_letter_hotkeys_yield_while_origenerator_has_the_keyboard():
+    """The hosted Origenerator is a typing app and these hotkeys are bare
+    letters, so while any of its windows is focused the keyboard is its —
+    except the exempt trio (quit and the omnipause pair), which are session
+    gestures wherever the focus sits and must stay above the gate."""
+    text = _script_text()
+    gate = text.index('#HotIf !WinActive("Origenerator")')
+    gate_close = text.index("#HotIf", gate + 1)
+    for exempt in ("^!q::", "Esc::QueueCommand", "+Esc::QueueCommand"):
+        assert text.index(exempt) < gate, exempt
+    for gated in ('x::QueueCommand("satellites_toggle")',
+                  'a::QueueCommand("landscape_prev")',
+                  'g::QueueCommand("genau_activate")',
+                  'Left::QueueCommand("portrait_prev")'):
+        position = text.index(gated)
+        assert gate < position < gate_close, gated
