@@ -95,31 +95,37 @@ def _norm_text(value: object) -> str:
     return " ".join(str(value or "").split()).lower()
 
 
-def search_haystack(metadata: dict) -> str:
+def filter_haystack(metadata: dict) -> str:
     """Lowercased, whitespace-collapsed text a filter query is matched against.
 
-    Combines the structured video *action* with the positive prompts (the video
-    prompt and the source image's positive prompt).  The negative prompt is
-    deliberately excluded — a clip that says "no delta" must not match a
-    query for "delta".
+    The clip's recorded act, and nothing else.  The generation prompts used to be
+    matched too (the video prompt and the source image's positive prompt), and
+    they say what was *asked for* — the still's pose, the motion requested — not
+    what the finished clip was judged to show, so they drag in clips doing
+    something else entirely.  Nothing downstream can recover from that: a filter
+    is spoken from the act vocabulary and every clip in the HUD map is labeled
+    with its act, so a clip pulled in by prompt text sits under a row naming some
+    other act — or "(unknown)" where no act was recorded at all.  Half of one
+    two-word act's browse arrived that way in this library.
+
+    A clip with no act recorded is therefore out of every filter: it is the
+    backfill tool's backlog (see :data:`WRONG_ACTION_FIELD`), not something to
+    guess at from its prompt.
     """
-    video = metadata.get("video") or {}
-    source = metadata.get("source_image") or {}
-    parts = (video.get("action"), video.get("prompt"), source.get("positive_prompt"))
-    return _norm_text(" ".join(str(part) for part in parts if part))
+    return _norm_text((metadata.get("video") or {}).get("action"))
 
 
 def matches_query(metadata: dict, query: str) -> bool:
     """Whether *metadata* satisfies *query* — an empty query matches everything.
 
     A query matches when it appears as a contiguous substring of the video's
-    search haystack, so "alpha" catches the "Alpha, Theta Motion" action and
-    "beta gamma" catches the "Beta Gamma" action while ignoring word order noise.
+    act, so "alpha" catches the "Alpha, Theta Motion" action and "beta gamma"
+    catches the "Beta Gamma" action while ignoring word order noise.
     """
     normalized = _norm_text(query)
     if not normalized:
         return True
-    return normalized in search_haystack(metadata)
+    return normalized in filter_haystack(metadata)
 
 
 def path_matches_query(
@@ -130,8 +136,8 @@ def path_matches_query(
     """Whether the sidecar for *video_path* satisfies *query*.
 
     An empty query passes every video.  A non-empty query can only be satisfied
-    by a video that has a metadata sidecar, so videos without one drop out of a
-    filtered build.
+    by a video whose sidecar records an act, so videos with no sidecar — and
+    videos still waiting for an act — drop out of a filtered build.
     """
     if not _norm_text(query):
         return True

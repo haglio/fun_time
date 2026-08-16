@@ -253,7 +253,7 @@ def build_satellite_playlist_paths(
     if f_mode:
         favs_content = read_favs_content(favs_file)
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
-    # An attribute filter narrows to videos whose metadata matches; it needs the
+    # An act filter narrows to videos whose recorded act matches; it needs the
     # metadata root to reach each sidecar, so without it the filter is a no-op.
     # Applied before ordering, so it holds under both Latest and Shuffle.
     filtered = bool(filter_query) and (

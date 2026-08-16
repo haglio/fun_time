@@ -13,8 +13,10 @@ placeholder — the recognizer behaves the same whichever is loaded.  Some spoke
 forms deliberately differ from the query they match: a word the small speech
 model does not know is voiced with in-vocabulary words while the command keeps
 the real query (the same trick the mode commands use, "genau" for "go now").
-Queries stay lowercase; a single query substring-matches every metadata value
-that contains it.
+Queries stay lowercase; a single query substring-matches every ``video.action``
+that contains it — the recorded act alone, never the generation prompts around
+it (see :func:`fun_time.media_metadata.filter_haystack` for what reading those
+cost).
 """
 from __future__ import annotations
 
