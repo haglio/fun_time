@@ -10,6 +10,8 @@ anywhere says why.
 """
 from __future__ import annotations
 
+import subprocess
+import tempfile
 from pathlib import Path
 
 PROJECT_DIR = Path(__file__).resolve().parent.parent
@@ -164,3 +166,52 @@ def test_branch_launcher_says_so_when_the_worktree_has_been_deleted():
 
     assert "fso.FolderExists(worktree)" in text
     assert "already in Fun Time" in text
+
+
+def test_windows_launcher_runs_the_orchestrator_under_a_name_that_says_fun_time():
+    """Task Manager identifies a process by its image name and nothing else, so
+    an orchestrator started through a plain ``python.exe`` is one anonymous row
+    among the user's other Python apps — and when a session strands its children
+    (the orchestrator dies without reaping, leaving no window to close), the task
+    list is the only way back and cannot say which rows are safe to end.
+
+    The children get named by ``fun_time.process_identity``.  This is the one
+    process that module cannot name, because it is the process that would import
+    it, so the launcher makes the copy itself."""
+    text = _text("launch.vbs")
+
+    assert r'namedExe = fso.BuildPath(scriptDir, ".venv\Scripts\FunTime-Orchestrator.exe")' in text
+    assert "fso.CopyFile pythonExe, namedExe, True" in text
+    # Refreshed when the interpreter it was copied from changes, or a Python
+    # upgrade leaves the session running an interpreter nobody installed.
+    assert "fso.GetFile(namedExe).Size <> fso.GetFile(pythonExe).Size" in text
+
+
+def test_windows_launcher_still_launches_when_it_cannot_make_that_copy():
+    """A read-only venv or an antivirus hold must cost the name, not the app.
+    Every failure path leaves ``pythonExe`` as it was, and the session starts
+    anonymous exactly as it did before."""
+    text = _text("launch.vbs")
+
+    assert "On Error Resume Next" in text
+    assert "If Err.Number = 0 And fso.FileExists(namedExe) Then pythonExe = namedExe" in text
+    assert "On Error Goto 0" in text
+
+
+def test_the_launchers_compile():
+    """A syntax error in a launcher is an app that cannot start at all, and no
+    text assertion above would catch one.
+
+    Checked by handing the script to cscript with ``WScript.Quit 0`` prepended:
+    VBScript compiles a whole file before it runs any of it, so a syntax error
+    anywhere still fails here — while the guard means a clean file exits before
+    executing a single statement, and so never launches a session."""
+    for name in ("launch.vbs", "launch_branch.vbs", "launch_vr.vbs"):
+        with tempfile.TemporaryDirectory() as tmp:
+            probe = Path(tmp) / name
+            probe.write_text("WScript.Quit 0\r\n" + _text(name), encoding="utf-8")
+            result = subprocess.run(
+                ["cscript.exe", "//Nologo", str(probe)],
+                capture_output=True, text=True, check=False,
+            )
+            assert result.returncode == 0, f"{name} does not compile:\n{result.stdout}{result.stderr}"

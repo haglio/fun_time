@@ -18,6 +18,7 @@ from fun_time.event_log import EventRecord, event_log_path, read_events
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.notice_overlay import is_announcement
+from fun_time.process_identity import is_fun_time_exe_name
 from fun_time.win32 import get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
@@ -64,19 +65,25 @@ INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 
 
 # The images the apps a session leaves behind actually run as: the two
-# satellites, Nau/Genau/the audio companion/the dashboard (all pythonw), and the
-# AHK hotkey shell.  python.exe is deliberately absent — pytest and the
-# orchestrator both run as python.exe, and a reap that kills a pytest takes down
-# a whole integration run (this one, or one queued behind it) with no output at
-# all.  The orchestrator needs no killing here: it exits once its AHK is gone.
-# The set is an allow-list on purpose: an image a run never launches is never
-# swept, so a third-party app of the user's is never at risk.
+# satellites, Nau/Genau/the audio companion/the dashboard (each under its own
+# ``FunTime-*`` copy of pythonw, or under plain pythonw where that copy could not
+# be made), and the AHK hotkey shell.  python.exe is deliberately absent — pytest
+# and the orchestrator both run as python.exe, and a reap that kills a pytest
+# takes down a whole integration run (this one, or one queued behind it) with no
+# output at all.  The orchestrator needs no killing here: it exits once its AHK
+# is gone.  The set is an allow-list on purpose: an image a run never launches is
+# never swept, so a third-party app of the user's is never at risk — and the
+# ``FunTime-`` prefix widens it only to images this repo creates by name, which
+# is a narrower promise than "pythonw" already was.
 _APP_IMAGE_NAMES = frozenset({"pythonw.exe", "autohotkey64.exe"})
 
 
 def _is_leftover_app(pid: int) -> bool:
     image = get_process_image_name(pid)
-    return image is not None and Path(image).name.lower() in _APP_IMAGE_NAMES
+    if image is None:
+        return False
+    name = Path(image).name
+    return name.lower() in _APP_IMAGE_NAMES or is_fun_time_exe_name(name)
 
 
 def _kill_leftover_app_processes() -> None:

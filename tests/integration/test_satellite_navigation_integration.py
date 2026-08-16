@@ -122,6 +122,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         python_exe=str(load_config(real_config_path()).paths.python_exe),
         satellite_module="satellite",
         title="Portrait AI Player",
+        role="Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         hud_file=hud, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         log_file=log,

@@ -16,6 +16,30 @@ If Not fso.FileExists(pythonExe) Then
   WScript.Quit 1
 End If
 
+' Run the orchestrator through a copy of that interpreter named for the app.
+' Task Manager identifies a process by its image name and nothing else, so every
+' child started through a plain python.exe arrives as one more anonymous
+' "python.exe" among whatever else the user is running -- and when a session
+' strands one (an orchestrator that dies without reaping leaves its companions
+' alive, with no window left to close), the task list is the only way back and it
+' cannot say which rows are safe to end. The children get the same treatment from
+' fun_time.process_identity, which explains the mechanism; this is that module's
+' one case it cannot reach, because the process it names is the one it would be
+' imported by. Failure here is never worth a launch: any error leaves pythonExe
+' as it was and the session starts anonymous, exactly as it used to.
+namedExe = fso.BuildPath(scriptDir, ".venv\Scripts\FunTime-Orchestrator.exe")
+On Error Resume Next
+needsCopy = True
+If fso.FileExists(namedExe) Then
+  ' Size alone catches the case that matters -- a Python upgrade replaced the
+  ' launcher under us -- and costs nothing to ask on every launch.
+  needsCopy = (fso.GetFile(namedExe).Size <> fso.GetFile(pythonExe).Size)
+End If
+If needsCopy Then fso.CopyFile pythonExe, namedExe, True
+If Err.Number = 0 And fso.FileExists(namedExe) Then pythonExe = namedExe
+Err.Clear
+On Error Goto 0
+
 ' Everything the orchestrator writes to its console goes here. The launcher runs
 ' it in a hidden window, and a failure during import happens before any log file
 ' exists, so without this a crashed launch leaves nothing behind at all.

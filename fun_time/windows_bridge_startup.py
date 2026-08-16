@@ -43,6 +43,7 @@ from .orchestrator_broker import (
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
+from .process_identity import PROCESS_NAME_PATTERN, identified_python_exe
 from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
@@ -140,7 +141,7 @@ def reap_orphaned_satellites(
     ps_command = (
         f"$claimed = @({claimed}); "
         "Get-CimInstance Win32_Process | Where-Object { $p = $_; "
-        "($p.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $p.CommandLine -and "
+        f"($p.Name -match '{PROCESS_NAME_PATTERN}') -and $p.CommandLine -and "
         f"($p.CommandLine -match '-m\\s+{module_pattern}(\\s|$)') -and "
         "($claimed | Where-Object { $p.CommandLine.Contains($_) }) "
         "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
@@ -596,7 +597,7 @@ def launch_genau(
     genau repo to run — see :func:`genau_project_kwargs`.
     """
     cmd = [
-        str(python_exe),
+        identified_python_exe(python_exe, "Genau"),
         "-m",
         genau_module,
         "--config",
@@ -673,7 +674,7 @@ def launch_nau(
     gives an unhandled exception nowhere to print its traceback.
     """
     cmd = [
-        str(python_exe),
+        identified_python_exe(python_exe, "Nau"),
         "-m",
         nau_module,
         "--config",
@@ -750,7 +751,7 @@ def launch_ui_companions(
     if dashboard_enabled:
         dashboard_proc = subprocess.Popen(
             [
-                python_exe,
+                identified_python_exe(python_exe, "Dashboard"),
                 "-m",
                 dashboard_module,
                 windows_bridge_manifest_path,
@@ -777,7 +778,7 @@ def launch_ui_companions(
 
     audio_proc = subprocess.Popen(
         [
-            python_exe,
+            identified_python_exe(python_exe, "AudioCompanion"),
             "-m",
             audio_module,
             "--config",
@@ -833,6 +834,7 @@ def launch_core_apps(
         python_exe=python_exe,
         satellite_module=satellite_module,
         title=SATELLITE_PORTRAIT_TITLE,
+        role="Portrait",
         playlist_file=portrait_playlist,
         command_file=portrait_cmd_file,
         paused_file=portrait_paused_file,
@@ -846,6 +848,7 @@ def launch_core_apps(
         python_exe=python_exe,
         satellite_module=satellite_module,
         title=SATELLITE_LANDSCAPE_TITLE,
+        role="Landscape",
         playlist_file=landscape_playlist,
         command_file=landscape_cmd_file,
         paused_file=landscape_paused_file,
@@ -931,6 +934,7 @@ def launch_satellite(
     python_exe: str | Path,
     satellite_module: str,
     title: str,
+    role: str,
     playlist_file: str | Path,
     command_file: str | Path,
     paused_file: str | Path,
@@ -950,12 +954,16 @@ def launch_satellite(
     command/paused/status file quartet, and drawing its own lock HUD from the
     published panel.
 
+    *role* names this player in the task list, where the two are otherwise the
+    same anonymous interpreter as each other and as everything else -- it is the
+    *title*'s counterpart for the process the window belongs to.
+
     Its stdout and stderr go to *log_file*: a satellite runs windowed under
     ``pythonw`` and would otherwise die from an unhandled exception with the
     traceback written to a handle that goes nowhere.
     """
     cmd = _build_satellite_launch_command(
-        python_exe,
+        identified_python_exe(python_exe, role),
         satellite_module,
         title=title,
         playlist_file=playlist_file,

@@ -68,6 +68,10 @@ is_process_alive  # noqa
 # that must survive; production kills children by recorded creation time instead.
 get_process_image_name  # noqa
 is_window_minimized  # noqa
+# The integration reap tells its leftovers apart by image name, so it needs the
+# Python-side answer; production sweeps are PowerShell and use the regex form of
+# the same rule (process_identity.PROCESS_NAME_PATTERN).
+is_fun_time_exe_name  # noqa
 _read_shortcut_app_user_model_id  # noqa
 # reset_group_index_cache is test isolation support for the module-level
 # group-index cache.
