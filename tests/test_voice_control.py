@@ -287,9 +287,14 @@ class TestVoiceCommands:
     def test_main_reset_returns_the_playlist_to_the_default_browse(self):
         """"reset" means for the main player what it means for a satellite — drop
         whatever is narrowing the playlist — and it is order-agnostic like the rest
-        of that grid."""
+        of that grid.
+
+        Its own command rather than a bare "length mixed" forward, because half of
+        what narrows the main player is the F-mode flag, which is the
+        orchestrator's and not Nau's to hear about.
+        """
         for phrase in ("main reset", "reset main"):
-            assert VOICE_COMMANDS[phrase] == "nau_length_mixed"
+            assert VOICE_COMMANDS[phrase] == "main_reset"
 
     def test_satellite_grid_supports_both_orders(self):
         """Each satellite action works BARE (→ active side) and with a side word

@@ -308,6 +308,15 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("active_next", 1) == "main_next"
         assert resolve_active_side_command("active_prev", 1) == "main_prev"
 
+    def test_reset_on_the_primary_means_the_main_players_own_reset(self):
+        """Another phrase that means a different thing on each player: on a
+        satellite it drops the act filter and the loop, on the main player its
+        length mode and its F-mode.  Without this, a bare "reset" said after
+        navigating the main player reached nothing at all."""
+        assert resolve_active_side_command("active_reset", 1) == "main_reset"
+        assert resolve_active_side_command("active_reset", 2) == "portrait_reset"
+        assert resolve_active_side_command("active_reset", 3) == "landscape_reset"
+
     def test_end_loop_on_the_primary_means_naus_own_loop(self):
         """A side-agnostic phrase may mean a different thing on each player: on a
         satellite "end loop" ends a group loop, on the main player it cancels Nau's A-B

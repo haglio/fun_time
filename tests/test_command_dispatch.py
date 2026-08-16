@@ -1457,11 +1457,12 @@ def test_a_filter_leaves_the_clip_on_screen_where_it_is(tmp_path: Path):
 
 def test_reset_returns_the_side_to_every_default(tmp_path: Path):
     """"reset" puts the whole side back, not just its filter: the lock released, the
-    order shuffled, any loop / widened row / frozen map dropped, and playing from the
-    top of a fresh browse."""
+    order shuffled, F-mode dropped, any loop / widened row / frozen map dropped, and
+    playing from the top of a fresh browse."""
     config = _make_config(tmp_path)
     state = _make_state(
         locked2=True, portrait_filter="alpha", portrait_latest=True,
+        portrait_f_mode=True,
         portrait_loop="seed", portrait_map_anchor="C:/v/a.mp4",
         portrait_widen_clip="C:/v/a.mp4", portrait_nav_anchor="C:/v/a.mp4",
     )
@@ -1473,6 +1474,7 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
     assert new_state.locked2 is False
     assert new_state.portrait_filter == ""
     assert new_state.portrait_latest is False
+    assert new_state.portrait_f_mode is False
     assert new_state.portrait_loop == ""
     assert new_state.portrait_map_anchor == ""
     assert new_state.portrait_widen_clip == ""
@@ -1483,17 +1485,34 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
     assert "UNLOCK" in _cmds(config, 2)
 
 
+def test_reset_rebuilds_the_side_wide_rather_than_still_in_f_mode(tmp_path: Path):
+    """Dropping the flag is not enough — the rebuild reads it back to decide how
+    wide to build.  Cleared after the rebuild, a side reset out of F-mode came back
+    still holding a browse of the favorites alone while the HUD said the filter
+    was off."""
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_f_mode=True)
+
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+        mock_filter.return_value = _filter_result(count=10)
+        dispatch_command("portrait_reset", state, config)
+
+    assert mock_filter.call_args.kwargs["f_mode_enabled"] is False
+
+
 def test_reset_leaves_the_other_side_alone(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked3=True, landscape_filter="kissing", landscape_latest=True)
+    state = _make_state(locked3=True, landscape_filter="alpha", landscape_latest=True,
+                        landscape_f_mode=True)
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
     assert new_state.locked3 is True
-    assert new_state.landscape_filter == "kissing"
+    assert new_state.landscape_filter == "alpha"
     assert new_state.landscape_latest is True
+    assert new_state.landscape_f_mode is True
 
 
 def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
@@ -3649,6 +3668,68 @@ def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch)
     state, _ops = dispatch_command("main_shuffle", state, config)
     assert state.main_latest is False
     assert calls[-1]["recent"] is False
+
+
+def test_main_reset_drops_the_length_mode_and_f_mode_together(tmp_path, monkeypatch):
+    """"reset" means for the main player what it means for a satellite: drop
+    everything narrowing what it plays.  Two things do — the length mode, which
+    Nau holds, and F-mode, which we hold — so a reset that sent only the length
+    verb left the player still narrowed to the scripted videos."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _make_config(tmp_path)
+
+    state, ops = dispatch_command("main_reset", _make_state(main_f_mode=True), config)
+
+    assert state.main_f_mode is False
+    assert calls[-1]["enabled"] is False
+    assert "SET_LENGTH_MODE mixed" in config.nau_cmd_file.read_text(encoding="utf-8")
+    assert ops[0].op == "notice"
+
+
+def test_main_reset_does_not_reshuffle_a_player_that_was_not_narrowed(tmp_path, monkeypatch):
+    """The playlist is only rebuilt when F-mode was actually on.  "shuffle main" is
+    the command that reorders; a reset pressed with nothing narrowed must not throw
+    away the browse you are in on the way to changing nothing."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _make_config(tmp_path)
+
+    dispatch_command("main_reset", _make_state(main_f_mode=False), config)
+
+    assert calls == []
+    assert "SET_LENGTH_MODE mixed" in config.nau_cmd_file.read_text(encoding="utf-8")
+
+
+def test_main_reset_keeps_the_length_verb_off_a_slot_nau_does_not_own(tmp_path, monkeypatch):
+    """The length mode is Nau's, so the verb only goes while Nau owns the main slot
+    — the same guard every other Nau verb has.  The F-mode flag is ours and goes
+    whoever is showing, exactly as "main f mode off" does."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _make_config(tmp_path)
+
+    state, _ops = dispatch_command(
+        "main_reset", _make_state(main_mode="genau", main_f_mode=True), config)
+
+    assert state.main_f_mode is False
+    assert not config.nau_cmd_file.exists() or "SET_LENGTH_MODE" not in (
+        config.nau_cmd_file.read_text(encoding="utf-8"))
+
+
+def test_main_reset_makes_the_main_player_the_one_a_bare_word_reaches(tmp_path, monkeypatch):
+    """Resetting a player is addressing it, the way locking it or naming its F-mode
+    is — so a bare "next" after it lands here rather than on whichever satellite was
+    touched last."""
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
+    config = _make_config(tmp_path)
+
+    state, _ops = dispatch_command("main_reset", _make_state(active_side=2), config)
+
+    assert state.active_side == 1
 
 
 def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):

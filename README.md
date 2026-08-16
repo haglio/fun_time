@@ -390,11 +390,22 @@ F-Mode is **per player** — the main player, portrait and landscape each have t
 - the main playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
-Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row); the dashboard has no F-mode control. The `F` key and a bare spoken "f mode" still reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. Naming a player narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites.
+Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that player's reset button just past it; the dashboard has no F-mode control. The `F` key and a bare spoken "f mode" still reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. Naming a player narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites.
 
 `build_all_playlists` writes all three playlist files at startup (each player's F-Mode off, which is what a session with nothing to resume opens in); `apply_fmode` rebuilds the named players after that.
 
 Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and Nau's mode HUD carries it beside the length mode or compilation — Nau is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that player's panel.
+
+F-Mode is also one of the things a **reset** drops — see below.
+
+### Reset
+
+"Reset" means the same thing on every player: drop everything narrowing what it plays, and it is a button on that player's own HUD (next to F-Mode in each satellite's control band and in the main console's transport row) as well as a spoken word. What "narrowing" covers differs by player, because what each has to narrow with does:
+
+- a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its act filter, drops F-Mode, ends any group loop with the widened seed row and frozen map that rode on it, returns the browse to shuffled, and starts from the top of a freshly built playlist. `no filter` is the narrow counterpart — it drops the act filter and leaves the rest standing
+- the main player (`main_reset`, "main reset" / "reset main") returns Nau's length mode to mixed, which leaves any compilation with it, and drops F-Mode. Its playlist is only rebuilt when F-Mode was actually on: "shuffle main" is the command that reorders, so a reset with nothing narrowed must not throw away the browse you are in
+
+The main player's is a command of ours rather than a bare `SET_LENGTH_MODE mixed` forwarded to Nau, because half of it is ours — the F-Mode flag is the orchestrator's, set from a HUD button, the `F` key and a spoken phrase, of which only the last reaches Nau at all. Bare "reset" reaches whichever player was last addressed, the main player included.
 
 ### Cycle action & cycle seed (satellites)
 

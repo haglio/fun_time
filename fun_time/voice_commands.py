@@ -106,7 +106,8 @@ VOICE_COMMANDS: dict[str, str] = {
     "shorts": "nau_length_shorts",
     "full length": "nau_length_full",
     # The unfiltered library Nau opens in, and so the way back out of either
-    # half — "main reset" says the same thing (see the main-player grid below).
+    # half.  "main reset" contains this and goes further, dropping F-mode too (see
+    # the main-player grid below); this is the narrow gesture of the pair.
     "mixed": "nau_length_mixed",
     # Clip navigation (Larkin-style clips carved from compilations). "vid" is
     # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
@@ -323,9 +324,13 @@ for _axis_word, _axis_cmd in _CYCLE_AXES.items():
 # video on screen, where unlocked its end walks the playlist.  "reset" means what
 # it means for a satellite — drop whatever is narrowing the playlist, back to the
 # default browse — which for Nau is leaving any compilation and any length filter
-# for the mixed library.
+# for the mixed library, and dropping F-mode with them.
 _MAIN_ACTIONS = {"next": "next", "previous": "prev",
                  "lock": "lock_on", "unlock": "lock_off",
+                 # Its own command rather than a bare "length mixed" forward:
+                 # F-mode is half of what narrows the main player, and that flag
+                 # is the orchestrator's, not Nau's.
+                 "reset": "reset",
                  # The two browse orderings, the satellites' own: "latest" reloads
                  # newest-first and "shuffle" reshuffles, each rescanning the
                  # library so a video that arrived since is picked up.  The main
@@ -335,8 +340,6 @@ _MAIN_ACTIONS = {"next": "next", "previous": "prev",
 for _action_word, _action in _MAIN_ACTIONS.items():
     VOICE_COMMANDS[f"main {_action_word}"] = f"main_{_action}"
     VOICE_COMMANDS[f"{_action_word} main"] = f"main_{_action}"
-VOICE_COMMANDS["main reset"] = "nau_length_mixed"
-VOICE_COMMANDS["reset main"] = "nau_length_mixed"
 
 # F-mode, per player.  Every player has its own — it narrows a satellite to the
 # favorites and the main player to the videos that have a funscript — so each is
