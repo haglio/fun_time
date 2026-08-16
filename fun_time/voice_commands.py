@@ -135,6 +135,14 @@ VOICE_COMMANDS: dict[str, str] = {
     "slow down": "speed_down",
     "speed down": "speed_down",
     "speed up": "speed_up",
+    # Naming the playback pins the same nudge to the video no matter who has the
+    # OSR2, so it still lands over a Genau-driven stretch in hybrid — the one
+    # thing the bare pair above cannot say.  The relative half of what "half
+    # speed" and "reset speed" set outright, and the same pair the console's
+    # playback arrows send.
+    "playback slow down": "nau_speed_down",
+    "playback speed down": "nau_speed_down",
+    "playback speed up": "nau_speed_up",
     "amp down": "genau_amplitude_down",
     "amp up": "genau_amplitude_up",
     "center down": "genau_center_down",

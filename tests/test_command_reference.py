@@ -279,6 +279,20 @@ def test_nau_video_rows_show_primary_nav_in_both_orders():
     assert {"main next", "next main", "main next", "next main"} <= set(nxt.voice)
 
 
+def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
+    """Two ways to move the rate, and the row order follows the Genau section's:
+    the up/down nudge, then the line that sets it outright.  The nudge is spoken
+    only — the keys say "speed up", which follows the OSR2's driver instead."""
+    nau_rows = {s.title: s for s in build_reference_sections()}["Nau"].rows
+    descs = [r.description for r in nau_rows]
+    nudge = next(r for r in nau_rows if "nau_speed_up" in r.commands)
+    assert nudge.hotkeys == ()
+    assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
+    assert descs.index(nudge.description) + 1 == next(
+        i for i, d in enumerate(descs) if d.startswith("Set video speed")
+    )
+
+
 def test_quit_row_lists_exit_synonym():
     """"exit" is a spoken synonym for "quit" and appears in the legend's Quit row."""
     rows = _all_rows()
