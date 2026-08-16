@@ -1923,3 +1923,37 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
         assert command[command.index(flag) + 1] == value, flag
     # cwd is what picks the checkout: -m resolves the package from it.
     assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")
+    # A primary checkout is the live install — no branch-session flag.
+    assert "env" not in popen.call_args.kwargs
+
+
+def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
+    """A worktree checkout is unlanded code under judgment, not the live
+    install: it seeds its database from the primary's and skips the library
+    maintenance only the live app should run — origenerator's own preview
+    launcher sets the same flag for the same reason."""
+
+    class FakeProc:
+        pid = 78
+
+    plan = WindowLayoutPlan(
+        portrait=WindowRect(x=0, y=0, width=10, height=20),
+        landscape=WindowRect(x=0, y=0, width=20, height=10),
+        dashboard=WindowRect(x=0, y=0, width=10, height=10),
+        random_favs_browser=WindowRect(x=0, y=0, width=10, height=10),
+    )
+    worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "my-branch"
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+               return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={},
+    ):
+        launch_origenerator(
+            python_exe="C:/py/python.exe",
+            origenerator_dir=worktree,
+            layout_plan=plan,
+            command_file="c.txt", paused_file="p.txt",
+            status_file="s.txt", dashboard_cmd_file="d.txt",
+        )
+
+    env = popen.call_args.kwargs["env"]
+    assert env["ORIGENERATOR_BRANCH_SESSION"] == "1"

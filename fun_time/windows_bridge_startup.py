@@ -684,7 +684,18 @@ def launch_origenerator(
         "--status-file", str(status_file),
         "--dashboard-cmd-file", str(dashboard_cmd_file),
     ])
-    proc = subprocess.Popen(cmd, cwd=str(origenerator_dir), **subprocess_window_kwargs())
+    kwargs: dict = {"cwd": str(origenerator_dir), **subprocess_window_kwargs()}
+    # A worktree checkout is unlanded code under judgment, not the live
+    # install: run it as origenerator's own branch session (its preview
+    # launcher sets the same flag), which seeds its database from the
+    # primary's, skips the maintenance passes only the live app should run,
+    # and leaves its generations for the live app to adopt.  A worktree sits
+    # at exactly <repo>/.claude/worktrees/<name> by this suite's own working
+    # law — the same layout origenerator's launch_preview_branch.vbs walks.
+    checkout = Path(origenerator_dir)
+    if checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude":
+        kwargs["env"] = {**os.environ, "ORIGENERATOR_BRANCH_SESSION": "1"}
+    proc = subprocess.Popen(cmd, **kwargs)
     return proc.pid
 
 
