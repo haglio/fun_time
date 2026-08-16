@@ -1645,6 +1645,7 @@ def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
             python_exe="python.exe",
             satellite_module="satellite",
             title="Portrait AI Player",
+            role="Portrait",
             playlist_file="state/portrait_playlist.tsv",
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
@@ -1680,6 +1681,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
             python_exe="pythonw.exe",
             satellite_module="satellite",
             title="Portrait AI Player",
+            role="Portrait",
             playlist_file="state/portrait_playlist.tsv",
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
@@ -1725,3 +1727,142 @@ def test_build_satellite_launch_command_omits_an_absent_hud():
 
     assert "--hud-file" not in cmd
     assert "--dashboard-cmd-file" not in cmd
+
+
+class TestEveryChildIsLaunchedUnderAFunTimeName:
+    """Each app a session starts runs through a copy of the interpreter named
+    for its role, so the task list says which rows are Fun Time's.
+
+    Without this a stranded child is an anonymous ``pythonw.exe`` among the
+    user's other Python apps, and the only way to end it is to guess.  Asserted
+    at each launch site rather than on ``identified_python_exe`` alone: the
+    module can be right while a launcher still passes the plain interpreter
+    straight through, which is exactly how the audio companion came to be the
+    one process nobody could name.
+    """
+
+    @staticmethod
+    def _interpreter(tmp_path: Path) -> Path:
+        exe = tmp_path / ".venv" / "Scripts" / "pythonw.exe"
+        exe.parent.mkdir(parents=True, exist_ok=True)
+        exe.write_bytes(b"MZ launcher")
+        return exe
+
+    @staticmethod
+    def _launched_exe(popen) -> str:
+        return Path(popen.call_args[0][0][0]).name
+
+    def test_the_audio_companion(self, tmp_path: Path):
+        class FakeProc:
+            pid = 7
+
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            launch_ui_companions(
+                python_exe=self._interpreter(tmp_path),
+                dashboard_module="fun_time.dashboard_app",
+                dashboard_enabled=False,
+                windows_bridge_manifest_path=tmp_path / "manifest.ini",
+                dashboard_x=0, dashboard_y=0, dashboard_width=1, dashboard_height=1,
+                rfb_x=0, rfb_y=0, rfb_width=1, rfb_height=1,
+                audio_module="fun_time.audio_companion_app",
+                config_path=tmp_path / "config.json",
+                audio_folder=tmp_path / "audio",
+                result_file=tmp_path / "result.ini",
+            )
+
+        assert self._launched_exe(popen) == "FunTime-AudioCompanion.exe"
+
+    def test_the_dashboard(self, tmp_path: Path):
+        class FakeProc:
+            pid = 8
+
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            launch_ui_companions(
+                python_exe=self._interpreter(tmp_path),
+                dashboard_module="fun_time.dashboard_app",
+                dashboard_enabled=True,
+                windows_bridge_manifest_path=tmp_path / "manifest.ini",
+                dashboard_x=0, dashboard_y=0, dashboard_width=1, dashboard_height=1,
+                rfb_x=0, rfb_y=0, rfb_width=1, rfb_height=1,
+                audio_module="fun_time.audio_companion_app",
+                config_path=tmp_path / "config.json",
+                audio_folder=tmp_path / "audio",
+                result_file=tmp_path / "result.ini",
+            )
+
+        assert Path(popen.call_args_list[0][0][0][0]).name == "FunTime-Dashboard.exe"
+
+    def test_each_satellite_under_the_side_it_plays(self, tmp_path: Path):
+        class FakeProc:
+            pid = 9
+
+        for role, title in (("Portrait", "Portrait AI Player"), ("Landscape", "Landscape AI Player")):
+            with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+                "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+            ):
+                launch_satellite(
+                    python_exe=self._interpreter(tmp_path),
+                    satellite_module="satellite",
+                    title=title,
+                    role=role,
+                    playlist_file="playlist.tsv",
+                    command_file="cmd.txt",
+                    paused_file="paused.txt",
+                    status_file="status.txt",
+                    log_file=tmp_path / f"{role}.log",
+                    x=0, y=0, width=1, height=1,
+                )
+
+            assert self._launched_exe(popen) == f"FunTime-{role}.exe"
+
+    def test_nau_and_genau(self, tmp_path: Path):
+        class FakeProc:
+            pid = 10
+
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            launch_genau(
+                python_exe=self._interpreter(tmp_path),
+                genau_module="genau",
+                config_path=tmp_path / "genau.json",
+                clips_folder=tmp_path / "clips",
+                genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+            )
+        assert self._launched_exe(popen) == "FunTime-Genau.exe"
+
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            launch_nau(
+                python_exe=self._interpreter(tmp_path),
+                nau_module="nau",
+                config_path=tmp_path / "genau.json",
+                playlist_file="playlist.tsv",
+                command_file="cmd.txt",
+                paused_file="paused.txt",
+                status_file="status.txt",
+                console_file="console.json",
+                drive_file="drive.txt",
+                dashboard_cmd_file="dash.txt",
+                log_file=tmp_path / "nau.log",
+                nau_x=0, nau_y=0, nau_width=1, nau_height=1,
+            )
+        assert self._launched_exe(popen) == "FunTime-Nau.exe"
+
+    def test_the_satellite_reap_can_still_find_a_player_under_its_new_name(self, tmp_path: Path):
+        """The reap that clears stranded players bounds itself by image name.
+        Renaming the players without widening it would leave every one of them
+        beyond the reach of the sweep written to collect them."""
+        with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            reap_orphaned_satellites("satellite", [tmp_path / "portrait_status.txt"])
+
+        ps_command = run.call_args[0][0][-1]
+        assert "FunTime-" in ps_command
+        assert "pythonw?" in ps_command

@@ -40,6 +40,7 @@ from .lock_hud import prime_group_indexes
 from .loopback_server import serve_loopback
 from .mode_plan import genau_active
 from .modes import collect_video_files
+from .process_identity import identified_python_exe
 from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
@@ -238,7 +239,10 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
     # first poll, and so its staleness clock starts here rather than never.
     progress.advance("controls")
     proc = subprocess.Popen(
-        [sys.executable, "-m", "fun_time.closing_screen", str(progress_file)],
+        [
+            identified_python_exe(sys.executable, "ClosingScreen"),
+            "-m", "fun_time.closing_screen", str(progress_file),
+        ],
     )
     logger.info("Closing screen launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
@@ -519,9 +523,11 @@ def run_python_orchestrated_bridge(
     cancel_file.unlink(missing_ok=True)
     if show_overlays:
         progress = PhaseProgress(progress_file, cancel_file=cancel_file)
-        python_exe = sys.executable
         loading_proc = subprocess.Popen(
-            [python_exe, "-m", "fun_time.loading_screen", str(progress_file)],
+            [
+                identified_python_exe(sys.executable, "LoadingScreen"),
+                "-m", "fun_time.loading_screen", str(progress_file),
+            ],
         )
         logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
     else:
