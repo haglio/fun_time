@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import sys
 
+from app_support.process_identity import ProcessNamer
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 # The broker and its tray are both `python -m osr2_broker.<module>`; only the
@@ -11,6 +12,14 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 BROKER_PROCESS_PATTERN = "osr2_broker\\.app"
 BROKER_TRAY_PATTERN = "osr2_broker\\.tray"
 BROKER_LAUNCHER_PATTERN = "launch_broker_tray\\.vbs"
+
+# The image names a broker process can run under.  The broker names its own
+# processes now (``Broker-Broker.exe``, ``Broker-Tray.exe``), so a sweep still
+# matching only the bare interpreters would walk straight past the thing it came
+# to stop.  Derived from the same rule the broker names by rather than spelled
+# out again here -- and derived rather than imported, because this repo never
+# imports the broker, only launches it.
+BROKER_IMAGE_PATTERN = ProcessNamer("Broker").process_name_pattern
 
 # The broker outlives the session that starts it — harem and the user's next Fun
 # Time launch keep talking to it.  An integration run wraps its whole process

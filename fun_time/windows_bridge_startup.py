@@ -37,6 +37,7 @@ from .session_resume import (
 from .shared_state import shared_state_path
 from .watch_stats import watch_stats_path
 from .orchestrator_broker import (
+    BROKER_IMAGE_PATTERN,
     BROKER_LAUNCHER_PATTERN,
     BROKER_PROCESS_PATTERN,
     BROKER_TRAY_PATTERN,
@@ -98,7 +99,7 @@ def stop_broker_processes() -> None:
     """
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
-        "(($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
+        "(($_.Name -match '" + BROKER_IMAGE_PATTERN + "') -and $_.CommandLine -match '"
         + BROKER_PROCESS_PATTERN + "|" + BROKER_TRAY_PATTERN
         + "') -or "
         "(($_.Name -match '^wscript\\.exe$') -and $_.CommandLine -match '"
