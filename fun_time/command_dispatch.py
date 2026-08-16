@@ -669,6 +669,14 @@ _RESET_SIDES: dict[str, str] = {
     "landscape_reset": "landscape",
 }
 
+# The main player's own reset — the same word, meaning for it what it means for a
+# satellite: drop whatever is narrowing the playlist.  What narrows Nau is its
+# length mode (and any compilation it is inside, which leaving the length mode
+# leaves too) and its F-mode.  It is a command of ours rather than a bare forward
+# to Nau because half of it is ours: the F-mode flag is the orchestrator's, set
+# from three places of which Nau is only one.
+MAIN_RESET = "main_reset"
+
 # "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
 _NO_LOOP_SIDES: dict[str, str] = {
     "portrait_no_loop": "portrait",
@@ -1145,7 +1153,7 @@ _PRIMARY_LOCK_COMMANDS = {
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a player that did not leave it addressed.
 _PRIMARY_SELECTING_COMMANDS = frozenset(
-    {"main_next", "main_prev"}
+    {"main_next", "main_prev", MAIN_RESET}
     | set(_PRIMARY_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
 )
@@ -1162,8 +1170,8 @@ def command_side(command: str) -> int | None:
     or None if it addresses no player.  :data:`SIDE_NAMES` is the inverse.
 
     The main (Nau) player is selected by its own next/prev navigation, by its
-    lock, and by naming its F-mode — everything it shares with a satellite.  It
-    has no weird/cycle, so nothing else selects it.
+    lock, and by naming its F-mode or its reset — everything it shares with a
+    satellite.  It has no weird/cycle, so nothing else selects it.
     """
     if command.startswith("portrait_"):
         return 2
@@ -1390,6 +1398,9 @@ def dispatch_command(
     reset_scope = _RESET_SIDES.get(command)
     if reset_scope is not None:
         return _dispatch_reset(reset_scope, state, config)
+
+    if command == MAIN_RESET:
+        return _dispatch_main_reset(state, config)
 
     no_filter_scope = _NO_FILTER_SIDES.get(command)
     if no_filter_scope is not None:
@@ -1747,6 +1758,37 @@ def _dispatch_main_reorder(
     return state, [WindowOp(op="notice", key=message, source=SOURCE_MAIN)]
 
 
+def _dispatch_main_reset(
+    state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Put the main player back to its defaults — the satellites' reset, over here.
+
+    Two things narrow what Nau plays, and both go: F-mode, whose playlist is
+    rebuilt wide again, and the length mode, back to mixed — which leaves any
+    compilation with it, since a compilation is a playing set the length mode was
+    feeding.  The length verb is Nau's, so it is only sent while Nau owns the main
+    slot; the F-mode flag is ours and is cleared whoever is showing, exactly as
+    "main f mode off" clears it.
+
+    The playlist is only rebuilt when F-mode was actually on.  A reset has never
+    reshuffled the main player — "shuffle main" is the command that does — so a
+    reset pressed with nothing narrowed must not throw away the browse either.
+    """
+    if state.main_f_mode:
+        state = replace(state, main_f_mode=False)
+        apply_main_fmode(
+            enabled=False,
+            main_sources=config.main_sources,
+            recent=state.main_latest,
+            state_dir=config.state_dir,
+            nau_cmd_file=config.nau_cmd_file,
+        )
+    if nau_displays(state.main_mode):
+        append_command(config.nau_cmd_file, _NAU_CMD_MAP["nau_length_mixed"])
+    logger.info("Reset main player")
+    return state, [WindowOp(op="notice", key="Reset", source=SOURCE_MAIN)]
+
+
 def _dispatch_reorder(
     which: int, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1776,16 +1818,23 @@ def _dispatch_reset(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put a satellite (or both) back to every default, not just its filter.
 
-    The lock is released, the filter cleared, the order returned to shuffled, any
-    group loop and widened row and frozen map dropped, and the side starts from the
-    top of a freshly-built browse — one clip per subject.  "no filter" is the narrow
-    gesture; this one is "put it back how it started".
+    The lock is released, the filter cleared, F-mode dropped, the order returned to
+    shuffled, any group loop and widened row and frozen map dropped, and the side
+    starts from the top of a freshly-built browse — one clip per subject.  "no
+    filter" is the narrow gesture; this one is "put it back how it started".
+
+    F-mode is one of those defaults, and is cleared here rather than left standing:
+    a side reset while it was narrowed to the favorites came back still narrowed to
+    them, which is a browse of a few dozen clips wearing the label of the whole
+    library.  The flag goes into the state before the rebuild, because the rebuild
+    reads it back to decide how wide to build.
     """
     ops: list[WindowOp] = []
     for which in _FILTER_TARGETS[scope]:
         state = _cancel_lock(which, state, config)
         state = _set_side_latest(state, which, False)
         state = _set_side_filter(state, which, "")
+        state = _set_side_f_mode(state, which, False)
         state = _clear_side_grouping(state, which)
         state = _clear_nav_anchor(state, which)
         result = _rebuild_side(which, "", state, config, start_at_top=True)
@@ -1864,6 +1913,15 @@ def _side_f_mode(state: BridgeState, which: int) -> bool:
     """Whether satellite *which* is in F-mode — the flag every rebuild of that side
     has to carry, or the rebuild would quietly widen it back to the whole library."""
     return state.portrait_f_mode if which == 2 else state.landscape_f_mode
+
+
+def _set_side_f_mode(state: BridgeState, which: int, enabled: bool) -> BridgeState:
+    """Record whether satellite *which* is in F-mode.  Set before the side's next
+    rebuild, since every rebuild reads the flag back off the state to know how wide
+    to build."""
+    if which == 2:
+        return replace(state, portrait_f_mode=enabled)
+    return replace(state, landscape_f_mode=enabled)
 
 
 def _set_side_filter(state: BridgeState, which: int, query: str) -> BridgeState:

@@ -236,11 +236,17 @@ _SECTIONS: tuple[_Section, ...] = (
                  ("main_shuffle",)),
             _Row(
                 "Length of what plays: \"mixed\" (the default, everything), "
-                "\"shorts\", or \"full length\"; \"main reset\" also returns "
-                "to mixed, and leaves any compilation with it",
+                "\"shorts\", or \"full length\" — \"mixed\" leaves any "
+                "compilation with it",
                 ("T",),
                 ("nau_toggle_length", "nau_length_shorts", "nau_length_full",
                  "nau_length_mixed"),
+            ),
+            _Row(
+                "Reset the main player — back to the mixed library (leaving any "
+                "compilation) with F-Mode off",
+                (),
+                ("main_reset",),
             ),
             _Row(
                 "Clip navigation: \"compilation\" plays the clip's compilation "
@@ -341,7 +347,7 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Latest — reload newest-first", (), _sided("latest")),
             _Row("Shuffle — reshuffle (cancels Latest; keeps the filter)", (), _sided("shuffle")),
             _Row("F-Mode — browse only the favorites", (), _sided("fmode", "fmode_on", "fmode_off")),
-            _Row("Reset — back to every default: no filter, no lock, no loop, shuffled from the top", (), _sided("reset")),
+            _Row("Reset — back to every default: no filter, no lock, no loop, no F-Mode, shuffled from the top", (), _sided("reset")),
         ),
         key_headers=("Portrait", "Landscape"),
         note="Alone, a phrase reaches whatever you last navigated — a side, or "

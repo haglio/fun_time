@@ -142,6 +142,11 @@ _PRIMARY_EQUIVALENTS = {
     "fmode": "main_fmode",
     "fmode_on": "main_fmode_on",
     "fmode_off": "main_fmode_off",
+    # And so is a reset — "drop whatever is narrowing this player", which on the
+    # main player is its length mode and its F-mode where on a satellite it is the
+    # act filter and the loop.  Without this a bare "reset" said after navigating
+    # the main player reached nothing at all.
+    "reset": "main_reset",
 }
 
 
