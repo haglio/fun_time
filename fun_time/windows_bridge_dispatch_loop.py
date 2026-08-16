@@ -55,7 +55,12 @@ from .dashboard_runtime import (
     read_nau_status,
 )
 from .runtime_flow import read_flag_file
-from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+    launch_broker_tray,
+    stop_broker_processes,
+)
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
@@ -1097,9 +1102,15 @@ class DispatchLoopRunner:
             # title (exact: "Nau" is a substring of "Genau").
             hwnd = find_window_by_pid(self.nau_pid) or find_window_by_title("Nau", exact=True)
         elif role == "portrait":
-            hwnd = find_window_by_pid(self.portrait_pid)
+            # By title as well as pid, like Nau: the recorded pid is the venv
+            # launcher's, not the interpreter that owns the SDL window, so on a
+            # cold cache the by-pid lookup alone finds nothing and every band
+            # operation silently skips the player.
+            hwnd = (find_window_by_pid(self.portrait_pid)
+                    or find_window_by_title(SATELLITE_PORTRAIT_TITLE, exact=True))
         elif role == "landscape":
-            hwnd = find_window_by_pid(self.landscape_pid)
+            hwnd = (find_window_by_pid(self.landscape_pid)
+                    or find_window_by_title(SATELLITE_LANDSCAPE_TITLE, exact=True))
         elif role == "dashboard":
             hwnd = self._find_dashboard_hwnd()
         elif role == "rfb":

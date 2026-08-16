@@ -60,20 +60,21 @@ Esc::QueueCommand("omnipause_toggle")
 +Esc::QueueCommand("relief_omnipause")
 #SuspendExempt false
 
-; The hosted Origenerator is a typing app — prompts, filters, renames — and
-; these hotkeys are single bare letters.  While any of its windows is focused
-; (the main one over the RFB, or a show on a satellite region) the keyboard is
-; its, wholesale: a show handles its own arrows, and a prompt can contain
-; every letter bound below.  Matched by EXACT title, not the script's
-; substring mode: "Origenerator" appears in plenty of his other windows — an
-; Explorer at the checkout, a terminal on a branch — and a substring match
-; silently killed every hotkey while one of those was focused.  The exempt
-; trio above stays global on purpose — quitting and the omnipause pair are
-; session gestures, wherever the focus sits.
+; The hosted Origenerator's MAIN window is a typing app — prompts, filters,
+; renames — and these hotkeys are single bare letters, so while it is focused
+; the keyboard is its, wholesale.  Its region SHOWS are not: a slideshow has
+; no text field, and the arrows and WASD must drive the portrait and
+; landscape regions by SIDE, exactly as they drive the players — wherever the
+; focus sits, a show's included.  So only the main window gates the hotkeys
+; off.  Matched by EXACT title, not the script's substring mode:
+; "Origenerator" appears in plenty of his other windows — an Explorer at the
+; checkout, a terminal on a branch — and a substring match silently killed
+; every hotkey while one of those was focused.  The exempt trio above stays
+; global on purpose — quitting and the omnipause pair are session gestures,
+; wherever the focus sits.
 OrigeneratorHasKeyboard() {
     title := WinGetTitle("A")
-    return (title = "Origenerator" || title = "Origenerator Portrait"
-        || title = "Origenerator Landscape")
+    return (title = "Origenerator")
 }
 #HotIf !OrigeneratorHasKeyboard()
 

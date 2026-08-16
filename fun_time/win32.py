@@ -444,16 +444,29 @@ class StackedWindow:
     rect: tuple[int, int, int, int]  # x, y, width, height (screen coords)
 
 
+# Framed windows carry an INVISIBLE resize border (~7-8px per edge on Windows
+# 10/11) that GetWindowRect includes: a maximized Chrome reports itself 8px
+# onto the neighboring monitor, and a docked dashboard reports 8px into the
+# player beside it.  An intersection this thin is that ghost frame, not
+# anything the eye can see covered, so the overlap test ignores it.
+_FRAME_GHOST_PX = 12
+
+
 def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    """Whether two (x, y, w, h) rectangles share any interior area.
+    """Whether two (x, y, w, h) rectangles share VISIBLE interior area.
 
     A shared edge (touching but not crossing) is not overlap — the portrait
     satellite's bottom edge meets Nau's top edge, and that abutment must not
-    read as coverage.
+    read as coverage.  Nor is an intersection thinner than a window's
+    invisible resize frame (see ``_FRAME_GHOST_PX``): those slivers had the
+    startup log warning that a maximized Chrome on one monitor "covered" the
+    player on the next monitor over.
     """
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
-    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+    overlap_w = min(ax + aw, bx + bw) - max(ax, bx)
+    overlap_h = min(ay + ah, by + bh) - max(ay, by)
+    return overlap_w > _FRAME_GHOST_PX and overlap_h > _FRAME_GHOST_PX
 
 
 def windows_obscuring(

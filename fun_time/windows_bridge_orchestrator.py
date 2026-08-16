@@ -64,6 +64,7 @@ from .win32 import (
     find_window_for_process,
     get_process_creation_time,
     iter_zorder,
+    set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
 )
@@ -465,6 +466,26 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         mode=result.main_mode,
     )
     logger.info("Post-loading window state corrected")
+    # The banding above can silently miss a player: SetWindowPos waits on the
+    # target's own thread, and the satellites are at their busiest exactly now
+    # (first clips decoding), so a promotion can time out through the hung-
+    # window guard and leave the player under whatever the user had on that
+    # monitor — a maximized Chrome sat over the landscape player until the
+    # next full re-band.  Walk the real z-order and re-promote whoever is
+    # still buried, for a few seconds, until both players are frontmost.
+    for _ in range(8):
+        stack = iter_zorder()
+        buried = [
+            (name, hwnd)
+            for name, hwnd in (("portrait", portrait_hwnd), ("landscape", landscape_hwnd))
+            if hwnd and windows_obscuring(hwnd, stack)
+        ]
+        if not buried:
+            break
+        for name, hwnd in buried:
+            logger.info("The %s satellite is still buried; re-asserting its band", name)
+            set_always_on_top(hwnd, True)
+        time.sleep(1.5)
     # In hybrid and genau modes Genau's window sits over Nau on purpose — the
     # transparent HUD layer, or the display itself — so it is not a covering
     # worth a warning there.

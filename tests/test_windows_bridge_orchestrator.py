@@ -106,8 +106,42 @@ class TestFixPostLoadingWindows:
         assert apply.call_args.kwargs["portrait_hwnd"] == 111
         assert apply.call_args.kwargs["landscape_hwnd"] == 222
 
+    def test_a_buried_satellite_is_re_promoted_until_frontmost(self):
+        """The banding waits on each window's own thread, and the satellites
+        are at their busiest exactly at the reveal — a promotion that times
+        out through the hung-window guard leaves the player under whatever
+        the user had on that monitor (a maximized Chrome sat over the
+        landscape player until the next full re-band).  The pass now walks
+        the real z-order afterwards and re-promotes whoever is still buried."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
+                               rect=(0, 0, 2560, 1410))
+        buried = [chrome,
+                  StackedWindow(hwnd=222, title="Landscape AI Player",
+                                topmost=True, rect=(854, 0, 1706, 1410)),
+                  StackedWindow(hwnd=111, title="Portrait AI Player",
+                                topmost=True, rect=(2560, 0, 1440, 2560))]
+        risen = [buried[1], chrome, buried[2]]  # landscape above Chrome now
 
-class TestKillProcessTree:
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder",
+            side_effect=[buried, risen],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, patch(
+            "fun_time.windows_bridge_orchestrator.time.sleep"
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result)
+
+        promote.assert_called_once_with(222, True)  # only the buried one, once
     def test_taskkills_the_pid_and_its_descendants(self):
         with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
             kill_process_tree(1234)
