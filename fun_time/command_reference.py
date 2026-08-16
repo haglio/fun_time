@@ -212,6 +212,14 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("Z",),
                 ("recenter_view",),
             ),
+            # Named for the playback, so it reaches the video whoever holds the
+            # OSR2 — the way to nudge the rate through a Genau-driven stretch in
+            # hybrid, where the bare "speed up" goes to the stroke instead.
+            _Row(
+                "Nudge the video's playback rate up / down",
+                (),
+                ("nau_speed_up", "nau_speed_down"),
+            ),
             _Row(
                 "Set video speed (0.25×–2×; the funscript follows)",
                 (),

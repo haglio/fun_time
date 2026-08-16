@@ -2191,9 +2191,10 @@ def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
 
 
 def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path: Path):
-    """The console's playback-rate arrows.  They tune Nau's video — never the
-    stroke — so they reach Nau in nau and hybrid and are a no-op in genau, where
-    Nau is off screen and its clips have no such rate."""
+    """The console's playback-rate arrows, and spoken "playback speed up".  They
+    tune Nau's video — never the stroke — so they reach Nau in nau and hybrid and
+    are a no-op in genau, where Nau is off screen and its clips have no such
+    rate."""
     for mode in ("nau", "hybrid"):
         config = _make_config(tmp_path / mode)
         dispatch_command("nau_speed_up", _make_state(main_mode=mode), config)
@@ -2203,6 +2204,20 @@ def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path:
     config = _make_config(tmp_path / "genau")
     dispatch_command("nau_speed_down", _make_state(main_mode="genau"), config)
     assert not config.nau_cmd_file.exists()
+    assert not config.genau_cmd_file.exists()
+
+
+def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_path: Path):
+    """Hybrid, unscripted stretch: the bare nudge goes to the stroke, so naming
+    the playback is the only way to move the video's rate — and it has to land
+    there rather than follow whichever engine happens to be driving."""
+    config = _make_config(tmp_path)
+    _set_nau_driving(config, driving=False)
+    state = _make_state(main_mode="hybrid")
+
+    dispatch_command("nau_speed_down", state, config)
+
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.genau_cmd_file.exists()
 
 

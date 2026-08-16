@@ -167,6 +167,10 @@ class TestVoiceCommands:
             "slow down": "speed_down",
             "speed down": "speed_down",
             "speed up": "speed_up",
+            # …and naming the playback pins the same nudge to the video.
+            "playback slow down": "nau_speed_down",
+            "playback speed down": "nau_speed_down",
+            "playback speed up": "nau_speed_up",
             "amp down": "genau_amplitude_down",
             "amp up": "genau_amplitude_up",
             "center down": "genau_center_down",
