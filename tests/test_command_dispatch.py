@@ -1747,10 +1747,10 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
-def test_more_seeds_still_widens_when_nothing_shares_the_act_or_a_tag(tmp_path: Path):
-    """Widening must always turn up another video.  Even a clip that shares no
-    action and no prompt tag with anything still widens — to the nearest thing
-    there is — instead of dead-ending on "Widening net failed"."""
+def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
+    """A wider seed row is more of *this act*, so an act nothing else in the library
+    does has no wider row — and says so, rather than widening into another act, which
+    it would then loop and play."""
     cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
     cur.write_text("x", encoding="utf-8")
     other.write_text("x", encoding="utf-8")
@@ -1763,19 +1763,21 @@ def test_more_seeds_still_widens_when_nothing_shares_the_act_or_a_tag(tmp_path: 
         action_by_path={kc: "Zeta", ko: "Alpha"},   # nothing else does Zeta
         seed_key_by_path={}, seed_members={},
         path_by_key={kc: c, ko: o},
-        scene_tags_by_path={kc: frozenset({"a"}), ko: frozenset({"z"})},   # no shared tag
+        scene_tags_by_path={kc: frozenset({"a"}), ko: frozenset({"a"})},   # the same scene
     )
 
     _set_current(config, 2, c)
     with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
         state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.portrait_widen_clip == c
-    assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
+    assert state.portrait_widen_clip == ""  # nothing widened
+    notices = [op for op in ops if op.op == "notice"]
+    assert [op.key for op in notices] == ["Widening net failed"]
+    assert notices[0].level == FAILED_NOTICE_LEVEL
 
 
-def test_more_seeds_reports_widening_failed_only_when_the_library_holds_one_clip(tmp_path: Path):
-    """The one real dead end: there is no other video to widen to."""
+def test_more_seeds_reports_widening_failed_when_the_library_holds_one_clip(tmp_path: Path):
+    """The other dead end: there is no other video at all to widen to."""
     config = _make_config(tmp_path)
     only = tmp_path / "only.mp4"
     only.write_text("x", encoding="utf-8")
@@ -1815,10 +1817,10 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
-def _filtered_widen_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str, str]:
+def _other_act_widen_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str, str]:
     """Four same-subject clips on real files.  {a, a2} share the exact seed family
     F1; c is another family doing a's act; b is its own family doing something
-    else, and its scene is the closest of all — so an unbounded widen takes it."""
+    else, and its scene is the closest of all — so an unbounded widen took it."""
     files = {name: tmp_path / f"{name}.mp4" for name in ("a", "a2", "b", "c")}
     for f in files.values():
         f.write_text("x", encoding="utf-8")
@@ -1836,24 +1838,20 @@ def _filtered_widen_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str, st
     ), a, a2, b, c
 
 
-def test_more_seeds_widens_only_into_clips_the_sides_filter_keeps(tmp_path: Path):
-    """"more seeds" loops what it draws, so a widen that reaches outside the side's
-    filter *plays* a clip the filter dropped — under a HUD row naming an act you
-    had not asked for.  The filter bounds the widen; without one, nothing changes."""
+def test_more_seeds_never_queues_a_clip_of_another_action(tmp_path: Path):
+    """"more seeds" loops what it draws, so a clip ranked into the row *plays*.  The
+    row is this act's other subjects; the nearest-scened clip of another act belongs
+    to the action column, and queueing it put that act on screen unasked."""
     config = _make_config(tmp_path)
-    index, a, a2, b, c = _filtered_widen_index(tmp_path)
+    index, a, a2, b, c = _other_act_widen_index(tmp_path)
 
     _set_current(config, 2, a)
     with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("portrait_more_seeds", _make_state(portrait_filter="alpha"), config)
+        state, _ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, c])  # b does something else
+    assert b not in _playlist(config, 2)
     assert state.portrait_widen_clip == a
-
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        dispatch_command("portrait_more_seeds", _make_state(), config)
-
-    assert sorted(_playlist(config, 2)) == sorted([a, a2, b, c])  # unfiltered, b is fair game
 
 
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):

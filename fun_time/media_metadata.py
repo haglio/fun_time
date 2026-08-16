@@ -279,6 +279,18 @@ def action_group_members(index: GroupIndex, path: str) -> list[str]:
     return list(index.action_members[key])
 
 
+def indexed_act(index: GroupIndex, path: str) -> str:
+    """*path*'s recorded act as the seed axis compares it — lowercased, spacing
+    collapsed.
+
+    The library holds the same act spelled more than one way ("POV …" beside
+    "Pov …"), and the seed axis asks "is this the same act?" often enough that a
+    raw string compare splits one act's clips into two pools that cannot see each
+    other — a clip alone in its casing then has no seed row at all.
+    """
+    return _norm_text(index.action_by_path.get(normalize_path_key(path), ""))
+
+
 def seed_family_members(index: GroupIndex, path: str) -> list[str]:
     """Every clip of *path*'s parameter set doing *path*'s action, each seed.
 
@@ -290,11 +302,11 @@ def seed_family_members(index: GroupIndex, path: str) -> list[str]:
     if entry is None:
         return []
     family, _seed = entry
-    action = index.action_by_path.get(normalize_path_key(path), "")
+    action = indexed_act(index, path)
     return [
         member
         for member in index.seed_members[family]
-        if index.action_by_path.get(normalize_path_key(member), "") == action
+        if indexed_act(index, member) == action
     ]
 
 
@@ -304,51 +316,33 @@ def seed_family_members(index: GroupIndex, path: str) -> list[str]:
 WIDEN_ADDITIONS = 6
 
 
-def index_keeps_query(index: GroupIndex, path_key: str, query: str) -> bool:
-    """Whether the clip at *path_key* is one *query* keeps, read off the index.
-
-    The same rule as :func:`matches_query`, routed through it so the two cannot
-    drift: a filter is the recorded act and nothing else, which the index already
-    holds for every clip — so a caller can stay inside an active filter without a
-    sidecar read per candidate.
-    """
-    return matches_query({"video": {"action": index.action_by_path.get(path_key, "")}}, query)
-
-
 def widened_seed_members(
-    index: GroupIndex,
-    path: str,
-    additions: int = WIDEN_ADDITIONS,
-    *,
-    query: str = "",
+    index: GroupIndex, path: str, additions: int = WIDEN_ADDITIONS
 ) -> list[str]:
     """The widened seed row for *path* — "more seeds": its exact seed family plus
-    the *additions* clips whose scene is closest to it, out of the clips *query*
-    keeps.
+    the *additions* clips of *path*'s own action whose scene is closest to it.
 
-    Candidates are ranked on three keys, in this order:
+    The action is a hard bound, not a preference.  The seed axis means "the same
+    act, another subject", and a different act is what the action column is for —
+    so a widened row that ranked other acts in was answering a question nobody
+    asked, and, since "more seeds" loops the row it draws, those other acts
+    *played*.  Under a side filter that is plainly wrong (the filter is an act,
+    and the widen walked straight out of it); off a filter it is still wrong, just
+    quieter.  Bounding here rather than at each caller is what keeps a filter out
+    of this function entirely: the row can no longer leave the act it started in,
+    and every act filter is satisfied by the act it started in.
+
+    Within the action, candidates are ranked:
 
     1. **Same generation kind.**  An image-to-video clip and a text-to-video one
        look drastically different however alike their prompts read, so the widen
-       stays inside the kind it started in.
-    2. **Same action.**  The seed axis means "the same act, another subject", and a
-       different act of this very subject is what the action column is for.
-    3. **Prompt-tag overlap** (:func:`scene_tags`) — how alike the scenes are.
+       prefers the kind it started in.
+    2. **Prompt-tag overlap** (:func:`scene_tags`) — how alike the scenes are.
 
-    Each is a preference, not a filter, so a rare act (or kind) falls through to
-    the next-best thing rather than to nothing.  Ranking rather than
-    set-membership is what makes this always find something: an exact-config
-    family is often just this clip, and holding any field fixed to widen
-    (prompts, render settings) can match nothing at all, but *nearest* is well
-    defined as long as the library holds another video.
-
-    *query* is the one hard bound on that: the side's own filter.  Nearest-first
-    ranking over the whole library reaches outside a filter almost immediately —
-    filtered to a four-clip act, every addition came from somewhere else, and
-    since the widen also loops what it drew, those clips *played*, under a HUD row
-    naming an act you had not asked for.  A widen that can then add nothing is a
-    true dead end ("there is no other video *here*"), which is what the caller's
-    failure notice already says.
+    Both are preferences, so a lone clip of its kind falls through to the
+    next-best thing rather than to nothing.  The bound does mean a widen can come
+    up empty — an act nothing else in the library does has no wider row, and the
+    caller says so rather than reaching for a stranger.
     """
     key = normalize_path_key(path)
     members = list(seed_family_members(index, path))
@@ -357,22 +351,21 @@ def widened_seed_members(
         # the row it anchors, so the pool always opens with it.
         members.insert(0, index.path_by_key.get(key, path))
     seen = {normalize_path_key(member) for member in members} | {key}
-    action = index.action_by_path.get(key, "")
+    action = indexed_act(index, path)
     from_image = index.image_to_video_by_path.get(key, False)
     mine = index.scene_tags_by_path.get(key, frozenset())
     ranked = sorted(
         (
             (
                 index.image_to_video_by_path.get(other_key, False) == from_image,
-                index.action_by_path.get(other_key, "") == action,
                 _tag_overlap(mine, index.scene_tags_by_path.get(other_key, frozenset())),
                 other_key,
             )
             for other_key in index.path_by_key
-            if other_key not in seen and index_keeps_query(index, other_key, query)
+            if other_key not in seen and indexed_act(index, other_key) == action
         ),
         # Nearest first; the path key only breaks ties, so the row is stable.
-        key=lambda scored: (-scored[0], -scored[1], -scored[2], scored[3]),
+        key=lambda scored: (-scored[0], -scored[1], scored[2]),
     )
     members.extend(index.path_by_key[scored[-1]] for scored in ranked[:max(additions, 0)])
     return members
