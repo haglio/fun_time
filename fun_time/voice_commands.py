@@ -128,9 +128,13 @@ VOICE_COMMANDS: dict[str, str] = {
     "next fun scripted": "nau_next_funscripted",
     # The phrases for the clip jump are library vocabulary, so they come from
     # the content overlay and are merged in below rather than written here.
-    "slow down": "genau_speed_down",
-    "speed down": "genau_speed_down",
-    "speed up": "genau_speed_up",
+    # Nothing in these words names an engine, so they follow whichever holds the
+    # OSR2: the video's rate while a funscript is driving it (the script scales
+    # with the clock), else Genau's stroke.  Said during a scripted stretch they
+    # used to nudge a paused Genau, which the console had already dimmed.
+    "slow down": "speed_down",
+    "speed down": "speed_down",
+    "speed up": "speed_up",
     "amp down": "genau_amplitude_down",
     "amp up": "genau_amplitude_up",
     "center down": "genau_center_down",

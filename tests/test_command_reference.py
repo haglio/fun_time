@@ -485,7 +485,10 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
         ("Center up / down", "Set center"),
         ("Speed up / down", "Set speed"),
     ):
-        assert descs.index(setname) == descs.index(updown) + 1, "Set line must follow its up/down line"
+        # Matched by prefix: a row may carry an explanation after its name (speed
+        # says which engine the nudge reaches in hybrid).
+        at = next(i for i, d in enumerate(descs) if d.startswith(updown))
+        assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
     set_amp = next(r for r in genau_rows if r.description == "Set amplitude")
     assert "min amp" in set_amp.voice and "max amp" in set_amp.voice
 

@@ -150,8 +150,11 @@ z::QueueCommand("recenter_view")
 u::QueueCommand("genau_center_down")
 i::QueueCommand("genau_cycle_shape")
 o::QueueCommand("genau_center_up")
-j::QueueCommand("genau_speed_down")
-l::QueueCommand("genau_speed_up")
+; …and speed, which names no engine here the way the console's marks do, so it
+; follows whichever holds the OSR2 — the video's rate under a driving funscript,
+; Genau's stroke otherwise.
+j::QueueCommand("speed_down")
+l::QueueCommand("speed_up")
 ; Cruise varies the stroke; moving on from a clip is what an unlocked Genau does
 ; by itself, so it is the apostrophe's lock rather than a switch of its own.
 c::QueueCommand("genau_toggle_cruise")

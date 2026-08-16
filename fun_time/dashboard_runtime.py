@@ -109,7 +109,8 @@ class NauStatus:
     def funscript_driving(self) -> bool:
         """True when the funscript is actively driving the OSR2 — scripted and
         not resting.  The moment-to-moment hybrid handoff signal: whoever this
-        points to (Nau's funscript, else Genau) also owns speed control."""
+        points to (Nau's funscript, else Genau) also takes the unqualified speed
+        nudge, since that is the engine a nudge can actually move."""
         return self.has_funscript and not self.funscript_resting
 
     @property

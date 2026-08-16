@@ -153,7 +153,16 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Set amplitude", (), (), ("min amp", "max amp", "amp 0–100")),
             _Row("Center up / down", ("O", "U"), ("genau_center_up", "genau_center_down")),
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
-            _Row("Speed up / down", ("L", "J"), ("genau_speed_up", "genau_speed_down")),
+            # Neither the keys nor the words name an engine, so in hybrid they
+            # follow the OSR2's driver; the console's own ± marks, which sit on
+            # one readout or the other, stay with the engine they sit on.
+            _Row(
+                "Speed up / down — the stroke's rate, or the video's playback "
+                "rate while a funscript is driving the OSR2 (the script scales "
+                "with it)",
+                ("L", "J"),
+                ("speed_up", "speed_down"),
+            ),
             _Row("Set speed", (), (), ("speed 0–100",)),
             _Row("Previous waveform shape", (), ("genau_cycle_shape_prev",)),
             _Row("Next waveform shape", ("I",), ("genau_cycle_shape",)),
