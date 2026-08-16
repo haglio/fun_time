@@ -17,7 +17,7 @@ from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     _CHILD_PID_KEYS,
     _fix_post_loading_windows,
-    _log_nau_obstruction,
+    _log_window_obstruction,
     _open_event_log,
     _shutdown_children,
     identify_children,
@@ -78,7 +78,7 @@ class TestFixPostLoadingWindows:
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
             "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
-        ), patch("fun_time.windows_bridge_orchestrator._log_nau_obstruction"):
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
             _fix_post_loading_windows(result)
 
         assert apply.call_args.kwargs["mode"] == "genau"
@@ -100,7 +100,7 @@ class TestFixPostLoadingWindows:
         ), patch(
             "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
             side_effect=lambda title, **kwargs: titles.get(title, 0),
-        ), patch("fun_time.windows_bridge_orchestrator._log_nau_obstruction"):
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
             _fix_post_loading_windows(result)
 
         assert apply.call_args.kwargs["portrait_hwnd"] == 111
@@ -1017,7 +1017,7 @@ class TestNauObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020)
+            _log_window_obstruction("Nau", 2020)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
         assert "topmost=False" in caplog.text  # a non-topmost window over topmost Nau
@@ -1026,14 +1026,14 @@ class TestNauObstructionLog:
         stack = [StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900))]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020)
+            _log_window_obstruction("Nau", 2020)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
     def test_warns_when_nau_unresolved(self, caplog):
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder") as it, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(0)
+            _log_window_obstruction("Nau", 0)
         it.assert_not_called()  # nothing to walk if Nau never resolved
         assert "unresolved" in caplog.text
 
@@ -1048,7 +1048,7 @@ class TestNauObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020, expected_over=1010)
+            _log_window_obstruction("Nau", 2020, expected_over=1010)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
@@ -1061,7 +1061,7 @@ class TestNauObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020, expected_over=1010)
+            _log_window_obstruction("Nau", 2020, expected_over=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
         assert "Hybrid Nau+Genau" not in caplog.text

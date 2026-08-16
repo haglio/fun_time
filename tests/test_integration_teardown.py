@@ -16,7 +16,10 @@ from tests.integration.hidden_desktop import HIDDEN_DESKTOP_NAME
 def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
     """pytest runs as python.exe and owns real Qt windows on this desktop — both
     this run's and any run queued behind it.  Killing one leaves a suite dead
-    with no output, so the reap only ever targets the images the apps run as.
+    with no output, so the reap targets the images the apps run as — plus, by
+    COMMAND LINE rather than image, a leftover hosted Origenerator, which runs
+    on a plain python.exe of its own and once survived every reap to leave its
+    windows over a later session's players.
     """
     own = os.getpid()
     images = {
@@ -24,6 +27,7 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
         333: r"C:\Program Files\AutoHotkey\v2\AutoHotkey64.exe",
         444: r"C:\blah\fun_time\.venv\Scripts\python.exe",  # a queued run's pytest
         555: None,                                          # window owner already exited
+        666: r"C:\Python314\python.exe",                    # a leftover hosted Origenerator
         own: sys.executable,
     }
     with patch.object(integration_support, "current_desktop_name", return_value=HIDDEN_DESKTOP_NAME), \
@@ -31,13 +35,19 @@ def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
          patch.object(integration_support, "get_process_image_name", images.get), \
          patch.object(integration_support, "kill_process_tree") as kill, \
          patch.object(integration_support.subprocess, "run") as run:
+        run.return_value.stdout = "666\n"  # the command-line query names the hosted app
         integration_support._kill_leftover_app_processes()
 
     killed = {call.args[0] for call in kill.call_args_list}
-    assert killed == {222, 333}  # the leftover satellite/Nau/dashboard + AHK
+    assert killed == {222, 333, 666}  # players/AHK by image, the hosted app by command line
     assert 444 not in killed     # never another run's pytest
     assert own not in killed     # never the running pytest process itself
-    run.assert_not_called()      # never the global by-name sweep on the hidden desktop
+    # The one subprocess call is the hosted-app QUERY, bounded to exactly the
+    # window-owning pids — never the old machine-wide by-name sweep.
+    query = run.call_args.args[0][-1]
+    assert "Stop-Process" not in query
+    for pid in sorted(set(images)):
+        assert str(pid) in query
 
 
 def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
