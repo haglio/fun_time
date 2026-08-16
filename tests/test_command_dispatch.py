@@ -1815,6 +1815,47 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
+def _filtered_widen_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str, str]:
+    """Four same-subject clips on real files.  {a, a2} share the exact seed family
+    F1; c is another family doing a's act; b is its own family doing something
+    else, and its scene is the closest of all — so an unbounded widen takes it."""
+    files = {name: tmp_path / f"{name}.mp4" for name in ("a", "a2", "b", "c")}
+    for f in files.values():
+        f.write_text("x", encoding="utf-8")
+    a, a2, b, c = (str(files[name]) for name in ("a", "a2", "b", "c"))
+    ka, ka2, kb, kc = (normalize_path_key(p) for p in (a, a2, b, c))
+    scene = frozenset({"x", "y", "z"})
+    return GroupIndex(
+        action_key_by_path={ka: "scene", ka2: "scene", kb: "scene", kc: "scene"},
+        action_members={"scene": sorted([a, a2, b, c])},
+        action_by_path={ka: "Alpha", ka2: "Alpha", kb: "Theta", kc: "Alpha"},
+        seed_key_by_path={ka: ("F1", "0"), ka2: ("F1", "1"), kb: ("F3", "0"), kc: ("F2", "0")},
+        seed_members={"F1": sorted([a, a2]), "F2": [c], "F3": [b]},
+        path_by_key={ka: a, ka2: a2, kb: b, kc: c},
+        scene_tags_by_path={ka: scene, ka2: scene, kb: scene, kc: frozenset({"q"})},
+    ), a, a2, b, c
+
+
+def test_more_seeds_widens_only_into_clips_the_sides_filter_keeps(tmp_path: Path):
+    """"more seeds" loops what it draws, so a widen that reaches outside the side's
+    filter *plays* a clip the filter dropped — under a HUD row naming an act you
+    had not asked for.  The filter bounds the widen; without one, nothing changes."""
+    config = _make_config(tmp_path)
+    index, a, a2, b, c = _filtered_widen_index(tmp_path)
+
+    _set_current(config, 2, a)
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        state, _ops = dispatch_command("portrait_more_seeds", _make_state(portrait_filter="alpha"), config)
+
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, c])  # b does something else
+    assert state.portrait_widen_clip == a
+
+    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
+        dispatch_command("portrait_more_seeds", _make_state(), config)
+
+    assert sorted(_playlist(config, 2)) == sorted([a, a2, b, c])  # unfiltered, b is fair game
+
+
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
     """Widening the row while a seed loop runs must widen the loop too, so the satellite
     cycles the wider pool the HUD now shows instead of only the exact family."""

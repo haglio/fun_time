@@ -10,6 +10,7 @@ from fun_time.media_metadata import (
     build_group_index,
     seed_family_members,
     cached_group_index,
+    index_keeps_query,
     load_metadata,
     matches_query,
     metadata_path_for,
@@ -543,6 +544,57 @@ def test_widened_seed_members_prefer_the_same_action_over_a_closer_scene(tmp_pat
     members = widened_seed_members(index, paths["cur"], additions=1)
 
     assert members == [paths["cur"], paths["same_act"]]
+
+
+def test_widened_seed_members_stay_inside_an_active_filter(tmp_path: Path):
+    """The widen ranks the whole library nearest-first, so under a filter it used
+    to reach straight back out of it — and since "more seeds" loops what it drew,
+    those clips played, under a row naming an act you had not asked for."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
+        "other_act": _t2v("Theta", "2", prompt="a, b, c"),  # nearest scene, wrong act
+        "same_act": _t2v("Alpha", "3", prompt="a, x, y"),   # further, but kept
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    assert widened_seed_members(index, paths["cur"], additions=2, query="alpha") == [
+        paths["cur"], paths["same_act"],
+    ]
+    # The same widen unfiltered reaches the other act's clip too — what changed is
+    # the bound, not the ranking underneath it.
+    assert sorted(widened_seed_members(index, paths["cur"], additions=2)) == sorted(
+        [paths["cur"], paths["same_act"], paths["other_act"]]
+    )
+
+
+def test_widened_seed_members_can_come_up_empty_under_a_filter(tmp_path: Path):
+    """The no-dead-end promise is bounded by the filter: where the filter keeps
+    only this clip there is nothing to widen to, and the caller's "widening net
+    failed" notice is then the truth rather than a shrug."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
+        "other_act": _t2v("Theta", "2", prompt="a, b, c"),
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    assert widened_seed_members(index, paths["cur"], additions=6, query="alpha") == [paths["cur"]]
+
+
+def test_index_keeps_query_answers_the_filter_from_the_index(tmp_path: Path):
+    """The widen's bound has to be the very rule the playlist build applies, or a
+    row could draw what the browse dropped; it reads the act off the index rather
+    than re-opening every candidate's sidecar."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "labeled": _t2v("Pov Alpha", "1"),
+        "other": _t2v("Theta", "2"),
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    labeled, other = normalize_path_key(paths["labeled"]), normalize_path_key(paths["other"])
+    assert index_keeps_query(index, labeled, "alpha")
+    assert not index_keeps_query(index, other, "alpha")
+    assert index_keeps_query(index, other, "")  # no filter keeps everything
+    assert not index_keeps_query(index, "not-in-the-index", "alpha")
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
