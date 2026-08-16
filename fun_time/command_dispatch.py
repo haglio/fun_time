@@ -2114,25 +2114,36 @@ _ORIGENERATOR_TRANSPORT: dict[str, tuple[str, str]] = {
 }
 
 
+def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
+    """Whether *command* is a side's transport bound for the show covering it.
+
+    Only a COVERED side routes: in origenerator mode with no show on a side,
+    that side's player is still what the eye sees, so the transport keeps
+    driving it.  Public because the dispatch loop asks the same question — its
+    watch tracking must not book a show's step or cull against the paused
+    player underneath.
+    """
+    target = _ORIGENERATOR_TRANSPORT.get(command)
+    if target is None or not origenerator_shows(state.satellites_mode):
+        return False
+    side_name, _verb = target
+    covered = (state.portrait_show_active if side_name == "portrait"
+               else state.landscape_show_active)
+    return covered and config.origenerator_cmd_file is not None
+
+
 def _origenerator_transport(
     command: str, state: BridgeState, config: BridgeConfig
 ) -> list[WindowOp] | None:
     """Route a side's transport to the show covering it, or ``None`` to fall
     through to the player.
 
-    Only a COVERED side routes: in origenerator mode with no show on a side,
-    that side's player is still what the eye sees, so the transport keeps
-    driving it.  None of the player-side bookkeeping (lock flags, favorites,
-    RFB tabs) applies to a show — the hosted app owns its own lock semantics.
+    None of the player-side bookkeeping (lock flags, favorites, RFB tabs)
+    applies to a show — the hosted app owns its own lock semantics.
     """
-    target = _ORIGENERATOR_TRANSPORT.get(command)
-    if target is None or not origenerator_shows(state.satellites_mode):
+    if not routes_to_origenerator(command, state, config):
         return None
-    side_name, verb = target
-    covered = (state.portrait_show_active if side_name == "portrait"
-               else state.landscape_show_active)
-    if not covered or config.origenerator_cmd_file is None:
-        return None
+    side_name, verb = _ORIGENERATOR_TRANSPORT[command]
     write_satellite_command(config.origenerator_cmd_file, f"{side_name.upper()}_{verb}")
     return []
 

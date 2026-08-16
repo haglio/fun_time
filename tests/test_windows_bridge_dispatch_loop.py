@@ -3198,3 +3198,25 @@ class TestOrigeneratorWindowConverger:
         with patch.object(runner, "_resolve_role") as resolve:
             runner._converge_origenerator_window()
         resolve.assert_not_called()
+
+
+class TestOrigeneratorWatchGuard:
+    def test_a_routed_step_books_nothing_against_the_paused_player(self, tmp_path):
+        config = make_config(tmp_path, origenerator_enabled=True,
+                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
+        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
+        runner.state = replace(runner.state, satellites_mode="origenerator",
+                               portrait_show_active=True)
+        with patch.object(runner._watch_trackers[2], "note_user_nav") as nav:
+            runner._dispatch("portrait_next")
+        nav.assert_not_called()
+
+    def test_an_uncovered_sides_step_still_books_the_player(self, tmp_path):
+        config = make_config(tmp_path, origenerator_enabled=True,
+                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
+        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
+        runner.state = replace(runner.state, satellites_mode="origenerator",
+                               portrait_show_active=False)
+        with patch.object(runner._watch_trackers[2], "note_user_nav") as nav:
+            runner._dispatch("portrait_next")
+        nav.assert_called_once()

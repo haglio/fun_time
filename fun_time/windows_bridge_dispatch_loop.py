@@ -26,6 +26,7 @@ from .command_dispatch import (
     WindowOp,
     command_side,
     dispatch_command,
+    routes_to_origenerator,
     side_name,
 )
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
@@ -802,12 +803,16 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
-        for which, nav_commands in self._WATCH_NAV_COMMANDS.items():
-            if command in nav_commands:
-                self._watch_trackers[which].note_user_nav()
-        discard_which = self._WATCH_DISCARD_COMMANDS.get(command)
-        if discard_which is not None:
-            self._watch_trackers[discard_which].note_discard()
+        # A transport verb bound for an Origenerator show steps that show, not
+        # the paused player underneath — booking it here would classify the
+        # player's frozen clip as skipped or discarded when nobody touched it.
+        if not routes_to_origenerator(command, self.state, self.config):
+            for which, nav_commands in self._WATCH_NAV_COMMANDS.items():
+                if command in nav_commands:
+                    self._watch_trackers[which].note_user_nav()
+            discard_which = self._WATCH_DISCARD_COMMANDS.get(command)
+            if discard_which is not None:
+                self._watch_trackers[discard_which].note_discard()
         new_state, ops = dispatch_command(
             command, self.state, self.config,
             target_path=self._back_dated_video(command, spoken_at),
