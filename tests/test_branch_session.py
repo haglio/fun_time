@@ -765,3 +765,23 @@ def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path,
     config = branch_session.apply_origenerator_dir_override(load_config(cfg_path))
 
     assert config.paths.origenerator_dir == Path("C:/origenerator/.claude/worktrees/mine")
+
+
+def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch, cfg_path):
+    """An integration run's config decides what it hosts — isolation strips the
+    key, and the origenerator-mode test names its own stub.  The override
+    out-ranking them made every session the suite launched from a worktree
+    carrying the file host the REAL app: the machine's one ComfyUI, booted on
+    the hidden desktop by a test run."""
+    from fun_time.config import load_config
+
+    state = tmp_path / "state"
+    state.mkdir(exist_ok=True)
+    (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
+        "C:/origenerator/.claude/worktrees/mine\n", encoding="utf-8")
+    monkeypatch.setattr(branch_session.config_module, "PROJECT_DIR", tmp_path)
+    monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+
+    config = branch_session.apply_origenerator_dir_override(load_config(cfg_path))
+
+    assert config.paths.origenerator_dir is None  # the config's own answer stands

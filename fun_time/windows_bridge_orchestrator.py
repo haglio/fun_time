@@ -387,36 +387,39 @@ def _open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
-def _log_nau_obstruction(nau_hwnd: int, *, expected_over: int = 0) -> None:
-    """Record which windows, if any, cover Nau once the bands are re-applied.
+def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0) -> None:
+    """Record which windows, if any, cover *name* once the bands are re-applied.
 
-    The topmost flag reads ``True`` here, yet Nau can still be reported "not on
-    top" — a window may carry WS_EX_TOPMOST and remain buried under another
-    overlapping window (a user's own always-on-top app, or a promotion-order
-    slip).  ``is_window_topmost`` cannot see that; only the real z-order can, so
-    this walks it and names the covering window instead of guessing.
+    The topmost flag reads ``True`` here, yet a player can still be reported
+    "not on top" — a window may carry WS_EX_TOPMOST and remain buried under
+    another overlapping window (a user's own always-on-top app, or a
+    promotion-order slip).  ``is_window_topmost`` cannot see that; only the
+    real z-order can, so this walks it and names the covering window instead
+    of guessing.  Run for the satellites as well as Nau: "the landscape player
+    is behind other windows on startup" was undiagnosable while only Nau's
+    coverage was logged.
 
-    *expected_over* is the one window that belongs above Nau in the mode the
-    session opened in — Genau's, which in hybrid is the transparent HUD layer
-    over Nau's video and in genau mode is the display itself.  Warning on the
-    session's own by-design layering toasted every hybrid startup with a
-    "covering" window that covers nothing you can see; anything else over Nau
-    still warns.
+    *expected_over* is the one window that belongs above the target in the
+    mode the session opened in — Genau's over Nau, which in hybrid is the
+    transparent HUD layer over Nau's video and in genau mode is the display
+    itself.  Warning on the session's own by-design layering toasted every
+    hybrid startup with a "covering" window that covers nothing you can see;
+    anything else over the player still warns.
     """
-    if not nau_hwnd:
-        logger.warning("Nau window unresolved after loading; cannot check z-order")
+    if not hwnd:
+        logger.warning("%s window unresolved after loading; cannot check z-order", name)
         return
     covering = [
-        w for w in windows_obscuring(nau_hwnd, iter_zorder())
+        w for w in windows_obscuring(hwnd, iter_zorder())
         if w.hwnd != expected_over
     ]
     if covering:
         desc = "; ".join(
             f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}" for w in covering
         )
-        logger.warning("Nau (hwnd=%d) is covered at startup by: %s", nau_hwnd, desc)
+        logger.warning("%s (hwnd=%d) is covered at startup by: %s", name, hwnd, desc)
     else:
-        logger.info("Nau (hwnd=%d) is frontmost over its rect at startup", nau_hwnd)
+        logger.info("%s (hwnd=%d) is frontmost over its rect at startup", name, hwnd)
 
 
 def _fix_post_loading_windows(result: StartupResult) -> None:
@@ -465,10 +468,12 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     # In hybrid and genau modes Genau's window sits over Nau on purpose — the
     # transparent HUD layer, or the display itself — so it is not a covering
     # worth a warning there.
-    _log_nau_obstruction(
-        nau_hwnd,
+    _log_window_obstruction(
+        "Nau", nau_hwnd,
         expected_over=genau_hwnd if genau_active(result.main_mode) else 0,
     )
+    _log_window_obstruction("Portrait satellite", portrait_hwnd)
+    _log_window_obstruction("Landscape satellite", landscape_hwnd)
 
 
 def _main_browse_stills(bridge_config) -> list[str]:
@@ -554,7 +559,14 @@ def run_python_orchestrated_bridge(
     _open_event_log(state_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    show_overlays = not integration_mode
+    # Integration runs skip the loading screen by default — most tests only
+    # need the session, not its curtain.  FUN_TIME_INTEGRATION_OVERLAYS forces
+    # the full production path (hide, load, reveal, and the post-overlay
+    # z-order pass) so the hidden desktop can test the exact startup a real
+    # session takes; without a test exercising it, "the landscape player is
+    # behind other windows on startup" could only ever be reproduced live.
+    show_overlays = (not integration_mode
+                     or os.environ.get("FUN_TIME_INTEGRATION_OVERLAYS") == "1")
 
     # --- Launch loading screen (normal mode only) ---
     loading_proc = None

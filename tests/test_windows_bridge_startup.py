@@ -954,6 +954,33 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     assert landscape_paused.read_text(encoding="utf-8") == "0"
 
 
+def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_path: Path):
+    """The regions are the hosted app's for the whole of origenerator mode, so a
+    session that closed in it comes back with both players paused (and black,
+    off the published mode) — exactly as the mode switch would have left them,
+    rather than playing invisibly under the restored app."""
+    from fun_time.command_dispatch import BridgeState
+    from fun_time.shared_state import shared_state_path, write_shared_state
+
+    kwargs = _start_core_session_kwargs(tmp_path)
+    write_shared_state(shared_state_path(kwargs["state_dir"]),
+                       BridgeState(satellites_mode="origenerator"))
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_all_playlists"
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"), patch(
+        "fun_time.windows_bridge_startup.resume_playlists", return_value=True
+    ):
+        start_core_session(**kwargs)
+
+    assert kwargs["portrait_paused_file"].read_text(encoding="utf-8") == "1"
+    assert kwargs["landscape_paused_file"].read_text(encoding="utf-8") == "1"
+
+
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
     """Opening Fun Time sends the OSR2 home before anything slow begins.
 

@@ -341,7 +341,16 @@ def apply_origenerator_dir_override(config):
     this at launch instead, resolving the file against its own checkout.  A
     no-op wherever the override file does not exist, which is every ordinary
     session.
+
+    Never in an integration run: the run's config decides what it hosts —
+    isolation strips the key so nothing is hosted, and the origenerator-mode
+    test then names its own fabricated stub.  This override once out-ranked
+    both, and every session the suite launched from a worktree carrying the
+    file quietly hosted the REAL app instead: the machine's one ComfyUI,
+    booted on the hidden desktop by a test run.
     """
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        return config
     override = config_module.PROJECT_DIR / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME
     try:
         text = override.read_text(encoding="utf-8")

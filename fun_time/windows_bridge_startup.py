@@ -371,18 +371,25 @@ def seed_startup_states(
 def reset_satellite_paused_states(
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
+    *,
+    satellites_mode: str = "player",
 ) -> None:
-    """Clear both satellite paused flags so this session's players start playing.
+    """Seed both satellite paused flags for the mode the session opens in.
 
     Unlike the genau/audio/nau flags, the satellite paused files are outside
     ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
     stranded by a prior session's OmniPause would make this session's satellites
-    read paused and never play (frozen at position 0), so reset both to ``"0"``
-    before they launch — a satellite always comes up playing.
+    read paused and never play (frozen at position 0), so both are written
+    before they launch.  In player mode that write is ``"0"`` — a satellite
+    comes up playing.  A session RESUMED into origenerator mode comes up with
+    them ``"1"`` instead: the regions are the hosted app's for the whole mode,
+    and the players are black and paused underneath exactly as the mode switch
+    would have left them.
     """
+    paused = "1" if satellites_mode == "origenerator" else "0"
     for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("0", encoding="utf-8")
+        path.write_text(paused, encoding="utf-8")
 
 
 def start_core_session(
@@ -470,9 +477,12 @@ def start_core_session(
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
         mode=carried.main_mode,
     )
-    # seed_startup_states does not touch the satellite paused files; clear any "1"
-    # a prior OmniPause stranded so the satellites launch playing, not frozen.
-    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
+    # seed_startup_states does not touch the satellite paused files; seed them
+    # for the mode this session opens in — playing in player mode (clearing any
+    # "1" a prior OmniPause stranded), paused when resumed into origenerator
+    # mode, whose players are black and held for the whole mode.
+    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file,
+                                  satellites_mode=carried.satellites_mode)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_all_playlists(

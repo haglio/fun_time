@@ -106,9 +106,43 @@ def _kill_leftover_app_processes() -> None:
     """
     if current_desktop_name() != HIDDEN_DESKTOP_NAME:
         return
-    for pid in pids_with_window_on_current_desktop():
+    window_pids = pids_with_window_on_current_desktop()
+    for pid in window_pids:
         if _is_leftover_app(pid):
             kill_process_tree(pid)
+    _kill_leftover_hosted_apps(window_pids)
+
+
+def _kill_leftover_hosted_apps(window_pids) -> None:
+    """Reap a leftover hosted Origenerator, which the image-name pass spares.
+
+    It runs on its own interpreter — a plain ``python.exe`` — exactly the image
+    the pass above deliberately never kills, because the pytest of a queued run
+    is python.exe too.  The command line is what tells them apart: only the
+    hosted app was launched ``-m origenerator``, and a leftover one owns real
+    windows on this desktop that can sit over a later session's players (a
+    hung boot's splash covered a satellite for a whole test run).  One WMI
+    query answers for all candidate pids at once.
+    """
+    candidates = sorted(set(window_pids))
+    if not candidates:
+        return
+    pid_list = ",".join(str(pid) for pid in candidates)
+    ps = (
+        "Get-CimInstance Win32_Process | Where-Object { "
+        f"@({pid_list}) -contains $_.ProcessId -and "
+        "$_.CommandLine -match '-m +origenerator' } | "
+        "ForEach-Object { $_.ProcessId }"
+    )
+    result = subprocess.run(
+        ["powershell.exe", "-NoProfile", "-Command", ps],
+        capture_output=True, text=True, check=False,
+    )
+    for line in result.stdout.split():
+        try:
+            kill_process_tree(int(line))
+        except ValueError:
+            continue
 
 
 
@@ -212,7 +246,8 @@ class FunTimeIntegrationSession:
             self._stderr_fh.close()
         return exit_code
 
-    def start(self, wait_seconds: float = 45.0, project_dir: Path | None = None) -> None:
+    def start(self, wait_seconds: float = 45.0, project_dir: Path | None = None,
+              env_overrides: dict[str, str] | None = None) -> None:
         """Launch the orchestrator and wait for it to report the bridge up.
 
         *project_dir* is the working directory the orchestrator runs in, which
@@ -220,12 +255,18 @@ class FunTimeIntegrationSession:
         ``fun_time`` is not installed into the venv, so the working directory is
         what chooses the code.  It defaults to this checkout; a branch-session
         test passes the worktree, which is the whole mechanism under test.
+
+        *env_overrides* land on top of the integration defaults — how the
+        loading-screen test forces the production overlay path
+        (``FUN_TIME_INTEGRATION_OVERLAYS=1``) that integration mode otherwise
+        skips.
         """
         self._reap_leftover_runtime_processes()
         env = os.environ.copy()
         env["FUN_TIME_DISABLE_DASHBOARD"] = "1"
         env["FUN_TIME_MUTE_AUDIO"] = "1"
         env["FUN_TIME_RUN_INTEGRATION"] = "1"
+        env.update(env_overrides or {})
         self._stderr_file = self.config.paths.state_dir / "orchestrator_stderr.log"
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
         self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
