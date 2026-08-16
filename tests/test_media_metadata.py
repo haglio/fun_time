@@ -10,7 +10,6 @@ from fun_time.media_metadata import (
     build_group_index,
     seed_family_members,
     cached_group_index,
-    index_keeps_query,
     load_metadata,
     matches_query,
     metadata_path_for,
@@ -491,26 +490,55 @@ def test_widened_seed_members_add_the_most_similar_clips_capped(tmp_path: Path):
     assert paths["far"] not in members  # the cap stops at the nearest, not the whole act
 
 
-def test_widened_seed_members_never_dead_end_on_a_one_of_a_kind_clip(tmp_path: Path):
-    """Widening the net must always turn up another video.  A clip that is the
-    only one of its action has no same-act pool at all, so the nearest clips of
-    other actions are what it widens to — never nothing."""
+def test_widened_seed_members_never_leave_the_clips_own_action(tmp_path: Path):
+    """The seed axis is "the same act, another subject", so the action bounds the
+    widen outright — a nearer-scened clip doing something else is not a wider seed
+    row, it is the action column, and "more seeds" loops what it draws, so ranking
+    that clip in put another act on screen."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        "solo": _t2v("Zeta", "1", prompt="a, b, c"),   # the only Zeta
-        "near": _t2v("Alpha", "2", prompt="a, b, c"),   # another act, same scene
-        "far": _t2v("Alpha", "3", prompt="x, y, z"),
+        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
+        "other_act": _t2v("Theta", "2", prompt="a, b, c"),  # every tag shared
+        "same_act": _t2v("Alpha", "3", prompt="a, x, y"),   # 1 of 5 shared, but the act
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = widened_seed_members(index, paths["solo"], additions=1)
+    # Room for both: the other act is left out because it is the other act, not
+    # because the cap ran out.
+    assert widened_seed_members(index, paths["cur"], additions=6) == [
+        paths["cur"], paths["same_act"],
+    ]
 
-    assert members == [paths["solo"], paths["near"]]
+
+def test_widened_seed_members_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
+    """An act nothing else in the library does has no wider seed row.  That is a
+    real answer — the caller's "widening net failed" notice — and the widen used to
+    dodge it by handing back the nearest clip of some other act."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "solo": _t2v("Zeta", "1", prompt="a, b, c"),   # the only Zeta
+        "near": _t2v("Alpha", "2", prompt="a, b, c"),   # another act, same scene
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    assert widened_seed_members(index, paths["solo"], additions=6) == [paths["solo"]]
 
 
-def test_widened_seed_members_stay_within_the_clips_generation_kind(tmp_path: Path):
+def test_widened_seed_members_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
+    """The library holds "POV …" beside "Pov …".  With the act now bounding the row
+    rather than merely ranking it, a raw string compare would leave a clip alone in
+    its casing with no seed row at all."""
+    media_root, metadata_root, paths = _write_library(tmp_path, {
+        "cur": _t2v("POV Alpha", "1", prompt="a, b, c"),
+        "other_casing": _t2v("Pov Alpha", "2", prompt="a, b, c"),
+    })
+    index = build_group_index(list(paths.values()), metadata_root)
+
+    assert widened_seed_members(index, paths["cur"]) == [paths["cur"], paths["other_casing"]]
+
+
+def test_widened_seed_members_prefer_their_own_generation_kind(tmp_path: Path):
     """An image-to-video clip and a text-to-video one look drastically different
-    even doing the same act, so the widen ranks its own kind above the action: a
-    t2v clip of this very act loses to an i2v clip of another one."""
+    even doing the same act, so within the action the widen ranks its own kind
+    first — and falls through to the other kind rather than to nothing."""
     def i2v(action: str, seed: str, prompt: str) -> dict:
         return {
             "video": {"prompt": f"do {action}", "action": action, "seed": seed},
@@ -519,82 +547,16 @@ def test_widened_seed_members_stay_within_the_clips_generation_kind(tmp_path: Pa
 
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "cur": i2v("Delta", "1", "a, b, c"),
-        "t2v_same_act": _t2v("Delta", "2", prompt="a, b, c"),  # every tag shared — but t2v
-        "i2v_other_act": i2v("Alpha", "3", "a, b, d"),            # own kind, another act
+        "t2v_kin": _t2v("Delta", "2", prompt="a, b, c"),  # every tag shared — but t2v
+        "i2v_kin": i2v("Delta", "3", "a, b, d"),          # own kind, a scene further off
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = widened_seed_members(index, paths["cur"], additions=1)
-
-    assert members == [paths["cur"], paths["i2v_other_act"]]
-    assert paths["t2v_same_act"] not in members
-
-
-def test_widened_seed_members_prefer_the_same_action_over_a_closer_scene(tmp_path: Path):
-    """The seed axis is "the same act, another subject", so a same-act clip outranks
-    a nearer-scened one doing something else — that other act is what the HUD's
-    action column is for, and duplicating it in the seed row wastes the widen."""
-    media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
-        "same_act": _t2v("Alpha", "2", prompt="a, x, y"),    # 1 of 5 tags shared
-        "other_act": _t2v("Kissing", "3", prompt="a, b, c"),   # every tag shared
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    members = widened_seed_members(index, paths["cur"], additions=1)
-
-    assert members == [paths["cur"], paths["same_act"]]
-
-
-def test_widened_seed_members_stay_inside_an_active_filter(tmp_path: Path):
-    """The widen ranks the whole library nearest-first, so under a filter it used
-    to reach straight back out of it — and since "more seeds" loops what it drew,
-    those clips played, under a row naming an act you had not asked for."""
-    media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
-        "other_act": _t2v("Theta", "2", prompt="a, b, c"),  # nearest scene, wrong act
-        "same_act": _t2v("Alpha", "3", prompt="a, x, y"),   # further, but kept
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert widened_seed_members(index, paths["cur"], additions=2, query="alpha") == [
-        paths["cur"], paths["same_act"],
+    assert widened_seed_members(index, paths["cur"], additions=1) == [
+        paths["cur"], paths["i2v_kin"],
     ]
-    # The same widen unfiltered reaches the other act's clip too — what changed is
-    # the bound, not the ranking underneath it.
-    assert sorted(widened_seed_members(index, paths["cur"], additions=2)) == sorted(
-        [paths["cur"], paths["same_act"], paths["other_act"]]
-    )
-
-
-def test_widened_seed_members_can_come_up_empty_under_a_filter(tmp_path: Path):
-    """The no-dead-end promise is bounded by the filter: where the filter keeps
-    only this clip there is nothing to widen to, and the caller's "widening net
-    failed" notice is then the truth rather than a shrug."""
-    media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("Alpha", "1", prompt="a, b, c"),
-        "other_act": _t2v("Theta", "2", prompt="a, b, c"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    assert widened_seed_members(index, paths["cur"], additions=6, query="alpha") == [paths["cur"]]
-
-
-def test_index_keeps_query_answers_the_filter_from_the_index(tmp_path: Path):
-    """The widen's bound has to be the very rule the playlist build applies, or a
-    row could draw what the browse dropped; it reads the act off the index rather
-    than re-opening every candidate's sidecar."""
-    media_root, metadata_root, paths = _write_library(tmp_path, {
-        "labeled": _t2v("Pov Alpha", "1"),
-        "other": _t2v("Theta", "2"),
-    })
-    index = build_group_index(list(paths.values()), metadata_root)
-
-    labeled, other = normalize_path_key(paths["labeled"]), normalize_path_key(paths["other"])
-    assert index_keeps_query(index, labeled, "alpha")
-    assert not index_keeps_query(index, other, "alpha")
-    assert index_keeps_query(index, other, "")  # no filter keeps everything
-    assert not index_keeps_query(index, "not-in-the-index", "alpha")
+    # Only a preference: with no clip of its own kind, the other kind still comes.
+    assert widened_seed_members(index, paths["t2v_kin"], additions=1)[1:] != []
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
