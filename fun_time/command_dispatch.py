@@ -729,7 +729,7 @@ _NO_FILTER_SIDES: dict[str, str] = {
     "landscape_no_filter": "landscape",
 }
 
-# A satellite's own minimize button (``satellite.hud.CONTROLS``), by the window
+# A satellite's own minimize button (``player_core.satellite_hud.CONTROLS``), by the window
 # role the dispatch loop resolves it to.  Every player's window here is
 # borderless, so none of them carries a minimize box of its own, and the only
 # other way to park one was the dashboard's minimize — which takes the whole room

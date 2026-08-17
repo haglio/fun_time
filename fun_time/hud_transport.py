@@ -3,7 +3,7 @@
 The HUD's *model* has to live here: only fun_time knows the library's seed
 families, action groups and thumbnails.  The *drawing* lives in the satellite
 player, which composites it straight into the video with mpv — so the HUD has no
-window of its own and no z-order to fight (see :mod:`satellite.hud`).
+window of its own and no z-order to fight (see :mod:`player_core.satellite_hud`).
 
 This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.HudPanel`
 into the small JSON payload the player parses, and writes it only when it

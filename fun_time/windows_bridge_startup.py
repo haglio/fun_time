@@ -429,6 +429,7 @@ def start_core_session(
     dashboard_cmd_file: str | Path | None = None,
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
+    project_dirs: str | None = None,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the Nau/Genau pair to match
@@ -549,6 +550,7 @@ def start_core_session(
         portrait_hud_file=portrait_hud_file,
         landscape_hud_file=landscape_hud_file,
         dashboard_cmd_file=dashboard_cmd_file,
+        project_dirs=project_dirs,
     )
     return carried.main_mode
 
@@ -663,6 +665,7 @@ def launch_origenerator(
     paused_file: str | Path,
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
+    project_dirs: str | None = None,
 ) -> int:
     """Launch the hosted Origenerator, returning its PID.
 
@@ -694,7 +697,13 @@ def launch_origenerator(
         "--status-file", str(status_file),
         "--dashboard-cmd-file", str(dashboard_cmd_file),
     ])
-    kwargs: dict = {"cwd": str(origenerator_dir), **subprocess_window_kwargs()}
+    # The same checkout choice Genau, Nau and the satellites get: named
+    # project dirs ride the hosted app's PYTHONPATH, so a branch of
+    # player_core is the one its ensure_player_core_on_path finds (it defers
+    # to an already-importable copy rather than walking up to the primary).
+    kwargs: dict = {"cwd": str(origenerator_dir),
+                    **genau_project_kwargs(project_dirs),
+                    **subprocess_window_kwargs()}
     # A worktree checkout is unlanded code under judgment, not the live
     # install: run it as origenerator's own branch session (its preview
     # launcher sets the same flag), which seeds its database from the
@@ -704,7 +713,8 @@ def launch_origenerator(
     # law — the same layout origenerator's launch_preview_branch.vbs walks.
     checkout = Path(origenerator_dir)
     if checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude":
-        kwargs["env"] = {**os.environ, "ORIGENERATOR_BRANCH_SESSION": "1"}
+        env = kwargs.get("env") or {**os.environ}
+        kwargs["env"] = {**env, "ORIGENERATOR_BRANCH_SESSION": "1"}
     proc = subprocess.Popen(cmd, **kwargs)
     return proc.pid
 
@@ -884,6 +894,7 @@ def launch_core_apps(
     portrait_hud_file: str | Path | None = None,
     landscape_hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
+    project_dirs: str | None = None,
 ) -> None:
     """Spawn the two native satellite players (portrait + landscape).
 
@@ -909,6 +920,7 @@ def launch_core_apps(
         x=portrait_rect.x, y=portrait_rect.y,
         width=portrait_rect.width, height=portrait_rect.height,
         hud_file=portrait_hud_file, dashboard_cmd_file=dashboard_cmd_file,
+        project_dirs=project_dirs,
     )
     landscape_pid = launch_satellite(
         python_exe=python_exe,
@@ -923,6 +935,7 @@ def launch_core_apps(
         x=landscape_rect.x, y=landscape_rect.y,
         width=landscape_rect.width, height=landscape_rect.height,
         hud_file=landscape_hud_file, dashboard_cmd_file=dashboard_cmd_file,
+        project_dirs=project_dirs,
     )
     _write_result_file(
         result_file,
@@ -1012,6 +1025,7 @@ def launch_satellite(
     height: int,
     hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
+    project_dirs: str | None = None,
 ) -> int:
     """Launch a native satellite player subprocess, returning its PID.
 
@@ -1044,5 +1058,7 @@ def launch_satellite(
         dashboard_cmd_file=dashboard_cmd_file,
     )
     with open_child_log(log_file, cmd) as log:
-        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
+        proc = subprocess.Popen(cmd, stdout=log, stderr=log,
+                                **genau_project_kwargs(project_dirs),
+                                **subprocess_window_kwargs())
     return proc.pid

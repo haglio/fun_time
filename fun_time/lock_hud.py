@@ -4,7 +4,7 @@ Assembles the panel drawn over each satellite: the side's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
-each satellite player draws it straight into its own video (:mod:`satellite.hud`).
+each satellite player draws it straight into its own video (:mod:`player_core.satellite_hud`).
 """
 from __future__ import annotations
 

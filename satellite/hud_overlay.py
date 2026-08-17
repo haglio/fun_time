@@ -16,7 +16,7 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 
-from .hud import (
+from player_core.satellite_hud import (
     MARGIN,
     HudClicks,
     HudModel,
@@ -25,7 +25,7 @@ from .hud import (
     hit_test_targets,
     parse_hud,
 )
-from .hud_paint import HudRenderer
+from player_core.satellite_hud_paint import HudRenderer
 
 logger = logging.getLogger(__name__)
 

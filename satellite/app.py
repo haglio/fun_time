@@ -8,7 +8,8 @@ one thing drawn on top is the lock HUD, composited into the video from the panel
 fun_time publishes (see satellite.hud_overlay).
 
 Not unit-tested: it needs the libmpv DLL and a real window.  The pure control
-logic it drives lives in satellite.session / satellite.runtime / satellite.hud*,
+logic it drives lives in satellite.session / satellite.runtime /
+player_core.satellite_hud*,
 tested against a fake player.
 """
 from __future__ import annotations

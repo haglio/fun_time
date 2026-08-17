@@ -321,6 +321,11 @@ def _run_startup_phases(
         result_file=str(core_result_file),
         regen_media_root=Path(regen_media_raw) if regen_media_raw else None,
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
+        # The satellites import player_core, so a named player_core checkout
+        # must reach them exactly as it reaches Genau and Nau — without this
+        # they quietly ran the venv's primary while everything else ran the
+        # branch.
+        project_dirs=genau_project_dirs,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -416,6 +421,9 @@ def _run_startup_phases(
             paused_file=m["commands"]["origenerator_paused_file"],
             status_file=m["commands"]["origenerator_status_file"],
             dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+            # It imports player_core too (the shows' HUD is the players'
+            # shared one), so a named checkout reaches it like everyone else.
+            project_dirs=genau_project_dirs,
         )
         launched.pids.append(origenerator_pid)
         logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
