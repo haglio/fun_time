@@ -282,6 +282,10 @@ def _run_startup_phases(
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
     regen_media_raw = m.get("regen", "media_root", fallback="").strip()
     regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
+    # Read before the first launch that needs it: the satellites and the
+    # hosted Origenerator take the named checkouts exactly as Genau and Nau
+    # below do.
+    genau_project_dirs = m["runtime"].get("genau_project_dirs", "")
     # The mode last session was closed in, which the core session has just seeded
     # every cross-process flag for.  What is left is the half only this side can
     # do: park the idle slot-mate, band the pair, and reveal on the right player.
@@ -355,10 +359,10 @@ def _run_startup_phases(
     # in the status file it published — read here, before this session's Genau
     # starts writing over it.
     genau_clip = read_genau_status(genau_status_path(genau_state)).clip
-    # Which checkout of ../genau these two are run out of.  Empty in an ordinary
+    # genau_project_dirs (read above, before the satellites needed it): which
+    # checkout of ../genau these two are run out of.  Empty in an ordinary
     # session — they resolve through their venv's editable install, which is the
     # primary — and a worktree of that repo while a branch of it is being judged.
-    genau_project_dirs = m["runtime"].get("genau_project_dirs", "")
     genau_pid = launch_genau(
         python_exe=m["executables"]["genau_python_exe"],
         genau_module=m["modules"]["genau_module"],

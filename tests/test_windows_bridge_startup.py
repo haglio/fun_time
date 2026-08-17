@@ -629,6 +629,9 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         portrait_hud_file=None,
         landscape_hud_file=None,
         dashboard_cmd_file=None,
+        # And which sibling checkouts to run out of — the satellites import
+        # player_core, so the named checkouts reach them like Genau and Nau.
+        project_dirs=None,
     )
 
 
