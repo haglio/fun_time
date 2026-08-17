@@ -416,6 +416,11 @@ def _run_startup_phases(
     origenerator_dir = m["runtime"].get("origenerator_dir", "").strip()
     origenerator_pid = 0
     if origenerator_dir:
+        # Clear a "1" a prior session's OmniPause stranded in the hosted app's
+        # paused flag: the app reads it every tick, so a stale freeze made
+        # every show open frozen while the room ran.  The room opens unpaused
+        # (OmniPause is never resumed into), so the flag opens unpaused too.
+        write_flag_file(m["commands"]["origenerator_paused_file"], False)
         origenerator_pid = launch_origenerator(
             python_exe=(m["executables"].get("origenerator_python_exe", "").strip()
                         or m["executables"]["python_exe"]),

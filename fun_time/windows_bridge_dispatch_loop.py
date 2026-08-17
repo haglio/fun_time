@@ -33,7 +33,7 @@ from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .event_log import FAVORITE, NOTICE, notice
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
-from .lock_hud import SideInputs, build_panels
+from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from .mode_plan import genau_active
 from .nau_console import console_payload
@@ -75,6 +75,7 @@ from .win32 import (
     find_window_by_title,
     find_window_for_process,
     force_foreground_window,
+    is_window_minimized,
     is_window_topmost,
     minimize_window,
     restore_window,
@@ -259,12 +260,6 @@ class DispatchLoopRunner:
         self.landscape_pid = landscape_pid
         self.dashboard_pid = dashboard_pid
         self.origenerator_pid = origenerator_pid
-        # Whether the hosted Origenerator's main window is on screen (restored
-        # over the RFB) as far as this loop has driven it.  It boots parked, and
-        # the converger below restores or parks it whenever the satellites' mode
-        # says otherwise — which is also how a session RESUMED into origenerator
-        # mode gets its window up once the slow boot finally shows one.
-        self._origenerator_shown = False
         self.dashboard_enabled = dashboard_enabled
         # The lock HUD's model: this loop holds the state the map is drawn from
         # (locks, filters, loops) and already ticks, so it builds each satellite's
@@ -466,18 +461,28 @@ class DispatchLoopRunner:
                 is_favorite=is_favorite_path(current, favs),
             )
 
-        portrait, landscape = build_panels(
-            side("portrait", sources=self.config.portrait_sources,
-                 status_file=self.config.portrait_status_file, locked=state.locked2),
-            side("landscape", sources=self.config.landscape_sources,
-                 status_file=self.config.landscape_status_file, locked=state.locked3),
-            metadata_root=self.config.regen_metadata_root,
-            active_side=side_name(state.active_side),
-            # "" for a session hosting no Origenerator — the HUDs then draw no
-            # mode pair at all, rather than a switch that can only dead-end.
-            satellites_mode=(state.satellites_mode
-                             if self.config.origenerator_enabled else ""),
-        )
+        if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):
+            # The players are black and paused for the whole mode: a clip map
+            # here would be thumbnails of videos nobody is being shown.  The
+            # sides say the mode instead (status + the mode row home); a show
+            # covering a region wears its own map of the origenerator items.
+            portrait = origenerator_mode_panel(
+                "portrait", active=side_name(state.active_side) == "portrait")
+            landscape = origenerator_mode_panel(
+                "landscape", active=side_name(state.active_side) == "landscape")
+        else:
+            portrait, landscape = build_panels(
+                side("portrait", sources=self.config.portrait_sources,
+                     status_file=self.config.portrait_status_file, locked=state.locked2),
+                side("landscape", sources=self.config.landscape_sources,
+                     status_file=self.config.landscape_status_file, locked=state.locked3),
+                metadata_root=self.config.regen_metadata_root,
+                active_side=side_name(state.active_side),
+                # "" for a session hosting no Origenerator — the HUDs then draw no
+                # mode pair at all, rather than a switch that can only dead-end.
+                satellites_mode=(state.satellites_mode
+                                 if self.config.origenerator_enabled else ""),
+            )
         self._hud_publisher.publish("portrait", portrait)
         self._hud_publisher.publish("landscape", landscape)
         # The main console: the controls the dashboard used to hold for
@@ -838,15 +843,9 @@ class DispatchLoopRunner:
                 hwnd = self._resolve_role(op.key)
                 if hwnd:
                     restore_window(hwnd, activate=False)
-                if op.key == "origenerator":
-                    # Shown by op or (window still booting, hwnd 0) owed: the
-                    # converger keeps trying until the window exists.
-                    self._origenerator_shown = bool(hwnd)
                 continue
             if op.op == "hide_role":
                 self._hide_role(op.key)
-                if op.key == "origenerator":
-                    self._origenerator_shown = False
                 continue
             if op.op == "minimize_role":
                 # A player's own HUD minimize button, parking that one window.
@@ -1166,24 +1165,29 @@ class DispatchLoopRunner:
         paths arrive with no op to run: a session RESUMED into origenerator
         mode (the mode was seeded, never switched), and a switch made while the
         app was still booting (the op resolved no window and fell through).
-        This converges both: whenever the window exists and its shown state
-        disagrees with the mode, drive it — never during OmniPause, whose
-        window state is its own.
+        This converges both — never during OmniPause, whose window state is
+        its own.
+
+        Judged from the WINDOW, not from a memory of what was asked: the app's
+        main thread blocks for long stretches while it boots, so a restore sent
+        to it can time out through the hung-window guard and do nothing — and a
+        converger that then remembered "shown" never tried again, which left a
+        resumed session's window parked until the user dug it out of the
+        taskbar.  Reading the minimized state each pass makes every miss retry.
         """
         if not self.origenerator_pid or self.state.omni_paused:
-            return
-        showing = origenerator_shows(self.state.satellites_mode)
-        if showing == self._origenerator_shown:
             return
         hwnd = self._resolve_role("origenerator")
         if not hwnd:
             return  # still booting — try again next sync
-        if showing:
-            restore_window(hwnd, activate=False)
-            self._restack_satellites()
-        else:
+        minimized = is_window_minimized(hwnd)
+        if origenerator_shows(self.state.satellites_mode):
+            if minimized:
+                restore_window(hwnd, activate=False)
+            if minimized or not is_window_topmost(hwnd):
+                self._restack_satellites()
+        elif not minimized:
             minimize_window(hwnd, activate=False)
-        self._origenerator_shown = showing
 
     def _restack_satellites(self) -> None:
         """Promote the hosted Origenerator's windows above the ones they cover.

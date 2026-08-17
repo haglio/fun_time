@@ -2849,6 +2849,33 @@ class TestHudPublishing:
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
 
+    def test_origenerator_mode_publishes_mapless_mode_panels(self, tmp_path):
+        """In origenerator mode the players are black and paused, so their clip
+        maps would be thumbnails of videos nobody is being shown — the HUDs
+        looked like Player mode.  The sides publish the mode instead: no map,
+        the status naming it, and satellites_mode riding along (the mode row's
+        way back, and what keys the players' own blackout)."""
+        publisher = HudPublisher(
+            {"portrait": tmp_path / "portrait_hud.json",
+             "landscape": tmp_path / "landscape_hud.json",
+             "nau": tmp_path / "nau_console.json"},
+            tmp_path / "thumbs",
+        )
+        config = make_config(tmp_path, origenerator_enabled=True,
+                             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
+        runner = make_runner(tmp_path, config=config, hud_publisher=publisher)
+        _write_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4", fraction=0.1)
+        _write_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4", fraction=0.1)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+
+        runner.tick()
+
+        portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait["corner"] is None          # no map of unseen videos
+        assert portrait["seeds"] == []
+        assert portrait["lock_label"] == "Origenerator mode"
+        assert portrait["satellites_mode"] == "origenerator"
+
     def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the player can see, so the
         publish is the only way F-mode reaches the screen a satellite is on — as the
@@ -3131,24 +3158,59 @@ class TestOrigeneratorWindowConverger:
         config = make_config(tmp_path)
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
         runner.state = replace(runner.state, satellites_mode="origenerator")
-        with patch.object(runner, "_resolve_role", return_value=0):
+        with patch.object(runner, "_resolve_role", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore:
             runner._converge_origenerator_window()
-        assert runner._origenerator_shown is False  # still booting — nothing to drive
+        restore.assert_not_called()  # still booting — nothing to drive
         with patch.object(runner, "_resolve_role", return_value=4242), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
+                   return_value=True), \
              patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner._converge_origenerator_window()
         restore.assert_called_once_with(4242, activate=False)
-        assert runner._origenerator_shown is True
+
+    def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self, tmp_path):
+        """The app's boot blocks its main thread, so a restore can time out
+        through the hung-window guard and do nothing.  The converger judges
+        from the WINDOW each pass — still minimized means try again — instead
+        of remembering it as shown and leaving a resumed session parked until
+        the user digs it out of the taskbar."""
+        runner = make_runner(tmp_path, origenerator_pid=700)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+        with patch.object(runner, "_resolve_role", return_value=4242), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
+                   return_value=True), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+            runner._converge_origenerator_window()
+            runner._converge_origenerator_window()
+        assert restore.call_count == 2
+
+    def test_a_shown_window_out_of_the_band_is_re_promoted(self, tmp_path):
+        # Restored but buried (the topmost bit never took): the converger
+        # re-bands it rather than reading "not minimized" as converged.
+        runner = make_runner(tmp_path, origenerator_pid=700)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+        with patch.object(runner, "_resolve_role", return_value=4242), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
+                   return_value=False), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost",
+                   return_value=False), \
+             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as promote:
+            runner._converge_origenerator_window()
+        restore.assert_not_called()
+        promote.assert_any_call(4242, True)
 
     def test_player_mode_parks_a_window_left_up(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner._origenerator_shown = True
         with patch.object(runner, "_resolve_role", return_value=4242), \
+             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
+                   return_value=False), \
              patch("fun_time.windows_bridge_dispatch_loop.minimize_window") as minimize:
             runner._converge_origenerator_window()
         minimize.assert_called_once_with(4242, activate=False)
-        assert runner._origenerator_shown is False
 
     def test_without_a_hosted_app_the_converger_is_inert(self, tmp_path):
         runner = make_runner(tmp_path)

@@ -1302,6 +1302,10 @@ class TestOrigeneratorLaunch:
         assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
         assert captured["layout_plan"].random_favs_browser.width > 0
         assert str(captured["command_file"]).endswith("origenerator_cmd.txt")
+        # A "1" a prior session's OmniPause stranded in the paused flag is
+        # cleared before the app launches — a stale freeze made every show
+        # open frozen while the room ran.
+        assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
 
     def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)

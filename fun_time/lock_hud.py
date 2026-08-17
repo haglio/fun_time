@@ -495,6 +495,29 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
             )
 
 
+def origenerator_mode_panel(side: str, *, active: bool = False) -> HudPanel:
+    """The panel a side wears while origenerator mode holds it.
+
+    The player under it is black and paused for the whole mode, so its clip
+    map would be a map of videos nobody is being shown — the panel that made
+    the HUDs "still show thumbnails for videos as if they are in Player mode".
+    What the side still has to say is the mode itself: the status line names
+    it, the mode row (drawn off ``satellites_mode``) is the way back, and the
+    map stays off — a show covering the region wears its own map of the
+    origenerator items instead.
+    """
+    return HudPanel(
+        side=side,
+        locked=False,
+        lock_label="Origenerator mode",
+        current="",
+        seed_siblings=[],
+        action_siblings=[],
+        active=active,
+        satellites_mode="origenerator",
+    )
+
+
 def build_panels(
     portrait: SideInputs, landscape: SideInputs, *,
     metadata_root: Path | None = None, active_side: str = "",
