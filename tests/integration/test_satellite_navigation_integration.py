@@ -33,7 +33,7 @@ from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.windows_bridge_startup import launch_satellite
 
-from .integration_support import real_config_path
+from .integration_support import checkout_project_dirs, real_config_path
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -127,6 +127,8 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         hud_file=hud, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         log_file=log,
         x=0, y=0, width=width, height=height,
+        # This checkout's siblings, as a session launches them.
+        project_dirs=checkout_project_dirs(),
     )
     sat = _Satellite(pid, cmd, paused, status, playlist, hud, log)
     try:

@@ -558,7 +558,9 @@ One video per line, with a TAB plus the funscript path when one exists. Written 
 
 The hosted Origenerator's channel, spoken in the same idioms as the satellites'
 (`player_core.file_channel`). The command file carries side-prefixed transport
-verbs (`PORTRAIT_NEXT`, `LANDSCAPE_LOCK`, …) plus `CLOSE_SHOWS` and `QUIT`; the
+verbs (`PORTRAIT_NEXT`, `LANDSCAPE_LOCK`, `PORTRAIT_RESET`, …) — the gestures
+the shared control band draws, so a show answers each of them the way the
+player under it would — plus `CLOSE_SHOWS` and `QUIT`; the
 paused flag freezes its shows for OmniPause; the status file reports which
 satellite regions its shows cover (`portrait_active=`, `portrait_video=`,
 `portrait_locked=`, and the landscape trio), which is how the dispatch loop

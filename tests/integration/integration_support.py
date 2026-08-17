@@ -12,6 +12,7 @@ import tempfile
 import time
 from pathlib import Path
 
+from fun_time.branch_session import STATE_DIRNAME, _apply_genau_checkout_override
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
 from fun_time.dashboard_runtime import NauStatus, read_nau_status
 from fun_time.event_log import EventRecord, event_log_path, read_events
@@ -662,6 +663,33 @@ def isolate_shared_resources(config: dict, genau_config: dict) -> None:
     config["paths"].pop("origenerator_python_exe", None)
 
 
+def apply_checkout_project_dirs(config: dict) -> None:
+    """Run this checkout's ``state/genau_project_dirs.txt`` over *config*, the
+    way a branch session's own config generator does.
+
+    A run launches this checkout's code, so it has to launch this checkout's
+    SIBLINGS too: a branch that leans on an unlanded ``player_core`` change —
+    the satellites' HUD moved there, say — otherwise starts players that import
+    a name the primary's install does not have, and every one of them dies at
+    import with no window and no status file, which reads as a suite of
+    timeouts rather than as a path problem.  Ordinary checkouts have no
+    override file and this changes nothing.
+
+    Applied through the production function rather than re-read here, so the
+    file means in a run exactly what it means in the session the run is
+    standing in for.
+    """
+    _apply_genau_checkout_override(config, PROJECT_DIR / STATE_DIRNAME)
+
+
+def checkout_project_dirs() -> str:
+    """Those same directories as a ``PYTHONPATH`` string, for a test that
+    launches a child itself instead of through a session's manifest."""
+    raw: dict = {}
+    apply_checkout_project_dirs(raw)
+    return os.pathsep.join(raw.get("paths", {}).get("genau_project_dirs", []))
+
+
 def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
     integration_root = tmp_path.resolve() / "integration_runtime"
@@ -690,6 +718,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["paths"]["favs_file"] = str(favs_file)
     config["paths"]["state_dir"] = str(state_dir)
     config["random_favs_browser"]["enabled"] = False
+    apply_checkout_project_dirs(config)
 
     # Nau builds its version-index / length-mode source from nau.videos_dir, so
     # point the genau config's Nau dirs at the copied test library — otherwise it
