@@ -33,11 +33,13 @@ from .windows_bridge_startup import (
     launch_ui_companions,
     start_core_session,
 )
-from .window_roles import MANAGED_ROLES, role_topmost
+from .window_roles import MANAGED_ROLES, ORIGENERATOR_ROLE_TITLES, role_topmost
 from .win32 import (
     disable_window_transitions,
+    find_window_for_process,
     minimize_window,
     move_window,
+    restore_window,
     set_always_on_top,
     wait_for_window_by_title,
 )
@@ -79,6 +81,11 @@ class StartupResult:
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
     main_mode: str = STARTUP_MAIN_MODE
+    # The satellite side's resumed mode, for the same reason: a session that
+    # opens in origenerator mode needs its hosted window restored behind the
+    # overlay and banded by the post-overlay pass, not popped up after the
+    # reveal the loading screen exists to conceal.
+    satellites_mode: str = 'player'
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
@@ -112,6 +119,7 @@ def _startup_role_hwnds(
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
+    origenerator_hwnd: int = 0,
 ) -> dict[str, int]:
     """The managed windows by role, as resolved at startup."""
     return {
@@ -121,10 +129,12 @@ def _startup_role_hwnds(
         "nau": nau_hwnd,
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
+        "origenerator": origenerator_hwnd,
     }
 
 
-def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str) -> None:
+def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
+                         satellites_mode: str = "player") -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy for *mode* — the same policy omnipause and mode switches honor, so
     they can never disagree.
@@ -142,7 +152,7 @@ def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str) -> None:
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, mode))
+            set_always_on_top(hwnd, role_topmost(role, mode, satellites_mode))
 
 
 def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
@@ -177,7 +187,9 @@ def _apply_startup_window_state(
     nau_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
+    origenerator_hwnd: int = 0,
     mode: str = STARTUP_MAIN_MODE,
+    satellites_mode: str = "player",
 ) -> dict[str, int]:
     """Set the full window state for the mode the session opens in: bands, then
     visibility.
@@ -193,8 +205,9 @@ def _apply_startup_window_state(
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
+        origenerator_hwnd=origenerator_hwnd,
     )
-    _apply_topmost_bands(role_hwnds, mode)
+    _apply_topmost_bands(role_hwnds, mode, satellites_mode)
     _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)
     return role_hwnds
 
@@ -437,6 +450,14 @@ def _run_startup_phases(
         launched.pids.append(origenerator_pid)
         logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
 
+    # The satellite side's resumed mode: the core session just wrote the
+    # opening state to the shared INI (see session_resume), and a session that
+    # opens in origenerator mode needs its hosted window handled by the same
+    # startup choreography as everyone else — not popped up after the reveal.
+    from .shared_state import read_shared_state, shared_state_path
+    _shared = read_shared_state(shared_state_path(state_dir))
+    satellites_mode = _shared.satellites_mode if _shared is not None else "player"
+
     # --- Phase 2: Position windows (layout computed up front) ---
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     role_hwnds: dict[str, int] = {}
@@ -517,6 +538,26 @@ def _run_startup_phases(
                 "still has on screen", NAU_LOAD_TIMEOUT_S,
             )
 
+        # A session opening in origenerator mode holds the overlay for the
+        # hosted app's window too, and restores it behind the curtain — the
+        # whole point of the loading screen is that the room is set up before
+        # it is seen, and this window used to pop up seconds after the
+        # reveal.  Restoring is overlay-safe (no promotion); the band comes
+        # from the post-overlay pass.  A boot that outruns the wait does not
+        # keep the desktop: the reveal goes ahead and the dispatch loop's
+        # converger adopts the window when it finally appears.
+        origenerator_hwnd = 0
+        if origenerator_pid and satellites_mode == "origenerator":
+            origenerator_hwnd = _wait_for_origenerator_window(origenerator_pid)
+            if origenerator_hwnd:
+                restore_window(origenerator_hwnd, activate=False)
+            else:
+                logger.warning(
+                    "Origenerator window not up within %.0fs; revealing without "
+                    "it — the converger adopts it when it appears",
+                    ORIGENERATOR_BOOT_TIMEOUT_S,
+                )
+
         progress.advance("windows")
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
         _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
@@ -544,6 +585,7 @@ def _run_startup_phases(
             genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
             nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
             dashboard_hwnd=dash_hwnd,
+            origenerator_hwnd=origenerator_hwnd,
         )
         _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
         logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
@@ -580,9 +622,30 @@ def _run_startup_phases(
         layout_plan=plan,
         origenerator_pid=origenerator_pid,
         main_mode=main_mode,
+        satellites_mode=satellites_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
+
+
+# How long a session resumed into origenerator mode holds the overlay for the
+# hosted app's window.  Its boot runs ComfyUI and the library passes, so it is
+# the slowest child by far; bounded so a hung boot cannot wedge startup — the
+# reveal proceeds and the dispatch loop's converger adopts the window later.
+ORIGENERATOR_BOOT_TIMEOUT_S = 60.0
+
+
+def _wait_for_origenerator_window(pid: int,
+                                  timeout_s: float = ORIGENERATOR_BOOT_TIMEOUT_S) -> int:
+    """The hosted app's main window, polled until its slow boot shows one —
+    parked (minimized) included — or 0 at the ceiling."""
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline:
+        hwnd = find_window_for_process(pid, ORIGENERATOR_ROLE_TITLES["origenerator"])
+        if hwnd:
+            return hwnd
+        time.sleep(0.5)
+    return 0
 
 
 def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:

@@ -882,6 +882,7 @@ class TestLoadingScreenStartup:
         assert result.role_hwnds == {
             "portrait": 3030, "landscape": 4040, "nau": 2525,
             "genau": 6060, "dashboard": 5050, "rfb": 0,
+            "origenerator": 0,  # none hosted in this session
         }
 
 
@@ -1326,3 +1327,83 @@ class TestOrigeneratorLaunch:
 
         launch.assert_not_called()
         assert result.origenerator_pid == 0
+
+
+class TestOrigeneratorBehindTheOverlay:
+    def test_a_resumed_origenerator_session_restores_the_window_before_the_reveal(
+        self, cfg_factory, tmp_path
+    ):
+        """The loading screen exists so the room is set up before it is seen —
+        the hosted window used to pop up seconds after the reveal.  A session
+        opening in origenerator mode now holds the overlay for that window,
+        restores it behind the curtain, and carries the mode out so the
+        post-overlay pass bands it over the RFB."""
+        from fun_time.command_dispatch import BridgeState
+        from fun_time.shared_state import shared_state_path, write_shared_state
+
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        write_shared_state(shared_state_path(tmp_path),
+                           BridgeState(satellites_mode="origenerator"))
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.find_window_for_process",
+                   return_value=7171) as resolve, \
+             patch("fun_time.windows_bridge_sequencer.restore_window") as restore, \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        resolve.assert_called_with(91, "Origenerator")
+        restore.assert_called_once_with(7171, activate=False)
+        assert result.satellites_mode == "origenerator"
+        assert result.role_hwnds["origenerator"] == 7171
+
+    def test_a_player_mode_session_never_waits_on_the_hosted_boot(
+        self, cfg_factory, tmp_path
+    ):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.find_window_for_process") as resolve, \
+             patch("fun_time.windows_bridge_sequencer.restore_window") as restore, \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        resolve.assert_not_called()   # the parked window is the mode's own state
+        restore.assert_not_called()
+        assert result.satellites_mode == "player"

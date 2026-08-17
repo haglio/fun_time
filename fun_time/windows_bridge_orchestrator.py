@@ -456,6 +456,14 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     landscape_hwnd = find_window_by_pid(result.landscape_pid) or wait_for_window_by_title(
         SATELLITE_LANDSCAPE_TITLE, timeout_s=3.0, exact=True
     )
+    # A session opening in origenerator mode has its hosted window restored
+    # behind the overlay already (the sequencer held the reveal for it); this
+    # pass is where it joins the topmost band, over the RFB it covers.
+    origenerator_hwnd = (
+        find_window_for_process(result.origenerator_pid, "Origenerator")
+        if result.origenerator_pid and result.satellites_mode == "origenerator"
+        else 0
+    )
     _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
@@ -463,7 +471,9 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         genau_hwnd=genau_hwnd,
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
+        origenerator_hwnd=origenerator_hwnd,
         mode=result.main_mode,
+        satellites_mode=result.satellites_mode,
     )
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
