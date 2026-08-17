@@ -236,7 +236,18 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             f"frame loop median {transition_median:.1f}ms during clip transitions "
             f"blows the {MEDIAN_BUDGET_MS:.1f}ms budget"
         )
-        assert transition_ms[-1] < 150.0, (
+        # The regression this guards stalled EVERY transition for hundreds of
+        # milliseconds (an mpv core query on the render thread), so it is
+        # judged on the second-worst frame: one stray hiccup under a full
+        # suite run's disk/GPU churn is forgiven (a lone 163ms broke a green
+        # run), a pattern of them is not — and even the forgiven worst frame
+        # gets a ceiling far below the regression's floor.
+        assert transition_ms[-2] < 150.0, (
+            f"clip transitions stalled the frame loop repeatedly "
+            f"(worst two {transition_ms[-2]:.0f}ms / {transition_ms[-1]:.0f}ms) — "
+            "an mpv core query is back on the render thread"
+        )
+        assert transition_ms[-1] < 400.0, (
             f"a clip transition stalled the frame loop {transition_ms[-1]:.0f}ms — "
             "an mpv core query is back on the render thread"
         )
