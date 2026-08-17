@@ -3937,15 +3937,18 @@ class TestOrigeneratorTransport:
         # walk its playlist invisibly (and book watch stats nobody watched).
         assert _cmds(config, 2) == []
 
-    def test_all_four_verbs_route(self, tmp_path):
+    def test_every_control_band_verb_routes(self, tmp_path):
+        """The gestures the shared control band draws — reset among them, since
+        it is on that band and means the same thing on a show as on a player."""
         config = _origenerator_config(tmp_path)
         state = BridgeState(satellites_mode="origenerator")
         for command in ("portrait_prev", "portrait_trash", "portrait_lock",
-                        "landscape_next", "landscape_lock"):
+                        "portrait_reset", "landscape_next", "landscape_lock",
+                        "landscape_reset"):
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == [
-            "PORTRAIT_PREV", "PORTRAIT_TRASH", "PORTRAIT_LOCK",
-            "LANDSCAPE_NEXT", "LANDSCAPE_LOCK",
+            "PORTRAIT_PREV", "PORTRAIT_TRASH", "PORTRAIT_LOCK", "PORTRAIT_RESET",
+            "LANDSCAPE_NEXT", "LANDSCAPE_LOCK", "LANDSCAPE_RESET",
         ]
 
     def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):

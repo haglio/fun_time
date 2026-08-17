@@ -679,7 +679,8 @@ def launch_origenerator(
     """
     rfb = layout_plan.random_favs_browser
     cmd = [
-        str(python_exe), "-m", "origenerator", "--fun-time",
+        identified_python_exe(python_exe, "Origenerator"),
+        "-m", "origenerator", "--fun-time",
         "--x", str(rfb.x), "--y", str(rfb.y),
         "--width", str(rfb.width), "--height", str(rfb.height),
     ]

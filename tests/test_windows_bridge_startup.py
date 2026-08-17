@@ -1891,6 +1891,31 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             )
         assert self._launched_exe(popen) == "FunTime-Nau.exe"
 
+    def test_the_hosted_origenerator(self, tmp_path: Path):
+        class FakeProc:
+            pid = 11
+
+        plan = WindowLayoutPlan(
+            portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
+            landscape=WindowRect(x=853, y=0, width=1707, height=1440),
+            dashboard=WindowRect(x=0, y=0, width=853, height=206),
+            random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+        )
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            launch_origenerator(
+                python_exe=self._interpreter(tmp_path),
+                origenerator_dir=tmp_path / "origenerator",
+                layout_plan=plan,
+                command_file="state/origenerator_cmd.txt",
+                paused_file="state/origenerator_paused.txt",
+                status_file="state/origenerator_status.txt",
+                dashboard_cmd_file="state/dashboard_cmd.txt",
+            )
+
+        assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
+
     def test_the_satellite_reap_can_still_find_a_player_under_its_new_name(self, tmp_path: Path):
         """The reap that clears stranded players bounds itself by image name.
         Renaming the players without widening it would leave every one of them

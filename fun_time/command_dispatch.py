@@ -2090,17 +2090,21 @@ def _dispatch_set_filter(
 
 
 # In origenerator mode, each satellite side's transport reaches the hosted
-# app: the same four gestures, spoken as side-prefixed verbs on its one
-# command file, answered by whatever show holds that region.
+# app: the same gestures, spoken as side-prefixed verbs on its one command
+# file, answered by whatever show holds that region.  Reset is one of them
+# because it is on the same control band the other four are, and it means on
+# a show what it means on a player — put this side back how it started.
 _ORIGENERATOR_TRANSPORT: dict[str, tuple[str, str]] = {
     "portrait_prev": ("portrait", "PREV"),
     "portrait_next": ("portrait", "NEXT"),
     "portrait_trash": ("portrait", "TRASH"),
     "portrait_lock": ("portrait", "LOCK"),
+    "portrait_reset": ("portrait", "RESET"),
     "landscape_prev": ("landscape", "PREV"),
     "landscape_next": ("landscape", "NEXT"),
     "landscape_trash": ("landscape", "TRASH"),
     "landscape_lock": ("landscape", "LOCK"),
+    "landscape_reset": ("landscape", "RESET"),
 }
 
 
