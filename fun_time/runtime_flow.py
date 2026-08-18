@@ -378,7 +378,8 @@ def apply_satellites_switch(
     player that kept playing under it would be decoding for nobody — the
     players also go BLACK for the whole mode, but that is the satellites' own
     doing, off the mode the published HUD panel carries.  Leaving tells the
-    hosted app to close its shows and unpauses both players.  Under OmniPause
+    hosted app to close its shows and unpauses both players; entering tells it
+    to fill both regions, so the mode opens playing rather than empty.  Under OmniPause
     the switch is state-only, exactly as a main-mode switch is: the room is
     frozen, so nothing may move until it resumes — the OmniPause exit lands
     the pause flags where the then-current mode says.
@@ -397,6 +398,13 @@ def apply_satellites_switch(
         write_flag_file(portrait_paused_file, False)
         write_flag_file(landscape_paused_file, False)
     else:
+        # Both regions come up playing, the way both players are playing the
+        # moment player mode is entered: a mode that opened onto two empty
+        # rectangles asked the user to go and start it before it was the mode
+        # they had asked for.  The hosted app picks the sets — its whole
+        # library, shuffled, one shape per region.
+        if origenerator_cmd_file is not None:
+            append_command(Path(origenerator_cmd_file), "OPEN_SHOWS")
         write_flag_file(portrait_paused_file, True)
         write_flag_file(landscape_paused_file, True)
     return SatellitesSwitchFlowResult(
