@@ -22,6 +22,7 @@ from shared_ui.colors import (
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
+from shared_ui.icons import glyph_pixmap
 
 from fun_time.config import LayoutConfig
 from fun_time.overlay_progress import loading_screen_active
@@ -162,45 +163,19 @@ def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
 
 
 def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
-    """Draw the familiar voice-input microphone as a QPixmap, cached.
+    """The voice-input microphone, sized to the panel it sits in, cached.
 
-    A capsule head cradled by an upward-opening arc over a short stem and base —
-    the mic glyph recording apps use — which reads as "voice" where a bare
-    letter or a karaoke-mic emoji did not.  Drawn in a square centerd in the
-    panel so it stays round whatever the panel's aspect.
+    The drawing is the family's -- the very one Origenerator's toolbar wears --
+    rather than a copy kept here.  It has to be: the two apps are on screen
+    together, and while each drew its own microphone the two marks came out
+    visibly different shapes, so one control read as two.
+
+    Square, because a mic drawn to a wide panel's aspect stops being round; the
+    widget that paints it centers it in the panel.
     """
     key = ("mic", w, h)
     if key not in _dashboard_pixmap_cache:
-        from PyQt6.QtCore import Qt
-
-        pm = QPixmap(w, h)
-        pm.fill(Qt.GlobalColor.transparent)
-        painter = QPainter(pm)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        s = min(w, h)
-        oy = (h - s) / 2.0
-        cx = w / 2.0
-        pen = QPen(COLOR_TEXT, max(1, round(s * 0.09)))
-        pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-        painter.setPen(pen)
-        # Capsule (mic head): a filled stadium in the upper portion.
-        cap_w = s * 0.36
-        painter.setBrush(QBrush(COLOR_TEXT))
-        painter.drawRoundedRect(
-            round(cx - cap_w / 2), round(oy + s * 0.12),
-            round(cap_w), round(s * 0.44), cap_w / 2, cap_w / 2,
-        )
-        # Cradle: an upward-opening arc cupping the capsule from below.
-        painter.setBrush(Qt.GlobalColor.transparent)
-        r = round(s * 0.30)
-        arc_cy = round(oy + s * 0.40)
-        painter.drawArc(round(cx) - r, arc_cy - r, 2 * r, 2 * r, 200 * 16, 140 * 16)
-        # Stem down to a short base line.
-        base_y = round(oy + s * 0.90)
-        painter.drawLine(round(cx), arc_cy + r, round(cx), base_y)
-        painter.drawLine(round(cx - s * 0.17), base_y, round(cx + s * 0.17), base_y)
-        painter.end()
-        _dashboard_pixmap_cache[key] = pm
+        _dashboard_pixmap_cache[key] = glyph_pixmap("mic", min(w, h), COLOR_TEXT)
     return _dashboard_pixmap_cache[key]
 
 
@@ -291,7 +266,7 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
-from PyQt6.QtCore import Qt, QEvent, QRectF, QPointF, pyqtSignal
+from PyQt6.QtCore import Qt, QEvent, QRectF, pyqtSignal
 from PyQt6.QtWidgets import QWidget, QToolTip, QDialog, QHBoxLayout, QVBoxLayout, QTextBrowser
 from PyQt6.QtGui import QPainter, QPen, QBrush, QPixmap
 

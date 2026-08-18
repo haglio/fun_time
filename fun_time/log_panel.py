@@ -129,8 +129,8 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 # ---------------------------------------------------------------------------
 # PyQt6 widget
 # ---------------------------------------------------------------------------
-from PyQt6.QtCore import QEvent, QObject, QPoint, QPointF, QRectF, QSize, Qt, QTimer
-from PyQt6.QtGui import QColor, QIcon, QPainter, QPen, QPixmap
+from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
+from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -153,6 +153,7 @@ from shared_ui.colors import (
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
+from shared_ui.icons import glyph_pixmap
 
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
@@ -197,58 +198,19 @@ _COPY_ICON_SIZE = 12
 _COPY_FLASH_MS = 900
 
 
-def _drawn_icon(size: int, color: QColor, draw) -> QIcon:
-    """Run *draw* over a transparent square and hand back the result as an icon.
+def _copy_icon(size: int, color: QColor) -> QIcon:
+    """The familiar two-overlapping-sheets copy glyph.
 
-    The button's two glyphs are drawn rather than shipped as files: at 12px they
-    are a handful of strokes, and a drawn one takes its color from the palette
-    instead of baking one into an asset.
+    The family's drawing, out of :mod:`shared_ui.icons` -- Origenerator's copy
+    button wears the same one.  Each app drew its own before, at its own
+    proportions, and the two sit on screen together.
     """
-    pixmap = QPixmap(size, size)
-    pixmap.fill(Qt.GlobalColor.transparent)
-    pen = QPen(color)
-    pen.setWidthF(1.3)
-    pen.setJoinStyle(Qt.PenJoinStyle.RoundJoin)
-    pen.setCapStyle(Qt.PenCapStyle.RoundCap)
-
-    painter = QPainter(pixmap)
-    painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-    painter.setPen(pen)
-    try:
-        draw(painter)
-    finally:
-        painter.end()
-    return QIcon(pixmap)
-
-
-def _copy_icon(size: int, color: QColor, background: QColor) -> QIcon:
-    """The two-overlapping-sheets copy glyph.
-
-    The front sheet is filled with *background* before it is stroked, so it
-    occludes the back sheet's edges — outlines alone read as a lattice at this size.
-    """
-    def draw(painter: QPainter) -> None:
-        inset = 1.0
-        span = size - 2 * inset
-        sheet = span * 0.72
-        painter.setBrush(Qt.BrushStyle.NoBrush)
-        painter.drawRoundedRect(QRectF(inset + span - sheet, inset, sheet, sheet), 1.5, 1.5)
-        painter.setBrush(background)
-        painter.drawRoundedRect(QRectF(inset, inset + span - sheet, sheet, sheet), 1.5, 1.5)
-
-    return _drawn_icon(size, color, draw)
+    return QIcon(glyph_pixmap("copy", size, color))
 
 
 def _copied_icon(size: int, color: QColor) -> QIcon:
     """A tick — what the copy button shows for a moment after a successful copy."""
-    def draw(painter: QPainter) -> None:
-        painter.drawPolyline(
-            QPointF(size * 0.20, size * 0.52),
-            QPointF(size * 0.42, size * 0.74),
-            QPointF(size * 0.80, size * 0.26),
-        )
-
-    return _drawn_icon(size, color, draw)
+    return QIcon(glyph_pixmap("check", size, color))
 
 
 class LogPanelWidget(QWidget):
@@ -372,7 +334,7 @@ class LogPanelWidget(QWidget):
         two thousand at a time, several times a minute.
         """
         viewport = self._list.viewport()
-        self._copy_icon = _copy_icon(_COPY_ICON_SIZE, TEXT_PRIMARY, BG_BUTTON)
+        self._copy_icon = _copy_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)
         # White, not green: a copy having worked has nothing to do with the
         # favorites, which is what green means everywhere else in here.
         self._copied_icon = _copied_icon(_COPY_ICON_SIZE, TEXT_PRIMARY)

@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 
 import pytest
-from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtCore import QEvent, QPointF, QSize, Qt
 from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication, QToolButton
 
@@ -192,6 +192,27 @@ class TestHoverCopyButton:
         _copy_button(panel).click()
 
         assert QApplication.clipboard().text() == panel._list.item(1).text()
+
+    def test_the_button_wears_the_familys_copy_mark_and_its_tick(self, panel_factory):
+        """Origenerator's copy button wears this same two-sheets drawing.
+
+        Each app drew its own before, at its own proportions -- the drift the
+        microphone had, one layer down -- so both marks now come out of
+        shared_ui rather than out of a copy kept in either app.
+        """
+        from shared_ui.colors import TEXT_PRIMARY
+        from shared_ui.icons import glyph_pixmap
+        from fun_time.log_panel import _COPY_ICON_SIZE
+
+        panel = panel_factory(["Clip saved"])
+        _hover_row(panel, 0)
+        button = _copy_button(panel)
+        size = QSize(_COPY_ICON_SIZE, _COPY_ICON_SIZE)
+
+        assert button.icon().pixmap(size).toImage() ==             glyph_pixmap("copy", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
+
+        button.click()  # and the tick it shows for a moment afterwards
+        assert button.icon().pixmap(size).toImage() ==             glyph_pixmap("check", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
     def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
         panel = panel_factory(["Clip saved"])
