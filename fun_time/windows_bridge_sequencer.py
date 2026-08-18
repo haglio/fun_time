@@ -19,6 +19,7 @@ from player_core.file_channel import append_command
 
 from .config import LayoutConfig
 from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
+from .satellite_control import read_satellite_status
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
@@ -538,6 +539,21 @@ def _run_startup_phases(
                 "still has on screen", NAU_LOAD_TIMEOUT_S,
             )
 
+        # And for the two satellites, for the same reason: their windows exist
+        # within a second of launch and stay BLACK until mpv has opened the
+        # first clip.  Revealing on the windows alone lifts the curtain on two
+        # black rectangles that fill in a few seconds later, which is what "the
+        # windows are not ready when the loading screen goes away" looks like.
+        if not _wait_for_players_drawing(
+            (m["commands"]["portrait_status_file"],
+             m["commands"]["landscape_status_file"]),
+            progress,
+        ):
+            logger.warning(
+                "A satellite reported no frames within %.0fs; revealing anyway",
+                SATELLITE_PLAY_TIMEOUT_S,
+            )
+
         # A session opening in origenerator mode holds the overlay for the
         # hosted app's window too, and restores it behind the curtain — the
         # whole point of the loading screen is that the room is set up before
@@ -684,6 +700,45 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
         wait_for_window_by_title(SATELLITE_PORTRAIT_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         wait_for_window_by_title(SATELLITE_LANDSCAPE_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
     )
+
+
+# How long the curtain waits for the two satellites to have a picture up.
+# Their windows exist within a second of launch and stay BLACK until mpv has
+# opened the first clip and drawn a frame — on the 4K landscape library that is
+# several seconds — so a reveal timed on the windows alone lifts on two black
+# rectangles.  Bounded like Nau's: a player that never gets there does not get
+# to keep the desktop.
+SATELLITE_PLAY_TIMEOUT_S = 25.0
+_PLAY_POLL_S = 0.1
+
+
+def _wait_for_players_drawing(status_files, progress: ProgressReporter,
+                              timeout_s: float = SATELLITE_PLAY_TIMEOUT_S) -> bool:
+    """Wait until every satellite is DRAWING, returning whether they all got there.
+
+    The window existing is not the signal, and neither is the process running:
+    a satellite opens its window immediately, then spends seconds asking mpv for
+    the first clip.  Its status file says ``position_ms`` once frames are
+    actually going out, which is the same thing the integration suite waits on
+    to call a player started.
+
+    Also a cancellation checkpoint, per poll, like the Nau wait it sits beside:
+    this is one of the stretches that can run for tens of seconds, and the
+    overlay covering it offers Esc.
+    """
+    files = [Path(path) for path in status_files if path]
+    if not files:
+        return True
+    # Counted rather than clocked: this runs while the room is starting, and a
+    # poll loop that asks a monotonic clock is a loop that never ends where the
+    # clock is stubbed.
+    for _ in range(max(1, int(timeout_s / _PLAY_POLL_S))):
+        if progress.cancelled:
+            raise StartupCancelled()
+        if all(read_satellite_status(path).position_ms > 0 for path in files):
+            return True
+        time.sleep(_PLAY_POLL_S)
+    return False
 
 
 def _wait_for_nau_loaded(

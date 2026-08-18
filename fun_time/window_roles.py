@@ -59,7 +59,9 @@ MANAGED_ROLES: tuple[str, ...] = (
 def role_topmost(role: str, main_mode: str, satellites_mode: str = "player") -> bool:
     """Whether *role*'s window belongs in the TOPMOST band in these modes.
 
-    Both main-slot players are mode-dependent, because they share a rect:
+    Both main-slot players are mode-dependent, because they share a rect —
+    and so is the Random Favs Browser, which shares its own with the hosted
+    app's main window:
     each is topmost only in the modes where it shows something, and the hidden
     slot-mate stays out of the band entirely.  Genau is promoted last, so being
     in the band at all puts it ABOVE Nau — which is what hybrid wants and what
@@ -74,6 +76,14 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = "player") -> 
         return genau_active(main_mode)
     if role in ORIGENERATOR_ROLES:
         return origenerator_shows(satellites_mode)
+    if role == "rfb":
+        # The RFB shares its rect with the hosted app's main window, so it is
+        # mode-dependent the same way the pair is: in origenerator mode that
+        # window covers it completely, and promoting it there only puts it
+        # briefly ABOVE its cover — HWND_TOPMOST inserts at the top of the band,
+        # so every re-band (leaving OmniPause, a mode switch, the startup pass)
+        # flashed the browser over Origenerator on its way past.
+        return not origenerator_shows(satellites_mode)
     return True
 
 

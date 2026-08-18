@@ -11,6 +11,7 @@ from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANI
 from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
+    _wait_for_players_drawing,
     NAU_LOAD_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     run_startup_sequence,
@@ -25,6 +26,8 @@ from fun_time.window_layout import (
 )
 from fun_time.config import LayoutConfig
 from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
+
+from types import SimpleNamespace
 
 import pytest
 
@@ -892,6 +895,16 @@ class TestPhase4Reveal:
     def _run_hidden(self, manifest_path, tmp_path, *, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
         pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
+        # Both players reporting frames: the curtain waits for that before it
+        # comes down (a satellite's window exists long before mpv has drawn
+        # anything into it), so a run with no status files would hold it up.
+        manifest = configparser.ConfigParser()
+        manifest.optionxform = str
+        manifest.read(str(manifest_path), encoding="utf-8")
+        for key in ("portrait_status_file", "landscape_status_file"):
+            status = Path(manifest["commands"][key])
+            status.parent.mkdir(parents=True, exist_ok=True)
+            status.write_text("video=a.mp4\nposition_ms=250\n", encoding="utf-8")
         topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
         hide_calls = self._hide_calls = []
 
@@ -1407,3 +1420,43 @@ class TestOrigeneratorBehindTheOverlay:
         resolve.assert_not_called()   # the parked window is the mode's own state
         restore.assert_not_called()
         assert result.satellites_mode == "player"
+
+class TestWaitingForThePlayersToDraw:
+    """The curtain comes down on a room that is ready to look at.
+
+    A satellite's window exists within a second of launch and stays BLACK until
+    mpv has opened its first clip — several seconds on the 4K landscape library
+    — so a reveal timed on the windows alone lifts on two black rectangles that
+    fill in afterwards.  Its status file says ``position_ms`` once frames are
+    actually going out, which is what this waits for.
+    """
+
+    def test_it_waits_until_every_player_reports_frames(self, tmp_path):
+        portrait = tmp_path / "portrait_status.txt"
+        landscape = tmp_path / "landscape_status.txt"
+        portrait.write_text("video=a.mp4\nposition_ms=120\n", encoding="utf-8")
+        landscape.write_text("video=b.mp4\nposition_ms=0\n", encoding="utf-8")
+        progress = SimpleNamespace(cancelled=False)
+
+        assert _wait_for_players_drawing(
+            (portrait, landscape), progress, timeout_s=0.3) is False
+
+        landscape.write_text("video=b.mp4\nposition_ms=90\n", encoding="utf-8")
+        assert _wait_for_players_drawing(
+            (portrait, landscape), progress, timeout_s=0.3) is True
+
+    def test_a_player_that_never_draws_does_not_keep_the_desktop(self, tmp_path):
+        """Bounded like Nau's wait: a player stuck on a bad clip must not hold
+        the curtain up forever — the reveal goes ahead and the log says why."""
+        never = tmp_path / "portrait_status.txt"
+        progress = SimpleNamespace(cancelled=False)
+
+        assert _wait_for_players_drawing((never,), progress, timeout_s=0.2) is False
+
+    def test_it_is_a_cancellation_checkpoint(self, tmp_path):
+        """Esc on the loading screen has to land during this stretch too — it is
+        one of the few that can run for tens of seconds."""
+        progress = SimpleNamespace(cancelled=True)
+
+        with pytest.raises(StartupCancelled):
+            _wait_for_players_drawing((tmp_path / "s.txt",), progress, timeout_s=1.0)

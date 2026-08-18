@@ -82,9 +82,19 @@ class TestOrigeneratorRoles:
                 assert role_topmost(role, main_mode, "origenerator") is True, role
                 assert role_topmost(role, main_mode, "player") is False, role
 
-    def test_the_other_roles_ignore_the_satellites_mode(self):
+    def test_the_browser_leaves_the_band_while_the_hosted_window_covers_it(self):
+        """The RFB shares its rect with the hosted app's main window, so it is
+        mode-dependent the same way the main-slot pair is.  Promoting a window
+        that is completely covered only puts it briefly ABOVE its cover —
+        HWND_TOPMOST inserts at the top of the band — so every re-band flashed
+        the browser over Origenerator on its way past."""
+        assert role_topmost("rfb", "nau", "player") is True
+        assert role_topmost("rfb", "nau", "origenerator") is False
+
+    def test_the_roles_with_their_own_rects_ignore_the_satellites_mode(self):
         for satellites_mode in ("player", "origenerator"):
-            assert role_topmost("rfb", "nau", satellites_mode) is True
+            assert role_topmost("portrait", "nau", satellites_mode) is True
+            assert role_topmost("dashboard", "nau", satellites_mode) is True
             assert role_topmost("nau", "genau", satellites_mode) is False
 
     def test_origenerator_roles_are_promoted_after_the_windows_they_cover(self):
