@@ -3751,17 +3751,21 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, mo
     assert calls == []
 
 
-def test_a_main_reorder_in_genau_mode_leaves_naus_remembered_order_alone(tmp_path, monkeypatch):
+def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path, monkeypatch):
     """``main_latest`` says which order the playlist file we built for Nau is in —
-    an F-mode rebuild reads it to reload the same way round, and the console draws
-    it while Nau is showing.  Setting it for a Genau reorder would light "Latest"
-    over a Nau playlist nobody reordered."""
+    an F-mode rebuild reads it to reload the same way round — so setting it for a
+    Genau reorder would light "Latest" over a Nau playlist nobody reordered.  Genau
+    keeps its own, which is what the console draws while Genau is showing."""
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
     config = _make_config(tmp_path)
 
     state, _ops = dispatch_command("main_latest", _make_state(main_mode="genau"), config)
 
+    assert state.genau_latest is True
     assert state.main_latest is False
+
+    state, _ops = dispatch_command("main_shuffle", state, config)
+    assert state.genau_latest is False
 
 
 def test_a_main_reorder_in_hybrid_still_reaches_nau(tmp_path, monkeypatch):
