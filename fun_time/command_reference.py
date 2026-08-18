@@ -27,7 +27,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
-from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 
 
 @dataclass(frozen=True)
@@ -132,6 +132,27 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("X",),
                 ("satellites_toggle", "origenerator_activate", "players_activate"),
                 voice_display=("origenerator mode", "player mode"),
+            ),
+            # The hosted app's own vocabulary, said to one of its regions.  The
+            # session owns the room's microphone, so these are heard here and
+            # posted there as the words themselves; one row, because they are
+            # one idea — say the side, then what you would have said to
+            # Origenerator.
+            _Row(
+                "Speak to a hosted Origenerator region — the side, then its own "
+                "words: a shelf to play (\"portrait favorites\", "
+                "\"landscape experiments\"), the show's controls "
+                "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
+                "a targeted fix (\"portrait fix teeth\") or \"go now\" to "
+                "animate the picture as a Genau clip.  In this mode the side's "
+                "own \"latest\" and \"trash\" reach the show too",
+                (),
+                tuple(
+                    f"{side}_say_{phrase.replace(' ', '_')}"
+                    for side in ("portrait", "landscape")
+                    for phrase in ORIGENERATOR_PHRASES
+                ),
+                voice_display=("landscape favorites", "portrait fix teeth"),
             ),
             _Row(
                 "Toggle F-Mode on every player at once — spoken it needs the "

@@ -3,7 +3,7 @@ from __future__ import annotations
 import configparser
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import call, patch, MagicMock, call
 
 import threading
 
@@ -142,6 +142,87 @@ class TestFixPostLoadingWindows:
             _fix_post_loading_windows(result)
 
         promote.assert_called_once_with(222, True)  # only the buried one, once
+
+    def test_the_curtain_goes_back_on_top_after_the_bands_are_applied(self):
+        """Behind the overlay is where this pass belongs — the bands are what
+        decides what the reveal looks like — and every promotion it makes
+        inserts ABOVE the overlay (HWND_TOPMOST inserts at the top of the
+        band).  So the overlay is put back on top after the pass, or the room
+        it is hiding shows through the moment it is banded."""
+        result = _fake_startup_result()
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result, overlay_hwnd=77)
+
+        promote.assert_called_once_with(77, True)
+
+    def test_the_curtain_is_not_a_burial(self):
+        """The overlay covers both players by design, so counting it as a
+        covering window would spend every pass re-promoting players that are
+        exactly where they belong — and each promotion would put one over the
+        curtain."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        curtain = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
+                                rect=(0, 0, 4000, 2560))
+        stack = [curtain,
+                 StackedWindow(hwnd=222, title="Landscape AI Player",
+                               topmost=True, rect=(854, 0, 1706, 1410)),
+                 StackedWindow(hwnd=111, title="Portrait AI Player",
+                               topmost=True, rect=(2560, 0, 1440, 2560))]
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack,
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, patch(
+            "fun_time.windows_bridge_orchestrator.time.sleep"
+        ) as slept, patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result, overlay_hwnd=77)
+
+        # The curtain put back, and nothing else: neither player is buried.
+        assert promote.call_args_list == [call(77, True)]
+        slept.assert_not_called()
+
+    def test_it_hands_back_the_windows_it_resolved(self):
+        """The reveal re-asserts the bands once the overlay is gone, and does
+        it on these rather than resolving every window a second time."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state",
+            return_value={"portrait": 111, "landscape": 222},
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            resolved = _fix_post_loading_windows(result)
+
+        assert resolved == {"portrait": 111, "landscape": 222}
     def test_taskkills_the_pid_and_its_descendants(self):
         with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
             kill_process_tree(1234)

@@ -63,6 +63,7 @@ from .runtime_flow import (
     satellite_browse_paths,
 )
 from .satellite_control import read_satellite_status, write_satellite_command
+from .voice_commands import ORIGENERATOR_PHRASES
 from .window_roles import visible_main_slot_roles
 from .watch_stats import record_watch_event, watch_stats_path
 from .event_log import (
@@ -2108,8 +2109,30 @@ _ORIGENERATOR_TRANSPORT: dict[str, tuple[str, str]] = {
 }
 
 
+# The hosted app's own spoken vocabulary, one command per phrase.  The session
+# hears them (it owns the room's microphone) and posts the WORDS on the hosted
+# app's channel; matching them is the hosted app's own business, since only it
+# knows which shelves its tree has and which detail parts have detectors.
+_ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
+    **{
+        f"{side}_say_{phrase.replace(' ', '_')}": (side, phrase)
+        for side in ("portrait", "landscape")
+        for phrase in ORIGENERATOR_PHRASES
+    },
+    # Two the session already says to a player, which in origenerator mode mean
+    # the same thing to the hosted app: "portrait latest" is that side's
+    # newest-first listing either way, so it reaches whichever of them the mode
+    # has put on that region rather than needing a second spelling.
+    "portrait_latest": ("portrait", "latest"),
+    "landscape_latest": ("landscape", "latest"),
+}
+
+
 def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
     """Whether *command* is a side's transport bound for the hosted app.
+
+    Its spoken vocabulary routes there too, as the words themselves: the
+    session hears them for the whole room and the hosted app matches them.
 
     In origenerator mode EVERY side's transport routes there: the players are
     black and paused for the whole mode, so there is never a player worth
@@ -2118,7 +2141,7 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     watch tracking must not book a show's step or cull against the blacked
     player underneath.
     """
-    if command not in _ORIGENERATOR_TRANSPORT:
+    if command not in _ORIGENERATOR_TRANSPORT and command not in _ORIGENERATOR_SPEECH:
         return False
     return (origenerator_shows(state.satellites_mode)
             and config.origenerator_cmd_file is not None)
@@ -2135,6 +2158,12 @@ def _origenerator_transport(
     """
     if not routes_to_origenerator(command, state, config):
         return None
+    spoken = _ORIGENERATOR_SPEECH.get(command)
+    if spoken is not None:
+        side_name, phrase = spoken
+        write_satellite_command(
+            config.origenerator_cmd_file, f"{side_name.upper()}_SAY:{phrase}")
+        return []
     side_name, verb = _ORIGENERATOR_TRANSPORT[command]
     write_satellite_command(config.origenerator_cmd_file, f"{side_name.upper()}_{verb}")
     return []

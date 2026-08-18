@@ -12,6 +12,7 @@ import logging
 import pytest
 
 from fun_time.command_dispatch import (
+    routes_to_origenerator,
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
     BridgeState,
@@ -3950,6 +3951,36 @@ class TestOrigeneratorTransport:
             "PORTRAIT_PREV", "PORTRAIT_TRASH", "PORTRAIT_LOCK", "PORTRAIT_RESET",
             "LANDSCAPE_NEXT", "LANDSCAPE_LOCK", "LANDSCAPE_RESET",
         ]
+
+    def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
+        """The session owns the room's microphone — one mic, one transcription —
+        so a command about a hosted region is heard here and posted there as the
+        words themselves.  Matching them is the hosted app's own business: only
+        it knows which shelves its tree has and which detail parts have
+        detectors installed."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
+                        "landscape_say_fix_teeth"):
+            state, _ = dispatch_command(command, state, config)
+        assert _origenerator_cmds(config) == [
+            "LANDSCAPE_SAY:favorites",
+            "PORTRAIT_SAY:play slideshow",
+            "LANDSCAPE_SAY:fix teeth",
+        ]
+
+    def test_every_spoken_phrase_has_a_command_to_dispatch(self, tmp_path):
+        """The vocabulary and the routing are generated from one list, so a
+        phrase vosk can hear is a phrase this can send — a phrase recognized
+        with nowhere to go would be heard and silently dropped."""
+        from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
+
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        for side in ("portrait", "landscape"):
+            for phrase in ORIGENERATOR_PHRASES:
+                command = VOICE_COMMANDS[f"{side} {phrase}"]
+                assert routes_to_origenerator(command, state, config), command
 
     def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)

@@ -482,6 +482,37 @@ VOICE_COMMANDS["reset speed"] = "nau_speed_100"
 VOICE_COMMANDS["min speed"] = "speed_min"
 VOICE_COMMANDS["max speed"] = "speed_max"
 
+# A hosted Origenerator's own vocabulary, said to one of its regions.
+#
+# The session owns the microphone for the whole room — one mic, one
+# transcription — so these are heard HERE and posted on the hosted app's
+# channel as the words themselves (see command_dispatch's origenerator speech).
+# It matches them with its own matcher, which is the only place that knows
+# which shelves its tree has and which detail parts have detectors installed.
+# So this list is the recognizer's half of the deal: vosk can only hear a
+# phrase that is in its grammar, and these are the phrases.
+ORIGENERATOR_PHRASES: tuple[str, ...] = (
+    # The shelves, by the labels its tree wears.  Not "latest" and not "trash":
+    # this session already says both to a satellite ("portrait latest" reorders
+    # that player's browse, "portrait trash" discards its clip), and in
+    # origenerator mode those same two commands are routed to the hosted app
+    # instead — one phrase, one meaning per mode, rather than two spellings.
+    "favorites", "experiments", "requests",
+    # The show's own controls.
+    "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
+    # The commands about the picture on screen: the built-in detail parts, and
+    # the sound Fun Time settled on for Genau (no recognizer here hears it).
+    "fix face", "fix hands", "fix teeth", "fix eyes", "go now",
+)
+
+for _side in ("portrait", "landscape"):
+    for _phrase in ORIGENERATOR_PHRASES:
+        _spoken = f"{_side} {_phrase}"
+        if _spoken in VOICE_COMMANDS:  # the session already says this to a player
+            raise RuntimeError(f"hosted phrase collides with a session command: {_spoken}")
+        VOICE_COMMANDS[_spoken] = f"{_side}_say_{_phrase.replace(' ', '_')}"
+
+
 # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —
 # generated from the library's action vocabulary (see fun_time.filter_vocab).  The
 # guard keeps a future act from silently shadowing an existing phrase.

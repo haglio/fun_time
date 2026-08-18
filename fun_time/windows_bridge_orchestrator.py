@@ -48,9 +48,11 @@ from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
 )
+from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .windows_bridge_sequencer import (
     StartupResult,
     _apply_startup_window_state,
+    _apply_topmost_bands,
     resolve_shortcut,
     run_startup_sequence,
 )
@@ -388,7 +390,8 @@ def _open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
-def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0) -> None:
+def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
+                            ignore: int = 0) -> None:
     """Record which windows, if any, cover *name* once the bands are re-applied.
 
     The topmost flag reads ``True`` here, yet a player can still be reported
@@ -405,14 +408,15 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0) -> 
     transparent HUD layer over Nau's video and in genau mode is the display
     itself.  Warning on the session's own by-design layering toasted every
     hybrid startup with a "covering" window that covers nothing you can see;
-    anything else over the player still warns.
+    anything else over the player still warns.  *ignore* is the loading
+    overlay while this runs behind it, which covers everything by design.
     """
     if not hwnd:
         logger.warning("%s window unresolved after loading; cannot check z-order", name)
         return
     covering = [
         w for w in windows_obscuring(hwnd, iter_zorder())
-        if w.hwnd != expected_over
+        if w.hwnd not in (expected_over, ignore)
     ]
     if covering:
         desc = "; ".join(
@@ -423,14 +427,25 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0) -> 
         logger.info("%s (hwnd=%d) is frontmost over its rect at startup", name, hwnd)
 
 
-def _fix_post_loading_windows(result: StartupResult) -> None:
-    """Re-assert the topmost policy and the main slot's visibility after the
-    loading screen overlay is destroyed (its teardown can shuffle activation, and
-    the dashboard may only become resolvable this late).
+def _fix_post_loading_windows(result: StartupResult, *,
+                              overlay_hwnd: int = 0) -> dict[str, int]:
+    """Resolve every managed window, band it, and settle the z-order until each
+    player is actually frontmost — returning the role hwnds it resolved.
 
     For the mode the session actually opened in, not for nau: on a resumed genau
     session this pass would otherwise promote Nau over Genau and un-park it, one
     pass after the sequencer parked it.
+
+    ``overlay_hwnd`` is the loading screen's own window when this runs BEHIND
+    the curtain, which is where it belongs: the bands are the last thing that
+    decides what the reveal looks like, so applying them afterwards is watching
+    the room sort itself out — the players arriving under whatever was already
+    on those monitors and climbing over it a second later, and in origenerator
+    mode the RFB showing through until its host was promoted over it.  Handed
+    the overlay, this keeps it on top across the pass (``HWND_TOPMOST`` inserts
+    at the top of the band, so each promotion lands over it until it is put
+    back) and leaves it out of the "is this player buried?" test, which it
+    covers by design.
     """
     dash_hwnd = 0
     if result.dashboard_pid:
@@ -464,7 +479,7 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         if result.origenerator_pid and result.satellites_mode == "origenerator"
         else 0
     )
-    _apply_startup_window_state(
+    role_hwnds = _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -475,6 +490,7 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         mode=result.main_mode,
         satellites_mode=result.satellites_mode,
     )
+    _keep_the_curtain_up(overlay_hwnd)
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
     # target's own thread, and the satellites are at their busiest exactly now
@@ -483,19 +499,7 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
     # monitor — a maximized Chrome sat over the landscape player until the
     # next full re-band.  Walk the real z-order and re-promote whoever is
     # still buried, for a few seconds, until both players are frontmost.
-    for _ in range(8):
-        stack = iter_zorder()
-        buried = [
-            (name, hwnd)
-            for name, hwnd in (("portrait", portrait_hwnd), ("landscape", landscape_hwnd))
-            if hwnd and windows_obscuring(hwnd, stack)
-        ]
-        if not buried:
-            break
-        for name, hwnd in buried:
-            logger.info("The %s satellite is still buried; re-asserting its band", name)
-            set_always_on_top(hwnd, True)
-        time.sleep(1.5)
+    _settle_the_players(portrait_hwnd, landscape_hwnd, overlay_hwnd=overlay_hwnd)
     # In hybrid and genau modes Genau's window sits over Nau on purpose — the
     # transparent HUD layer, or the display itself — so it is not a covering
     # worth a warning there.
@@ -503,8 +507,56 @@ def _fix_post_loading_windows(result: StartupResult) -> None:
         "Nau", nau_hwnd,
         expected_over=genau_hwnd if genau_active(result.main_mode) else 0,
     )
-    _log_window_obstruction("Portrait satellite", portrait_hwnd)
-    _log_window_obstruction("Landscape satellite", landscape_hwnd)
+    _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
+    _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
+    return role_hwnds
+
+
+def _keep_the_curtain_up(overlay_hwnd: int) -> None:
+    """Put the loading overlay back at the top of the topmost band.
+
+    Every promotion this pass makes inserts above it, so without this the room
+    it is meant to hide shows through the moment it is banded.  The overlay
+    re-asserts itself on its own poll too (200ms); this closes the gap to the
+    few milliseconds a SetWindowPos takes."""
+    if overlay_hwnd:
+        set_always_on_top(overlay_hwnd, True)
+
+
+def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
+                        overlay_hwnd: int = 0, passes: int = 8,
+                        wait_s: float = 1.5) -> None:
+    """Re-promote either player until it is genuinely frontmost over its rect.
+
+    The banding above can silently miss one: SetWindowPos waits on the target's
+    own thread, and the satellites are at their busiest exactly now (first clips
+    decoding), so a promotion can time out through the hung-window guard and
+    leave the player under whatever the user had on that monitor — a maximized
+    Chrome sat over the landscape player until the next full re-band.  So walk
+    the real z-order and re-promote whoever is still buried.
+
+    The loading overlay covers both players on purpose, so it is not a burial:
+    left in the test, this loop would spend every pass re-promoting players
+    that are exactly where they belong."""
+    for _ in range(passes):
+        stack = iter_zorder()
+        buried = [
+            (name, hwnd)
+            for name, hwnd in (("portrait", portrait_hwnd), ("landscape", landscape_hwnd))
+            if hwnd and _covering(hwnd, stack, ignore=overlay_hwnd)
+        ]
+        if not buried:
+            break
+        for name, hwnd in buried:
+            logger.info("The %s satellite is still buried; re-asserting its band", name)
+            set_always_on_top(hwnd, True)
+        _keep_the_curtain_up(overlay_hwnd)
+        time.sleep(wait_s)
+
+
+def _covering(hwnd: int, stack, *, ignore: int = 0) -> list:
+    """What is over *hwnd*, minus the one window allowed to be."""
+    return [w for w in windows_obscuring(hwnd, stack) if w.hwnd != ignore]
 
 
 def _main_browse_stills(bridge_config) -> list[str]:
@@ -679,6 +731,19 @@ def run_python_orchestrated_bridge(
         # library scan can't wedge startup — the maps just fill in late.
         if hud_publisher is not None and not hud_primed.wait(timeout=20.0):
             logger.warning("HUD indexes not primed after 20s; revealing anyway")
+        # Band the room and settle its z-order BEHIND the curtain.  Phase 4
+        # deliberately left the bands off (each promotion inserts above the
+        # overlay), so at this moment nothing of the session is topmost at all:
+        # revealing here is revealing players sitting under whatever was on
+        # those monitors, climbing over it a second later — and in origenerator
+        # mode the RFB showing through until its host was promoted over it.
+        # The overlay goes back on top after every promotion, so what the
+        # curtain hides is the sorting rather than the result.
+        overlay_hwnd = wait_for_window_by_title(
+            LOADING_SCREEN_TITLE, timeout_s=1.0, exact=True, include_hidden=True,
+        )
+        role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=overlay_hwnd)
+
         progress.finish()
         if loading_proc:
             try:
@@ -688,10 +753,14 @@ def run_python_orchestrated_bridge(
                 logger.warning("Loading screen did not exit, killed")
         progress_file.unlink(missing_ok=True)
 
-        # Re-assert z-order AFTER the loading screen overlay is gone.
-        # Phase 4 set topmost while the overlay was still covering everything;
-        # destroying the overlay can rearrange z-order.  Correct it now.
-        _fix_post_loading_windows(result)
+        # The overlay's own teardown hands activation to whatever is next in
+        # the z-order, so the bands are asserted once more over the finished
+        # room — cheap, since every window is already resolved and in place.
+        _apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
+        _settle_the_players(
+            role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0),
+            passes=3, wait_s=0.4,
+        )
 
     pids_file = state_dir / "bridge_pids.ini"
     children = identify_children(result)
