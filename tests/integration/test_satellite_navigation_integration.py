@@ -267,12 +267,19 @@ def _drained(satellite: _Satellite) -> None:
     (``player_core.file_channel.consume_command_file``), so a fully drained queue
     leaves nothing behind.  Reading it outright raised FileNotFoundError from
     inside the wait — a drain looked like a hang.
+
+    A read caught DURING that rename is denied outright by Windows, which is
+    not an answer either way — the queue is mid-claim, so the honest reading is
+    "not drained yet" and the next poll is milliseconds away.  Left to raise, it
+    took the whole run down with a PermissionError from inside the wait.
     """
     def empty() -> bool:
         try:
             return not satellite.cmd.read_text(encoding="utf-8").strip()
         except FileNotFoundError:
             return True
+        except PermissionError:
+            return False  # claimed this instant; ask again next poll
 
     _wait(empty, timeout=10, desc="the player to drain its command file")
 
