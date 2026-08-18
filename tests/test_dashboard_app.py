@@ -134,6 +134,24 @@ def test_the_microphone_carries_its_own_mark():
     assert layout.voice_panel in drawn
 
 
+def test_the_microphone_is_the_one_the_family_shares():
+    """Origenerator's toolbar wears this same drawing.
+
+    The two apps sit on one screen at once, and while each painted its own
+    microphone the two marks came out visibly different shapes -- one control
+    reading as two.  So the mark on the panel has to be the shared glyph itself,
+    pixel for pixel, rather than a copy that can drift from it again.
+    """
+    from shared_ui.colors import TEXT_PRIMARY
+    from shared_ui.icons import glyph_pixmap
+
+    panel = compute_dashboard_bar_layout().voice_panel
+    drawn = {item.rect: item.pixmap for item in _scene().images}
+
+    expected = glyph_pixmap("mic", min(panel.width, panel.height), TEXT_PRIMARY)
+    assert drawn[panel].toImage() == expected.toImage()
+
+
 def test_every_control_names_itself_on_hover():
     scene = _scene()
 
