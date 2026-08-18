@@ -99,3 +99,17 @@ def test_the_panel_carries_the_main_players_browse_order():
     so the order rides the panel exactly as F-mode does."""
     assert _payload(latest=True)["latest"] is True
     assert _payload()["latest"] is False
+
+
+def test_the_order_reported_is_the_order_of_whoever_is_showing():
+    """One slot on the console, so one flag, resolved the way the padlock is: Nau's
+    playlist order where Nau is on screen, the order Genau last rescanned its clips
+    folder in where Genau is.  They are separate flags because a Genau reorder
+    rewrites nothing of Nau's — reporting Nau's in genau mode said "Shuffle" at
+    someone who had just asked Genau for the latest."""
+    for mode in ("nau", "hybrid"):
+        assert _payload(mode=mode, latest=True, genau_latest=False)["latest"] is True
+        assert _payload(mode=mode, latest=False, genau_latest=True)["latest"] is False
+
+    assert _payload(mode="genau", latest=False, genau_latest=True)["latest"] is True
+    assert _payload(mode="genau", latest=True, genau_latest=False)["latest"] is False

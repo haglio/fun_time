@@ -107,6 +107,14 @@ class BridgeState:
     main_latest: bool = False
     portrait_latest: bool = False
     landscape_latest: bool = False
+    # Genau's own, kept apart from ``main_latest`` even though the two players
+    # share the main slot: ``main_latest`` describes the playlist file we built
+    # for Nau, and a Genau reorder rewrites nothing of Nau's.  One flag for both
+    # would light "Latest" on Nau's console over a playlist nobody reordered.
+    # Unlike the other three it does not resume: Genau rescans and reshuffles its
+    # clips folder at every launch, so a new session's Genau is not in the order
+    # the last one left it in (see fun_time.session_resume.RESUMED_FIELDS).
+    genau_latest: bool = False
     # The player most recently navigated (1=main/Nau, 2=portrait,
     # 3=landscape). Any portrait_/landscape_ command, or a main next/prev,
     # updates it; the side-agnostic "active_*" commands resolve against it —
@@ -1752,10 +1760,11 @@ def _dispatch_main_reorder(
     playlist file at all; it owns its own sequence, so it is told the order and
     rescans its clips folder itself.
 
-    Nau's order alone is remembered, because ``main_latest`` describes the
-    playlist file we built: a later F-mode rebuild reads it to reload the same way
-    round, and the console draws it while Nau is the player showing.  Recording a
-    Genau reorder there would light "Latest" over a Nau playlist nobody reordered.
+    Each player's order is remembered under its own flag.  ``main_latest``
+    describes the playlist file we built for Nau — a later F-mode rebuild reads it
+    to reload the same way round — so recording a Genau reorder there would light
+    "Latest" over a Nau playlist nobody reordered.  ``genau_latest`` is Genau's,
+    and both reach the console, which draws whichever player is showing.
     """
     on_nau = nau_displays(state.main_mode)
     if on_nau:
@@ -1769,6 +1778,7 @@ def _dispatch_main_reorder(
             start_at_top=True,
         )
     else:
+        state = replace(state, genau_latest=recent)
         append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
     # The order's own word alone, and self-reported — see _dispatch_reorder.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL

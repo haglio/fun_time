@@ -147,6 +147,13 @@ _PRIMARY_EQUIVALENTS = {
     # act filter and the loop.  Without this a bare "reset" said after navigating
     # the main player reached nothing at all.
     "reset": "main_reset",
+    # So are the two browse orders: every player browses newest-first or shuffled,
+    # and the main player is no exception now that Genau answers them too.  Left
+    # out, a bare "latest" said while the main player was the active one resolved
+    # to a command with no handler and did nothing at all — the player had to be
+    # named ("main latest") for a word that is supposed to reach whoever is active.
+    "latest": "main_latest",
+    "shuffle": "main_shuffle",
 }
 
 
@@ -459,6 +466,7 @@ class DispatchLoopRunner:
             active=state.active_side == MAIN_SIDE,
             f_mode=state.main_f_mode,
             latest=state.main_latest,
+            genau_latest=state.genau_latest,
             osr2_mode=self._osr2_mode(),
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)

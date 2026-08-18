@@ -343,6 +343,17 @@ class TestResolveActiveSideCommand:
             assert resolve_active_side_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
             assert resolve_active_side_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
 
+    def test_a_bare_browse_order_reaches_whichever_player_is_active(self):
+        """Every player browses in these two orders, the main player included now
+        that Genau answers them too.  Left out, a bare "latest" said while the main
+        player was the active one resolved to a command with no handler and did
+        nothing — the player had to be named for a word that is supposed to reach
+        whoever is active."""
+        for order in ("latest", "shuffle"):
+            assert resolve_active_side_command(f"active_{order}", 1) == f"main_{order}"
+            assert resolve_active_side_command(f"active_{order}", 2) == f"portrait_{order}"
+            assert resolve_active_side_command(f"active_{order}", 3) == f"landscape_{order}"
+
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Main has no weird or cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
