@@ -17,6 +17,7 @@ from dataclasses import dataclass, replace
 
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
+from player_core.hud_marks import SHARED_MARK, shared_mark, shared_mark_name
 from player_core.hud_panel import (
     BG_PRIMARY,
     GREEN,
@@ -26,6 +27,7 @@ from player_core.hud_panel import (
     HudPanel,
     draw_glyph,
     draw_icon,
+    draw_mark,
     draw_tooltip,
     load_font,
     text_width,
@@ -95,7 +97,10 @@ _SYMBOL_FONT = "seguisym.ttf"
 _SIZE_BODY = 11
 _SIZE_TINY = 8
 _ROW_LABEL_PT = 7
-_LOOP_GLYPH = "↻"
+# The family's own drawing rather than U+21BB: two arrows chasing each other
+# around a rounded rectangle, which says "around and around" where a single arc
+# says "back one step" -- and a single arc is what undo and reset already are.
+_LOOP_GLYPH = shared_mark("loop")
 _EXPAND_GLYPH = "↔"
 # The side's own controls.  Skip-track for the browse pair rather than bare
 # arrows, so they cannot be read as "step along the map"; a padlock and a bin for
@@ -104,14 +109,22 @@ _EXPAND_GLYPH = "↔"
 # back" looks like everywhere, and the two never share a band — the loop buttons
 # stand on the map's edges and this one in the control row above it.  They come
 # from the same symbol face as the loop glyph — Segoe UI Bold has none of them.
-_CONTROL_GLYPHS = {"prev": "⏮", "next": "⏭", "lock": "🔒", "trash": "🗑", "reset": "↺"}
+# The bin and the reset are the family's own drawings: the bin is the very bin
+# Origenerator's toolbar wears, and reset is a gear with a circular arrow at its
+# corner -- a bare counterclockwise arrow read as an undo, which is a different
+# act.  Skip-track and the padlock stay typed: the family has no drawing of
+# either, and the symbol face carries both cleanly.
+_CONTROL_GLYPHS = {
+    "prev": "⏮", "next": "⏭", "lock": "🔒",
+    "trash": shared_mark("trash"), "reset": shared_mark("reset"),
+}
 # F-mode wears its own mark rather than a glyph: no symbol says "favorites
 # only", and the mode already has a face — the pink "F" of ``fmode_icon.ico``,
 # the five-by-five letter every app in this family is marked with.  A letter set
 # in the body face is a thin thing beside it, reading as a caption rather than a
 # badge (:func:`player_core.hud_panel.draw_icon`).
 _ICON_CONTROLS = {"fmode": "F"}
-_FAVORITE_GLYPH = "★"
+_FAVORITE_GLYPH = shared_mark("star")
 
 # The filter mark, drawn rather than typed: Segoe UI Symbol — the face the other
 # buttons take their icons from — carries no funnel at any codepoint, and this is
@@ -317,7 +330,7 @@ class HudRenderer:
         # not there is a map to draw.
         controls = control_button_rects(x, y)
         favorite = favorite_mark_rect(width - PAD, y)
-        self._draw_controls(draw, controls, favorite, model)
+        self._draw_controls(image, draw, controls, favorite, model)
         y += CTRL_BAND_H
 
         if model.corner is None:
@@ -369,7 +382,7 @@ class HudRenderer:
             corner_rect, seed_rects, action_rects, right, bottom,
             reserve_row=ELLIPSIS_ROOM, reserve_col=ELLIPSIS_ROOM, column_rect=column_rect)
         expand_rect = expand_button_rect(loop_seed_rect, right)
-        self._draw_loop_controls(draw, corner_rect, column_rect, loop_action_rect,
+        self._draw_loop_controls(image, draw, corner_rect, column_rect, loop_action_rect,
                                  loop_seed_rect, seed_rects, action_rects,
                                  model.active_loop, hover_loop)
         for axis, window in (("seed", seed_win), ("action", action_win)):
@@ -378,7 +391,7 @@ class HudRenderer:
                                     action_rects, axis, window)
         if expand_rect is not None:
             # "↔" reads as expanding — the seed row widening.
-            self._glyph_button(draw, expand_rect, _EXPAND_GLYPH)
+            self._glyph_button(image, draw, expand_rect, _EXPAND_GLYPH)
         if hover_tip:
             draw_tooltip(draw, self._tiny, hover_tip, hover_pos, (width, height))
 
@@ -570,15 +583,20 @@ class HudRenderer:
         )
         return (*(BG_PRIMARY if on else TEXT_MUTED), 255)
 
-    def _glyph_button(self, draw, rect: Rect, glyph: str, *, on: bool = False,
+    def _glyph_button(self, image, draw, rect: Rect, glyph: str, *, on: bool = False,
                       on_color=WHITE) -> None:
-        """One of the panel's square buttons with a font glyph on it.
+        """One of the panel's square buttons, with a mark or a glyph on it.
 
-        The glyph is centerd on its own ink: the padlock, the bin and the transport
-        arrows all sit high in a box that runs to the descender, so the font's own
-        centering dropped every one of them toward the bottom of its button.
+        A mark the family draws is rendered from its geometry, so the bin here is
+        the bin on Origenerator's toolbar rather than whatever a symbol face had.
+        A typed glyph is centered on its own ink instead: the padlock and the
+        transport arrows sit high in a box that runs to the descender, so the
+        font's own centering dropped every one of them toward its button's floor.
         """
         ink = self._button_box(draw, rect, on=on, on_color=on_color)
+        if glyph.startswith(SHARED_MARK):
+            draw_mark(image, shared_mark_name(glyph), rect, ink)
+            return
         bx, by, bw, bh = rect
         draw_glyph(draw, bx + bw / 2, by + bh / 2, glyph, self._glyph, ink)
 
@@ -609,7 +627,7 @@ class HudRenderer:
         draw.rectangle([cx - _MINIMIZE_W / 2, top, cx + _MINIMIZE_W / 2, top + _MINIMIZE_H - 1],
                        fill=ink)
 
-    def _draw_controls(self, draw, controls: list[tuple[Rect, str]], favorite: Rect,
+    def _draw_controls(self, image, draw, controls: list[tuple[Rect, str]], favorite: Rect,
                        model: HudModel) -> None:
         """The side's own buttons, and the mark saying whether the clip on screen
         is one of the favorites.
@@ -633,11 +651,10 @@ class HudRenderer:
             if name == "minimize":
                 self._minimize_button(draw, rect)
                 continue
-            self._glyph_button(draw, rect, _CONTROL_GLYPHS[name],
+            self._glyph_button(image, draw, rect, _CONTROL_GLYPHS[name],
                                on=lit.get(name, False), on_color=GREEN)
-        fx, fy, fw, fh = favorite
-        draw.text((fx + fw / 2, fy + fh / 2), _FAVORITE_GLYPH, font=self._glyph, anchor="mm",
-                  fill=(*(GREEN if model.is_favorite else TEXT_MUTED), 255))
+        draw_mark(image, shared_mark_name(_FAVORITE_GLYPH), favorite,
+                  (*(GREEN if model.is_favorite else TEXT_MUTED), 255))
 
     def _draw_filter_buttons(self, draw, rects: list[tuple[Rect, str]],
                              filter_query: str) -> None:
@@ -652,7 +669,7 @@ class HudRenderer:
         for rect, name in rects:
             self._filter_button(draw, rect, on=label_is_filtered(name, filter_query))
 
-    def _draw_loop_controls(self, draw, corner_rect, column_rect, loop_action_rect,
+    def _draw_loop_controls(self, image, draw, corner_rect, column_rect, loop_action_rect,
                             loop_seed_rect, seed_rects, action_rects, active_loop,
                             hover_loop) -> None:
         """The two loop buttons, and — while one is hovered or its loop is on — a
@@ -671,7 +688,7 @@ class HudRenderer:
             if button is None:
                 continue
             on = active_loop == kind
-            self._glyph_button(draw, button, _LOOP_GLYPH, on=on)
+            self._glyph_button(image, draw, button, _LOOP_GLYPH, on=on)
             if on:
                 gx, gy, gw, gh = group_box
                 draw.rectangle([gx, gy, gx + gw - 1, gy + gh - 1],
