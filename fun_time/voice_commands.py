@@ -518,4 +518,13 @@ SELF_REPORTING_COMMANDS = frozenset({
         for player in ("main", "portrait", "landscape", "both", "active")
         for suffix in ("", "_on", "_off")
     ),
+    # Every spelling of the two browse orders, for the same reason: the dispatch
+    # flashes "Latest" / "Shuffle" on the player it reordered.  Echoed as well,
+    # "main latest" came back as two toasts at once — the phrase, and the outcome
+    # of it — which is one more than either says.  "both latest" made three.
+    *(
+        f"{player}_{order}"
+        for player in ("main", "portrait", "landscape", "both", "active")
+        for order in ("latest", "shuffle")
+    ),
 })
