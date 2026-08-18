@@ -20,7 +20,25 @@ def test_the_self_reporting_commands_flash_their_own_outcome():
             for player in ("main", "portrait", "landscape", "both", "active")
             for suffix in ("", "_on", "_off")
         ),
+        *(
+            f"{player}_{order}"
+            for player in ("main", "portrait", "landscape", "both", "active")
+            for order in ("latest", "shuffle")
+        ),
     }
+
+
+def test_every_spoken_browse_order_is_self_reporting():
+    """The dispatch flashes "Latest" / "Shuffle" on the player it reordered.  A
+    spelling left off this list is one that comes back as two toasts — the phrase
+    that was said, then the order it put the player in — where either alone says
+    the whole thing."""
+    spoken = {
+        cmd for cmd in VOICE_COMMANDS.values()
+        if cmd.endswith("_latest") or cmd.endswith("_shuffle")
+    }
+    assert spoken, "expected the latest/shuffle phrases to still exist"
+    assert spoken <= SELF_REPORTING_COMMANDS
 
 
 def test_every_spoken_f_mode_is_self_reporting():

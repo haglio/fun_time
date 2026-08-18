@@ -30,7 +30,7 @@ from .media_metadata import (
     widened_seed_members,
 )
 from player_core.file_channel import append_command
-from player_core.hud_status import F_MODE_LABEL
+from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 
 from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
 from .lock import build_lock_plan
@@ -748,6 +748,11 @@ _REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
     "portrait_shuffle": (2, False),
     "landscape_shuffle": (3, False),
 }
+
+# The same two orders as Genau answers to, keyed by ``recent``.  Every other
+# player is handed a rewritten playlist file; Genau owns its own sequence and
+# rescans its clips folder for itself, so its order crosses as a verb.
+_GENAU_ORDER_CMD: dict[bool, str] = {True: "LATEST", False: "SHUFFLE"}
 
 
 def _set_side_latest(state: BridgeState, which: int, recent: bool) -> BridgeState:
@@ -1730,32 +1735,45 @@ def _dispatch_main_reorder(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Reload the main player in a fresh order — Latest (newest-first) or Shuffle.
 
-    The satellites' own reorder rebuilds a side and tells it to re-read; the main
-    player's playlist is Nau's, so this rewrites that file and hands Nau the same
-    RELOAD_PLAYLIST it gets for an F-mode change.  Rescanning as it goes means clips
-    that have arrived since are picked up, which is most of what "latest" is for.
+    To whichever player owns the main slot's screen, the split the lock makes (see
+    ``_PRIMARY_LOCK_COMMANDS``) and for the same reason: a browse order is about
+    what you are looking at.  Sent to Nau regardless, "main latest" said in genau
+    mode rewrote a playlist for a player that was neither on screen nor playing,
+    and Genau — the one actually showing — went on with the order it launched in.
 
-    From the top of the new order, as a satellite's reorder is: a reorder filters
-    nothing out, so Nau would keep the video on screen and carry on from wherever
-    it now sits — the newest-first list applying only behind it, and the arrivals
-    that were asked for never coming up.
+    Both branches rescan as they go, which is most of what "latest" is for: a clip
+    that arrived since is in no list until something looks again.
 
-    The order is remembered like each satellite's, so a later F-mode rebuild reloads
-    the main player the same way round rather than quietly reshuffling it.
+    Nau's playlist is ours to write, so that branch rewrites the file and hands
+    Nau the same RELOAD_PLAYLIST an F-mode change gets, from the top of the new
+    order — a reorder filters nothing out, so Nau would otherwise keep the video
+    on screen and carry on from wherever it now sits, the newest-first list
+    applying only behind it and the arrivals never coming up.  Genau has no
+    playlist file at all; it owns its own sequence, so it is told the order and
+    rescans its clips folder itself.
+
+    Nau's order alone is remembered, because ``main_latest`` describes the
+    playlist file we built: a later F-mode rebuild reads it to reload the same way
+    round, and the console draws it while Nau is the player showing.  Recording a
+    Genau reorder there would light "Latest" over a Nau playlist nobody reordered.
     """
-    state = replace(state, main_latest=recent)
-    apply_main_fmode(
-        enabled=state.main_f_mode,
-        main_sources=config.main_sources,
-        recent=recent,
-        state_dir=config.state_dir,
-        nau_cmd_file=config.nau_cmd_file,
-        start_at_top=True,
-    )
-    message = (f"{'Latest' if recent else 'Shuffle'}: main player "
-               f"{'newest-first' if recent else 'reshuffled'}")
-    logger.info(message)
-    return state, [WindowOp(op="notice", key=message, source=SOURCE_MAIN)]
+    on_nau = nau_displays(state.main_mode)
+    if on_nau:
+        state = replace(state, main_latest=recent)
+        apply_main_fmode(
+            enabled=state.main_f_mode,
+            main_sources=config.main_sources,
+            recent=recent,
+            state_dir=config.state_dir,
+            nau_cmd_file=config.nau_cmd_file,
+            start_at_top=True,
+        )
+    else:
+        append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
+    # The order's own word alone, and self-reported — see _dispatch_reorder.
+    label = LATEST_LABEL if recent else SHUFFLE_LABEL
+    logger.info("%s: main player (%s)", label, "nau" if on_nau else "genau")
+    return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
 
 
 def _dispatch_main_reset(
@@ -1807,10 +1825,17 @@ def _dispatch_reorder(
     result = _rebuild_side(which, _side_filter(state, which), state, config, start_at_top=True)
     state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
     state = _clear_side_grouping(state, which)
-    label = "portrait" if which == 2 else "landscape"
-    message = f"{'Latest' if recent else 'Shuffle'}: {label} {'newest-first' if recent else 'reshuffled'}"
-    logger.info("%s (%d clips)", message, result.count)
-    return state, [WindowOp(op="notice", key=message, source=_satellite_source(which))]
+    side = "portrait" if which == 2 else "landscape"
+    # The order's own word and nothing else.  The toast flashes on the player it
+    # was said to, and this is what that player's HUD calls the order it is now
+    # in, so naming the player and then spelling the order out a second time
+    # ("Latest: portrait newest-first") only read as a log line that had escaped
+    # onto the screen.  The count and the side stay in the log, where they are of
+    # use.  The dispatch owns the toast the way it owns F-mode's, so a spoken
+    # reorder is not echoed on top of it (see SELF_REPORTING_COMMANDS).
+    label = LATEST_LABEL if recent else SHUFFLE_LABEL
+    logger.info("%s: %s (%d clips)", label, side, result.count)
+    return state, [WindowOp(op="notice", key=label, source=_satellite_source(which))]
 
 
 # Everything a reset takes off a satellite, as the ``BridgeState`` field holding
