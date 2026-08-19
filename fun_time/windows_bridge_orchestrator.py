@@ -391,6 +391,17 @@ def _open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
+# What the finishing pass may spend, all of it behind the cover.  The cover comes
+# down on DONE, which is written at the end of it, so these bound how long the
+# progress file can sit unchanged while it runs — and the cover takes ITSELF
+# down if that goes past ``loading_screen.STALE_TIMEOUT_S``, which would put the
+# room's z-order back in front of the user.  A test pins the sum.
+HUD_PRIME_TIMEOUT_S = 20.0
+POST_LOADING_RESOLVE_TIMEOUT_S = 3.0
+SETTLE_PASSES = 8
+SETTLE_WAIT_S = 1.5
+
+
 def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
                             ignore: int = 0) -> None:
     """Record which windows, if any, cover *name* once the bands are re-applied.
@@ -452,12 +463,18 @@ def _fix_post_loading_windows(result: StartupResult, *,
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
-            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
+            # Also the wait that keeps the cover up until the dashboard has shown
+            # itself: it reveals on the last startup phase (see
+            # ``startup_still_building``) and hides from these lookups until it
+            # does, so resolving it here is what stops the cover leaving without
+            # it.  A dashboard that never arrives costs the wait and no more.
+            dash_hwnd = wait_for_window_by_title(
+                "Fun Time", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
 
     nau_hwnd = find_window_by_pid(result.nau_pid) or wait_for_window_by_title(
-        "Nau", timeout_s=3.0, exact=True
+        "Nau", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
-    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=3.0)
+    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S)
     # By title as well as pid, like Nau above: python_exe is the venv's pythonw
     # SHIM, so the recorded satellite pid is the launcher's rather than the
     # interpreter that owns the SDL window, and the by-pid lookup finds
@@ -467,10 +484,10 @@ def _fix_post_loading_windows(result: StartupResult, *,
     # topmost log said so each time), buried by the first window raised over
     # their rects.
     portrait_hwnd = find_window_by_pid(result.portrait_pid) or wait_for_window_by_title(
-        SATELLITE_PORTRAIT_TITLE, timeout_s=3.0, exact=True
+        SATELLITE_PORTRAIT_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
     landscape_hwnd = find_window_by_pid(result.landscape_pid) or wait_for_window_by_title(
-        SATELLITE_LANDSCAPE_TITLE, timeout_s=3.0, exact=True
+        SATELLITE_LANDSCAPE_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
     # A session opening in origenerator mode has its hosted window restored
     # behind the overlay already (the sequencer held the reveal for it); this
@@ -574,8 +591,8 @@ def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
     return owners
 
 
-def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = 8,
-                        wait_s: float = 1.5) -> None:
+def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
+                        wait_s: float = SETTLE_WAIT_S) -> None:
     """Re-promote whoever owns each satellite rect until it is genuinely
     frontmost over it — the players in player mode, the hosted app's region
     shows in origenerator mode, where the players are blacked underneath them.
@@ -785,8 +802,9 @@ def run_python_orchestrated_bridge(
         # Hold the loading screen until the HUD's group indexes are primed, so
         # Fun Time isn't revealed with the maps still blank.  Capped so a slow
         # library scan can't wedge startup — the maps just fill in late.
-        if hud_publisher is not None and not hud_primed.wait(timeout=20.0):
-            logger.warning("HUD indexes not primed after 20s; revealing anyway")
+        if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
+            logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
+                           HUD_PRIME_TIMEOUT_S)
         # Band the room and settle its z-order BEHIND the curtain.  Phase 4
         # deliberately left the bands off (each promotion inserts above the
         # overlay), so at this moment nothing of the session is topmost at all:

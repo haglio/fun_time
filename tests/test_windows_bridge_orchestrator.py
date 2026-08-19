@@ -13,6 +13,10 @@ from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
+    HUD_PRIME_TIMEOUT_S,
+    POST_LOADING_RESOLVE_TIMEOUT_S,
+    SETTLE_PASSES,
+    SETTLE_WAIT_S,
     _close_origenerator_gracefully,
     ChildProcess,
     _CHILD_PID_KEYS,
@@ -27,6 +31,7 @@ from fun_time.windows_bridge_orchestrator import (
     run_python_orchestrated_bridge,
 )
 from fun_time.win32 import StackedWindow
+from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.windows_bridge_dispatch_loop import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
@@ -1472,3 +1477,23 @@ class TestOrigeneratorGracefulClose:
             _close_origenerator_gracefully(ChildProcess(pid=0, created_at=0))
             _close_origenerator_gracefully(None)
         close.assert_not_called()
+
+
+class TestTheFinishingPassFitsBehindTheCover:
+    def test_it_cannot_outlast_the_covers_staleness_guard(self):
+        """The room is banded and settled behind the cover, and the cover comes
+        down on the DONE written at the end of that.  Nothing writes the progress
+        file in between, so the cover's staleness guard — its protection against
+        an orchestrator that died holding the screen — is running the whole time.
+        Outlast it and the cover takes itself down mid-pass, which is the user
+        watching the z-order sort itself out: the exact thing it is up for.
+
+        Every wait that pass can take, added up, has to clear that guard.  Five
+        window resolutions: the dashboard, Nau, Genau, and the two satellites.
+        """
+        budget = (
+            HUD_PRIME_TIMEOUT_S
+            + 5 * POST_LOADING_RESOLVE_TIMEOUT_S
+            + SETTLE_PASSES * SETTLE_WAIT_S
+        )
+        assert budget < STALE_TIMEOUT_S

@@ -3,8 +3,12 @@
 A session's windows arrive one at a time and leave the same way, so both ends
 of one raise a cover and do the work behind it.  The window is borderless and
 always on top; it reads how far the work has got from a progress file the
-orchestrator writes, and closes itself when that file says the orchestrator is
-finished with it.
+orchestrator writes, and closes itself when that file says DONE — and ONLY
+then.  It used to close on a full bar as well, which is not the same moment: the
+startup sequence reports its last phase and then spends seconds behind the cover
+putting the room in z-order, so a cover that left on the full bar left before any
+of that, and the user watched it happen.  DONE is the orchestrator's own word for
+"the room is finished", so it is the only thing that lifts the cover.
 
 Startup's cover offers a way out and shutdown's does not — see ``CancelOption``
 for that difference and for the reason it is the only one.
@@ -19,26 +23,10 @@ from pathlib import Path
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from .overlay_progress import parse_progress
+
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
-
-
-def parse_progress(text: str) -> tuple[int, int, str, bool]:
-    """Parse a progress file line.
-
-    Returns (step, total, message, done).
-    """
-    text = text.strip()
-    if text == "DONE":
-        return 0, 1, "", True
-    try:
-        parts = text.split("|", 1)
-        step_part = parts[0]
-        message = parts[1] if len(parts) > 1 else ""
-        step_str, total_str = step_part.split("/")
-        return int(step_str), int(total_str), message, False
-    except (ValueError, IndexError):
-        return 0, 1, "", False
 
 
 ICON_DISPLAY_SIZE = 128
@@ -243,7 +231,7 @@ class OverlayWindow:
                 text = self._progress_file.read_text(encoding="utf-8")
                 step, total, message, done = parse_progress(text)
 
-                if done or (total > 0 and step >= total):
+                if done:
                     self._root.destroy()
                     return
 

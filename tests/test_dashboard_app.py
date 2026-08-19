@@ -354,8 +354,9 @@ def test_do_render_skips_geometry_reapply_while_minimized(cfg_path: Path):
 
 
 def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
-    """During the loading overlay the dashboard is fully hidden (SW_HIDE) — never
-    shown, never minimized — so there is no flash and no minimize animation."""
+    """While startup is still building the room the dashboard is fully hidden
+    (SW_HIDE) — never shown, never minimized — so there is no flash and no
+    minimize animation."""
     import ctypes
     from unittest.mock import MagicMock
 
@@ -365,7 +366,7 @@ def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
     show_window = MagicMock()
-    with patch("fun_time.dashboard_app.loading_screen_active", return_value=True), \
+    with patch("fun_time.dashboard_app.startup_still_building", return_value=True), \
          patch.object(ctypes.windll.user32, "ShowWindow", show_window):
         window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
@@ -381,8 +382,10 @@ def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
 
 
 def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
-    """Once the overlay is gone the dashboard is shown (SW_SHOW) and minimize
-    routing is re-enabled — a reveal from hidden fires no restore edge to do it."""
+    """Once startup reaches its last phase the dashboard is shown (SW_SHOW) and
+    minimize routing is re-enabled — a reveal from hidden fires no restore edge
+    to do it.  The cover is still up at that point; the two tests below say where
+    the panel is put relative to it."""
     import ctypes
     from unittest.mock import MagicMock
 
@@ -391,7 +394,7 @@ def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
     app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    with patch("fun_time.dashboard_app.loading_screen_active", return_value=True):
+    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
         window = build_dashboard_window(app_config, launch_geometry=launch_geo)
 
     try:
@@ -399,7 +402,7 @@ def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
         assert window._suppress_minimize_routing is True
 
         show_window = MagicMock()
-        with patch("fun_time.dashboard_app.loading_screen_active", return_value=False), \
+        with patch("fun_time.dashboard_app.startup_still_building", return_value=False), \
              patch.object(ctypes.windll.user32, "ShowWindow", show_window), \
              patch.object(window, "show") as mock_show:
             window._maybe_reveal_after_loading()
@@ -410,6 +413,89 @@ def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
         SW_SHOW = 5
         modes = [c.args[1] for c in show_window.call_args_list if c.args[0] == window._dash_hwnd]
         assert SW_SHOW in modes
+    finally:
+        window.close()
+
+
+def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
+    """The panel shows itself while the cover is still up, so it must go BELOW it.
+
+    Both windows are topmost and showing a window puts it at the top of its band,
+    so a plain reveal would paint the panel over the cover until the cover's next
+    200ms poll re-asserted itself — a flash of exactly what the cover is there to
+    prevent.  So the same SetWindowPos that shows it names the cover as the window
+    to sit under, and does not activate.
+    """
+    import ctypes
+    from unittest.mock import MagicMock
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config)
+    app_config = load_dashboard_app_config(manifest_path)
+
+    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+        window = build_dashboard_window(
+            app_config, launch_geometry=DashboardLaunchGeometry(100, 200, 300, 400))
+
+    try:
+        COVER_HWND = 4242
+        set_window_pos = MagicMock()
+        with (
+            patch("fun_time.dashboard_app.startup_still_building", return_value=False),
+            patch("fun_time.dashboard_app.find_window_by_title", return_value=COVER_HWND),
+            patch.object(ctypes.windll.user32, "ShowWindow", MagicMock()),
+            patch.object(ctypes.windll.user32, "SetWindowPos", set_window_pos),
+            patch.object(window, "show"),
+        ):
+            window._maybe_reveal_after_loading()
+
+        placed = [c for c in set_window_pos.call_args_list
+                  if c.args[0] == window._dash_hwnd]
+        assert placed, "the reveal never placed the dashboard in the z-order"
+        insert_after, flags = placed[-1].args[1], placed[-1].args[6]
+        assert isinstance(insert_after, ctypes.c_void_p), (
+            "a bare int is passed as c_int, which truncates a 64-bit HWND"
+        )
+        assert insert_after.value == COVER_HWND, (
+            "the panel was not inserted below the cover, so it lands on top of it"
+        )
+        SWP_NOZORDER, SWP_NOACTIVATE = 0x0004, 0x0010
+        assert not flags & SWP_NOZORDER, "NOZORDER would discard the placement"
+        assert flags & SWP_NOACTIVATE, "the reveal must not take focus"
+    finally:
+        window.close()
+
+
+def test_dashboard_leaves_the_z_order_alone_when_there_is_no_cover(cfg_path: Path):
+    """No cover to find is not a reason to move the panel around: it is shown
+    where it already sits, exactly as it was before there was a cover to duck."""
+    import ctypes
+    from unittest.mock import MagicMock
+
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config)
+    app_config = load_dashboard_app_config(manifest_path)
+
+    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+        window = build_dashboard_window(
+            app_config, launch_geometry=DashboardLaunchGeometry(100, 200, 300, 400))
+
+    try:
+        set_window_pos = MagicMock()
+        with (
+            patch("fun_time.dashboard_app.startup_still_building", return_value=False),
+            patch("fun_time.dashboard_app.find_window_by_title", return_value=0),
+            patch.object(ctypes.windll.user32, "ShowWindow", MagicMock()),
+            patch.object(ctypes.windll.user32, "SetWindowPos", set_window_pos),
+            patch.object(window, "show"),
+        ):
+            window._maybe_reveal_after_loading()
+
+        placed = [c for c in set_window_pos.call_args_list
+                  if c.args[0] == window._dash_hwnd]
+        assert placed
+        SWP_NOZORDER = 0x0004
+        assert placed[-1].args[6] & SWP_NOZORDER
     finally:
         window.close()
 

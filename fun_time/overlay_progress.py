@@ -26,6 +26,24 @@ CANCEL_FILENAME = "startup_cancel.flag"
 SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 
 
+def parse_progress(text: str) -> tuple[int, int, str, bool]:
+    """Parse a progress file line.
+
+    Returns (step, total, message, done).
+    """
+    text = text.strip()
+    if text == "DONE":
+        return 0, 1, "", True
+    try:
+        parts = text.split("|", 1)
+        step_part = parts[0]
+        message = parts[1] if len(parts) > 1 else ""
+        step_str, total_str = step_part.split("/")
+        return int(step_str), int(total_str), message, False
+    except (ValueError, IndexError):
+        return 0, 1, "", False
+
+
 def cancel_file_for(progress_file: str | Path) -> Path:
     """The cancel flag that pairs with *progress_file* (its sibling in the
     state dir).  Both the loading screen and the orchestrator derive the path
@@ -54,14 +72,28 @@ class StartupCancelled(Exception):
         self.rfb_hwnd = rfb_hwnd
 
 
-def loading_screen_active(state_dir: Path) -> bool:
-    """True while the startup loading overlay is up.
+def startup_still_building(state_dir: Path) -> bool:
+    """True while startup is still assembling the room, so a companion window of
+    the session's own must stay out of the cover's way.
 
-    The overlay writes ``startup_progress.txt`` in the state dir for the
-    duration of startup and deletes it when it closes, so its presence is the
-    cue for other always-on-top windows to stay out of its way.
+    The orchestrator writes ``startup_progress.txt`` in the state dir for the
+    duration of startup, so its presence is the cue.  This goes False one phase
+    EARLY, though — at the final (weightless) phase, while the cover is still
+    up — and that is the point: a companion that waits for the cover to come
+    down shows itself AFTER the reveal, which is the user watching a window
+    arrive late on a room that was supposed to be finished.  Told here instead,
+    it puts itself on screen behind the cover and is already in place when the
+    cover lifts.
+
+    A missing file answers False too: no startup is running, so nothing is
+    waiting on one.
     """
-    return (Path(state_dir) / PROGRESS_FILENAME).exists()
+    path = Path(state_dir) / PROGRESS_FILENAME
+    try:
+        step, total, _message, done = parse_progress(path.read_text(encoding="utf-8"))
+    except OSError:
+        return False
+    return not done and not (total > 0 and step >= total)
 
 
 @dataclass(frozen=True)
@@ -83,8 +115,10 @@ class Phase:
 # The durations are read off state/event_log.jsonl (its entries bracket the first
 # three phases) and off a timed satellite launch (0.47s to its window).  They set
 # the SHAPE of the bar, so being a few tenths stale costs a little smoothness and
-# nothing else.  The last phase closes the overlay and so must be weightless: the
-# screen shuts when the reported position reaches the total.
+# nothing else.  The last phase is weightless so the bar reads full while it runs:
+# it is the one the room is banded and settled in, behind the cover, and the cover
+# comes down on DONE at the end of it (see ``startup_still_building``, which reads
+# that full bar as the companions' cue to show themselves while they still can).
 STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
