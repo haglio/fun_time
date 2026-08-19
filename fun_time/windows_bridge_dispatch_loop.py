@@ -1145,13 +1145,23 @@ class DispatchLoopRunner:
     def _restore_all_topmost(self) -> None:
         """Re-apply the topmost bands for the current modes after omnipause.
 
-        The fixed windows (own rects) go straight back to topmost; in
-        origenerator mode the hosted trio is promoted AFTER them, which stacks
-        it above the windows it covers; the overlapping Nau/Genau pair is then
-        re-stacked so Genau's HUD sits above Nau's video in hybrid.  See
+        Every role is asked the shared ``role_topmost`` policy, the fixed ones
+        included.  Promoting those without asking is what flashed the Random
+        Favs Browser over Origenerator on every resume: the browser shares its
+        rect with the hosted app's main window and the policy already answers
+        "not topmost" for it in origenerator mode, but this path put it in the
+        band anyway — and ``HWND_TOPMOST`` inserts at the TOP of the band, so
+        it sat above Origenerator until :meth:`_restack_satellites`, a few
+        SetWindowPos calls later, promoted the host back over it.
+
+        Then the hosted trio is promoted AFTER the fixed roles, which stacks it
+        above the windows it covers; the overlapping Nau/Genau pair is
+        re-stacked last so Genau's HUD sits above Nau's video in hybrid.  See
         :meth:`_restack_main_slot`.
         """
         for role in FIXED_TOPMOST_ROLES:
+            if not role_topmost(role, self.state.main_mode, self.state.satellites_mode):
+                continue
             hwnd = self._resolve_role(role)
             if hwnd:
                 set_always_on_top(hwnd, True)

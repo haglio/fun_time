@@ -35,6 +35,11 @@ LANDSCAPE_HWND = 4001
 DASHBOARD_HWND = 5001
 GENAU_HWND = 6001
 RFB_HWND = 7777
+# The hosted Origenerator's three windows, resolved by pid AND caption together.
+HOSTED_PID = 900
+HOSTED_HWND = 8001
+HOSTED_PORTRAIT_HWND = 8002
+HOSTED_LANDSCAPE_HWND = 8003
 
 PID_TO_HWND = {
     200: NAU_HWND,
@@ -72,6 +77,17 @@ def lookup_pid(pid):
 
 def lookup_title(title, exact=False):
     return GENAU_HWND if title == "Genau" and not exact else 0
+
+
+def lookup_hosted(pid, title):
+    """The hosted app's windows, which resolve by pid AND caption together."""
+    if pid != HOSTED_PID:
+        return 0
+    return {
+        "Origenerator": HOSTED_HWND,
+        "Origenerator Portrait": HOSTED_PORTRAIT_HWND,
+        "Origenerator Landscape": HOSTED_LANDSCAPE_HWND,
+    }.get(title, 0)
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -1628,6 +1644,8 @@ class TestModeDependentTopmost:
         calls: list[tuple[int, bool]] = []
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=lookup_title), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_for_process",
+                   side_effect=lookup_hosted), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda h, v: calls.append((h, v))):
             getattr(runner, method_name)()
@@ -1665,6 +1683,33 @@ class TestModeDependentTopmost:
                 NAU_HWND, GENAU_HWND} <= set(promoted)
         # Nau promoted before Genau → Genau's HUD lands above Nau's video.
         assert promoted.index(NAU_HWND) < promoted.index(GENAU_HWND)
+
+    def test_restore_all_topmost_leaves_the_browser_under_the_hosted_app(self, tmp_path):
+        """His: the Random Favs Browser flashes over Origenerator for a moment
+        every time the room resumes from OmniPause.
+
+        The browser shares its rect with the hosted app's main window, and the
+        band policy already answers "not topmost" for it in origenerator mode
+        — but this path promoted every fixed role without asking, so the
+        browser went to the top of the band (HWND_TOPMOST inserts there) and
+        stayed above Origenerator until _restack_satellites promoted the host
+        back over it a moment later.  That gap is the flash.
+        """
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, origenerator_pid=HOSTED_PID)
+        runner.state = BridgeState(main_mode="nau", satellites_mode="origenerator")
+
+        calls = self._topmost_calls(runner, "_restore_all_topmost")
+
+        promoted = [h for h, v in calls if v is True]
+        assert RFB_HWND not in promoted, (
+            "the browser was promoted into the topmost band while the hosted "
+            "app owns its rect, which puts it over Origenerator until the next "
+            "promotion pushes it back down"
+        )
+        # Everything the mode really does show still comes back.
+        assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND,
+                HOSTED_HWND, HOSTED_PORTRAIT_HWND,
+                HOSTED_LANDSCAPE_HWND} <= set(promoted)
 
 
 class TestBrowseLibrary:
