@@ -85,6 +85,14 @@ class CancelOption:
     """Asks the orchestrator to stop.  The cover stays up until the orchestrator
     answers, so nothing half-built is ever revealed."""
 
+    requested: Callable[[], bool]
+    """True once a cancel has been asked for by any route.  Esc reaches the
+    orchestrator two ways — this window's own binding, and the hotkey script's
+    global hook, which is the one that still works when something else has taken
+    the focus — so the words below follow the request rather than the keypress.
+    Without this, an Esc the hook caught left the cover reading "Press Esc to
+    cancel" right through the teardown it had just started."""
+
 
 class OverlayWindow:
     """One borderless, always-on-top window covering the whole virtual desktop."""
@@ -212,7 +220,10 @@ class OverlayWindow:
         if cancel is not None:
             # Esc anywhere on the overlay asks the orchestrator to stop.  The
             # focus is taken so the key lands here rather than on whatever the
-            # session put up last.
+            # session put up last.  It is not the only route — the hotkey script
+            # hooks the same key and needs no focus at all — so this is the
+            # binding that works when the cover has the focus, not the one the
+            # cancel rests on.
             self._root.bind("<Escape>", self._on_escape)
             self._root.focus_force()
 
@@ -221,11 +232,21 @@ class OverlayWindow:
     def _on_escape(self, _event: object = None) -> None:
         if self._cancel is None or self._status_held:
             return
-        self._status_held = True
+        self._hold_status()
         try:
             self._cancel.request()
         except OSError:
             pass
+
+    def _hold_status(self) -> None:
+        """Say we are cancelling, and go on saying it.
+
+        A step message still in flight would otherwise flip the line back to
+        business as usual while the teardown runs.
+        """
+        if self._cancel is None:
+            return
+        self._status_held = True
         try:
             self._status_label.configure(text=self._cancel.pending)
             self._hint_label.configure(text="")
@@ -237,6 +258,15 @@ class OverlayWindow:
         # this overlay is up (the newest topmost window wins), so re-assert on
         # every tick to stay visually on top until destroyed.
         self._root.attributes("-topmost", True)
+        # A cancel the hotkey script asked for on our behalf: the flag is on
+        # disk and no key ever reached this window, so the words are picked up
+        # here instead.
+        if self._cancel is not None and not self._status_held:
+            try:
+                if self._cancel.requested():
+                    self._hold_status()
+            except OSError:
+                pass
         try:
             if self._progress_file.exists():
                 mtime = self._progress_file.stat().st_mtime

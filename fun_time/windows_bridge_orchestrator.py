@@ -263,11 +263,32 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
 _CANCELLED_EXIT_CODE = 0
 
 
+def _stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
+    """Bring the hotkey script down through its own mailbox, then insist.
+
+    ``exit`` is what every other end of a session uses, and it lets AHK release
+    its keyboard hook on the way out.  One that ignored it would outlive the
+    launch it was hooked into and go on swallowing every key it binds — Esc
+    above all — with nothing left to hand them to.
+    """
+    try:
+        ahk_cmd_file.write_text("exit", encoding="utf-8")
+    except OSError:
+        logger.warning("Could not ask the hotkey script to exit", exc_info=True)
+    try:
+        proc.wait(timeout=3.0)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        logger.warning("Hotkey script did not exit after cancel, killed")
+
+
 def _cancel_startup(
     *,
     pids: list[int],
     rfb_hwnd: int,
     loading_proc: subprocess.Popen | None,
+    ahk_proc: subprocess.Popen,
+    ahk_cmd_file: Path,
     progress: ProgressReporter,
     progress_file: Path,
     cancel_file: Path,
@@ -278,8 +299,12 @@ def _cancel_startup(
     bringing the overlay down, so nothing half-started ever flashes into view.
     These children were launched seconds ago, so their PIDs are still theirs —
     no creation-time pinning is needed the way a deferred teardown needs it.
+
+    The hotkey script goes first: it is up from the start of a launch now, and
+    it is what read the Esc that got us here.
     """
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(pids))
+    _stop_hotkey_script(ahk_proc, ahk_cmd_file)
     for pid in pids:
         kill_process_tree(pid)
     close_window(rfb_hwnd)
@@ -497,9 +522,9 @@ def run_python_orchestrated_bridge(
 ) -> int:
     """Run the full Python-orchestrated bridge lifecycle.
 
-    1. Run startup sequencer (core session + window positioning + UI companions)
-    2. Write PIDs file for AHK
-    3. Launch AHK hotkey script
+    1. Cover every monitor and put the hotkey script up behind it
+    2. Run startup sequencer (core session + window positioning + UI companions)
+    3. Write the PIDs file, which is also what tells AHK the session is up
     4. Wait for AHK to exit
     5. Shut down all child processes
     """
@@ -513,6 +538,40 @@ def run_python_orchestrated_bridge(
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     show_overlays = not integration_mode
+
+    manifest = configparser.ConfigParser()
+    manifest.optionxform = str
+    manifest.read(str(manifest_path), encoding="utf-8")
+    bridge_config = build_bridge_config_from_manifest(manifest)
+    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+
+    # Route dispatch log messages to the windows bridge log file so they
+    # appear alongside AHK log entries (integration tests read this file).
+    # Before the hotkey script goes up, so the line naming what was launched
+    # lands in the same file the script itself starts writing to.
+    _add_dispatch_file_handler(Path(manifest["runtime"]["windows_bridge_log_file"]))
+
+    # Clear the previous session's leftovers before the hotkey script goes up,
+    # since from here on it is reading two of them.  The shared state file is
+    # deliberately NOT among them: startup writes this session's opening state to
+    # it (see session_resume.resume_shared_state), including whatever the resumed
+    # playlists were built under, and deleting it here would drop all of that back
+    # to defaults — the crashed-session leftovers that delete was for are cleared
+    # by that write instead.
+    #
+    # The pids file matters most: its appearance is what tells the hotkey script
+    # the session is up and its keys have something to reach, so a dead session's
+    # copy would put every key live over one that is still assembling.
+    dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
+    ahk_cmd_file = state_dir / "ahk_cmd.txt"
+    pids_file = state_dir / "bridge_pids.ini"
+    for stale in (
+        ahk_cmd_file,
+        pids_file,
+        dashboard_cmd_file,
+        dashboard_cmd_file.with_suffix(".processing"),
+    ):
+        stale.unlink(missing_ok=True)
 
     # --- Launch loading screen (normal mode only) ---
     loading_proc = None
@@ -533,11 +592,21 @@ def run_python_orchestrated_bridge(
     else:
         progress = NullProgress()
 
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(manifest_path), encoding="utf-8")
-    bridge_config = build_bridge_config_from_manifest(manifest)
-    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+    if integration_mode:
+        ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
+        logger.info("Pre-wrote suspend_hotkeys for integration test run")
+
+    # --- The hotkey script, up before the session it drives ---
+    # Esc has to reach us from the cover onward, and AHK's hotkeys are the only
+    # keys here that do not care which window holds the focus: they hook the
+    # keyboard rather than wait their turn in a window's message queue.  The
+    # loading screen's own Esc binding needs the focus, and something else taking
+    # it mid-launch is exactly what left a launch uncancellable.  The script holds
+    # its other keys until the pids file below says the session is up.
+    command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
+    logger.info("Launching AHK hotkey script: %s", " ".join(command))
+    ahk_proc = subprocess.Popen(command, cwd=project_dir)
+
     # The lock HUD's model is built here and published for each satellite player
     # to draw into its own video.  It rides the dashboard's enable gate, so an
     # integration run stays free of library scans and frame grabs.
@@ -554,11 +623,14 @@ def run_python_orchestrated_bridge(
         )
     except StartupCancelled as cancelled:
         # Esc during a phase: the sequence handed back exactly what it had
-        # launched.  Tear it down and exit before AHK or the dispatch loop start.
+        # launched.  Tear it down, take the hotkey script back out, and exit
+        # before the dispatch loop ever starts.
         return _cancel_startup(
             pids=cancelled.launched_pids,
             rfb_hwnd=cancelled.rfb_hwnd,
             loading_proc=loading_proc,
+            ahk_proc=ahk_proc,
+            ahk_cmd_file=ahk_cmd_file,
             progress=progress,
             progress_file=progress_file,
             cancel_file=cancel_file,
@@ -575,6 +647,8 @@ def run_python_orchestrated_bridge(
             ],
             rfb_hwnd=result.rfb_hwnd,
             loading_proc=loading_proc,
+            ahk_proc=ahk_proc,
+            ahk_cmd_file=ahk_cmd_file,
             progress=progress,
             progress_file=progress_file,
             cancel_file=cancel_file,
@@ -608,30 +682,12 @@ def run_python_orchestrated_bridge(
         # destroying the overlay can rearrange z-order.  Correct it now.
         _fix_post_loading_windows(result)
 
-    pids_file = state_dir / "bridge_pids.ini"
+    # The session is up and its windows are placed.  Writing this file records
+    # the children for teardown and, by appearing, hands the keyboard over: the
+    # hotkey script watches for it and takes its startup hold off, so the keys go
+    # live exactly when there is a session for them to drive.
     children = identify_children(result)
     write_pids_file(pids_file, children)
-
-    # Clean stale command files from previous sessions so the dispatch loop
-    # starts fresh.  The shared state file is deliberately NOT among them:
-    # startup already wrote this session's opening state to it (see
-    # session_resume.resume_shared_state), including whatever the resumed
-    # playlists were built under, and deleting it here would drop all of that
-    # back to defaults — the crashed-session leftovers that delete was for are
-    # cleared by that write instead.
-    # Start background dispatch loop (dashboard polling + genau sync)
-    dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
-    for stale in (
-        state_dir / "ahk_cmd.txt",
-        dashboard_cmd_file,
-        dashboard_cmd_file.with_suffix(".processing"),
-    ):
-        stale.unlink(missing_ok=True)
-
-    # Route dispatch log messages to the windows bridge log file so they
-    # appear alongside AHK log entries (integration tests read this file).
-    wb_log_path = Path(manifest["runtime"]["windows_bridge_log_file"])
-    _add_dispatch_file_handler(wb_log_path)
 
     rfb_target, rfb_work_dir, rfb_args = "", "", ""
     if manifest["random_favs_browser"]["enabled"] == "1":
@@ -641,10 +697,10 @@ def run_python_orchestrated_bridge(
     dispatch_runner = DispatchLoopRunner(
         role_hwnds=result.role_hwnds,
         config=bridge_config,
-        dashboard_cmd_file=Path(manifest["commands"]["dashboard_cmd_file"]),
+        dashboard_cmd_file=dashboard_cmd_file,
         manifest_path=Path(manifest_path),
         shared_state_file=shared_state_path(state_dir),
-        ahk_cmd_file=state_dir / "ahk_cmd.txt",
+        ahk_cmd_file=ahk_cmd_file,
         nau_pid=result.nau_pid,
         portrait_pid=result.portrait_pid,
         landscape_pid=result.landscape_pid,
@@ -708,15 +764,6 @@ def run_python_orchestrated_bridge(
             logger.info("Voice control disabled in config")
     except Exception:
         logger.exception("Voice control setup failed")
-
-    ahk_cmd_file = state_dir / "ahk_cmd.txt"
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
-        ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
-        logger.info("Pre-wrote suspend_hotkeys for integration test run")
-
-    command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
-    logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    ahk_proc = subprocess.Popen(command, cwd=project_dir)
 
     try:
         exit_code = ahk_proc.wait()

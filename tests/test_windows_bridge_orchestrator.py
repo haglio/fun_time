@@ -367,7 +367,7 @@ class TestRunPythonOrchestratedBridge:
                 project_dir=tmp_path,
             )
 
-        assert calls == ["launch_loading", "startup_sequence", "launch_ahk", "launch_closing"]
+        assert calls == ["launch_loading", "launch_ahk", "startup_sequence", "launch_closing"]
         assert code == 0
 
         # Should have killed all 6 child processes
@@ -762,10 +762,11 @@ class TestWaitForClosingScreen:
 
 
 class TestStartupCancellation:
-    """Pressing Esc on the loading screen aborts startup: the half-built session
-    is torn down, and AHK / the dispatch loop never start."""
+    """Pressing Esc aborts startup: the half-built session is torn down, the
+    hotkey script that read the Esc is taken back out, and the dispatch loop
+    never starts."""
 
-    def test_cancel_mid_startup_kills_launched_children_and_skips_ahk(self, cfg_factory, tmp_path, monkeypatch):
+    def test_cancel_mid_startup_kills_launched_children_and_stops_the_hotkeys(self, cfg_factory, tmp_path, monkeypatch):
         monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -805,8 +806,15 @@ class TestStartupCancellation:
         assert code == 0
         assert {300, 400, 600} <= set(killed)
         assert 1234 in closed
-        # AHK is never launched, and the dispatch loop never starts.
-        assert not [c for c in popen_cmds if "ahk.exe" in str(c)]
+        # The hotkey script is up from the start of a launch, so a cancelled one
+        # has to take it back out — left running it would go on swallowing every
+        # key it binds with nothing to hand them to.
+        assert len([c for c in popen_cmds if "ahk.exe" in str(c)]) == 1
+        assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        fake_ahk_proc.wait.assert_called()
+        # Its keys never went live: the pids file is what lifts that hold, and
+        # this startup never got as far as writing one.
+        assert not (state_dir / "bridge_pids.ini").exists()
         mock_runner.assert_not_called()
         # The overlay is brought down after teardown.
         fake_loading_proc.wait.assert_called()
@@ -857,7 +865,8 @@ class TestStartupCancellation:
 
         assert code == 0
         assert {200, 300, 400, 500, 600, 700} <= set(killed)
-        assert not [c for c in popen_cmds if "ahk.exe" in str(c)]
+        assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        assert not (state_dir / "bridge_pids.ini").exists()
         mock_runner.assert_not_called()
         # Priming is kicked off before the sequence, but the run bailed before the
         # reveal, so no dispatch loop was ever started to publish what it warmed.
@@ -905,6 +914,108 @@ class TestStartupCancellation:
         assert not stale.exists()  # cleared before startup
         # Startup ran to completion: the stale flag was not honored as a cancel.
         assert [c for c in popen_cmds if "ahk.exe" in str(c)]
+
+
+class TestHotkeyScriptGoesUpFirst:
+    """The hotkey script is launched before the startup sequence runs, not after
+    it.
+
+    Its hotkeys are the only keys in a launch that do not care which window holds
+    the focus — AHK hooks the keyboard rather than waiting its turn in a window's
+    message queue — so this ordering is what makes Esc reach the cancel after
+    something has taken the focus from the loading screen.  Launched last, as it
+    was, there was nothing hooking Esc during the one stretch where Esc is the
+    only way out.
+    """
+
+    def _run(self, cfg_factory, tmp_path, *, on_ahk_launch=None) -> Path:
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_overlay_proc = MagicMock()
+        fake_overlay_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            if "ahk.exe" in str(cmd):
+                if on_ahk_launch is not None:
+                    on_ahk_launch()
+                return fake_ahk_proc
+            return fake_overlay_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=state_dir,
+                project_dir=tmp_path,
+            )
+        return state_dir
+
+    def test_the_script_is_up_before_the_sequence_starts_launching_windows(
+        self, cfg_factory, tmp_path, monkeypatch
+    ):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        calls: list[str] = []
+
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            calls.append("ahk" if "ahk.exe" in str(cmd) else "overlay")
+            return fake_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: (calls.append("sequence"), _fake_startup_result())[1]), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+
+        assert calls.index("ahk") < calls.index("sequence")
+
+    def test_a_dead_sessions_pids_file_is_gone_before_the_script_can_read_it(
+        self, cfg_factory, tmp_path, monkeypatch
+    ):
+        """The pids file appearing is what tells the script the session is up and
+        its keys have something to reach.  A previous session's copy would put
+        every key live over one that is still assembling — and would take Esc's
+        cancel away with them, since Esc only cancels while the hold is on."""
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / "bridge_pids.ini").write_text("[pids]\nnau_pid = 999\n", encoding="utf-8")
+
+        seen: list[bool] = []
+        self._run(
+            cfg_factory, tmp_path,
+            on_ahk_launch=lambda: seen.append((state_dir / "bridge_pids.ini").exists()),
+        )
+
+        assert seen == [False]
+        # …and this session writes its own once startup is done, which is the
+        # handover: from here the hotkeys are live.
+        assert (state_dir / "bridge_pids.ini").is_file()
 
 
 class TestPostLoadingWindowState:

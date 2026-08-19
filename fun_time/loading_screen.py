@@ -7,6 +7,12 @@ never watched arriving one at a time, and closes when the orchestrator writes
 DONE.  Esc asks the orchestrator to abort: the cover stays up, now reading
 "Cancelling...", until startup has torn down whatever it had launched, so
 nothing half-started is ever revealed.
+
+Esc is bound here for when this window holds the focus, but it is not what the
+cancel rests on: the hotkey script is up alongside this cover and hooks the same
+key without needing the focus at all, which is what keeps a launch cancellable
+after something else has taken it.  Either route drops the same flag, and the
+words follow the flag rather than the keypress.
 """
 from __future__ import annotations
 
@@ -53,6 +59,7 @@ def main() -> None:
             hint="Press Esc to cancel",
             pending="Cancelling...",
             request=lambda: request_startup_cancel(progress_file),
+            requested=lambda: cancel_file_for(progress_file).exists(),
         ),
     ).run()
 
