@@ -1,6 +1,8 @@
 """The console panel Fun Time publishes for the main player's HUD to draw."""
 from __future__ import annotations
 
+import json
+
 from fun_time.dashboard_runtime import GenauStatus
 from fun_time.nau_console import (
     OSR2_AUTO,
@@ -45,6 +47,14 @@ class TestOsr2State:
                           funscript_driving=False) == OSR2_IDLE
         assert osr2_state(mode="genau", osr2_mode="controlled",
                           funscript_driving=False) == OSR2_GENAU
+
+    def test_a_nau_parked_off_screen_cannot_claim_the_device(self):
+        """The reported hole: in genau mode Nau is paused off screen, but its
+        status file still describes the scripted video it was last showing —
+        so this said "funscript" while Genau had the device, which dims every
+        control on the drive readout and refuses every press on it."""
+        assert osr2_state(mode="genau", osr2_mode="controlled",
+                          funscript_driving=True) == OSR2_GENAU
 
 
 class TestPayload:
@@ -113,3 +123,75 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
 
     assert _payload(mode="genau", latest=False, genau_latest=True)["latest"] is True
     assert _payload(mode="genau", latest=True, genau_latest=False)["latest"] is False
+
+
+class TestTheReadoutTheWordLeaves:
+    """The panel this module publishes and the drive readout a press lands on,
+    joined up.
+
+    Kept together because the failure lived in the seam and neither half could
+    see it: this module was tested for the *word* it publishes and the console
+    painter for what it does with a word handed to it, so a genau-mode session
+    publishing "funscript" — the console's word for "somebody else has the
+    device" — passed both suites while every ± mark and every draggable band on
+    Genau's own readout silently refused to be pressed.
+    """
+
+    @staticmethod
+    def _readout(payload: dict, tmp_path):
+        """The painter, fed *payload* the way the player is fed it, with a live
+        stroke on the readout; plus where the panel sits in the window."""
+        from player_core.console import read_console
+        from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
+        from player_core.drive_readout import DriveHud
+
+        panel = tmp_path / "nau_console.json"
+        panel.write_text(json.dumps(payload), encoding="utf-8")
+        console = read_console(panel)
+        assert console is not None
+
+        painter = ConsolePainter()
+        painter.rgba(ConsoleHud(
+            console=console,
+            drive=DriveHud(speed=50, amplitude=60, center=50,
+                           waveform=tuple(0.5 for _ in range(80))),
+        ))
+        return painter, hud_xy()
+
+    @staticmethod
+    def _center(rect, origin):
+        left, top = origin
+        x, y, w, h = rect
+        return left + x + w // 2, top + y + h // 2
+
+    def test_genaus_marks_and_bands_answer_a_press_in_genau_mode(self, tmp_path):
+        """Even with the video Nau is parked on carrying a funscript: Nau is not
+        on screen there, so nothing of its is driving and Genau's controls are
+        live.  This is the reported bug — 20 presses to move one level, because
+        19 of them landed on a readout dimmed by a paused player's playlist."""
+        painter, origin = self._readout(
+            _payload(mode="genau", funscript_driving=True), tmp_path)
+
+        marks = {b.action: r for r, b in painter.buttons
+                 if b.action.startswith(("genau_amplitude", "genau_center", "genau_speed"))}
+        assert marks, "the readout drew no marks to press"
+        for action, rect in marks.items():
+            assert painter.press_at(*self._center(rect, origin)) == action
+
+        for track in painter.tracks:
+            posted = painter.press_at(*self._center(track.rect, origin))
+            assert posted.startswith(f"genau_{track.axis}_"), (
+                f"the {track.axis} band refused a press: {posted!r}")
+
+    def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
+        """The other half of the rule, and the reason for it: in hybrid the two
+        drivers take turns on one device, and adjusting a stroke Genau is not
+        sending is what put both of them on it at once."""
+        painter, origin = self._readout(
+            _payload(mode="hybrid", funscript_driving=True), tmp_path)
+
+        for track in painter.tracks:
+            assert painter.press_at(*self._center(track.rect, origin)) == ""
+        for rect, button in painter.buttons:
+            if button.action.startswith(("genau_amplitude", "genau_center")):
+                assert painter.press_at(*self._center(rect, origin)) == ""
