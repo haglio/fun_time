@@ -137,7 +137,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
-    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -156,7 +155,12 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import BUTTON_GAP, BUTTON_PAD_H, BUTTON_PAD_V, BUTTON_RADIUS
+from shared_ui.spacing import (
+    BUTTON_GAP,
+    BUTTON_PAD_H_TIGHT,
+    BUTTON_PAD_V,
+    BUTTON_RADIUS,
+)
 
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
@@ -219,6 +223,11 @@ def _copied_icon(size: int, color: QColor) -> QIcon:
 # The room a combo box needs beyond its text: the drop-down arrow, and the frame
 # either side of it.
 _COMBO_CHROME = 22
+
+
+def _word_button_width(button: QToolButton) -> int:
+    """A word-button as wide as its word, plus the family's tight pad."""
+    return QFontMetrics(button.font()).horizontalAdvance(button.text())         + 2 * BUTTON_PAD_H_TIGHT
 
 
 def _verbosity_width(box: QComboBox) -> int:
@@ -310,19 +319,27 @@ class LogPanelWidget(QWidget):
             # Scripture: flat until you touch it, the family's button ground
             # under the cursor, its lighter on-ground while checked, and sized to
             # its own label rather than to a number.  A fixed 40px crushed the
-            # family's padding to nothing, which is what kept these reading as
-            # cramped chips next to those rows however they were colored.
+            # padding to nothing, which is what kept these reading as cramped
+            # chips next to those rows however they were colored -- and the FULL
+            # word-button pad overshot the other way, wanting more room than this
+            # bar has, so the layout squeezed them straight back to 40 and the
+            # change could not be seen at all.
             button.setStyleSheet(
                 "QToolButton { border: none;"
-                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H}px;"
+                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H_TIGHT}px;"
                 f" border-radius: {BUTTON_RADIUS}px;"
                 f" color: {TEXT_MUTED.name()}; background: transparent; }}"
                 f" QToolButton:hover {{ background: {BG_BUTTON.name()}; }}"
                 f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
                 f" background: {BG_BUTTON_ACTIVE.name()}; }}"
             )
-            button.setSizePolicy(QSizePolicy.Policy.Preferred,
-                                 QSizePolicy.Policy.Fixed)
+            button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            # Sized from the label itself.  A bare QToolButton's own size hint
+            # adds nearly thirty pixels a button for chrome it is not drawing --
+            # five of those overran the bar, and a row that asks for more than
+            # the bar has is squeezed straight back to where it started, which
+            # is why widening these changed nothing on screen.
+            button.setFixedWidth(_word_button_width(button))
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
             self._source_boxes[source] = button

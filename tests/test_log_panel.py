@@ -307,19 +307,33 @@ def test_the_level_dial_fits_its_longest_name(panel_factory):
     assert dial.width() > widest, "the longest level name does not fit"
 
 
-def test_a_source_toggle_is_as_wide_as_its_own_label(panel_factory):
-    """Sized to a fixed 40px, the family's padding was crushed to nothing, which
-    is what kept these reading as cramped chips beside Evolver's and Scripture's
-    rows however they were colored."""
+def test_a_source_toggle_is_exactly_as_wide_as_its_own_word(panel_factory):
+    """Sized to a flat 40px, the padding was crushed to nothing, which kept these
+    reading as cramped chips beside Evolver's and Scripture's rows however they
+    were colored.  Left to QToolButton's own hint they went the other way, adding
+    nearly thirty pixels a button for chrome they do not draw -- five of those
+    overran the bar, and an overrunning row is squeezed straight back to where it
+    started, which is how a change to it lands invisibly."""
     from PyQt6.QtGui import QFontMetrics
 
-    from shared_ui.spacing import BUTTON_PAD_H
+    from shared_ui.spacing import BUTTON_PAD_H_TIGHT
 
     panel = panel_factory(["Clip saved"])
     for button in panel._source_boxes.values():
-        label = QFontMetrics(button.font()).horizontalAdvance(button.text())
-        assert button.sizeHint().width() >= label + 2 * BUTTON_PAD_H, button.text()
-        assert button.maximumWidth() > 40, "it is pinned to a number again"
+        word = QFontMetrics(button.font()).horizontalAdvance(button.text())
+        assert button.width() == word + 2 * BUTTON_PAD_H_TIGHT, button.text()
+
+
+def test_the_filter_row_leaves_the_bar_its_own_room(panel_factory):
+    """The row is right-justified beside the dashboard's own buttons in a window
+    of fixed width.  Asking for more than is there widens nothing."""
+    from fun_time.dashboard_layout import compute_dashboard_bar_layout
+
+    panel = panel_factory(["Clip saved"])
+    panel.controls.adjustSize()
+    wanted = panel.controls.sizeHint().width()
+
+    assert wanted <= compute_dashboard_bar_layout().content_width * 1.4
 
 
 def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
