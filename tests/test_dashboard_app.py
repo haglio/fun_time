@@ -867,3 +867,32 @@ def test_the_help_mark_is_as_big_as_the_marks_beside_it():
     help_side = drawn[layout.help_button].width()
     mic_side = drawn[layout.voice_panel].width()
     assert abs(help_side - mic_side) <= 2
+
+
+def test_the_pause_tooltip_names_the_act_the_press_will_take():
+    """The mark already flips to a play triangle when everything is paused; the
+    tooltip said "Pause everything" either way, so hovering a paused bar offered
+    to do what it had already done."""
+    from fun_time.dashboard_app import OMNIPAUSE_RESUME_TOOLTIP
+
+    layout = compute_dashboard_bar_layout()
+
+    def tip(paused: bool) -> str:
+        scene = _scene(_snapshot(omni_paused=paused))
+        return next(text for rect, text in scene.hover_texts
+                    if rect == layout.omnipause_button)
+
+    assert tip(False) == "Pause everything"
+    assert tip(True) == OMNIPAUSE_RESUME_TOOLTIP
+
+
+def test_the_bar_draws_its_controls_the_shape_a_button_is_here():
+    """Square corners and a light outline read as panels, not as the buttons the
+    other apps in this family offer.  Same radius and same edge as Origenerator's
+    toolbar."""
+    from shared_ui.colors import BORDER_SUBTLE
+
+    from fun_time.dashboard_app import _BUTTON_RADIUS
+
+    assert _BUTTON_RADIUS == 4
+    assert all(item.outline == BORDER_SUBTLE for item in _scene().rects)
