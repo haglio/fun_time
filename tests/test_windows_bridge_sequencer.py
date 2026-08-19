@@ -11,6 +11,7 @@ from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANI
 from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
+    release_the_players,
     _wait_for_players_drawing,
     NAU_LOAD_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
@@ -893,6 +894,65 @@ class TestLoadingScreenStartup:
         }
 
 
+class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
+    """Every promotion in the banding walk lands ABOVE the cover, so the cover
+    has to be put back after each one.
+
+    ``HWND_TOPMOST`` inserts at the top of the topmost band, and the cover is
+    itself topmost — so a window promoted while it is up is over it until
+    something puts it back.  Left to the cover's own 200ms poll, that is a
+    window flashing through the scrim, and there is one per managed role.
+    """
+
+    ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
+                  "nau": 55, "genau": 66}
+    COVER = 999
+
+    def _calls(self, **kwargs):
+        calls: list[tuple[int, bool]] = []
+        with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
+                   side_effect=lambda h, v: calls.append((h, v))):
+            windows_bridge_sequencer._apply_topmost_bands(
+                dict(self.ROLE_HWNDS), "nau", **kwargs)
+        return calls
+
+    def test_the_cover_goes_back_on_top_after_every_promotion(self):
+        calls = self._calls(beneath=self.COVER)
+
+        promotions = [i for i, (h, on) in enumerate(calls)
+                      if on and h != self.COVER]
+        assert promotions, "nothing was promoted, so this proves nothing"
+        for index in promotions:
+            assert calls[index + 1] == (self.COVER, True), (
+                f"{calls[index]} was left above the cover until the next "
+                "SetWindowPos, which is long enough to see"
+            )
+
+    def test_the_walk_still_promotes_in_role_order(self):
+        """Interleaving the cover must not disturb who ends up above whom: the
+        order of the promotions is what puts Genau's HUD over Nau's video."""
+        banded = [h for h, on in self._calls(beneath=self.COVER)
+                  if on and h != self.COVER]
+        plain = [h for h, on in self._calls() if on]
+
+        assert banded == plain
+
+    def test_a_demotion_needs_no_cover_re_assert(self):
+        """Dropping out of the topmost band lands below the cover already, so
+        there is nothing to put back — and re-asserting anyway would spend a
+        SetWindowPos on every window the mode is hiding."""
+        calls = self._calls(beneath=self.COVER)
+
+        for index, (hwnd, on_top) in enumerate(calls):
+            if not on_top:
+                assert calls[index + 1:index + 2] != [(self.COVER, True)]
+
+    def test_without_a_cover_nothing_extra_is_touched(self):
+        """The re-band after the cover has gone, and the integration path, walk
+        exactly the windows they are given."""
+        assert all(h in self.ROLE_HWNDS.values() for h, _on in self._calls())
+
+
 class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause Nau."""
 
@@ -932,7 +992,15 @@ class TestPhase4Reveal:
                 hide_windows=True,
             )
 
-    def test_unpauses_nau_and_keeps_genau_parked(self, cfg_factory, tmp_path):
+    def test_every_player_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
+        """The path with a cover does not start playing when its phases end.
+
+        The finishing pass — the bands, the settle — runs after this and behind
+        the cover, so a player released here plays for seconds he can neither see
+        nor hear, and the opening of the video is gone by the time the cover
+        lifts.  The orchestrator calls ``release_the_players`` itself, once the
+        cover is off the screen.
+        """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
@@ -945,8 +1013,23 @@ class TestPhase4Reveal:
 
         self._run_hidden(manifest_path, tmp_path)
 
-        # The reveal: Nau is unpaused so it starts playing when the loading
-        # screen comes down; Genau and audio stay parked.
+        for key in ("nau_paused_file", "genau_paused_file", "audio_paused_file"):
+            assert Path(m["commands"][key]).read_text(encoding="utf-8").strip() == "1", key
+
+    def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
+        """And what the orchestrator calls once the cover is gone does start them:
+        Nau in nau mode, with Genau and its audio left parked."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
+            flag = Path(m["commands"][key])
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.write_text("1", encoding="utf-8")
+
+        release_the_players(m, "nau")
+
         assert Path(m["commands"]["nau_paused_file"]).read_text(encoding="utf-8").strip() == "0"
         assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
         assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"

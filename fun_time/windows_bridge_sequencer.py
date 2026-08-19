@@ -147,7 +147,7 @@ def _startup_role_hwnds(
 
 
 def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
-                         satellites_mode: str = "player") -> None:
+                         satellites_mode: str = "player", *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy for *mode* — the same policy omnipause and mode switches honor, so
     they can never disagree.
@@ -157,15 +157,22 @@ def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
     Genau's transparent HUD above Nau's video in hybrid, and the policy says so
     outright ("Genau is promoted last").
 
-    Never call this while the loading overlay is up.  The same insert-at-the-top
-    behavior, against an overlay that is itself topmost, draws each promoted
-    window over the overlay until its next poll re-asserts itself — the flashing
-    the overlay exists to prevent.
+    *beneath* is the loading overlay, when this runs behind it.  Each promotion
+    inserts at the top of the band and so lands OVER that overlay; left there
+    until the overlay's own 200ms poll re-asserted itself, every window in this
+    walk flashed through the cover on its way past.  Putting the cover back after
+    each one closes that to a single SetWindowPos — the cover is the top of the
+    band again before the next window is promoted under it.  Only promotions need
+    it: a demotion drops out of the topmost band entirely, which is already below
+    the cover.
     """
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            set_always_on_top(hwnd, role_topmost(role, mode, satellites_mode))
+            on_top = role_topmost(role, mode, satellites_mode)
+            set_always_on_top(hwnd, on_top)
+            if on_top and beneath:
+                set_always_on_top(beneath, True)
 
 
 def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
@@ -205,13 +212,15 @@ def _apply_startup_window_state(
     origenerator_landscape_hwnd: int = 0,
     mode: str = STARTUP_MAIN_MODE,
     satellites_mode: str = "player",
+    beneath: int = 0,
 ) -> dict[str, int]:
     """Set the full window state for the mode the session opens in: bands, then
     visibility.
 
-    Only for callers with no loading overlay on screen — the integration path,
-    which has nothing to hide behind, and ``_fix_post_loading_windows``, which
-    runs after the overlay process has exited.
+    *beneath* is the loading overlay when this runs behind one, and is what keeps
+    the cover on top across the walk — see :func:`_apply_topmost_bands`.  Zero
+    when there is no cover: the integration path, which has nothing to hide
+    behind, and the re-band after the cover has gone.
     """
     role_hwnds = _startup_role_hwnds(
         portrait_hwnd=portrait_hwnd,
@@ -224,7 +233,7 @@ def _apply_startup_window_state(
         origenerator_portrait_hwnd=origenerator_portrait_hwnd,
         origenerator_landscape_hwnd=origenerator_landscape_hwnd,
     )
-    _apply_topmost_bands(role_hwnds, mode, satellites_mode)
+    _apply_topmost_bands(role_hwnds, mode, satellites_mode, beneath=beneath)
     _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)
     return role_hwnds
 
@@ -240,6 +249,35 @@ class _LaunchedChildren:
 
     pids: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
+
+
+def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
+    """Start the players the session's mode puts to work.
+
+    Startup holds every one of them so nothing plays into a room that is still
+    being built; this releases exactly the ones the mode shows — Nau in nau and
+    hybrid, Genau (with its audio) in genau and hybrid, and the idle slot-mate
+    not at all, so nothing plays into a minimized window or drives the OSR2
+    unasked.
+
+    Called by the sequencer on the path with no cover, and by the orchestrator on
+    the path with one — there, only once the cover has actually left the screen.
+    That is the whole reason it is a function of its own: released with the
+    phases, playback starts while the cover is still hiding it, and the first
+    seconds of the video are spent behind it.
+    """
+    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(main_mode))
+    for key in ("genau_paused_file", "audio_paused_file"):
+        write_flag_file(m["commands"][key], not genau_active(main_mode))
+    # Genau's stroke rides its command channel rather than that flag (see
+    # seed_startup_states, which holds it there), so the mode where it drives
+    # outright has to be told here or it never starts.  Only genau mode: in hybrid
+    # the dispatch loop's arbiter picks between Genau and the funscript on its
+    # first tick, and a RESUME here would start Genau against a funscript that is
+    # about to take the device — the same reason leaving OmniPause resumes Genau
+    # in genau mode alone.
+    if main_mode == "genau":
+        append_command(Path(m["commands"]["genau_cmd_file"]), "RESUME")
 
 
 def run_startup_sequence(
@@ -641,25 +679,13 @@ def _run_startup_phases(
 
         progress.advance("finalizing")
 
-    # The reveal: startup held every player, and this releases the ones the
-    # session's mode actually puts to work — Nau in nau and hybrid, Genau (with
-    # its audio) in genau and hybrid, and the idle slot-mate not at all, so
-    # nothing plays into a minimized window or drives the OSR2 unasked.  This
-    # runs in both paths — the loading-screen (hide_windows) path reveals
-    # everything at once, and the no-loading-screen path (integration) has
-    # nothing to hide behind but must still start its players.
-    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(main_mode))
-    for key in ("genau_paused_file", "audio_paused_file"):
-        write_flag_file(m["commands"][key], not genau_active(main_mode))
-    # Genau's stroke rides its command channel rather than that flag (see
-    # seed_startup_states, which holds it there), so the mode where it drives
-    # outright has to be told here or it never starts.  Only genau mode: in hybrid
-    # the dispatch loop's arbiter picks between Genau and the funscript on its
-    # first tick, and a RESUME here would start Genau against a funscript that is
-    # about to take the device — the same reason leaving OmniPause resumes Genau
-    # in genau mode alone.
-    if main_mode == "genau":
-        append_command(Path(m["commands"]["genau_cmd_file"]), "RESUME")
+    # A session with nothing to hide behind starts playing as soon as it is
+    # built.  One with a cover does NOT: the orchestrator calls this itself once
+    # the cover is off the screen, because a player released while the cover is
+    # still up is a video (and Genau's audio) running behind it, and the first
+    # seconds of it are gone by the time he can see or hear them.
+    if not hide_windows:
+        release_the_players(m, main_mode)
 
     return StartupResult(
         nau_pid=nau_pid,

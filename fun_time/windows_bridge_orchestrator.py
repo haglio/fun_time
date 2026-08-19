@@ -51,6 +51,7 @@ from .windows_bridge_dispatch_loop import (
 )
 from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .windows_bridge_sequencer import (
+    release_the_players,
     StartupResult,
     _apply_startup_window_state,
     _apply_topmost_bands,
@@ -517,6 +518,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         origenerator_landscape_hwnd=show_hwnds["origenerator_landscape"],
         mode=result.main_mode,
         satellites_mode=result.satellites_mode,
+        beneath=overlay_hwnd,
     )
     _keep_the_curtain_up(overlay_hwnd)
     logger.info("Post-loading window state corrected")
@@ -610,7 +612,8 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
 
     The loading overlay covers everything on purpose, so it is not a burial:
     left in the test, this loop would spend every pass re-promoting windows
-    that are exactly where they belong.
+    that are exactly where they belong — and it is put back on top after every
+    single promotion, since each one lands above it.
     """
     for _ in range(passes):
         stack = iter_zorder()
@@ -623,7 +626,10 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
         for name, hwnd in buried:
             logger.info("The %s region is still buried; re-asserting its band", name)
             set_always_on_top(hwnd, True)
-        _keep_the_curtain_up(overlay_hwnd)
+            # After each one, not after the batch: the promotion lands above the
+            # cover, and anything left there until the next window's turn shows
+            # through it.
+            _keep_the_curtain_up(overlay_hwnd)
         time.sleep(wait_s)
 
 
@@ -826,6 +832,14 @@ def run_python_orchestrated_bridge(
                 loading_proc.kill()
                 logger.warning("Loading screen did not exit, killed")
         progress_file.unlink(missing_ok=True)
+
+        # The cover is off the screen: NOW the players may run.  The phase walk
+        # deliberately leaves this to us (see ``release_the_players``) — released
+        # with the phases, Nau's video and Genau's audio would have been running
+        # for the whole finishing pass, behind a cover he cannot see or hear
+        # through, and the opening seconds of the video would be gone by the time
+        # it lifted.
+        release_the_players(manifest, result.main_mode)
 
         # The overlay's own teardown hands activation to whatever is next in
         # the z-order, so the bands are asserted once more over the finished

@@ -1497,3 +1497,57 @@ class TestTheFinishingPassFitsBehindTheCover:
             + SETTLE_PASSES * SETTLE_WAIT_S
         )
         assert budget < STALE_TIMEOUT_S
+
+
+class TestThePlayersStartWhenTheCoverIsGone:
+    """Nau's video and Genau's audio must not run behind the cover.
+
+    The phase walk used to release them as its last act, which was also the
+    moment the cover came down {D} so they lined up.  Now the cover is held
+    through the finishing pass, and releasing with the phases would mean the
+    video (and the audio, which he can hear through nothing) running for seconds
+    behind a scrim, its opening spent before he can see it.  So the release is
+    the orchestrator's, and it comes after the cover's process is gone.
+    """
+
+    def _run(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        events: list[str] = []
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+
+        def fake_popen(cmd, **kwargs):
+            return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
+                   return_value={}), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_players",
+                   side_effect=lambda *_a: events.append("players released")), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+        return events
+
+    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path, monkeypatch):
+        events = self._run(cfg_factory, tmp_path, monkeypatch)
+
+        assert "players released" in events, "the players were never started"
+        assert events.index("cover gone") < events.index("players released"), (
+            "the players were started while the cover was still up"
+        )
