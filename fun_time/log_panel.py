@@ -130,7 +130,7 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 # PyQt6 widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
-from PyQt6.QtGui import QColor, QFontMetrics, QIcon
+from PyQt6.QtGui import QColor, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -145,7 +145,6 @@ from shared_ui.colors import (
     AMBER,
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
-    BG_KEYCAP,
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
@@ -157,12 +156,7 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import (
-    BUTTON_GAP,
-    BUTTON_PAD_H,
-    BUTTON_PAD_V,
-    BUTTON_RADIUS,
-)
+from shared_ui.spacing import BUTTON_GAP, BUTTON_RADIUS
 
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
@@ -220,17 +214,6 @@ def _copy_icon(size: int, color: QColor) -> QIcon:
 def _copied_icon(size: int, color: QColor) -> QIcon:
     """A tick — what the copy button shows for a moment after a successful copy."""
     return QIcon(glyph_pixmap("check", size, color))
-
-
-# The 1px border a word-button carries on each side, which its width has to
-# leave room for on top of the word and its padding.
-_BUTTON_BORDER = 1
-
-
-def _word_button_width(button: QToolButton) -> int:
-    """A word-button as wide as its word, plus the family's padding and border."""
-    return (QFontMetrics(button.font()).horizontalAdvance(button.text())
-            + 2 * (BUTTON_PAD_H + _BUTTON_BORDER))
 
 
 class LogPanelWidget(QWidget):
@@ -308,38 +291,17 @@ class LogPanelWidget(QWidget):
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
-            button.setFont(make_font(FONT_UI, SIZE_SMALL))
-            # Built like the rows of buttons across the top of Evolver and
-            # Scripture: flat until you touch it, the family's button ground
-            # under the cursor, its lighter on-ground while checked, and sized to
-            # its own label rather than to a number.  A fixed 40px crushed the
-            # padding to nothing, which is what kept these reading as cramped
-            # chips next to those rows however they were colored -- and the FULL
-            # word-button pad overshot the other way, wanting more room than this
-            # bar has, so the layout squeezed them straight back to 40 and the
-            # change could not be seen at all.
-            # Scripture's button, spelled out: a ground, a subtle border around
-            # it, the family's word padding and radius -- and the lighter ground
-            # when it is on.  Flat-until-hovered was a guess at what "look like
-            # those" meant, and a borderless chip is not what those look like.
-            button.setStyleSheet(
-                "QToolButton {"
-                f" color: {TEXT_PRIMARY.name()};"
-                f" background: {BG_BUTTON.name()};"
-                f" border: 1px solid {BORDER_SUBTLE.name()};"
-                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H}px;"
-                f" border-radius: {BUTTON_RADIUS}px; }}"
-                f" QToolButton:hover {{ background: {BG_KEYCAP.name()}; }}"
-                f" QToolButton:checked {{ background: {BG_BUTTON_ACTIVE.name()}; }}"
-                f" QToolButton:!checked {{ color: {TEXT_MUTED.name()}; }}"
-            )
+            # Left to Qt, exactly as Scripture's toolbar leaves its own buttons:
+            # no font of ours, no stylesheet, no width.  Every hand-styled
+            # version of these -- a chip, a flat pill, a bordered button -- was
+            # a guess at what that row looks like, and each one missed on the
+            # font, the colors, or both.  The style already knows; the only
+            # difference left is the icon, which a source filter has no use for.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            # Sized from the label itself.  A bare QToolButton's own size hint
-            # adds nearly thirty pixels a button for chrome it is not drawing --
-            # five of those overran the bar, and a row that asks for more than
-            # the bar has is squeezed straight back to where it started, which
-            # is why widening these changed nothing on screen.
-            button.setFixedWidth(_word_button_width(button))
+            # Auto-raise is what a QToolBar does to the buttons it holds, and it
+            # is the whole difference between Scripture's flat row and the framed
+            # buttons a bare QToolButton draws for itself.
+            button.setAutoRaise(True)
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
             self._source_boxes[source] = button
