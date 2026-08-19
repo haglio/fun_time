@@ -265,7 +265,7 @@ The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (i
 
 The Nau-mode voice trigger is spoken as "now now" (the reference displays it as "nau nau" — "nau" itself is not in the recognizer's vocabulary).
 
-The satellite side has a mode axis of its own, orthogonal to the three above: **player mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "generator mode" / "player mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in player mode), and the slideshows and fullscreen views it opens land on the portrait or landscape satellite region by each subject's orientation — so up to two shows can run while the Origenerator window itself stays usable. A show landing on a region pauses the player it covers; the show closing resumes it. The satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`) drive whatever holds their region — the show when one covers it, the player when none does — and the OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
+The satellite side has a mode axis of its own, orthogonal to the three above: **player mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "generator mode" / "player mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in player mode), and the slideshows and fullscreen views it opens land on the portrait or landscape satellite region by each subject's orientation — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both regions on the whole Origenerator library of their own shape, shuffled — the same base state each satellite player holds in player mode, and what a region's reset button goes back to. Both satellite players are paused and blacked out for the whole of the mode (the regions are the hosted app's throughout, and a player decoding under a show was decoding for nobody), so the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`) reach the hosted app for as long as the mode lasts. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
 
 ### The library browser (Nau mode)
 
@@ -560,11 +560,14 @@ The hosted Origenerator's channel, spoken in the same idioms as the satellites'
 (`player_core.file_channel`). The command file carries side-prefixed transport
 verbs (`PORTRAIT_NEXT`, `LANDSCAPE_LOCK`, `PORTRAIT_RESET`, …) — the gestures
 the shared control band draws, so a show answers each of them the way the
-player under it would — plus `CLOSE_SHOWS` and `QUIT`; the
-paused flag freezes its shows for OmniPause; the status file reports which
-satellite regions its shows cover (`portrait_active=`, `portrait_video=`,
-`portrait_locked=`, and the landscape trio), which is how the dispatch loop
-knows to pause the player a show covers and resume it when the show closes.
+player under it would — plus `OPEN_SHOWS` (entering the mode, which fills both
+regions with their base state), `CLOSE_SHOWS` and `QUIT`, and
+`PORTRAIT_SAY:<phrase>` for a spoken command the session heard about one
+region. The paused flag freezes its shows — and its own looping thumbnails —
+for OmniPause. The status file reports which satellite regions its shows cover
+(`portrait_active=`, `portrait_video=`, `portrait_locked=`, and the landscape
+trio): a readout for the session's diagnostics, since the players are held for
+the whole mode rather than per show.
 
 ### `event_log.jsonl`
 

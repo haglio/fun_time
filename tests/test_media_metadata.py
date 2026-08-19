@@ -605,3 +605,33 @@ def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
 
     assert sidecar.read_text(encoding="utf-8") == before
     assert not metadata_path_for(unknown, metadata_root).exists()
+
+
+def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps():
+    """The lock HUD's lit filter button and this matcher must not drift apart.
+
+    player_core owns the HUD now and carries its own table of the rule, but its
+    suite runs with player_core alone on the path, so it cannot reach the
+    authority it mirrors.  This side can: fun_time is the repo that wears the
+    HUD and applies the filter, so the agreement is pinned here.  The empty
+    query is the one deliberate difference — it keeps every clip, and lights no
+    row.
+    """
+    from player_core.satellite_hud import label_is_filtered
+
+    cases = [
+        ("Gamma", "gamma", True),               # the row that names it
+        ("POV Gamma", "gamma", True),           # the query is one act of the row
+        ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
+        ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both sides
+        ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very clip
+        ("Gamma", "gamma, theta", False),       # …which does not keep a one-act clip
+        ("Alpha", "gamma", False),
+        ("Gam", "gamma", False),                # the label is not the longer query
+    ]
+    for label, query, expected in cases:
+        assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
+        assert label_is_filtered(label, query) is expected, (label, query)
+
+    assert matches_query({"video": {"action": "Gamma"}}, "") is True
+    assert label_is_filtered("Gamma", "") is False
