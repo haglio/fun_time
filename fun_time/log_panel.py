@@ -145,6 +145,7 @@ from shared_ui.colors import (
     AMBER,
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
+    BG_KEYCAP,
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
@@ -156,7 +157,12 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import BUTTON_GAP, BUTTON_RADIUS
+from shared_ui.spacing import (
+    BUTTON_GAP,
+    BUTTON_PAD_H_TIGHT,
+    BUTTON_PAD_V,
+    BUTTON_RADIUS,
+)
 
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
@@ -291,13 +297,25 @@ class LogPanelWidget(QWidget):
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
-            # Left to Qt, exactly as Scripture's toolbar leaves its own buttons:
-            # no font of ours, no stylesheet, no width.  Every hand-styled
-            # version of these -- a chip, a flat pill, a bordered button -- was
-            # a guess at what that row looks like, and each one missed on the
-            # font, the colors, or both.  The style already knows; the only
-            # difference left is the icon, which a source filter has no use for.
+            # The font, the metrics and the shape are Qt's, exactly as
+            # Scripture's toolbar leaves its own buttons -- every hand-drawn
+            # imitation of that row got the font wrong.  Only the colors are
+            # ours, and they have to be: Scripture's buttons do not toggle, so
+            # Qt has no dark answer for "checked" and paints it in the default
+            # palette's bright highlight, which is a color this family uses
+            # nowhere.  Dark gray with white writing, the way that row reads,
+            # and the family's lighter ground for the ones that are on.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            button.setStyleSheet(
+                "QToolButton {"
+                f" color: {TEXT_PRIMARY.name()};"
+                f" background: {BG_BUTTON.name()};"
+                f" border: none; border-radius: {BUTTON_RADIUS}px;"
+                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H_TIGHT}px; }}"
+                f" QToolButton:hover {{ background: {BG_KEYCAP.name()}; }}"
+                f" QToolButton:checked {{ background: {BG_BUTTON_ACTIVE.name()}; }}"
+                f" QToolButton:!checked {{ color: {TEXT_MUTED.name()}; }}"
+            )
             # Auto-raise is what a QToolBar does to the buttons it holds, and it
             # is the whole difference between Scripture's flat row and the framed
             # buttons a bare QToolButton draws for itself.

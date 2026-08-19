@@ -299,24 +299,42 @@ def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
 
 
 def test_the_source_toggles_are_left_to_the_style(panel_factory):
-    """Exactly as Scripture's toolbar leaves its own buttons.
+    """The font, the metrics and the shape are Qt's, as Scripture's toolbar
+    leaves its own -- every hand-drawn imitation of that row got the font wrong.
 
-    Every hand-styled version of these -- a chip, a flat pill, a bordered
-    button -- was a guess at what that row looks like, and each one missed on
-    the font, the colors, or both.  So none of it is ours any more: no
-    stylesheet, no font, no width.  The one thing set on purpose is auto-raise,
-    which is what a QToolBar does to the buttons it holds, and the whole
-    difference between a flat row and buttons that draw their own frame.
+    Only the colors are ours, and they have to be: Scripture's buttons do not
+    toggle, so Qt has no dark answer for "checked" and paints it in the default
+    palette's bright highlight -- a color this family uses nowhere.
     """
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication
 
+    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, TEXT_PRIMARY
+
     panel = panel_factory(["Clip saved"])
 
     for button in panel._source_boxes.values():
-        assert button.styleSheet() == "", "styled by hand again"
         assert button.font() == QApplication.font(), "given a font of our own"
         assert button.minimumWidth() == 0 and button.maximumWidth() > 1000,             "pinned to a width again"
-        assert button.autoRaise(), "it would draw its own frame"
+        assert button.autoRaise()
         assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextOnly
         assert button.isCheckable()
+
+        sheet = button.styleSheet()
+        assert BG_BUTTON.name() in sheet and TEXT_PRIMARY.name() in sheet
+        assert "font" not in sheet, "the font is Qt's, not ours"
+        assert "width" not in sheet, "the width is Qt's, not ours"
+
+
+def test_a_checked_source_never_takes_the_default_highlight(panel_factory):
+    """Left to Qt a checked tool button comes out the palette's bright
+    highlight, which is a color no app in this family uses."""
+    import re
+
+    from shared_ui.colors import BG_BUTTON_ACTIVE
+
+    panel = panel_factory(["Clip saved"])
+    sheet = panel._source_boxes["system"].styleSheet()
+
+    checked = re.search(r"QToolButton:checked \{([^}]*)\}", sheet)
+    assert checked and BG_BUTTON_ACTIVE.name() in checked.group(1)
