@@ -333,9 +333,11 @@ def test_the_minimize_button_wears_a_bar_rather_than_a_font_glyph():
     rendered = HudRenderer("landscape").render(
         HudModel(side="landscape", lock_label="Unlocked"))
     x, y, w, h = {name: rect for rect, name in rendered.targets.control}["minimize"]
-    # The button's own outline is its border, so only the interior is the mark.
+    # The button's own outline is its border, so only the interior is the mark --
+    # and the interior is the button's ground now, itself gray, so the mark is
+    # what is BRIGHTER than that ground.
     inside = _rgb(rendered.bgra)[y + 2:y + h - 2, x + 2:x + w - 2]
-    ys, xs = np.nonzero((inside > 60).all(axis=2))
+    ys, xs = np.nonzero((inside > 150).all(axis=2))
 
     assert len(ys), "the minimize button drew no mark at all"
     assert xs.max() - xs.min() > ys.max() - ys.min()  # a bar, not a box or a glyph

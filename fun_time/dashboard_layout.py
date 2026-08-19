@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE
+
 
 def clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
@@ -51,8 +53,12 @@ def client_rect_filling_frame(
 # each player's own HUD, since it is set per player now.)  They do not need to be
 # arranged like the room.
 
-BUTTON = 26          # a control in the bar
-GAP = 8              # between controls
+# The family's own button square and the gap between two of them, so a control
+# here is the same object a control in Origenerator's bank is.  Both were this
+# bar's own numbers, which is what left four apps on one screen looking like
+# four different kinds of chrome.
+BUTTON = BUTTON_SIZE
+GAP = BUTTON_GAP
 GROUP_GAP = 22       # between the app's own lockup and the controls
 PAD = 10             # inset from the bar's edges
 APP_ICON = 24

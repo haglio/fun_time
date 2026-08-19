@@ -24,6 +24,7 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
+from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
 from fun_time.overlay_progress import loading_screen_active
@@ -186,7 +187,10 @@ def _mark_pixmap(name: str, w: int, h: int) -> QPixmap:
     """
     key = (name, w, h)
     if key not in _dashboard_pixmap_cache:
-        _dashboard_pixmap_cache[key] = glyph_pixmap(name, min(w, h), COLOR_TEXT)
+        # The family's icon size, not the control's full height: every button in
+        # every app hugs its mark by the same amount, which they did not before.
+        side = min(BUTTON_ICON, min(w, h))
+        _dashboard_pixmap_cache[key] = glyph_pixmap(name, side, COLOR_TEXT)
     return _dashboard_pixmap_cache[key]
 
 
@@ -194,9 +198,9 @@ def _mark_pixmap(name: str, w: int, h: int) -> QPixmap:
 # — one constant so the two can't drift, and so tests can find the real window.
 REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 
-# How round a control's corners are -- the radius Origenerator's toolbar buttons
-# carry, so a button in one app is the same shape as a button in the other.
-_BUTTON_RADIUS = 4
+# How round a control's corners are -- the family's radius, so a button in one
+# app is the same shape as a button in the other.
+_BUTTON_RADIUS = BUTTON_RADIUS
 
 # Every control in the bar names itself on hover.  Omnipause names the act the
 # press will take rather than the state it is in, the way its mark does: paused,
