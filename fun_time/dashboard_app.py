@@ -942,6 +942,29 @@ class DashboardWindow(QMainWindow):
         )
 
 
+# Which checkout this process actually imported, written beside the session's
+# other state.  A branch session runs from a worktree by setting the working
+# directory, and nothing anywhere said whether that had taken -- so a change that
+# was in the code and not on the screen left no way to tell the two apart, and
+# the guessing that follows costs a review round every time.
+SOURCE_CHECKOUT_FILENAME = "dashboard_source.txt"
+
+
+def source_checkout() -> Path:
+    """The checkout this module was imported from."""
+    return Path(__file__).resolve().parent.parent
+
+
+def record_source_checkout(state_dir: Path) -> Path:
+    """Write :func:`source_checkout` where the session's state lives."""
+    destination = Path(state_dir) / SOURCE_CHECKOUT_FILENAME
+    try:
+        destination.write_text(f"{source_checkout()}\n", encoding="utf-8")
+    except OSError:
+        pass  # A dashboard that cannot leave a note still runs.
+    return destination
+
+
 def build_dashboard_window(
     app_config: DashboardAppConfig,
     *,
@@ -994,6 +1017,7 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication.instance() or QApplication([])
 
     app_config = load_dashboard_app_config(Path(args.manifest_path))
+    record_source_checkout(app_config.dashboard_state_file.parent)
     launch_geometry = None
     if None not in {args.x, args.y, args.width, args.height}:
         launch_geometry = DashboardLaunchGeometry(

@@ -905,3 +905,21 @@ def _mark_side(rect) -> int:
     from shared_ui.spacing import BUTTON_ICON
 
     return min(BUTTON_ICON, min(rect.width, rect.height))
+
+
+def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
+    """A branch session runs from a worktree by setting the working directory,
+    and nothing said whether that had taken.  A change that is in the code and
+    not on the screen then leaves no way to tell an implementation fault from a
+    delivery one, which costs a review round every time it happens."""
+    from fun_time.dashboard_app import (
+        SOURCE_CHECKOUT_FILENAME,
+        record_source_checkout,
+        source_checkout,
+    )
+
+    written = record_source_checkout(tmp_path)
+
+    assert written.name == SOURCE_CHECKOUT_FILENAME
+    assert written.read_text(encoding="utf-8").strip() == str(source_checkout())
+    assert (source_checkout() / "fun_time" / "dashboard_app.py").exists()
