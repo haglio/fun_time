@@ -19,7 +19,7 @@ from shared_ui.colors import (
     BG_BUTTON_ACTIVE,
     BG_PRIMARY,
     BLUE,
-    BORDER_PANEL,
+    BORDER_SUBTLE,
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
@@ -111,7 +111,7 @@ class DashboardImageItem:
 @dataclass(frozen=True)
 class DashboardRectItem:
     rect: Rect
-    outline: QColor = field(default_factory=lambda: BORDER_PANEL)
+    outline: QColor = field(default_factory=lambda: BORDER_SUBTLE)
     fill: QColor = field(default_factory=lambda: COLOR_PANEL)
 
 
@@ -194,13 +194,20 @@ def _mark_pixmap(name: str, w: int, h: int) -> QPixmap:
 # — one constant so the two can't drift, and so tests can find the real window.
 REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 
-# Every control in the bar names itself on hover.
+# How round a control's corners are -- the radius Origenerator's toolbar buttons
+# carry, so a button in one app is the same shape as a button in the other.
+_BUTTON_RADIUS = 4
+
+# Every control in the bar names itself on hover.  Omnipause names the act the
+# press will take rather than the state it is in, the way its mark does: paused,
+# it shows a play triangle and offers to resume.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
 }
+OMNIPAUSE_RESUME_TOOLTIP = "Play everything"
 
 
 def build_dashboard_scene(
@@ -261,6 +268,9 @@ def build_dashboard_scene(
         DashboardImageItem(_mark("question", layout.help_button), layout.help_button),
         DashboardImageItem(_mark("mic", layout.voice_panel), layout.voice_panel),
     )
+    tooltips = dict(_ACTION_TOOLTIPS)
+    if omni_paused:
+        tooltips[OMNIPAUSE_TOGGLE] = OMNIPAUSE_RESUME_TOOLTIP
     actions = (
         (QUIT_BUTTON, layout.quit_button),
         (OMNIPAUSE_TOGGLE, layout.omnipause_button),
@@ -275,7 +285,7 @@ def build_dashboard_scene(
         images=images,
         actions=actions,
         hover_texts=tuple(
-            (rect, _ACTION_TOOLTIPS[action_id]) for action_id, rect in actions
+            (rect, tooltips[action_id]) for action_id, rect in actions
         ),
     )
 
@@ -317,9 +327,16 @@ class DashboardWidget(QWidget):
         _default_font = make_font(FONT_UI, SIZE_SMALL, bold=True)
 
         for item in scene.rects:
+            # Rounded, on a subtle edge: the shape Origenerator's toolbar buttons
+            # have. Square-cornered with a lighter outline, these read as panels
+            # rather than as the same kind of button the other apps offer.
             p.setPen(QPen(item.outline, 1))
             p.setBrush(QBrush(item.fill))
-            p.drawRect(item.rect.x, item.rect.y, item.rect.width, item.rect.height)
+            p.drawRoundedRect(
+                QRectF(item.rect.x + 0.5, item.rect.y + 0.5,
+                       item.rect.width - 1, item.rect.height - 1),
+                _BUTTON_RADIUS, _BUTTON_RADIUS,
+            )
 
         for item in scene.texts:
             if item.rect.width == 0 and item.rect.height == 0:

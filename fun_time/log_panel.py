@@ -144,6 +144,7 @@ from PyQt6.QtWidgets import (
 from shared_ui.colors import (
     AMBER,
     BG_BUTTON,
+    BG_BUTTON_ACTIVE,
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
@@ -295,10 +296,15 @@ class LogPanelWidget(QWidget):
             # the dashboard's top bar and are read at a glance every few minutes at
             # most, so a filled chip per source was five bright blocks competing
             # with the controls beside them for attention they do not deserve.
+            # On, it comes forward onto the family's lighter button ground as
+            # well as brightening its label -- the one rule for "this control is
+            # on" across the apps. Brightening the text alone left a toggled
+            # source looking like an untoggled one from any distance.
             button.setStyleSheet(
                 "QToolButton { padding: 2px 1px; border: none;"
-                f" color: {TEXT_MUTED.name()}; background: {BG_SECONDARY.name()}; border-radius: 2px; }}"
-                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()}; }}"
+                f" color: {TEXT_MUTED.name()}; background: {BG_BUTTON.name()}; border-radius: 2px; }}"
+                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
+                f" background: {BG_BUTTON_ACTIVE.name()}; }}"
             )
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)

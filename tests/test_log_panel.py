@@ -276,3 +276,17 @@ class TestPrefs:
         save_prefs(path, LogPanelPrefs(verbosity=NOTICE, sources=ALL_SOURCES))
 
         assert path.exists()
+
+
+def test_a_source_toggle_comes_forward_when_it_is_on(panel_factory):
+    """It brightened only its label before, which from any distance left a
+    toggled source looking like an untoggled one.  Across the family, a control
+    that is on sits on the lighter ground."""
+    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE
+
+    panel = panel_factory(["Clip saved"])
+    sheet = panel._source_boxes["system"].styleSheet()
+
+    assert BG_BUTTON.name() in sheet
+    assert BG_BUTTON_ACTIVE.name() in sheet
+    assert sheet.index(BG_BUTTON_ACTIVE.name()) > sheet.index(":checked")
