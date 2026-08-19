@@ -164,12 +164,30 @@ def test_every_control_names_itself_on_hover():
 
 
 def test_a_pressed_control_lightens_while_the_press_shows():
+    """Onto the family's own on-ground, which is what Origenerator's toolbar
+    lights a control with -- these buttons had their own lightening before, and
+    sat on a darker resting ground than any other app's."""
+    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE
+
     layout = compute_dashboard_bar_layout()
 
     resting = _fill(_scene(), layout.quit_button)
     pressed = _fill(_scene(pressed_actions=frozenset({QUIT_BUTTON})), layout.quit_button)
 
-    assert pressed == lighten_color(resting)
+    assert resting == BG_BUTTON
+    assert pressed == BG_BUTTON_ACTIVE
+
+
+def test_a_control_wearing_a_state_color_lightens_that_color_instead():
+    """A pressed voice panel has to stay blue.  Sending every press to the one
+    gray ground would say "voice is off" for as long as the finger is down."""
+    layout = compute_dashboard_bar_layout()
+
+    pressed = _fill(_scene(_snapshot(voice_active=True),
+                           pressed_actions=frozenset({VOICE_TOGGLE})),
+                    layout.voice_panel)
+
+    assert pressed == lighten_color(BLUE)
 
 
 def test_the_config_reads_only_what_the_bar_needs(tmp_path: Path):
