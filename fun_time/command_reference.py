@@ -161,6 +161,19 @@ _SECTIONS: tuple[_Section, ...] = (
                 ),
                 voice_display=("landscape favorites", "portrait fix teeth", "enhance"),
             ),
+            # The one spoken input with no phrase to list: its words are the
+            # speaker's own, so it rides the free recognizer rather than the
+            # grammar and is authored literally here.
+            _Row(
+                "Ask a hosted Origenerator region for a variant of the picture "
+                "on it — say \"request\", then what to change, then \"over\" "
+                "(\"landscape request no feet over\").  Take as many breaths "
+                "over it as you like; nothing said between the two markers is "
+                "read as a command",
+                (),
+                literal_voice=("portrait request … over", "landscape request … over",
+                               "request … over"),
+            ),
             _Row(
                 "Toggle F-Mode on every player at once — spoken it needs the "
                 "word \"all\", since bare \"f mode\" reaches the active player; "

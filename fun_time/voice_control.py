@@ -23,6 +23,8 @@ from fun_time.event_log import (
     notice,
 )
 from fun_time.mic_selection import resolve_input_device
+from fun_time.satellites_mode import STARTUP_SATELLITES_MODE, origenerator_shows
+from fun_time.spoken_request import SpokenRequestRelay
 from player_core.file_channel import append_command
 
 from fun_time.voice_commands import (
@@ -154,11 +156,20 @@ class Recognition:
     speech was clearly heard but matched no command (*unrecognized_text*, the free
     recognizer's transcription — what lets the user see that "full length" came
     through as something else).
+
+    *heard* is that free transcription whenever there was a confident one at
+    all, command or no command.  It is the same text as *unrecognized_text*
+    when the grammar matched nothing, and it is what a spoken request rides on
+    when the grammar DID match: a request in progress swallows every utterance
+    until "over", command-shaped or not, exactly as it does on the hosted app's
+    own mic — half a sentence must not fire a command because two of its words
+    happened to be one.
     """
 
     command: str | None = None
     phrase: str | None = None
     unrecognized_text: str | None = None
+    heard: str | None = None
 
 
 def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float) -> Recognition:
@@ -167,16 +178,19 @@ def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float
     The grammar recognizer is the authority on commands — its restricted
     vocabulary is what keeps recognition accurate.  The free recognizer runs
     only to caption what was said when the grammar matched nothing confident, so
-    an out-of-grammar phrase surfaces as text instead of vanishing into "[unk]".
+    an out-of-grammar phrase surfaces as text instead of vanishing into "[unk]"
+    — and to carry the words of a spoken request, which no grammar can hold.
     """
+    said, said_conf = _text_and_confidence(free_json)
+    heard = said if (said and said != "[unk]" and said_conf is not None
+                     and said_conf >= threshold) else None
     text, conf = _text_and_confidence(grammar_json)
     if text and text != "[unk]":
         command = VOICE_COMMANDS.get(text)
         if command is not None and conf is not None and conf >= threshold:
-            return Recognition(command=command, phrase=text)
-    heard, heard_conf = _text_and_confidence(free_json)
-    if heard and heard != "[unk]" and heard_conf is not None and heard_conf >= threshold:
-        return Recognition(unrecognized_text=heard)
+            return Recognition(command=command, phrase=text, heard=heard)
+    if heard is not None:
+        return Recognition(unrecognized_text=heard, heard=heard)
     return Recognition()
 
 
@@ -212,6 +226,12 @@ class VoiceController:
         self._stop = threading.Event()
         self._muted = threading.Event()
         self._suspended = threading.Event()
+        # Which side the satellites are showing, pushed in by the dispatch loop
+        # (see :meth:`set_satellites_mode`), and the request half-said to the
+        # hosted app if any.  This thread hears for the whole room; only the
+        # loop knows what the room is in.
+        self._satellites_mode = STARTUP_SATELLITES_MODE
+        self._request = SpokenRequestRelay()
 
     @property
     def is_muted(self) -> bool:
@@ -243,6 +263,24 @@ class VoiceController:
         """Thaw voice when omnipause lifts."""
         self._suspended.clear()
 
+    def set_satellites_mode(self, mode: str) -> None:
+        """Tell the listener which side the satellites are showing.
+
+        Pushed from the dispatch loop each tick, the way the omnipause freeze
+        is: the loop owns the room's state and this thread only hears.  What it
+        gates is the spoken request — free words rather than a grammar phrase,
+        and meaningful only to a hosted show.  Outside origenerator mode
+        "request" is not a command at all, and opening one there would swallow
+        the next several things said to the room and answer none of them.
+
+        Leaving the mode drops a half-said request with it: one nobody can
+        finish saying must not still be collecting when the mode comes back.
+        """
+        if mode == self._satellites_mode:
+            return
+        self._satellites_mode = mode
+        self._request.reset()
+
     def _write_command(self, command: str, *, spoken_at: float) -> bool:
         """Append a command to the dashboard command file; return whether it was.
 
@@ -272,7 +310,13 @@ class VoiceController:
         Confirmations follow whether the command dispatched, so a muted/omnipaused
         no-op stays quiet; the unrecognized report is gated on the room actually
         being listened to.
+
+        A spoken request comes first, before either: its words are free text
+        rather than a phrase, and while one is open it swallows what it hears
+        — which is exactly what keeps a sentence from also firing a command.
         """
+        if self._relay_spoken_request(interp, spoken_at=spoken_at):
+            return
         if interp.command:
             logger.info("Voice command: %s (spoken %.2fs before recognition)",
                         interp.command, time.monotonic() - spoken_at)
@@ -291,6 +335,35 @@ class VoiceController:
                 source=_source_for_heard_text(interp.unrecognized_text),
                 level=logging.ERROR,
             )
+
+    def _relay_spoken_request(self, interp: Recognition, *, spoken_at: float) -> bool:
+        """Forward one utterance of a spoken request, and say whether it was one.
+
+        "Request … over" is the one spoken input no grammar can hold — the
+        words between the markers are the speaker's, not a list's — so it rides
+        the free recognizer's transcription instead
+        (:mod:`fun_time.spoken_request` decides which of those belong to a
+        request).  Each is posted to the hosted app as the words themselves, on
+        the same channel every other phrase for a region uses; assembling them
+        into a request is the hosted app's own dictation's business, since it
+        is the end with the picture the request is about.
+
+        Only in origenerator mode, and only while the room is being listened to
+        at all: a request opened by room noise in player mode would swallow the
+        next several commands, which is worse than missing the request.
+        """
+        if not origenerator_shows(self._satellites_mode) or not self._is_listening():
+            return False
+        if not interp.heard:
+            return False
+        relayed = self._request.push(interp.heard)
+        if relayed is None:
+            return False
+        command = f"{relayed.scope}_say_words|{relayed.words}"
+        logger.info("Voice request: %s", command)
+        if self._write_command(command, spoken_at=spoken_at):
+            notice(logger, relayed.words, source=_source_for_command(command))
+        return True
 
     def _resolve_device(self) -> int | None:
         """The sounddevice input index to open the listen stream on.

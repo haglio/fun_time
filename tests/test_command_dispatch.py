@@ -3983,6 +3983,37 @@ class TestOrigeneratorTransport:
                 command = VOICE_COMMANDS[f"{side} {phrase}"]
                 assert routes_to_origenerator(command, state, config), command
 
+    def test_a_spoken_request_reaches_the_hosted_app_as_its_words(self, tmp_path):
+        """The one spoken input that carries words rather than naming a phrase:
+        a request's wording is the speaker's own, so no grammar can hold it and
+        voice assembles the line off the free recognizer.  It rides the same
+        channel every other phrase for a region does — the far end's own
+        dictation is what collects the utterances into a request."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        for command in ("landscape_say_words|request no feet",
+                        "landscape_say_words|over"):
+            state, _ = dispatch_command(command, state, config)
+        assert _origenerator_cmds(config) == [
+            "LANDSCAPE_SAY:request no feet", "LANDSCAPE_SAY:over",
+        ]
+        assert state.active_side == 3  # saying it to a side makes that side active
+
+    def test_a_bare_request_resolves_onto_the_active_region(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", active_side=2)
+        state, _ = dispatch_command(
+            resolve_active_side_command("active_say_words|request no feet", 2),
+            state, config)
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:request no feet"]
+
+    def test_a_request_in_player_mode_says_the_app_is_not_showing(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state, ops = dispatch_command(
+            "portrait_say_words|request no feet", BridgeState(), config)
+        assert [(op.op, op.key) for op in ops] == [("notice", "Origenerator is not showing")]
+        assert _cmds(config, 2) == []
+
     def test_a_bare_phrase_reaches_the_side_last_addressed(self, tmp_path):
         """The side word is optional once a region has been named: the dispatch
         loop resolves the bare ``active_*`` onto that side, and every phrase

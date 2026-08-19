@@ -501,7 +501,10 @@ class TestInterpretRecognition:
         interp = interpret_recognition(
             _scored("landscape next", 0.95), _scored("landscape next", 0.9), threshold=0.7,
         )
-        assert interp == Recognition(command="landscape_next", phrase="landscape next")
+        # The free recognizer's take rides along whatever the grammar made of
+        # it: a request in progress swallows even a command-shaped utterance.
+        assert interp == Recognition(
+            command="landscape_next", phrase="landscape next", heard="landscape next")
 
     def test_an_unscored_grammar_match_is_not_dispatched(self):
         """An unscored recognition cannot clear the threshold — the loop enables
@@ -517,7 +520,8 @@ class TestInterpretRecognition:
         interp = interpret_recognition(
             json.dumps({"text": "[unk]"}), _scored("full length please", 0.9), threshold=0.7,
         )
-        assert interp == Recognition(unrecognized_text="full length please")
+        assert interp == Recognition(
+            unrecognized_text="full length please", heard="full length please")
 
     def test_a_grammar_match_below_threshold_falls_back_to_the_caption(self):
         interp = interpret_recognition(
@@ -979,3 +983,120 @@ class TestHostedOrigeneratorVocabulary:
         grammar = build_grammar()
         for phrase in ORIGENERATOR_PHRASES:
             assert f"portrait {phrase}" in grammar
+
+
+class TestSpokenRequestRelay:
+    """The one spoken input no grammar can hold, forwarded to the hosted app.
+
+    A request's words are the speaker's own ("request no feet over"), so the
+    grammar recognizer can never answer with them — they ride the free
+    recognizer that runs on the same audio, and are posted to Origenerator as
+    the words themselves for its own dictation to assemble.  Fabricated request
+    wording throughout.
+    """
+
+    def _controller(self, tmp_path: Path, mode: str = "origenerator") -> VoiceController:
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc.set_satellites_mode(mode)
+        return vc
+
+    def _lines(self, tmp_path: Path) -> list[str]:
+        path = tmp_path / "cmd.txt"
+        if not path.exists():
+            return []
+        return [line for line in path.read_text(encoding="utf-8").splitlines() if line]
+
+    def test_a_request_is_written_as_the_words_themselves(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source)))
+
+        vc._handle_recognition(
+            Recognition(unrecognized_text="landscape request no feet",
+                        heard="landscape request no feet"),
+            spoken_at=1.0)
+
+        assert self._lines(tmp_path) == ["landscape_say_words|request no feet @1.000"]
+        # Flashed over the region it named, not reported as unrecognized speech.
+        assert seen == [("request no feet", "landscape")]
+
+    def test_a_bare_request_rides_the_active_scope(self, tmp_path, monkeypatch):
+        """Naming a side is optional here as everywhere else: the dispatch loop
+        resolves the active scope onto the region last addressed."""
+        vc = self._controller(tmp_path)
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
+
+        vc._handle_recognition(
+            Recognition(unrecognized_text="request no feet", heard="request no feet"),
+            spoken_at=1.0)
+
+        assert self._lines(tmp_path) == ["active_say_words|request no feet @1.000"]
+
+    def test_it_collects_across_the_pauses_until_over(self, tmp_path, monkeypatch):
+        """Each pause ends an utterance, so a sentence said in three arrives in
+        three — every one of them forwarded, markers included, since the far end
+        is what reads the markers."""
+        vc = self._controller(tmp_path)
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
+
+        for said in ("portrait request no feet", "and a longer skirt", "over"):
+            vc._handle_recognition(Recognition(unrecognized_text=said, heard=said), spoken_at=1.0)
+
+        assert self._lines(tmp_path) == [
+            "portrait_say_words|request no feet @1.000",
+            "portrait_say_words|and a longer skirt @1.000",
+            "portrait_say_words|over @1.000",
+        ]
+
+    def test_an_open_request_swallows_a_command_shaped_utterance(self, tmp_path, monkeypatch):
+        """Half a sentence must not fire a command because two of its words
+        happened to be one — the request has first refusal while it is open."""
+        vc = self._controller(tmp_path)
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
+
+        vc._handle_recognition(
+            Recognition(unrecognized_text="request no feet", heard="request no feet"),
+            spoken_at=1.0)
+        vc._handle_recognition(
+            Recognition(command="landscape_next", phrase="landscape next",
+                        heard="landscape next"),
+            spoken_at=2.0)
+
+        assert self._lines(tmp_path) == [
+            "active_say_words|request no feet @1.000",
+            "active_say_words|landscape next @2.000",
+        ]
+
+    def test_player_mode_hears_no_request_at_all(self, tmp_path, monkeypatch):
+        """Outside origenerator mode there is no show for one to be about, and
+        opening one on room noise would swallow the next several commands — so
+        the utterance stays what it was, an unrecognized phrase."""
+        vc = self._controller(tmp_path, mode="player")
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(msg))
+
+        vc._handle_recognition(
+            Recognition(unrecognized_text="request no feet", heard="request no feet"),
+            spoken_at=1.0)
+
+        assert self._lines(tmp_path) == []
+        assert seen == ["unrecognized voice command: request no feet"]
+
+    def test_leaving_the_mode_drops_a_half_said_request(self, tmp_path, monkeypatch):
+        """One nobody can finish saying must not still be collecting when the
+        mode comes back."""
+        vc = self._controller(tmp_path)
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
+
+        vc._handle_recognition(
+            Recognition(unrecognized_text="request no feet", heard="request no feet"),
+            spoken_at=1.0)
+        vc.set_satellites_mode("player")
+        vc.set_satellites_mode("origenerator")
+        vc._handle_recognition(
+            Recognition(unrecognized_text="and a longer skirt", heard="and a longer skirt"),
+            spoken_at=2.0)
+
+        assert self._lines(tmp_path) == ["active_say_words|request no feet @1.000"]
