@@ -278,22 +278,6 @@ class TestPrefs:
         assert path.exists()
 
 
-def test_a_source_toggle_comes_forward_when_it_is_on(panel_factory):
-    """It brightened only its label before, which from any distance left a
-    toggled source looking like an untoggled one.  Across the family, a control
-    that is on sits on the lighter ground."""
-    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE
-
-    panel = panel_factory(["Clip saved"])
-    sheet = panel._source_boxes["system"].styleSheet()
-
-    import re
-
-    assert BG_BUTTON.name() in sheet
-    checked = re.search(r"QToolButton:checked \{([^}]*)\}", sheet)
-    assert checked and BG_BUTTON_ACTIVE.name() in checked.group(1)
-
-
 def test_the_level_dial_fits_its_longest_name(panel_factory):
     """It carried a flat 80px, which cut "WARNING" down to "WARN" -- and a width
     guessed at from the text plus a constant for the arrow came up short too.
@@ -306,56 +290,33 @@ def test_the_level_dial_fits_its_longest_name(panel_factory):
     assert dial.width() >= dial.sizeHint().width(), "the longest level name is cut off"
 
 
-def test_a_source_toggle_wears_the_button_style_scripture_uses(panel_factory):
-    """A ground, a subtle border around it, the family's word padding and radius,
-    and the lighter ground when it is on.  Flat-until-hovered was a guess at what
-    "look like those" meant, and a borderless chip is not what those look like."""
-    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BORDER_SUBTLE
-
-    panel = panel_factory(["Clip saved"])
-    sheet = panel._source_boxes["system"].styleSheet()
-
-    import re
-
-    assert BG_BUTTON.name() in sheet
-    assert f"1px solid {BORDER_SUBTLE.name()}" in sheet
-    checked = re.search(r"QToolButton:checked \{([^}]*)\}", sheet)
-    assert checked and BG_BUTTON_ACTIVE.name() in checked.group(1)
-
-
-def test_a_source_toggle_is_exactly_as_wide_as_its_own_word(panel_factory):
-    """Sized to a flat 40px, the padding was crushed to nothing, which kept these
-    reading as cramped chips beside Evolver's and Scripture's rows however they
-    were colored.  Left to QToolButton's own hint they went the other way, adding
-    nearly thirty pixels a button for chrome they do not draw -- five of those
-    overran the bar, and an overrunning row is squeezed straight back to where it
-    started, which is how a change to it lands invisibly."""
-    from PyQt6.QtGui import QFontMetrics
-
-    from fun_time.log_panel import _BUTTON_BORDER
-    from shared_ui.spacing import BUTTON_PAD_H
-
-    panel = panel_factory(["Clip saved"])
-    for button in panel._source_boxes.values():
-        word = QFontMetrics(button.font()).horizontalAdvance(button.text())
-        assert button.width() == word + 2 * (BUTTON_PAD_H + _BUTTON_BORDER), button.text()
-
-
-def test_the_filter_row_leaves_the_bar_its_own_room(panel_factory):
-    """The row is right-justified beside the dashboard's own buttons in a window
-    of fixed width.  Asking for more than is there widens nothing."""
-    from fun_time.dashboard_layout import compute_dashboard_bar_layout
-
-    panel = panel_factory(["Clip saved"])
-    panel.controls.adjustSize()
-    wanted = panel.controls.sizeHint().width()
-
-    assert wanted <= compute_dashboard_bar_layout().content_width * 1.6
-
-
 def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
     from shared_ui.spacing import BUTTON_GAP
 
     panel = panel_factory(["Clip saved"])
 
     assert panel.controls.layout().spacing() == BUTTON_GAP
+
+
+def test_the_source_toggles_are_left_to_the_style(panel_factory):
+    """Exactly as Scripture's toolbar leaves its own buttons.
+
+    Every hand-styled version of these -- a chip, a flat pill, a bordered
+    button -- was a guess at what that row looks like, and each one missed on
+    the font, the colors, or both.  So none of it is ours any more: no
+    stylesheet, no font, no width.  The one thing set on purpose is auto-raise,
+    which is what a QToolBar does to the buttons it holds, and the whole
+    difference between a flat row and buttons that draw their own frame.
+    """
+    from PyQt6.QtCore import Qt
+    from PyQt6.QtWidgets import QApplication
+
+    panel = panel_factory(["Clip saved"])
+
+    for button in panel._source_boxes.values():
+        assert button.styleSheet() == "", "styled by hand again"
+        assert button.font() == QApplication.font(), "given a font of our own"
+        assert button.minimumWidth() == 0 and button.maximumWidth() > 1000,             "pinned to a width again"
+        assert button.autoRaise(), "it would draw its own frame"
+        assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextOnly
+        assert button.isCheckable()
