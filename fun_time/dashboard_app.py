@@ -15,8 +15,9 @@ from PyQt6.QtGui import QColor, QFont
 from player_core.file_channel import append_command
 
 from shared_ui.colors import (
+    BG_BUTTON,
+    BG_BUTTON_ACTIVE,
     BG_PRIMARY,
-    BG_SECONDARY,
     BLUE,
     BORDER_PANEL,
     TEXT_PRIMARY,
@@ -58,7 +59,10 @@ from fun_time.dashboard_layout import (
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
 
 COLOR_BG = BG_PRIMARY
-COLOR_PANEL = BG_SECONDARY
+# The family's own resting button ground -- the one Origenerator's toolbar
+# buttons sit on.  This bar used to sit its controls on the darker BG_SECONDARY,
+# which left them reading as flat panels beside another app's raised buttons.
+COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
 # The "Fun Time" wordmark matches the loading screen's redder pink text, NOT the
 # logo's magenta-pink — they are deliberately different hues.
@@ -220,7 +224,15 @@ def build_dashboard_scene(
     omnipause_mark = "play" if omni_paused else "pause"
 
     def _press_fill(fill: QColor, action_id: str) -> QColor:
-        return lighten_color(fill) if action_id in pressed_actions else fill
+        """The ground a control sits on, lighter while it is being pressed.
+
+        One rule across the family: a control that is on comes forward onto
+        BG_BUTTON_ACTIVE.  A control already wearing a state color lightens THAT
+        instead, so a pressed voice panel stays blue rather than turning gray.
+        """
+        if action_id not in pressed_actions:
+            return fill
+        return BG_BUTTON_ACTIVE if fill == COLOR_PANEL else lighten_color(fill)
 
     rects = (
         DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
