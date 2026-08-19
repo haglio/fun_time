@@ -155,6 +155,7 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
+from shared_ui.spacing import BUTTON_PAD_H, BUTTON_PAD_V, BUTTON_RADIUS
 
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
@@ -296,13 +297,17 @@ class LogPanelWidget(QWidget):
             # the dashboard's top bar and are read at a glance every few minutes at
             # most, so a filled chip per source was five bright blocks competing
             # with the controls beside them for attention they do not deserve.
-            # On, it comes forward onto the family's lighter button ground as
-            # well as brightening its label -- the one rule for "this control is
-            # on" across the apps. Brightening the text alone left a toggled
-            # source looking like an untoggled one from any distance.
+            # Built like the rows of buttons across the top of Evolver and
+            # Scripture: flat until you touch it, the family's button ground
+            # under the cursor, and its lighter on-ground while checked.  It
+            # brightened only its LABEL before, which from any distance left a
+            # toggled source looking like an untoggled one.
             button.setStyleSheet(
-                "QToolButton { padding: 2px 1px; border: none;"
-                f" color: {TEXT_MUTED.name()}; background: {BG_BUTTON.name()}; border-radius: 2px; }}"
+                "QToolButton { border: none;"
+                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H}px;"
+                f" border-radius: {BUTTON_RADIUS}px;"
+                f" color: {TEXT_MUTED.name()}; background: transparent; }}"
+                f" QToolButton:hover {{ background: {BG_BUTTON.name()}; }}"
                 f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
                 f" background: {BG_BUTTON_ACTIVE.name()}; }}"
             )

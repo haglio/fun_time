@@ -19,6 +19,7 @@ import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from player_core.hud_marks import SHARED_MARK, shared_mark, shared_mark_name
 from player_core.hud_panel import (
+    BG_BUTTON,
     BG_PRIMARY,
     GREEN,
     RED,
@@ -577,8 +578,10 @@ class HudRenderer:
         single button shape every control on this HUD is drawn with, so a new one
         cannot invent its own look.
 
-        Off, the box is an outline in the muted gray the rest of the chrome uses
-        and the MARK is full-strength -- the same way the main player's console
+        Off, the box sits on the family's own button ground -- an outline over
+        the slab and nothing else read as a hole cut in the panel rather than as
+        the raised button every window here offers -- with an edge in the muted
+        gray the rest of the chrome uses, and the MARK is full-strength -- the same way the main player's console
         draws its own.  Both were muted here, which left these panels reading as
         dim and half-disabled beside the console's, for controls that were
         neither.  On, the box fills *on_color* and the mark reverses out of it.
@@ -593,7 +596,7 @@ class HudRenderer:
         bx, by, bw, bh = rect
         draw.rounded_rectangle(
             [bx, by, bx + bw - 1, by + bh - 1], radius=3,
-            fill=(*on_color, 255) if on else None,
+            fill=(*(on_color if on else BG_BUTTON), 255),
             outline=(*(on_color if on else TEXT_MUTED), 255), width=1,
         )
         return (*(BG_PRIMARY if on else (ink or TEXT_PRIMARY)), 255)

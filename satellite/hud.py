@@ -12,6 +12,8 @@ font: the paint module measures text and hands the width back in.
 """
 from __future__ import annotations
 
+from shared_ui.spacing import BUTTON_SIZE_HUD
+
 import json
 from dataclasses import dataclass, field
 
@@ -31,7 +33,7 @@ MAX_GUTTER = 100    # …and never wider, so a stray long act can't eat the map
 LOOP_BTN = 18       # loop-button thickness: below the action column, right of the row
 FILTER_BTN = 18     # act-filter button: at the head of each row, in the gutter
 FILTER_ROOM = FILTER_BTN + MAP_GAP  # what it takes out of the row-label gutter
-CTRL_BTN = 18       # a side-control button — the same square as a loop button
+CTRL_BTN = BUTTON_SIZE_HUD  # a side-control button — the family's HUD square
 CTRL_BAND_H = 24    # the band those controls sit in, under the status line
 
 # What the map keeps clear past the end of each axis for that axis's own buttons:

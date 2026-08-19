@@ -74,3 +74,15 @@ def test_client_rect_filling_frame_insets_by_the_chrome():
         108, 231, 384, 261)
     assert client_rect_filling_frame(rect, left=0, top=0, right=0, bottom=0) == (
         100, 200, 400, 300)
+
+
+def test_the_bar_uses_the_familys_button_metrics():
+    """A control here is the same object a control in Origenerator's bank is.
+    Both were this bar's own numbers, which is what left four apps on one screen
+    reading as four different kinds of chrome."""
+    from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE
+
+    from fun_time.dashboard_layout import BUTTON, GAP
+
+    assert BUTTON == BUTTON_SIZE
+    assert GAP == BUTTON_GAP

@@ -109,7 +109,7 @@ def test_the_pause_button_says_which_way_it_will_go():
         scene = _scene(_snapshot(omni_paused=paused))
         return next(i.pixmap for i in scene.images if i.rect == layout.omnipause_button)
 
-    side = min(layout.omnipause_button.width, layout.omnipause_button.height)
+    side = _mark_side(layout.omnipause_button)
     assert mark(False).toImage() == glyph_pixmap("pause", side, TEXT_PRIMARY).toImage()
     assert mark(True).toImage() == glyph_pixmap("play", side, TEXT_PRIMARY).toImage()
 
@@ -152,7 +152,7 @@ def test_the_microphone_is_the_one_the_family_shares():
     panel = compute_dashboard_bar_layout().voice_panel
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
-    expected = glyph_pixmap("mic", min(panel.width, panel.height), TEXT_PRIMARY)
+    expected = glyph_pixmap("mic", _mark_side(panel), TEXT_PRIMARY)
     assert drawn[panel].toImage() == expected.toImage()
 
 
@@ -853,7 +853,7 @@ def test_every_control_on_the_bar_wears_a_drawn_mark(qtbot=None):
     for rect, name in ((layout.quit_button, "power"),
                        (layout.help_button, "question"),
                        (layout.voice_panel, "mic")):
-        side = min(rect.width, rect.height)
+        side = _mark_side(rect)
         assert drawn[rect].toImage() == glyph_pixmap(name, side, TEXT_PRIMARY).toImage(), name
 
     assert [item.text for item in scene.texts] == ["Fun Time"]
@@ -896,3 +896,12 @@ def test_the_bar_draws_its_controls_the_shape_a_button_is_here():
 
     assert _BUTTON_RADIUS == 4
     assert all(item.outline == BORDER_SUBTLE for item in _scene().rects)
+
+
+def _mark_side(rect) -> int:
+    """How big a mark on *rect* is drawn: the family's icon size, or the control
+    itself when that is smaller.  Every button in every app hugs its mark by the
+    same amount, which is what this number is."""
+    from shared_ui.spacing import BUTTON_ICON
+
+    return min(BUTTON_ICON, min(rect.width, rect.height))
