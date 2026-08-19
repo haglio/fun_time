@@ -490,27 +490,68 @@ VOICE_COMMANDS["max speed"] = "speed_max"
 # It matches them with its own matcher, which is the only place that knows
 # which shelves its tree has and which detail parts have detectors installed.
 # So this list is the recognizer's half of the deal: vosk can only hear a
-# phrase that is in its grammar, and these are the phrases.
-ORIGENERATOR_PHRASES: tuple[str, ...] = (
-    # The shelves, by the labels its tree wears.  Not "latest" and not "trash":
-    # this session already says both to a satellite ("portrait latest" reorders
-    # that player's browse, "portrait trash" discards its clip), and in
-    # origenerator mode those same two commands are routed to the hosted app
-    # instead — one phrase, one meaning per mode, rather than two spellings.
-    "favorites", "experiments", "requests",
-    # The show's own controls.
-    "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
-    # The commands about the picture on screen: the built-in detail parts, and
-    # the sound Fun Time settled on for Genau (no recognizer here hears it).
-    "fix face", "fix hands", "fix teeth", "fix eyes", "go now",
+# phrase that is in its grammar, and these are the phrases — the WHOLE of the
+# hosted app's spoken vocabulary, because a word left out here is a command
+# that works said to Origenerator's own mic and does nothing said to this
+# room's, with no sign of which it was.
+
+# The shelves, by the labels its tree wears.  "latest" is not among them: this
+# session already says it to a satellite ("portrait latest" reorders that
+# player's browse), and in origenerator mode that same command is routed to
+# the hosted app instead — one phrase, one meaning per mode, rather than two
+# spellings.  "trash" is the other way about and so IS here: the word this
+# session discards a clip with is "weird", which leaves the shelf's own name
+# free to mean the shelf.
+_ORIGENERATOR_SHELVES: tuple[str, ...] = (
+    "favorites", "experiments", "requests", "trash",
 )
 
-for _side in ("portrait", "landscape"):
-    for _phrase in ORIGENERATOR_PHRASES:
-        _spoken = f"{_side} {_phrase}"
+# Every verb the hosted show answers to, each naming the slideshow: three that
+# start it, one that holds it, three that close it.  All seven, because the
+# speaker picks the word rather than the table — and a verb the grammar lacks
+# is not misheard, it is not heard at all.
+_ORIGENERATOR_SHOW_VERBS: tuple[str, ...] = (
+    "play", "start", "open", "pause", "stop", "end", "close",
+)
+
+# The parts a spoken fix can name, in the words the hosted app listens for —
+# singular and plural both, since a speaker says whichever, plus the two that
+# stand for the lot ("fix all").  Its overlay can name further parts, and those
+# describe the library rather than anatomy, so they come from this session's
+# own overlay (content.example.json documents the key), spelled here exactly
+# as they are spelled there — the two overlays are one vocabulary.
+_ORIGENERATOR_FIX_PARTS: tuple[str, ...] = (
+    "face", "faces", "hand", "hands", "teeth", "tooth", "mouth", "eye", "eyes",
+    "all", "everything",
+    *load_content().get("origenerator_fix_parts", ()),
+)
+
+ORIGENERATOR_PHRASES: tuple[str, ...] = (
+    *_ORIGENERATOR_SHELVES,
+    *(f"{_verb} slideshow" for _verb in _ORIGENERATOR_SHOW_VERBS),
+    *(f"fix {_part}" for _part in _ORIGENERATOR_FIX_PARTS),
+    # The two orders about the picture on screen that name no part: the better
+    # version of it, and animating it as a Genau clip — the sound Fun Time
+    # settled on for that, since no recognizer here hears "genau".
+    "enhance", "go now",
+)
+
+# Bare, each of these reaches whichever satellite was last addressed, exactly
+# as a bare "lock" or "next" does: the dispatch loop resolves ``active_*`` onto
+# that side, and naming a side is what makes it the active one.  Only one
+# phrase cannot join them — bare "go now" is already how this session switches
+# into Genau mode, so animating a region's picture has to name the region.
+_ORIGENERATOR_SIDED_ONLY: frozenset[str] = frozenset({"go now"})
+
+for _phrase in ORIGENERATOR_PHRASES:
+    _hosted = f"say_{_phrase.replace(' ', '_')}"
+    _scopes = ("portrait", "landscape") if _phrase in _ORIGENERATOR_SIDED_ONLY else (
+        "portrait", "landscape", "active")
+    for _scope in _scopes:
+        _spoken = _phrase if _scope == "active" else f"{_scope} {_phrase}"
         if _spoken in VOICE_COMMANDS:  # the session already says this to a player
             raise RuntimeError(f"hosted phrase collides with a session command: {_spoken}")
-        VOICE_COMMANDS[_spoken] = f"{_side}_say_{_phrase.replace(' ', '_')}"
+        VOICE_COMMANDS[_spoken] = f"{_scope}_{_hosted}"
 
 
 # Spoken metadata filters — "portrait beta gamma", "alpha form", "clear portrait" —

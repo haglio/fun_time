@@ -47,6 +47,18 @@ class TestLoadContent:
         result = load_content(local, EXAMPLE_CONTENT)
         assert result["clip_jump_phrases"] == ["skip ahead", "rewind that"]
 
+    def test_missing_origenerator_fix_parts_defaults_to_empty_not_the_example(
+        self, tmp_path: Path
+    ):
+        # These name parts that exist only if Origenerator's own overlay names
+        # them too, so the example's stand-ins would put "fix alpha" in the
+        # recognizer's grammar as a phrase nothing on the other end can answer.
+        assert _example()["origenerator_fix_parts"], "example is expected to define parts"
+        local = tmp_path / "content.local.json"
+        local.write_text(json.dumps({"filter_acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        result = load_content(local, EXAMPLE_CONTENT)
+        assert result["origenerator_fix_parts"] == []
+
     def test_missing_web_providers_defaults_to_empty_not_the_example(self, tmp_path: Path):
         # web_providers holds placeholder gallery URLs in the example; a real
         # overlay that omits it must default to none, never to the example's

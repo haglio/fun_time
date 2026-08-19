@@ -22,6 +22,7 @@ from fun_time.command_dispatch import (
 )
 from fun_time.event_log import NOTICE
 from fun_time.media_metadata import GroupIndex, normalize_path_key
+from fun_time.windows_bridge_dispatch_loop import resolve_active_side_command
 
 
 def _make_config(tmp_path: Path) -> BridgeConfig:
@@ -3981,6 +3982,50 @@ class TestOrigeneratorTransport:
             for phrase in ORIGENERATOR_PHRASES:
                 command = VOICE_COMMANDS[f"{side} {phrase}"]
                 assert routes_to_origenerator(command, state, config), command
+
+    def test_a_bare_phrase_reaches_the_side_last_addressed(self, tmp_path):
+        """The side word is optional once a region has been named: the dispatch
+        loop resolves the bare ``active_*`` onto that side, and every phrase
+        arrives here already sided.  Saying a side is what makes it the active
+        one, so "landscape favorites" then a bare "enhance" is one region being
+        talked to, not two."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        state, _ = dispatch_command("landscape_say_favorites", state, config)
+        assert state.active_side == 3
+        state, _ = dispatch_command(
+            resolve_active_side_command("active_say_enhance", state.active_side),
+            state, config)
+        assert _origenerator_cmds(config) == [
+            "LANDSCAPE_SAY:favorites", "LANDSCAPE_SAY:enhance",
+        ]
+
+    def test_a_bare_phrase_with_the_main_player_active_asks_for_a_side(self, tmp_path):
+        """Bare, the phrase resolves onto whichever player was last addressed,
+        and the main player holds no region for it to land on.  Silence there
+        reads as a mis-heard word, so it says which word is missing."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", active_side=1)
+        # What the dispatch loop hands on when it has no side to resolve onto.
+        state, ops = dispatch_command(
+            resolve_active_side_command("active_say_enhance", 1), state, config)
+        assert [(op.op, op.key) for op in ops] == [("notice", "Say portrait or landscape")]
+        assert _origenerator_cmds(config) == []
+
+    def test_a_hosted_phrase_in_player_mode_says_the_app_is_not_showing(self, tmp_path):
+        """It reached no show and it can never reach a player — the words mean
+        nothing to one — so the session answers rather than looking as though
+        it ignored them."""
+        config = _origenerator_config(tmp_path)
+        state, ops = dispatch_command("portrait_say_favorites", BridgeState(), config)
+        assert [(op.op, op.key) for op in ops] == [("notice", "Origenerator is not showing")]
+        assert _cmds(config, 2) == []
+
+    def test_a_hosted_phrase_with_no_origenerator_configured_says_so(self, tmp_path):
+        config = _make_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        state, ops = dispatch_command("portrait_say_favorites", state, config)
+        assert [(op.op, op.key) for op in ops] == [("notice", "No Origenerator configured")]
 
     def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)

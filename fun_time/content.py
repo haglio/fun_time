@@ -22,9 +22,12 @@ EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
 # for real data.  ``web_providers`` holds gallery-URL templates that get written
 # verbatim into the favorites file, so an overlay that omits it defaults to
 # *none* (an empty list) rather than to the example's ``example.com`` markers.
+# ``origenerator_fix_parts`` names parts that only exist if Origenerator's own
+# overlay names them too, so the example's stand-ins would put "fix alpha" in
+# the recognizer's grammar as a phrase nothing on the other end can answer.
 # Every other documented key is a vocabulary/phrase list whose example value is
 # a usable fallback, so it is backfilled from the example instead.
-_EMPTY_WHEN_ABSENT: dict[str, Any] = {"web_providers": []}
+_EMPTY_WHEN_ABSENT: dict[str, Any] = {"web_providers": [], "origenerator_fix_parts": []}
 
 
 def _read_json(path: Path) -> dict[str, Any]:

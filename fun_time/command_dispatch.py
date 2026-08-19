@@ -1306,6 +1306,15 @@ def dispatch_command(
     if routed is not None:
         return state, routed
 
+    # One of the hosted app's own phrases that routed nowhere: the words were
+    # heard and there is no player they could ever mean, so the session says
+    # why rather than letting them vanish into a room that looks like it
+    # ignored them.
+    if _is_hosted_speech(command):
+        return state, [WindowOp(
+            op="notice", key=_hosted_speech_dead_end(command, state, config),
+            level=FAILED_NOTICE_LEVEL)]
+
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
         _send_satellite(config, 2, "PREV")
@@ -2145,6 +2154,32 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
         return False
     return (origenerator_shows(state.satellites_mode)
             and config.origenerator_cmd_file is not None)
+
+
+def _is_hosted_speech(command: str) -> bool:
+    """Whether *command* is one of the hosted app's own phrases — the ones that
+    mean nothing at all to a satellite player.
+
+    The two the session shares with one ("portrait latest") are deliberately
+    not these: out of origenerator mode they fall through and reorder that
+    player's browse, which is exactly what they say there.
+    """
+    return command.startswith(("portrait_say_", "landscape_say_", "active_say_"))
+
+
+def _hosted_speech_dead_end(command: str, state: BridgeState, config: BridgeConfig) -> str:
+    """Why a phrase for the hosted app reached nothing, in the words that say
+    what to do about it.
+
+    The bare form is the one worth naming: it resolves onto whichever player
+    was last addressed, and while that is the main player there is no region
+    for it to land on — a silent no-op there reads as a mis-heard word.
+    """
+    if config.origenerator_cmd_file is None:
+        return "No Origenerator configured"
+    if not origenerator_shows(state.satellites_mode):
+        return "Origenerator is not showing"
+    return "Say portrait or landscape"
 
 
 def _origenerator_transport(

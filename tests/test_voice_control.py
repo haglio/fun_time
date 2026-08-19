@@ -892,3 +892,90 @@ def test_filter_phrases_do_not_shadow_other_commands():
     for phrase, command in filter_voice_commands().items():
         assert VOICE_COMMANDS[phrase] == command
         assert decode_filter_command(command) is not None
+
+
+class TestHostedOrigeneratorVocabulary:
+    """Everything Origenerator answers to on its own mic, said to this room's.
+
+    The hosted app matches the words this session posts (``origenerator.voice.
+    commands``), so a phrase missing from the grammar here is a command that
+    works said to Origenerator and does nothing at all said to Fun Time — with
+    no sign of which it was.  These pin the vocabulary to that matcher's own
+    three halves: a shelf, the show's controls, an order about the picture.
+    """
+
+    def _hosted(self, phrase: str) -> str:
+        return f"say_{phrase.replace(' ', '_')}"
+
+    def test_every_shelf_the_tree_wears_is_sayable(self):
+        # "latest" is deliberately absent: the session already says it to a
+        # satellite, and in origenerator mode that command routes to the hosted
+        # app (see command_dispatch), so it stays one phrase with one meaning
+        # per mode rather than gaining a second spelling here.
+        for shelf in ("favorites", "experiments", "requests", "trash"):
+            assert VOICE_COMMANDS[f"portrait {shelf}"] == f"portrait_{self._hosted(shelf)}"
+        assert "portrait latest" in VOICE_COMMANDS  # the satellite's own phrase
+        assert VOICE_COMMANDS["portrait latest"] == "portrait_latest"
+
+    def test_the_shelf_named_trash_is_not_the_word_that_discards(self):
+        """Both exist and they are different asks: "weird" culls the picture on
+        the region, "trash" plays the shelf of what Origenerator has culled."""
+        assert VOICE_COMMANDS["portrait weird"] == "portrait_trash"
+        assert VOICE_COMMANDS["portrait trash"] == "portrait_say_trash"
+
+    def test_every_verb_the_show_answers_to_is_sayable(self):
+        """Three start it, one holds it, three close it — all seven, because
+        the speaker picks the word and a verb the grammar lacks is not misheard
+        but unheard."""
+        for verb in ("play", "start", "open", "pause", "stop", "end", "close"):
+            phrase = f"{verb} slideshow"
+            assert VOICE_COMMANDS[f"landscape {phrase}"] == f"landscape_{self._hosted(phrase)}"
+
+    def test_every_built_in_fix_part_is_sayable_both_ways(self):
+        """The parts every picture has, singular and plural, plus the two words
+        that stand for the lot."""
+        for part in ("face", "faces", "hand", "hands", "teeth", "tooth",
+                     "mouth", "eye", "eyes", "all", "everything"):
+            phrase = f"fix {part}"
+            assert VOICE_COMMANDS[f"portrait {phrase}"] == f"portrait_{self._hosted(phrase)}"
+
+    def test_the_orders_about_the_picture_that_name_no_part(self):
+        """"enhance" asks for the better version of what is on the region;
+        "go now" animates it as a Genau clip (the sound-alike, since no
+        recognizer here hears "genau")."""
+        assert VOICE_COMMANDS["portrait enhance"] == "portrait_say_enhance"
+        assert VOICE_COMMANDS["landscape go now"] == "landscape_say_go_now"
+
+    def test_the_overlay_can_name_further_fix_parts(self):
+        """The rest of the parts describe the library rather than anatomy, so
+        they live in the content overlay — unset, the vocabulary is the
+        built-ins alone rather than the example's stand-ins."""
+        from fun_time.content import load_content
+        from fun_time.voice_commands import ORIGENERATOR_PHRASES
+
+        for part in load_content().get("origenerator_fix_parts", ()):
+            assert f"fix {part}" in ORIGENERATOR_PHRASES
+
+    def test_every_phrase_drops_the_side_to_reach_the_active_region(self):
+        """Bare, each reaches whichever satellite was last addressed, the way a
+        bare "lock" or "next" does — naming a side is what makes it active."""
+        from fun_time.voice_commands import ORIGENERATOR_PHRASES
+
+        for phrase in ORIGENERATOR_PHRASES:
+            if phrase == "go now":
+                continue
+            assert VOICE_COMMANDS[phrase] == f"active_{self._hosted(phrase)}"
+
+    def test_bare_go_now_stays_the_mode_switch(self):
+        """The one phrase that cannot drop its side: bare, it is already how
+        this session switches into Genau mode, so animating a region's picture
+        has to name the region."""
+        assert VOICE_COMMANDS["go now"] == "genau_activate"
+        assert "active_say_go_now" not in VOICE_COMMANDS.values()
+
+    def test_every_hosted_phrase_reaches_the_recognizer_grammar(self):
+        from fun_time.voice_commands import ORIGENERATOR_PHRASES
+
+        grammar = build_grammar()
+        for phrase in ORIGENERATOR_PHRASES:
+            assert f"portrait {phrase}" in grammar

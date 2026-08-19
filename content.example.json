@@ -1,5 +1,5 @@
 {
-  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). filter_acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary. web_providers maps a library-folder marker to the gallery-URL template ({id} = the id parsed from a filename) used when recording a favorite's web link.",
+  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). filter_acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary. web_providers maps a library-folder marker to the gallery-URL template ({id} = the id parsed from a filename) used when recording a favorite's web link. origenerator_fix_parts lists the extra parts a spoken \"fix <part>\" may name in origenerator mode, which have to be spelled the way Origenerator's own overlay spells them (its detail_fix_parts) since the two vocabularies are one; the anatomy every picture has is built in and is not listed here.",
   "filter_acts": {
     "alpha": [
       "alpha"
@@ -24,5 +24,9 @@
   "clip_jump_phrases": [
     "clip jump",
     "jump back"
+  ],
+  "origenerator_fix_parts": [
+    "alpha",
+    "beta"
   ]
 }
