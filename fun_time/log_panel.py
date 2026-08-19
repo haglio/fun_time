@@ -145,9 +145,11 @@ from shared_ui.colors import (
     AMBER,
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
+    BG_KEYCAP,
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
+    BORDER_SUBTLE,
     GREEN,
     RED,
     TEXT_MUTED,
@@ -157,7 +159,7 @@ from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import (
     BUTTON_GAP,
-    BUTTON_PAD_H_TIGHT,
+    BUTTON_PAD_H,
     BUTTON_PAD_V,
     BUTTON_RADIUS,
 )
@@ -220,24 +222,15 @@ def _copied_icon(size: int, color: QColor) -> QIcon:
     return QIcon(glyph_pixmap("check", size, color))
 
 
-# The room a combo box needs beyond its text: the drop-down arrow, and the frame
-# either side of it.
-_COMBO_CHROME = 22
+# The 1px border a word-button carries on each side, which its width has to
+# leave room for on top of the word and its padding.
+_BUTTON_BORDER = 1
 
 
 def _word_button_width(button: QToolButton) -> int:
-    """A word-button as wide as its word, plus the family's tight pad."""
-    return QFontMetrics(button.font()).horizontalAdvance(button.text())         + 2 * BUTTON_PAD_H_TIGHT
-
-
-def _verbosity_width(box: QComboBox) -> int:
-    """Wide enough for the longest level name the dial can show.
-
-    It carried a flat 80px before, which cut "WARNING" off -- in a row that had
-    room for it on both sides.
-    """
-    metrics = QFontMetrics(box.font())
-    return max(metrics.horizontalAdvance(name) for name in LEVEL_NAMES) + _COMBO_CHROME
+    """A word-button as wide as its word, plus the family's padding and border."""
+    return (QFontMetrics(button.font()).horizontalAdvance(button.text())
+            + 2 * (BUTTON_PAD_H + _BUTTON_BORDER))
 
 
 class LogPanelWidget(QWidget):
@@ -298,11 +291,12 @@ class LogPanelWidget(QWidget):
         controls.setSpacing(BUTTON_GAP)
         self._verbosity = QComboBox(self)
         self._verbosity.setFont(make_font(FONT_UI, SIZE_SMALL))
-        # Wide enough for the longest level name.  It was a flat 80px, which cut
-        # "WARNING" off in a row with room to spare either side of it.
-        self._verbosity.setFixedWidth(_verbosity_width(self._verbosity))
         for name in LEVEL_NAMES:
             self._verbosity.addItem(name, LEVELS_BY_NAME[name])
+        # Qt's own hint, taken AFTER the items are in: it knows what the arrow and
+        # the frame cost on this style, and a width guessed at from the text plus
+        # a constant came up short enough to elide "WARNING" to "WARN".
+        self._verbosity.setMinimumWidth(self._verbosity.sizeHint().width())
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
         controls.addWidget(self._verbosity)
@@ -324,14 +318,20 @@ class LogPanelWidget(QWidget):
             # word-button pad overshot the other way, wanting more room than this
             # bar has, so the layout squeezed them straight back to 40 and the
             # change could not be seen at all.
+            # Scripture's button, spelled out: a ground, a subtle border around
+            # it, the family's word padding and radius -- and the lighter ground
+            # when it is on.  Flat-until-hovered was a guess at what "look like
+            # those" meant, and a borderless chip is not what those look like.
             button.setStyleSheet(
-                "QToolButton { border: none;"
-                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H_TIGHT}px;"
-                f" border-radius: {BUTTON_RADIUS}px;"
-                f" color: {TEXT_MUTED.name()}; background: transparent; }}"
-                f" QToolButton:hover {{ background: {BG_BUTTON.name()}; }}"
-                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
-                f" background: {BG_BUTTON_ACTIVE.name()}; }}"
+                "QToolButton {"
+                f" color: {TEXT_PRIMARY.name()};"
+                f" background: {BG_BUTTON.name()};"
+                f" border: 1px solid {BORDER_SUBTLE.name()};"
+                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H}px;"
+                f" border-radius: {BUTTON_RADIUS}px; }}"
+                f" QToolButton:hover {{ background: {BG_KEYCAP.name()}; }}"
+                f" QToolButton:checked {{ background: {BG_BUTTON_ACTIVE.name()}; }}"
+                f" QToolButton:!checked {{ color: {TEXT_MUTED.name()}; }}"
             )
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
             # Sized from the label itself.  A bare QToolButton's own size hint
