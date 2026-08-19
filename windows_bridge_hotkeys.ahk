@@ -16,7 +16,8 @@ SetTitleMatchMode 2
 ;
 ; Args:
 ;   1  WINDOWS_BRIDGE_MANIFEST_PATH
-;   2  PIDS_FILE_PATH  (accepted for compatibility, no longer read)
+;   2  PIDS_FILE_PATH  — watched rather than read: the orchestrator writes it
+;      the moment the session is up, which is this script's cue to go live.
 
 if (A_Args.Length < 2) {
     MsgBox("Expected 2 arguments: manifest path, pids file path. Got " . A_Args.Length, "fun_time", "Iconx")
@@ -32,10 +33,40 @@ WINDOWS_BRIDGE_LOG_FILE := RequireManifestValue("runtime", "windows_bridge_log_f
 STATE_DIR := GetParentDir(WINDOWS_BRIDGE_LOG_FILE)
 
 AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
+; Dropping this flag is how a launch gets called off: the orchestrator's next
+; progress checkpoint sees it and unwinds startup.  The name has to match
+; overlay_progress.CANCEL_FILENAME — the loading screen drops the same file
+; when Esc happens to land on it — so a test pins the two together.
+STARTUP_CANCEL_FILE := STATE_DIR . "\startup_cancel.flag"
+
+; This script goes up with the loading screen, ahead of every window the session
+; opens, because its hotkeys are the only keys here that do not care what holds
+; the focus: AHK hooks the keyboard rather than waiting its turn in a window's
+; message queue.  The loading screen's own Esc binding cannot do that, so
+; anything that takes the focus mid-launch leaves the launch uncancellable —
+; which is the failure this ordering is written against.
+;
+; Up that early, though, the keys that drive a session have nothing to drive:
+; they would queue commands into a file no dispatch loop is draining yet.  So
+; while StartupPhase holds, QueueCommand drops them, and the two keys that mean
+; "stop" ask startup to unwind instead of doing their session jobs.  WatchStartup
+; lifts it.
+global StartupPhase := true
 
 ; --- Setup ---
 
+; Suspended for the same stretch, so those keys are not merely dropped but never
+; taken: a suspended hotkey passes its key through to whatever does have the
+; focus, and during a launch that may well be an app of the user's own.  Esc and
+; the quit chord are #SuspendExempt, which is what still lets them call the
+; launch off.  The flag records that this hold is ours to release — once anything
+; else has set the suspend state (an integration run's pre-write, or OmniPause),
+; the handover must not undo their decision.
+Suspend true
+global StartupSuspended := true
+
 SetTimer(ProcessAhkCommand, 150)
+SetTimer(WatchStartup, 150)
 
 ; Liveness beacon: a periodic line proving the hotkey script's message pump is
 ; still running. If it stops (then resumes after a gap), AHK froze — e.g. the
@@ -55,8 +86,8 @@ Log("Hotkey script started")
 ; hotkey does not fire while an extra modifier is held, so Esc and +Esc never
 ; shadow each other (as Left/+Left and a/+a already do below).
 #SuspendExempt true
-^!q::ExitApp()
-Esc::QueueCommand("omnipause_toggle")
+^!q::EndSession()
+Esc::PauseOrCancelStartup()
 +Esc::QueueCommand("relief_omnipause")
 #SuspendExempt false
 
@@ -170,8 +201,68 @@ SC034::QueueCommand("genau_next_clip")
 
 ; -------------------- CORE FUNCTIONS --------------------
 
+; The way out of a session — and, while one is still assembling, the way to
+; call it off.  Exiting mid-startup would leave the orchestrator building a
+; session it has been told to end and only take that session down once it was
+; fully up, and it would take Esc's cancel with it: a script that has exited
+; hooks nothing.
+EndSession() {
+    global StartupPhase
+    if (StartupPhase) {
+        RequestStartupCancel()
+        return
+    }
+    ExitApp()
+}
+
+; Esc calls the launch off while the session is still assembling, and pauses it
+; once it is up.
+PauseOrCancelStartup() {
+    global StartupPhase
+    if (StartupPhase) {
+        RequestStartupCancel()
+        return
+    }
+    QueueCommand("omnipause_toggle")
+}
+
+RequestStartupCancel() {
+    global STARTUP_CANCEL_FILE
+    ; The cover stays up until the orchestrator has torn down whatever it had
+    ; launched, so nothing half-started is ever revealed.  A second press costs
+    ; one more line in a file that is only ever tested for existence.
+    if AppendWithRetry("cancel`n", STARTUP_CANCEL_FILE)
+        Log("Startup cancel requested")
+    else
+        Log("Could not drop the startup cancel flag")
+}
+
+; The orchestrator writes the pids file once the session is up and its windows
+; are placed — the moment these hotkeys have something to reach.  Polled rather
+; than announced down the command mailbox below: that mailbox is one slot with
+; several writers, and a handover lost there would leave every hotkey dead for
+; the rest of the session.
+WatchStartup() {
+    global StartupPhase, StartupSuspended, PIDS_FILE_PATH
+    if !FileExist(PIDS_FILE_PATH)
+        return
+    StartupPhase := false
+    if (StartupSuspended) {
+        StartupSuspended := false
+        Suspend false
+    }
+    SetTimer(WatchStartup, 0)
+    Log("Session up; startup hold released")
+}
+
 QueueCommand(cmd) {
-    global DASHBOARD_CMD_FILE
+    global DASHBOARD_CMD_FILE, StartupPhase
+    if (StartupPhase) {
+        ; No session to drive yet, and no dispatch loop draining the file this
+        ; would go in.  The keys that mean "stop" never come through here.
+        Log("Dropped while starting up: " . cmd)
+        return
+    }
     ; The Python dispatch loop drains this file by renaming it (~20 Hz). A held
     ; key appends fast enough to overlap that rename, and Windows then refuses
     ; the open with "(32) ... being used by another process". Retry briefly so a
@@ -195,7 +286,7 @@ AppendWithRetry(text, path, attempts := 5, delayMs := 5) {
 }
 
 ProcessAhkCommand() {
-    global AHK_CMD_FILE
+    global AHK_CMD_FILE, StartupSuspended
     if !FileExist(AHK_CMD_FILE)
         return
     try {
@@ -208,8 +299,10 @@ ProcessAhkCommand() {
         return
     if (action = "suspend_hotkeys") {
         Suspend true
+        StartupSuspended := false
     } else if (action = "unsuspend_hotkeys") {
         Suspend false
+        StartupSuspended := false
     } else if (action = "exit") {
         ExitApp()
     }

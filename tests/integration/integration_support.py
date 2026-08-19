@@ -230,9 +230,9 @@ class FunTimeIntegrationSession:
         self._stderr_file.parent.mkdir(parents=True, exist_ok=True)
         self._stderr_fh = self._stderr_file.open("w", encoding="utf-8")
         # The windows-bridge log outlives the session that wrote it, so a
-        # whole-file search would answer with a PREVIOUS session's "Hotkey script
-        # started" and hand back a session that has not launched anything yet.
-        # Only what is appended from here on can satisfy the wait.
+        # whole-file search would answer with a PREVIOUS session's line and hand
+        # back a session that has not launched anything yet.  Only what is
+        # appended from here on can satisfy the wait.
         already_logged = len(self._read_windows_bridge_log())
         self._proc = subprocess.Popen(
             [sys.executable, "-m", "fun_time.orchestrator", "--config", str(self.config.config_path)],
@@ -242,7 +242,15 @@ class FunTimeIntegrationSession:
             stderr=self._stderr_fh,
             text=True,
         )
-        self._wait_for_own_log("Hotkey script started", after=already_logged, timeout=wait_seconds)
+        # The hotkey script goes up with the loading screen now, ahead of every
+        # window, so its own "started" line says nothing about the session — it
+        # lands seconds before there is one.  This is the line it writes when the
+        # orchestrator's pids file appears, which is exactly when startup has
+        # finished.  (Its keys stay suspended in a run like this one; the hold
+        # this line reports is the separate startup one.)
+        self._wait_for_own_log(
+            "Session up; startup hold released", after=already_logged, timeout=wait_seconds
+        )
         time.sleep(1.0)
         self._log_pos = self.windows_bridge_log.stat().st_size if self.windows_bridge_log.exists() else 0
 
