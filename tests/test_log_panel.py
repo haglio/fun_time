@@ -309,7 +309,7 @@ def test_the_source_toggles_are_left_to_the_style(panel_factory):
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication
 
-    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, TEXT_PRIMARY
+    from shared_ui.colors import BG_BUTTON, TEXT_PRIMARY
 
     panel = panel_factory(["Clip saved"])
 
@@ -326,15 +326,21 @@ def test_the_source_toggles_are_left_to_the_style(panel_factory):
         assert "width" not in sheet, "the width is Qt's, not ours"
 
 
-def test_a_checked_source_never_takes_the_default_highlight(panel_factory):
-    """Left to Qt a checked tool button comes out the palette's bright
-    highlight, which is a color no app in this family uses."""
-    import re
+def test_a_word_button_keeps_one_ground_however_it_is_toggled(panel_factory):
+    """A word-button is a different animal from the square icon buttons.
 
-    from shared_ui.colors import BG_BUTTON_ACTIVE
+    The lighter on-ground is what says "this square is engaged"; a row of words
+    like Scripture's and Evolver's is drawn one way and stays that way, and
+    giving these a second grey is exactly what stopped them matching that row.
+    Which source is being shown is carried by the label, bright or muted.
+    """
+    from shared_ui.colors import BG_BUTTON_ACTIVE, TEXT_MUTED
 
     panel = panel_factory(["Clip saved"])
     sheet = panel._source_boxes["system"].styleSheet()
 
-    checked = re.search(r"QToolButton:checked \{([^}]*)\}", sheet)
-    assert checked and BG_BUTTON_ACTIVE.name() in checked.group(1)
+    assert BG_BUTTON_ACTIVE.name() not in sheet, "it took the square buttons' on-ground"
+    assert "background" not in sheet.split("QToolButton:!checked")[-1]
+    assert TEXT_MUTED.name() in sheet
+
+
