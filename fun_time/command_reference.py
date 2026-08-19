@@ -141,18 +141,38 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Speak to a hosted Origenerator region — the side, then its own "
                 "words: a shelf to play (\"portrait favorites\", "
-                "\"landscape experiments\"), the show's controls "
-                "(\"landscape play slideshow\", \"portrait stop slideshow\"), "
-                "a targeted fix (\"portrait fix teeth\") or \"go now\" to "
-                "animate the picture as a Genau clip.  In this mode the side's "
-                "own \"latest\" and \"trash\" reach the show too",
+                "\"landscape experiments\", also requests and trash), the "
+                "show's controls (\"landscape play slideshow\", \"portrait "
+                "stop slideshow\" — play/start/open, pause, stop/end/close), a "
+                "targeted fix (\"portrait fix teeth\", \"fix all\"), "
+                "\"enhance\" for the better version of the picture, or \"go "
+                "now\" to animate it as a Genau clip.  Every one of them drops "
+                "the side word to reach whichever region was last addressed, "
+                "the way a bare \"lock\" or \"next\" does — bar \"go now\", "
+                "which bare is how this session switches to Genau mode.  In "
+                "this mode the side's own \"latest\" plays its Latest shelf "
+                "and \"weird\" culls the picture on it",
                 (),
                 tuple(
-                    f"{side}_say_{phrase.replace(' ', '_')}"
-                    for side in ("portrait", "landscape")
+                    f"{scope}_say_{phrase.replace(' ', '_')}"
+                    for scope in ("portrait", "landscape", "active")
                     for phrase in ORIGENERATOR_PHRASES
+                    if f"{scope}_say_{phrase.replace(' ', '_')}" in _SPOKEN_COMMANDS
                 ),
-                voice_display=("landscape favorites", "portrait fix teeth"),
+                voice_display=("landscape favorites", "portrait fix teeth", "enhance"),
+            ),
+            # The one spoken input with no phrase to list: its words are the
+            # speaker's own, so it rides the free recognizer rather than the
+            # grammar and is authored literally here.
+            _Row(
+                "Ask a hosted Origenerator region for a variant of the picture "
+                "on it — say \"request\", then what to change, then \"over\" "
+                "(\"landscape request no feet over\").  Take as many breaths "
+                "over it as you like; nothing said between the two markers is "
+                "read as a command",
+                (),
+                literal_voice=("portrait request … over", "landscape request … over",
+                               "request … over"),
             ),
             _Row(
                 "Toggle F-Mode on every player at once — spoken it needs the "

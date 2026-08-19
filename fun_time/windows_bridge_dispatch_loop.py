@@ -547,13 +547,15 @@ class DispatchLoopRunner:
         return self._last_satellite_clip.get(side, "")
 
     def _sync_voice_suspension(self) -> None:
-        """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
+        """Tell the listener what the room is in: frozen or not, and which side
+        the satellites are showing.
 
-        The suspend_hotkeys WindowOp only reaches AHK; voice lives in this
-        process, so it is driven off ``omni_paused`` itself — the one authority
-        both the dashboard and the shared state file agree on.  Suspended, only
-        the exempt commands (resume, quit, relief) still write, mirroring the AHK
-        script's ``#SuspendExempt`` block.
+        Freezing mirrors AHK's ``Suspend`` on the keys.  The suspend_hotkeys
+        WindowOp only reaches AHK; voice lives in this process, so it is driven
+        off ``omni_paused`` itself — the one authority both the dashboard and
+        the shared state file agree on.  Suspended, only the exempt commands
+        (resume, quit, relief) still write, mirroring the AHK script's
+        ``#SuspendExempt`` block.
         """
         if self.voice_controller is None:
             return
@@ -561,6 +563,11 @@ class DispatchLoopRunner:
             self.voice_controller.suspend()
         else:
             self.voice_controller.unsuspend()
+        # The same push, for the same reason: voice hears for the whole room
+        # and only this loop knows what the room is in.  A spoken request is
+        # free words rather than a grammar phrase, so voice only collects one
+        # while the hosted app is up to receive it.
+        self.voice_controller.set_satellites_mode(self.state.satellites_mode)
 
     def _flash_nau_notice(self) -> None:
         """Surface anything Nau has raised since the last tick, once.

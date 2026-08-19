@@ -1306,6 +1306,15 @@ def dispatch_command(
     if routed is not None:
         return state, routed
 
+    # One of the hosted app's own phrases that routed nowhere: the words were
+    # heard and there is no player they could ever mean, so the session says
+    # why rather than letting them vanish into a room that looks like it
+    # ignored them.
+    if _is_hosted_speech(command):
+        return state, [WindowOp(
+            op="notice", key=_hosted_speech_dead_end(command, state, config),
+            level=FAILED_NOTICE_LEVEL)]
+
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
         _send_satellite(config, 2, "PREV")
@@ -2141,10 +2150,66 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     watch tracking must not book a show's step or cull against the blacked
     player underneath.
     """
-    if command not in _ORIGENERATOR_TRANSPORT and command not in _ORIGENERATOR_SPEECH:
+    if (command not in _ORIGENERATOR_TRANSPORT
+            and _hosted_words(command) is None):
         return False
     return (origenerator_shows(state.satellites_mode)
             and config.origenerator_cmd_file is not None)
+
+
+# A spoken command that carries WORDS rather than naming a phrase: the one
+# thing said to a region that no grammar can hold, since a request's words are
+# the speaker's own ("request no feet over").  Voice assembles the line off the
+# free recognizer (see fun_time.spoken_request); the delimiter is the one the
+# HUD's own "<side>_play_video|<path>" uses, illegal in a Windows path and
+# absent from any transcription.
+_SPOKEN_WORDS_MARKER = "_say_words|"
+
+
+def _spoken_words_command(command: str) -> tuple[str, str] | None:
+    """The ``(side, words)`` of a "<side>_say_words|<words>" line, or ``None``.
+
+    A bare request arrives as ``active_say_words|…`` and is resolved onto the
+    region last addressed before it reaches here, exactly as every other bare
+    phrase is, so only the two sides answer.
+    """
+    head, marker, words = command.partition(_SPOKEN_WORDS_MARKER)
+    if not marker or head not in ("portrait", "landscape"):
+        return None
+    return head, words
+
+
+def _is_hosted_speech(command: str) -> bool:
+    """Whether *command* is one of the hosted app's own phrases — the ones that
+    mean nothing at all to a satellite player.
+
+    The two the session shares with one ("portrait latest") are deliberately
+    not these: out of origenerator mode they fall through and reorder that
+    player's browse, which is exactly what they say there.
+    """
+    return command.startswith(("portrait_say_", "landscape_say_", "active_say_"))
+
+
+def _hosted_words(command: str) -> tuple[str, str] | None:
+    """The ``(side, words)`` a command carries for the hosted app, phrase or
+    free words alike — ``None`` when it carries neither."""
+    spoken = _ORIGENERATOR_SPEECH.get(command)
+    return spoken if spoken is not None else _spoken_words_command(command)
+
+
+def _hosted_speech_dead_end(command: str, state: BridgeState, config: BridgeConfig) -> str:
+    """Why a phrase for the hosted app reached nothing, in the words that say
+    what to do about it.
+
+    The bare form is the one worth naming: it resolves onto whichever player
+    was last addressed, and while that is the main player there is no region
+    for it to land on — a silent no-op there reads as a mis-heard word.
+    """
+    if config.origenerator_cmd_file is None:
+        return "No Origenerator configured"
+    if not origenerator_shows(state.satellites_mode):
+        return "Origenerator is not showing"
+    return "Say portrait or landscape"
 
 
 def _origenerator_transport(
@@ -2158,7 +2223,7 @@ def _origenerator_transport(
     """
     if not routes_to_origenerator(command, state, config):
         return None
-    spoken = _ORIGENERATOR_SPEECH.get(command)
+    spoken = _hosted_words(command)
     if spoken is not None:
         side_name, phrase = spoken
         write_satellite_command(

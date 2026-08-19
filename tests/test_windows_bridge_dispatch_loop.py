@@ -350,6 +350,16 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
         assert resolve_active_side_command("active_lock_off", 3) == "landscape_lock_off"
 
+    def test_a_bare_hosted_phrase_reaches_the_active_region(self):
+        """Origenerator's own words drop their side like every other bare
+        phrase: "portrait favorites" then "enhance" is one region being talked
+        to.  On the main player they resolve to nothing, which is what the
+        dispatch answers with a "say a side" — a region is the one thing these
+        words cannot do without."""
+        assert resolve_active_side_command("active_say_enhance", 2) == "portrait_say_enhance"
+        assert resolve_active_side_command("active_say_fix_teeth", 3) == "landscape_say_fix_teeth"
+        assert resolve_active_side_command("active_say_enhance", 1) == "active_say_enhance"
+
     def test_a_bare_f_mode_reaches_whichever_player_is_active(self):
         """Every player has its own F-mode, so the bare phrase follows the active
         side onto any of the three — the main player included, which is where it

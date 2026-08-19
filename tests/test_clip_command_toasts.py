@@ -54,8 +54,16 @@ def test_every_spoken_f_mode_is_self_reporting():
 def test_every_spoken_discard_is_self_reporting():
     """Voice hands over whichever spelling was said — sided, bare (active), or
     both — so missing one would stack the echo on that phrase alone.  Genau's own
-    "weird clip" is a different player's action and keeps the plain echo."""
-    spoken_discards = {cmd for cmd in VOICE_COMMANDS.values() if cmd.endswith("_trash")}
+    "weird clip" is a different player's action and keeps the plain echo.
+
+    A hosted "…_say_trash" is not one of these however it ends: it forwards the
+    word "trash" to Origenerator, which plays its Trash shelf and reports
+    nothing back here, so suppressing the echo would leave the phrase silent.
+    """
+    spoken_discards = {
+        cmd for cmd in VOICE_COMMANDS.values()
+        if cmd.endswith("_trash") and "_say_" not in cmd
+    }
     assert spoken_discards, "expected the weird phrases to still exist"
     assert spoken_discards <= SELF_REPORTING_COMMANDS
 
