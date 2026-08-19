@@ -21,7 +21,7 @@ from shared_ui.colors import (
     BORDER_PANEL,
     TEXT_PRIMARY,
 )
-from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
+from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
 
 from fun_time.config import LayoutConfig
@@ -162,20 +162,27 @@ def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
     return _dashboard_pixmap_cache[key]
 
 
-def _draw_mic_pixmap(w: int, h: int) -> QPixmap:
-    """The voice-input microphone, sized to the panel it sits in, cached.
+def _mark(name: str, rect) -> QPixmap:
+    """One of the family's marks, sized for *rect*."""
+    return _mark_pixmap(name, rect.width, rect.height)
 
-    The drawing is the family's -- the very one Origenerator's toolbar wears --
-    rather than a copy kept here.  It has to be: the two apps are on screen
-    together, and while each drew its own microphone the two marks came out
-    visibly different shapes, so one control read as two.
 
-    Square, because a mic drawn to a wide panel's aspect stops being round; the
-    widget that paints it centers it in the panel.
+def _mark_pixmap(name: str, w: int, h: int) -> QPixmap:
+    """One of the family's marks, sized to the control it sits in, cached.
+
+    Every control on this bar is drawn from shared_ui rather than typed as a
+    font character.  Typed, each one came out at whatever weight and size its
+    face gave it: the microphone was a different shape from Origenerator's, the
+    power symbol a different weight from Evolver's, and the help "?" -- set in
+    the body face rather than a symbol one -- was visibly smaller than every
+    mark beside it.
+
+    Square, because a mark drawn to a wide panel's aspect stops being round; the
+    widget that paints it centers it in the control.
     """
-    key = ("mic", w, h)
+    key = (name, w, h)
     if key not in _dashboard_pixmap_cache:
-        _dashboard_pixmap_cache[key] = glyph_pixmap("mic", min(w, h), COLOR_TEXT)
+        _dashboard_pixmap_cache[key] = glyph_pixmap(name, min(w, h), COLOR_TEXT)
     return _dashboard_pixmap_cache[key]
 
 
@@ -210,7 +217,7 @@ def build_dashboard_scene(
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
 
     omni_paused = snapshot is not None and snapshot.omni_paused
-    omnipause_icon = "\u25B6" if omni_paused else "\u23F8"
+    omnipause_mark = "play" if omni_paused else "pause"
 
     def _press_fill(fill: QColor, action_id: str) -> QColor:
         return lighten_color(fill) if action_id in pressed_actions else fill
@@ -221,8 +228,6 @@ def build_dashboard_scene(
         DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
     )
-    _font_symbol = make_font(FONT_SYMBOL, 13, bold=True)
-    _font_ui = make_font(FONT_UI, SIZE_SMALL, bold=True)
     # The app-name lockup, styled like the loading screen: pink, bold italic.
     # Built fresh (not via the cached make_font) so setItalic cannot leak into
     # every other user of a shared QFont.
@@ -230,19 +235,19 @@ def build_dashboard_scene(
     _font_app.setBold(True)
     _font_app.setItalic(True)
 
+    # Only the app's own name is set in type now; every control wears a drawn
+    # mark, so the bar carries one weight across it.
     texts = (
-        DashboardTextItem("\u23FB", layout.quit_button, font=_font_symbol),
-        DashboardTextItem(omnipause_icon, layout.omnipause_button, font=_font_symbol),
-        DashboardTextItem("?", layout.help_button, font=_font_ui),
         DashboardTextItem("Fun Time", layout.app_title, color=COLOR_APP_TITLE,
                           anchor="w", font=_font_app),
     )
     images = (
         DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(
-            _draw_mic_pixmap(layout.voice_panel.width, layout.voice_panel.height),
-            layout.voice_panel,
-        ),
+        DashboardImageItem(_mark("power", layout.quit_button), layout.quit_button),
+        DashboardImageItem(_mark(omnipause_mark, layout.omnipause_button),
+                           layout.omnipause_button),
+        DashboardImageItem(_mark("question", layout.help_button), layout.help_button),
+        DashboardImageItem(_mark("mic", layout.voice_panel), layout.voice_panel),
     )
     actions = (
         (QUIT_BUTTON, layout.quit_button),

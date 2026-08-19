@@ -102,12 +102,16 @@ def test_the_pause_button_says_which_way_it_will_go():
     the action it will take, not the state it is in."""
     layout = compute_dashboard_bar_layout()
 
-    def icon(paused: bool) -> str:
-        scene = _scene(_snapshot(omni_paused=paused))
-        return next(i.text for i in scene.texts if i.rect == layout.omnipause_button)
+    from shared_ui.colors import TEXT_PRIMARY
+    from shared_ui.icons import glyph_pixmap
 
-    assert icon(False) == "\u23F8"
-    assert icon(True) == "\u25B6"
+    def mark(paused: bool):
+        scene = _scene(_snapshot(omni_paused=paused))
+        return next(i.pixmap for i in scene.images if i.rect == layout.omnipause_button)
+
+    side = min(layout.omnipause_button.width, layout.omnipause_button.height)
+    assert mark(False).toImage() == glyph_pixmap("pause", side, TEXT_PRIMARY).toImage()
+    assert mark(True).toImage() == glyph_pixmap("play", side, TEXT_PRIMARY).toImage()
 
 
 def test_pausing_everything_does_not_paint_the_button_a_state_color():
@@ -813,3 +817,35 @@ def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):
     assert received == []
 
 
+
+
+def test_every_control_on_the_bar_wears_a_drawn_mark(qtbot=None):
+    """Typed as font characters, each control came out at whatever weight its
+    face gave it -- the help "?" was set in the body face rather than a symbol
+    one and was visibly smaller than every mark beside it, and quit's power
+    symbol was a different weight from the one Evolver draws.  So the bar's
+    controls are drawn now, and only the app's own name is set in type."""
+    from shared_ui.colors import TEXT_PRIMARY
+    from shared_ui.icons import glyph_pixmap
+
+    layout = compute_dashboard_bar_layout()
+    scene = _scene()
+    drawn = {item.rect: item.pixmap for item in scene.images}
+
+    for rect, name in ((layout.quit_button, "power"),
+                       (layout.help_button, "question"),
+                       (layout.voice_panel, "mic")):
+        side = min(rect.width, rect.height)
+        assert drawn[rect].toImage() == glyph_pixmap(name, side, TEXT_PRIMARY).toImage(), name
+
+    assert [item.text for item in scene.texts] == ["Fun Time"]
+
+
+def test_the_help_mark_is_as_big_as_the_marks_beside_it():
+    """It was a text character among icons and read as an afterthought."""
+    layout = compute_dashboard_bar_layout()
+    drawn = {item.rect: item.pixmap for item in _scene().images}
+
+    help_side = drawn[layout.help_button].width()
+    mic_side = drawn[layout.voice_panel].width()
+    assert abs(help_side - mic_side) <= 2

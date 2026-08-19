@@ -11,13 +11,20 @@ from __future__ import annotations
 
 from player_core.hud_marks import SHARED_MARK, shared_mark_name
 
-from satellite.hud_paint import _CONTROL_GLYPHS, _FAVORITE_GLYPH, _LOOP_GLYPH
+from satellite.hud_paint import (
+    _CONTROL_GLYPHS,
+    _EXPAND_GLYPH,
+    _FAVORITE_GLYPH,
+    _LOOP_GLYPH,
+)
 from shared_ui.icon_geometry import glyph_names
 
 
 def _named() -> dict[str, str]:
     """Every HUD face that names a shared mark, by the mark it names."""
-    faces = dict(_CONTROL_GLYPHS) | {"loop": _LOOP_GLYPH, "favorite": _FAVORITE_GLYPH}
+    faces = dict(_CONTROL_GLYPHS) | {
+        "loop": _LOOP_GLYPH, "favorite": _FAVORITE_GLYPH, "expand": _EXPAND_GLYPH,
+    }
     return {
         key: shared_mark_name(face)
         for key, face in faces.items()
@@ -62,3 +69,37 @@ def test_the_transport_and_the_padlock_stay_typed():
     # draw would be worse than the character it replaced.
     for control in ("prev", "next", "lock"):
         assert not _CONTROL_GLYPHS[control].startswith(SHARED_MARK)
+
+
+def test_the_expand_arrow_is_drawn_rather_than_typed():
+    # Typed it was U+2194, a hairline beside the solid arrowheads of the
+    # transport buttons it shares a panel with.
+    assert _named()["expand"] == "expand_horizontal"
+
+
+def test_a_resting_button_draws_its_mark_full_strength():
+    # The satellite panels read as dim and half-disabled beside the main
+    # player's console, which draws its own resting marks at full strength.
+    # Both had muted the mark AND the box; only the box should be muted.
+    from PIL import Image, ImageDraw
+    from player_core.hud_panel import TEXT_PRIMARY
+
+    from satellite.hud_paint import HudRenderer
+
+    ink = HudRenderer("portrait")._button_box(
+        ImageDraw.Draw(Image.new("RGBA", (18, 18))), (0, 0, 18, 18), on=False)
+    assert ink[:3] == TEXT_PRIMARY
+
+
+def test_the_bin_draws_red_because_it_takes_something_away():
+    # Origenerator's Delete is red, and the user wants that to mean the same
+    # thing wherever the act appears.
+    from PIL import Image, ImageDraw
+    from player_core.hud_panel import RED
+
+    from satellite.hud_paint import _DESTRUCTIVE, HudRenderer
+
+    assert "trash" in _DESTRUCTIVE
+    ink = HudRenderer("portrait")._button_box(
+        ImageDraw.Draw(Image.new("RGBA", (18, 18))), (0, 0, 18, 18), on=False, ink=RED)
+    assert ink[:3] == RED
