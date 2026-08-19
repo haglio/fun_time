@@ -416,3 +416,14 @@ class TestPlaylistFitsSources:
         """Having no session to come back to is the resume's own answer, and it
         must not read as a playlist needing a rebuild."""
         assert playlist_fits_sources(tmp_path / "absent.tsv", str(tmp_path)) is True
+
+
+def test_resume_carries_the_satellites_mode(tmp_path):
+    """A session closed in origenerator mode comes back in it, the same way the
+    main slot's mode does."""
+    state_file = tmp_path / "shared_state.ini"
+    write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
+
+    state = resume_shared_state(state_file, resumed=True)
+
+    assert state.satellites_mode == "origenerator"

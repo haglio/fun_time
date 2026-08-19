@@ -8,7 +8,8 @@ one thing drawn on top is the lock HUD, composited into the video from the panel
 fun_time publishes (see satellite.hud_overlay).
 
 Not unit-tested: it needs the libmpv DLL and a real window.  The pure control
-logic it drives lives in satellite.session / satellite.runtime / satellite.hud*,
+logic it drives lives in satellite.session / satellite.runtime /
+player_core.satellite_hud*,
 tested against a fake player.
 """
 from __future__ import annotations
@@ -18,6 +19,7 @@ import os
 import threading
 from pathlib import Path
 
+import numpy as np
 import pygame
 
 from player_core.file_channel import consume_command_file, read_paused_state
@@ -38,6 +40,10 @@ from .status import status_fields
 logger = logging.getLogger(__name__)
 
 # Overlay ids the satellite composites, distinct from the lock HUD's (10).
+# mpv draws overlays in ascending id order, so the blackout sits UNDER the HUD
+# (the mode row must stay visible over a blacked player — it is the way back)
+# while the scrubber and volume chip, higher, are simply not drawn while black.
+_OV_BLACKOUT = 5
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 
@@ -148,6 +154,9 @@ def _run(args, playlist: list[Path]) -> int:
     # plain progress readout and the chip is a fixed muted indicator; both are here
     # so a satellite reads like the main player rather than as a bare video.
     volume_painter = VolumeHudPainter()
+    # The window size the blackout frame was last composited for, or None while
+    # the video shows — the frame is re-made only when the size moves.
+    blackout_size: tuple[int, int] | None = None
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
@@ -194,11 +203,27 @@ def _run(args, playlist: list[Path]) -> int:
         # indicator at its right end.  get_window_size reflects the slot the
         # sequencer moved this window into, so both track the real geometry.
         win_w, win_h = pygame.display.get_window_size()
-        scrubber = progress_bar_bgra(
-            session.position_ms, session.duration_ms, None, win_w)
-        player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
-        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
-        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(_MUTED_INDICATOR))
+        if hud is not None and hud.display_suppressed:
+            # Origenerator mode: the region is the hosted app's, so the player
+            # goes black — an opaque frame over the video, under the HUD (whose
+            # mode row is the way back).  Composited once per size, not per
+            # tick: mpv holds an overlay until it is removed or replaced.
+            if blackout_size != (win_w, win_h):
+                blackout_size = (win_w, win_h)
+                player.remove_overlay(_OV_SCRUBBER)
+                player.remove_overlay(_OV_VOLUME)
+                black = np.zeros((win_h, win_w, 4), dtype=np.uint8)
+                black[:, :, 3] = 255  # opaque black; BGR stays zero
+                player.overlay(_OV_BLACKOUT, 0, 0, black)
+        else:
+            if blackout_size is not None:
+                blackout_size = None
+                player.remove_overlay(_OV_BLACKOUT)
+            scrubber = progress_bar_bgra(
+                session.position_ms, session.duration_ms, None, win_w)
+            player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
+            vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
+            player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(_MUTED_INDICATOR))
 
         clock.tick(60)
 

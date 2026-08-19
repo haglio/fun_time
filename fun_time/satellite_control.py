@@ -14,16 +14,21 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 
 def write_satellite_command(cmd_file: Path, verb: str) -> None:
     """Queue *verb* for a satellite by appending it, one per line.
 
     Appended rather than overwritten so a burst of commands issued before the
-    player next drains its file all survive, matching how the player reads them.
+    player next drains its file all survive, matching how the player reads
+    them — and through ``append_command``, whose retry is what survives the
+    moment the player CLAIMS the queue (a rename, during which Windows denies
+    the open outright).  A plain ``open("a")`` here lost that race for real:
+    an integration run died on ``PermissionError`` mid-append.
     """
     cmd_file.parent.mkdir(parents=True, exist_ok=True)
-    with cmd_file.open("a", encoding="utf-8") as fh:
-        fh.write(verb.rstrip("\n") + "\n")
+    append_command(cmd_file, verb.rstrip("\n"))
 
 
 @dataclass(frozen=True)

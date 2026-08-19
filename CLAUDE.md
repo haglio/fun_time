@@ -135,7 +135,14 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   so a file still offering to run it separately is clutter he has to reason
   about, and nothing else sweeps it until some other agent happens to write one.
   Then tell him it is live and needs a restart. Only he may waive the launch —
-  "just land it" is his call to make, never yours.
+  "just land it" is his call to make, never yours. **The shortcut is owed to him
+  whether or not you are the one landing** — an agent handing its branch to
+  another agent to merge still gets his verdict first, because the merge is what
+  the verdict decides. Spawning one, say that outright in the brief: told only
+  "do not land anything" and "do not run the app on his screen" (which means
+  never open a window on his display yourself, not "skip the verify"), four
+  spawned agents in a row read the whole handoff as belonging to the merger and
+  gave him nothing to click (2026-08-19).
 
 - **A new config key your branch reads must also go in his real config, or that
   session will not see it.** `launch_branch.vbs` builds the branch config with

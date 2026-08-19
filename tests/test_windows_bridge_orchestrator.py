@@ -3,7 +3,7 @@ from __future__ import annotations
 import configparser
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import call, patch, MagicMock, call
 
 import threading
 
@@ -13,10 +13,15 @@ from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.windows_bridge_orchestrator import (
+    HUD_PRIME_TIMEOUT_S,
+    POST_LOADING_RESOLVE_TIMEOUT_S,
+    SETTLE_PASSES,
+    SETTLE_WAIT_S,
+    _close_origenerator_gracefully,
     ChildProcess,
     _CHILD_PID_KEYS,
     _fix_post_loading_windows,
-    _log_nau_obstruction,
+    _log_window_obstruction,
     _open_event_log,
     _shutdown_children,
     identify_children,
@@ -26,6 +31,7 @@ from fun_time.windows_bridge_orchestrator import (
     run_python_orchestrated_bridge,
 )
 from fun_time.win32 import StackedWindow
+from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.windows_bridge_dispatch_loop import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
@@ -56,6 +62,7 @@ def _fake_startup_result() -> StartupResult:
         dashboard_pid=500,
         genau_pid=600,
         audio_pid=700,
+        origenerator_pid=800,
         layout_plan=_fake_plan(),
     )
 
@@ -76,13 +83,232 @@ class TestFixPostLoadingWindows:
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
             "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
-        ), patch("fun_time.windows_bridge_orchestrator._log_nau_obstruction"):
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
             _fix_post_loading_windows(result)
 
         assert apply.call_args.kwargs["mode"] == "genau"
 
+    def test_satellites_resolve_by_title_when_their_pids_are_launcher_shims(self):
+        """python_exe is the venv's pythonw SHIM: the recorded satellite pid is
+        the launcher's, not the interpreter that owns the SDL window, so the
+        by-pid lookup finds nothing.  This pass was the only banding the
+        satellites got on a loading-screen startup, and with hwnd 0 it silently
+        skipped them — every session opened with both players out of the
+        topmost band, buried by the first window raised over their rects."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
-class TestKillProcessTree:
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ) as apply, patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result)
+
+        assert apply.call_args.kwargs["portrait_hwnd"] == 111
+        assert apply.call_args.kwargs["landscape_hwnd"] == 222
+
+    def test_a_buried_satellite_is_re_promoted_until_frontmost(self):
+        """The banding waits on each window's own thread, and the satellites
+        are at their busiest exactly at the reveal — a promotion that times
+        out through the hung-window guard leaves the player under whatever
+        the user had on that monitor (a maximized Chrome sat over the
+        landscape player until the next full re-band).  The pass now walks
+        the real z-order afterwards and re-promotes whoever is still buried."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
+                               rect=(0, 0, 2560, 1410))
+        buried = [chrome,
+                  StackedWindow(hwnd=222, title="Landscape AI Player",
+                                topmost=True, rect=(854, 0, 1706, 1410)),
+                  StackedWindow(hwnd=111, title="Portrait AI Player",
+                                topmost=True, rect=(2560, 0, 1440, 2560))]
+        risen = [buried[1], chrome, buried[2]]  # landscape above Chrome now
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder",
+            side_effect=[buried, risen],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, patch(
+            "fun_time.windows_bridge_orchestrator.time.sleep"
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result)
+
+        promote.assert_called_once_with(222, True)  # only the buried one, once
+
+    def test_the_curtain_goes_back_on_top_after_the_bands_are_applied(self):
+        """Behind the overlay is where this pass belongs — the bands are what
+        decides what the reveal looks like — and every promotion it makes
+        inserts ABOVE the overlay (HWND_TOPMOST inserts at the top of the
+        band).  So the overlay is put back on top after the pass, or the room
+        it is hiding shows through the moment it is banded."""
+        result = _fake_startup_result()
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
+        ), patch(
+            # The cover goes back through the sequencer's keep_the_cover_up,
+            # which both ends of startup share; a player is promoted through
+            # this module's own name.
+            "fun_time.windows_bridge_sequencer.set_always_on_top"
+        ) as cover_back, patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result, overlay_hwnd=77)
+
+        cover_back.assert_called_once_with(77, True)
+
+    def test_the_curtain_is_not_a_burial(self):
+        """The overlay covers both players by design, so counting it as a
+        covering window would spend every pass re-promoting players that are
+        exactly where they belong — and each promotion would put one over the
+        curtain."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        curtain = StackedWindow(hwnd=77, title="Fun Time Loading", topmost=True,
+                                rect=(0, 0, 4000, 2560))
+        stack = [curtain,
+                 StackedWindow(hwnd=222, title="Landscape AI Player",
+                               topmost=True, rect=(854, 0, 1706, 1410)),
+                 StackedWindow(hwnd=111, title="Portrait AI Player",
+                               topmost=True, rect=(2560, 0, 1440, 2560))]
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack,
+        ), patch(
+            "fun_time.windows_bridge_sequencer.set_always_on_top"
+        ) as cover_back, patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, patch(
+            "fun_time.windows_bridge_orchestrator.time.sleep"
+        ) as slept, patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            _fix_post_loading_windows(result, overlay_hwnd=77)
+
+        # The curtain put back, and nothing else: neither player is buried.
+        assert cover_back.call_args_list == [call(77, True)]
+        promote.assert_not_called()
+        slept.assert_not_called()
+
+    def test_origenerator_mode_bands_and_settles_the_shows_over_the_players(self):
+        """In origenerator mode the players are blacked and held for the whole
+        mode and the hosted app's region shows cover them on purpose.
+
+        So the shows are what this pass has to band (as managed roles promoted
+        after the players) and what it has to settle: pointed at the players,
+        the settle loop reads a show covering its player as a burial and
+        re-promotes the blacked player over it, once every pass for twelve
+        seconds — which on a session that opened in the mode is one picture and
+        then a black rectangle."""
+        result = replace(_fake_startup_result(), satellites_mode="origenerator")
+        by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        for_process = {"Origenerator": 800, "Origenerator Portrait": 801,
+                       "Origenerator Landscape": 802}
+        promoted = []
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ) as apply, patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: by_title.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_for_process",
+            side_effect=lambda _pid, title: for_process.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.windows_obscuring",
+            side_effect=lambda hwnd, _stack: [],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top",
+            side_effect=lambda hwnd, on: promoted.append(hwnd),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ) as obstruction:
+            _fix_post_loading_windows(result)
+
+        assert apply.call_args.kwargs["origenerator_portrait_hwnd"] == 801
+        assert apply.call_args.kwargs["origenerator_landscape_hwnd"] == 802
+        # And the burial test asks about the shows, never the players under them.
+        watched = [call.args[1] for call in obstruction.call_args_list]
+        assert 801 in watched and 802 in watched
+        assert 111 not in watched and 222 not in watched
+
+    def test_player_mode_still_settles_the_players_themselves(self):
+        """Nothing covers a player when no show is hosted over it, so the pass
+        is unchanged there — and a session with no Origenerator at all resolves
+        no show windows to settle."""
+        result = _fake_startup_result()
+        by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+        ) as apply, patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: by_title.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ) as obstruction:
+            _fix_post_loading_windows(result)
+
+        assert apply.call_args.kwargs["origenerator_portrait_hwnd"] == 0
+        watched = [call.args[1] for call in obstruction.call_args_list]
+        assert 111 in watched and 222 in watched
+
+    def test_it_hands_back_the_windows_it_resolved(self):
+        """The reveal re-asserts the bands once the overlay is gone, and does
+        it on these rather than resolving every window a second time."""
+        result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator._apply_startup_window_state",
+            return_value={"portrait": 111, "landscape": 222},
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+            resolved = _fix_post_loading_windows(result)
+
+        assert resolved == {"portrait": 111, "landscape": 222}
     def test_taskkills_the_pid_and_its_descendants(self):
         with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
             kill_process_tree(1234)
@@ -661,7 +887,7 @@ class TestClosingScreenLifecycle:
         assert events[0] == "cover_up"
         assert set(events[1:]) == {
             "close_browser", "kill:200", "kill:300", "kill:400",
-            "kill:500", "kill:600", "kill:700",
+            "kill:500", "kill:600", "kill:700", "kill:800",
         }
 
     def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path, monkeypatch):
@@ -1103,7 +1329,7 @@ class TestNauObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020)
+            _log_window_obstruction("Nau", 2020)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
         assert "topmost=False" in caplog.text  # a non-topmost window over topmost Nau
@@ -1112,14 +1338,14 @@ class TestNauObstructionLog:
         stack = [StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900))]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020)
+            _log_window_obstruction("Nau", 2020)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
     def test_warns_when_nau_unresolved(self, caplog):
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder") as it, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(0)
+            _log_window_obstruction("Nau", 0)
         it.assert_not_called()  # nothing to walk if Nau never resolved
         assert "unresolved" in caplog.text
 
@@ -1134,7 +1360,7 @@ class TestNauObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020, expected_over=1010)
+            _log_window_obstruction("Nau", 2020, expected_over=1010)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
@@ -1147,7 +1373,7 @@ class TestNauObstructionLog:
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_nau_obstruction(2020, expected_over=1010)
+            _log_window_obstruction("Nau", 2020, expected_over=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
         assert "Hybrid Nau+Genau" not in caplog.text
@@ -1337,3 +1563,110 @@ class TestOpenEventLog:
             package_logger.setLevel(original[2])
             orch_logger.setLevel(original[3])
             orch_logger.propagate = original[4]
+
+
+class TestOrigeneratorGracefulClose:
+    def test_teardown_closes_the_window_before_the_kill_sweep(self):
+        """Its closeEvent persists the session and queues the absence
+        experiments, so the window is asked to close first; the taskkill that
+        follows is the backstop, not the normal death."""
+        closed: list[int] = []
+        with patch(
+            "fun_time.windows_bridge_orchestrator.get_process_creation_time",
+            side_effect=[8000, None],  # recorded alive, then exited after the close
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_for_process",
+            return_value=4242,
+        ), patch("fun_time.windows_bridge_orchestrator.close_window",
+                 side_effect=closed.append):
+            child = ChildProcess(pid=800, created_at=8000)
+            _close_origenerator_gracefully(child)
+        assert closed == [4242]
+
+    def test_no_window_means_nothing_to_close(self):
+        with patch(
+            "fun_time.windows_bridge_orchestrator.find_window_for_process",
+            return_value=0,
+        ), patch("fun_time.windows_bridge_orchestrator.close_window") as close:
+            _close_origenerator_gracefully(ChildProcess(pid=800, created_at=8000))
+        close.assert_not_called()
+
+    def test_a_session_without_origenerator_skips_the_close(self):
+        with patch("fun_time.windows_bridge_orchestrator.close_window") as close:
+            _close_origenerator_gracefully(ChildProcess(pid=0, created_at=0))
+            _close_origenerator_gracefully(None)
+        close.assert_not_called()
+
+
+class TestTheFinishingPassFitsBehindTheCover:
+    def test_it_cannot_outlast_the_covers_staleness_guard(self):
+        """The room is banded and settled behind the cover, and the cover comes
+        down on the DONE written at the end of that.  Nothing writes the progress
+        file in between, so the cover's staleness guard — its protection against
+        an orchestrator that died holding the screen — is running the whole time.
+        Outlast it and the cover takes itself down mid-pass, which is the user
+        watching the z-order sort itself out: the exact thing it is up for.
+
+        Every wait that pass can take, added up, has to clear that guard.  Five
+        window resolutions: the dashboard, Nau, Genau, and the two satellites.
+        """
+        budget = (
+            HUD_PRIME_TIMEOUT_S
+            + 5 * POST_LOADING_RESOLVE_TIMEOUT_S
+            + SETTLE_PASSES * SETTLE_WAIT_S
+        )
+        assert budget < STALE_TIMEOUT_S
+
+
+class TestThePlayersStartWhenTheCoverIsGone:
+    """Nau's video and Genau's audio must not run behind the cover.
+
+    The phase walk used to release them as its last act, which was also the
+    moment the cover came down {D} so they lined up.  Now the cover is held
+    through the finishing pass, and releasing with the phases would mean the
+    video (and the audio, which he can hear through nothing) running for seconds
+    behind a scrim, its opening spent before he can see it.  So the release is
+    the orchestrator's, and it comes after the cover's process is gone.
+    """
+
+    def _run(self, cfg_factory, tmp_path, monkeypatch):
+        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        events: list[str] = []
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        fake_loading_proc = MagicMock()
+        fake_loading_proc.wait.side_effect = lambda **_kw: events.append("cover gone")
+
+        def fake_popen(cmd, **kwargs):
+            return fake_loading_proc if "loading_screen" in str(cmd) else fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   side_effect=fake_popen), \
+             patch("fun_time.windows_bridge_orchestrator._fix_post_loading_windows",
+                   return_value={}), \
+             patch("fun_time.windows_bridge_orchestrator.release_the_players",
+                   side_effect=lambda *_a: events.append("players released")), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+            )
+        return events
+
+    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path, monkeypatch):
+        events = self._run(cfg_factory, tmp_path, monkeypatch)
+
+        assert "players released" in events, "the players were never started"
+        assert events.index("cover gone") < events.index("players released"), (
+            "the players were started while the cover was still up"
+        )

@@ -12,6 +12,7 @@ import logging
 import pytest
 
 from fun_time.command_dispatch import (
+    routes_to_origenerator,
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
     BridgeState,
@@ -3858,3 +3859,153 @@ def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):
     dispatch_command("main_latest", BridgeState(), config)
 
     assert calls[-1]["start_at_top"] is True
+
+
+def _origenerator_config(tmp_path: Path) -> BridgeConfig:
+    """A config whose session hosts an Origenerator (the mode exists at all)."""
+    config = _make_config(tmp_path)
+    return replace(
+        config,
+        origenerator_enabled=True,
+        origenerator_cmd_file=config.state_dir / "origenerator_cmd.txt",
+        origenerator_paused_file=config.state_dir / "origenerator_paused.txt",
+    )
+
+
+def _origenerator_cmds(config: BridgeConfig) -> list[str]:
+    cmd_file = config.origenerator_cmd_file
+    if not cmd_file.exists():
+        return []
+    return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
+
+
+class TestSatellitesModeSwitch:
+    def test_origenerator_activate_shows_restacks_and_pauses_the_players(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
+        assert state.satellites_mode == "origenerator"
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+            ("show_role", "origenerator"),
+            ("activate_role", "origenerator"),
+            ("restack_satellites", ""),
+        ]
+        # The regions are the hosted app's for the whole mode: both players
+        # pause (and black themselves out, off the published HUD panel's mode).
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+
+    def test_players_activate_closes_shows_and_unpauses_the_players(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        state, ops = dispatch_command("players_activate", state, config)
+        assert state.satellites_mode == "player"
+        # The shows are the hosted app's to close; the blacked players resume.
+        assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
+        # Its windows leave the screen: the main one parks, the shows close
+        # themselves (the hides are the backstop for a hung app).
+        assert ("hide_role", "origenerator") in [(op.op, op.key) for op in ops]
+
+    def test_satellites_toggle_flips_between_the_two(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state, _ = dispatch_command("satellites_toggle", BridgeState(), config)
+        assert state.satellites_mode == "origenerator"
+        state, _ = dispatch_command("satellites_toggle", state, config)
+        assert state.satellites_mode == "player"
+
+    def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
+        config = _make_config(tmp_path)
+        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
+        assert state.satellites_mode == "player"
+        assert any(op.op == "notice" and op.level == FAILED_NOTICE_LEVEL for op in ops)
+
+    def test_omnipaused_switch_is_state_only(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(omni_paused=True)
+        state, ops = dispatch_command("origenerator_activate", state, config)
+        assert state.satellites_mode == "origenerator"
+        assert ops == []
+
+
+class TestOrigeneratorTransport:
+    def test_side_transport_reaches_the_hosted_app_not_the_player(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        state, _ = dispatch_command("portrait_next", state, config)
+        assert _origenerator_cmds(config) == ["PORTRAIT_NEXT"]
+        # The player is black and paused for the whole mode — driving it would
+        # walk its playlist invisibly (and book watch stats nobody watched).
+        assert _cmds(config, 2) == []
+
+    def test_every_control_band_verb_routes(self, tmp_path):
+        """The gestures the shared control band draws — reset among them, since
+        it is on that band and means the same thing on a show as on a player."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        for command in ("portrait_prev", "portrait_trash", "portrait_lock",
+                        "portrait_reset", "landscape_next", "landscape_lock",
+                        "landscape_reset"):
+            state, _ = dispatch_command(command, state, config)
+        assert _origenerator_cmds(config) == [
+            "PORTRAIT_PREV", "PORTRAIT_TRASH", "PORTRAIT_LOCK", "PORTRAIT_RESET",
+            "LANDSCAPE_NEXT", "LANDSCAPE_LOCK", "LANDSCAPE_RESET",
+        ]
+
+    def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
+        """The session owns the room's microphone — one mic, one transcription —
+        so a command about a hosted region is heard here and posted there as the
+        words themselves.  Matching them is the hosted app's own business: only
+        it knows which shelves its tree has and which detail parts have
+        detectors installed."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
+                        "landscape_say_fix_teeth"):
+            state, _ = dispatch_command(command, state, config)
+        assert _origenerator_cmds(config) == [
+            "LANDSCAPE_SAY:favorites",
+            "PORTRAIT_SAY:play slideshow",
+            "LANDSCAPE_SAY:fix teeth",
+        ]
+
+    def test_every_spoken_phrase_has_a_command_to_dispatch(self, tmp_path):
+        """The vocabulary and the routing are generated from one list, so a
+        phrase vosk can hear is a phrase this can send — a phrase recognized
+        with nowhere to go would be heard and silently dropped."""
+        from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
+
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        for side in ("portrait", "landscape"):
+            for phrase in ORIGENERATOR_PHRASES:
+                command = VOICE_COMMANDS[f"{side} {phrase}"]
+                assert routes_to_origenerator(command, state, config), command
+
+    def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state, _ = dispatch_command("portrait_next", BridgeState(), config)
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, 2) == ["NEXT"]
+
+
+class TestOmniPauseWithOrigenerator:
+    def test_enter_freezes_the_hosted_app_too(self, tmp_path):
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+        state, _ = dispatch_command("enter_omnipause", state, config)
+        assert state.omni_paused
+        assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
+
+    def test_leave_keeps_the_players_paused_in_origenerator_mode(self, tmp_path):
+        # The regions are the hosted app's for the whole mode: the room
+        # resuming must not set the blacked players playing underneath it.
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", omni_paused=True)
+        state, _ = dispatch_command("relief_omnipause", state, config)  # enters relief
+        state = replace(state, omni_paused=True)
+        state, _ = dispatch_command("omnipause_toggle", state, config)
+        assert not state.omni_paused
+        assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"

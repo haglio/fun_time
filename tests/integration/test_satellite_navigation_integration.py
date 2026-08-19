@@ -33,7 +33,7 @@ from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.windows_bridge_startup import launch_satellite
 
-from .integration_support import real_config_path
+from .integration_support import checkout_project_dirs, real_config_path
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -127,6 +127,8 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         hud_file=hud, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         log_file=log,
         x=0, y=0, width=width, height=height,
+        # This checkout's siblings, as a session launches them.
+        project_dirs=checkout_project_dirs(),
     )
     sat = _Satellite(pid, cmd, paused, status, playlist, hud, log)
     try:
@@ -265,12 +267,19 @@ def _drained(satellite: _Satellite) -> None:
     (``player_core.file_channel.consume_command_file``), so a fully drained queue
     leaves nothing behind.  Reading it outright raised FileNotFoundError from
     inside the wait — a drain looked like a hang.
+
+    A read caught DURING that rename is denied outright by Windows, which is
+    not an answer either way — the queue is mid-claim, so the honest reading is
+    "not drained yet" and the next poll is milliseconds away.  Left to raise, it
+    took the whole run down with a PermissionError from inside the wait.
     """
     def empty() -> bool:
         try:
             return not satellite.cmd.read_text(encoding="utf-8").strip()
         except FileNotFoundError:
             return True
+        except PermissionError:
+            return False  # claimed this instant; ask again next poll
 
     _wait(empty, timeout=10, desc="the player to drain its command file")
 

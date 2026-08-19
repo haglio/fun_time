@@ -39,6 +39,12 @@ from .modes import collect_video_files, is_favorite_path, read_favs_content, wri
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
+from .satellites_mode import (
+    ORIGENERATOR_MODE,
+    STARTUP_SATELLITES_MODE,
+    origenerator_shows,
+    toggled_satellites_mode,
+)
 from .filter_vocab import decode_filter_command
 from .omnipause import build_omnipause_plan
 from .runtime_flow import (
@@ -53,9 +59,11 @@ from .runtime_flow import (
     apply_main_fmode,
     apply_mode_switch,
     apply_satellite_filter,
+    apply_satellites_switch,
     satellite_browse_paths,
 )
 from .satellite_control import read_satellite_status, write_satellite_command
+from .voice_commands import ORIGENERATOR_PHRASES
 from .window_roles import visible_main_slot_roles
 from .watch_stats import record_watch_event, watch_stats_path
 from .event_log import (
@@ -92,6 +100,10 @@ class BridgeState:
     locked2: bool = False
     locked3: bool = False
     main_mode: str = STARTUP_MAIN_MODE
+    # The satellite side's own mode axis (see fun_time.satellites_mode):
+    # "player" is the session as ever, "origenerator" puts the hosted
+    # Origenerator over the RFB and its shows over the players.
+    satellites_mode: str = STARTUP_SATELLITES_MODE
     # Whether each player is in F-mode, held per player because it is set per
     # player: each HUD carries its own button, and only the bare "f mode" (and the
     # F key) still reaches all three at once.  It narrows the satellites to the
@@ -199,6 +211,12 @@ class BridgeConfig:
     broker_cmd_file: Path | None = None
     broker_heartbeat_file: Path | None = None
     broker_tray_launcher: Path | None = None
+    # The hosted Origenerator's channel (see fun_time.satellites_mode).  Enabled
+    # only when the config names an origenerator checkout; without one the
+    # satellites have no origenerator mode and its commands report a dead end.
+    origenerator_enabled: bool = False
+    origenerator_cmd_file: Path | None = None
+    origenerator_paused_file: Path | None = None
     # Where the broker keeps the rest of its channel.  Unset it falls back to
     # ``state_dir``, which is what the two are for every session that runs from
     # the primary checkout; a branch session moves ``state_dir`` into its worktree
@@ -712,7 +730,7 @@ _NO_FILTER_SIDES: dict[str, str] = {
     "landscape_no_filter": "landscape",
 }
 
-# A satellite's own minimize button (``satellite.hud.CONTROLS``), by the window
+# A satellite's own minimize button (``player_core.satellite_hud.CONTROLS``), by the window
 # role the dispatch loop resolves it to.  Every player's window here is
 # borderless, so none of them carries a minimize box of its own, and the only
 # other way to park one was the dashboard's minimize — which takes the whole room
@@ -1282,6 +1300,12 @@ def dispatch_command(
     if lock_action_scope is not None:
         return _dispatch_lock_action(lock_action_scope, state, config, target_path)
 
+    # In origenerator mode, a side's transport goes to the hosted app, never to
+    # the blacked player invisibly underneath its region.
+    routed = _origenerator_transport(command, state, config)
+    if routed is not None:
+        return state, routed
+
     if command == "portrait_prev":
         state = _cancel_lock(2, state, config)
         _send_satellite(config, 2, "PREV")
@@ -1428,6 +1452,9 @@ def dispatch_command(
         target = {"genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid"}[command]
         return _dispatch_mode_switch(target, state, config, ops)
 
+    if command in ("origenerator_activate", "players_activate", "satellites_toggle"):
+        return _dispatch_satellites_switch(command, state, config, ops)
+
     if command == "genau_toggle_auto":
         # Flip whether Genau may take over while OSR2 is in auto mode. The broker
         # reads this persisted flag each tick, so a plain file write is enough.
@@ -1549,6 +1576,7 @@ def _dispatch_enter_omnipause(
         genau_cmd_file=config.genau_cmd_file,
         nau_paused_file=config.nau_paused_file,
         broker_cmd_file=config.broker_cmd_file,
+        origenerator_paused_file=config.origenerator_paused_file,
         relief=relief,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
@@ -1571,6 +1599,8 @@ def _dispatch_leave_omnipause(
         genau_cmd_file=config.genau_cmd_file,
         nau_paused_file=config.nau_paused_file,
         broker_cmd_file=config.broker_cmd_file,
+        origenerator_paused_file=config.origenerator_paused_file,
+        satellites_origenerator=origenerator_shows(state.satellites_mode),
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     # Un-minimize first, then re-band, then focus: leaving OmniPause is the room
@@ -2057,6 +2087,137 @@ def _dispatch_set_filter(
         # so it reads red like the other no-effect notices.
         level = NOTICE if result.applied else FAILED_NOTICE_LEVEL
         ops.append(WindowOp(op="notice", key=result.log_message, source=_satellite_source(which), level=level))
+    return state, ops
+
+
+# In origenerator mode, each satellite side's transport reaches the hosted
+# app: the same gestures, spoken as side-prefixed verbs on its one command
+# file, answered by whatever show holds that region.  Reset is one of them
+# because it is on the same control band the other four are, and it means on
+# a show what it means on a player — put this side back how it started.
+_ORIGENERATOR_TRANSPORT: dict[str, tuple[str, str]] = {
+    "portrait_prev": ("portrait", "PREV"),
+    "portrait_next": ("portrait", "NEXT"),
+    "portrait_trash": ("portrait", "TRASH"),
+    "portrait_lock": ("portrait", "LOCK"),
+    "portrait_reset": ("portrait", "RESET"),
+    "landscape_prev": ("landscape", "PREV"),
+    "landscape_next": ("landscape", "NEXT"),
+    "landscape_trash": ("landscape", "TRASH"),
+    "landscape_lock": ("landscape", "LOCK"),
+    "landscape_reset": ("landscape", "RESET"),
+}
+
+
+# The hosted app's own spoken vocabulary, one command per phrase.  The session
+# hears them (it owns the room's microphone) and posts the WORDS on the hosted
+# app's channel; matching them is the hosted app's own business, since only it
+# knows which shelves its tree has and which detail parts have detectors.
+_ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
+    **{
+        f"{side}_say_{phrase.replace(' ', '_')}": (side, phrase)
+        for side in ("portrait", "landscape")
+        for phrase in ORIGENERATOR_PHRASES
+    },
+    # Two the session already says to a player, which in origenerator mode mean
+    # the same thing to the hosted app: "portrait latest" is that side's
+    # newest-first listing either way, so it reaches whichever of them the mode
+    # has put on that region rather than needing a second spelling.
+    "portrait_latest": ("portrait", "latest"),
+    "landscape_latest": ("landscape", "latest"),
+}
+
+
+def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfig) -> bool:
+    """Whether *command* is a side's transport bound for the hosted app.
+
+    Its spoken vocabulary routes there too, as the words themselves: the
+    session hears them for the whole room and the hosted app matches them.
+
+    In origenerator mode EVERY side's transport routes there: the players are
+    black and paused for the whole mode, so there is never a player worth
+    driving underneath, and a side with no show simply drops the verb at the
+    hosted end.  Public because the dispatch loop asks the same question — its
+    watch tracking must not book a show's step or cull against the blacked
+    player underneath.
+    """
+    if command not in _ORIGENERATOR_TRANSPORT and command not in _ORIGENERATOR_SPEECH:
+        return False
+    return (origenerator_shows(state.satellites_mode)
+            and config.origenerator_cmd_file is not None)
+
+
+def _origenerator_transport(
+    command: str, state: BridgeState, config: BridgeConfig
+) -> list[WindowOp] | None:
+    """Route a side's transport to the hosted app, or ``None`` to fall
+    through to the player.
+
+    None of the player-side bookkeeping (lock flags, favorites, RFB tabs)
+    applies to a show — the hosted app owns its own lock semantics.
+    """
+    if not routes_to_origenerator(command, state, config):
+        return None
+    spoken = _ORIGENERATOR_SPEECH.get(command)
+    if spoken is not None:
+        side_name, phrase = spoken
+        write_satellite_command(
+            config.origenerator_cmd_file, f"{side_name.upper()}_SAY:{phrase}")
+        return []
+    side_name, verb = _ORIGENERATOR_TRANSPORT[command]
+    write_satellite_command(config.origenerator_cmd_file, f"{side_name.upper()}_{verb}")
+    return []
+
+
+def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
+    """Visibility + z-order ops for the origenerator trio on a satellites-mode
+    switch — the RFB-slot counterpart of :func:`_main_slot_ops`.
+
+    Entering origenerator mode restores its main window over the RFB and
+    promotes the trio above the fixed roles (``restack_satellites``).  Leaving
+    parks the main window; the shows close themselves on the ``CLOSE_SHOWS``
+    verb the switch queues, with the hide ops as the backstop for a hung app.
+    The RFB and the players underneath never move — being covered is not being
+    hidden, and uncovering them is nothing but the cover leaving.
+    """
+    if satellites_mode == ORIGENERATOR_MODE:
+        return [
+            WindowOp(op="show_role", key="origenerator"),
+            WindowOp(op="activate_role", key="origenerator"),
+            WindowOp(op="restack_satellites"),
+        ]
+    return [
+        WindowOp(op="hide_role", key="origenerator"),
+        WindowOp(op="hide_role", key="origenerator_portrait"),
+        WindowOp(op="hide_role", key="origenerator_landscape"),
+    ]
+
+
+def _dispatch_satellites_switch(
+    command: str, state: BridgeState, config: BridgeConfig, ops: list[WindowOp]
+) -> tuple[BridgeState, list[WindowOp]]:
+    if not config.origenerator_enabled:
+        return state, [WindowOp(
+            op="notice", key="No Origenerator configured",
+            level=FAILED_NOTICE_LEVEL)]
+    target = {
+        "origenerator_activate": ORIGENERATOR_MODE,
+        "players_activate": "player",
+        "satellites_toggle": toggled_satellites_mode(state.satellites_mode),
+    }[command]
+    result = apply_satellites_switch(
+        current_mode=state.satellites_mode,
+        target_mode=target,
+        omni_paused=state.omni_paused,
+        origenerator_cmd_file=config.origenerator_cmd_file,
+        portrait_paused_file=config.portrait_paused_file,
+        landscape_paused_file=config.landscape_paused_file,
+    )
+    state = replace(state, satellites_mode=result.next_mode)
+    if result.is_transition:
+        ops.extend(_satellites_slot_ops(result.next_mode))
+    if result.log_message:
+        logger.info(result.log_message)
     return state, ops
 
 

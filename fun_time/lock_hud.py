@@ -4,7 +4,7 @@ Assembles the panel drawn over each satellite: the side's own state — locked,
 looping, filtered, favorite — and the other videos reachable in the current
 clip's action group and seed family.  Only fun_time has the library metadata this
 needs, so the model lives here — :mod:`fun_time.hud_transport` publishes it, and
-each satellite player draws it straight into its own video (:mod:`satellite.hud`).
+each satellite player draws it straight into its own video (:mod:`player_core.satellite_hud`).
 """
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, status_line
+from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
 
 from fun_time.media_metadata import (
     GroupIndex,
@@ -45,7 +45,7 @@ def _status_label(
     each axis is belongs to the map, which prints its own counts.
     """
     return status_line(
-        playing_set=f"Looping {loop_axis}s" if loop_axis else "",
+        playing_set=looping_label(loop_axis) if loop_axis else "",
         locked=locked,
         order=LATEST_LABEL if latest else SHUFFLE_LABEL,
         f_mode=f_mode,
@@ -104,6 +104,11 @@ class HudPanel:
     # is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
+    # The satellite side's mode axis ("player" / "origenerator"), or "" for a
+    # session hosting no Origenerator.  Global like ``active``, published per
+    # side so each panel can draw the mode pair — the satellite counterpart of
+    # the main console's Nau/Hybrid/Genau row.
+    satellites_mode: str = ""
 
 
 def _others(members: list[str], current: str) -> list[str]:
@@ -291,6 +296,7 @@ def build_hud_panel(
     f_mode: bool = False,
     active: bool = False,
     is_favorite: bool = False,
+    satellites_mode: str = "",
 ) -> HudPanel:
     """The HUD panel for *side*, given its lock flag, current clip and index.
 
@@ -417,6 +423,7 @@ def build_hud_panel(
         active=active,
         active_loop=active_loop,
         playing=playing,
+        satellites_mode=satellites_mode,
     )
 
 
@@ -448,6 +455,7 @@ class SideInputs:
 
 def _side_panel(
     inputs: SideInputs, metadata_root: Path | None, active_side: str,
+    satellites_mode: str = "",
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -468,6 +476,7 @@ def _side_panel(
         nav_anchor=inputs.nav_anchor, latest=inputs.latest,
         is_favorite=inputs.is_favorite, f_mode=inputs.f_mode,
         active=active_side == inputs.side,
+        satellites_mode=satellites_mode,
     )
 
 
@@ -486,9 +495,33 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
             )
 
 
+def origenerator_mode_panel(side: str, *, active: bool = False) -> HudPanel:
+    """The panel a side wears while origenerator mode holds it.
+
+    The player under it is black and paused for the whole mode, so its clip
+    map would be a map of videos nobody is being shown — the panel that made
+    the HUDs "still show thumbnails for videos as if they are in Player mode".
+    What the side still has to say is the mode itself: the status line names
+    it, the mode row (drawn off ``satellites_mode``) is the way back, and the
+    map stays off — a show covering the region wears its own map of the
+    origenerator items instead.
+    """
+    return HudPanel(
+        side=side,
+        locked=False,
+        lock_label="Origenerator mode",
+        current="",
+        seed_siblings=[],
+        action_siblings=[],
+        active=active,
+        satellites_mode="origenerator",
+    )
+
+
 def build_panels(
     portrait: SideInputs, landscape: SideInputs, *,
     metadata_root: Path | None = None, active_side: str = "",
+    satellites_mode: str = "",
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -505,8 +538,8 @@ def build_panels(
     rather than the dispatcher's slot number, because that is what a side is
     called everywhere else in here; the one translation lives where the number does.
     """
-    return (_side_panel(portrait, metadata_root, active_side),
-            _side_panel(landscape, metadata_root, active_side))
+    return (_side_panel(portrait, metadata_root, active_side, satellites_mode),
+            _side_panel(landscape, metadata_root, active_side, satellites_mode))
 
 
 def panel_thumbnails(

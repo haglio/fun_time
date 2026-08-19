@@ -42,23 +42,34 @@ from .mode_plan import genau_active
 from .modes import collect_video_files
 from .process_identity import identified_python_exe
 from .shared_state import shared_state_path
+from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
 )
+from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .windows_bridge_sequencer import (
+    keep_the_cover_up,
+    release_the_players,
     StartupResult,
     _apply_startup_window_state,
+    _apply_topmost_bands,
     resolve_shortcut,
     run_startup_sequence,
+)
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
 )
 from .win32 import (
     close_window,
     find_window_by_pid,
+    find_window_for_process,
     get_process_creation_time,
     iter_zorder,
+    set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
 )
@@ -72,7 +83,7 @@ logger = logging.getLogger(__name__)
 # way to add a seventh child and have it quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("players", ("nau_pid", "portrait_pid", "landscape_pid")),
-    ("companions", ("dashboard_pid", "genau_pid", "audio_pid")),
+    ("companions", ("dashboard_pid", "genau_pid", "audio_pid", "origenerator_pid")),
 )
 
 _CHILD_PID_KEYS = tuple(key for _, keys in _CHILD_GROUPS for key in keys)
@@ -168,6 +179,28 @@ def kill_process_tree(pid: int) -> None:
         pass
 
 
+def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
+    """WM_CLOSE the hosted Origenerator and give its close a moment to finish.
+
+    Its closeEvent is where the session persists and the absence experiments
+    are handed to ComfyUI — a straight taskkill loses both.  Bounded: a close
+    that hangs falls through to the companions sweep, which kills the tree the
+    way it kills everything else.
+    """
+    if child is None or not child.pid:
+        return
+    hwnd = find_window_for_process(child.pid, "Origenerator")
+    if not hwnd:
+        return
+    close_window(hwnd)
+    deadline = time.monotonic() + 5.0
+    while time.monotonic() < deadline:
+        if get_process_creation_time(child.pid) != child.created_at:
+            return  # exited (or the pid was never ours) — nothing left to wait on
+        time.sleep(0.2)
+    logger.warning("Origenerator did not close within 5s; the kill sweep takes it")
+
+
 def _shutdown_children(
     rfb_hwnd: int, children: dict[str, ChildProcess], progress: ProgressReporter
 ) -> None:
@@ -179,6 +212,7 @@ def _shutdown_children(
     """
     progress.advance("browser")
     close_window(rfb_hwnd)
+    _close_origenerator_gracefully(children.get("origenerator_pid"))
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         for key in keys:
@@ -384,74 +418,239 @@ def _open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
-def _log_nau_obstruction(nau_hwnd: int, *, expected_over: int = 0) -> None:
-    """Record which windows, if any, cover Nau once the bands are re-applied.
+# What the finishing pass may spend, all of it behind the cover.  The cover comes
+# down on DONE, which is written at the end of it, so these bound how long the
+# progress file can sit unchanged while it runs — and the cover takes ITSELF
+# down if that goes past ``loading_screen.STALE_TIMEOUT_S``, which would put the
+# room's z-order back in front of the user.  A test pins the sum.
+HUD_PRIME_TIMEOUT_S = 20.0
+POST_LOADING_RESOLVE_TIMEOUT_S = 3.0
+SETTLE_PASSES = 8
+SETTLE_WAIT_S = 1.5
 
-    The topmost flag reads ``True`` here, yet Nau can still be reported "not on
-    top" — a window may carry WS_EX_TOPMOST and remain buried under another
-    overlapping window (a user's own always-on-top app, or a promotion-order
-    slip).  ``is_window_topmost`` cannot see that; only the real z-order can, so
-    this walks it and names the covering window instead of guessing.
 
-    *expected_over* is the one window that belongs above Nau in the mode the
-    session opened in — Genau's, which in hybrid is the transparent HUD layer
-    over Nau's video and in genau mode is the display itself.  Warning on the
-    session's own by-design layering toasted every hybrid startup with a
-    "covering" window that covers nothing you can see; anything else over Nau
-    still warns.
+def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
+                            ignore: int = 0) -> None:
+    """Record which windows, if any, cover *name* once the bands are re-applied.
+
+    The topmost flag reads ``True`` here, yet a player can still be reported
+    "not on top" — a window may carry WS_EX_TOPMOST and remain buried under
+    another overlapping window (a user's own always-on-top app, or a
+    promotion-order slip).  ``is_window_topmost`` cannot see that; only the
+    real z-order can, so this walks it and names the covering window instead
+    of guessing.  Run for the satellites as well as Nau: "the landscape player
+    is behind other windows on startup" was undiagnosable while only Nau's
+    coverage was logged.
+
+    *expected_over* is the one window that belongs above the target in the
+    mode the session opened in — Genau's over Nau, which in hybrid is the
+    transparent HUD layer over Nau's video and in genau mode is the display
+    itself.  Warning on the session's own by-design layering toasted every
+    hybrid startup with a "covering" window that covers nothing you can see;
+    anything else over the player still warns.  *ignore* is the loading
+    overlay while this runs behind it, which covers everything by design.
     """
-    if not nau_hwnd:
-        logger.warning("Nau window unresolved after loading; cannot check z-order")
+    if not hwnd:
+        logger.warning("%s window unresolved after loading; cannot check z-order", name)
         return
     covering = [
-        w for w in windows_obscuring(nau_hwnd, iter_zorder())
-        if w.hwnd != expected_over
+        w for w in windows_obscuring(hwnd, iter_zorder())
+        if w.hwnd not in (expected_over, ignore)
     ]
     if covering:
         desc = "; ".join(
             f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}" for w in covering
         )
-        logger.warning("Nau (hwnd=%d) is covered at startup by: %s", nau_hwnd, desc)
+        logger.warning("%s (hwnd=%d) is covered at startup by: %s", name, hwnd, desc)
     else:
-        logger.info("Nau (hwnd=%d) is frontmost over its rect at startup", nau_hwnd)
+        logger.info("%s (hwnd=%d) is frontmost over its rect at startup", name, hwnd)
 
 
-def _fix_post_loading_windows(result: StartupResult) -> None:
-    """Re-assert the topmost policy and the main slot's visibility after the
-    loading screen overlay is destroyed (its teardown can shuffle activation, and
-    the dashboard may only become resolvable this late).
+def _fix_post_loading_windows(result: StartupResult, *,
+                              overlay_hwnd: int = 0) -> dict[str, int]:
+    """Resolve every managed window, band it, and settle the z-order until each
+    player is actually frontmost — returning the role hwnds it resolved.
 
     For the mode the session actually opened in, not for nau: on a resumed genau
     session this pass would otherwise promote Nau over Genau and un-park it, one
     pass after the sequencer parked it.
+
+    ``overlay_hwnd`` is the loading screen's own window when this runs BEHIND
+    the curtain, which is where it belongs: the bands are the last thing that
+    decides what the reveal looks like, so applying them afterwards is watching
+    the room sort itself out — the players arriving under whatever was already
+    on those monitors and climbing over it a second later, and in origenerator
+    mode the RFB showing through until its host was promoted over it.  Handed
+    the overlay, this keeps it on top across the pass (``HWND_TOPMOST`` inserts
+    at the top of the band, so each promotion lands over it until it is put
+    back) and leaves it out of the "is this player buried?" test, which it
+    covers by design.
     """
     dash_hwnd = 0
     if result.dashboard_pid:
         dash_hwnd = find_window_by_pid(result.dashboard_pid)
         if not dash_hwnd:
-            dash_hwnd = wait_for_window_by_title("Fun Time", timeout_s=3.0, exact=True)
+            # Also the wait that keeps the cover up until the dashboard has shown
+            # itself: it reveals on the last startup phase (see
+            # ``startup_still_building``) and hides from these lookups until it
+            # does, so resolving it here is what stops the cover leaving without
+            # it.  A dashboard that never arrives costs the wait and no more.
+            dash_hwnd = wait_for_window_by_title(
+                "Fun Time", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
 
     nau_hwnd = find_window_by_pid(result.nau_pid) or wait_for_window_by_title(
-        "Nau", timeout_s=3.0, exact=True
+        "Nau", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
-    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=3.0)
-    _apply_startup_window_state(
+    genau_hwnd = wait_for_window_by_title("Genau", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S)
+    # By title as well as pid, like Nau above: python_exe is the venv's pythonw
+    # SHIM, so the recorded satellite pid is the launcher's rather than the
+    # interpreter that owns the SDL window, and the by-pid lookup finds
+    # nothing.  This pass is the only banding the satellites get on a
+    # loading-screen startup — with hwnd 0 it silently skipped them, and every
+    # session opened with both players out of the topmost band (the startup
+    # topmost log said so each time), buried by the first window raised over
+    # their rects.
+    portrait_hwnd = find_window_by_pid(result.portrait_pid) or wait_for_window_by_title(
+        SATELLITE_PORTRAIT_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
+    )
+    landscape_hwnd = find_window_by_pid(result.landscape_pid) or wait_for_window_by_title(
+        SATELLITE_LANDSCAPE_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
+    )
+    # A session opening in origenerator mode has its hosted window restored
+    # behind the overlay already (the sequencer held the reveal for it); this
+    # pass is where it joins the topmost band, over the RFB it covers.  Its two
+    # REGION shows join with it, over the players they cover: they are managed
+    # roles promoted after the players precisely so they end up on top, and
+    # leaving them out of this pass is what put two blacked players over them.
+    hosted = result.origenerator_pid and result.satellites_mode == "origenerator"
+    origenerator_hwnd = (
+        find_window_for_process(result.origenerator_pid, "Origenerator")
+        if hosted else 0
+    )
+    show_hwnds = {
+        role: (find_window_for_process(result.origenerator_pid, title) if hosted else 0)
+        for role, title in ORIGENERATOR_ROLE_TITLES.items()
+        if role != "origenerator"
+    }
+    role_hwnds = _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
-        portrait_hwnd=find_window_by_pid(result.portrait_pid),
-        landscape_hwnd=find_window_by_pid(result.landscape_pid),
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
         genau_hwnd=genau_hwnd,
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
+        origenerator_hwnd=origenerator_hwnd,
+        origenerator_portrait_hwnd=show_hwnds["origenerator_portrait"],
+        origenerator_landscape_hwnd=show_hwnds["origenerator_landscape"],
         mode=result.main_mode,
+        satellites_mode=result.satellites_mode,
+        beneath=overlay_hwnd,
     )
+    keep_the_cover_up(overlay_hwnd)
     logger.info("Post-loading window state corrected")
+    # The banding above can silently miss a player: SetWindowPos waits on the
+    # target's own thread, and the satellites are at their busiest exactly now
+    # (first clips decoding), so a promotion can time out through the hung-
+    # window guard and leave the player under whatever the user had on that
+    # monitor — a maximized Chrome sat over the landscape player until the
+    # next full re-band.  Walk the real z-order and re-promote whoever is
+    # still buried, for a few seconds, until both players are frontmost.
+    #
+    # Settled on whoever OWNS each satellite rect in this mode.  In origenerator
+    # mode that is the hosted app's region shows, not the players: the players
+    # are blacked and held for the whole mode and the shows cover them on
+    # purpose, so a loop that re-promotes a "buried" player buries the show
+    # instead — for its full twelve seconds, which is a picture and then a black
+    # rectangle, on a session that opened in the mode.  A show not up yet
+    # resolves to 0 and is skipped; the next re-band adopts it.
+    owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
+    _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
+    portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())
     # In hybrid and genau modes Genau's window sits over Nau on purpose — the
     # transparent HUD layer, or the display itself — so it is not a covering
     # worth a warning there.
-    _log_nau_obstruction(
-        nau_hwnd,
+    _log_window_obstruction(
+        "Nau", nau_hwnd,
         expected_over=genau_hwnd if genau_active(result.main_mode) else 0,
     )
+    _log_window_obstruction("Portrait satellite", portrait_owner, ignore=overlay_hwnd)
+    _log_window_obstruction("Landscape satellite", landscape_owner, ignore=overlay_hwnd)
+    return role_hwnds
+
+
+def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
+    """A callable answering who owns each satellite rect in this session's mode.
+
+    The players in player mode.  In origenerator mode the hosted app's two
+    region shows: they cover the players on purpose, and the players are
+    blacked and held for the whole mode, so "the player is covered" is the
+    normal state there rather than a burial to undo.
+
+    A callable rather than a pair, because the shows arrive on the hosted app's
+    own schedule -- it opens them once it has a library to open them with,
+    which can be after this session has revealed.  Resolved once up front, a
+    show that was not up yet answered 0, was never settled, and stayed under
+    the player promoted a moment earlier: a picture, and then a black rectangle
+    wearing the satellite's own HUD.
+    """
+    hosted = bool(result.origenerator_pid) and result.satellites_mode == "origenerator"
+
+    def owners() -> list[tuple[str, int]]:
+        if not hosted:
+            return [("portrait", portrait_hwnd), ("landscape", landscape_hwnd)]
+        return [
+            (role.removeprefix("origenerator_"),
+             find_window_for_process(result.origenerator_pid, title))
+            for role, title in ORIGENERATOR_ROLE_TITLES.items()
+            if role != "origenerator"
+        ]
+
+    return owners
+
+
+def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
+                        wait_s: float = SETTLE_WAIT_S) -> None:
+    """Re-promote whoever owns each satellite rect until it is genuinely
+    frontmost over it — the players in player mode, the hosted app's region
+    shows in origenerator mode, where the players are blacked underneath them.
+
+    *owners* is called for each pass and answers ``[(name, hwnd), ...]``, so a
+    window that appears mid-settle is settled too and one that has gone is
+    dropped.
+
+    The banding above can silently miss one: SetWindowPos waits on the target's
+    own thread, and the satellites are at their busiest exactly now (first clips
+    decoding), so a promotion can time out through the hung-window guard and
+    leave the player under whatever the user had on that monitor — a maximized
+    Chrome sat over the landscape player until the next full re-band.  So walk
+    the real z-order and re-promote whoever is still buried.
+
+    The loading overlay covers everything on purpose, so it is not a burial:
+    left in the test, this loop would spend every pass re-promoting windows
+    that are exactly where they belong — and it is put back on top after every
+    single promotion, since each one lands above it.
+    """
+    for _ in range(passes):
+        stack = iter_zorder()
+        buried = [
+            (name, hwnd) for name, hwnd in owners()
+            if hwnd and _covering(hwnd, stack, ignore=overlay_hwnd)
+        ]
+        if not buried:
+            break
+        for name, hwnd in buried:
+            logger.info("The %s region is still buried; re-asserting its band", name)
+            set_always_on_top(hwnd, True)
+            # After each one, not after the batch: the promotion lands above the
+            # cover, and anything left there until the next window's turn shows
+            # through it.
+            keep_the_cover_up(overlay_hwnd)
+        time.sleep(wait_s)
+
+
+def _covering(hwnd: int, stack, *, ignore: int = 0) -> list:
+    """What is over *hwnd*, minus the one window allowed to be."""
+    return [w for w in windows_obscuring(hwnd, stack) if w.hwnd != ignore]
 
 
 def _main_browse_stills(bridge_config) -> list[str]:
@@ -537,7 +736,14 @@ def run_python_orchestrated_bridge(
     _open_event_log(state_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    show_overlays = not integration_mode
+    # Integration runs skip the loading screen by default — most tests only
+    # need the session, not its curtain.  FUN_TIME_INTEGRATION_OVERLAYS forces
+    # the full production path (hide, load, reveal, and the post-overlay
+    # z-order pass) so the hidden desktop can test the exact startup a real
+    # session takes; without a test exercising it, "the landscape player is
+    # behind other windows on startup" could only ever be reproduced live.
+    show_overlays = (not integration_mode
+                     or os.environ.get("FUN_TIME_INTEGRATION_OVERLAYS") == "1")
 
     manifest = configparser.ConfigParser()
     manifest.optionxform = str
@@ -589,8 +795,20 @@ def run_python_orchestrated_bridge(
             ],
         )
         logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
+        # Resolved here rather than at the reveal: the startup phases raise
+        # windows of their own long before then, and each one lands over the
+        # cover until it is put back (see ``keep_the_cover_up``).
+        overlay_hwnd = wait_for_window_by_title(
+            LOADING_SCREEN_TITLE, timeout_s=5.0, exact=True, include_hidden=True,
+        )
+        if overlay_hwnd:
+            logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
+        else:
+            logger.warning("The loading cover's window did not appear; startup "
+                           "will show through whatever it raises")
     else:
         progress = NullProgress()
+        overlay_hwnd = 0
 
     if integration_mode:
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
@@ -620,6 +838,7 @@ def run_python_orchestrated_bridge(
             state_dir=state_dir,
             progress=progress,
             hide_windows=show_overlays,
+            cover_hwnd=overlay_hwnd,
         )
     except StartupCancelled as cancelled:
         # Esc during a phase: the sequence handed back exactly what it had
@@ -666,8 +885,19 @@ def run_python_orchestrated_bridge(
         # Hold the loading screen until the HUD's group indexes are primed, so
         # Fun Time isn't revealed with the maps still blank.  Capped so a slow
         # library scan can't wedge startup — the maps just fill in late.
-        if hud_publisher is not None and not hud_primed.wait(timeout=20.0):
-            logger.warning("HUD indexes not primed after 20s; revealing anyway")
+        if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
+            logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
+                           HUD_PRIME_TIMEOUT_S)
+        # Band the room and settle its z-order BEHIND the curtain.  Phase 4
+        # deliberately left the bands off (each promotion inserts above the
+        # overlay), so at this moment nothing of the session is topmost at all:
+        # revealing here is revealing players sitting under whatever was on
+        # those monitors, climbing over it a second later — and in origenerator
+        # mode the RFB showing through until its host was promoted over it.
+        # The overlay goes back on top after every promotion, so what the
+        # curtain hides is the sorting rather than the result.
+        role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=overlay_hwnd)
+
         progress.finish()
         if loading_proc:
             try:
@@ -677,10 +907,28 @@ def run_python_orchestrated_bridge(
                 logger.warning("Loading screen did not exit, killed")
         progress_file.unlink(missing_ok=True)
 
-        # Re-assert z-order AFTER the loading screen overlay is gone.
-        # Phase 4 set topmost while the overlay was still covering everything;
-        # destroying the overlay can rearrange z-order.  Correct it now.
-        _fix_post_loading_windows(result)
+        # The cover is off the screen: NOW the players may run.  The phase walk
+        # deliberately leaves this to us (see ``release_the_players``) — released
+        # with the phases, Nau's video and Genau's audio would have been running
+        # for the whole finishing pass, behind a cover he cannot see or hear
+        # through, and the opening seconds of the video would be gone by the time
+        # it lifted.
+        release_the_players(manifest, result.main_mode)
+
+        # The overlay's own teardown hands activation to whatever is next in
+        # the z-order, so the bands are asserted once more over the finished
+        # room — cheap, since every window is already resolved and in place.
+        owners = satellite_rect_owners(
+            result, role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0))
+        # A show that came up after the pass behind the curtain has a handle
+        # now, and this band is what puts it back above the player it covers:
+        # the role order promotes it last for exactly that reason, and with a
+        # zero in the map it was simply skipped.
+        for name, hwnd in owners():
+            if hwnd and result.satellites_mode == "origenerator":
+                role_hwnds[f"origenerator_{name}"] = hwnd
+        _apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
+        _settle_the_players(owners, passes=3, wait_s=0.4)
 
     # The session is up and its windows are placed.  Writing this file records
     # the children for teardown and, by appearing, hands the keyboard over: the
@@ -705,6 +953,7 @@ def run_python_orchestrated_bridge(
         portrait_pid=result.portrait_pid,
         landscape_pid=result.landscape_pid,
         dashboard_pid=result.dashboard_pid,
+        origenerator_pid=result.origenerator_pid,
         dashboard_enabled=dashboard_enabled,
         hud_publisher=hud_publisher,
         rfb_hwnd=result.rfb_hwnd,

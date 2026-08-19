@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from satellite.hud import MARGIN
+from player_core.satellite_hud import MARGIN
 from satellite.hud_overlay import HudOverlay
 from tests.satellite_fakes import FakeSatellitePlayer
 
@@ -248,3 +248,27 @@ def test_the_published_loop_state_wins_over_the_optimistic_one(tmp_path: Path, p
     overlay.tick()
 
     assert overlay.active_loop == ""
+
+
+def test_display_suppressed_follows_the_published_satellites_mode(
+    tmp_path: Path, panel: Path
+):
+    """In origenerator mode the run loop blacks the video out under the HUD —
+    the mode arrives on the published panel, so the overlay is the one place
+    the player learns it from."""
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+    overlay.tick()
+    assert overlay.display_suppressed is False  # no satellites_mode published
+
+    panel.write_text(panel.read_text(encoding="utf-8").replace(
+        '"side": "portrait"',
+        '"side": "portrait", "satellites_mode": "origenerator"'), encoding="utf-8")
+    overlay.tick()
+    assert overlay.display_suppressed is True
+
+    panel.write_text(panel.read_text(encoding="utf-8").replace(
+        '"satellites_mode": "origenerator"',
+        '"satellites_mode": "player"'), encoding="utf-8")
+    overlay.tick()
+    assert overlay.display_suppressed is False

@@ -338,3 +338,54 @@ def test_no_endpoint_of_the_machines_survives_anywhere_in_a_runs_config(isolated
     ]
 
     assert survivors == []
+
+
+def test_a_run_never_hosts_the_machines_origenerator(isolated_ports):
+    """The hosted Origenerator is a second app with machine ends of its own:
+    the one ComfyUI server on its fixed port (which it would START if absent),
+    the GPU that server generates on, and the app's one database.  None has a
+    per-desktop version, so a run hosts none — the key gone means the session
+    has no origenerator mode at all."""
+    config, _genau_config = isolated_ports
+
+    assert "origenerator_dir" not in config["paths"]
+    assert "origenerator_python_exe" not in config["paths"]
+
+
+def test_a_run_launches_this_checkouts_siblings(tmp_path, monkeypatch):
+    """A run launches this checkout's code, so it has to launch this
+    checkout's SIBLINGS too.
+
+    A branch that leans on an unlanded ``player_core`` change — the satellites'
+    HUD moved there, say — otherwise starts players that import a name the
+    primary's install does not have.  Every one of them dies at import, with no
+    window and no status file, and the suite reads as a wall of timeouts rather
+    than as a path problem: eight errors and six failures, none of them naming
+    the import that actually failed.
+    """
+    state_dir = tmp_path / "state"
+    state_dir.mkdir(exist_ok=True)
+    branch = tmp_path / "player_core_branch"
+    branch.mkdir(exist_ok=True)
+    (state_dir / "genau_project_dirs.txt").write_text(
+        f"# a branch of a sibling\n{branch}\n", encoding="utf-8")
+    monkeypatch.setattr(integration_support, "PROJECT_DIR", tmp_path)
+    config: dict = {}
+
+    integration_support.apply_checkout_project_dirs(config)
+
+    assert config["paths"]["genau_project_dirs"] == [str(branch)]
+    assert integration_support.checkout_project_dirs() == str(branch)
+
+
+def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
+    """Which is every ordinary checkout: the run launches exactly what a
+    session on the machine's own config launches."""
+    (tmp_path / "state").mkdir(exist_ok=True)
+    monkeypatch.setattr(integration_support, "PROJECT_DIR", tmp_path)
+    config: dict = {}
+
+    integration_support.apply_checkout_project_dirs(config)
+
+    assert config == {}
+    assert integration_support.checkout_project_dirs() == ""

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes
+import os
 from dataclasses import dataclass
 
 from .window_layout import MonitorRect
@@ -22,7 +23,23 @@ class MonitorInfo:
 
 
 def enumerate_monitors() -> list[MonitorInfo]:
-    """Return work-area rectangles for all monitors via Win32 EnumDisplayMonitors."""
+    """Return work-area rectangles for all monitors via Win32 EnumDisplayMonitors.
+
+    ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides the live
+    enumeration outright.  It exists for the integration suite's hidden
+    desktop, which reports a single monitor — on it the real layout collapses
+    every window onto one screen and the players legitimately overlap, so a
+    test asserting the startup choreography ("is each player frontmost over
+    its own rect?") had nothing true to assert.  Faked side-by-side monitors
+    give the plan disjoint rects again; windows place fine at coordinates no
+    display backs.
+    """
+    fake = os.environ.get("FUN_TIME_FAKE_MONITORS", "").strip()
+    if fake:
+        return [
+            MonitorInfo(x=int(x), y=int(y), width=int(w), height=int(h))
+            for x, y, w, h in (part.split(",") for part in fake.split(";") if part)
+        ]
     monitors: list[MonitorInfo] = []
 
     class MONITORINFOEXW(ctypes.Structure):

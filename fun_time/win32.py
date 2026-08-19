@@ -217,6 +217,86 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return best
 
 
+def list_child_pids(parent_pid: int) -> list[int]:
+    """The pids whose recorded parent is *parent_pid*, via a Toolhelp snapshot.
+
+    A recorded child pid is not always the pid that owns the windows: a venv's
+    ``Scripts`` launcher spawns the real interpreter as a child and keeps the
+    recorded pid for itself.  This is the one hop that recovers the family.
+    """
+    TH32CS_SNAPPROCESS = 0x2
+    INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
+
+    class PROCESSENTRY32(ctypes.Structure):
+        _fields_ = [
+            ("dwSize", ctypes.wintypes.DWORD),
+            ("cntUsage", ctypes.wintypes.DWORD),
+            ("th32ProcessID", ctypes.wintypes.DWORD),
+            ("th32DefaultHeapID", ctypes.POINTER(ctypes.wintypes.ULONG)),
+            ("th32ModuleID", ctypes.wintypes.DWORD),
+            ("cntThreads", ctypes.wintypes.DWORD),
+            ("th32ParentProcessID", ctypes.wintypes.DWORD),
+            ("pcPriClassBase", ctypes.wintypes.LONG),
+            ("dwFlags", ctypes.wintypes.DWORD),
+            ("szExeFile", ctypes.c_wchar * 260),
+        ]
+
+    snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
+    if snapshot == INVALID_HANDLE_VALUE:
+        return []
+    children: list[int] = []
+    try:
+        entry = PROCESSENTRY32()
+        entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
+        if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
+            while True:
+                if entry.th32ParentProcessID == parent_pid:
+                    children.append(int(entry.th32ProcessID))
+                if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
+                    break
+    finally:
+        _kernel32.CloseHandle(snapshot)
+    return children
+
+
+def find_window_for_process(pid: int, title: str) -> int:
+    """*pid*'s — or its direct children's — window titled exactly *title*, or 0.
+
+    Pid AND title, because a process can own several titled windows (the
+    hosted Origenerator: a main window plus a show per satellite region) and a
+    title alone can land on another process's window (a standalone
+    Origenerator carries the same captions).  The children matter because a
+    recorded pid can be a launcher's: a venv's ``Scripts\\python.exe`` spawns
+    the interpreter that actually owns the windows as a child and exits the
+    lookup empty-handed.  One generation is the launcher pattern; nothing
+    spawns windows two shims deep.  Includes hidden/minimized windows: the
+    hosted app's main window boots parked and must still resolve.
+    """
+    if not pid:
+        return 0
+    pids = {pid, *list_child_pids(pid)}
+    best: int = 0
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        nonlocal best
+        window_pid = ctypes.wintypes.DWORD()
+        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
+        if window_pid.value not in pids:
+            return True
+        length = _user32.GetWindowTextLengthW(hwnd)
+        if length <= 0:
+            return True
+        buffer = ctypes.create_unicode_buffer(length + 1)
+        _user32.GetWindowTextW(hwnd, buffer, length + 1)
+        if buffer.value != title:
+            return True
+        best = hwnd
+        return False  # stop enumeration
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return best
+
+
 def wait_for_window_by_title(
     title: str, timeout_s: float = 5.0, *, exact: bool = False, include_hidden: bool = False
 ) -> int:
@@ -364,16 +444,29 @@ class StackedWindow:
     rect: tuple[int, int, int, int]  # x, y, width, height (screen coords)
 
 
+# Framed windows carry an INVISIBLE resize border (~7-8px per edge on Windows
+# 10/11) that GetWindowRect includes: a maximized Chrome reports itself 8px
+# onto the neighboring monitor, and a docked dashboard reports 8px into the
+# player beside it.  An intersection this thin is that ghost frame, not
+# anything the eye can see covered, so the overlap test ignores it.
+_FRAME_GHOST_PX = 12
+
+
 def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -> bool:
-    """Whether two (x, y, w, h) rectangles share any interior area.
+    """Whether two (x, y, w, h) rectangles share VISIBLE interior area.
 
     A shared edge (touching but not crossing) is not overlap — the portrait
     satellite's bottom edge meets Nau's top edge, and that abutment must not
-    read as coverage.
+    read as coverage.  Nor is an intersection thinner than a window's
+    invisible resize frame (see ``_FRAME_GHOST_PX``): those slivers had the
+    startup log warning that a maximized Chrome on one monitor "covered" the
+    player on the next monitor over.
     """
     ax, ay, aw, ah = a
     bx, by, bw, bh = b
-    return ax < bx + bw and bx < ax + aw and ay < by + bh and by < ay + ah
+    overlap_w = min(ax + aw, bx + bw) - max(ax, bx)
+    overlap_h = min(ay + ah, by + bh) - max(ay, by)
+    return overlap_w > _FRAME_GHOST_PX and overlap_h > _FRAME_GHOST_PX
 
 
 def windows_obscuring(
