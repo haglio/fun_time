@@ -290,3 +290,41 @@ def test_a_source_toggle_comes_forward_when_it_is_on(panel_factory):
     assert BG_BUTTON.name() in sheet
     assert BG_BUTTON_ACTIVE.name() in sheet
     assert sheet.index(BG_BUTTON_ACTIVE.name()) > sheet.index(":checked")
+
+
+def test_the_level_dial_fits_its_longest_name(panel_factory):
+    """It carried a flat 80px, which cut "WARNING" off in a row that had room
+    for it on both sides."""
+    from PyQt6.QtGui import QFontMetrics
+
+    from fun_time.event_log import LEVEL_NAMES
+
+    panel = panel_factory(["Clip saved"])
+    dial = panel._verbosity
+    metrics = QFontMetrics(dial.font())
+
+    widest = max(metrics.horizontalAdvance(name) for name in LEVEL_NAMES)
+    assert dial.width() > widest, "the longest level name does not fit"
+
+
+def test_a_source_toggle_is_as_wide_as_its_own_label(panel_factory):
+    """Sized to a fixed 40px, the family's padding was crushed to nothing, which
+    is what kept these reading as cramped chips beside Evolver's and Scripture's
+    rows however they were colored."""
+    from PyQt6.QtGui import QFontMetrics
+
+    from shared_ui.spacing import BUTTON_PAD_H
+
+    panel = panel_factory(["Clip saved"])
+    for button in panel._source_boxes.values():
+        label = QFontMetrics(button.font()).horizontalAdvance(button.text())
+        assert button.sizeHint().width() >= label + 2 * BUTTON_PAD_H, button.text()
+        assert button.maximumWidth() > 40, "it is pinned to a number again"
+
+
+def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
+    from shared_ui.spacing import BUTTON_GAP
+
+    panel = panel_factory(["Clip saved"])
+
+    assert panel.controls.layout().spacing() == BUTTON_GAP
