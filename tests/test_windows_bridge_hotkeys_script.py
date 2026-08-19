@@ -87,6 +87,41 @@ def test_the_way_out_survives_omnipause():
     )
 
 
+def test_the_letter_hotkeys_yield_while_origenerator_has_the_keyboard():
+    """The hosted Origenerator's MAIN window is a typing app and these hotkeys
+    are bare letters, so while it is focused the keyboard is its — except the
+    exempt trio (quit and the omnipause pair), which are session gestures
+    wherever the focus sits and must stay above the gate."""
+    text = _script_text()
+    gate = text.index("#HotIf !OrigeneratorHasKeyboard()")
+    gate_close = text.index("#HotIf", gate + 1)
+    # Exact-title matching, never the script's substring mode: "Origenerator"
+    # appears in plenty of other window titles (an Explorer at the checkout, a
+    # terminal on a branch), and a substring match killed every hotkey while
+    # one of those was focused.
+    assert 'title = "Origenerator"' in text
+    assert "WinGetTitle" in text
+    for exempt in ("^!q::", "Esc::QueueCommand", "+Esc::QueueCommand"):
+        assert text.index(exempt) < gate, exempt
+    for gated in ('x::QueueCommand("satellites_toggle")',
+                  'a::QueueCommand("landscape_prev")',
+                  'g::QueueCommand("genau_activate")',
+                  'Left::QueueCommand("portrait_prev")'):
+        position = text.index(gated)
+        assert gate < position < gate_close, gated
+
+
+def test_the_region_shows_do_not_gate_the_hotkeys():
+    """The arrows and WASD drive the portrait and landscape regions by SIDE,
+    exactly as they drive the players — wherever the focus sits, a show's
+    included.  A show has no text field, so only the main window (the typing
+    app) may take the keyboard away; gating on the show captions left a
+    focused slideshow answering its own arrows instead of the side's."""
+    text = _script_text()
+    assert 'title = "Origenerator Portrait"' not in text
+    assert 'title = "Origenerator Landscape"' not in text
+
+
 class TestStartupPhase:
     """The script goes up with the loading screen, ahead of every window the
     session opens, because its hotkeys are the only keys in a launch that do not

@@ -451,3 +451,25 @@ class TestInstanceId:
         path = cfg_factory({"instance_id": "C:/checkouts/fun_time/fun_time_config.json"})
         cfg = load_config(path)
         assert cfg.instance_id == "C:/checkouts/fun_time/fun_time_config.json"
+
+
+class TestOrigeneratorPaths:
+    def test_absent_keys_mean_no_origenerator(self, cfg_path: Path):
+        cfg = load_config(cfg_path)
+        assert cfg.paths.origenerator_dir is None
+        assert cfg.paths.origenerator_python_exe is None
+
+    def test_origenerator_keys_resolve_as_paths(self, cfg_factory, tmp_path: Path):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+            "origenerator_python_exe": str(tmp_path / "py" / "python.exe"),
+        }}))
+        assert cfg.paths.origenerator_dir == (tmp_path / "origenerator").resolve()
+        assert cfg.paths.origenerator_python_exe == (tmp_path / "py" / "python.exe").resolve()
+
+    def test_origenerator_channel_files_live_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        state = (tmp_path / "state").resolve()
+        assert cfg.origenerator_cmd_file == state / "origenerator_cmd.txt"
+        assert cfg.origenerator_paused_file == state / "origenerator_paused.txt"
+        assert cfg.origenerator_status_file == state / "origenerator_status.txt"

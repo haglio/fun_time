@@ -3,8 +3,12 @@
 A session's windows arrive one at a time and leave the same way, so both ends
 of one raise a cover and do the work behind it.  The window is borderless and
 always on top; it reads how far the work has got from a progress file the
-orchestrator writes, and closes itself when that file says the orchestrator is
-finished with it.
+orchestrator writes, and closes itself when that file says DONE — and ONLY
+then.  It used to close on a full bar as well, which is not the same moment: the
+startup sequence reports its last phase and then spends seconds behind the cover
+putting the room in z-order, so a cover that left on the full bar left before any
+of that, and the user watched it happen.  DONE is the orchestrator's own word for
+"the room is finished", so it is the only thing that lifts the cover.
 
 Startup's cover offers a way out and shutdown's does not — see ``CancelOption``
 for that difference and for the reason it is the only one.
@@ -19,26 +23,11 @@ from pathlib import Path
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from .overlay_progress import parse_progress
+from .win32 import find_window_by_title, set_always_on_top
+
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
-
-
-def parse_progress(text: str) -> tuple[int, int, str, bool]:
-    """Parse a progress file line.
-
-    Returns (step, total, message, done).
-    """
-    text = text.strip()
-    if text == "DONE":
-        return 0, 1, "", True
-    try:
-        parts = text.split("|", 1)
-        step_part = parts[0]
-        message = parts[1] if len(parts) > 1 else ""
-        step_str, total_str = step_part.split("/")
-        return int(step_str), int(total_str), message, False
-    except (ValueError, IndexError):
-        return 0, 1, "", False
 
 
 ICON_DISPLAY_SIZE = 128
@@ -62,6 +51,25 @@ def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
 
 
 POLL_MS = 200
+
+# How often the cover puts itself back at the top of the topmost band.  Separate
+# from POLL_MS, and much shorter, because they answer different questions: how
+# stale the bar may be, versus how long another window may sit over the cover.
+#
+# Nothing keeps a topmost window on top of the OTHER topmost windows.  Every
+# raise a session makes — showing a player's window, moving it onto its rect,
+# promoting it into the band — inserts that window ABOVE this one, and Windows
+# offers no way to refuse: a window is not told when another displaces it.  So
+# the cover has to keep taking the top back, and how fast it does that IS how
+# long a window shows through it.  At 200ms that was a fifth of a second of a
+# player visible through the scrim, once per raise, which is plainly visible; a
+# frame of it is not.
+#
+# Re-asserted through SetWindowPos on our own HWND rather than Tk's
+# ``-topmost``: the style is still set (being pushed down within the band does
+# not clear WS_EX_TOPMOST), so Tk has nothing to change and may do nothing at
+# all.  What is needed is the re-insertion, which only SetWindowPos gives.
+TOPMOST_POLL_MS = 16
 
 
 @dataclass(frozen=True)
@@ -111,6 +119,8 @@ class OverlayWindow:
         self._cancel = cancel
         self._last_modified = 0.0
         self._status_held = False
+        self._title = title
+        self._hwnd = 0
 
         BG = "#1a1a2e"
         PINK = "#e94560"
@@ -228,6 +238,30 @@ class OverlayWindow:
             self._root.focus_force()
 
         self._root.after(POLL_MS, self._poll)
+        self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
+
+    def _stay_on_top(self) -> None:
+        """Take the top of the topmost band back, and keep taking it.
+
+        See TOPMOST_POLL_MS: every window a session raises lands above this one,
+        and this is the only thing that puts it back.  Our own window, so the
+        call goes straight through rather than onto the hung-window guard's
+        worker thread — it cannot block on anything but ourselves.
+
+        The handle is looked up by title (this window's own, which is distinct
+        from every other window in the suite) and only once: ``winfo_id`` on a
+        Tk toplevel is not reliably the top-level HWND.  Before it resolves,
+        there is nothing over the cover to fix anyway — the window is brand new
+        and at the top of the band by construction.
+        """
+        if not self._hwnd:
+            self._hwnd = find_window_by_title(self._title, exact=True)
+        if self._hwnd:
+            set_always_on_top(self._hwnd, True)
+        try:
+            self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
+        except tk.TclError:
+            pass  # window already destroyed
 
     def _on_escape(self, _event: object = None) -> None:
         if self._cancel is None or self._status_held:
@@ -254,10 +288,10 @@ class OverlayWindow:
             pass
 
     def _poll(self) -> None:
-        # Both ends of a session promote windows into the TOPMOST band while
-        # this overlay is up (the newest topmost window wins), so re-assert on
-        # every tick to stay visually on top until destroyed.
-        self._root.attributes("-topmost", True)
+        # Staying on top is _stay_on_top's job, on its own much faster timer:
+        # this one is paced for reading a file, and a fifth of a second is far
+        # too long to leave another window showing through the scrim.
+        #
         # A cancel the hotkey script asked for on our behalf: the flag is on
         # disk and no key ever reached this window, so the words are picked up
         # here instead.
@@ -273,7 +307,7 @@ class OverlayWindow:
                 text = self._progress_file.read_text(encoding="utf-8")
                 step, total, message, done = parse_progress(text)
 
-                if done or (total > 0 and step >= total):
+                if done:
                     self._root.destroy()
                     return
 

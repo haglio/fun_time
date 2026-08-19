@@ -15,7 +15,7 @@ from fun_time.broker_control import PARK_CMD
 from fun_time.command_dispatch import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
-from fun_time.window_layout import WindowRect
+from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.win32 import APP_USER_MODEL_ID
 from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
@@ -26,6 +26,7 @@ from fun_time.windows_bridge_startup import (
     launch_core_apps,
     launch_genau,
     launch_nau,
+    launch_origenerator,
     launch_broker_tray,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
@@ -628,6 +629,9 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         portrait_hud_file=None,
         landscape_hud_file=None,
         dashboard_cmd_file=None,
+        # And which sibling checkouts to run out of — the satellites import
+        # player_core, so the named checkouts reach them like Genau and Nau.
+        project_dirs=None,
     )
 
 
@@ -951,6 +955,33 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
 
     assert portrait_paused.read_text(encoding="utf-8") == "0"
     assert landscape_paused.read_text(encoding="utf-8") == "0"
+
+
+def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_path: Path):
+    """The regions are the hosted app's for the whole of origenerator mode, so a
+    session that closed in it comes back with both players paused (and black,
+    off the published mode) — exactly as the mode switch would have left them,
+    rather than playing invisibly under the restored app."""
+    from fun_time.command_dispatch import BridgeState
+    from fun_time.shared_state import shared_state_path, write_shared_state
+
+    kwargs = _start_core_session_kwargs(tmp_path)
+    write_shared_state(shared_state_path(kwargs["state_dir"]),
+                       BridgeState(satellites_mode="origenerator"))
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch(
+        "fun_time.windows_bridge_startup.build_all_playlists"
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"), patch(
+        "fun_time.windows_bridge_startup.resume_playlists", return_value=True
+    ):
+        start_core_session(**kwargs)
+
+    assert kwargs["portrait_paused_file"].read_text(encoding="utf-8") == "1"
+    assert kwargs["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
@@ -1860,6 +1891,31 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             )
         assert self._launched_exe(popen) == "FunTime-Nau.exe"
 
+    def test_the_hosted_origenerator(self, tmp_path: Path):
+        class FakeProc:
+            pid = 11
+
+        plan = WindowLayoutPlan(
+            portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
+            landscape=WindowRect(x=853, y=0, width=1707, height=1440),
+            dashboard=WindowRect(x=0, y=0, width=853, height=206),
+            random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+        )
+        with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            launch_origenerator(
+                python_exe=self._interpreter(tmp_path),
+                origenerator_dir=tmp_path / "origenerator",
+                layout_plan=plan,
+                command_file="state/origenerator_cmd.txt",
+                paused_file="state/origenerator_paused.txt",
+                status_file="state/origenerator_status.txt",
+                dashboard_cmd_file="state/dashboard_cmd.txt",
+            )
+
+        assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
+
     def test_the_satellite_reap_can_still_find_a_player_under_its_new_name(self, tmp_path: Path):
         """The reap that clears stranded players bounds itself by image name.
         Renaming the players without widening it would leave every one of them
@@ -1872,3 +1928,87 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         ps_command = run.call_args[0][0][-1]
         assert "FunTime-" in ps_command
         assert "pythonw?" in ps_command
+
+
+def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
+    """The argv is origenerator's --fun-time contract: the RFB rect as the main
+    window's, both satellite region rects, the channel files, and the session's
+    taskbar identity — run from the checkout so ``-m`` resolves that checkout's
+    code, exactly like its own launcher does."""
+
+    class FakeProc:
+        pid = 77
+
+    plan = WindowLayoutPlan(
+        portrait=WindowRect(x=2560, y=0, width=1440, height=1870),
+        landscape=WindowRect(x=853, y=0, width=1707, height=1440),
+        dashboard=WindowRect(x=0, y=0, width=853, height=206),
+        random_favs_browser=WindowRect(x=0, y=206, width=853, height=1234),
+    )
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+               return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs",
+        return_value={"creationflags": 1},
+    ):
+        pid = launch_origenerator(
+            python_exe="C:/py/python.exe",
+            origenerator_dir=tmp_path / "origenerator",
+            layout_plan=plan,
+            command_file="state/origenerator_cmd.txt",
+            paused_file="state/origenerator_paused.txt",
+            status_file="state/origenerator_status.txt",
+            dashboard_cmd_file="state/dashboard_cmd.txt",
+        )
+
+    assert pid == 77
+    command = popen.call_args.args[0]
+    assert command[:3] == ["C:/py/python.exe", "-m", "origenerator"]
+    assert "--fun-time" in command
+    for flag, value in (
+        ("--x", "0"), ("--y", "206"), ("--width", "853"), ("--height", "1234"),
+        ("--portrait_x", "2560"), ("--portrait_height", "1870"),
+        ("--landscape_x", "853"), ("--landscape_width", "1707"),
+        ("--command-file", "state/origenerator_cmd.txt"),
+        ("--paused-file", "state/origenerator_paused.txt"),
+        ("--status-file", "state/origenerator_status.txt"),
+        ("--dashboard-cmd-file", "state/dashboard_cmd.txt"),
+        ("--taskbar-identity", APP_USER_MODEL_ID),
+    ):
+        assert flag in command, flag
+        assert command[command.index(flag) + 1] == value, flag
+    # cwd is what picks the checkout: -m resolves the package from it.
+    assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")
+    # A primary checkout is the live install — no branch-session flag.
+    assert "env" not in popen.call_args.kwargs
+
+
+def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
+    """A worktree checkout is unlanded code under judgment, not the live
+    install: it seeds its database from the primary's and skips the library
+    maintenance only the live app should run — origenerator's own preview
+    launcher sets the same flag for the same reason."""
+
+    class FakeProc:
+        pid = 78
+
+    plan = WindowLayoutPlan(
+        portrait=WindowRect(x=0, y=0, width=10, height=20),
+        landscape=WindowRect(x=0, y=0, width=20, height=10),
+        dashboard=WindowRect(x=0, y=0, width=10, height=10),
+        random_favs_browser=WindowRect(x=0, y=0, width=10, height=10),
+    )
+    worktree = tmp_path / "origenerator" / ".claude" / "worktrees" / "my-branch"
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen",
+               return_value=FakeProc()) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={},
+    ):
+        launch_origenerator(
+            python_exe="C:/py/python.exe",
+            origenerator_dir=worktree,
+            layout_plan=plan,
+            command_file="c.txt", paused_file="p.txt",
+            status_file="s.txt", dashboard_cmd_file="d.txt",
+        )
+
+    env = popen.call_args.kwargs["env"]
+    assert env["ORIGENERATOR_BRANCH_SESSION"] == "1"

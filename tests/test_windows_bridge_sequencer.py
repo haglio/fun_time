@@ -11,6 +11,8 @@ from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANI
 from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
+    release_the_players,
+    _wait_for_players_drawing,
     NAU_LOAD_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     run_startup_sequence,
@@ -25,6 +27,8 @@ from fun_time.window_layout import (
 )
 from fun_time.config import LayoutConfig
 from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
+
+from types import SimpleNamespace
 
 import pytest
 
@@ -882,7 +886,71 @@ class TestLoadingScreenStartup:
         assert result.role_hwnds == {
             "portrait": 3030, "landscape": 4040, "nau": 2525,
             "genau": 6060, "dashboard": 5050, "rfb": 0,
+            # None hosted in this session, so neither its window nor either of
+            # its region shows (which cover the players' rects, and are managed
+            # roles for that reason).
+            "origenerator": 0,
+            "origenerator_portrait": 0, "origenerator_landscape": 0,
         }
+
+
+class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
+    """Every promotion in the banding walk lands ABOVE the cover, so the cover
+    has to be put back after each one.
+
+    ``HWND_TOPMOST`` inserts at the top of the topmost band, and the cover is
+    itself topmost — so a window promoted while it is up is over it until
+    something puts it back.  Left to the cover's own 200ms poll, that is a
+    window flashing through the scrim, and there is one per managed role.
+    """
+
+    ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
+                  "nau": 55, "genau": 66}
+    COVER = 999
+
+    def _calls(self, **kwargs):
+        calls: list[tuple[int, bool]] = []
+        with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
+                   side_effect=lambda h, v: calls.append((h, v))):
+            windows_bridge_sequencer._apply_topmost_bands(
+                dict(self.ROLE_HWNDS), "nau", **kwargs)
+        return calls
+
+    def test_the_cover_goes_back_on_top_after_every_promotion(self):
+        calls = self._calls(beneath=self.COVER)
+
+        promotions = [i for i, (h, on) in enumerate(calls)
+                      if on and h != self.COVER]
+        assert promotions, "nothing was promoted, so this proves nothing"
+        for index in promotions:
+            assert calls[index + 1] == (self.COVER, True), (
+                f"{calls[index]} was left above the cover until the next "
+                "SetWindowPos, which is long enough to see"
+            )
+
+    def test_the_walk_still_promotes_in_role_order(self):
+        """Interleaving the cover must not disturb who ends up above whom: the
+        order of the promotions is what puts Genau's HUD over Nau's video."""
+        banded = [h for h, on in self._calls(beneath=self.COVER)
+                  if on and h != self.COVER]
+        plain = [h for h, on in self._calls() if on]
+
+        assert banded == plain
+
+    def test_a_demotion_needs_no_cover_re_assert(self):
+        """Dropping out of the topmost band lands below the cover already, so
+        there is nothing to put back — and re-asserting anyway would spend a
+        SetWindowPos on every window the mode is hiding."""
+        calls = self._calls(beneath=self.COVER)
+
+        for index, (hwnd, on_top) in enumerate(calls):
+            if not on_top:
+                assert calls[index + 1:index + 2] != [(self.COVER, True)]
+
+    def test_without_a_cover_nothing_extra_is_touched(self):
+        """The re-band after the cover has gone, and the integration path, walk
+        exactly the windows they are given."""
+        assert all(h in self.ROLE_HWNDS.values() for h, _on in self._calls())
 
 
 class TestPhase4Reveal:
@@ -891,6 +959,16 @@ class TestPhase4Reveal:
     def _run_hidden(self, manifest_path, tmp_path, *, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
         pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
+        # Both players reporting frames: the curtain waits for that before it
+        # comes down (a satellite's window exists long before mpv has drawn
+        # anything into it), so a run with no status files would hold it up.
+        manifest = configparser.ConfigParser()
+        manifest.optionxform = str
+        manifest.read(str(manifest_path), encoding="utf-8")
+        for key in ("portrait_status_file", "landscape_status_file"):
+            status = Path(manifest["commands"][key])
+            status.parent.mkdir(parents=True, exist_ok=True)
+            status.write_text("video=a.mp4\nposition_ms=250\n", encoding="utf-8")
         topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
         hide_calls = self._hide_calls = []
 
@@ -914,7 +992,15 @@ class TestPhase4Reveal:
                 hide_windows=True,
             )
 
-    def test_unpauses_nau_and_keeps_genau_parked(self, cfg_factory, tmp_path):
+    def test_every_player_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
+        """The path with a cover does not start playing when its phases end.
+
+        The finishing pass — the bands, the settle — runs after this and behind
+        the cover, so a player released here plays for seconds he can neither see
+        nor hear, and the opening of the video is gone by the time the cover
+        lifts.  The orchestrator calls ``release_the_players`` itself, once the
+        cover is off the screen.
+        """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
@@ -927,8 +1013,23 @@ class TestPhase4Reveal:
 
         self._run_hidden(manifest_path, tmp_path)
 
-        # The reveal: Nau is unpaused so it starts playing when the loading
-        # screen comes down; Genau and audio stay parked.
+        for key in ("nau_paused_file", "genau_paused_file", "audio_paused_file"):
+            assert Path(m["commands"][key]).read_text(encoding="utf-8").strip() == "1", key
+
+    def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
+        """And what the orchestrator calls once the cover is gone does start them:
+        Nau in nau mode, with Genau and its audio left parked."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        m = configparser.ConfigParser()
+        m.optionxform = str
+        m.read(str(manifest_path), encoding="utf-8")
+        for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
+            flag = Path(m["commands"][key])
+            flag.parent.mkdir(parents=True, exist_ok=True)
+            flag.write_text("1", encoding="utf-8")
+
+        release_the_players(m, "nau")
+
         assert Path(m["commands"]["nau_paused_file"]).read_text(encoding="utf-8").strip() == "0"
         assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
         assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
@@ -1265,3 +1366,226 @@ class TestWaitForNauLoaded:
                 _wait_for_nau_loaded(tmp_path / "never.txt", Cancelled())
 
         slept.assert_not_called()
+
+
+class TestOrigeneratorLaunch:
+    def test_a_configured_origenerator_launches_with_the_layout(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+            "origenerator_python_exe": str(tmp_path / "py" / "python.exe"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        captured = {}
+
+        def capture(**kwargs):
+            captured.update(kwargs)
+            return 91
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", side_effect=capture), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert result.origenerator_pid == 91
+        assert captured["origenerator_dir"] == str(tmp_path / "origenerator")
+        assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
+        assert captured["layout_plan"].random_favs_browser.width > 0
+        assert str(captured["command_file"]).endswith("origenerator_cmd.txt")
+        # A "1" a prior session's OmniPause stranded in the paused flag is
+        # cleared before the app launches — a stale freeze made every show
+        # open frozen while the room ran.
+        assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
+
+    def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator") as launch, \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        launch.assert_not_called()
+        assert result.origenerator_pid == 0
+
+
+class TestOrigeneratorBehindTheOverlay:
+    def test_a_resumed_origenerator_session_restores_the_window_before_the_reveal(
+        self, cfg_factory, tmp_path
+    ):
+        """The loading screen exists so the room is set up before it is seen —
+        the hosted window used to pop up seconds after the reveal.  A session
+        opening in origenerator mode now holds the overlay for that window,
+        restores it behind the curtain, and carries the mode out so the
+        post-overlay pass bands it over the RFB."""
+        from fun_time.command_dispatch import BridgeState
+        from fun_time.shared_state import shared_state_path, write_shared_state
+
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        write_shared_state(shared_state_path(tmp_path),
+                           BridgeState(satellites_mode="origenerator"))
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.find_window_for_process",
+                   return_value=7171) as resolve, \
+             patch("fun_time.windows_bridge_sequencer.restore_window") as restore, \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        resolve.assert_called_with(91, "Origenerator")
+        restore.assert_called_once_with(7171, activate=False)
+        assert result.satellites_mode == "origenerator"
+        assert result.role_hwnds["origenerator"] == 7171
+        # And the mode means both regions PLAYING: the same OPEN_SHOWS the
+        # switch into the mode sends, so a resumed session comes up on the
+        # library of each region's shape rather than on two black rectangles.
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(
+            encoding="utf-8").split() == ["OPEN_SHOWS"]
+
+    def test_a_player_mode_session_never_waits_on_the_hosted_boot(
+        self, cfg_factory, tmp_path
+    ):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.find_window_for_process") as resolve, \
+             patch("fun_time.windows_bridge_sequencer.restore_window") as restore, \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        resolve.assert_not_called()   # the parked window is the mode's own state
+        restore.assert_not_called()
+        assert result.satellites_mode == "player"
+        # And nothing asks it to fill the regions — including anything a prior
+        # session left unread, which the launch clears for exactly this reason:
+        # the app drains that file on its first tick, so a stranded OPEN_SHOWS
+        # would fill the regions of a session that opened in player mode.
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
+    def test_a_stranded_verb_is_cleared_before_the_hosted_app_can_read_it(
+        self, cfg_factory, tmp_path
+    ):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        (cfg.paths.state_dir / "origenerator_cmd.txt").write_text(
+            "PORTRAIT_NEXT\n", encoding="utf-8")  # last session's, never drained
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
+
+class TestWaitingForThePlayersToDraw:
+    """The curtain comes down on a room that is ready to look at.
+
+    A satellite's window exists within a second of launch and stays BLACK until
+    mpv has opened its first clip — several seconds on the 4K landscape library
+    — so a reveal timed on the windows alone lifts on two black rectangles that
+    fill in afterwards.  Its status file says ``position_ms`` once frames are
+    actually going out, which is what this waits for.
+    """
+
+    def test_it_waits_until_every_player_reports_frames(self, tmp_path):
+        portrait = tmp_path / "portrait_status.txt"
+        landscape = tmp_path / "landscape_status.txt"
+        portrait.write_text("video=a.mp4\nposition_ms=120\n", encoding="utf-8")
+        landscape.write_text("video=b.mp4\nposition_ms=0\n", encoding="utf-8")
+        progress = SimpleNamespace(cancelled=False)
+
+        assert _wait_for_players_drawing(
+            (portrait, landscape), progress, timeout_s=0.3) is False
+
+        landscape.write_text("video=b.mp4\nposition_ms=90\n", encoding="utf-8")
+        assert _wait_for_players_drawing(
+            (portrait, landscape), progress, timeout_s=0.3) is True
+
+    def test_a_player_that_never_draws_does_not_keep_the_desktop(self, tmp_path):
+        """Bounded like Nau's wait: a player stuck on a bad clip must not hold
+        the curtain up forever — the reveal goes ahead and the log says why."""
+        never = tmp_path / "portrait_status.txt"
+        progress = SimpleNamespace(cancelled=False)
+
+        assert _wait_for_players_drawing((never,), progress, timeout_s=0.2) is False
+
+    def test_it_is_a_cancellation_checkpoint(self, tmp_path):
+        """Esc on the loading screen has to land during this stretch too — it is
+        one of the few that can run for tens of seconds."""
+        progress = SimpleNamespace(cancelled=True)
+
+        with pytest.raises(StartupCancelled):
+            _wait_for_players_drawing((tmp_path / "s.txt",), progress, timeout_s=1.0)

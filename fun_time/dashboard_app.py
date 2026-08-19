@@ -27,9 +27,10 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
-from fun_time.overlay_progress import loading_screen_active
+from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
+from fun_time.overlay_progress import loading_cover_is_up, startup_still_building
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.win32 import is_window_topmost, set_always_on_top
+from fun_time.win32 import find_window_by_title, is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -509,7 +510,10 @@ class DashboardWindow(QMainWindow):
         # — the launcher does not have to pass --start-minimized.  Neither a
         # loading-defer nor a persisted-minimized start may mirror its initial
         # off-screen state onto the other windows.
-        self._deferred_for_loading = loading_screen_active(app_config.manifest_path.parent)
+        self._deferred_for_loading = startup_still_building(app_config.manifest_path.parent)
+        # Toasts are topmost too, so they wait for the cover itself rather than
+        # for the earlier cue this window shows itself on.  See _poll_notices.
+        self._notices_held = self._deferred_for_loading
         self._suppress_minimize_routing = start_minimized or self._deferred_for_loading
 
         # Set on close, so the poller and press listener wind down with the
@@ -694,26 +698,45 @@ class DashboardWindow(QMainWindow):
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
 
     def _maybe_reveal_after_loading(self) -> None:
-        """Show the window once the loading overlay is gone.
+        """Show the window as startup reaches its last phase — BEHIND the cover.
 
-        The dashboard stays fully hidden (SW_HIDE, never Qt-shown) while the
-        overlay is up, so it neither flashes above the overlay nor animates a
-        minimize.  The overlay deletes its progress file when it closes, which
-        is our cue to reveal.  Revealing from hidden does not fire a
-        minimize->restore edge, so we clear the startup-minimize suppression
-        here rather than relying on _maybe_route_omnirestore.
+        The dashboard stays fully hidden (SW_HIDE, never Qt-shown) while startup
+        builds the room, so it neither flashes above the cover nor animates a
+        minimize.  What it waits for is the last phase, not the cover coming
+        down: waiting for the cover meant showing itself a second or more AFTER
+        the reveal, so the loading screen went away and the session's own control
+        panel was still missing — "its windows are not ready by the time the
+        loading screen goes away".
+
+        Showing while the cover is up needs one care.  Both windows are topmost,
+        and showing a window puts it at the TOP of its band, so the panel would
+        land over the cover for as long as it took the cover's next 200ms poll to
+        re-assert itself.  So it is inserted directly BELOW the cover instead
+        (``hWndInsertAfter`` = the cover's own window) in the same call that
+        shows it, and the cover keeps the screen until the orchestrator writes
+        DONE.  With no cover to find, the z-order is left alone, exactly as
+        before.
+
+        Revealing from hidden does not fire a minimize->restore edge, so we clear
+        the startup-minimize suppression here rather than relying on
+        _maybe_route_omnirestore.
         """
         if not self._deferred_for_loading:
             return
-        if loading_screen_active(self._app_config.manifest_path.parent):
+        if startup_still_building(self._app_config.manifest_path.parent):
             return
         self._deferred_for_loading = False
         self._suppress_minimize_routing = False
+        curtain = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
         self.show()
         SW_SHOW = 5
+        SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER = 0x0001, 0x0002, 0x0004
+        SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x0010, 0x0020
         ctypes.windll.user32.ShowWindow(self._dash_hwnd, SW_SHOW)
         ctypes.windll.user32.SetWindowPos(
-            self._dash_hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,
+            self._dash_hwnd, ctypes.c_void_p(curtain), 0, 0, 0, 0,
+            SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED
+            | (SWP_NOACTIVATE if curtain else SWP_NOZORDER),
         )
 
     def _compute_pressed(self) -> frozenset[str]:
@@ -920,11 +943,24 @@ class DashboardWindow(QMainWindow):
         )
 
     def _poll_notices(self) -> None:
-        """Flash every new announcement over the player it concerns."""
+        """Flash every new announcement over the player it concerns.
+
+        Held while the loading cover is up, and by the COVER rather than by
+        ``_deferred_for_loading``: this window shows itself one phase before the
+        cover goes (so it is in place when it does), and a toast is topmost, so
+        every announcement in that gap flashed over the cover — a thing
+        appearing for a moment through the scrim, which is what the scrim is
+        there to stop.  Nothing is dropped by waiting: the read offset does not
+        advance until they are flashed, so they arrive over the room they are
+        about.
+        """
         if self._notice_overlay is None or self._player_rects is None:
             return
-        if self._deferred_for_loading:
-            return
+        if self._notices_held:
+            if loading_cover_is_up(self._app_config.manifest_path.parent):
+                return
+            # Latched, so the steady state costs no file check at all.
+            self._notices_held = False
         records, self._notice_offset = read_events(
             self._app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME,
             self._notice_offset,

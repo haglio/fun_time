@@ -371,18 +371,25 @@ def seed_startup_states(
 def reset_satellite_paused_states(
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
+    *,
+    satellites_mode: str = "player",
 ) -> None:
-    """Clear both satellite paused flags so this session's players start playing.
+    """Seed both satellite paused flags for the mode the session opens in.
 
     Unlike the genau/audio/nau flags, the satellite paused files are outside
     ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
     stranded by a prior session's OmniPause would make this session's satellites
-    read paused and never play (frozen at position 0), so reset both to ``"0"``
-    before they launch — a satellite always comes up playing.
+    read paused and never play (frozen at position 0), so both are written
+    before they launch.  In player mode that write is ``"0"`` — a satellite
+    comes up playing.  A session RESUMED into origenerator mode comes up with
+    them ``"1"`` instead: the regions are the hosted app's for the whole mode,
+    and the players are black and paused underneath exactly as the mode switch
+    would have left them.
     """
+    paused = "1" if satellites_mode == "origenerator" else "0"
     for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text("0", encoding="utf-8")
+        path.write_text(paused, encoding="utf-8")
 
 
 def start_core_session(
@@ -422,6 +429,7 @@ def start_core_session(
     dashboard_cmd_file: str | Path | None = None,
     regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
+    project_dirs: str | None = None,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the Nau/Genau pair to match
@@ -470,9 +478,12 @@ def start_core_session(
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
         mode=carried.main_mode,
     )
-    # seed_startup_states does not touch the satellite paused files; clear any "1"
-    # a prior OmniPause stranded so the satellites launch playing, not frozen.
-    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file)
+    # seed_startup_states does not touch the satellite paused files; seed them
+    # for the mode this session opens in — playing in player mode (clearing any
+    # "1" a prior OmniPause stranded), paused when resumed into origenerator
+    # mode, whose players are black and held for the whole mode.
+    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file,
+                                  satellites_mode=carried.satellites_mode)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_all_playlists(
@@ -539,6 +550,7 @@ def start_core_session(
         portrait_hud_file=portrait_hud_file,
         landscape_hud_file=landscape_hud_file,
         dashboard_cmd_file=dashboard_cmd_file,
+        project_dirs=project_dirs,
     )
     return carried.main_mode
 
@@ -644,6 +656,70 @@ def launch_genau(
     return proc.pid
 
 
+def launch_origenerator(
+    *,
+    python_exe: str | Path,
+    origenerator_dir: str | Path,
+    layout_plan,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    dashboard_cmd_file: str | Path,
+    project_dirs: str | None = None,
+) -> int:
+    """Launch the hosted Origenerator, returning its PID.
+
+    Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
+    window takes the RFB's rect, the shows take the two satellite region rects,
+    and the file trio is how the session drives and observes it.  Run with
+    ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
+    way its own launcher picks a checkout, and what lets a worktree of it be
+    hosted for a branch verification.  It boots parked (its own doing), so
+    nothing waits on it: the dispatch loop adopts the window when it appears.
+    """
+    rfb = layout_plan.random_favs_browser
+    cmd = [
+        identified_python_exe(python_exe, "Origenerator"),
+        "-m", "origenerator", "--fun-time",
+        "--x", str(rfb.x), "--y", str(rfb.y),
+        "--width", str(rfb.width), "--height", str(rfb.height),
+    ]
+    for prefix, rect in (("portrait", layout_plan.portrait),
+                         ("landscape", layout_plan.landscape)):
+        cmd.extend([
+            f"--{prefix}_x", str(rect.x), f"--{prefix}_y", str(rect.y),
+            f"--{prefix}_width", str(rect.width),
+            f"--{prefix}_height", str(rect.height),
+        ])
+    cmd.extend(TASKBAR_IDENTITY_ARGS)
+    cmd.extend([
+        "--command-file", str(command_file),
+        "--paused-file", str(paused_file),
+        "--status-file", str(status_file),
+        "--dashboard-cmd-file", str(dashboard_cmd_file),
+    ])
+    # The same checkout choice Genau, Nau and the satellites get: named
+    # project dirs ride the hosted app's PYTHONPATH, so a branch of
+    # player_core is the one its ensure_player_core_on_path finds (it defers
+    # to an already-importable copy rather than walking up to the primary).
+    kwargs: dict = {"cwd": str(origenerator_dir),
+                    **genau_project_kwargs(project_dirs),
+                    **subprocess_window_kwargs()}
+    # A worktree checkout is unlanded code under judgment, not the live
+    # install: run it as origenerator's own branch session (its preview
+    # launcher sets the same flag), which seeds its database from the
+    # primary's, skips the maintenance passes only the live app should run,
+    # and leaves its generations for the live app to adopt.  A worktree sits
+    # at exactly <repo>/.claude/worktrees/<name> by this suite's own working
+    # law — the same layout origenerator's launch_preview_branch.vbs walks.
+    checkout = Path(origenerator_dir)
+    if checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude":
+        env = kwargs.get("env") or {**os.environ}
+        kwargs["env"] = {**env, "ORIGENERATOR_BRANCH_SESSION": "1"}
+    proc = subprocess.Popen(cmd, **kwargs)
+    return proc.pid
+
+
 def launch_nau(
     *,
     python_exe: str | Path,
@@ -738,6 +814,7 @@ def launch_ui_companions(
     rfb_y: int,
     rfb_width: int,
     rfb_height: int,
+    dashboard_log_file: str | Path | None = None,
     audio_module: str,
     config_path: str | Path,
     audio_folder: str | Path,
@@ -750,31 +827,41 @@ def launch_ui_companions(
 
     dashboard_pid = 0
     if dashboard_enabled:
-        dashboard_proc = subprocess.Popen(
-            [
-                identified_python_exe(python_exe, "Dashboard"),
-                "-m",
-                dashboard_module,
-                windows_bridge_manifest_path,
-                "--x",
-                str(dashboard_x),
-                "--y",
-                str(dashboard_y),
-                "--width",
-                str(dashboard_width),
-                "--height",
-                str(dashboard_height),
-                "--rfb-x",
-                str(rfb_x),
-                "--rfb-y",
-                str(rfb_y),
-                "--rfb-width",
-                str(rfb_width),
-                "--rfb-height",
-                str(rfb_height),
-            ],
-            **subprocess_window_kwargs(),
-        )
+        # Its output goes to a log for the reason every other child's does: a
+        # companion that dies on import leaves nothing behind otherwise, and
+        # "the dashboard never appeared" then looks like a window-choreography
+        # fault rather than the crash it is.
+        dashboard_cmd = [
+            identified_python_exe(python_exe, "Dashboard"),
+            "-m",
+            dashboard_module,
+            windows_bridge_manifest_path,
+            "--x",
+            str(dashboard_x),
+            "--y",
+            str(dashboard_y),
+            "--width",
+            str(dashboard_width),
+            "--height",
+            str(dashboard_height),
+            "--rfb-x",
+            str(rfb_x),
+            "--rfb-y",
+            str(rfb_y),
+            "--rfb-width",
+            str(rfb_width),
+            "--rfb-height",
+            str(rfb_height),
+        ]
+        if dashboard_log_file is not None:
+            with open_child_log(dashboard_log_file, dashboard_cmd) as log:
+                dashboard_proc = subprocess.Popen(
+                    dashboard_cmd, stdout=log, stderr=subprocess.STDOUT,
+                    **subprocess_window_kwargs(),
+                )
+        else:
+            dashboard_proc = subprocess.Popen(
+                dashboard_cmd, **subprocess_window_kwargs())
         dashboard_pid = dashboard_proc.pid
 
     audio_proc = subprocess.Popen(
@@ -819,6 +906,7 @@ def launch_core_apps(
     portrait_hud_file: str | Path | None = None,
     landscape_hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
+    project_dirs: str | None = None,
 ) -> None:
     """Spawn the two native satellite players (portrait + landscape).
 
@@ -844,6 +932,7 @@ def launch_core_apps(
         x=portrait_rect.x, y=portrait_rect.y,
         width=portrait_rect.width, height=portrait_rect.height,
         hud_file=portrait_hud_file, dashboard_cmd_file=dashboard_cmd_file,
+        project_dirs=project_dirs,
     )
     landscape_pid = launch_satellite(
         python_exe=python_exe,
@@ -858,6 +947,7 @@ def launch_core_apps(
         x=landscape_rect.x, y=landscape_rect.y,
         width=landscape_rect.width, height=landscape_rect.height,
         hud_file=landscape_hud_file, dashboard_cmd_file=dashboard_cmd_file,
+        project_dirs=project_dirs,
     )
     _write_result_file(
         result_file,
@@ -947,6 +1037,7 @@ def launch_satellite(
     height: int,
     hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
+    project_dirs: str | None = None,
 ) -> int:
     """Launch a native satellite player subprocess, returning its PID.
 
@@ -979,5 +1070,7 @@ def launch_satellite(
         dashboard_cmd_file=dashboard_cmd_file,
     )
     with open_child_log(log_file, cmd) as log:
-        proc = subprocess.Popen(cmd, stdout=log, stderr=log, **subprocess_window_kwargs())
+        proc = subprocess.Popen(cmd, stdout=log, stderr=log,
+                                **genau_project_kwargs(project_dirs),
+                                **subprocess_window_kwargs())
     return proc.pid

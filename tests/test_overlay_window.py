@@ -2,7 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.overlay_window import load_icon_image, parse_progress
+from fun_time.overlay_progress import parse_progress
+from fun_time.overlay_window import load_icon_image
 
 ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
 

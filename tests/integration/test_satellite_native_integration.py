@@ -25,7 +25,7 @@ from fun_time.thumbnail_cache import thumbnail_for
 from fun_time.win32 import get_process_creation_time
 from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
 
-from .integration_support import real_config_path
+from .integration_support import checkout_project_dirs, real_config_path
 
 
 def _wait(predicate, *, timeout, desc):
@@ -64,6 +64,9 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
+        # This checkout's siblings, as a session launches them: a player
+        # importing an unlanded player_core name dies at import.
+        project_dirs=checkout_project_dirs(),
     )
     try:
         first = _wait(
@@ -119,6 +122,9 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
         paused_file=tmp_path / "portrait_paused.txt", status_file=status,
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
+        # This checkout's siblings, as a session launches them: a player
+        # importing an unlanded player_core name dies at import.
+        project_dirs=checkout_project_dirs(),
     )
     try:
         _wait(lambda: read_satellite_status(status).position_ms > 0,
@@ -185,6 +191,9 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         hud_file=hud_file, dashboard_cmd_file=dashboard_cmd,
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
+        # This checkout's siblings, as a session launches them: a player
+        # importing an unlanded player_core name dies at import.
+        project_dirs=checkout_project_dirs(),
     )
     try:
         _wait(

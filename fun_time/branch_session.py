@@ -86,6 +86,12 @@ DETACHED = "(detached)"
 # and #-comments ignored.  See :func:`_apply_genau_checkout_override`.
 GENAU_DIRS_OVERRIDE_NAME = "genau_project_dirs.txt"
 
+# The same per-worktree answer for "which Origenerator checkout does this
+# session host": one absolute path (or an empty file for none at all), for the
+# same reason genau's exists — the machine's one config must not be repointed
+# at an unlanded branch.  See :func:`apply_origenerator_dir_override`.
+ORIGENERATOR_DIR_OVERRIDE_NAME = "origenerator_dir.txt"
+
 # Git-ignored overlays that a session reads from its own checkout, so they exist
 # in the primary and in no worktree.  See :func:`mirror_private_overlays`.
 _PRIVATE_OVERLAYS = (
@@ -237,6 +243,8 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
             "genau_config_path": paths.genau_config_path,
             "genau_project_dirs": paths.genau_project_dirs,
             "broker_tray_launcher": paths.broker_tray_launcher,
+            "origenerator_dir": paths.origenerator_dir,
+            "origenerator_python_exe": paths.origenerator_python_exe,
         },
         "random_favs_browser": {
             "shortcut_path": browser.shortcut_path,
@@ -300,6 +308,59 @@ def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
     raw.setdefault("paths", {})["genau_project_dirs"] = [
         line for line in dirs if line and not line.startswith("#")
     ]
+
+
+def _apply_origenerator_checkout_override(raw: dict, state_dir: Path) -> None:
+    """Let a worktree say for itself which Origenerator checkout its session hosts.
+
+    Same shape and same reason as :func:`_apply_genau_checkout_override`: the
+    config key is per-machine but the question is per-SESSION, so an agent
+    judging an origenerator branch writes the worktree path here rather than
+    into the machine's one ``fun_time_config.json``.  Present, the file
+    REPLACES the machine's value — one absolute path, or empty to host none at
+    all (which is how a branch unrelated to origenerator gets the plain
+    machine setup even while some other agent's pin sits in the config).
+    Absent, the machine's value rides through.
+    """
+    override = state_dir / ORIGENERATOR_DIR_OVERRIDE_NAME
+    try:
+        text = override.read_text(encoding="utf-8")
+    except OSError:
+        return
+    lines = [line.strip() for line in text.splitlines()
+             if line.strip() and not line.strip().startswith("#")]
+    raw.setdefault("paths", {})["origenerator_dir"] = lines[0] if lines else ""
+
+
+def apply_origenerator_dir_override(config):
+    """This checkout's origenerator override, applied to a loaded config.
+
+    The branch-config generator runs the PRIMARY checkout's copy of this
+    module (see :func:`build_branch_config`), so a branch that INTRODUCES the
+    override cannot rely on the generator applying it — the orchestrator calls
+    this at launch instead, resolving the file against its own checkout.  A
+    no-op wherever the override file does not exist, which is every ordinary
+    session.
+
+    Never in an integration run: the run's config decides what it hosts —
+    isolation strips the key so nothing is hosted, and the origenerator-mode
+    test then names its own fabricated stub.  This override once out-ranked
+    both, and every session the suite launched from a worktree carrying the
+    file quietly hosted the REAL app instead: the machine's one ComfyUI,
+    booted on the hidden desktop by a test run.
+    """
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+        return config
+    override = config_module.PROJECT_DIR / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME
+    try:
+        text = override.read_text(encoding="utf-8")
+    except OSError:
+        return config
+    lines = [line.strip() for line in text.splitlines()
+             if line.strip() and not line.strip().startswith("#")]
+    from dataclasses import replace as dc_replace
+    new_dir = Path(lines[0]) if lines else None
+    return dc_replace(config, paths=dc_replace(config.paths, origenerator_dir=new_dir))
 
 
 def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
@@ -483,6 +544,7 @@ def build_branch_config(
     raw["paths"]["state_dir"] = str(state_dir)
     raw["instance_id"] = real.instance_id
     _apply_genau_checkout_override(raw, state_dir)
+    _apply_origenerator_checkout_override(raw, state_dir)
 
     mirror_private_overlays(primary, worktree)
 
@@ -560,14 +622,23 @@ def sibling_checkouts_line(
     config_path = config_path or (primary / DEFAULT_CONFIG_PATH.name)
     real = load_config(config_path, project_dir=primary)
     raw = {"paths": {
-        "genau_project_dirs": [str(path) for path in real.paths.genau_project_dirs]
+        "genau_project_dirs": [str(path) for path in real.paths.genau_project_dirs],
+        "origenerator_dir": str(real.paths.origenerator_dir or ""),
     }}
     _apply_genau_checkout_override(raw, worktree / STATE_DIRNAME)
+    _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
     dirs = raw["paths"]["genau_project_dirs"]
-    if not dirs:
-        return ("genau_project_dirs: (empty — Genau, Nau and player_core run "
-                "from their venv installs, the primaries)")
-    return "genau_project_dirs: " + os.pathsep.join(dirs)
+    genau_line = (
+        "genau_project_dirs: (empty — Genau, Nau and player_core run "
+        "from their venv installs, the primaries)"
+        if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
+    )
+    origenerator = raw["paths"]["origenerator_dir"]
+    origenerator_line = (
+        "origenerator_dir: (none — the session hosts no Origenerator)"
+        if not origenerator else f"origenerator_dir: {origenerator}"
+    )
+    return f"{genau_line}\n{origenerator_line}"
 
 
 def current_branch(worktree: Path) -> str:

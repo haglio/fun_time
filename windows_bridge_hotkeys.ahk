@@ -91,6 +91,24 @@ Esc::PauseOrCancelStartup()
 +Esc::QueueCommand("relief_omnipause")
 #SuspendExempt false
 
+; The hosted Origenerator's MAIN window is a typing app — prompts, filters,
+; renames — and these hotkeys are single bare letters, so while it is focused
+; the keyboard is its, wholesale.  Its region SHOWS are not: a slideshow has
+; no text field, and the arrows and WASD must drive the portrait and
+; landscape regions by SIDE, exactly as they drive the players — wherever the
+; focus sits, a show's included.  So only the main window gates the hotkeys
+; off.  Matched by EXACT title, not the script's substring mode:
+; "Origenerator" appears in plenty of his other windows — an Explorer at the
+; checkout, a terminal on a branch — and a substring match silently killed
+; every hotkey while one of those was focused.  The exempt trio above stays
+; global on purpose — quitting and the omnipause pair are session gestures,
+; wherever the focus sits.
+OrigeneratorHasKeyboard() {
+    title := WinGetTitle("A")
+    return (title = "Origenerator")
+}
+#HotIf !OrigeneratorHasKeyboard()
+
 Space::QueueCommand("enter_omnipause")
 [::QueueCommand("main_prev")
 SC01A::QueueCommand("main_prev")
@@ -100,6 +118,8 @@ SC01B::QueueCommand("main_next")
 g::QueueCommand("genau_activate")
 h::QueueCommand("hybrid_activate")
 n::QueueCommand("nau_activate")
+; The satellite side's own switch: player mode <-> Origenerator over the RFB.
+x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
@@ -198,6 +218,8 @@ SC035::QueueCommand("genau_toggle_auto")
 k::QueueCommand("genau_weird_clip")
 m::QueueCommand("genau_prev_clip")
 SC034::QueueCommand("genau_next_clip")
+
+#HotIf
 
 ; -------------------- CORE FUNCTIONS --------------------
 

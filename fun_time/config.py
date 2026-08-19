@@ -71,6 +71,12 @@ class PathsConfig:
     # ordinary use, which is what every session did before this.
     genau_project_dirs: tuple[Path, ...] = ()
     broker_tray_launcher: Path | None = None
+    # The Origenerator checkout the session hosts on its satellite side (see
+    # fun_time.satellites_mode), and the python that runs it — origenerator has
+    # no venv of its own; its deps live in the system install its launcher
+    # finds.  Absent, the satellites have no Origenerator mode at all.
+    origenerator_dir: Path | None = None
+    origenerator_python_exe: Path | None = None
 
     @property
     def nau_library_dir(self) -> Path:
@@ -236,6 +242,20 @@ class ProjectConfig:
     def nau_playlist_file(self) -> Path:
         return self.paths.state_dir / "nau_playlist.tsv"
 
+    # --- The hosted Origenerator's channel (see fun_time.satellites_mode):
+    # verbs in, the OmniPause flag over it, and region occupancy back.
+    @property
+    def origenerator_cmd_file(self) -> Path:
+        return self.paths.state_dir / "origenerator_cmd.txt"
+
+    @property
+    def origenerator_paused_file(self) -> Path:
+        return self.paths.state_dir / "origenerator_paused.txt"
+
+    @property
+    def origenerator_status_file(self) -> Path:
+        return self.paths.state_dir / "origenerator_status.txt"
+
     @property
     def audio_paused_file(self) -> Path:
         return self.paths.state_dir / "audio_paused.txt"
@@ -314,6 +334,8 @@ def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir
             _resolve_path(project_dir, str(value))
             for value in paths_raw.get("genau_project_dirs", [])),
         broker_tray_launcher=_resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
+        origenerator_dir=_resolve_path(project_dir, paths_raw["origenerator_dir"]) if paths_raw.get("origenerator_dir") else None,
+        origenerator_python_exe=_resolve_path(project_dir, paths_raw["origenerator_python_exe"]) if paths_raw.get("origenerator_python_exe") else None,
     )
 
 

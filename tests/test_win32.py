@@ -435,6 +435,20 @@ class TestWindowsObscuring:
         nau = self._w(1, (100, 0, 100, 100))
         assert windows_obscuring(1, [adjacent, nau]) == []
 
+    def test_a_ghost_frame_sliver_does_not_count_as_overlap(self):
+        # A maximized window's GetWindowRect includes its INVISIBLE resize
+        # frame, hanging ~8px onto the neighboring monitor — the startup log
+        # warned that a maximized Chrome on one monitor "covered" the player
+        # on the monitor next to it, over pixels nobody can see.
+        chrome = self._w(9, (-8, -8, 2576, 1426))     # maximized on 2560x1410
+        portrait = self._w(1, (2560, 0, 1440, 2560))  # the next monitor over
+        assert windows_obscuring(1, [chrome, portrait]) == []
+
+    def test_real_coverage_past_the_ghost_frame_still_counts(self):
+        chrome = self._w(9, (-8, -8, 2576, 1426))
+        landscape = self._w(1, (854, 0, 1706, 1410))  # same monitor: buried
+        assert windows_obscuring(1, [chrome, landscape]) == [chrome]
+
 
 class TestConstants:
     def test_hwnd_topmost_is_64bit_pointer(self):
