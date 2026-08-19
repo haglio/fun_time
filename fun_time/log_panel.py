@@ -130,13 +130,14 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 # PyQt6 widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
-from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtGui import QColor, QFontMetrics, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
     QHBoxLayout,
     QListWidget,
     QListWidgetItem,
+    QSizePolicy,
     QToolButton,
     QVBoxLayout,
     QWidget,
@@ -155,7 +156,7 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import BUTTON_PAD_H, BUTTON_PAD_V, BUTTON_RADIUS
+from shared_ui.spacing import BUTTON_GAP, BUTTON_PAD_H, BUTTON_PAD_V, BUTTON_RADIUS
 
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
@@ -215,6 +216,21 @@ def _copied_icon(size: int, color: QColor) -> QIcon:
     return QIcon(glyph_pixmap("check", size, color))
 
 
+# The room a combo box needs beyond its text: the drop-down arrow, and the frame
+# either side of it.
+_COMBO_CHROME = 22
+
+
+def _verbosity_width(box: QComboBox) -> int:
+    """Wide enough for the longest level name the dial can show.
+
+    It carried a flat 80px before, which cut "WARNING" off -- in a row that had
+    room for it on both sides.
+    """
+    metrics = QFontMetrics(box.font())
+    return max(metrics.horizontalAdvance(name) for name in LEVEL_NAMES) + _COMBO_CHROME
+
+
 class LogPanelWidget(QWidget):
     """Tails the event log in the strip beside the dashboard schematic.
 
@@ -270,10 +286,12 @@ class LogPanelWidget(QWidget):
         self.controls = QWidget()
         controls = QHBoxLayout(self.controls)
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(2)
+        controls.setSpacing(BUTTON_GAP)
         self._verbosity = QComboBox(self)
         self._verbosity.setFont(make_font(FONT_UI, SIZE_SMALL))
-        self._verbosity.setFixedWidth(80)
+        # Wide enough for the longest level name.  It was a flat 80px, which cut
+        # "WARNING" off in a row with room to spare either side of it.
+        self._verbosity.setFixedWidth(_verbosity_width(self._verbosity))
         for name in LEVEL_NAMES:
             self._verbosity.addItem(name, LEVELS_BY_NAME[name])
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
@@ -288,20 +306,12 @@ class LogPanelWidget(QWidget):
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
             button.setFont(make_font(FONT_UI, SIZE_SMALL))
-            # Fixed narrow width: five toggles plus the dial share one row across a
-            # ~300px strip, so each must give up the space QToolButton would
-            # otherwise reserve.
-            button.setFixedWidth(40)
-            # Text alone carries the state: white when the source is being shown,
-            # the same dimmed gray as everything else when it is not.  These sit in
-            # the dashboard's top bar and are read at a glance every few minutes at
-            # most, so a filled chip per source was five bright blocks competing
-            # with the controls beside them for attention they do not deserve.
             # Built like the rows of buttons across the top of Evolver and
             # Scripture: flat until you touch it, the family's button ground
-            # under the cursor, and its lighter on-ground while checked.  It
-            # brightened only its LABEL before, which from any distance left a
-            # toggled source looking like an untoggled one.
+            # under the cursor, its lighter on-ground while checked, and sized to
+            # its own label rather than to a number.  A fixed 40px crushed the
+            # family's padding to nothing, which is what kept these reading as
+            # cramped chips next to those rows however they were colored.
             button.setStyleSheet(
                 "QToolButton { border: none;"
                 f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H}px;"
@@ -311,6 +321,8 @@ class LogPanelWidget(QWidget):
                 f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
                 f" background: {BG_BUTTON_ACTIVE.name()}; }}"
             )
+            button.setSizePolicy(QSizePolicy.Policy.Preferred,
+                                 QSizePolicy.Policy.Fixed)
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
             self._source_boxes[source] = button
