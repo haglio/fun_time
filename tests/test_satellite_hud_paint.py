@@ -619,8 +619,11 @@ def test_the_filtered_actions_label_is_lit(thumb):
             current_action="alpha", filter_query=filter_query,
         ))
         (cx, cy, _cw, ch), _path = rendered.targets.click[0]
-        # The corner's own row label, in the gutter beside it — "alpha".
-        band = _rgb(rendered.bgra)[cy:cy + ch, PAD:cx - MAP_GAP]
+        # The corner's own row label, in the gutter beside it — "alpha".  Past
+        # the filter button at the gutter's head: its funnel is drawn at full
+        # strength like every resting mark on this panel, so counting from the
+        # gutter's left edge would count the button rather than the label.
+        band = _rgb(rendered.bgra)[cy:cy + ch, PAD + FILTER_ROOM:cx - MAP_GAP]
         return int((band > 200).sum())  # near-white only; a plain label is gray
 
     assert gutter_ink("alpha") > 0

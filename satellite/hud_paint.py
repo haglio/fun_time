@@ -21,6 +21,7 @@ from player_core.hud_marks import SHARED_MARK, shared_mark, shared_mark_name
 from player_core.hud_panel import (
     BG_PRIMARY,
     GREEN,
+    RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
     WHITE,
@@ -101,7 +102,10 @@ _ROW_LABEL_PT = 7
 # around a rounded rectangle, which says "around and around" where a single arc
 # says "back one step" -- and a single arc is what undo and reset already are.
 _LOOP_GLYPH = shared_mark("loop")
-_EXPAND_GLYPH = "↔"
+# Drawn rather than typed: U+2194 is a hairline beside the solid arrowheads of
+# the transport buttons it shares a panel with, which made one control look like
+# a different class of thing from its neighbors.
+_EXPAND_GLYPH = shared_mark("expand_horizontal")
 # The side's own controls.  Skip-track for the browse pair rather than bare
 # arrows, so they cannot be read as "step along the map"; a padlock and a bin for
 # the two that act on the clip on screen.  Reset wears the loop's own mark run
@@ -124,6 +128,10 @@ _CONTROL_GLYPHS = {
 # in the body face is a thin thing beside it, reading as a caption rather than a
 # badge (:func:`player_core.hud_panel.draw_icon`).
 _ICON_CONTROLS = {"fmode": "F"}
+# The controls that take something away.  Their mark is red -- the color
+# Origenerator's Delete wears -- so the one button on the band worth stopping at
+# before pressing says so before its tooltip does.
+_DESTRUCTIVE = {"trash"}
 _FAVORITE_GLYPH = shared_mark("star")
 
 # The filter mark, drawn rather than typed: Segoe UI Symbol — the face the other
@@ -564,16 +572,23 @@ class HudRenderer:
             row(ay, ah, model.actions[i].label if i < len(model.actions) else "")
 
     def _button_box(self, draw, rect: Rect, *, on: bool,
-                    on_color=WHITE) -> tuple[int, int, int, int]:
+                    on_color=WHITE, ink=None) -> tuple[int, int, int, int]:
         """The panel's square button, and the color to draw its mark in — the
         single button shape every control on this HUD is drawn with, so a new one
         cannot invent its own look.
 
-        Off it is an outline in the muted gray the rest of the chrome uses; on it
-        fills *on_color* and the mark reverses out of it.  That fill is white for
-        everything here except the lock: green across this family means favorites
-        and the funscripts, and the lock is the gesture that favorites a clip, so
-        it is the one control on the panel that earns the color.
+        Off, the box is an outline in the muted gray the rest of the chrome uses
+        and the MARK is full-strength -- the same way the main player's console
+        draws its own.  Both were muted here, which left these panels reading as
+        dim and half-disabled beside the console's, for controls that were
+        neither.  On, the box fills *on_color* and the mark reverses out of it.
+        That fill is white for everything here except the lock: green across this
+        family means favorites and the funscripts, and the lock is the gesture
+        that favorites a clip, so it is the one control that earns the color.
+
+        *ink* overrides the off-state mark -- the bin takes red, the color
+        Origenerator's Delete wears, since it is the one control here that takes
+        something away.
         """
         bx, by, bw, bh = rect
         draw.rounded_rectangle(
@@ -581,10 +596,10 @@ class HudRenderer:
             fill=(*on_color, 255) if on else None,
             outline=(*(on_color if on else TEXT_MUTED), 255), width=1,
         )
-        return (*(BG_PRIMARY if on else TEXT_MUTED), 255)
+        return (*(BG_PRIMARY if on else (ink or TEXT_PRIMARY)), 255)
 
     def _glyph_button(self, image, draw, rect: Rect, glyph: str, *, on: bool = False,
-                      on_color=WHITE) -> None:
+                      on_color=WHITE, ink=None) -> None:
         """One of the panel's square buttons, with a mark or a glyph on it.
 
         A mark the family draws is rendered from its geometry, so the bin here is
@@ -593,7 +608,7 @@ class HudRenderer:
         transport arrows sit high in a box that runs to the descender, so the
         font's own centering dropped every one of them toward its button's floor.
         """
-        ink = self._button_box(draw, rect, on=on, on_color=on_color)
+        ink = self._button_box(draw, rect, on=on, on_color=on_color, ink=ink)
         if glyph.startswith(SHARED_MARK):
             draw_mark(image, shared_mark_name(glyph), rect, ink)
             return
@@ -652,7 +667,8 @@ class HudRenderer:
                 self._minimize_button(draw, rect)
                 continue
             self._glyph_button(image, draw, rect, _CONTROL_GLYPHS[name],
-                               on=lit.get(name, False), on_color=GREEN)
+                               on=lit.get(name, False), on_color=GREEN,
+                               ink=RED if name in _DESTRUCTIVE else None)
         draw_mark(image, shared_mark_name(_FAVORITE_GLYPH), favorite,
                   (*(GREEN if model.is_favorite else TEXT_MUTED), 255))
 
