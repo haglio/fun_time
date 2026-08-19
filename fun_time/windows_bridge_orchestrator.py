@@ -518,11 +518,9 @@ def _fix_post_loading_windows(result: StartupResult, *,
     # instead — for its full twelve seconds, which is a picture and then a black
     # rectangle, on a session that opened in the mode.  A show not up yet
     # resolves to 0 and is skipped; the next re-band adopts it.
-    portrait_owner, landscape_owner = (
-        (show_hwnds["origenerator_portrait"], show_hwnds["origenerator_landscape"])
-        if hosted else (portrait_hwnd, landscape_hwnd)
-    )
-    _settle_the_players(portrait_owner, landscape_owner, overlay_hwnd=overlay_hwnd)
+    owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
+    _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
+    portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())
     # In hybrid and genau modes Genau's window sits over Nau on purpose — the
     # transparent HUD layer, or the display itself — so it is not a covering
     # worth a warning there.
@@ -546,12 +544,45 @@ def _keep_the_curtain_up(overlay_hwnd: int) -> None:
         set_always_on_top(overlay_hwnd, True)
 
 
-def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
-                        overlay_hwnd: int = 0, passes: int = 8,
+def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
+    """A callable answering who owns each satellite rect in this session's mode.
+
+    The players in player mode.  In origenerator mode the hosted app's two
+    region shows: they cover the players on purpose, and the players are
+    blacked and held for the whole mode, so "the player is covered" is the
+    normal state there rather than a burial to undo.
+
+    A callable rather than a pair, because the shows arrive on the hosted app's
+    own schedule -- it opens them once it has a library to open them with,
+    which can be after this session has revealed.  Resolved once up front, a
+    show that was not up yet answered 0, was never settled, and stayed under
+    the player promoted a moment earlier: a picture, and then a black rectangle
+    wearing the satellite's own HUD.
+    """
+    hosted = bool(result.origenerator_pid) and result.satellites_mode == "origenerator"
+
+    def owners() -> list[tuple[str, int]]:
+        if not hosted:
+            return [("portrait", portrait_hwnd), ("landscape", landscape_hwnd)]
+        return [
+            (role.removeprefix("origenerator_"),
+             find_window_for_process(result.origenerator_pid, title))
+            for role, title in ORIGENERATOR_ROLE_TITLES.items()
+            if role != "origenerator"
+        ]
+
+    return owners
+
+
+def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = 8,
                         wait_s: float = 1.5) -> None:
     """Re-promote whoever owns each satellite rect until it is genuinely
     frontmost over it — the players in player mode, the hosted app's region
     shows in origenerator mode, where the players are blacked underneath them.
+
+    *owners* is called for each pass and answers ``[(name, hwnd), ...]``, so a
+    window that appears mid-settle is settled too and one that has gone is
+    dropped.
 
     The banding above can silently miss one: SetWindowPos waits on the target's
     own thread, and the satellites are at their busiest exactly now (first clips
@@ -560,20 +591,20 @@ def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
     Chrome sat over the landscape player until the next full re-band.  So walk
     the real z-order and re-promote whoever is still buried.
 
-    The loading overlay covers both players on purpose, so it is not a burial:
-    left in the test, this loop would spend every pass re-promoting players
-    that are exactly where they belong."""
+    The loading overlay covers everything on purpose, so it is not a burial:
+    left in the test, this loop would spend every pass re-promoting windows
+    that are exactly where they belong.
+    """
     for _ in range(passes):
         stack = iter_zorder()
         buried = [
-            (name, hwnd)
-            for name, hwnd in (("portrait", portrait_hwnd), ("landscape", landscape_hwnd))
+            (name, hwnd) for name, hwnd in owners()
             if hwnd and _covering(hwnd, stack, ignore=overlay_hwnd)
         ]
         if not buried:
             break
         for name, hwnd in buried:
-            logger.info("The %s satellite is still buried; re-asserting its band", name)
+            logger.info("The %s region is still buried; re-asserting its band", name)
             set_always_on_top(hwnd, True)
         _keep_the_curtain_up(overlay_hwnd)
         time.sleep(wait_s)
@@ -781,11 +812,17 @@ def run_python_orchestrated_bridge(
         # The overlay's own teardown hands activation to whatever is next in
         # the z-order, so the bands are asserted once more over the finished
         # room — cheap, since every window is already resolved and in place.
+        owners = satellite_rect_owners(
+            result, role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0))
+        # A show that came up after the pass behind the curtain has a handle
+        # now, and this band is what puts it back above the player it covers:
+        # the role order promotes it last for exactly that reason, and with a
+        # zero in the map it was simply skipped.
+        for name, hwnd in owners():
+            if hwnd and result.satellites_mode == "origenerator":
+                role_hwnds[f"origenerator_{name}"] = hwnd
         _apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
-        _settle_the_players(
-            role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0),
-            passes=3, wait_s=0.4,
-        )
+        _settle_the_players(owners, passes=3, wait_s=0.4)
 
     pids_file = state_dir / "bridge_pids.ini"
     children = identify_children(result)
