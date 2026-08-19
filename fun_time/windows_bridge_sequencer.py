@@ -435,6 +435,13 @@ def _run_startup_phases(
         # every show open frozen while the room ran.  The room opens unpaused
         # (OmniPause is never resumed into), so the flag opens unpaused too.
         write_flag_file(m["commands"]["origenerator_paused_file"], False)
+        # And the command file, for the same reason and one more: the app drains
+        # whatever is in it on its first tick, so a verb the last session left
+        # unread would land on this one -- a stranded OPEN_SHOWS filling the
+        # regions of a session that opened in player mode.
+        origenerator_cmd_file = Path(m["commands"]["origenerator_cmd_file"])
+        origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+        origenerator_cmd_file.write_text("", encoding="utf-8")
         origenerator_pid = launch_origenerator(
             python_exe=(m["executables"].get("origenerator_python_exe", "").strip()
                         or m["executables"]["python_exe"]),
@@ -458,6 +465,16 @@ def _run_startup_phases(
     from .shared_state import read_shared_state, shared_state_path
     _shared = read_shared_state(shared_state_path(state_dir))
     satellites_mode = _shared.satellites_mode if _shared is not None else "player"
+
+    # A session that OPENS in origenerator mode gets the same OPEN_SHOWS the
+    # switch into it sends: the mode means both regions playing the library of
+    # their own shape, and a resumed session that skipped this came up on two
+    # black rectangles under a mode that said otherwise.  Written now rather
+    # than after the app is up -- it drains its command file on its first tick,
+    # which is after its window exists, so an early write is read at exactly
+    # the right moment and needs no waiting on.
+    if origenerator_pid and satellites_mode == "origenerator":
+        append_command(Path(m["commands"]["origenerator_cmd_file"]), "OPEN_SHOWS")
 
     # --- Phase 2: Position windows (layout computed up front) ---
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"

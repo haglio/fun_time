@@ -1387,6 +1387,11 @@ class TestOrigeneratorBehindTheOverlay:
         restore.assert_called_once_with(7171, activate=False)
         assert result.satellites_mode == "origenerator"
         assert result.role_hwnds["origenerator"] == 7171
+        # And the mode means both regions PLAYING: the same OPEN_SHOWS the
+        # switch into the mode sends, so a resumed session comes up on the
+        # library of each region's shape rather than on two black rectangles.
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(
+            encoding="utf-8").split() == ["OPEN_SHOWS"]
 
     def test_a_player_mode_session_never_waits_on_the_hosted_boot(
         self, cfg_factory, tmp_path
@@ -1420,6 +1425,43 @@ class TestOrigeneratorBehindTheOverlay:
         resolve.assert_not_called()   # the parked window is the mode's own state
         restore.assert_not_called()
         assert result.satellites_mode == "player"
+        # And nothing asks it to fill the regions — including anything a prior
+        # session left unread, which the launch clears for exactly this reason:
+        # the app drains that file on its first tick, so a stranded OPEN_SHOWS
+        # would fill the regions of a session that opened in player mode.
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
+    def test_a_stranded_verb_is_cleared_before_the_hosted_app_can_read_it(
+        self, cfg_factory, tmp_path
+    ):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        (cfg.paths.state_dir / "origenerator_cmd.txt").write_text(
+            "PORTRAIT_NEXT\n", encoding="utf-8")  # last session's, never drained
+
+        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
+             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
+             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
+             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
+             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
+             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
+             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
+             patch("fun_time.windows_bridge_sequencer.move_window"), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
+             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
+             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
+            mock_time.sleep = lambda _: None
+            mock_time.monotonic = MagicMock(return_value=0)
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
 
 class TestWaitingForThePlayersToDraw:
     """The curtain comes down on a room that is ready to look at.
