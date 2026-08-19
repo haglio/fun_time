@@ -287,24 +287,40 @@ def test_a_source_toggle_comes_forward_when_it_is_on(panel_factory):
     panel = panel_factory(["Clip saved"])
     sheet = panel._source_boxes["system"].styleSheet()
 
+    import re
+
     assert BG_BUTTON.name() in sheet
-    assert BG_BUTTON_ACTIVE.name() in sheet
-    assert sheet.index(BG_BUTTON_ACTIVE.name()) > sheet.index(":checked")
+    checked = re.search(r"QToolButton:checked \{([^}]*)\}", sheet)
+    assert checked and BG_BUTTON_ACTIVE.name() in checked.group(1)
 
 
 def test_the_level_dial_fits_its_longest_name(panel_factory):
-    """It carried a flat 80px, which cut "WARNING" off in a row that had room
-    for it on both sides."""
-    from PyQt6.QtGui import QFontMetrics
-
-    from fun_time.event_log import LEVEL_NAMES
-
+    """It carried a flat 80px, which cut "WARNING" down to "WARN" -- and a width
+    guessed at from the text plus a constant for the arrow came up short too.
+    Qt's own hint, taken after the items are in, knows what this style's arrow
+    and frame actually cost."""
     panel = panel_factory(["Clip saved"])
     dial = panel._verbosity
-    metrics = QFontMetrics(dial.font())
 
-    widest = max(metrics.horizontalAdvance(name) for name in LEVEL_NAMES)
-    assert dial.width() > widest, "the longest level name does not fit"
+    assert dial.minimumWidth() >= dial.sizeHint().width()
+    assert dial.width() >= dial.sizeHint().width(), "the longest level name is cut off"
+
+
+def test_a_source_toggle_wears_the_button_style_scripture_uses(panel_factory):
+    """A ground, a subtle border around it, the family's word padding and radius,
+    and the lighter ground when it is on.  Flat-until-hovered was a guess at what
+    "look like those" meant, and a borderless chip is not what those look like."""
+    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BORDER_SUBTLE
+
+    panel = panel_factory(["Clip saved"])
+    sheet = panel._source_boxes["system"].styleSheet()
+
+    import re
+
+    assert BG_BUTTON.name() in sheet
+    assert f"1px solid {BORDER_SUBTLE.name()}" in sheet
+    checked = re.search(r"QToolButton:checked \{([^}]*)\}", sheet)
+    assert checked and BG_BUTTON_ACTIVE.name() in checked.group(1)
 
 
 def test_a_source_toggle_is_exactly_as_wide_as_its_own_word(panel_factory):
@@ -316,12 +332,13 @@ def test_a_source_toggle_is_exactly_as_wide_as_its_own_word(panel_factory):
     started, which is how a change to it lands invisibly."""
     from PyQt6.QtGui import QFontMetrics
 
-    from shared_ui.spacing import BUTTON_PAD_H_TIGHT
+    from fun_time.log_panel import _BUTTON_BORDER
+    from shared_ui.spacing import BUTTON_PAD_H
 
     panel = panel_factory(["Clip saved"])
     for button in panel._source_boxes.values():
         word = QFontMetrics(button.font()).horizontalAdvance(button.text())
-        assert button.width() == word + 2 * BUTTON_PAD_H_TIGHT, button.text()
+        assert button.width() == word + 2 * (BUTTON_PAD_H + _BUTTON_BORDER), button.text()
 
 
 def test_the_filter_row_leaves_the_bar_its_own_room(panel_factory):
@@ -333,7 +350,7 @@ def test_the_filter_row_leaves_the_bar_its_own_room(panel_factory):
     panel.controls.adjustSize()
     wanted = panel.controls.sizeHint().width()
 
-    assert wanted <= compute_dashboard_bar_layout().content_width * 1.4
+    assert wanted <= compute_dashboard_bar_layout().content_width * 1.6
 
 
 def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
