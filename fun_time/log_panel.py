@@ -144,8 +144,6 @@ from PyQt6.QtWidgets import (
 from shared_ui.colors import (
     AMBER,
     BG_BUTTON,
-    BG_BUTTON_ACTIVE,
-    BG_KEYCAP,
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
@@ -297,14 +295,16 @@ class LogPanelWidget(QWidget):
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
-            # The font, the metrics and the shape are Qt's, exactly as
-            # Scripture's toolbar leaves its own buttons -- every hand-drawn
-            # imitation of that row got the font wrong.  Only the colors are
-            # ours, and they have to be: Scripture's buttons do not toggle, so
-            # Qt has no dark answer for "checked" and paints it in the default
-            # palette's bright highlight, which is a color this family uses
-            # nowhere.  Dark gray with white writing, the way that row reads,
-            # and the family's lighter ground for the ones that are on.
+            # A word-button, which is a different animal from the square icon
+            # buttons: one ground, always, the way Scripture's and Evolver's
+            # rows are drawn.  It does NOT take the lighter on-ground those
+            # squares use -- that is what says "this square is engaged", and a
+            # word-button is not a thing you engage.  Which source is being
+            # shown is carried by the label alone, bright or muted.
+            #
+            # The font, the metrics and the shape stay Qt's, as Scripture leaves
+            # its own; only the colors are ours, because Qt paints a checked
+            # button in the default palette's bright highlight otherwise.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
             button.setStyleSheet(
                 "QToolButton {"
@@ -312,8 +312,6 @@ class LogPanelWidget(QWidget):
                 f" background: {BG_BUTTON.name()};"
                 f" border: none; border-radius: {BUTTON_RADIUS}px;"
                 f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H_TIGHT}px; }}"
-                f" QToolButton:hover {{ background: {BG_KEYCAP.name()}; }}"
-                f" QToolButton:checked {{ background: {BG_BUTTON_ACTIVE.name()}; }}"
                 f" QToolButton:!checked {{ color: {TEXT_MUTED.name()}; }}"
             )
             # Auto-raise is what a QToolBar does to the buttons it holds, and it
