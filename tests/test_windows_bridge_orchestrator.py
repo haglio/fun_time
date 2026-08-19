@@ -165,11 +165,16 @@ class TestFixPostLoadingWindows:
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
         ), patch(
+            # The cover goes back through the sequencer's keep_the_cover_up,
+            # which both ends of startup share; a player is promoted through
+            # this module's own name.
+            "fun_time.windows_bridge_sequencer.set_always_on_top"
+        ) as cover_back, patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
-        ) as promote, patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
-        promote.assert_called_once_with(77, True)
+        cover_back.assert_called_once_with(77, True)
 
     def test_the_curtain_is_not_a_burial(self):
         """The overlay covers both players by design, so counting it as a
@@ -196,6 +201,8 @@ class TestFixPostLoadingWindows:
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack,
         ), patch(
+            "fun_time.windows_bridge_sequencer.set_always_on_top"
+        ) as cover_back, patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ) as promote, patch(
             "fun_time.windows_bridge_orchestrator.time.sleep"
@@ -203,7 +210,8 @@ class TestFixPostLoadingWindows:
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
         # The curtain put back, and nothing else: neither player is buried.
-        assert promote.call_args_list == [call(77, True)]
+        assert cover_back.call_args_list == [call(77, True)]
+        promote.assert_not_called()
         slept.assert_not_called()
 
     def test_origenerator_mode_bands_and_settles_the_shows_over_the_players(self):

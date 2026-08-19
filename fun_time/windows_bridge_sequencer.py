@@ -146,6 +146,24 @@ def _startup_role_hwnds(
     }
 
 
+def keep_the_cover_up(cover_hwnd: int) -> None:
+    """Put the loading cover back at the top of the topmost band.
+
+    Nothing keeps a topmost window above the OTHER topmost windows: every raise
+    a session makes — showing a player, moving it onto its rect, promoting it
+    into the band — inserts that window above the cover, and Windows gives a
+    window no say in being displaced.  So every call that can raise one is
+    followed by this.  The cover re-takes the top on its own timer as well (see
+    ``overlay_window.TOPMOST_POLL_MS``), which catches the windows that appear
+    of their own accord; this closes the ones we cause ourselves to the single
+    SetWindowPos that made them.
+
+    A zero hwnd is the no-cover case and does nothing.
+    """
+    if cover_hwnd:
+        set_always_on_top(cover_hwnd, True)
+
+
 def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
                          satellites_mode: str = "player", *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
@@ -171,8 +189,8 @@ def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
         if hwnd:
             on_top = role_topmost(role, mode, satellites_mode)
             set_always_on_top(hwnd, on_top)
-            if on_top and beneath:
-                set_always_on_top(beneath, True)
+            if on_top:
+                keep_the_cover_up(beneath)
 
 
 def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
@@ -286,12 +304,15 @@ def run_startup_sequence(
     state_dir: str | Path,
     progress: ProgressReporter | None = None,
     hide_windows: bool = False,
+    cover_hwnd: int = 0,
 ) -> StartupResult:
     """Run the full startup sequence, returning all PIDs and the layout plan.
 
     When *hide_windows* is True, the satellite windows launch behind the loading
     overlay and all positioning is deferred to the end so everything appears at
     once.  The window handles are returned in ``StartupResult.role_hwnds``.
+    *cover_hwnd* is that overlay's own window, so the raises this makes can put
+    it straight back on top (see :func:`keep_the_cover_up`); zero without one.
 
     Each ``progress.advance`` is a cancellation checkpoint: if the loading
     screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
@@ -308,6 +329,7 @@ def run_startup_sequence(
             state_dir=state_dir,
             progress=progress,
             hide_windows=hide_windows,
+            cover_hwnd=cover_hwnd,
             launched=launched,
         )
     except StartupCancelled as cancelled:
@@ -322,6 +344,7 @@ def _run_startup_phases(
     state_dir: str | Path,
     progress: ProgressReporter,
     hide_windows: bool,
+    cover_hwnd: int,
     launched: _LaunchedChildren,
 ) -> StartupResult:
     manifest_path = Path(manifest_path)
@@ -638,6 +661,7 @@ def _run_startup_phases(
             origenerator_hwnd = _wait_for_origenerator_window(origenerator_pid)
             if origenerator_hwnd:
                 restore_window(origenerator_hwnd, activate=False)
+                keep_the_cover_up(cover_hwnd)
             else:
                 logger.warning(
                     "Origenerator window not up within %.0fs; revealing without "
@@ -646,8 +670,14 @@ def _run_startup_phases(
                 )
 
         progress.advance("windows")
+        # Each move SHOWS the window as well as placing it, and showing one puts
+        # it at the top of its band — over the cover, which is where the
+        # landscape player was caught sitting for a tenth of a second on every
+        # startup.  The cover goes straight back after each.
         _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
+        keep_the_cover_up(cover_hwnd)
         _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
+        keep_the_cover_up(cover_hwnd)
         logger.info("Core windows positioned (deferred reveal)")
 
         # Resolve every managed window and park the idle slot-mate.  The topmost

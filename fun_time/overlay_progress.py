@@ -72,6 +72,18 @@ class StartupCancelled(Exception):
         self.rfb_hwnd = rfb_hwnd
 
 
+def loading_cover_is_up(state_dir: Path) -> bool:
+    """Whether the startup cover is still on the screen.
+
+    The orchestrator writes ``startup_progress.txt`` for the duration of startup
+    and deletes it once the cover's process is gone, so its presence answers
+    this.  Distinct from :func:`startup_still_building`, which goes False one
+    phase earlier: a window that must be IN PLACE when the cover lifts asks that
+    one, and anything that would be seen THROUGH the cover asks this one.
+    """
+    return (Path(state_dir) / PROGRESS_FILENAME).exists()
+
+
 def startup_still_building(state_dir: Path) -> bool:
     """True while startup is still assembling the room, so a companion window of
     the session's own must stay out of the cover's way.

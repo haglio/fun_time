@@ -25,7 +25,7 @@ from shared_ui.fonts import FONT_SYMBOL, FONT_UI, SIZE_BODY, SIZE_SMALL, make_fo
 
 from fun_time.config import LayoutConfig
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
-from fun_time.overlay_progress import startup_still_building
+from fun_time.overlay_progress import loading_cover_is_up, startup_still_building
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.win32 import find_window_by_title, is_window_topmost, set_always_on_top
 from fun_time.dashboard_actions import (
@@ -498,6 +498,9 @@ class DashboardWindow(QMainWindow):
         # loading-defer nor a persisted-minimized start may mirror its initial
         # off-screen state onto the other windows.
         self._deferred_for_loading = startup_still_building(app_config.manifest_path.parent)
+        # Toasts are topmost too, so they wait for the cover itself rather than
+        # for the earlier cue this window shows itself on.  See _poll_notices.
+        self._notices_held = self._deferred_for_loading
         self._suppress_minimize_routing = start_minimized or self._deferred_for_loading
 
         # Set on close, so the poller and press listener wind down with the
@@ -927,11 +930,24 @@ class DashboardWindow(QMainWindow):
         )
 
     def _poll_notices(self) -> None:
-        """Flash every new announcement over the player it concerns."""
+        """Flash every new announcement over the player it concerns.
+
+        Held while the loading cover is up, and by the COVER rather than by
+        ``_deferred_for_loading``: this window shows itself one phase before the
+        cover goes (so it is in place when it does), and a toast is topmost, so
+        every announcement in that gap flashed over the cover — a thing
+        appearing for a moment through the scrim, which is what the scrim is
+        there to stop.  Nothing is dropped by waiting: the read offset does not
+        advance until they are flashed, so they arrive over the room they are
+        about.
+        """
         if self._notice_overlay is None or self._player_rects is None:
             return
-        if self._deferred_for_loading:
-            return
+        if self._notices_held:
+            if loading_cover_is_up(self._app_config.manifest_path.parent):
+                return
+            # Latched, so the steady state costs no file check at all.
+            self._notices_held = False
         records, self._notice_offset = read_events(
             self._app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME,
             self._notice_offset,

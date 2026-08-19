@@ -51,6 +51,7 @@ from .windows_bridge_dispatch_loop import (
 )
 from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .windows_bridge_sequencer import (
+    keep_the_cover_up,
     release_the_players,
     StartupResult,
     _apply_startup_window_state,
@@ -520,7 +521,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         satellites_mode=result.satellites_mode,
         beneath=overlay_hwnd,
     )
-    _keep_the_curtain_up(overlay_hwnd)
+    keep_the_cover_up(overlay_hwnd)
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
     # target's own thread, and the satellites are at their busiest exactly now
@@ -550,17 +551,6 @@ def _fix_post_loading_windows(result: StartupResult, *,
     _log_window_obstruction("Portrait satellite", portrait_owner, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_owner, ignore=overlay_hwnd)
     return role_hwnds
-
-
-def _keep_the_curtain_up(overlay_hwnd: int) -> None:
-    """Put the loading overlay back at the top of the topmost band.
-
-    Every promotion this pass makes inserts above it, so without this the room
-    it is meant to hide shows through the moment it is banded.  The overlay
-    re-asserts itself on its own poll too (200ms); this closes the gap to the
-    few milliseconds a SetWindowPos takes."""
-    if overlay_hwnd:
-        set_always_on_top(overlay_hwnd, True)
 
 
 def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
@@ -629,7 +619,7 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
             # After each one, not after the batch: the promotion lands above the
             # cover, and anything left there until the next window's turn shows
             # through it.
-            _keep_the_curtain_up(overlay_hwnd)
+            keep_the_cover_up(overlay_hwnd)
         time.sleep(wait_s)
 
 
@@ -746,8 +736,20 @@ def run_python_orchestrated_bridge(
             ],
         )
         logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
+        # Resolved here rather than at the reveal: the startup phases raise
+        # windows of their own long before then, and each one lands over the
+        # cover until it is put back (see ``keep_the_cover_up``).
+        overlay_hwnd = wait_for_window_by_title(
+            LOADING_SCREEN_TITLE, timeout_s=5.0, exact=True, include_hidden=True,
+        )
+        if overlay_hwnd:
+            logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
+        else:
+            logger.warning("The loading cover's window did not appear; startup "
+                           "will show through whatever it raises")
     else:
         progress = NullProgress()
+        overlay_hwnd = 0
 
     manifest = configparser.ConfigParser()
     manifest.optionxform = str
@@ -767,6 +769,7 @@ def run_python_orchestrated_bridge(
             state_dir=state_dir,
             progress=progress,
             hide_windows=show_overlays,
+            cover_hwnd=overlay_hwnd,
         )
     except StartupCancelled as cancelled:
         # Esc during a phase: the sequence handed back exactly what it had
@@ -819,9 +822,6 @@ def run_python_orchestrated_bridge(
         # mode the RFB showing through until its host was promoted over it.
         # The overlay goes back on top after every promotion, so what the
         # curtain hides is the sorting rather than the result.
-        overlay_hwnd = wait_for_window_by_title(
-            LOADING_SCREEN_TITLE, timeout_s=1.0, exact=True, include_hidden=True,
-        )
         role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=overlay_hwnd)
 
         progress.finish()
