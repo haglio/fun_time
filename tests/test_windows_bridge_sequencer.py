@@ -885,7 +885,11 @@ class TestLoadingScreenStartup:
         assert result.role_hwnds == {
             "portrait": 3030, "landscape": 4040, "nau": 2525,
             "genau": 6060, "dashboard": 5050, "rfb": 0,
-            "origenerator": 0,  # none hosted in this session
+            # None hosted in this session, so neither its window nor either of
+            # its region shows (which cover the players' rects, and are managed
+            # roles for that reason).
+            "origenerator": 0,
+            "origenerator_portrait": 0, "origenerator_landscape": 0,
         }
 
 

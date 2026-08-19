@@ -121,8 +121,18 @@ def _startup_role_hwnds(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     origenerator_hwnd: int = 0,
+    origenerator_portrait_hwnd: int = 0,
+    origenerator_landscape_hwnd: int = 0,
 ) -> dict[str, int]:
-    """The managed windows by role, as resolved at startup."""
+    """The managed windows by role, as resolved at startup.
+
+    The hosted app's two REGION shows are roles like any other: they cover the
+    satellite players' rects in origenerator mode, and MANAGED_ROLES promotes
+    them after the players for exactly that reason.  Left out of this map they
+    were never banded at startup, so the players -- promoted last -- landed on
+    top of them, which in that mode is two blacked-out rectangles over the
+    shows.
+    """
     return {
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
@@ -131,6 +141,8 @@ def _startup_role_hwnds(
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
         "origenerator": origenerator_hwnd,
+        "origenerator_portrait": origenerator_portrait_hwnd,
+        "origenerator_landscape": origenerator_landscape_hwnd,
     }
 
 
@@ -189,6 +201,8 @@ def _apply_startup_window_state(
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     origenerator_hwnd: int = 0,
+    origenerator_portrait_hwnd: int = 0,
+    origenerator_landscape_hwnd: int = 0,
     mode: str = STARTUP_MAIN_MODE,
     satellites_mode: str = "player",
 ) -> dict[str, int]:
@@ -207,6 +221,8 @@ def _apply_startup_window_state(
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
         origenerator_hwnd=origenerator_hwnd,
+        origenerator_portrait_hwnd=origenerator_portrait_hwnd,
+        origenerator_landscape_hwnd=origenerator_landscape_hwnd,
     )
     _apply_topmost_bands(role_hwnds, mode, satellites_mode)
     _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)

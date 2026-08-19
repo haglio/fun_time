@@ -42,6 +42,7 @@ from .mode_plan import genau_active
 from .modes import collect_video_files
 from .process_identity import identified_python_exe
 from .shared_state import shared_state_path
+from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
 from .windows_bridge_dispatch_loop import (
@@ -473,12 +474,20 @@ def _fix_post_loading_windows(result: StartupResult, *,
     )
     # A session opening in origenerator mode has its hosted window restored
     # behind the overlay already (the sequencer held the reveal for it); this
-    # pass is where it joins the topmost band, over the RFB it covers.
+    # pass is where it joins the topmost band, over the RFB it covers.  Its two
+    # REGION shows join with it, over the players they cover: they are managed
+    # roles promoted after the players precisely so they end up on top, and
+    # leaving them out of this pass is what put two blacked players over them.
+    hosted = result.origenerator_pid and result.satellites_mode == "origenerator"
     origenerator_hwnd = (
         find_window_for_process(result.origenerator_pid, "Origenerator")
-        if result.origenerator_pid and result.satellites_mode == "origenerator"
-        else 0
+        if hosted else 0
     )
+    show_hwnds = {
+        role: (find_window_for_process(result.origenerator_pid, title) if hosted else 0)
+        for role, title in ORIGENERATOR_ROLE_TITLES.items()
+        if role != "origenerator"
+    }
     role_hwnds = _apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
@@ -487,6 +496,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
         nau_hwnd=nau_hwnd,
         dashboard_hwnd=dash_hwnd,
         origenerator_hwnd=origenerator_hwnd,
+        origenerator_portrait_hwnd=show_hwnds["origenerator_portrait"],
+        origenerator_landscape_hwnd=show_hwnds["origenerator_landscape"],
         mode=result.main_mode,
         satellites_mode=result.satellites_mode,
     )
@@ -499,7 +510,19 @@ def _fix_post_loading_windows(result: StartupResult, *,
     # monitor — a maximized Chrome sat over the landscape player until the
     # next full re-band.  Walk the real z-order and re-promote whoever is
     # still buried, for a few seconds, until both players are frontmost.
-    _settle_the_players(portrait_hwnd, landscape_hwnd, overlay_hwnd=overlay_hwnd)
+    #
+    # Settled on whoever OWNS each satellite rect in this mode.  In origenerator
+    # mode that is the hosted app's region shows, not the players: the players
+    # are blacked and held for the whole mode and the shows cover them on
+    # purpose, so a loop that re-promotes a "buried" player buries the show
+    # instead — for its full twelve seconds, which is a picture and then a black
+    # rectangle, on a session that opened in the mode.  A show not up yet
+    # resolves to 0 and is skipped; the next re-band adopts it.
+    portrait_owner, landscape_owner = (
+        (show_hwnds["origenerator_portrait"], show_hwnds["origenerator_landscape"])
+        if hosted else (portrait_hwnd, landscape_hwnd)
+    )
+    _settle_the_players(portrait_owner, landscape_owner, overlay_hwnd=overlay_hwnd)
     # In hybrid and genau modes Genau's window sits over Nau on purpose — the
     # transparent HUD layer, or the display itself — so it is not a covering
     # worth a warning there.
@@ -507,8 +530,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
         "Nau", nau_hwnd,
         expected_over=genau_hwnd if genau_active(result.main_mode) else 0,
     )
-    _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
-    _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
+    _log_window_obstruction("Portrait satellite", portrait_owner, ignore=overlay_hwnd)
+    _log_window_obstruction("Landscape satellite", landscape_owner, ignore=overlay_hwnd)
     return role_hwnds
 
 
@@ -526,7 +549,9 @@ def _keep_the_curtain_up(overlay_hwnd: int) -> None:
 def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
                         overlay_hwnd: int = 0, passes: int = 8,
                         wait_s: float = 1.5) -> None:
-    """Re-promote either player until it is genuinely frontmost over its rect.
+    """Re-promote whoever owns each satellite rect until it is genuinely
+    frontmost over it — the players in player mode, the hosted app's region
+    shows in origenerator mode, where the players are blacked underneath them.
 
     The banding above can silently miss one: SetWindowPos waits on the target's
     own thread, and the satellites are at their busiest exactly now (first clips
