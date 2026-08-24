@@ -31,16 +31,12 @@ class Win32Unavailable(RuntimeError):
 class _UnavailableEntryPoint:
     """One exported function, on a machine that has no such export.
 
-    Carries the ``argtypes``/``restype``/``errcheck`` attributes a real ctypes
-    function pointer carries, because the modules declare those at import time
-    and that declaration must survive the same way the import does.
+    Takes the ``argtypes``/``restype`` the modules declare at import the way any
+    object takes an attribute, so that declaration survives as the import does.
     """
 
     def __init__(self, name: str) -> None:
         self._name = name
-        self.argtypes: Any = None
-        self.restype: Any = None
-        self.errcheck: Any = None
 
     def __call__(self, *_args: Any, **_kwargs: Any) -> Any:
         raise Win32Unavailable(f"{self._name} needs a Windows ctypes; this process has none")
@@ -56,9 +52,6 @@ class _UnavailableDll:
 
     def __init__(self, name: str) -> None:
         self._name = name
-
-    def __repr__(self) -> str:
-        return f"<unavailable DLL {self._name!r}>"
 
     def __getattr__(self, entry_point: str) -> _UnavailableEntryPoint:
         if entry_point.startswith("__"):
