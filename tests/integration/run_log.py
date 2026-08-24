@@ -176,9 +176,13 @@ def append_run_line(log_path: Path, line: str) -> None:
     rows and nothing else.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    # newline="\n" because the runner only ever writes this on Windows, where
+    # text mode would translate to CRLF — and .gitattributes pins the file to
+    # eol=lf, so every row would land as a line ending the checkout disagrees
+    # with.
     if not log_path.exists():
-        log_path.write_text(LOG_HEADER, encoding="utf-8")
-    with log_path.open("a", encoding="utf-8") as log:
+        log_path.write_text(LOG_HEADER, encoding="utf-8", newline="\n")
+    with log_path.open("a", encoding="utf-8", newline="\n") as log:
         log.write(f"{line}\n")
 
 
