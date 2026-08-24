@@ -13,13 +13,15 @@ import threading
 import time
 from dataclasses import dataclass
 
+from fun_time.win32_loader import load_dll, win_functype
+
 logger = logging.getLogger(__name__)
 
-_user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-_ole32 = ctypes.windll.ole32  # type: ignore[attr-defined]
-_shell32 = ctypes.windll.shell32  # type: ignore[attr-defined]
-_kernel32 = ctypes.windll.kernel32  # type: ignore[attr-defined]
-_dwmapi = ctypes.windll.dwmapi  # type: ignore[attr-defined]
+_user32 = load_dll("user32")
+_ole32 = load_dll("ole32")
+_shell32 = load_dll("shell32")
+_kernel32 = load_dll("kernel32")
+_dwmapi = load_dll("dwmapi")
 
 # AppUserModelID — must match the value set on the pinned taskbar shortcut.
 APP_USER_MODEL_ID = "FunTime.App"
@@ -88,7 +90,7 @@ _kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
 _STILL_ACTIVE = 259
 
 
-WNDENUMPROC = ctypes.WINFUNCTYPE(
+WNDENUMPROC = win_functype(
     ctypes.wintypes.BOOL,
     ctypes.wintypes.HWND,
     ctypes.wintypes.LPARAM,
