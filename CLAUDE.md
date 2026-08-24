@@ -24,8 +24,6 @@ A run reaches nothing of the user's, so it never has to wait for one. Two mechan
 
 Run the suite only through `hidden_desktop`: `pytest tests/integration/` refuses at session start (exit `4`), because that form puts real windows, a real AHK bridge and real players on your own desktop.
 
-A finished run appends one row to `docs/integration-runs.md` — UTC time, the fun_time and `player_core` HEADs it ran (suffixed `-dirty` if that checkout had uncommitted work, so commit before your final run), counts, and the args if you narrowed it. Commit that row with your branch: there is no CI for this suite, so the file is the repo's only record that it ever passed.
-
 **Green means every collected test passes — zero failures, skips, or deselects.**
 
 Convenience wrapper (unit tests only): `bash test.sh`
