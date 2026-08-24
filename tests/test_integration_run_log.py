@@ -302,3 +302,15 @@ def test_an_arg_with_a_space_stays_one_arg_in_the_scope_column():
     )
 
     assert line.endswith('| `-k "nau or genau"` |')
+
+
+def test_the_log_is_written_with_the_line_endings_gitattributes_pins_it_to(tmp_path):
+    """``.gitattributes`` says ``eol=lf`` for this file, but the runner only ever
+    writes it on Windows, where text mode would turn every row into CRLF and
+    leave the checkout permanently disagreeing with the index.  This bites on
+    the Windows merge gate, not on a POSIX box, where it passes either way."""
+    log = tmp_path / "integration-runs.md"
+
+    append_run_line(log, "| a row |")
+
+    assert b"\r" not in log.read_bytes()
