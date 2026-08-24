@@ -48,6 +48,8 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
+from fun_time.win32_loader import load_dll, win_functype
+
 from .run_log import LOG_RELATIVE_PATH, record_run
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
@@ -76,8 +78,8 @@ def build_pytest_argv(extra_args: list[str], report_path: Path) -> list[str]:
 # --- Win32 desktop isolation ---------------------------------------------------
 # HANDLE/HWND argtypes/restypes are declared so ctypes passes them as 64-bit
 # pointers rather than truncating to c_int (same rule as fun_time/win32.py).
-_user32 = ctypes.WinDLL("user32", use_last_error=True)
-_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+_user32 = load_dll("user32", use_last_error=True)
+_kernel32 = load_dll("kernel32", use_last_error=True)
 
 GENERIC_ALL = 0x10000000
 STARTF_USESTDHANDLES = 0x00000100
@@ -170,7 +172,7 @@ _kernel32.TerminateProcess.argtypes = [wt.HANDLE, wt.UINT]
 _kernel32.TerminateProcess.restype = wt.BOOL
 
 UOI_NAME = 2
-_WNDENUMPROC = ctypes.WINFUNCTYPE(wt.BOOL, wt.HWND, wt.LPARAM)
+_WNDENUMPROC = win_functype(wt.BOOL, wt.HWND, wt.LPARAM)
 _kernel32.GetCurrentThreadId.restype = wt.DWORD
 _user32.GetThreadDesktop.argtypes = [wt.DWORD]
 _user32.GetThreadDesktop.restype = wt.HANDLE
