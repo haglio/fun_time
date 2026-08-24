@@ -103,6 +103,22 @@ def test_every_module_in_the_package_imports_where_ctypes_has_no_windll():
     assert result.returncode == 0, result.stdout or result.stderr
 
 
+def test_the_integration_support_modules_import_where_ctypes_has_no_windll():
+    """The unit suite reads the integration runner's own modules.
+
+    They drive real Win32 desktops, so they bind Win32 the way the package does
+    — and the unit tests that check the runner's argv, its refusal to run on the
+    live desktop and its reaping rules import them at collection, which puts
+    them on the same footing as the package.
+    """
+    result = _run_without_the_win32_ctypes_surface(
+        "import tests.integration.hidden_desktop\n"
+        "import tests.integration.integration_support\n"
+        "import tests.integration.session_lock\n"
+    )
+    assert result.returncode == 0, result.stderr
+
+
 def test_the_flag_says_whether_this_ctypes_can_bind_a_dll():
     assert win32_loader.WIN32_AVAILABLE is hasattr(ctypes, "windll")
 
