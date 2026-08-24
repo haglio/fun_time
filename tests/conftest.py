@@ -85,6 +85,28 @@ def _never_hold_the_live_loopback_port(monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "serve_loopback", lambda **_kwargs: None)
 
 
+@pytest.fixture(autouse=True)
+def _never_wait_out_a_window_no_test_opened(monkeypatch):
+    """Answer the orchestrator's window lookups at once instead of polling for
+    real seconds.
+
+    A unit test mocks the startup that would have opened the session's windows,
+    so every lookup the orchestrator makes can only time out — and it times out
+    on the wall clock, because ``win32.wait_for_window_by_title`` polls with
+    ``time.sleep``.  One startup pass is the loading cover plus five role
+    resolutions, so CI paid 20s per test that ran one, and
+    ``test_windows_bridge_orchestrator.py`` alone was 359s of it.
+
+    The tests that care which handle comes back patch this name themselves,
+    which overrides the stub for the length of their ``with`` block.
+    """
+    monkeypatch.setattr(
+        windows_bridge_orchestrator,
+        "wait_for_window_by_title",
+        lambda _title, timeout_s=5.0, **_kwargs: 0,
+    )
+
+
 TMP_ROOT = Path(
     os.environ.get(
         "FUN_TIME_PYTEST_TMP_ROOT",
