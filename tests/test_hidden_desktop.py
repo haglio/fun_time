@@ -45,9 +45,9 @@ def test_argv_asks_pytest_for_the_machine_readable_report_the_run_record_needs()
     """The child's output streams straight to whoever ran the runner, so the
     counts that go in ``docs/integration-runs.md`` cannot be scraped back out of
     it — pytest writes them to a report instead."""
-    argv = build_pytest_argv([], Path("/tmp/report.xml"))
+    report_path = Path("somewhere") / "report.xml"
 
-    assert "--junit-xml=/tmp/report.xml" in argv
+    assert f"--junit-xml={report_path}" in build_pytest_argv([], report_path)
 
 
 def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
