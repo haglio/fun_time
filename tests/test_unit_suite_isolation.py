@@ -7,7 +7,15 @@ from __future__ import annotations
 
 import time
 
-from fun_time import windows_bridge_orchestrator
+import pytest
+
+from fun_time import win32, windows_bridge_orchestrator
+
+# Read before the first fixture runs, so these are the numbers a session spends.
+REAL_STARTUP_TIMEOUTS = {
+    "CLOSING_SCREEN_READY_TIMEOUT_S": windows_bridge_orchestrator.CLOSING_SCREEN_READY_TIMEOUT_S,
+    "POST_LOADING_RESOLVE_TIMEOUT_S": windows_bridge_orchestrator.POST_LOADING_RESOLVE_TIMEOUT_S,
+}
 
 
 def test_a_unit_test_never_waits_out_a_window_no_test_opened():
@@ -25,3 +33,29 @@ def test_a_unit_test_never_waits_out_a_window_no_test_opened():
 
     assert hwnd == 0
     assert time.monotonic() - started < 1.0
+
+
+def test_a_unit_test_never_waits_out_a_startup_timeout():
+    """The two waits the orchestrator times itself, rather than through the
+    window lookup above: the hold for the closing cover to report itself
+    painted, and the per-role budget the finishing pass spends.  Nothing a
+    unit test mocks ever satisfies either, so both are paid in full.
+    """
+    assert windows_bridge_orchestrator.CLOSING_SCREEN_READY_TIMEOUT_S == 0
+    assert windows_bridge_orchestrator.POST_LOADING_RESOLVE_TIMEOUT_S == 0
+
+
+@pytest.mark.real_startup_waits
+def test_the_waits_are_stubbed_per_test_and_not_edited_out_of_the_module():
+    """Both of those numbers are pinned elsewhere as production numbers — the
+    resolve budget against the cover's staleness guard, the closing-screen hold
+    by the tests that walk its three ways out.  Stub them for the session
+    instead of per test and those pins read off zeros and stop pinning
+    anything, which is a green suite saying nothing.
+    """
+    for name, real in REAL_STARTUP_TIMEOUTS.items():
+        assert getattr(windows_bridge_orchestrator, name) == real
+        assert real > 0
+    assert windows_bridge_orchestrator.wait_for_window_by_title is (
+        win32.wait_for_window_by_title
+    )
