@@ -154,9 +154,14 @@ def format_run_line(
     counts: RunCounts,
     extra_args: list[str],
 ) -> str:
-    """One markdown table row recording a finished run."""
+    """One markdown table row recording a finished run.
+
+    The scope is quoted the way the runner itself builds a command line, so an
+    arg carrying a space stays one arg — the column is what a later reader
+    re-runs to reproduce the row.
+    """
     result = "PASS" if exit_code == 0 else "FAIL"
-    scope = f"`{' '.join(extra_args)}`" if extra_args else "full suite"
+    scope = f"`{subprocess.list2cmdline(extra_args)}`" if extra_args else "full suite"
     return (
         f"| {timestamp} | {fun_time_sha} | {player_core_sha} | {result} "
         f"| {counts.summary()} | {scope} |"

@@ -286,3 +286,19 @@ def test_an_untracked_file_counts_as_dirty_too(tmp_path):
     (checkout / "brand_new.py").write_text("VALUE = 1\n", encoding="utf-8")
 
     assert git_short_sha(checkout) == f"{sha}-dirty"
+
+
+def test_an_arg_with_a_space_stays_one_arg_in_the_scope_column():
+    """`-k "nau or genau"` is an ordinary way to narrow this suite, and the
+    column is what a later reader re-runs to reproduce the row — joined bare it
+    would read as four separate args."""
+    line = format_run_line(
+        timestamp="2026-08-24T18:03:11Z",
+        fun_time_sha="b9fe768",
+        player_core_sha="4a1c9de",
+        exit_code=0,
+        counts=RunCounts(tests=6, failures=0, errors=0, skipped=0),
+        extra_args=["-k", "nau or genau"],
+    )
+
+    assert line.endswith('| `-k "nau or genau"` |')

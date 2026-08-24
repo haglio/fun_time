@@ -48,7 +48,7 @@ import tempfile
 from collections.abc import Callable
 from pathlib import Path
 
-from .run_log import record_run
+from .run_log import LOG_RELATIVE_PATH, record_run
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
@@ -373,13 +373,24 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     with tempfile.TemporaryDirectory() as report_dir:
         report_path = Path(report_dir) / "integration-report.xml"
         code = _run_pytest_bound_to_the_desktop(build_pytest_argv(extra_args, report_path))
-        record_run(
-            repo_root=_repo_root(),
-            report_path=report_path,
-            exit_code=code,
-            extra_args=extra_args,
-            project_dirs=_run_project_dirs(),
-        )
+        try:
+            record_run(
+                repo_root=_repo_root(),
+                report_path=report_path,
+                exit_code=code,
+                extra_args=extra_args,
+                project_dirs=_run_project_dirs(),
+            )
+        except Exception as could_not_record:
+            # The exit code is the run's product; the row is bookkeeping about
+            # it.  A recorder that threw would propagate out of main() as exit
+            # 1, so a green suite would report as a failed one — the record
+            # would have started lying about the very thing it exists to
+            # report.  Loud on stderr, because a recorder quietly writing
+            # nothing is how the log goes stale without anyone noticing.
+            print(f"[hidden-desktop] the run finished (exit {code}) but could not be "
+                  f"recorded in {LOG_RELATIVE_PATH}: {could_not_record}",
+                  file=sys.stderr, flush=True)
         return code
 
 
