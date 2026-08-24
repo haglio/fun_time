@@ -6,6 +6,11 @@ favs.csv
 # Claude Code local config
 
 .venv/
+# The editable install's metadata dir.  It is not just cruft here: the
+# integration runner stamps a run's row `-dirty` when `git status` is not empty,
+# so an artifact every installed checkout carries would mark every run and the
+# flag would stop meaning anything.  player_core already ignores it.
+*.egg-info/
 __pycache__/
 **/__pycache__/
 *.py[cod]
