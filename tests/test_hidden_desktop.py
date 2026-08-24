@@ -148,3 +148,16 @@ def test_the_run_record_names_the_player_core_the_run_actually_launched():
         hidden_desktop.run_on_hidden_desktop([])
 
     assert record.call_args.kwargs["project_dirs"] == ["/checkouts/genau", "/checkouts/player_core"]
+
+
+def test_a_recorder_that_breaks_cannot_turn_a_green_suite_red(capsys):
+    """The exit code is the product; the row is bookkeeping.  If writing the row
+    ever throws — git gone, the file read-only — the runner still has to hand
+    back what pytest said, and say out loud that the record is the thing that
+    broke."""
+    with patch.object(hidden_desktop, "_run_pytest_bound_to_the_desktop", return_value=0), \
+         patch.object(hidden_desktop, "record_run", side_effect=OSError("no room on device")):
+        code = hidden_desktop.run_on_hidden_desktop([])
+
+    assert code == 0
+    assert "no room on device" in capsys.readouterr().err
