@@ -7,6 +7,7 @@ outlive itself.
 """
 from __future__ import annotations
 
+import os
 import subprocess
 import sys
 import time
@@ -16,7 +17,7 @@ from unittest.mock import patch
 import pytest
 
 from fun_time.win32 import is_process_alive
-from tests.integration import hidden_desktop
+from tests.integration import hidden_desktop, integration_support
 from tests.integration.hidden_desktop import (
     _close_process_handles,
     _launch_on_desktop,
@@ -29,15 +30,24 @@ from tests.integration.hidden_desktop import (
 
 
 def test_argv_runs_pytest_on_the_integration_dir():
-    argv = build_pytest_argv([])
+    argv = build_pytest_argv([], Path("report.xml"))
     assert argv[0] == sys.executable
     assert argv[1:3] == ["-m", "pytest"]
     assert "tests/integration/" in argv
 
 
 def test_argv_appends_caller_args_after_the_defaults():
-    argv = build_pytest_argv(["-k", "smoke", "-x"])
+    argv = build_pytest_argv(["-k", "smoke", "-x"], Path("report.xml"))
     assert argv[-3:] == ["-k", "smoke", "-x"]
+
+
+def test_argv_asks_pytest_for_the_machine_readable_report_the_run_record_needs():
+    """The child's output streams straight to whoever ran the runner, so the
+    counts that go in ``docs/integration-runs.md`` cannot be scraped back out of
+    it — pytest writes them to a report instead."""
+    argv = build_pytest_argv([], Path("/tmp/report.xml"))
+
+    assert "--junit-xml=/tmp/report.xml" in argv
 
 
 def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
@@ -107,3 +117,34 @@ def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
         assert is_process_alive(broker_pid), "the broker must break away from the run's job"
     finally:
         subprocess.run(["taskkill", "/PID", str(broker_pid), "/T", "/F"], capture_output=True)
+
+
+def test_a_finished_run_is_recorded_against_the_code_it_ran(monkeypatch):
+    """The runner is the only thing that watches a whole run end, so it is the
+    only thing that can file one — there is no CI here and no hook.  It has to
+    read back the very report path it handed pytest, or the row it writes
+    describes a run it never saw."""
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    with patch.object(hidden_desktop, "_run_pytest_bound_to_the_desktop", return_value=1) as run, \
+         patch.object(hidden_desktop, "record_run") as record:
+        code = hidden_desktop.run_on_hidden_desktop(["-k", "nau"])
+
+    assert code == 1
+    recorded = record.call_args.kwargs
+    assert recorded["exit_code"] == 1
+    assert recorded["extra_args"] == ["-k", "nau"]
+    assert recorded["repo_root"] == _repo_root()
+    assert f"--junit-xml={recorded['report_path']}" in run.call_args.args[0]
+
+
+def test_the_run_record_names_the_player_core_the_run_actually_launched():
+    """A worktree pinning an unlanded sibling runs that checkout, so the row has
+    to be built from the same directories the run's children get — read through
+    the production helper rather than re-derived here."""
+    with patch.object(hidden_desktop, "_run_pytest_bound_to_the_desktop", return_value=0), \
+         patch.object(hidden_desktop, "record_run") as record, \
+         patch.object(integration_support, "checkout_project_dirs",
+                      return_value=os.pathsep.join(["/checkouts/genau", "/checkouts/player_core"])):
+        hidden_desktop.run_on_hidden_desktop([])
+
+    assert record.call_args.kwargs["project_dirs"] == ["/checkouts/genau", "/checkouts/player_core"]

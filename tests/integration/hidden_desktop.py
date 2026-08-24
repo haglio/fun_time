@@ -44,8 +44,11 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from pathlib import Path
+
+from .run_log import record_run
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
@@ -55,11 +58,17 @@ INTEGRATION_DIR = "tests/integration/"
 REFUSED_EXIT_CODE = 4
 
 
-def build_pytest_argv(extra_args: list[str]) -> list[str]:
+def build_pytest_argv(extra_args: list[str], report_path: Path) -> list[str]:
     """The pytest command the hidden desktop runs — the whole integration dir, with
-    caller *extra_args* appended last so they win."""
+    caller *extra_args* appended last so they win.
+
+    ``--junit-xml`` is how the run's counts reach the run record: the child's
+    stdout goes straight to whoever ran the runner rather than through it, so
+    there is nothing to scrape.
+    """
     return [
         sys.executable, "-m", "pytest", INTEGRATION_DIR,
+        f"--junit-xml={report_path}",
         *extra_args,
     ]
 
@@ -307,19 +316,18 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     return pi
 
 
-def run_on_hidden_desktop(extra_args: list[str]) -> int:
-    """Create the hidden desktop, run the integration pytest bound to it, and
-    return pytest's exit code.  The desktop handle is closed on the way out, and
-    the run's job object with it — so nothing the run spawned can survive it.
+def _run_pytest_bound_to_the_desktop(argv: list[str]) -> int:
+    """Create the hidden desktop, run *argv* bound to it, and return its exit
+    code.  The desktop handle is closed on the way out, and the run's job object
+    with it — so nothing the run spawned can survive it.
     """
-    os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
         raise ctypes.WinError(ctypes.get_last_error())
     print(f"[hidden-desktop] running the integration suite on '{HIDDEN_DESKTOP_NAME}' "
           f"(off-screen, focus-safe)…", file=sys.stderr, flush=True)
     try:
-        cmdline = subprocess.list2cmdline(build_pytest_argv(extra_args))
+        cmdline = subprocess.list2cmdline(argv)
         job = create_run_job()
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
@@ -334,6 +342,45 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
             close_run_job(job)
     finally:
         _user32.CloseDesktop(hdesk)
+
+
+def _run_project_dirs() -> list[str]:
+    """The sibling checkouts this run's code launches, read the way the run
+    reads them.
+
+    Imported here rather than at the top because ``integration_support`` imports
+    this module: by the time a run is being torn down this one is long since
+    loaded, so the late import is free of the cycle a top-level one would make.
+    """
+    from .integration_support import checkout_project_dirs
+
+    return [entry for entry in checkout_project_dirs().split(os.pathsep) if entry]
+
+
+def run_on_hidden_desktop(extra_args: list[str]) -> int:
+    """Run the integration suite off-screen and return pytest's exit code,
+    recording the run in ``docs/integration-runs.md`` on the way out.
+
+    That record is the reason this function exists apart from the desktop
+    plumbing.  The suite runs only here, on the user's own machine, so a run
+    that is not filed as it ends is a run nobody can ever look up: the repo
+    could not say when its integration tests last passed, or against which
+    fun_time and ``player_core`` commits.  The runner is the only thing that
+    sees a whole run finish, which is why it writes the line itself rather than
+    a CI job or a hook.
+    """
+    os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
+    with tempfile.TemporaryDirectory() as report_dir:
+        report_path = Path(report_dir) / "integration-report.xml"
+        code = _run_pytest_bound_to_the_desktop(build_pytest_argv(extra_args, report_path))
+        record_run(
+            repo_root=_repo_root(),
+            report_path=report_path,
+            exit_code=code,
+            extra_args=extra_args,
+            project_dirs=_run_project_dirs(),
+        )
+        return code
 
 
 def main() -> None:
