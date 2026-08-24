@@ -22,8 +22,10 @@ from __future__ import annotations
 
 import contextlib
 import ctypes
-import sys
 from collections.abc import Callable, Iterator
+from ctypes import wintypes
+
+from fun_time.win32_loader import load_dll
 
 # The one machine-wide name every integration run contends on.  ``Global\`` puts
 # it in the system-wide namespace so runs in different login sessions still
@@ -37,24 +39,19 @@ _WAIT_ABANDONED = 0x00000080
 _WAIT_TIMEOUT = 0x00000102
 _INFINITE = 0xFFFFFFFF
 
-if sys.platform == "win32":
-    from ctypes import wintypes
+_kernel32 = load_dll("kernel32", use_last_error=True)
 
-    _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+_kernel32.CreateMutexW.restype = wintypes.HANDLE
+_kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
 
-    _kernel32.CreateMutexW.restype = wintypes.HANDLE
-    _kernel32.CreateMutexW.argtypes = [wintypes.LPVOID, wintypes.BOOL, wintypes.LPCWSTR]
+_kernel32.WaitForSingleObject.restype = wintypes.DWORD
+_kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
 
-    _kernel32.WaitForSingleObject.restype = wintypes.DWORD
-    _kernel32.WaitForSingleObject.argtypes = [wintypes.HANDLE, wintypes.DWORD]
+_kernel32.ReleaseMutex.restype = wintypes.BOOL
+_kernel32.ReleaseMutex.argtypes = [wintypes.HANDLE]
 
-    _kernel32.ReleaseMutex.restype = wintypes.BOOL
-    _kernel32.ReleaseMutex.argtypes = [wintypes.HANDLE]
-
-    _kernel32.CloseHandle.restype = wintypes.BOOL
-    _kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
-else:  # pragma: no cover - the integration suite is Windows-only
-    _kernel32 = None
+_kernel32.CloseHandle.restype = wintypes.BOOL
+_kernel32.CloseHandle.argtypes = [wintypes.HANDLE]
 
 
 class SingleInstanceLock:
