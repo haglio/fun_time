@@ -14,6 +14,7 @@ anywhere else.
 from __future__ import annotations
 
 import ctypes
+import ctypes.wintypes
 import os
 import subprocess
 import sys
