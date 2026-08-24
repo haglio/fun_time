@@ -968,7 +968,7 @@ class TestWaitForClosingScreen:
                 tmp_path / "shutdown_ready.flag", proc
             )
 
-        assert "ready" in caplog.text
+        assert "exited before it was ready" in caplog.text
 
     def test_gives_up_rather_than_wedge_the_teardown(self, tmp_path, caplog, monkeypatch):
         """A screen that is alive but never reports is worth a flicker, not a
