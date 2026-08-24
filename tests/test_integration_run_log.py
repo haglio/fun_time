@@ -265,3 +265,24 @@ def test_every_row_in_the_committed_log_has_the_columns_the_header_declares():
 
     for row in committed[len(LOG_HEADER):].splitlines():
         assert row.count("|") == columns, row
+
+
+def test_a_checkout_with_uncommitted_work_is_marked_dirty(tmp_path):
+    """Agents run this suite from a worktree mid-change, and the row is meant to
+    be committed with that branch — so a bare SHA would credit the pass to code
+    that was never what ran."""
+    checkout = tmp_path / "example_repo"
+    sha = _commit_a_throwaway_repo(checkout)
+    (checkout / "README.md").write_text("edited since the commit\n", encoding="utf-8")
+
+    assert git_short_sha(checkout) == f"{sha}-dirty"
+
+
+def test_an_untracked_file_counts_as_dirty_too(tmp_path):
+    """A whole new module is exactly the kind of change that decides whether the
+    suite passes, and it is untracked until someone adds it."""
+    checkout = tmp_path / "example_repo"
+    sha = _commit_a_throwaway_repo(checkout)
+    (checkout / "brand_new.py").write_text("VALUE = 1\n", encoding="utf-8")
+
+    assert git_short_sha(checkout) == f"{sha}-dirty"
