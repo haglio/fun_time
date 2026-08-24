@@ -1,15 +1,16 @@
 """Single-instance guards using Win32 named mutexes."""
 from __future__ import annotations
 
-import ctypes
 import hashlib
 from pathlib import Path
 
+from fun_time.win32_loader import get_last_error as _get_last_error
+from fun_time.win32_loader import load_dll
+
 # use_last_error=True makes ctypes save/restore the per-thread error code
 # around each call, preventing Python's runtime from clobbering it.
-_kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)  # type: ignore[attr-defined]
-_user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-_get_last_error = ctypes.get_last_error
+_kernel32 = load_dll("kernel32", use_last_error=True)
+_user32 = load_dll("user32")
 
 ERROR_ALREADY_EXISTS = 183
 

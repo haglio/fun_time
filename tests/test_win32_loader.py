@@ -40,6 +40,13 @@ for _name in {_WIN32_CTYPES_NAMES!r}:
 """
 
 
+PACKAGE_MODULES = tuple(
+    f"fun_time.{path.stem}"
+    for path in sorted((REPO_DIR / "fun_time").glob("*.py"))
+    if path.stem != "__init__"
+)
+
+
 def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProcess:
     """Run *body* in a child whose ``ctypes`` has had its Windows half removed.
 
@@ -66,6 +73,34 @@ def test_the_win32_wrapper_imports_where_ctypes_has_no_windll():
         "assert WIN32_AVAILABLE is False, WIN32_AVAILABLE\n"
     )
     assert result.returncode == 0, result.stderr
+
+
+def test_the_package_modules_are_found():
+    """A glob that matched nothing would make the case below vacuous."""
+    assert "fun_time.win32" in PACKAGE_MODULES
+    assert "fun_time.single_instance" in PACKAGE_MODULES
+
+
+def test_every_module_in_the_package_imports_where_ctypes_has_no_windll():
+    """No module in the package may be the one that decides a run exists.
+
+    Collection imports far more of the package than the Windows tests need, so
+    it is not enough for the wrappers under test to import: any module that
+    binds Win32 while it is being imported takes down every test module that
+    reaches it, whatever that module is about.
+    """
+    result = _run_without_the_win32_ctypes_surface(
+        "import importlib\n"
+        "failures = []\n"
+        f"for _name in {PACKAGE_MODULES!r}:\n"
+        "    try:\n"
+        "        importlib.import_module(_name)\n"
+        "    except BaseException as exc:\n"
+        "        failures.append(f'{_name}: {type(exc).__name__}: {exc}')\n"
+        "print('\\n'.join(failures))\n"
+        "raise SystemExit(1 if failures else 0)\n"
+    )
+    assert result.returncode == 0, result.stdout or result.stderr
 
 
 def test_the_flag_says_whether_this_ctypes_can_bind_a_dll():
@@ -96,6 +131,18 @@ def test_an_unbound_entry_point_is_the_same_object_every_time(unavailable):
     user32 = win32_loader.load_dll("user32")
 
     assert user32.ShowWindow is user32.ShowWindow
+
+
+def test_an_error_saving_handle_stands_in_the_same_way(unavailable):
+    kernel32 = win32_loader.load_dll("kernel32", use_last_error=True)
+
+    with pytest.raises(win32_loader.Win32Unavailable, match=r"kernel32\.CreateMutexW"):
+        kernel32.CreateMutexW(None, False, "name")
+
+
+def test_reading_the_last_error_without_a_windows_ctypes_says_so(unavailable):
+    with pytest.raises(win32_loader.Win32Unavailable, match="get_last_error"):
+        win32_loader.get_last_error()
 
 
 def test_an_unbound_callback_prototype_refuses_to_be_made(unavailable):

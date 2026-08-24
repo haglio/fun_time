@@ -75,10 +75,19 @@ class _UnavailableCallbackType:
         raise Win32Unavailable("a Win32 callback prototype needs a Windows ctypes; this process has none")
 
 
-def load_dll(name: str) -> Any:
-    """The handle for the *name* DLL, or a stand-in that refuses to be called."""
+def load_dll(name: str, *, use_last_error: bool = False) -> Any:
+    """The handle for the *name* DLL, or a stand-in that refuses to be called.
+
+    *use_last_error* asks ctypes to save and restore the per-thread error code
+    around each call into this handle, which is the only way ``GetLastError``
+    survives to be read from Python.  It also means a handle of this module's
+    own rather than the process-wide one ``ctypes.windll`` caches — so the
+    saving stays with the caller that asked for it.
+    """
     if not WIN32_AVAILABLE:
         return _UnavailableDll(name)
+    if use_last_error:
+        return ctypes.WinDLL(name, use_last_error=True)  # type: ignore[attr-defined]
     return getattr(ctypes.windll, name)  # type: ignore[attr-defined]
 
 
@@ -87,3 +96,10 @@ def win_functype(restype: Any, *argtypes: Any) -> Any:
     if not WIN32_AVAILABLE:
         return _UnavailableCallbackType
     return ctypes.WINFUNCTYPE(restype, *argtypes)  # type: ignore[attr-defined]
+
+
+def get_last_error() -> int:
+    """The error code ctypes saved around the last call into a guarded handle."""
+    if not WIN32_AVAILABLE:
+        raise Win32Unavailable("ctypes.get_last_error needs a Windows ctypes; this process has none")
+    return ctypes.get_last_error()  # type: ignore[attr-defined]
