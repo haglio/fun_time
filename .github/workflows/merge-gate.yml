@@ -11,10 +11,13 @@ name: merge gate (full suite)
 # hidden desktop, the AHK bridge, and a GPU video decoder. So this gate is the
 # unit suite, nothing more.
 #
-# Runs on windows-latest: the suite is Win32 through and through -- ctypes user32
-# window management, AUMID, the windows bridge -- and every test module is
-# imported at collection, pulling in PyQt6 and pygame, so an off-Windows runner
-# cannot even collect it.
+# Runs on windows-latest for what the tests ASSERT, not for what collection
+# needs: the suite is Win32 through and through -- ctypes user32 window
+# management, AUMID, the windows bridge -- and only a Windows runner can answer
+# those calls. Collection itself is platform-free (fun_time/win32_loader.py, and
+# tests/test_win32_loader.py holds it that way), so a developer off Windows can
+# collect and run the suite and see the platform-bound tests fail by name rather
+# than lose the whole run to an ImportError.
 #
 # fun_time leans on sibling packages that are never published to PyPI. Three are
 # imported directly -- app_support, player_core, shared_ui -- so they are cloned
