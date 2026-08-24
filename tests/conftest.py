@@ -86,9 +86,8 @@ def _never_hold_the_live_loopback_port(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _never_wait_out_a_window_no_test_opened(monkeypatch):
-    """Answer the orchestrator's window lookups at once instead of polling for
-    real seconds.
+def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
+    """Answer the orchestrator's startup waits at once instead of spending them.
 
     A unit test mocks the startup that would have opened the session's windows,
     so every lookup the orchestrator makes can only time out — and it times out
@@ -97,14 +96,27 @@ def _never_wait_out_a_window_no_test_opened(monkeypatch):
     resolutions, so CI paid 20s per test that ran one, and
     ``test_windows_bridge_orchestrator.py`` alone was 359s of it.
 
-    The tests that care which handle comes back patch this name themselves,
-    which overrides the stub for the length of their ``with`` block.
+    The stubbed lookup answers 0, which is what the poll returned anyway; the
+    tests that care which handle comes back patch this name themselves, which
+    overrides the stub for the length of their ``with`` block.
+
+    The two timeouts are set here rather than edited in the module because both
+    are pinned as production numbers:
+    ``TestTheFinishingPassFitsBehindTheCover`` adds the resolve budget up
+    against the cover's staleness guard, and ``TestWaitForClosingScreen`` walks
+    every way out of the closing-screen hold.  A test that is ABOUT the waiting
+    marks itself ``real_startup_waits`` and gets the real function and the real
+    numbers back.
     """
+    if request.node.get_closest_marker("real_startup_waits"):
+        return
     monkeypatch.setattr(
         windows_bridge_orchestrator,
         "wait_for_window_by_title",
         lambda _title, timeout_s=5.0, **_kwargs: 0,
     )
+    monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
+    monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 
 
 TMP_ROOT = Path(

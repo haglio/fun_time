@@ -948,7 +948,10 @@ class TestClosingScreenLifecycle:
         assert "cover_up" not in events
 
 
+@pytest.mark.real_startup_waits
 class TestWaitForClosingScreen:
+    """The hold itself, so it runs on the real timeout the session spends."""
+
     def test_returns_as_soon_as_the_flag_lands(self, tmp_path):
         ready_file = tmp_path / "shutdown_ready.flag"
         ready_file.write_text("", encoding="utf-8")
