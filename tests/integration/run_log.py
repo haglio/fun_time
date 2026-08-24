@@ -42,7 +42,9 @@ file itself, appending one row as it tears each run down.  So this is the whole
 answer to "when did the integration suite last pass, and against what?" — and
 the scope column is what keeps a green `-k nau` from reading as a green suite.
 
-Oldest first, append-only, one row per run.
+Oldest first, append-only, one row per run.  A SHA marked `-dirty` means
+that checkout had uncommitted work when the run finished, so the commit
+alone does not describe what ran.
 
 | finished (UTC) | fun_time | player_core | result | counts | scope |
 | --- | --- | --- | --- | --- | --- |
@@ -93,18 +95,34 @@ def read_pytest_counts(report_path: Path) -> RunCounts | None:
     )
 
 
+def _git(path: Path, *args: str) -> str | None:
+    """*args* run against the checkout *path* sits in, or ``None`` if git could
+    not answer — it is missing, or the path is in no repo at all."""
+    try:
+        done = subprocess.run(["git", "-C", str(path), *args],
+                              capture_output=True, text=True, check=False)
+    except OSError:
+        return None
+    return done.stdout if done.returncode == 0 else None
+
+
 def git_short_sha(path: Path) -> str:
     """HEAD of the checkout *path* sits in, abbreviated — or ``UNKNOWN_SHA``.
 
     Git walks up from *path* itself, so a package directory answers for its
     repo and a worktree answers with its own HEAD rather than the primary's.
+
+    A tree that differs from that commit gets ``-dirty`` after the SHA, git's
+    own convention.  Agents run this suite from a worktree mid-change and are
+    told to commit the row with the branch, so without the mark a pass would be
+    credited to a commit that was never what ran.  Untracked files count:
+    a whole new module is exactly the kind of change that decides the result.
     """
-    try:
-        done = subprocess.run(["git", "-C", str(path), "rev-parse", "--short", "HEAD"],
-                              capture_output=True, text=True, check=False)
-    except OSError:
+    head = _git(path, "rev-parse", "--short", "HEAD")
+    if head is None:
         return UNKNOWN_SHA
-    return done.stdout.strip() if done.returncode == 0 else UNKNOWN_SHA
+    changes = _git(path, "status", "--porcelain")
+    return f"{head.strip()}-dirty" if changes and changes.strip() else head.strip()
 
 
 def player_core_directory(project_dirs: Sequence[str]) -> Path | None:
