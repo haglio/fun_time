@@ -6,9 +6,12 @@ ways it used to raise one instead.
 """
 from __future__ import annotations
 
+import builtins
 import sys
 from contextlib import contextmanager
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from fun_time_vr.vr_runtime import Readiness, probe
 
@@ -18,6 +21,41 @@ def _loader(stub):
     """Stand *stub* in for the OpenXR loader ``probe()`` imports for itself."""
     with patch.dict(sys.modules, {"xr": stub}):
         yield
+
+
+@contextmanager
+def _a_loader_that_will_not_load(exc):
+    """Fail the import itself, the way a loader that cannot load does.
+
+    Not an ``ImportError``: pyopenxr raises ``NotImplementedError`` off Windows,
+    and ``LoadLibrary`` raises ``OSError`` on a Windows box whose loader DLL is
+    unusable.  Neither ever happens on the machine the gate runs on, which is
+    why this has to be staged rather than waited for.
+    """
+    real_import = builtins.__import__
+
+    def _import(name, *args, **kwargs):
+        if name == "xr":
+            raise exc
+        return real_import(name, *args, **kwargs)
+
+    with patch("builtins.__import__", _import):
+        yield
+
+
+@pytest.mark.parametrize(
+    "exc",
+    [NotImplementedError("this platform has no OpenXR loader"),
+     OSError("the loader DLL could not be loaded")],
+    ids=["off_windows", "unusable_loader_dll"],
+)
+def test_a_loader_that_will_not_load_answers_rather_than_raises(exc):
+    """The popup reads a Probe; an exception here reached it as a stack trace."""
+    with _a_loader_that_will_not_load(exc):
+        result = probe()
+
+    assert result.readiness is Readiness.FAILED
+    assert str(exc) in result.detail
 
 
 def test_probe_survives_a_teardown_that_fails_under_it():
