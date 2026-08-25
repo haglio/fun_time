@@ -74,6 +74,20 @@ def video_type_of(payload: dict) -> str:
     return EXCERPT if isinstance(payload.get("clip"), dict) else ""
 
 
+def only_the_video_type(payload: dict) -> bool:
+    """Whether *payload* holds a kind and nothing else.
+
+    Evolver writes a sidecar for every library video now, so a clip whose
+    generation was never scraped has one too — holding its kind and nothing
+    besides.  Anything that used to read a sidecar's mere existence as evidence
+    of a recorded generation has to ask this first.
+    """
+    if set(payload) != {"video"}:
+        return False
+    video = payload["video"]
+    return isinstance(video, dict) and set(video) == {"type"}
+
+
 def load_metadata(json_path: str | Path) -> dict:
     try:
         with open(json_path, encoding="utf-8") as fh:
