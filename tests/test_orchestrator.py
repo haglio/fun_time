@@ -17,7 +17,6 @@ from fun_time.orchestrator import (
     ensure_broker_running,
     is_broker_running,
     main,
-    refresh_content_blocklist,
     require_dir,
     require_file,
     run_windows_bridge,
@@ -406,7 +405,6 @@ class TestBrokerHelpers:
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.refresh_content_blocklist"), \
              patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
             result = main(["--config", str(cfg_path)])
@@ -414,77 +412,6 @@ class TestBrokerHelpers:
         assert result == 0
         ensure_broker.assert_called_once()
         run_windows_bridge.assert_called_once()
-
-    def test_main_refreshes_the_blocklist_on_the_way_up(self, cfg_path: Path):
-        """The harvest has to be fired by something that always happens, or the
-        guard's list quietly ages out of usefulness.
-        """
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.refresh_content_blocklist") as refresh, \
-             patch("fun_time.orchestrator.ensure_broker_running"), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
-            main(["--config", str(cfg_path)])
-
-        refresh.assert_called_once()
-
-
-class TestRefreshContentBlocklist:
-    """Firing the harvest from a launch: throttled, detached, and never fatal."""
-
-    def test_asks_for_a_throttled_detached_run(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        harvester = cfg.project_dir / "tools" / "harvest_blocklist.py"
-
-        with patch("fun_time.orchestrator.subprocess.Popen") as popen, \
-             patch("fun_time.orchestrator.DEFAULT_CONFIG_PATH", cfg.config_path), \
-             patch.object(Path, "exists", return_value=True):
-            refresh_content_blocklist(cfg, MagicMock())
-
-        command = popen.call_args[0][0]
-        assert str(harvester) in command
-        assert "--if-stale" in command and "--detach" in command and "--sync" in command
-
-    def test_only_the_real_session_rewrites_the_machines_blocklist(self, cfg_path: Path):
-        """The blocklist is one file per machine, outside every checkout. A run
-        on a temp config -- an integration run, a developer's alternate -- must
-        not reach out and rewrite it; letting it did exactly that from the unit
-        suite, leaving the primary checkout dirty.
-        """
-        cfg = load_config(cfg_path)
-
-        with patch("fun_time.orchestrator.subprocess.Popen") as popen, \
-             patch.object(Path, "exists", return_value=True):
-            refresh_content_blocklist(cfg, MagicMock())
-
-        popen.assert_not_called()
-
-    def test_does_nothing_where_the_harvester_is_not_installed(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-
-        with patch("fun_time.orchestrator.subprocess.Popen") as popen, \
-             patch("fun_time.orchestrator.DEFAULT_CONFIG_PATH", cfg.config_path), \
-             patch.object(Path, "exists", return_value=False):
-            refresh_content_blocklist(cfg, MagicMock())
-
-        popen.assert_not_called()
-
-    def test_a_failure_to_start_is_a_log_line_not_a_failed_launch(self, cfg_path: Path):
-        """A stale blocklist is a smaller problem than a session that won't open."""
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.subprocess.Popen", side_effect=OSError("no")), \
-             patch("fun_time.orchestrator.DEFAULT_CONFIG_PATH", cfg.config_path), \
-             patch.object(Path, "exists", return_value=True):
-            refresh_content_blocklist(cfg, logger)
-
-        logger.warning.assert_called_once()
-
-
 
 class TestRunController:
     def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
