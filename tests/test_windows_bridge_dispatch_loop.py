@@ -1999,8 +1999,6 @@ class TestBrowseLibrary:
         with patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             original_handle = runner._handle_browse_library
 
-            barrier = threading.Barrier(2, timeout=2.0)
-
             # Start first call in background
             t1 = threading.Thread(target=original_handle)
             t1.start()
@@ -2008,11 +2006,6 @@ class TestBrowseLibrary:
             # Second call should be rejected (returns immediately due to lock)
             t2 = threading.Thread(target=original_handle)
             t2.start()
-
-            try:
-                barrier.wait(timeout=2.0)
-            except threading.BrokenBarrierError:
-                pass
 
             t1.join(timeout=2.0)
             t2.join(timeout=2.0)
