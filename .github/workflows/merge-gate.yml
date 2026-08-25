@@ -44,12 +44,14 @@ concurrency:
 jobs:
   full-suite:
     runs-on: windows-latest
-    # About three times a green run, so it can only fire on a hang. A green job
-    # is ~135 s of checkout, three sibling clones, the libmpv fetch and install,
-    # plus one ~55 s suite leg, so ~190 s. Without this, the queue's required
-    # check would sit on a hung run until GitHub's six-hour default and print
-    # nothing that named it.
-    timeout-minutes: 10
+    # A green job is ~135 s of checkout, three sibling clones, the libmpv fetch
+    # and install, plus one ~55 s suite leg, so ~190 s. Three times that would be
+    # 10 minutes, and this is 15: the libmpv step queries the GitHub API, then
+    # downloads and unpacks an archive from a release, so a slow fetch can cost
+    # minutes without anything being wrong. Without a budget at all, the queue's
+    # required check would sit on a hung run until GitHub's six-hour default and
+    # print nothing that named it.
+    timeout-minutes: 15
     env:
       QT_QPA_PLATFORM: offscreen   # render Qt headless -- no real windows
       SDL_VIDEODRIVER: dummy       # pygame-ce: no display
