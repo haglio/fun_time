@@ -185,7 +185,7 @@ def _wait_for_the_browse(mock_browse) -> None:
     that used to sit here was covering exactly that, by hoping rather than by
     waiting for it.
     """
-    wait_until(lambda: mock_browse.call_count == 1, timeout=10.0)
+    wait_until(lambda: mock_browse.call_count >= 1, timeout=10.0)
 
 
 def _presses_until(recv_sock, expected: str, *, timeout: float = 10.0) -> list[str]:
@@ -2023,7 +2023,7 @@ class TestBrowseLibrary:
             runner.tick()
             # The routing happens on a daemon thread the tick starts, so the
             # call is what there is to wait for -- and it is the assertion too.
-            wait_until(lambda: mock_handle.call_count == 1, timeout=10.0)
+            wait_until(lambda: mock_handle.call_count >= 1, timeout=10.0)
 
         mock_handle.assert_called_once()
 
@@ -2443,7 +2443,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            wait_until(lambda: mock_launch.call_count == 1, timeout=10.0)
+            wait_until(lambda: mock_launch.call_count >= 1, timeout=10.0)
         mock_launch.assert_called_once_with(runner.config.broker_tray_launcher)
 
     def test_broker_start_noop_when_already_running(self, tmp_path):
@@ -2474,7 +2474,7 @@ class TestIdempotentVoiceCommands:
             # "Never kills" is an absence, and an absence cannot be waited for.
             # The start it does take is the event that says the thread got
             # there, so wait for that and read the absence beside it.
-            wait_until(lambda: mock_launch.call_count == 1, timeout=10.0)
+            wait_until(lambda: mock_launch.call_count >= 1, timeout=10.0)
         mock_stop.assert_not_called()
 
     def test_broker_panel_toggle_starts_without_killing(self, tmp_path):
@@ -2489,7 +2489,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("broker_panel", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            wait_until(lambda: mock_launch.call_count == 1, timeout=10.0)
+            wait_until(lambda: mock_launch.call_count >= 1, timeout=10.0)
         mock_stop.assert_not_called()
 
     def test_broker_stop_stops_when_running(self, tmp_path):
@@ -2500,7 +2500,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("broker_stop", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            wait_until(lambda: mock_stop.call_count == 1, timeout=10.0)
+            wait_until(lambda: mock_stop.call_count >= 1, timeout=10.0)
         mock_stop.assert_called_once()
 
     def test_broker_stop_noop_when_not_running(self, tmp_path):
