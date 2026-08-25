@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from app_support.threading_utils import wait_until
 from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
 from fun_time.hud_transport import HudPublisher
 from fun_time.media_metadata import normalize_path_key
@@ -171,6 +172,45 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         ahk_cmd_file=tmp_path / "ahk_cmd.txt",
         **settings,
     )
+
+
+def _wait_for_the_browse(mock_browse) -> None:
+    """Hold the caller's patch until the browse thread has actually taken it.
+
+    ``browse_library`` runs on a daemon thread the tick starts, and the press
+    these tests assert on goes out *before* that thread does. So leaving the
+    patch as soon as the press lands releases it under a thread that has not
+    called yet, and the browse reaches the real library browser -- which opens
+    a real window on the machine the family is used from. The fixed 0.15 s nap
+    that used to sit here was covering exactly that, by hoping rather than by
+    waiting for it.
+    """
+    wait_until(lambda: mock_browse.call_count == 1, timeout=10.0)
+
+
+def _presses_until(recv_sock, expected: str, *, timeout: float = 10.0) -> list[str]:
+    """Every press read off ``recv_sock`` up to and including ``expected``.
+
+    The press goes out on the tick's own thread, so what these tests are waiting
+    for is a datagram, not a length of time. The socket's own short timeout paces
+    the polling, and this returns the moment the expected press lands -- or
+    everything that did arrive, so the assertion above can say what came instead.
+    """
+    received: list[str] = []
+
+    def _arrived() -> bool:
+        try:
+            received.append(recv_sock.recvfrom(256)[0].decode("utf-8"))
+        except OSError:
+            pass
+        return expected in received
+
+    recv_sock.settimeout(0.02)
+    try:
+        wait_until(_arrived, timeout=timeout, interval=0)
+    except TimeoutError:
+        pass
+    return received
 
 
 class TestDetectSleepGap:
@@ -693,14 +733,7 @@ class TestDispatchLoopRunner:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
-        # Collect all UDP messages
-        messages = []
-        while True:
-            try:
-                data, _ = recv_sock.recvfrom(256)
-                messages.append(data.decode("utf-8"))
-            except OSError:
-                break
+        messages = _presses_until(recv_sock, "quarter_button")
         recv_sock.close()
         assert "quarter_button" in messages
 
@@ -721,17 +754,13 @@ class TestDispatchLoopRunner:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   return_value=None) as mock_browse:
             runner.tick()
-            time.sleep(0.15)
 
-        messages = []
-        while True:
-            try:
-                data, _ = recv_sock.recvfrom(256)
-                messages.append(data.decode("utf-8"))
-            except OSError:
-                break
+            messages = _presses_until(recv_sock, "browse_library")
+            _wait_for_the_browse(mock_browse)
+
         recv_sock.close()
         assert "browse_library" in messages
 
@@ -745,9 +774,10 @@ class TestDispatchLoopRunner:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   return_value=None) as mock_browse:
             runner.tick()
-            time.sleep(0.15)  # background thread needs a moment
+            _wait_for_the_browse(mock_browse)
 
         assert runner.state.omni_paused is False  # leaves omnipause after dialog closes
 
@@ -1998,8 +2028,9 @@ class TestBrowseLibrary:
 
         with patch.object(runner, "_handle_browse_library") as mock_handle:
             runner.tick()
-            # Give the background thread a moment to start
-            time.sleep(0.1)
+            # The routing happens on a daemon thread the tick starts, so the
+            # call is what there is to wait for -- and it is the assertion too.
+            wait_until(lambda: mock_handle.call_count == 1, timeout=10.0)
 
         mock_handle.assert_called_once()
 
@@ -2419,7 +2450,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            time.sleep(0.2)  # daemon thread
+            wait_until(lambda: mock_launch.call_count == 1, timeout=10.0)
         mock_launch.assert_called_once_with(runner.config.broker_tray_launcher)
 
     def test_broker_start_noop_when_already_running(self, tmp_path):
@@ -2441,12 +2472,16 @@ class TestIdempotentVoiceCommands:
         start; only an explicit stop may kill."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         # No heartbeat file at all: the broker reads as dead.
-        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop:
+        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop, \
+             patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            time.sleep(0.2)  # daemon thread
+            # "Never kills" is an absence, and an absence cannot be waited for.
+            # The start it does take is the event that says the thread got
+            # there, so wait for that and read the absence beside it.
+            wait_until(lambda: mock_launch.call_count == 1, timeout=10.0)
         mock_stop.assert_not_called()
 
     def test_broker_panel_toggle_starts_without_killing(self, tmp_path):
@@ -2455,12 +2490,13 @@ class TestIdempotentVoiceCommands:
         broker_start, and the same live broker on the other side of it."""
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         # No heartbeat file: the toggle takes its "not running, so start" arm.
-        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop:
+        with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop, \
+             patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_panel", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            time.sleep(0.2)  # daemon thread
+            wait_until(lambda: mock_launch.call_count == 1, timeout=10.0)
         mock_stop.assert_not_called()
 
     def test_broker_stop_stops_when_running(self, tmp_path):
@@ -2471,7 +2507,7 @@ class TestIdempotentVoiceCommands:
             cmd_file.write_text("broker_stop", encoding="utf-8")
             runner._last_sync = float("inf")
             runner.tick()
-            time.sleep(0.2)  # daemon thread
+            wait_until(lambda: mock_stop.call_count == 1, timeout=10.0)
         mock_stop.assert_called_once()
 
     def test_broker_stop_noop_when_not_running(self, tmp_path):
@@ -3158,8 +3194,15 @@ class TestBrowserOutlivesNothing:
     def test_quitting_the_session_kills_a_browser_still_open(self, tmp_path):
         runner = make_runner(tmp_path)
         opened = threading.Event()
+        terminated = threading.Event()
         process = Mock()
-        process.wait.side_effect = lambda: (opened.set(), time.sleep(0.4))
+        # A browser stays up until something ends it, which is the shape this
+        # test is about -- so the fake's wait() returns when terminate() is
+        # called rather than after 0.4 s of standing in for a browse. If the
+        # stop ever failed to terminate, the old fake released the thread
+        # anyway and the test could still pass; this one cannot.
+        process.wait.side_effect = lambda: (opened.set(), terminated.wait(10.0))
+        process.terminate.side_effect = terminated.set
 
         with patch("fun_time.windows_bridge_dispatch_loop.subprocess.Popen",
                    return_value=process) as mock_popen:
