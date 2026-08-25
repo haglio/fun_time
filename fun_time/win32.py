@@ -775,11 +775,29 @@ def set_shortcut_app_user_model_id(lnk_path: str, app_id: str) -> None:
     System.AppUserModel.ID property, which Windows uses to match a running
     process's windows with a pinned taskbar shortcut.
     """
-    _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    _enter_apartment()
     try:
         _set_lnk_aumid(lnk_path, app_id)
     finally:
         _ole32.CoUninitialize()
+
+
+def _enter_apartment() -> None:
+    """Take this thread's single-threaded apartment, or refuse to work in it.
+
+    The caller owes exactly one ``CoUninitialize`` for every call that returns
+    ``S_OK`` (this call opened the apartment) or ``S_FALSE`` (the thread already
+    had one, and this call still took a reference), and none at all for a call
+    that failed.  The failure that reaches this path is ``RPC_E_CHANGED_MODE``:
+    something else put this thread in the other concurrency model first.
+    Balancing that with a ``CoUninitialize`` anyway would decrement *their*
+    reference count, and the apartment they hold objects in can close under
+    them; the shortcut work would also be asking for a shell link with no
+    apartment of its own.  So a failed init raises before either happens.
+    """
+    hr = _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    if hr < 0:
+        raise OSError(f"CoInitializeEx failed: HRESULT 0x{hr & 0xFFFFFFFF:08x}")
 
 
 def _set_lnk_aumid(lnk_path: str, app_id: str) -> None:
@@ -838,7 +856,7 @@ def _set_lnk_aumid(lnk_path: str, app_id: str) -> None:
 
 def _read_shortcut_app_user_model_id(lnk_path: str) -> str | None:
     """Read the AppUserModelID property from a .lnk file (for testing)."""
-    _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
+    _enter_apartment()
     try:
         return _get_lnk_aumid(lnk_path)
     finally:
