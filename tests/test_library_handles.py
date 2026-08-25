@@ -30,13 +30,55 @@ def _sidecar(
     group: str,
     *,
     carved_from: str = "",
+    kind: str = "",
 ) -> None:
     path = (metadata_root / video.relative_to(library_root)).with_suffix(".json")
     path.parent.mkdir(parents=True, exist_ok=True)
     payload: dict = {"version": {"group": group}}
     if carved_from:
         payload["clip"] = {"compilation": carved_from, "index": 1, "count": 4}
+    if kind:
+        payload["video"] = {"type": kind}
     path.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def test_the_recorded_kind_puts_a_video_in_the_excerpts_band(tmp_path: Path):
+    """Evolver records what every library video is; the browse reads that
+    rather than working it out again."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    whole = _video(videos, "big_batch/0 unsorted/whole.mp4")
+    _sidecar(metadata, whole, library_root, "Whole", kind="full_length")
+    for index in range(2):
+        carved = _video(videos, f"big_batch/0 unsorted/carved{index}.mp4")
+        _sidecar(metadata, carved, library_root, f"Carved {index}", kind="excerpt")
+
+    sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections == {
+        "Whole": "big_batch",
+        "Carved 0": "big_batch · clips",
+        "Carved 1": "big_batch · clips",
+    }
+
+
+def test_a_recorded_whole_video_stays_out_of_a_folder_full_of_cuts(tmp_path: Path):
+    """The folder a video sits in is the last resort, not an override: it is
+    how a video with no record at all is read, and this one has a record."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    for index in range(3):
+        carved = _video(videos, f"big_batch/cuts/0 unsorted/carved{index}.mp4")
+        _sidecar(metadata, carved, library_root, f"Carved {index}", kind="excerpt")
+    for index in range(3):
+        whole = _video(videos, f"big_batch/wholes/0 unsorted/whole{index}.mp4")
+        _sidecar(metadata, whole, library_root, f"Whole {index}", kind="full_length")
+    stray = _video(videos, "big_batch/cuts/0 unsorted/stray.mp4")
+    _sidecar(metadata, stray, library_root, "Stray", kind="full_length")
+
+    sections = {handle.title: handle.section for handle in build_library_handles(str(videos), metadata)}
+
+    assert sections["Stray"] == "big_batch/wholes"
 
 
 def test_files_sharing_a_recorded_version_group_become_one_handle(tmp_path: Path):

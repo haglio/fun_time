@@ -51,6 +51,29 @@ def metadata_path_for(
     return metadata_root / rel.with_suffix(".json")
 
 
+# Evolver records what kind every library video is on its sidecar, as
+# ``video.type`` — one answer to "what kind of video is this", written once for
+# the whole library in place of the several tests each app used to run.  This
+# app asks it one thing, so this is the one kind it names; the others
+# (``genau_clip``, ``short``, ``full_length``) come back as themselves.
+EXCERPT = "excerpt"
+
+
+def video_type_of(payload: dict) -> str:
+    """The kind *payload* records, or ``""`` when it records none.
+
+    The one older record still read here is the ``clip`` object: it says a
+    scene was carved out of a longer one, which is what :data:`EXCERPT` says,
+    and it was on these sidecars before there was a kind to write.  So a
+    library Evolver has not been over since keeps its cuts in their own band
+    rather than waiting for the run that records them.
+    """
+    video = payload.get("video")
+    if isinstance(video, dict) and video.get("type"):
+        return str(video["type"])
+    return EXCERPT if isinstance(payload.get("clip"), dict) else ""
+
+
 def load_metadata(json_path: str | Path) -> dict:
     try:
         with open(json_path, encoding="utf-8") as fh:

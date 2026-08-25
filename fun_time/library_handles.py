@@ -18,7 +18,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from .media_metadata import load_metadata, metadata_path_for
+from .media_metadata import EXCERPT, load_metadata, metadata_path_for, video_type_of
 from .modes import collect_video_files
 
 
@@ -72,15 +72,15 @@ def _file_size(video: str) -> int:
         return 0
 
 
-def _is_clip(video: str, metadata_root: Path | None) -> bool:
-    """Whether *video* was carved out of a compilation rather than shot as one.
+def _recorded_kind(video: str, metadata_root: Path | None) -> str:
+    """The kind Evolver recorded for *video*, or ``""`` when it recorded none.
 
-    Evolver writes a ``clip`` record — the parent compilation, the running order
-    within it, the source scene — only on an excerpt, so its presence is the
-    whole test.
+    One field — ``video.type`` — saying what a video is, for the whole library
+    at once.  This browse asks it one thing: whether the video is an excerpt,
+    carved out of a longer one rather than shot as one.
     """
     sidecar = metadata_path_for(video, metadata_root)
-    return sidecar is not None and isinstance(load_metadata(sidecar).get("clip"), dict)
+    return "" if sidecar is None else video_type_of(load_metadata(sidecar))
 
 
 # What marks a section as holding excerpts rather than whole videos.  Structural
@@ -191,31 +191,24 @@ def cut_folders(
     return folders
 
 
-def is_an_excerpt(path: tuple[str, ...], recorded: bool, cuts: dict[str, str]) -> bool:
+def is_an_excerpt(path: tuple[str, ...], kind: str, cuts: dict[str, str]) -> bool:
     """Whether a video is a cut — by its own record, or by the company it keeps.
 
-    Evolver's ``clip`` record settles it on its own and always has.  What is new
-    is the fallback for a video that has none: a source folder which filed its
-    cuts into a folder of their own put nothing else in there, so a video
-    sitting among them is one of them whatever its sidecar failed to say.
+    Evolver's recorded kind settles it, either way: a video it says is an
+    excerpt is one, and a video it says is anything else is not, wherever that
+    video happens to sit.
 
-    Which sidecars carry one is not a property of the videos: nothing that runs
-    today writes a ``clip`` record at all.  Evolver's non-AI grouping writes the
-    ``version`` block for every video and copies an existing ``clip`` onto that
-    video's re-encodes, but it never creates one — so the record exists only
-    where whatever carved a video out of a compilation put it there, and a batch
-    that arrived by any other route has none, however plainly it is a cut.  Each
-    one that lands here turns up among the whole videos, beside the very scene
-    it was cut out of, which is the one place this browse exists to keep cuts
-    out of.
-
-    The fallback reaches only where the librarian has already drawn the line on
-    disk.  A folder that never separated its cuts has no folder here, so nothing
-    of its is reclassified — the pipeline's own stage folders can never stand in
-    for a division of the library, which is the whole rule this repo browses by.
+    The fallback is for a video it has recorded nothing about — a library it has
+    not run over yet.  A source folder which filed its cuts into a folder of
+    their own put nothing else in there, so a video sitting among them is one of
+    them until something says otherwise.  It reaches only where the librarian
+    has already drawn the line on disk: a folder that never separated its cuts
+    has no folder here, so nothing of its is reclassified — the pipeline's own
+    stage folders can never stand in for a division of the library, which is the
+    whole rule this repo browses by.
     """
-    if recorded:
-        return True
+    if kind:
+        return kind == EXCERPT
     return len(path) > 1 and cuts.get(path[0]) == path[1]
 
 
@@ -231,13 +224,13 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     """
     videos = collect_video_files(sources)
     paths = {video: source_path(video, sources) for video in videos}
-    # Where each source folder files the cuts it HAS recorded, so the ones whose
-    # sidecar never got the record can be recognized by the company they keep —
-    # see :func:`is_an_excerpt`.
-    recorded = {video: _is_clip(video, metadata_root) for video in videos}
+    # Where each source folder files the cuts Evolver HAS recorded, so the ones
+    # it has not reached can be recognized by the company they keep — see
+    # :func:`is_an_excerpt`.
+    kinds = {video: _recorded_kind(video, metadata_root) for video in videos}
     cuts = cut_folders(
-        [paths[video] for video in videos if recorded[video]],
-        [paths[video] for video in videos if not recorded[video]],
+        [paths[video] for video in videos if kinds[video] == EXCERPT],
+        [paths[video] for video in videos if kinds[video] != EXCERPT],
     )
 
     # Keyed by family AND by whether it is an excerpt: Evolver ties a cut to the
@@ -250,7 +243,7 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     for video in videos:
         title = _recorded_group(video, metadata_root) or Path(video).stem
         families.setdefault(
-            (title, is_an_excerpt(paths[video], recorded[video], cuts)), []
+            (title, is_an_excerpt(paths[video], kinds[video], cuts)), []
         ).append(video)
 
     played = {
