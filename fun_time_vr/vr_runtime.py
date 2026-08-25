@@ -75,7 +75,15 @@ class Probe:
 
 def probe() -> Probe:
     """Ask OpenXR for a head-mounted display, without opening a window."""
-    import xr  # noqa: PLC0415 — the loader DLL should load only on VR paths
+    try:
+        import xr  # noqa: PLC0415 — the loader DLL should load only on VR paths
+    except Exception as exc:
+        # A loader that will not *load* fails here rather than at create_instance,
+        # and not as an ImportError: pyopenxr raises NotImplementedError off
+        # Windows, and LoadLibrary raises OSError where the loader DLL is
+        # unusable.  It is a loader failure like any other, so it answers like
+        # one -- above the handlers below, it left probe() as a stack trace.
+        return Probe(readiness=Readiness.FAILED, detail=str(exc))
 
     try:
         instance = xr.create_instance(
