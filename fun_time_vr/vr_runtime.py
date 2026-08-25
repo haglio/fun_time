@@ -98,8 +98,23 @@ def probe() -> Probe:
     except Exception as exc:  # likewise for anything the runtime itself raises
         return Probe(readiness=Readiness.FAILED, detail=str(exc))
     finally:
-        xr.destroy_instance(instance)
+        _release_instance(xr, instance)
     return Probe(readiness=Readiness.READY)
+
+
+def _release_instance(xr: object, instance: object) -> None:
+    """Hand the probe's instance back, without that becoming the answer.
+
+    By the time this runs ``probe()`` has decided what to report, and a runtime
+    shutting down under it must not turn that into an exception leaving
+    ``probe()`` -- past ``ensure_ready()``'s polling loop, and past the popup
+    every loader failure has to reach.  The leak this trades for is a probe's
+    worth of one process that is on its way to a dialog either way.
+    """
+    try:
+        xr.destroy_instance(instance)
+    except Exception:
+        logger.warning("Could not release the probe's OpenXR instance", exc_info=True)
 
 
 def active_runtime_json() -> Path | None:
