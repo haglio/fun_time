@@ -146,6 +146,21 @@ def test_regen_url_for_video_returns_empty_for_non_provider(tmp_path: Path):
     assert url == ""
 
 
+def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_a_kind(tmp_path: Path):
+    """Evolver records what kind every video is, so a clip whose generation was
+    never scraped now HAS a sidecar. There is nothing to regenerate from in it,
+    and a URL built off it would carry no prompt at all."""
+    _media_root, metadata_root, video = _setup(
+        tmp_path, "portrait", "abc_topaz.mp4", {"video": {"type": "short"}},
+    )
+
+    url = regen_url_for_video(
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+    )
+
+    assert url == ""
+
+
 def test_regen_url_for_video_returns_empty_when_metadata_absent(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"

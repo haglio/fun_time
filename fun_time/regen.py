@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from .media_metadata import load_metadata, metadata_path_for
+from .media_metadata import load_metadata, metadata_path_for, only_the_video_type
 
 # (label, metadata key) in display order for the floating note / auto-fill.
 _IMAGE_SETTINGS = [
@@ -85,12 +85,14 @@ def regen_url_for_video(
     Eligibility is decided by the sidecar alone: a clip with no metadata JSON
     under *metadata_root* (anything outside the regen library — a fav from a
     gallery-only provider, a local import) maps to no sidecar and falls back to
-    its stored link.
+    its stored link.  So does one whose sidecar records only what KIND of video
+    it is — every library video has that now, and it says nothing about how the
+    clip was generated, which is the whole of what a regenerate URL carries.
     """
     meta_path = metadata_path_for(video_path, metadata_root)
     if meta_path is None or not meta_path.is_file():
         return ""
     metadata = load_metadata(meta_path)
-    if not metadata.get("video"):
+    if not metadata.get("video") or only_the_video_type(metadata):
         return ""
     return build_regen_url(metadata, video_url=video_url, image_url=image_url)
