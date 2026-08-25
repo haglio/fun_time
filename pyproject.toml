@@ -31,6 +31,7 @@ dev = [
     "hypothesis",
     "pytest",
     "pytest-cov",
+    "pytest-timeout",
     "vulture",
 ]
 voice = [

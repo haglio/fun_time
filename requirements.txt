@@ -21,4 +21,5 @@ sounddevice
 hypothesis
 pytest
 pytest-cov
+pytest-timeout
 vulture
