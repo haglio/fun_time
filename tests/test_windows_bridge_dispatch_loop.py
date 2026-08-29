@@ -18,6 +18,10 @@ from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line
 from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time.watch_stats import load_watch_stats
+from fun_time.windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+)
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     expand_both_command,
@@ -1636,6 +1640,42 @@ class TestResolveRole:
         with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
             assert runner._resolve_role("dashboard") == 9999
+
+    def test_each_satellite_falls_back_to_its_own_exact_caption(self, tmp_path):
+        """The recorded satellite pids are the venv launcher's, not the
+        interpreter that owns the SDL window, so on a cold cache the by-pid
+        lookup finds nothing and resolution falls back to the caption — each
+        side's own, exactly.  The captions differ only in their first word,
+        so a swapped or substring lookup here assigns one side's window to
+        the other, which is the portrait/landscape visual swap."""
+        runner = make_runner(tmp_path)
+
+        def title_lookup(title, exact=False):
+            if not exact:
+                return 0
+            return {SATELLITE_PORTRAIT_TITLE: PORTRAIT_HWND,
+                    SATELLITE_LANDSCAPE_TITLE: LANDSCAPE_HWND}.get(title, 0)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", side_effect=title_lookup):
+            assert runner._resolve_role("portrait") == PORTRAIT_HWND
+            assert runner._resolve_role("landscape") == LANDSCAPE_HWND
+
+    def test_a_dead_hosted_window_handle_is_dropped_and_re_resolved(self, tmp_path):
+        """The hosted app's boot can put a short-lived twin of its caption up
+        first (its splash); caching that handle would aim every later restore
+        at a dead window — the mode switch that visibly does nothing.  Only
+        this role heals its cache, so a dead handle must be re-resolved."""
+        runner = make_runner(tmp_path, origenerator_pid=HOSTED_PID)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.find_window_for_process",
+                   return_value=8888):
+            assert runner._resolve_role("origenerator") == 8888  # the splash, cached
+
+        with patch("fun_time.windows_bridge_dispatch_loop.window_exists", return_value=False), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_for_process",
+                   side_effect=lookup_hosted):
+            assert runner._resolve_role("origenerator") == HOSTED_HWND
 
     def test_cached_hwnd_survives_hiding_and_show_role_reaches_it(self, tmp_path):
         """Hidden windows are invisible to the pid/title lookups, so the
