@@ -887,7 +887,7 @@ def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):
 
 
 
-def test_every_control_on_the_bar_wears_a_drawn_mark(qtbot=None):
+def test_every_control_on_the_bar_wears_a_drawn_mark():
     """Typed as font characters, each control came out at whatever weight its
     face gave it -- the help "?" was set in the body face rather than a symbol
     one and was visibly smaller than every mark beside it, and quit's power

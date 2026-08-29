@@ -118,7 +118,7 @@ def test_a_running_loop_keeps_a_member_whose_thumbnail_is_not_cached_yet():
     assert payload["playing"] == ["seed", 2]
 
 
-def test_the_axis_a_loop_is_not_running_on_stays_capped(tmp_path: Path):
+def test_the_axis_a_loop_is_not_running_on_stays_capped():
     """Only the looped axis needs the whole group; the other one is still the browse
     map, so it keeps its draw cap and its cached-only rule."""
     actions = [f"C:/v/a{i}.mp4" for i in range(9)]

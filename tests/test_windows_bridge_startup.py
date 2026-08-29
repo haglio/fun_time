@@ -97,7 +97,7 @@ def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
     )
 
 
-def test_launch_broker_tray_skips_launch_when_no_launcher(tmp_path: Path):
+def test_launch_broker_tray_skips_launch_when_no_launcher():
     with patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen:
         launch_broker_tray(None)
 
@@ -1010,7 +1010,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
-def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
+def test_launch_genau_starts_process_and_returns_pid():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1036,7 +1036,7 @@ def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
     assert "--clips-folder" in command
 
 
-def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
+def test_launch_genau_forwards_command_and_paused_files():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1073,7 +1073,7 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert command[idx + 1] == "state/genau_drive.txt"
 
 
-def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
+def test_launch_genau_opens_on_the_clip_it_was_left_showing():
     """Genau rescans its clips folder every launch and starts at the top of it,
     so the clip a session was left on comes back only by being named — on the
     command line, since it has to be in hand before the first clip decodes."""
@@ -1093,7 +1093,7 @@ def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
     assert command[command.index("--start-clip") + 1] == "C:/clips/alpha.mp4"
 
 
-def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
+def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
     """A first run, or a Genau that published nothing: the flag is left off
     rather than passed empty, so Genau opens where its own scan starts."""
     class FakeProc:
@@ -1177,7 +1177,7 @@ def test_launch_nau_makes_it_borderless(tmp_path: Path):
     assert "--borderless" in popen.call_args.args[0]
 
 
-def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
+def test_launch_genau_passes_fun_time_flag():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1224,7 +1224,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             return None
         return command[command.index("--taskbar-identity") + 1]
 
-    def test_the_satellites_are_told_who_they_belong_to(self, tmp_path: Path):
+    def test_the_satellites_are_told_who_they_belong_to(self):
         command = _build_satellite_launch_command(
             "python.exe", "satellite", title="Portrait AI Player",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
@@ -1246,7 +1246,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
-    def test_genau_is_told_who_it_belongs_to(self, tmp_path: Path):
+    def test_genau_is_told_who_it_belongs_to(self):
         command = self._launched(
             launch_genau,
             python_exe="python.exe", genau_module="genau.app", config_path="cfg.json",
@@ -1335,7 +1335,7 @@ class TestGenauCheckout:
 
         assert self._path(popen)[:2] == [str(genau), str(core)]
 
-    def test_naming_none_leaves_them_to_their_venv(self, tmp_path: Path):
+    def test_naming_none_leaves_them_to_their_venv(self):
         """What every session did before this, and what an ordinary one still
         does: nothing said about the path, so the editable installs answer."""
         with self._popen() as popen, patch(

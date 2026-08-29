@@ -65,7 +65,7 @@ class TestRoleDescription:
 
 
 class TestBuildIconResources:
-    def test_reindexes_the_directory_onto_resource_ids(self, tmp_path: Path):
+    def test_reindexes_the_directory_onto_resource_ids(self):
         """An .ico indexes its images by byte offset and a PE indexes them by
         resource id, so only the directory is rebuilt — the images go in as they
         came out, and each directory entry names the id its image was given."""
