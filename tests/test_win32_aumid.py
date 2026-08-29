@@ -93,18 +93,23 @@ class TestSetShortcutAppUserModelId:
     def test_stamps_real_lnk_file(self, tmp_path):
         """Create a real .lnk, stamp it, read back — round-trip on the real COM stack."""
         lnk_path = tmp_path / "Test.lnk"
-        # Create a minimal .lnk via PowerShell
+        # Create a minimal .lnk via PowerShell.  The paths ride in as
+        # environment variables rather than interpolated into the script —
+        # this repo's tmp_path is a checkout-relative directory the developer
+        # controls, and a quote or backtick in it would otherwise become
+        # PowerShell syntax.
         target = os.environ.get("COMSPEC", "cmd.exe")
         subprocess.run(
             [
                 "powershell.exe", "-NoProfile", "-Command",
-                f"$ws = New-Object -ComObject WScript.Shell; "
-                f"$s = $ws.CreateShortcut('{lnk_path}'); "
-                f"$s.TargetPath = '{target}'; "
-                f"$s.Save()",
+                "$ws = New-Object -ComObject WScript.Shell; "
+                "$s = $ws.CreateShortcut($env:FT_TEST_LNK); "
+                "$s.TargetPath = $env:FT_TEST_TARGET; "
+                "$s.Save()",
             ],
             check=True,
             capture_output=True,
+            env={**os.environ, "FT_TEST_LNK": str(lnk_path), "FT_TEST_TARGET": target},
         )
         assert lnk_path.exists()
 
