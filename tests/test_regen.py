@@ -126,7 +126,7 @@ def _setup(tmp_path: Path, orient: str, name: str, meta: dict) -> tuple[Path, Pa
 
 
 def test_regen_url_for_video_returns_image_url_for_source_image(tmp_path: Path):
-    media_root, metadata_root, video = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
+    _, metadata_root, video = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
 
     url = regen_url_for_video(
         video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL

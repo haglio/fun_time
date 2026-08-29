@@ -520,7 +520,7 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
 
 
 def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, library, _ = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
     })

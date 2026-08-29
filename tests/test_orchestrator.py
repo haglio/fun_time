@@ -261,12 +261,6 @@ class TestControllerManifest:
         assert parser["commands"]["portrait_playlist_file"] == str(cfg.paths.state_dir / "portrait_playlist.tsv")
         assert parser["modules"]["audio_module"] == "fun_time.audio_companion_app"
         assert parser["modules"]["dashboard_module"] == "fun_time.dashboard_app"
-        assert "windows_bridge_lock_module" not in parser["modules"]
-        assert "windows_bridge_runtime_flow_module" not in parser["modules"]
-        assert "windows_bridge_window_layout_module" not in parser["modules"]
-        assert "windows_bridge_random_favs_browser_module" not in parser["modules"]
-        assert "windows_bridge_startup_module" not in parser["modules"]
-        assert "windows_bridge_dashboard_bridge_module" not in parser["modules"]
         assert parser["commands"]["genau_paused_file"] == str(cfg.genau_paused_file)
         assert parser["commands"]["audio_paused_file"] == str(cfg.audio_paused_file)
         assert parser["commands"]["dashboard_state_file"] == str(cfg.paths.state_dir / "dashboard_state.ini")

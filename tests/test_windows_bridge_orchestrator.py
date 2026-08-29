@@ -3,7 +3,7 @@ from __future__ import annotations
 import configparser
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import call, patch, MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import threading
 
@@ -942,13 +942,20 @@ class TestClosingScreenLifecycle:
 class TestWaitForClosingScreen:
     """The hold itself, so it runs on the real timeout the session spends."""
 
-    def test_returns_as_soon_as_the_flag_lands(self, tmp_path):
+    def test_returns_as_soon_as_the_flag_lands(self, tmp_path, caplog):
+        """The flag exit is the only quiet one — the other two ways out (a dead
+        screen, the timeout) both log a warning.  So a clean return with no
+        warning is the proof the flag branch took it; without that branch the
+        hold would spin out the whole real timeout and land on the warning."""
         ready_file = tmp_path / "shutdown_ready.flag"
         ready_file.write_text("", encoding="utf-8")
         proc = MagicMock()
         proc.poll.return_value = None
 
-        windows_bridge_orchestrator._wait_for_closing_screen(ready_file, proc)
+        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            windows_bridge_orchestrator._wait_for_closing_screen(ready_file, proc)
+
+        assert not caplog.records
 
     def test_stops_waiting_on_a_screen_that_died(self, tmp_path, caplog):
         """No flag will ever land from a process that has exited, so waiting out

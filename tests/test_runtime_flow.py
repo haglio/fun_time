@@ -828,7 +828,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
 
-    result = _leave_omnipause(flow_files, main_mode="genau", broker=False)
+    _leave_omnipause(flow_files, main_mode="genau", broker=False)
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
