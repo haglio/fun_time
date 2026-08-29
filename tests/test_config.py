@@ -155,7 +155,7 @@ class TestLoadConfig:
         with pytest.raises(ValueError, match="nau_library_dirs"):
             load_config(path)
 
-    def test_nau_library_dirs_not_a_list(self, tmp_path: Path, cfg_factory):
+    def test_nau_library_dirs_not_a_list(self, cfg_factory):
         path = cfg_factory({"paths": {"nau_library_dirs": "not-a-list"}})
         with pytest.raises(TypeError, match="nau_library_dirs"):
             load_config(path)
@@ -379,7 +379,7 @@ class TestVoiceControlConfig:
         cfg = load_config(path)
         assert cfg.voice_control.enabled is False
 
-    def test_loads_when_present(self, cfg_factory, tmp_path: Path):
+    def test_loads_when_present(self, cfg_factory):
         path = cfg_factory({
             "voice_control": {
                 "enabled": True,

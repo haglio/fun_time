@@ -275,7 +275,7 @@ def test_order_paths_recent_orders_by_recency(tmp_path: Path):
     assert order_paths([str(old), str(new)], recent=True) == [str(new), str(old)]
 
 
-def test_order_paths_not_recent_shuffles(tmp_path: Path):
+def test_order_paths_not_recent_shuffles():
     paths = [f"clip{i}.mp4" for i in range(12)]
 
     assert order_paths(list(paths), recent=False, rng=random.Random(7)) == shuffle_paths(
