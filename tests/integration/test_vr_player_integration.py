@@ -17,6 +17,7 @@ from __future__ import annotations
 import glob
 import os
 import random
+import sys
 import threading
 import time
 from pathlib import Path
@@ -32,7 +33,18 @@ from fun_time.manifest import write_manifest_data
 from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.orchestrator import build_vr_manifest
 
-from .integration_support import build_integration_config, build_integration_temp_root
+from .integration_support import (
+    build_integration_config,
+    build_integration_temp_root,
+    sample_library_clips,
+)
+
+pytestmark = [
+    pytest.mark.skipif(sys.platform != "win32",
+                       reason="Fun Time integration tests require Windows"),
+    pytest.mark.skipif(os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",
+                       reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
+]
 
 # One headset refresh period at the Crystal Super's 90Hz.
 FRAME_BUDGET_MS = 1000.0 / 90.0
@@ -64,8 +76,7 @@ def _sample_library_videos(dirs, count: int) -> list[str]:
         candidates.extend(
             glob.glob(os.path.join(str(root), "**", "*.mp4"), recursive=True)
         )
-    assert len(candidates) >= count, f"need {count} sample videos under {dirs}"
-    return random.sample(candidates, count)
+    return sample_library_clips(candidates, count, desc=f"sample videos under {dirs}")
 
 
 def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
