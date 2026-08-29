@@ -230,3 +230,78 @@ class TestResumeVrState:
         carried = resume_vr_state(state_file, resumed=True)
 
         assert (carried.volume, carried.portrait_f_mode, carried.locked3) == (40, True, True)
+
+
+class TestLaunchVrPlayer:
+    def test_the_player_starts_on_the_named_python_against_the_manifest(self, tmp_path):
+        """The command line is the whole contract: OUR interpreter (the VR
+        player ships from this repo), the player module, and the manifest that
+        tells it everything else — with its console kept in a log, because
+        under pythonw an import-time death is otherwise traceless."""
+        from unittest.mock import patch
+
+        from fun_time_vr.orchestrator import launch_vr_player
+
+        with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
+            launch_vr_player(
+                python_exe=tmp_path / "python.exe",
+                manifest_path=tmp_path / "windows_bridge_launch.ini",
+                log_file=tmp_path / "vr_player.log",
+            )
+
+        command = popen.call_args[0][0]
+        assert command == [
+            str(tmp_path / "python.exe"), "-m", VR_PLAYER_MODULE,
+            "--manifest", str(tmp_path / "windows_bridge_launch.ini"),
+        ]
+        assert popen.call_args.kwargs["stdout"] is popen.call_args.kwargs["stderr"]
+        assert (tmp_path / "vr_player.log").exists()
+
+
+class TestWaitForPlayer:
+    """The startup readiness handshake: the first status write means ready,
+    and both ways it can fail are reported at once, by name."""
+
+    class _Alive:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    class _Dead:
+        returncode = 3
+
+        def poll(self):
+            return 3
+
+    def test_the_first_status_write_is_ready(self, tmp_path):
+        from fun_time_vr.orchestrator import _wait_for_player
+
+        status = tmp_path / "nau_status.txt"
+        status.write_text("video=C:\\v\\scene one.mp4\n", encoding="utf-8")
+
+        assert _wait_for_player(status, self._Alive()) is True
+
+    def test_an_early_death_is_reported_at_once_not_after_the_timeout(self, tmp_path, caplog):
+        import logging
+
+        from fun_time_vr.orchestrator import _wait_for_player
+
+        with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
+            ready = _wait_for_player(tmp_path / "nau_status.txt", self._Dead())
+
+        assert ready is False
+        assert "exited during startup" in caplog.text
+        assert "3" in caplog.text
+
+    def test_a_silent_player_is_given_up_on_at_the_deadline(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        from fun_time_vr import orchestrator
+
+        monkeypatch.setattr(orchestrator, "PLAYER_READY_TIMEOUT_S", 0.0)
+        with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
+            ready = orchestrator._wait_for_player(tmp_path / "nau_status.txt", self._Alive())
+
+        assert ready is False
+        assert "published no status" in caplog.text
