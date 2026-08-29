@@ -2028,26 +2028,36 @@ class TestBrowseLibrary:
 
         assert mock_browse.call_args.kwargs["over"] is None
 
-    def test_concurrent_invocations_prevented(self, tmp_path):
+    def test_a_second_browse_while_one_is_open_is_dropped(self, tmp_path):
+        """The browser is the user's window, not the loop's: a second request
+        while one is open would stack a second Chrome window and a second
+        topmost drop/restore pair.  So while a browse holds the floor, another
+        press is a no-op — dropped without blocking, not queued behind it."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)  # fast path — no omnipause
+        runner.state = BridgeState(omni_paused=True)  # fast path — no bands to manage
 
-        with patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
-            original_handle = runner._handle_browse_library
+        browses: list[str] = []
+        first_browse_open = threading.Event()
+        let_the_browse_close = threading.Event()
 
-            # Start first call in background
-            t1 = threading.Thread(target=original_handle)
-            t1.start()
+        def a_browser_the_user_is_sitting_in(*_args, **_kwargs):
+            browses.append("open")
+            first_browse_open.set()
+            let_the_browse_close.wait(timeout=10.0)
+            return None
 
-            # Second call should be rejected (returns immediately due to lock)
-            t2 = threading.Thread(target=original_handle)
-            t2.start()
+        with patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   side_effect=a_browser_the_user_is_sitting_in):
+            first = threading.Thread(target=runner._handle_browse_library)
+            first.start()
+            assert first_browse_open.wait(timeout=10.0)
 
-            t1.join(timeout=2.0)
-            t2.join(timeout=2.0)
+            runner._handle_browse_library()  # the second press, while one is open
 
-        # The lock should prevent truly concurrent execution
-        assert hasattr(runner, "_browse_lock")
+            let_the_browse_close.set()
+            first.join(timeout=10.0)
+
+        assert browses == ["open"]
 
     def test_browse_library_routed_from_tick(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
