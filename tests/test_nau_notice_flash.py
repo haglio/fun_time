@@ -3,9 +3,48 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fun_time.command_dispatch import FAILED_NOTICE_LEVEL, FAVORITE_NOTICE_LEVEL
+from fun_time.command_dispatch import (
+    FAILED_NOTICE_LEVEL,
+    FAVORITE_NOTICE_LEVEL,
+    BridgeConfig,
+)
 from fun_time.event_log import NOTICE
-from fun_time.windows_bridge_dispatch_loop import read_nau_notice
+from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner, read_nau_notice
+
+
+def _runner(tmp_path: Path) -> DispatchLoopRunner:
+    """A real DispatchLoopRunner whose config's files all live under tmp_path.
+
+    The flash tests used to graft _flash_nau_notice onto a two-attribute
+    stand-in, which welded them to the method's exact name and to which
+    state it happens to read off self — and had to fake by hand the
+    stale-notice latch the real constructor owns.
+    """
+    path_fields = (
+        "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
+        "portrait_playlist_file", "landscape_cmd_file", "landscape_paused_file",
+        "landscape_status_file", "landscape_playlist_file", "favs_file",
+        "genau_mode_file", "genau_cmd_file", "genau_paused_file",
+        "audio_paused_file", "audio_volume_file", "nau_cmd_file",
+        "nau_paused_file", "nau_status_file", "dashboard_state_file",
+    )
+    config = BridgeConfig(
+        **{name: tmp_path / f"{name}.txt" for name in path_fields},
+        weird_dir=tmp_path / "weird",
+        state_dir=tmp_path,
+        main_sources="",
+        portrait_sources="",
+        landscape_sources="",
+        nau_notice_file=tmp_path / "nau_notice.txt",
+    )
+    return DispatchLoopRunner(
+        config=config,
+        dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+        shared_state_file=tmp_path / "shared_state.ini",
+        ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+        nau_pid=200,
+        dashboard_enabled=False,
+    )
 
 
 def _write(path: Path, seq: int, level: str, message: str) -> None:
@@ -33,13 +72,7 @@ class TestFlashNauNotice:
     """The loop flashes each notice exactly once, red for an error level."""
 
     def _loop(self, tmp_path):
-        class _Loop:
-            config = type("C", (), {"nau_notice_file": tmp_path / "nau_notice.txt"})()
-            _last_nau_notice_seq = 0
-        from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
-        loop = _Loop()
-        loop._flash_nau_notice = DispatchLoopRunner._flash_nau_notice.__get__(loop, _Loop)
-        return loop
+        return _runner(tmp_path)  # built before any notice exists: seq latch 0
 
     def test_flashes_once_then_stays_quiet(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
@@ -83,20 +116,13 @@ class TestFlashNauNotice:
 
 def test_a_notice_from_a_previous_session_does_not_flash_on_open(tmp_path):
     """Opening Fun Time replayed whatever was last in the file, so a stale
-    'full video not available' appeared the instant it started."""
-    import logging
-
-    from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner
-
+    'full video not available' appeared the instant it started.  The latch is
+    the real constructor's own: the runner is built AFTER the stale notice
+    landed, exactly as a fresh session opens over last session's file."""
     path = tmp_path / "nau_notice.txt"
     _write(path, 500, "error", "stale from last time")
 
-    class _Loop:
-        config = type("C", (), {"nau_notice_file": path})()
-
-    loop = _Loop()
-    loop._last_nau_notice_seq = read_nau_notice(path)[0]
-    loop._flash_nau_notice = DispatchLoopRunner._flash_nau_notice.__get__(loop, _Loop)
+    loop = _runner(tmp_path)
 
     seen: list[str] = []
     handler = logging.Handler()
