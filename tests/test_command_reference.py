@@ -652,7 +652,8 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     assert set(set_row.voice) == set(display_forms())
     spoken = {form for forms in FILTER_ACTS.values() for form in forms}
     workarounds = spoken - set(display_forms())
-    assert workarounds, "expected at least one act voiced differently than it reads"
+    # No demand that this overlay HAS a workaround — that mechanic is pinned
+    # on fixture data in test_filter_vocab — only that none it does have leaks.
     assert not workarounds & set(set_row.voice), workarounds
     # Clearing scopes like every other action now, so its phrases derive with the
     # rest and the side word never appears: "portrait clear filter", not "clear

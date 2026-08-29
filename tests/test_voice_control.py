@@ -872,12 +872,17 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
 
 
 def test_voice_commands_include_generated_filter_phrases():
+    """Every act the overlay carries — not whichever happens to sort first —
+    has its phrases in the grammar, checked against the same loader the
+    grammar was generated from so the test is machine-independent."""
     from fun_time.filter_vocab import load_filter_acts, set_command
 
-    query, forms = next(iter(load_filter_acts().items()))
-    form = forms[0]
-    assert VOICE_COMMANDS[f"portrait {form}"] == set_command("portrait", query)
-    assert VOICE_COMMANDS[form] == set_command("both", query)
+    acts = load_filter_acts()
+    assert acts
+    for query, forms in acts.items():
+        for form in forms:
+            assert VOICE_COMMANDS[f"portrait {form}"] == set_command("portrait", query)
+            assert VOICE_COMMANDS[form] == set_command("both", query)
 
 
 def test_clearing_a_filter_scopes_like_every_other_satellite_action():
