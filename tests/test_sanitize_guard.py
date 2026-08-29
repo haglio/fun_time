@@ -239,18 +239,32 @@ class TestHookEntryPoint:
 def test_no_blocklisted_terms_in_the_tracked_tree():
     """Enforcement: with the real (git-ignored) blocklist present, no tracked
     file may contain a banned term — reintroducing one fails the suite. A public
-    checkout has no blocklist, so there is nothing to enforce and the check is a
-    no-op (deliberately not a skip, so the run stays clean either way).
+    checkout has no blocklist, so there is nothing to enforce (deliberately not
+    a skip, so the run stays clean either way) — but the walk itself must never
+    pass vacuously: a fabricated positive control proves the scan reads this
+    tree even on the runs where the real list is absent.
     """
     repo = Path(__file__).resolve().parent.parent
-    blocklist = blocklist_path(repo)
-    terms = load_blocklist(blocklist) if blocklist.exists() else []
-    if not terms:
-        return
     tracked = subprocess.run(
         ["git", "-C", str(repo), "ls-files"],
         capture_output=True, text=True, check=True,
     ).stdout.split()
+    assert tracked, "the tracked-tree walk saw no files at all"
+
+    # Positive control: a term this very file is guaranteed to contain.  If
+    # the scanner ever stops seeing the tree, this fails on every run — CI
+    # included — instead of the guard silently reporting a pass that scanned
+    # nothing.
+    control = "sanitizeguardcontrolterm"  # lives only on this line, found here
+    probe = scan_files((repo / rel for rel in tracked), [control], root=repo)
+    assert any(str(v.path).endswith("test_sanitize_guard.py") for v in probe), (
+        "the tracked-tree scan did not see this file's own control term"
+    )
+
+    blocklist = blocklist_path(repo)
+    terms = load_blocklist(blocklist) if blocklist.exists() else []
+    if not terms:
+        return
     violations = scan_files((repo / rel for rel in tracked), terms, root=repo)
     # Print only the redacted excerpt, never the matched term itself.
     assert not violations, "blocklisted terms in tracked files:\n" + "\n".join(
