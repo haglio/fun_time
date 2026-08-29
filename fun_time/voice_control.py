@@ -56,7 +56,6 @@ _SPOKEN_PLAYER_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
     "main": SOURCE_MAIN,
-    "main": SOURCE_MAIN,
 }
 
 

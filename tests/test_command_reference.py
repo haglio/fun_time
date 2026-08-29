@@ -268,15 +268,15 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
             assert "now mode" not in phrase and "go now" not in phrase, phrase
 
 
-def test_nau_video_rows_show_primary_nav_in_both_orders():
-    """The Nau prev/next rows surface "main previous"/"main next" (and the
-    reverse order, plus the "main" synonym) so the main player's navigation
-    is visible in the legend."""
+def test_nau_video_rows_show_main_nav_in_both_orders():
+    """The Nau prev/next rows surface "main previous"/"main next" and the
+    reverse order, so the main player's navigation is visible in the
+    legend."""
     rows = _all_rows()
     prev = next(r for r in rows if "main_prev" in r.commands)
     nxt = next(r for r in rows if "main_next" in r.commands)
-    assert {"main previous", "previous main", "main previous", "previous main"} <= set(prev.voice)
-    assert {"main next", "next main", "main next", "next main"} <= set(nxt.voice)
+    assert {"main previous", "previous main"} <= set(prev.voice)
+    assert {"main next", "next main"} <= set(nxt.voice)
 
 
 def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
