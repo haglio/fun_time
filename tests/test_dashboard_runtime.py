@@ -44,6 +44,10 @@ def test_load_dashboard_snapshot_reads_back_every_mode_the_bridge_writes(tmp_pat
 
 
 def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
+    # Deliberately hand-rolled: this pins the reader's tolerance of the RICHER
+    # export — utf-8, per-player path= keys and a [window] section — which the
+    # current writer no longer emits.  Everything the writer does emit is
+    # round-tripped through it in the tests around this one.
     snapshot_file = tmp_path / "dashboard_state.ini"
     snapshot_file.write_text(
         "\n".join(
@@ -83,59 +87,16 @@ def test_load_dashboard_snapshot_parses_bridge_export(tmp_path: Path):
     assert snapshot.window.height == 400
 
 
-def test_load_dashboard_snapshot_supports_utf16_ini_exports(tmp_path: Path):
-    """The bridge writes the snapshot as utf-16, so the reader must decode it."""
-    snapshot_file = tmp_path / "dashboard_state_utf16.ini"
-    snapshot_file.write_text(
-        "\n".join(
-            [
-                "[osr2]",
-                "mode=auto",
-                "[main]",
-                "mode=genau",
-                "path=main.mp4",
-                "locked=0",
-                "[portrait]",
-                "path=portrait.mp4",
-                "locked=1",
-                "[landscape]",
-                "path=landscape.mp4",
-                "locked=0",
-                "[window]",
-                "x=10",
-                "y=20",
-                "width=30",
-                "height=40",
-            ]
-        ),
-        encoding="utf-16",
-    )
-
-    snapshot = load_dashboard_snapshot(snapshot_file)
-
-    assert snapshot is not None
-    assert snapshot.main_mode == "genau"
-    assert snapshot.portrait.locked is True
-    assert snapshot.window.x == 10
-
-
-def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
-    snapshot_file = tmp_path / "dashboard_state_minimal.ini"
-    snapshot_file.write_text(
-        "\n".join(
-            [
-                "[osr2]",
-                "mode=controlled",
-                "[main]",
-                "mode=nau",
-                "locked=0",
-                "[portrait]",
-                "locked=1",
-                "[landscape]",
-                "locked=0",
-            ]
-        ),
-        encoding="utf-8",
+def test_the_writers_own_export_reads_back_with_empty_paths_and_window(tmp_path: Path):
+    """The current writer emits no path= keys and no [window] section; the
+    reader answers empty strings and zeros for them, not a crash."""
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    write_dashboard_snapshot(
+        snapshot_file,
+        osr2_mode="controlled",
+        main_mode="nau",
+        portrait_locked=True,
+        landscape_locked=False,
     )
 
     snapshot = load_dashboard_snapshot(snapshot_file)
@@ -148,23 +109,13 @@ def test_load_dashboard_snapshot_supports_minimal_bridge_export(tmp_path: Path):
 
 def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    snapshot_file.write_text(
-        "\n".join(
-            [
-                "[osr2]",
-                "mode=auto",
-                "[omnipause]",
-                "active=1",
-                "[main]",
-                "mode=nau",
-                "locked=0",
-                "[portrait]",
-                "locked=0",
-                "[landscape]",
-                "locked=0",
-            ]
-        ),
-        encoding="utf-8",
+    write_dashboard_snapshot(
+        snapshot_file,
+        osr2_mode="auto",
+        main_mode="nau",
+        portrait_locked=False,
+        landscape_locked=False,
+        omni_paused=True,
     )
 
     snapshot = load_dashboard_snapshot(snapshot_file)
@@ -174,6 +125,8 @@ def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
 
 
 def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
+    # Hand-rolled on purpose: the section must be ABSENT, and the writer
+    # always emits it — this pins the reader against the older export.
     snapshot_file = tmp_path / "dashboard_state.ini"
     snapshot_file.write_text(
         "\n".join(
@@ -200,25 +153,13 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
 
 def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    snapshot_file.write_text(
-        "\n".join(
-            [
-                "[osr2]",
-                "mode=controlled",
-                "[omnipause]",
-                "active=0",
-                "[voice]",
-                "active=0",
-                "[main]",
-                "mode=nau",
-                "locked=0",
-                "[portrait]",
-                "locked=0",
-                "[landscape]",
-                "locked=0",
-            ]
-        ),
-        encoding="utf-8",
+    write_dashboard_snapshot(
+        snapshot_file,
+        osr2_mode="controlled",
+        main_mode="nau",
+        portrait_locked=False,
+        landscape_locked=False,
+        voice_active=False,
     )
 
     snapshot = load_dashboard_snapshot(snapshot_file)
@@ -228,6 +169,8 @@ def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
 
 
 def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
+    # Hand-rolled on purpose, like the omnipause default above: the [voice]
+    # section must be absent, which the writer never produces.
     snapshot_file = tmp_path / "dashboard_state.ini"
     snapshot_file.write_text(
         "\n".join(
