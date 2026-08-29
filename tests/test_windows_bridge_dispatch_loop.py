@@ -766,23 +766,11 @@ class TestDispatchLoopRunner:
 
         recv_sock.close()
         assert "browse_library" in messages
-
-    def test_backslash_key_enters_omnipause_when_not_in_genau_mode(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
-        runner.state = BridgeState(main_mode="nau")
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("backslash_key", encoding="utf-8")
-
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
-                   return_value=None) as mock_browse:
-            runner.tick()
-            _wait_for_the_browse(mock_browse)
-
-        assert runner.state.omni_paused is False  # leaves omnipause after dialog closes
+        # Browsing must NOT enter OmniPause: the old flow paused the whole
+        # session for the browse and resumed only Nau, stranding the
+        # satellites + voice frozen.  Backslash browses with everything
+        # still playing.
+        assert runner.state.omni_paused is False
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
