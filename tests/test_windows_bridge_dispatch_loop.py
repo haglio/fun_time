@@ -657,7 +657,7 @@ class TestDispatchLoopRunner:
         assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
-        self, tmp_path, monkeypatch,
+        self, tmp_path,
     ):
         """Leaving omnipause in nau mode gives every managed window its TOPMOST
         bit back — INCLUDING Nau, which floats above the desktop again — and
@@ -667,7 +667,6 @@ class TestDispatchLoopRunner:
         Nau's rect and is promoted last, so putting it back in the band puts it
         ABOVE Nau's video.  Coming back from omnipause used to do exactly that.
         """
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
         runner._last_sync = float("inf")
         runner.state = BridgeState(omni_paused=True)
@@ -810,8 +809,7 @@ class TestDispatchLoopRunner:
 
         assert not ahk_cmd_file.exists()
 
-    def test_dispatch_allows_unsuspend_outside_integration(self, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_dispatch_allows_unsuspend_outside_integration(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=999999)
         runner._last_sync = float("inf")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
@@ -1524,8 +1522,6 @@ class TestModeSwitchVisibility:
                          integration_env=False):
         if integration_env:
             monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        else:
-            monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode=from_mode)
 

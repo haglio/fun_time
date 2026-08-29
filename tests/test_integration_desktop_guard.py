@@ -7,6 +7,8 @@ it.  Documentation is not a guard; this is.
 """
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from tests.integration.hidden_desktop import HIDDEN_DESKTOP_NAME, require_hidden_desktop
@@ -38,3 +40,13 @@ def test_the_guard_defaults_to_the_desktop_it_is_actually_running_on():
     run is on the ordinary desktop, so the default wiring must refuse."""
     with pytest.raises(RuntimeError):
         require_hidden_desktop()
+
+
+def test_the_unit_suite_never_inherits_the_integration_flag():
+    """FUN_TIME_RUN_INTEGRATION flips real-window branches all over the
+    production code (focus stealing, activation, unsuspend), so a shell that
+    still exports it — a developer mid-integration-debugging — must not flip
+    them under the whole unit suite.  The conftest scrubs it for every test;
+    this one only observes the scrub.  Tests that are ABOUT the integration
+    branches set the flag back with ``monkeypatch.setenv``, which wins."""
+    assert os.environ.get("FUN_TIME_RUN_INTEGRATION") is None

@@ -515,8 +515,7 @@ class TestHotkeySuspendDuringIntegration:
         ahk_cmd_file = state_dir / "ahk_cmd.txt"
         assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
 
-    def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -546,8 +545,7 @@ class TestHotkeySuspendDuringIntegration:
 
 
 class TestRunPythonOrchestratedBridge:
-    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -604,12 +602,11 @@ class TestRunPythonOrchestratedBridge:
         assert 600 in killed_pids  # genau
         assert 700 in killed_pids  # audio
 
-    def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path, monkeypatch):
+    def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path):
         """The reveal blocks on the HUD's group indexes being built, so Fun Time
         never appears with its satellites' maps still blank.  Priming runs in this
         process now (the dispatch loop owns the model), so the wait is on its
         event rather than a flag file another process writes."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -630,10 +627,9 @@ class TestRunPythonOrchestratedBridge:
         start_priming.assert_called_once()
         mock_wait.assert_called_once_with(timeout=20.0)
 
-    def test_does_not_wait_on_the_hud_when_it_is_disabled(self, cfg_factory, tmp_path, monkeypatch):
+    def test_does_not_wait_on_the_hud_when_it_is_disabled(self, cfg_factory, tmp_path):
         """No publisher (an integration run) means no indexes to prime, so the
         reveal must not block on one."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -653,11 +649,10 @@ class TestRunPythonOrchestratedBridge:
 
         mock_wait.assert_not_called()
 
-    def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path, monkeypatch):
+    def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
         """The RFB tab pages poll the loopback server to decide whether to freeze
         their clips, so it has to read the dispatch loop as it runs — a state
         copied at startup would answer "playing" for the rest of the session."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -684,13 +679,12 @@ class TestRunPythonOrchestratedBridge:
         mock_runner.return_value.state = BridgeState(omni_paused=False)
         assert omni_paused() is False
 
-    def test_serves_on_the_port_its_own_config_named(self, cfg_factory, tmp_path, monkeypatch):
+    def test_serves_on_the_port_its_own_config_named(self, cfg_factory, tmp_path):
         """8770 is machine-wide, and a busy one costs the loser its whole loopback
         surface: no Tampermonkey auto-update, and RFB tab pages that never hear
         about OmniPause.  A session started alongside another — an integration run
         above all — has to be able to serve somewhere else.
         """
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory({"loopback_port": 54321}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -757,8 +751,7 @@ class TestRunPythonOrchestratedBridge:
 class TestLoadingScreenLifecycle:
     """Loading screen is launched in normal mode and skipped in integration mode."""
 
-    def test_loading_screen_launched_in_normal_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_loading_screen_launched_in_normal_mode(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -878,8 +871,7 @@ class TestClosingScreenLifecycle:
             )
         return state_dir
 
-    def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         self._run(cfg_factory, tmp_path, events=events)
@@ -890,11 +882,10 @@ class TestClosingScreenLifecycle:
             "kill:500", "kill:600", "kill:700", "kill:800",
         }
 
-    def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path, monkeypatch):
+    def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path):
         """A tkinter process needs a moment to boot, and a cover that is not on
         screen yet hides nothing — so teardown holds until the screen's own
         ready flag lands, not merely until its process has been spawned."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         events: list[str] = []
         seen_when_killing: list[bool] = []
 
@@ -910,8 +901,7 @@ class TestClosingScreenLifecycle:
 
         assert seen_when_killing == [True]
 
-    def test_the_cover_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_the_cover_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         real_advance = PhaseProgress.advance
@@ -995,8 +985,7 @@ class TestStartupCancellation:
     hotkey script that read the Esc is taken back out, and the dispatch loop
     never starts."""
 
-    def test_cancel_mid_startup_kills_launched_children_and_stops_the_hotkeys(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_cancel_mid_startup_kills_launched_children_and_stops_the_hotkeys(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1048,11 +1037,10 @@ class TestStartupCancellation:
         # The overlay is brought down after teardown.
         fake_loading_proc.wait.assert_called()
 
-    def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path, monkeypatch):
+    def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path):
         """The user can hit Esc in the sliver between the last checkpoint and the
         reveal: the sequence returns a full result but the flag is set, so the
         whole result is torn down and the reveal never happens."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1101,10 +1089,9 @@ class TestStartupCancellation:
         # reveal, so no dispatch loop was ever started to publish what it warmed.
         mock_priming.assert_called_once()
 
-    def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path, monkeypatch):
+    def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path):
         """A cancel flag left over from a previous session must not abort this
         one — it is cleared before the loading screen launches."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1191,9 +1178,8 @@ class TestHotkeyScriptGoesUpFirst:
         return state_dir
 
     def test_the_script_is_up_before_the_sequence_starts_launching_windows(
-        self, cfg_factory, tmp_path, monkeypatch
+        self, cfg_factory, tmp_path
     ):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         calls: list[str] = []
 
         cfg = load_config(cfg_factory())
@@ -1224,13 +1210,12 @@ class TestHotkeyScriptGoesUpFirst:
         assert calls.index("ahk") < calls.index("sequence")
 
     def test_a_dead_sessions_pids_file_is_gone_before_the_script_can_read_it(
-        self, cfg_factory, tmp_path, monkeypatch
+        self, cfg_factory, tmp_path
     ):
         """The pids file appearing is what tells the script the session is up and
         its keys have something to reach.  A previous session's copy would put
         every key live over one that is still assembling — and would take Esc's
         cancel away with them, since Esc only cancels while the hold is on."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "bridge_pids.ini").write_text("[pids]\nnau_pid = 999\n", encoding="utf-8")
@@ -1255,8 +1240,7 @@ class TestPostLoadingWindowState:
     orchestrator must correct this after the loading screen exits.
     """
 
-    def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1383,8 +1367,7 @@ class TestNauObstructionLog:
 
 
 class TestVoiceControlIntegration:
-    def test_voice_controller_started_when_enabled(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_voice_controller_started_when_enabled(self, cfg_factory, tmp_path):
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
@@ -1419,8 +1402,7 @@ class TestVoiceControlIntegration:
 
         mock_vc.stop.assert_called_once()
 
-    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path):
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
@@ -1453,8 +1435,7 @@ class TestVoiceControlIntegration:
 
         mock_vc_class.assert_not_called()
 
-    def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path):
         # voice_control section absent → defaults to disabled
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -1632,8 +1613,7 @@ class TestThePlayersStartWhenTheCoverIsGone:
     the orchestrator's, and it comes after the cover's process is gone.
     """
 
-    def _run(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def _run(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1666,8 +1646,8 @@ class TestThePlayersStartWhenTheCoverIsGone:
             )
         return events
 
-    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path, monkeypatch):
-        events = self._run(cfg_factory, tmp_path, monkeypatch)
+    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path):
+        events = self._run(cfg_factory, tmp_path)
 
         assert "players released" in events, "the players were never started"
         assert events.index("cover gone") < events.index("players released"), (

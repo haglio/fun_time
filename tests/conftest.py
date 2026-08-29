@@ -119,6 +119,25 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 
 
+@pytest.fixture(autouse=True)
+def _never_inherit_the_integration_flag(monkeypatch):
+    """Strip ``FUN_TIME_RUN_INTEGRATION`` from every unit test's environment.
+
+    The flag tells the production code it is running under the hidden-desktop
+    integration harness, and it flips real-window branches all over the tree
+    (skip the focus steal, suppress the unsuspend, no activation) — so a shell
+    that still exports it, a developer mid-integration-debugging, would flip
+    those branches under the whole unit suite.  Scrubbed once here rather than
+    as a delenv prelude in every test that noticed (27 of them, before this).
+
+    The tests that are ABOUT the integration branches ``monkeypatch.setenv``
+    the flag back, which runs after this fixture and wins.  The integration
+    suite overrides this fixture in its own conftest — there the flag is the
+    point.
+    """
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+
+
 TMP_ROOT = Path(
     os.environ.get(
         "FUN_TIME_PYTEST_TMP_ROOT",
