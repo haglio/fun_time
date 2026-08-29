@@ -2800,6 +2800,51 @@ class TestHybridFunscriptHandoff:
         assert not runner.config.genau_cmd_file.exists()
         assert not runner.config.nau_cmd_file.exists()
 
+    def test_a_lost_verb_is_retried_because_the_edge_was_never_recorded(self, tmp_path):
+        """A verb queued on a file channel can still die — a writer replacing
+        the file whole, a drain racing the append, a locked file exhausting
+        its retries — and an arbiter that assumed delivery leaves the session
+        split-brained for a whole cluster: Genau paused, the funscript never
+        enabled, everything idle and grey.  So the edge is recorded only once
+        BOTH verbs actually queued, and a failed one is retried next tick."""
+        from player_core.file_channel import append_command as real_append
+
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=False)
+
+        def genau_channel_down(path, line, **kwargs):
+            if path == runner.config.genau_cmd_file:
+                return False
+            return real_append(path, line, **kwargs)
+
+        with patch("fun_time.windows_bridge_dispatch_loop.append_command",
+                   side_effect=genau_channel_down):
+            runner._sync_hybrid_driver()
+
+        runner._sync_hybrid_driver()  # the channel healthy again: the retry
+
+        assert self._genau(runner).splitlines()[-1] == "PAUSE"
+        assert self._nau(runner).splitlines()[-1] == "SET_TCODE_ENABLED 1"
+
+    def test_the_standing_pair_is_requeued_on_the_slow_heartbeat(self, tmp_path):
+        """Both verbs are idempotent at their players, so the standing pair
+        goes out again about once a second — a verb lost AFTER the edge was
+        recorded (a writer replacing the file whole) converges within that
+        second instead of at the next handoff."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(main_mode="hybrid")
+        self._write_status(runner, has_funscript=True, resting=False)
+        runner._sync_hybrid_driver()
+        runner.config.genau_cmd_file.unlink()               # the lost verbs
+        runner.config.nau_cmd_file.unlink()
+
+        runner._hybrid_asserted_at -= runner._HYBRID_REASSERT_S  # a second passes
+        runner._sync_hybrid_driver()
+
+        assert self._genau(runner) == "PAUSE"
+        assert self._nau(runner) == "SET_TCODE_ENABLED 1"
+
     def test_entering_a_gap_flips_the_driver(self, tmp_path):
         runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode="hybrid")
