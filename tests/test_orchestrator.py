@@ -406,6 +406,7 @@ class TestBrokerHelpers:
         ensure_broker.assert_called_once()
         run_windows_bridge.assert_called_once()
 
+
 class TestRunController:
     def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -534,12 +535,17 @@ class TestStartupMarker:
 
         assert startup_marker_path(cfg).is_file()
 
-    def test_signal_swallows_write_failure(self, cfg_path: Path):
-        """A launcher that can't write its own marker must still launch."""
-        cfg = load_config(cfg_path)
+    def test_signal_swallows_write_failure(self, cfg_factory, tmp_path: Path):
+        """A launcher that can't write its own marker must still launch.
 
-        with patch.object(Path, "write_text", side_effect=OSError("read-only")):
-            signal_startup_resolved(cfg)  # must not raise
+        The failure is real: a plain FILE stands where the state dir should
+        be, so the marker write hits a genuine OSError instead of a patched
+        Path.write_text that rerouted every write in the process."""
+        blocked = tmp_path / "blocked_state"
+        blocked.write_text("", encoding="utf-8")
+        cfg = load_config(cfg_factory({"paths": {"state_dir": str(blocked)}}))
+
+        signal_startup_resolved(cfg)  # must not raise
 
         assert not startup_marker_path(cfg).exists()
 
