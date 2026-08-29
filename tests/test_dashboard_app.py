@@ -356,6 +356,41 @@ def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboar
     assert not cmd_file.exists()
 
 
+def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_window, dashboard_app_config):
+    """The reveal from hidden fires no restore edge, so the FIRST edge after
+    it is the reveal's own restore: it must not route omnirestore — but it
+    must clear the suppression, or the dashboard silently stops routing the
+    minimize gestures for the rest of the session."""
+    window = dashboard_window
+    window._suppress_minimize_routing = True
+    cmd_file = dashboard_app_config.dashboard_cmd_file
+    if cmd_file.exists():
+        cmd_file.unlink()
+
+    window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+    assert not cmd_file.exists()  # the reveal's own edge routes nothing
+
+    window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+    assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
+
+
+def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_config):
+    """The deferred half of the geometry guard: while the window is hidden
+    behind the loading cover, a render must not touch its geometry — the
+    reveal owns the first placement.  (The minimized half has its own test
+    below.)"""
+    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+        window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
+
+    try:
+        with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as apply_geo:
+            window._do_render(_snapshot(), frozenset())
+        apply_geo.assert_not_called()
+    finally:
+        window.close()
+
+
 def test_restore_routes_omnirestore_command(dashboard_window, dashboard_app_config):
     """Un-minimizing the dashboard writes omnirestore so the others come back too."""
 
