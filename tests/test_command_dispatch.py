@@ -741,6 +741,29 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
     assert _cmds(config, 2) == []
 
 
+@pytest.mark.parametrize("command", [
+    "portrait_more_seeds",
+    "landscape_wrong_action",
+    "portrait_action_loop",
+    "landscape_loop",
+    "portrait_lock_action",
+    "landscape_cycle_seed",
+])
+def test_a_satellite_with_no_clip_on_screen_ignores_clip_scoped_commands(
+    tmp_path: Path, command: str,
+):
+    """A satellite that has not published its first status — mid-startup, or
+    between clips — has no current video, and a key mashed exactly then must
+    be inert: no crash, no notice, no verb queued against an empty path."""
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command(command, _make_state(), config)
+
+    assert ops == []
+    assert _cmds(config, 2) == []
+    assert _cmds(config, 3) == []
+
+
 # --- active side tracking ---
 
 
