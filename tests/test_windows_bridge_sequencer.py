@@ -709,8 +709,7 @@ class TestNoActivateWindowDuringIntegration:
         assert all(activate is False for activate in move_activates), \
             f"move_window must not activate during integration: {move_activates}"
 
-    def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         move_activates: list[bool] = []
@@ -1232,8 +1231,7 @@ class TestMaybeLaunchRandomFavsBrowser:
         assert move_calls == []
         assert rfb_hwnd == 0
 
-    def test_launches_and_positions_browser(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_launches_and_positions_browser(self):
         m = self._make_manifest_parser()
         plan = self._fake_plan()
         browser_rect = plan.random_favs_browser
@@ -1255,9 +1253,8 @@ class TestMaybeLaunchRandomFavsBrowser:
         # Should return the browser hwnd for topmost management
         assert rfb_hwnd == 55555
 
-    def test_launches_the_urls_the_manifest_already_resolved(self, monkeypatch):
+    def test_launches_the_urls_the_manifest_already_resolved(self):
         """Lazy loading is settled when the manifest is built, not at launch."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         m = self._make_manifest_parser()
         plan = self._fake_plan()
 

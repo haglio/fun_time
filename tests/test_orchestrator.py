@@ -361,8 +361,7 @@ class TestBrokerHelpers:
         popen.assert_not_called()
         assert result is None
 
-    def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
