@@ -718,6 +718,38 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     assert _cmds(config, 3) == ["UNLOCK", "PREV"]
 
 
+def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
+    """The eight side branches are copy-paste siblings, so the mistake they
+    invite is a side mix-up: the D key advancing the portrait player nobody
+    was looking at while the landscape clip stays put."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True)
+
+    new_state, _ops = dispatch_command("landscape_next", state, config)
+
+    assert new_state.locked3 is False
+    assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
+    assert _cmds(config, 2) == []
+
+
+def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: Path):
+    """Same side-mix-up pin for the destructive sibling: a swapped side here
+    would condemn whatever the portrait player happened to be showing."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True)
+
+    _set_current(config, 3, "C:\\clips\\landscape.mp4")
+    with (
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+    ):
+        new_state, _ops = dispatch_command("landscape_trash", state, config)
+
+    assert new_state.locked3 is False
+    assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
+    assert _cmds(config, 2) == []
+
+
 # --- active side tracking ---
 
 
