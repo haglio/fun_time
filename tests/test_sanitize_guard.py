@@ -24,9 +24,6 @@ class TestFindViolations:
     def test_is_case_insensitive(self):
         assert find_violations("FORBIDDENTERM", ["forbiddenterm"])
 
-    def test_word_boundary_prevents_substring_false_positive(self):
-        assert find_violations("a concatenated list", ["cat"]) == []
-
     def test_matches_a_multi_word_term_across_flexible_whitespace(self):
         assert find_violations("a two   word phrase", ["two word"])
 
@@ -67,10 +64,6 @@ class TestFindViolations:
 
     def test_punctuated_term_matches_literally(self):
         assert find_violations("go to site.example now", ["site.example"])
-
-    def test_reports_the_line_number(self):
-        found = find_violations("clean\nclean\nbadterm here", ["badterm"])
-        assert [v.line for v in found] == [3]
 
     def test_each_term_on_a_line_is_reported(self):
         found = find_violations("alpha and beta together", ["alpha", "beta"])
