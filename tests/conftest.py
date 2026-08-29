@@ -161,6 +161,16 @@ TMP_ROOT = Path(
 
 @pytest.fixture()
 def tmp_path() -> Path:
+    """Replace pytest's builtin ``tmp_path`` with a checkout-local scratch dir.
+
+    Each test gets ``.tmp-pytest-local/case_<uuid>``, removed in the finally —
+    including on failure, so unlike pytest's own fixture there is no
+    retained-last-3-runs debris to inspect afterwards.  Note the trade-offs:
+    the scratch tree lives inside the checkout (git-ignored, but on a synced
+    drive), and ``tmp_path_factory`` (and plugins built on it) still point at
+    the system temp dir, so the two are not interchangeable.  Set
+    ``FUN_TIME_PYTEST_TMP_ROOT`` to relocate it.
+    """
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
     path = (TMP_ROOT / f"case_{uuid.uuid4().hex}").resolve()
     path.mkdir()
