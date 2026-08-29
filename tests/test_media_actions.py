@@ -63,6 +63,53 @@ def test_remove_from_favs_preserves_other_rows_and_header(tmp_path: Path):
     assert "remove_456" not in text
 
 
+def test_favs_csv_rows_end_in_crlf(tmp_path: Path):
+    """favs.csv is on-disk public surface — evolver reads it back — and every
+    writer here terminates rows with explicit CRLF.  Read the bytes: a
+    splitlines() readback normalises the terminator away, which is how the
+    contract stayed unpinned while three call sites spelled it."""
+    favs = tmp_path / "favs.csv"
+    ensure_favs_csv_exists(favs)
+    ensure_in_favs(favs, r"C:\root\alpha\keep_123.png", _PROVIDERS)
+    ensure_in_favs(favs, r"C:\root\alpha\remove_456.png", _PROVIDERS)
+    remove_from_favs(favs, r"C:\root\alpha\remove_456.png")
+
+    raw = favs.read_bytes()
+    assert raw.endswith(b"\r\n")
+    assert raw.count(b"\r\n") == 2  # header + the kept row, nothing bare-\n
+    assert raw.replace(b"\r\n", b"").count(b"\n") == 0
+
+
+def test_remove_from_favs_drops_blank_lines_and_leaves_a_missing_file_alone(tmp_path: Path):
+    favs = tmp_path / "favs.csv"
+    ensure_favs_csv_exists(favs)
+    ensure_in_favs(favs, r"C:\root\alpha\keep_123.png", _PROVIDERS)
+    # A hand-edited file can carry stray empty lines; a rewrite tidies them.
+    with favs.open("a", encoding="utf-8", newline="") as fp:
+        fp.write("\r\n\r\n")
+
+    remove_from_favs(favs, r"C:\root\alpha\gone_999.png")
+
+    lines = favs.read_text(encoding="utf-8").splitlines()
+    assert lines == [line for line in lines if line], "blank lines survived the rewrite"
+    assert len(lines) == 2  # header + kept row
+
+    missing = tmp_path / "nowhere.csv"
+    remove_from_favs(missing, r"C:\root\alpha\keep_123.png")
+    assert not missing.exists()
+
+
+def test_move_to_weird_leaves_nothing_behind_for_a_missing_source(tmp_path: Path):
+    """A clip already gone (trashed twice, or moved by hand) is not an error:
+    the move reports where it WOULD have landed and writes nothing."""
+    weird_dir = tmp_path / "weird"
+
+    dest = move_to_weird(weird_dir, tmp_path / "vanished.mp4")
+
+    assert dest == weird_dir / "vanished.mp4"
+    assert not dest.exists()
+
+
 def test_move_to_weird_moves_file_and_avoids_name_collisions(tmp_path: Path):
     weird_dir = tmp_path / "weird"
     src_a = tmp_path / "clip.mp4"
