@@ -6,6 +6,7 @@ blocklist is git-ignored, and these tests must themselves stay publishable.
 from __future__ import annotations
 
 import subprocess
+import sys
 from pathlib import Path
 
 from tools.sanitize_guard import (
@@ -170,6 +171,7 @@ class TestHookEntryPoint:
                 terms, encoding="utf-8")
         here = Path(__file__).resolve().parent.parent
         for rel in ("tools/__init__.py", "tools/sanitize_guard.py",
+                    "tools/githooks/install.py",
                     "tools/githooks/pre-commit", "tools/githooks/commit-msg"):
             dest = repo / rel
             dest.parent.mkdir(parents=True, exist_ok=True)
@@ -177,7 +179,13 @@ class TestHookEntryPoint:
         _git(repo, "init", "-b", "main")
         _git(repo, "config", "user.email", "guard@example.test")
         _git(repo, "config", "user.name", "Guard Test")
-        _git(repo, "config", "core.hooksPath", "tools/githooks")
+        # Armed the way a real clone is armed — through the installer — so a
+        # changed hooks path fails here instead of leaving clones unguarded
+        # while a hand-spelled "tools/githooks" kept these tests green.
+        subprocess.run(
+            [sys.executable, str(repo / "tools" / "githooks" / "install.py")],
+            cwd=repo, capture_output=True, text=True, check=True,
+        )
         return repo
 
     def _commit(self, repo: Path, message: str = "seed"):
