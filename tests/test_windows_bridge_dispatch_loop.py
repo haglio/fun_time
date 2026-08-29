@@ -1220,7 +1220,10 @@ class TestDispatchLoopRunner:
             recv_sock.close()
             assert data.decode("utf-8") == command
 
-    def test_udp_press_skipped_when_no_port_file(self, tmp_path):
+    def test_a_missing_press_port_file_does_not_cost_the_command(self, tmp_path):
+        """The press channel is best-effort UI feedback: before the dashboard
+        has published its port (or if it never does), the command itself must
+        still dispatch rather than die with the echo."""
         runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
         runner._last_sync = float("inf")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1228,7 +1231,10 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
-            runner.tick()  # should not raise
+            runner.tick()
+
+        mock_dispatch.assert_called_once()
+        assert mock_dispatch.call_args[0][0] == "portrait_lock"
 
     def test_voice_off_mutes_voice_controller(self, tmp_path):
         from fun_time.voice_control import VoiceController
@@ -3251,8 +3257,11 @@ class TestHudPublishing:
         portrait = json.loads((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
         assert portrait["corner"] is None
 
-    def test_a_runner_without_a_hud_publisher_just_ticks(self, tmp_path):
+    def test_a_runner_without_a_hud_publisher_publishes_nothing(self, tmp_path):
         make_runner(tmp_path).tick()
+
+        assert not (tmp_path / "portrait_hud.json").exists()
+        assert not (tmp_path / "landscape_hud.json").exists()
 
 
 class TestBrowserOutlivesNothing:
