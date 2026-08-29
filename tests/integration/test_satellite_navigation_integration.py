@@ -33,7 +33,11 @@ from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.windows_bridge_startup import launch_satellite
 
-from .integration_support import checkout_project_dirs, real_config_path
+from .integration_support import (
+    checkout_project_dirs,
+    real_config_path,
+    sample_library_clips,
+)
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="Windows only"),
@@ -98,8 +102,9 @@ class _Satellite:
 def library_videos(which: str, count: int) -> list[str]:
     """*count* random clips out of a side's real library."""
     paths = getattr(load_config(real_config_path()).paths, f"{which}_dirs")
-    return random.sample(
-        glob.glob(os.path.join(str(paths[0]), "**", "*.mp4"), recursive=True), count)
+    return sample_library_clips(
+        glob.glob(os.path.join(str(paths[0]), "**", "*.mp4"), recursive=True),
+        count, desc=f"{which} clips")
 
 
 @contextmanager

@@ -12,6 +12,7 @@ import glob
 import os
 import random
 import subprocess
+import sys
 import time
 
 import pytest
@@ -25,7 +26,18 @@ from fun_time.thumbnail_cache import thumbnail_for
 from fun_time.win32 import get_process_creation_time
 from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
 
-from .integration_support import checkout_project_dirs, real_config_path
+from .integration_support import (
+    checkout_project_dirs,
+    real_config_path,
+    sample_library_clips,
+)
+
+pytestmark = [
+    pytest.mark.skipif(sys.platform != "win32",
+                       reason="Fun Time integration tests require Windows"),
+    pytest.mark.skipif(os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",
+                       reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
+]
 
 
 def _wait(predicate, *, timeout, desc):
@@ -42,8 +54,9 @@ def _wait(predicate, *, timeout, desc):
 def _sample_videos(count: int) -> list[str]:
     cfg = load_config(real_config_path())
     portrait_dir = str(cfg.paths.portrait_dirs[0])
-    return random.sample(
-        glob.glob(os.path.join(portrait_dir, "**", "*.mp4"), recursive=True), count)
+    return sample_library_clips(
+        glob.glob(os.path.join(portrait_dir, "**", "*.mp4"), recursive=True),
+        count, desc="portrait clips")
 
 
 def test_native_satellite_plays_and_obeys_commands(tmp_path):
