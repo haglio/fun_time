@@ -519,6 +519,25 @@ class TestInterpretRecognition:
         )
         assert interp == Recognition(unrecognized_text="full length please")
 
+    def test_a_match_scored_exactly_at_the_threshold_fires(self):
+        """The bar is inclusive — ``conf >= threshold`` — and the equality
+        case is the one the comparison exists to decide: a user who sets
+        ``confidence_threshold`` is drawing the line their commands must
+        reach, not clear."""
+        interp = interpret_recognition(
+            _scored("landscape next", 0.7), _scored("landscape next", 0.7), threshold=0.7,
+        )
+        assert interp == Recognition(command="landscape_next", phrase="landscape next")
+
+    def test_a_caption_scored_exactly_at_the_threshold_surfaces(self):
+        # Two words, not three: the gate compares the MEAN word confidence,
+        # and averaging three copies of 0.7 lands a hair under 0.7 in float,
+        # which would test arithmetic noise rather than the inclusive bar.
+        interp = interpret_recognition(
+            json.dumps({"text": "[unk]"}), _scored("skip it", 0.7), threshold=0.7,
+        )
+        assert interp == Recognition(unrecognized_text="skip it")
+
     def test_a_grammar_match_below_threshold_falls_back_to_the_caption(self):
         interp = interpret_recognition(
             _scored("skip", 0.3), _scored("skip it", 0.9), threshold=0.7,
