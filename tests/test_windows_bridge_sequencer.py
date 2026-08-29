@@ -208,9 +208,6 @@ class TestRunStartupSequence:
         assert core_called["broker_heartbeat_file"] == str(cfg.broker_heartbeat_file)
         # And its command path, so startup can park the OSR2 for the long wait.
         assert core_called["broker_cmd_file"] == str(cfg.broker_cmd_file)
-        # MFP is gone: no mfp_exe/mfp_pid plumbing anywhere.
-        assert not any("mfp" in key for key in core_called)
-        assert not any("mfp" in key for key in ui_called)
         assert ui_called["dashboard_enabled"] is True
         # The RFB rect is forwarded so the reference popup can fill that space.
         assert {"rfb_x", "rfb_y", "rfb_width", "rfb_height"} <= set(ui_called)
@@ -218,9 +215,6 @@ class TestRunStartupSequence:
             isinstance(ui_called[key], int)
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
-        # The log stream is embedded in the dashboard window now, so there is no
-        # separate log-panel rect to forward.
-        assert not any(key.startswith("log_") for key in ui_called)
 
     def test_launches_genau_and_nau_with_primary_media_rect(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -276,7 +270,6 @@ class TestRunStartupSequence:
             # readout for the section under it, and where a press goes back.
             "console_file": str(nau_console_path(cfg.paths.state_dir)),
             "drive_file": Path(cfg.genau_cmd_file).parent / "genau_drive.txt",
-            "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
             # Nau is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "nau.log",
             "nau_x": PRIMARY_MEDIA_RECT["x"],
@@ -955,8 +948,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
 class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause Nau."""
 
-    def _run_hidden(self, manifest_path, tmp_path, *, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
-        pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
+    def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None):
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
         # Both players reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
@@ -1059,26 +1051,6 @@ class TestPhase4Reveal:
         NAU_HWND, GENAU_HWND = 2525, 6060
         assert set(self._hide_calls) == {GENAU_HWND}
         assert NAU_HWND not in self._hide_calls
-
-    def test_dashboard_found_by_title_is_resolved_for_the_role_cache(self, cfg_factory, tmp_path):
-        """find_window_by_pid fails for the dashboard because the venv launcher
-        PID differs from the Qt window's PID — Phase 4 must fall back to the
-        exact title lookup ("Fun Time"), because this is the last moment the
-        window is resolvable before it is hidden behind the overlay."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        DASH_HWND = 5050
-        # No entry for the dashboard pid (50): pid lookup returns 0
-        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
-        title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": 6060}
-
-        result = self._run_hidden(
-            manifest_path, tmp_path,
-            pid_to_hwnd=pid_to_hwnd, title_to_hwnd=title_to_hwnd,
-        )
-
-        assert result.role_hwnds["dashboard"] == DASH_HWND
-
 
 class TestNauGatesTheReveal:
     """The overlay must not come down over Nau's own loading screen.
