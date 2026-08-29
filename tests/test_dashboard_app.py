@@ -595,7 +595,7 @@ def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_
     mock_set.assert_not_called()
 
 
-def test_do_render_syncs_own_topmost_from_snapshot(dashboard_window, dashboard_app_config):
+def test_every_render_drives_the_dashboards_band_off_the_snapshot(dashboard_window, dashboard_app_config):
     """Every render drives the topmost sync off the snapshot's omni_paused, so
     the dashboard's band stays correct even if Qt re-asserts its StaysOnTop."""
 
@@ -640,7 +640,7 @@ def test_reference_dialog_syncs_topmost_with_omnipause():
         dialog.close()
 
 
-def test_do_render_syncs_reference_topmost_from_snapshot(dashboard_window, dashboard_app_config):
+def test_every_render_drives_the_popups_band_off_the_same_snapshot(dashboard_window, dashboard_app_config):
     """Every render drives the popup's band off the same snapshot the dashboard's
     own band comes from, so a pause entered while it is open drops it too."""
 
