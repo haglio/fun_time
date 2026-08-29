@@ -1,25 +1,18 @@
 from __future__ import annotations
 
-from satellite.session import SatelliteSession
 from satellite.status import status_fields
-from tests.satellite_fakes import FakeSatellitePlayer
-
-
-def _make_session(tmp_path):
-    vid = tmp_path / "clip.mp4"
-    vid.write_text("fake")
-    return SatelliteSession([vid], player=FakeSatellitePlayer())
+from tests.satellite_fakes import make_satellite_session
 
 
 class TestStatusFields:
     def test_publishes_every_key_the_dispatch_loop_reads(self, tmp_path):
-        session = _make_session(tmp_path)
-        session._player.position_ms = 1_500.0
+        session, player = make_satellite_session(tmp_path)
+        player.position_ms = 1_500.0
         session.set_locked(True)
 
         fields = status_fields(session)
 
-        assert fields["video"] == str(tmp_path / "clip.mp4")
+        assert fields["video"] == str(tmp_path / "v0.mp4")
         assert fields["position_ms"] == "1500"
         assert fields["duration_ms"] == "5000"
         assert fields["paused"] == "0"
@@ -30,7 +23,7 @@ class TestStatusFields:
         # player's contract; pinning the order keeps a reordering from passing
         # silently now that the writing itself lives in player_core.
         class Stub:
-            current_video = "clip.mp4"
+            current_video = "v0.mp4"
             position_ms = 0.0
             duration_ms = 0.0
             is_paused = False
@@ -41,7 +34,7 @@ class TestStatusFields:
         ]
 
     def test_flags_follow_the_session(self, tmp_path):
-        session = _make_session(tmp_path)
+        session, _player = make_satellite_session(tmp_path)
         session.set_paused(True)
 
         fields = status_fields(session)

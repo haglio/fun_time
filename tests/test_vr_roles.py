@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from types import SimpleNamespace
+
 import pytest
 
 from fun_time.dashboard_runtime import read_nau_status
@@ -102,19 +104,22 @@ def role_parts(tmp_path):
         metadata_root=metadata,
         vr_dirs=(vr_dir,),
     )
-    return role, player, driver, playlist, metadata, (one, two, three, script)
+    return SimpleNamespace(
+        role=role, player=player, driver=driver, playlist=playlist,
+        metadata=metadata, files=(one, two, three, script),
+    )
 
 
 class TestPlaybackVerbs:
     def test_opens_on_the_first_entry_with_its_funscript_and_projection(self, role_parts):
-        role, player, driver, *_ , files = role_parts
+        role, player, driver, files = role_parts.role, role_parts.player, role_parts.driver, role_parts.files
         one, *_ = files
         assert player.loaded == [one]
         assert role.has_funscript is True
         assert role.projection == EQUIRECT_180_SBS
 
     def test_next_wraps_and_reresolves_funscript_and_projection(self, role_parts):
-        role, player, *_ , files = role_parts
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
         one, two, three, script = files
 
         role.apply_command("NEXT")
@@ -127,13 +132,13 @@ class TestPlaybackVerbs:
         assert player.loaded[-1] == one  # wrapped
 
     def test_prev_steps_back(self, role_parts):
-        role, player, *_ , files = role_parts
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
         one, two, three, script = files
         role.apply_command("PREV")
         assert player.loaded[-1] == three
 
     def test_seek_verbs_step_ten_seconds(self, role_parts):
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         player.position_ms = 15_000
         role.apply_command("SEEK_FWD")
         assert player.seeks[-1] == 25_000
@@ -141,7 +146,7 @@ class TestPlaybackVerbs:
         assert player.seeks[-1] == 15_000
 
     def test_speed_verbs_step_and_clamp(self, role_parts):
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         role.apply_command("SPEED_UP")
         assert player.speed == 1.25
         for _ in range(10):
@@ -152,7 +157,7 @@ class TestPlaybackVerbs:
         assert player.speed == MIN_SPEED
 
     def test_set_speed_takes_min_max_and_numbers(self, role_parts):
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         role.apply_command("SET_SPEED max")
         assert player.speed == MAX_SPEED
         role.apply_command("SET_SPEED min")
@@ -161,7 +166,7 @@ class TestPlaybackVerbs:
         assert player.speed == 1.5
 
     def test_set_volume_carries_level_and_mute_once_audio_is_live(self, role_parts):
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         role.audio_live = True
         role.apply_command("SET_VOLUME 40 1")
         assert player.volume == 40
@@ -173,7 +178,7 @@ class TestPlaybackVerbs:
         """In VR the main player starts silent and the host un-silences it once the
         headset is presenting; a SET_VOLUME arriving during that warm-up must
         record the level, not blare it out of the desktop speakers."""
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         role.apply_command("SET_VOLUME 70 0")
 
         assert role.volume == 70
@@ -181,7 +186,7 @@ class TestPlaybackVerbs:
         assert player.muted is None  # never touched
 
     def test_play_file_jumps_to_a_playlist_member(self, role_parts):
-        role, player, *_ , files = role_parts
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
         one, two, three, script = files
         role.apply_command(f"PLAY_FILE {two}")
         assert player.loaded[-1] == two
@@ -189,7 +194,7 @@ class TestPlaybackVerbs:
         assert player.loaded[-1] == three  # resumed from two's slot, not spliced anew
 
     def test_play_file_splices_a_newcomer_with_its_funscript(self, role_parts, tmp_path):
-        role, player, *_ , files = role_parts
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
         newcomer = tmp_path / "videos" / "videos" / "VR" / "finished" / "scene four.mp4"
         newcomer.write_bytes(b"")
         script = tmp_path / "scene four.funscript"
@@ -201,9 +206,8 @@ class TestPlaybackVerbs:
         assert role.has_funscript is True
 
     def test_reload_playlist_keeps_the_playing_video_when_it_survives(self, role_parts):
-        role, player, *_ , playlist, metadata, files = (
-            role_parts[0], role_parts[1], role_parts[2], role_parts[3], role_parts[4], role_parts[5],
-        )
+        role, player, playlist, files = (
+            role_parts.role, role_parts.player, role_parts.playlist, role_parts.files)
         one, two, three, script = files
         playlist.write_text(f"{three}\n{one}\t{script}\n", encoding="utf-8")
 
@@ -214,9 +218,8 @@ class TestPlaybackVerbs:
         assert player.loaded[-1] == three  # wrapped within the new list
 
     def test_reload_playlist_restarts_at_the_top_when_current_is_gone(self, role_parts):
-        role, player, *_ , playlist, metadata, files = (
-            role_parts[0], role_parts[1], role_parts[2], role_parts[3], role_parts[4], role_parts[5],
-        )
+        role, player, playlist, files = (
+            role_parts.role, role_parts.player, role_parts.playlist, role_parts.files)
         one, two, three, script = files
         playlist.write_text(f"{two}\n{three}\n", encoding="utf-8")
 
@@ -225,19 +228,19 @@ class TestPlaybackVerbs:
         assert player.loaded[-1] == two
 
     def test_quit_sets_the_stop_flag(self, role_parts):
-        role, *_ = role_parts
+        role = role_parts.role
         fired = []
         role.apply_command("QUIT", on_quit=lambda: fired.append(True))
         assert fired == [True]
 
     def test_unknown_verb_reports_unhandled(self, role_parts):
-        role, *_ = role_parts
+        role = role_parts.role
         assert role.apply_command("RECORD_DOWN") is False
 
 
 class TestProjectionCycling:
     def test_cycle_advances_and_persists_to_the_sidecar(self, role_parts):
-        role, _, _, _, metadata, files = role_parts
+        role, metadata, files = role_parts.role, role_parts.metadata, role_parts.files
         one, *_ = files
 
         role.apply_command("CYCLE_PROJECTION")
@@ -248,7 +251,7 @@ class TestProjectionCycling:
         assert payload["vr"]["projection"] == "fisheye_190_sbs"
 
     def test_the_persisted_choice_holds_when_the_video_comes_back(self, role_parts):
-        role, player, *_ , files = role_parts
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
         role.apply_command("CYCLE_PROJECTION")
         role.apply_command("NEXT")
         role.apply_command("PREV")
@@ -257,7 +260,7 @@ class TestProjectionCycling:
 
 class TestRecenter:
     def test_recenter_is_carried_until_the_host_takes_it(self, role_parts):
-        role, *_ = role_parts
+        role = role_parts.role
         assert role.take_recenter() is False
         assert role.apply_command("RECENTER") is True
         assert role.take_recenter() is True
@@ -265,7 +268,7 @@ class TestRecenter:
         assert role.take_recenter() is False
 
     def test_repeated_requests_collapse_into_one(self, role_parts):
-        role, *_ = role_parts
+        role = role_parts.role
         role.apply_command("RECENTER")
         role.apply_command("RECENTER")
         assert role.take_recenter() is True
@@ -274,7 +277,7 @@ class TestRecenter:
 
 class TestTCode:
     def test_scripted_video_drives_waypoints_at_the_current_speed(self, role_parts):
-        role, player, driver, *_ = role_parts
+        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
         player.position_ms = 5_000
         role.apply_command("SET_SPEED 1.5")
 
@@ -283,7 +286,7 @@ class TestTCode:
         assert driver.updates == [(5_000, 1.5)]
 
     def test_unscripted_video_parks(self, role_parts):
-        role, player, driver, *_ = role_parts
+        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
         role.apply_command("NEXT")  # scene two: no funscript
 
         role.tick(now=1.0)
@@ -292,7 +295,7 @@ class TestTCode:
         assert driver.updates == []
 
     def test_disabled_tcode_sends_nothing(self, role_parts):
-        role, player, driver, *_ = role_parts
+        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
         role.apply_command("SET_TCODE_ENABLED 0")
 
         role.tick(now=1.0)
@@ -301,7 +304,7 @@ class TestTCode:
         assert driver.parks == 0
 
     def test_paused_sends_nothing(self, role_parts):
-        role, player, driver, *_ = role_parts
+        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
         role.set_paused(True)
 
         role.tick(now=1.0)
@@ -310,7 +313,7 @@ class TestTCode:
         assert driver.parks == 0
 
     def test_navigation_resets_the_driver_edge_gate(self, role_parts):
-        role, _, driver, *_ = role_parts
+        role, driver = role_parts.role, role_parts.driver
         resets_at_start = driver.resets
         role.apply_command("NEXT")
         assert driver.resets == resets_at_start + 1
@@ -319,7 +322,7 @@ class TestTCode:
         # SET_TCODE_ENABLED 1 is the hybrid handoff taking the device back from
         # Genau: reset like any other takeover, so the next tick sends at once
         # and with the handoff glide rather than snapping to a near waypoint.
-        role, _, driver, *_ = role_parts
+        role, driver = role_parts.role, role_parts.driver
         role.apply_command("SET_TCODE_ENABLED 0")
         resets_before = driver.resets
 
@@ -330,7 +333,7 @@ class TestTCode:
     def test_repeating_enabled_tcode_does_not_reset(self, role_parts):
         # Only the mute→drive edge is a takeover; repeating "1" must not keep
         # re-arming the glide under a script that is already driving.
-        role, _, driver, *_ = role_parts
+        role, driver = role_parts.role, role_parts.driver
         resets_before = driver.resets
 
         role.apply_command("SET_TCODE_ENABLED 1")
@@ -340,7 +343,7 @@ class TestTCode:
 
 class TestStatus:
     def test_status_fields_read_back_through_the_orchestrators_own_parser(self, role_parts, tmp_path):
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         player.position_ms = 1_000.0
         status_file = tmp_path / "nau_status.txt"
 
@@ -357,7 +360,7 @@ class TestStatus:
         assert status.funscript_driving is True
 
     def test_resting_is_reported_in_a_quiet_stretch(self, role_parts):
-        role, player, *_ = role_parts
+        role, player = role_parts.role, role_parts.player
         player.position_ms = 40_000.0  # far past the last action at 800ms
         fields = role.status_fields()
         assert fields["funscript_resting"] == "1"
