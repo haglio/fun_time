@@ -169,13 +169,18 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
         dashboard_enabled=False,
     )
     settings.update(kwargs)
-    return DispatchLoopRunner(
+    runner = DispatchLoopRunner(
         config=config or make_config(tmp_path),
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         shared_state_file=tmp_path / "shared_state.ini",
         ahk_cmd_file=tmp_path / "ahk_cmd.txt",
         **settings,
     )
+    # Park the periodic sync (z-order convergence + dashboard update) in the
+    # far future so a tick in a test runs only what the test drove.  The one
+    # test that is ABOUT the sync moves _last_sync back into the past itself.
+    runner._last_sync = float("inf")
+    return runner
 
 
 def _wait_for_the_browse(mock_browse) -> None:
@@ -424,8 +429,7 @@ class TestResolveActiveSideCommand:
 class TestDispatchLoopRunner:
     def test_dispatches_dashboard_command(self, tmp_path):
         # Use huge sync interval so genau sync doesn't fire
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_next", encoding="utf-8")
 
@@ -440,8 +444,7 @@ class TestDispatchLoopRunner:
     def test_bare_active_lock_targets_the_landscape_when_it_is_active(self, tmp_path):
         """Voice 'lock' (active_lock_on) locks whichever side is active — here
         landscape, e.g. after the user navigated it with A/D."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(active_side=3, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
@@ -455,8 +458,7 @@ class TestDispatchLoopRunner:
 
     def test_bare_active_next_targets_the_active_side(self, tmp_path):
         """A non-lock bare command ('next') also follows the active side."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(active_side=2)
         (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
 
@@ -471,8 +473,7 @@ class TestDispatchLoopRunner:
         """The satellite advanced while "lock portrait" was being recognized, so
         the command carries the utterance's start and is aimed at the video that
         was on screen then."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         runner.state = BridgeState(active_side=2, locked2=False)
         runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
@@ -489,8 +490,7 @@ class TestDispatchLoopRunner:
     def test_a_spoken_command_reads_its_own_players_timeline(self, tmp_path):
         """Each satellite keeps its own history; a landscape command must not be
         back-dated against the portrait's videos."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         runner.state = BridgeState(active_side=3, locked3=False)
         runner._timelines[2].observe("C:\\clips\\portrait.mp4", now=100.0)
@@ -505,8 +505,7 @@ class TestDispatchLoopRunner:
 
     def test_a_hotkey_command_names_no_video(self, tmp_path):
         """A keypress is instantaneous: it means whatever is playing right now."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_trash", encoding="utf-8")
@@ -518,7 +517,7 @@ class TestDispatchLoopRunner:
         assert mock_dispatch.call_args.kwargs["target_path"] == ""
 
     def test_sampling_records_each_satellites_video_into_its_timeline(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         _write_satellite_status(runner.config.portrait_status_file, "C:\\clips\\portrait.mp4", fraction=0.1)
         _write_satellite_status(runner.config.landscape_status_file, "C:\\clips\\landscape.mp4", fraction=0.1)
 
@@ -530,7 +529,7 @@ class TestDispatchLoopRunner:
     def test_primary_sampling_records_a_completion_when_a_watched_nau_video_departs(self, tmp_path):
         """Nau's status feed is watch-tracked just like a satellite: a video seen
         to ~the end, then auto-advanced past, is one completion."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "nau_status.txt"
@@ -546,7 +545,7 @@ class TestDispatchLoopRunner:
     def test_primary_sampling_skips_when_duration_is_unknown(self, tmp_path):
         """Before Nau knows the clip length it publishes duration_ms=0; no
         fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "nau_status.txt"
@@ -561,7 +560,7 @@ class TestDispatchLoopRunner:
     def test_primary_sampling_ignores_paused_nau_samples(self, tmp_path):
         """A paused player isn't watching; its samples are dropped, so a position
         held near the end under pause is not later scored as a completion."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "nau_status.txt"
@@ -576,7 +575,7 @@ class TestDispatchLoopRunner:
     def test_primary_sampling_ignores_status_with_no_video(self, tmp_path):
         """Between videos Nau can briefly publish an empty video path; that blank
         must not read as the watched video departing (a spurious completion)."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         status = tmp_path / "nau_status.txt"
 
@@ -590,7 +589,7 @@ class TestDispatchLoopRunner:
     def test_primary_next_marks_the_departed_nau_video_as_a_skip(self, tmp_path):
         """Pressing next on the main player is the "user nav" signal: a Nau video left
         early right after a next counts as a skip, just like a satellite next."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
         status = tmp_path / "nau_status.txt"
@@ -606,7 +605,7 @@ class TestDispatchLoopRunner:
 
     def test_tick_samples_the_primary_player(self, tmp_path):
         """Nau watch tracking rides the same periodic sample tick as the satellites."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
 
         with patch.object(runner, "_sample_main") as mock_main:
             runner.tick()
@@ -615,7 +614,7 @@ class TestDispatchLoopRunner:
 
     def test_tick_does_not_sample_the_primary_under_omnipause(self, tmp_path):
         """Omnipause halts sampling for every player, the main one included."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
         with patch.object(runner, "_sample_main") as mock_main:
@@ -626,8 +625,7 @@ class TestDispatchLoopRunner:
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the main player in every mode it appears, so a nudge
         dispatches to Nau's SEEK command (which stacks against its live clock)."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("main_nudge_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -641,8 +639,7 @@ class TestDispatchLoopRunner:
         """Entering omnipause frees the desktop: EVERY managed window leaves the
         TOPMOST band — including Nau, which carries the topmost flag in nau mode
         and would otherwise stay stranded above the desktop."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
 
         topmost_calls: list[tuple[int, bool]] = []
@@ -667,8 +664,7 @@ class TestDispatchLoopRunner:
         Nau's rect and is promoted last, so putting it back in the band puts it
         ABOVE Nau's video.  Coming back from omnipause used to do exactly that.
         """
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=True)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
 
@@ -689,8 +685,7 @@ class TestDispatchLoopRunner:
         assert activated == [NAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omnipause_toggle", encoding="utf-8")
 
@@ -705,8 +700,7 @@ class TestDispatchLoopRunner:
         assert loaded.omni_paused is True
 
     def test_backslash_key_dispatches_quarter_button_in_genau_mode(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
@@ -726,8 +720,7 @@ class TestDispatchLoopRunner:
         port_file = tmp_path / "dashboard_press_port.txt"
         port_file.write_text(str(port), encoding="utf-8")
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, dashboard_enabled=True)
         runner.state = BridgeState(main_mode="genau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
@@ -748,8 +741,7 @@ class TestDispatchLoopRunner:
         port_file = tmp_path / "dashboard_press_port.txt"
         port_file.write_text(str(port), encoding="utf-8")
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, dashboard_enabled=True)
         runner.state = BridgeState(main_mode="nau")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("backslash_key", encoding="utf-8")
@@ -773,8 +765,7 @@ class TestDispatchLoopRunner:
         assert runner.state.omni_paused is False
 
     def test_dispatch_forwards_remaining_ops_to_ahk(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         suspend_op = WindowOp(op="suspend_hotkeys")
@@ -786,8 +777,7 @@ class TestDispatchLoopRunner:
 
     def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path, monkeypatch):
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
@@ -798,8 +788,7 @@ class TestDispatchLoopRunner:
         assert not ahk_cmd_file.exists()
 
     def test_dispatch_allows_unsuspend_outside_integration(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
@@ -813,8 +802,7 @@ class TestDispatchLoopRunner:
         """A notice is a message for the person watching; it goes to the log
         panel's stream, and AHK — which used to flash it at the mouse — never
         hears about it."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         notice_op = WindowOp(op="notice", key="Clipper: MyVideo", source="main")
@@ -833,8 +821,7 @@ class TestDispatchLoopRunner:
         the dispatch loop must pass that level through, not flatten it to NOTICE."""
         import logging
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
 
         notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.ERROR)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
@@ -854,8 +841,7 @@ class TestDispatchLoopRunner:
         mock_update.assert_called_once()
 
     def test_reads_shared_state_at_tick_start(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         assert runner.state.omni_paused is False
 
         # Simulate AHK dispatch updating shared state file
@@ -879,8 +865,7 @@ class TestDispatchLoopRunner:
         assert loaded.locked3 is True
 
     def test_quit_command_writes_exit_to_ahk(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("quit", encoding="utf-8")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
@@ -893,8 +878,7 @@ class TestDispatchLoopRunner:
         """omniminimize minimizes the windows the current mode shows, without
         stealing focus.  In nau mode the hidden slot-mate (Genau) is NOT
         minimized — SW_MINIMIZE would drag a hidden window back into view."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -913,8 +897,7 @@ class TestDispatchLoopRunner:
 
     def test_omniminimize_in_hybrid_includes_nau_and_genau(self, tmp_path):
         """Hybrid shows Nau under Genau's HUD (Genau drives the OSR2)."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(main_mode="hybrid")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
@@ -933,8 +916,7 @@ class TestDispatchLoopRunner:
 
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
         """Windows whose lookup returns 0 are skipped — no minimize call for them."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=0)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=0)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -952,8 +934,7 @@ class TestDispatchLoopRunner:
         the DISPLAY_OFF sent with the same switch is on screen.  Minimize in the
         frame or two that takes and the thumbnail keeps the video frame it was
         sitting on, which is the whole thing the blanking is for."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("genau_activate", encoding="utf-8")
 
@@ -980,8 +961,7 @@ class TestDispatchLoopRunner:
     def test_switching_straight_back_never_minimizes_the_player(self, tmp_path):
         """A switch inside the settle window would otherwise minimize the very
         player it had just restored."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("genau_activate\nnau_activate", encoding="utf-8")
 
@@ -1004,8 +984,7 @@ class TestDispatchLoopRunner:
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
         """omnirestore un-minimizes the windows omniminimize minimized — no
         more (a second omnirestore is a no-op), no less, never activating."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
         restored: list[tuple[int, dict]] = []
@@ -1036,8 +1015,7 @@ class TestDispatchLoopRunner:
         one out of the way on its own.  It reaches exactly that window — the other
         players stay up — and never activates, so parking one does not hand the
         foreground to the next."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_minimize", encoding="utf-8")
 
@@ -1055,8 +1033,7 @@ class TestDispatchLoopRunner:
         """Unlike the main-slot swap, which waits out PRIMARY_BLANK_SETTLE_S so the
         outgoing player can present its black first, nothing here has been told to
         blank — so the window goes down in the same tick as the press."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("landscape_minimize", encoding="utf-8")
 
@@ -1076,8 +1053,7 @@ class TestDispatchLoopRunner:
         Genau's HUD sits over Nau's video."""
         for mode, wanted in (("nau", [NAU_HWND]), ("genau", [GENAU_HWND]),
                              ("hybrid", [NAU_HWND, GENAU_HWND])):
-            runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-            runner._last_sync = float("inf")
+            runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
             # Through the shared state file, which every tick re-reads over
             # whatever the runner is holding.
             write_shared_state(tmp_path / "shared_state.ini", BridgeState(main_mode=mode))
@@ -1097,8 +1073,7 @@ class TestDispatchLoopRunner:
         """A player parked from its own HUD took that HUD down with it, so it
         cannot ask to come back — resuming the room is what returns it, to the same
         rect, and the list is consumed so a second resume restores nothing."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
@@ -1131,8 +1106,7 @@ class TestDispatchLoopRunner:
         """The idle main-slot player is minimized by the mode switch, not by a
         button, and the switch that brings its mode back is what restores it.
         Resuming must not drag it onto a rect the other player is using."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
         restored: list[int] = []
@@ -1163,8 +1137,7 @@ class TestDispatchLoopRunner:
         """The op loop's fall-through writes an unrecognized op straight to the AHK
         command file, so a new op that is not handled would arrive there as a bogus
         verb rather than doing its job."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_minimize", encoding="utf-8")
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
@@ -1184,8 +1157,7 @@ class TestDispatchLoopRunner:
         port_file = tmp_path / "dashboard_press_port.txt"
         port_file.write_text(str(port), encoding="utf-8")
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, dashboard_enabled=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
@@ -1208,8 +1180,7 @@ class TestDispatchLoopRunner:
             port = recv_sock.getsockname()[1]
             (tmp_path / "dashboard_press_port.txt").write_text(str(port), encoding="utf-8")
 
-            runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
-            runner._last_sync = float("inf")
+            runner = make_runner(tmp_path, dashboard_enabled=True)
             (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
 
             with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -1224,8 +1195,7 @@ class TestDispatchLoopRunner:
         """The press channel is best-effort UI feedback: before the dashboard
         has published its port (or if it never does), the command itself must
         still dispatch rather than die with the echo."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999, dashboard_enabled=True)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, dashboard_enabled=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("portrait_lock", encoding="utf-8")
 
@@ -1239,8 +1209,7 @@ class TestDispatchLoopRunner:
     def test_voice_off_mutes_voice_controller(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         runner.voice_controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1253,8 +1222,7 @@ class TestDispatchLoopRunner:
     def test_voice_toggle_unmutes_when_muted(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         vc.mute()
         runner.voice_controller = vc
@@ -1268,8 +1236,7 @@ class TestDispatchLoopRunner:
     def test_voice_toggle_mutes_when_not_muted(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         runner.voice_controller = vc
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -1284,8 +1251,7 @@ class TestDispatchLoopRunner:
         paused room says, only the exempt commands reach the dispatch loop."""
         from fun_time.voice_control import VoiceController
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
@@ -1302,8 +1268,7 @@ class TestDispatchLoopRunner:
     def test_leaving_omnipause_unsuspends_the_voice_controller(self, tmp_path):
         from fun_time.voice_control import VoiceController
 
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
         vc = VoiceController(cmd_file=vc_cmd, model_path="unused")
@@ -1349,13 +1314,11 @@ class TestOpenRfbTab:
     def test_open_rfb_tab_op_calls_open_rfb_tab_when_rfb_running(self, tmp_path):
         runner = make_runner(
             tmp_path,
-            sync_interval_ms=999999,
-            rfb_hwnd=12345,
+                        rfb_hwnd=12345,
             rfb_shortcut_target=r"C:\Chrome\chrome.exe",
             rfb_shortcut_work_dir=r"C:\Chrome",
             rfb_shortcut_args='--profile-directory="Profile 2"',
         )
-        runner._last_sync = float("inf")
 
         calls: list[tuple[str, object]] = []
         exists, activate, open_tab = self._rfb_patches(calls)
@@ -1381,13 +1344,11 @@ class TestOpenRfbTab:
         after it, the user's own window is still the one Chrome would pick."""
         runner = make_runner(
             tmp_path,
-            sync_interval_ms=999999,
-            rfb_hwnd=777,
+                        rfb_hwnd=777,
             rfb_shortcut_target=r"C:\Chrome\chrome.exe",
             rfb_shortcut_work_dir=r"C:\Chrome",
             rfb_shortcut_args='--profile-directory="Profile 2"',
         )
-        runner._last_sync = float("inf")
 
         calls: list[tuple[str, object]] = []
         exists, activate, open_tab = self._rfb_patches(calls)
@@ -1405,13 +1366,11 @@ class TestOpenRfbTab:
         tab is dropped rather than opened somewhere Fun Time does not own."""
         runner = make_runner(
             tmp_path,
-            sync_interval_ms=999999,
-            rfb_hwnd=12345,
+                        rfb_hwnd=12345,
             rfb_shortcut_target=r"C:\Chrome\chrome.exe",
             rfb_shortcut_work_dir=r"C:\Chrome",
             rfb_shortcut_args='--profile-directory="Profile 2"',
         )
-        runner._last_sync = float("inf")
 
         calls: list[tuple[str, object]] = []
         exists, activate, open_tab = self._rfb_patches(calls, alive=False)
@@ -1426,13 +1385,11 @@ class TestOpenRfbTab:
     def test_open_rfb_tab_op_skipped_when_rfb_not_running(self, tmp_path):
         runner = make_runner(
             tmp_path,
-            sync_interval_ms=999999,
-            rfb_hwnd=0,
+                        rfb_hwnd=0,
             rfb_shortcut_target=r"C:\Chrome\chrome.exe",
             rfb_shortcut_work_dir=r"C:\Chrome",
             rfb_shortcut_args='--profile-directory="Profile 2"',
         )
-        runner._last_sync = float("inf")
 
         calls: list[tuple[str, object]] = []
         exists, activate, open_tab = self._rfb_patches(calls)
@@ -1447,10 +1404,8 @@ class TestOpenRfbTab:
     def test_open_rfb_tab_op_skipped_when_no_shortcut_target(self, tmp_path):
         runner = make_runner(
             tmp_path,
-            sync_interval_ms=999999,
-            rfb_hwnd=12345,
+                        rfb_hwnd=12345,
         )
-        runner._last_sync = float("inf")
 
         calls: list[tuple[str, object]] = []
         exists, activate, open_tab = self._rfb_patches(calls)
@@ -1467,13 +1422,11 @@ class TestOpenRfbTab:
         a single Chrome launch, or the second races the singleton and is dropped."""
         runner = make_runner(
             tmp_path,
-            sync_interval_ms=999999,
-            rfb_hwnd=12345,
+                        rfb_hwnd=12345,
             rfb_shortcut_target=r"C:\Chrome\chrome.exe",
             rfb_shortcut_work_dir=r"C:\Chrome",
             rfb_shortcut_args='--profile-directory="Profile 2"',
         )
-        runner._last_sync = float("inf")
         runner.state = BridgeState(locked2=False, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
@@ -2054,8 +2007,7 @@ class TestBrowseLibrary:
         assert browses == ["open"]
 
     def test_browse_library_routed_from_tick(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("browse_library", encoding="utf-8")
 
@@ -2204,50 +2156,45 @@ class TestIdempotentVoiceCommands:
     # -- pause / play --
 
     def test_pause_enters_omnipause_when_not_paused(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("pause", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_toggle.assert_called_once()
 
     def test_pause_noop_when_already_paused(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("pause", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_toggle.assert_not_called()
 
     def test_play_leaves_omnipause_when_paused(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("play", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_toggle.assert_called_once()
 
     def test_play_noop_when_not_paused(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         with patch.object(runner, "_handle_omnipause_toggle") as mock_toggle:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("play", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_toggle.assert_not_called()
 
     # -- enter_omnipause (Space hotkey) --
 
     def test_enter_omnipause_enters_when_not_paused(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
@@ -2260,8 +2207,7 @@ class TestIdempotentVoiceCommands:
         assert runner.state.omni_paused is True
 
     def test_enter_omnipause_removes_topmost(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999, rfb_hwnd=RFB_HWND)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
@@ -2277,8 +2223,7 @@ class TestIdempotentVoiceCommands:
         assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("enter_omnipause", encoding="utf-8")
@@ -2297,8 +2242,7 @@ class TestIdempotentVoiceCommands:
         relief exists for — so the retract must reach the broker rather than being
         dropped as a redundant enter.
         """
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("relief_omnipause", encoding="utf-8")
@@ -2312,8 +2256,7 @@ class TestIdempotentVoiceCommands:
         """Relief drops every window out of the topmost band exactly as Space and
         Esc do, so it owes the same post-enter record — that log is what pins a
         window which re-asserted itself while the session was meant to be free."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("relief_omnipause", encoding="utf-8")
@@ -2327,42 +2270,38 @@ class TestIdempotentVoiceCommands:
     # -- lock portrait / lock landscape --
 
     def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked2=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("portrait_lock", None)
 
     def test_portrait_lock_on_noop_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked2=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()
 
     def test_landscape_lock_on_dispatches_when_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked3=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("landscape_lock", None)
 
     def test_landscape_lock_on_noop_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked3=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()
 
@@ -2372,22 +2311,20 @@ class TestIdempotentVoiceCommands:
         """The on/off forms are the dispatch's own commands now — it alone knows
         which players each names, and it is what decides a no-op rebuilds nothing —
         so the loop passes them straight through rather than second-guessing them."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_fmode_on", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("portrait_fmode_on", None)
 
     def test_both_fmode_is_expanded_into_the_two_satellites(self, tmp_path):
         """"both f mode" is sugar, exactly as it is for every other sided command:
         there is no combined handler, just the pair run in turn."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("both_fmode", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         assert [call.args[0] for call in mock_d.call_args_list] == [
             "portrait_fmode", "landscape_fmode",
@@ -2396,12 +2333,11 @@ class TestIdempotentVoiceCommands:
     # -- genau activate --
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode="nau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
 
@@ -2409,12 +2345,11 @@ class TestIdempotentVoiceCommands:
         """Hybrid mode is genau-active but is NOT genau mode: the Genau-mode
         button must still switch to full Genau.  Regression — the old guard
         used genau_active(), which is True for hybrid, so it swallowed this."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode="hybrid")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
 
@@ -2422,78 +2357,71 @@ class TestIdempotentVoiceCommands:
         """The loop forwards genau_activate unconditionally — switching to the
         mode you are already in is a no-op at the planner level (see
         test_mode_plan.test_same_mode_is_noop), not a special case here."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(main_mode="genau")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
 
     # -- lock off (idempotent unlock) --
 
     def test_portrait_lock_off_unlocks_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked2=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("portrait_lock", None)
 
     def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked2=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()
 
     def test_landscape_lock_off_unlocks_when_locked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked3=True)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_called_once_with("landscape_lock", None)
 
     def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked3=False)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_d.assert_not_called()
 
     # -- broker start / broker stop --
 
     def test_broker_start_starts_when_not_running(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         # No heartbeat file → broker not running
         with patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
             wait_until(lambda: mock_launch.call_count >= 1, timeout=10.0)
         mock_launch.assert_called_once_with(runner.config.broker_tray_launcher)
 
     def test_broker_start_noop_when_already_running(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         # Fresh heartbeat → broker running
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
         with patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_launch.assert_not_called()
 
@@ -2503,13 +2431,12 @@ class TestIdempotentVoiceCommands:
         powered-off OSR2 reads as dead while it is very much alive -- and killing
         it drops harem and the user's own MFP session with it. Starting is a
         start; only an explicit stop may kill."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         # No heartbeat file at all: the broker reads as dead.
         with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop, \
              patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_start", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
             # "Never kills" is an absence, and an absence cannot be waited for.
             # The start it does take is the event that says the thread got
@@ -2521,35 +2448,32 @@ class TestIdempotentVoiceCommands:
         """The B panel toggles the broker.  Toggling one that reads as dead has
         to start it, not restart it — the same stale-heartbeat trap as
         broker_start, and the same live broker on the other side of it."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         # No heartbeat file: the toggle takes its "not running, so start" arm.
         with patch("fun_time.windows_bridge_startup.stop_broker_processes") as mock_stop, \
              patch("fun_time.windows_bridge_dispatch_loop.launch_broker_tray") as mock_launch:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_panel", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
             wait_until(lambda: mock_launch.call_count >= 1, timeout=10.0)
         mock_stop.assert_not_called()
 
     def test_broker_stop_stops_when_running(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
         with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_stop", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
             wait_until(lambda: mock_stop.call_count >= 1, timeout=10.0)
         mock_stop.assert_called_once()
 
     def test_broker_stop_noop_when_not_running(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
+        runner = make_runner(tmp_path)
         # No heartbeat file → broker not running
         with patch("fun_time.windows_bridge_dispatch_loop.stop_broker_processes") as mock_stop:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("broker_stop", encoding="utf-8")
-            runner._last_sync = float("inf")
             runner.tick()
         mock_stop.assert_not_called()
 
@@ -2936,8 +2860,7 @@ class TestBothSatelliteCommands:
     per-command handling as the individual satellite commands."""
 
     def test_both_next_dispatches_to_each_satellite(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("both_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2950,8 +2873,7 @@ class TestBothSatelliteCommands:
     def test_lock_both_locks_each_unlocked_satellite(self, tmp_path):
         """"lock both" (both_lock_on) reuses the idempotent per-satellite lock:
         an already-locked side is left alone, so it only toggles the unlocked one."""
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked2=True, locked3=False)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
@@ -2963,8 +2885,7 @@ class TestBothSatelliteCommands:
         assert commands == ["landscape_lock"]  # portrait already locked → skipped
 
     def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
-        runner = make_runner(tmp_path, sync_interval_ms=999999)
-        runner._last_sync = float("inf")
+        runner = make_runner(tmp_path)
         runner.state = BridgeState(locked2=True, locked3=True)
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
 
