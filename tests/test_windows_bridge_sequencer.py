@@ -993,6 +993,87 @@ FAKE_LAYOUT_CFG = LayoutConfig(
 MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
 
 
+class TestResolveShortcut:
+    """The .lnk resolver behind the Random Favs Browser launch.
+
+    It swallows every exception twice and hands back empty strings, which the
+    caller turns into one 'skipped' log line — a failure mode nothing louder
+    can catch, so what CAN be pinned off Windows is pinned here: the
+    PowerShell fallback's parsing, and the all-quiet dead end.  (The COM fast
+    path and the real EnumWindows enumeration are Windows-only flesh; the
+    integration suite is their only cover.)
+    """
+
+    @staticmethod
+    def _without_com(monkeypatch):
+        """Force the win32com import to fail, as it does off Windows — and so
+        the test means the same thing on Windows CI, where it would otherwise
+        answer from real COM."""
+        import sys as _sys
+
+        monkeypatch.setitem(_sys.modules, "win32com", None)
+        monkeypatch.setitem(_sys.modules, "win32com.client", None)
+
+    def test_parses_the_three_fields_powershell_reports(self, monkeypatch):
+        self._without_com(monkeypatch)
+        completed = SimpleNamespace(
+            stdout="C:\\Chrome\\chrome.exe\r\nC:\\Chrome\r\n--profile-directory=\"Profile 2\"\r\n",
+            returncode=0,
+        )
+        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   return_value=completed):
+            resolved = windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk")
+
+        assert resolved == (
+            "C:\\Chrome\\chrome.exe", "C:\\Chrome", '--profile-directory="Profile 2"',
+        )
+
+    def test_a_bare_target_resolves_without_workdir_or_args(self, monkeypatch):
+        self._without_com(monkeypatch)
+        completed = SimpleNamespace(stdout="C:\\Chrome\\chrome.exe\r\n", returncode=0)
+        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   return_value=completed):
+            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == (
+                "C:\\Chrome\\chrome.exe", "", "",
+            )
+
+    def test_every_resolver_failing_is_three_empty_strings_not_a_raise(self, monkeypatch):
+        self._without_com(monkeypatch)
+        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   side_effect=OSError("no powershell")):
+            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
+
+
+class TestWaitForNewChromeWindow:
+    """The poll that pairs a launch with the window it opened."""
+
+    def _clock(self, monkeypatch):
+        ticks = iter(range(1000))
+        monkeypatch.setattr(
+            windows_bridge_sequencer, "time",
+            SimpleNamespace(monotonic=lambda: float(next(ticks)), sleep=lambda _s: None),
+        )
+
+    def test_returns_the_window_that_was_not_there_before(self, monkeypatch):
+        self._clock(monkeypatch)
+        snapshots = iter([{111, 222}, {111, 222}, {111, 222, 333}])
+        with patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds",
+                   side_effect=lambda: next(snapshots)):
+            hwnd = windows_bridge_sequencer._wait_for_new_chrome_window(
+                {111, 222}, timeout_ms=8000)
+
+        assert hwnd == 333
+
+    def test_gives_up_at_the_deadline_when_no_window_appears(self, monkeypatch):
+        self._clock(monkeypatch)
+        with patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds",
+                   return_value={111, 222}):
+            hwnd = windows_bridge_sequencer._wait_for_new_chrome_window(
+                {111, 222}, timeout_ms=3000)
+
+        assert hwnd == 0
+
+
 class TestMaybeLaunchRandomFavsBrowser:
     """Regression: browser must launch (bug #3) and be positioned at its planned rect."""
 
