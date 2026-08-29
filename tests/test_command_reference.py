@@ -623,8 +623,10 @@ def test_render_reference_html_contains_key_content():
     assert "Esc" in html
     assert "genau" in html
     assert "Genau" in html
-    # No raw template gaps.
-    assert "{" not in html and "}" not in html
+    # No raw template gaps — an unfilled {placeholder} surviving into the
+    # output.  Only that shape is banned: a blanket brace ban would outlaw
+    # any future <style> block or inline script for no reason of its own.
+    assert not re.search(r"\{[A-Za-z_][A-Za-z0-9_]*\}", html)
 
 
 def test_render_reference_html_has_no_heading_or_subtitle():
