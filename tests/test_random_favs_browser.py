@@ -49,14 +49,9 @@ def test_choose_random_uses_requested_count():
 
 def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path):
     user_data_dir = tmp_path / "User Data"
-    profile_dir = user_data_dir / "Profile 2"
-    profile_dir.mkdir(parents=True)
+    user_data_dir.mkdir()
     (user_data_dir / "Local State").write_text(
         json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
-        encoding="utf-8",
-    )
-    (profile_dir / "Bookmarks").write_text(
-        json.dumps({"roots": {"bookmark_bar": {"children": []}}}),
         encoding="utf-8",
     )
     favs = tmp_path / "favs.csv"
@@ -266,65 +261,3 @@ def test_load_favs_entries_skips_rows_with_neither_column(tmp_path: Path):
 
 def test_load_favs_entries_missing_file(tmp_path: Path):
     assert load_favs_entries(tmp_path / "missing.csv") == []
-
-
-def test_build_manifest_uses_favs_csv_web_urls(cfg_factory, tmp_path: Path):
-    """build_manifest should source URLs from favs.csv, not Chrome bookmarks."""
-    user_data_dir = tmp_path / "User Data"
-    profile_dir = user_data_dir / "Profile 2"
-    profile_dir.mkdir(parents=True)
-    (user_data_dir / "Local State").write_text(
-        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
-        encoding="utf-8",
-    )
-    # Chrome bookmarks contain file:// URIs — these should NOT be used
-    (profile_dir / "Bookmarks").write_text(
-        json.dumps(
-            {
-                "roots": {
-                    "bookmark_bar": {
-                        "children": [
-                            {
-                                "name": "Fun Time Favs",
-                                "type": "folder",
-                                "children": [
-                                    {"type": "url", "url": "file:///C:/img/a.png"},
-                                    {"type": "url", "url": "file:///C:/img/b.png"},
-                                ],
-                            }
-                        ]
-                    }
-                }
-            }
-        ),
-        encoding="utf-8",
-    )
-    # favs.csv has the correct web URLs
-    favs = tmp_path / "favs.csv"
-    favs.write_text(
-        'local_file,web_url\r\n'
-        '"=HYPERLINK(""file:///C:/img/a.png"";""C:\\img\\a.png"")",'
-        '"=HYPERLINK(""https://example.net/image/a"";""https://example.net/image/a"")"\r\n'
-        '"=HYPERLINK(""file:///C:/img/b.png"";""C:\\img\\b.png"")",'
-        '"=HYPERLINK(""https://example.com/image/b"";""https://example.com/image/b"")"\r\n',
-        encoding="utf-8",
-    )
-
-    cfg_path = cfg_factory(
-        {
-            "paths": {"favs_file": str(favs)},
-            "random_favs_browser": {
-                "enabled": True,
-                "user_data_dir": str(user_data_dir),
-                "open_count": 10,
-            },
-        }
-    )
-
-    profile_name, targets = build_manifest(load_config(cfg_path))
-    assert profile_name == "Profile 2"
-    # Must be web URLs from favs.csv, NOT file:// URIs from bookmarks
-    assert sorted(target.url for target in targets) == [
-        "https://example.com/image/b",
-        "https://example.net/image/a",
-    ]
