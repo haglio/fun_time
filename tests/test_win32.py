@@ -449,6 +449,22 @@ class TestWindowsObscuring:
         landscape = self._w(1, (854, 0, 1706, 1410))  # same monitor: buried
         assert windows_obscuring(1, [chrome, landscape]) == [chrome]
 
+    def test_the_ghost_frame_rule_holds_on_the_vertical_axis_too(self):
+        """Vertically stacked windows are the NORMAL case on the portrait
+        monitor — the portrait satellite sits directly above the main player —
+        so this is the axis the startup diagnostic actually runs on.  Every
+        other fixture here stands side by side, which left the vertical half
+        of the tolerance deletable with the class green."""
+        # A maximized window above, its invisible frame hanging ~8px down
+        # onto the window below it: a sliver, not coverage.
+        upper = self._w(9, (0, -8, 1440, 2516))       # bottom edge at y=2508
+        lower = self._w(1, (0, 2500, 1440, 940))      # the player beneath
+        assert windows_obscuring(1, [upper, lower]) == []
+
+        # Past the frame it is real coverage again.
+        deeper = self._w(9, (0, -8, 1440, 2560))      # bottom edge at y=2552
+        assert windows_obscuring(1, [deeper, lower]) == [deeper]
+
 
 class TestConstants:
     def test_hwnd_topmost_is_64bit_pointer(self):
