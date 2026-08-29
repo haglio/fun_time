@@ -120,6 +120,19 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _fresh_group_index_cache():
+    """Start every test with an empty media-metadata group-index cache.
+
+    ``_INDEX_CACHE`` is process-global and survives between tests; before this
+    fixture, whether a test began clean depended on its author remembering a
+    ``reset_group_index_cache()`` prelude (ten call sites, seven provably
+    unnecessary), and a forgotten one made a failure depend on run order."""
+    from fun_time.media_metadata import reset_group_index_cache
+
+    reset_group_index_cache()
+
+
+@pytest.fixture(autouse=True)
 def _never_inherit_the_integration_flag(monkeypatch):
     """Strip ``FUN_TIME_RUN_INTEGRATION`` from every unit test's environment.
 
