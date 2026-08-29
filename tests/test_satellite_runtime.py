@@ -3,17 +3,12 @@ from __future__ import annotations
 import threading
 
 from satellite.runtime import apply_command
-from satellite.session import SatelliteSession
-from tests.satellite_fakes import FakeSatellitePlayer
+from tests.satellite_fakes import make_satellite_session
 
 
 def _make_session(tmp_path, *, entries=3):
-    playlist = []
-    for i in range(entries):
-        vid = tmp_path / f"v{i}.mp4"
-        vid.write_text("fake")
-        playlist.append(vid)
-    return SatelliteSession(playlist, player=FakeSatellitePlayer())
+    session, _player = make_satellite_session(tmp_path, entries=entries)
+    return session
 
 
 class TestApplyCommand:

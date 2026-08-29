@@ -1,18 +1,6 @@
 from __future__ import annotations
 
-from satellite.session import SatelliteSession
-from tests.satellite_fakes import FakeSatellitePlayer
-
-
-def _make_session(tmp_path, *, entries=1, start_paused=False, duration_ms=5_000.0):
-    playlist = []
-    for i in range(entries):
-        vid = tmp_path / f"v{i}.mp4"
-        vid.write_text("fake")
-        playlist.append(vid)
-    player = FakeSatellitePlayer(duration_ms=duration_ms)
-    session = SatelliteSession(playlist, player=player, start_paused=start_paused)
-    return session, player
+from tests.satellite_fakes import make_satellite_session as _make_session
 
 
 class TestLoadAndPlay:

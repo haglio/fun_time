@@ -75,3 +75,22 @@ class FakeSatellitePlayer:
         """The clip mpv would cut to at EOF (the prefetched entry), if any."""
         tail = self.playlist[self.playlist_pos + 1:]
         return tail[0] if tail else None
+
+
+def make_satellite_session(tmp_path, *, entries=1, start_paused=False, duration_ms=5_000.0):
+    """A SatelliteSession over *entries* fabricated clips and its fake player.
+
+    The one session builder for the three satellite test modules, which each
+    kept a private copy before — three places to edit when the constructor
+    moves.  Returns the player too, so a test never reaches into the
+    session's private one.
+    """
+    from satellite.session import SatelliteSession
+
+    playlist = []
+    for i in range(entries):
+        vid = tmp_path / f"v{i}.mp4"
+        vid.write_text("fake")
+        playlist.append(vid)
+    player = FakeSatellitePlayer(duration_ms=duration_ms)
+    return SatelliteSession(playlist, player=player, start_paused=start_paused), player
