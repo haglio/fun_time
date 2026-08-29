@@ -1664,9 +1664,8 @@ def _make_grouped_config(
     Only the named side's sources point at the dir, so a command that reads
     the wrong side's library comes up empty instead of silently passing.
     """
-    from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
+    from fun_time.media_metadata import metadata_path_for
 
-    reset_group_index_cache()
     media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
     metadata_root = tmp_path / "videos" / "metadata"
     side_dir = media_root / ("portrait" if side == 2 else "landscape")
@@ -2009,9 +2008,8 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
 
 def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     """The landscape variants must hit the landscape port and lock flag."""
-    from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
+    from fun_time.media_metadata import metadata_path_for
 
-    reset_group_index_cache()
     config, paths = _make_grouped_config(tmp_path, {})
     media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"

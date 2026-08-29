@@ -18,7 +18,6 @@ from fun_time.media_metadata import (
     GroupIndex,
     metadata_path_for,
     normalize_path_key as K,
-    reset_group_index_cache,
 )
 
 CUR = "C:/vids/current.mp4"
@@ -820,7 +819,6 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     read serves it from memory — no per-clip rebuild during the session."""
     from fun_time.media_metadata import cached_group_index
 
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -833,7 +831,6 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
 
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sibling = _clip(media_root, metadata_root, "b", _i2v("Beta", "2"))
@@ -858,7 +855,6 @@ def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
     """A bare "lock" or "next" goes to whichever player was addressed last, and
     nothing on screen said which that was — so each panel carries whether it is
     the one those words would reach.  Exactly one side can be it."""
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -879,7 +875,6 @@ def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
 def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
     status line says it on the side it is on, and the other panel stays silent."""
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
@@ -899,7 +894,6 @@ def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
 def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
     """The loop kind comes off the shared state and must reach the panel so the
     map freezes — two seeds of one act make a real family to loop."""
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
@@ -919,7 +913,6 @@ def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
     """The nav anchor comes off the shared state and must reach the panel so the
     map freezes on the clip navigation began from while the satellite plays a
     sibling."""
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     b = _clip(media_root, metadata_root, "b", _i2v("Alpha", "2"))
@@ -940,7 +933,6 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
     """The repro: widen the row, loop it, then let the loop auto-advance to a loose-
     family re-render that is not in the exact seed family.  The panel must stay
     widened and frozen on the anchor — not collapse with no loop shown."""
-    reset_group_index_cache()
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     # a and a2 share the exact seed family (identical config, seed varied); b is the
     # same scene re-rendered with a render knob freed (a different model), so it joins
