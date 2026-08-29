@@ -80,6 +80,55 @@ def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path)
     ]
 
 
+def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=True,
+                    profile_name="Blair", urls=("https://example.com/1",)):
+    """A config exercising one way the browser declines to launch."""
+    user_data_dir = tmp_path / "User Data"
+    user_data_dir.mkdir()
+    if local_state:
+        (user_data_dir / "Local State").write_text(
+            json.dumps({"profile": {"info_cache": {"Profile 2": {"name": profile_name}}}}),
+            encoding="utf-8",
+        )
+    favs = tmp_path / "favs.csv"
+    rows = "".join(f'"","{url}"\r\n' for url in urls)
+    favs.write_text("local_file,web_url\r\n" + rows, encoding="utf-8")
+    return cfg_factory(
+        {
+            "paths": {"favs_file": str(favs)},
+            "random_favs_browser": {
+                "enabled": enabled,
+                "user_data_dir": str(user_data_dir),
+                "open_count": 10,
+            },
+        }
+    )
+
+
+def test_a_disabled_browser_declines_to_launch(cfg_factory, tmp_path: Path):
+    """random_favs_browser.enabled is a documented public config key (clipper
+    reads it too), and turning it off must mean no profile and no tabs."""
+    cfg_path = _decline_config(cfg_factory, tmp_path, enabled=False)
+    assert build_manifest(load_config(cfg_path)) == ("", [])
+
+
+def test_a_missing_local_state_declines_to_launch(cfg_factory, tmp_path: Path):
+    """No Chrome Local State file — a machine without that Chrome profile
+    store — reads as 'no profile', not as a crash."""
+    cfg_path = _decline_config(cfg_factory, tmp_path, local_state=False)
+    assert build_manifest(load_config(cfg_path)) == ("", [])
+
+
+def test_an_unmatched_profile_name_declines_to_launch(cfg_factory, tmp_path: Path):
+    cfg_path = _decline_config(cfg_factory, tmp_path, profile_name="Nobody Here")
+    assert build_manifest(load_config(cfg_path)) == ("", [])
+
+
+def test_an_empty_favs_list_opens_no_tabs_but_keeps_the_profile(cfg_factory, tmp_path: Path):
+    cfg_path = _decline_config(cfg_factory, tmp_path, urls=())
+    assert build_manifest(load_config(cfg_path)) == ("Profile 2", [])
+
+
 def test_write_manifest_writes_profile_then_urls(tmp_path: Path):
     output_path = tmp_path / "manifest.txt"
     write_manifest(output_path, "Profile 2", ["https://example.com/1", "https://example.com/2"])
