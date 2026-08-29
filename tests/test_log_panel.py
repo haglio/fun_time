@@ -136,8 +136,16 @@ def _event_line(message: str) -> str:
 
 @pytest.fixture()
 def panel_factory(tmp_path: Path):
-    """Build a live LogPanelWidget over an event log already holding *messages*."""
+    """Build a live LogPanelWidget over an event log already holding *messages*.
+
+    The copy tests read their result off ``QApplication.clipboard()`` — a
+    process-global whose isolation from the machine's real clipboard rests on
+    the offscreen platform.  The conftest sets that with ``setdefault`` and
+    invites overriding it to watch a test, so whatever the developer had
+    copied is saved here and put back on teardown rather than silently lost.
+    """
     built: list[LogPanelWidget] = []
+    users_clipboard = QApplication.clipboard().text()
 
     def factory(messages: list[str]) -> LogPanelWidget:
         QApplication.clipboard().clear()
@@ -154,6 +162,7 @@ def panel_factory(tmp_path: Path):
     for panel in built:
         panel.shutdown()
         panel.close()
+    QApplication.clipboard().setText(users_clipboard)
 
 
 def _hover_row(panel: LogPanelWidget, row: int) -> None:
