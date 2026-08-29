@@ -128,6 +128,25 @@ def _fake_nau(**kwargs):
     return NAU_PID
 
 
+def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
+    """Each phase's result INI carries the launch's clock stamp, so a second
+    launch into the same state dir writes beside the first's results instead
+    of clobbering them.  Two clock readings, two paths — under the suite's
+    old frozen-clock stubs every call returned <prefix>_0.ini, a version of
+    the helper with no uniqueness at all."""
+    from types import SimpleNamespace
+
+    ticks = iter([12.001, 47.002])
+    monkeypatch.setattr(windows_bridge_sequencer, "time",
+                        SimpleNamespace(monotonic=lambda: next(ticks)))
+
+    first = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
+    second = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
+
+    assert first != second
+    assert first.parent == tmp_path and first.name.startswith("phase1_")
+
+
 class TestRunStartupSequence:
     def test_calls_start_core_session_and_launch_ui_companions(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory({
