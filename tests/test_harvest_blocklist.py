@@ -289,3 +289,100 @@ class TestSiblings:
 
     def test_outside_git_it_falls_back_to_the_path_given(self, tmp_path: Path):
         assert primary_of(tmp_path / "nowhere") == tmp_path / "nowhere"
+
+
+class TestTheWritePath:
+    """main(), write_list() and detach() — the destructive half, which rewrites
+    the blocklist of every sibling checkout and is what fun_time/orchestrator.py
+    fires at the start of every real session.  Driven against a fabricated
+    family of checkouts under tmp; every name is invented."""
+
+    def _family(self, tmp_path: Path) -> tuple[Path, Path]:
+        """A primary checkout with a roots overlay and a library, plus one
+        sibling checkout that keeps a blocklist of its own."""
+        primary = tmp_path / "family" / "primary"
+        (primary / "sanitize").mkdir(parents=True)
+        _git(primary, "init", "-b", "main")
+        library = tmp_path / "library" / "videos" / "2D" / "non_AI"
+        library.mkdir(parents=True)
+        (library / "Petra-Vance-scene-a-1080p.mp4").write_bytes(b"")
+        (primary / "sanitize" / "library_roots.local.txt").write_text(
+            f"{tmp_path / 'library'}\n", encoding="utf-8")
+        # A list already on disk, as every real primary has: main() reads the
+        # current list unguarded, so a checkout that never had one crashes —
+        # observed while writing these tests, noted in the audit changelog.
+        (primary / "sanitize" / "blocklist.local.txt").write_text(
+            "already listed term\n", encoding="utf-8")
+        sibling = tmp_path / "family" / "sibling_repo"
+        (sibling / "sanitize").mkdir(parents=True)
+        # A REAL git repo, not just a directory with a sanitize/ folder.
+        # blocklist_path resolves a non-repo directory through the enclosing
+        # checkout's worktree fallback, which lands on the REAL fun_time
+        # primary — a run of these tests without this line overwrote the
+        # machine's actual blocklist (see audit/CHANGELOG.md, 2026-08-29).
+        _git(sibling, "init", "-b", "main")
+        return primary, sibling
+
+    def _main(self, cwd: Path, argv: list[str]) -> int:
+        import contextlib
+        import io
+        import os
+
+        from tools.harvest_blocklist import main
+
+        was = os.getcwd()
+        os.chdir(cwd)
+        try:
+            with contextlib.redirect_stdout(io.StringIO()):
+                return main(argv)
+        finally:
+            os.chdir(was)
+
+    def test_a_run_writes_the_harvest_home_and_stamps_it_done(self, tmp_path: Path):
+        primary, _sibling = self._family(tmp_path)
+
+        assert self._main(primary, []) == 0
+
+        written = (primary / "sanitize" / "blocklist.local.txt").read_text(encoding="utf-8")
+        assert "petra vance" in written
+        assert "already listed term" in written  # merged, never clobbered
+        assert written.startswith("#")  # the header explains the file to a finder
+        assert stamp_path(primary).exists()
+
+    def test_sync_rewrites_every_sibling_identically(self, tmp_path: Path):
+        primary, sibling = self._family(tmp_path)
+
+        assert self._main(primary, ["--sync"]) == 0
+
+        home = (primary / "sanitize" / "blocklist.local.txt").read_text(encoding="utf-8")
+        written = sibling / "sanitize" / "blocklist.local.txt"
+        assert written.exists(), (
+            "the sibling's own list was not written — if write_list resolved "
+            "somewhere OUTSIDE the fixture tree, stop and check the real "
+            "primary's blocklist before anything else"
+        )
+        assert written.read_text(encoding="utf-8") == home
+
+    def test_a_dry_run_computes_but_writes_nothing_anywhere(self, tmp_path: Path):
+        primary, sibling = self._family(tmp_path)
+
+        before = (primary / "sanitize" / "blocklist.local.txt").read_text(encoding="utf-8")
+
+        assert self._main(primary, ["--dry-run", "--sync"]) == 0
+
+        assert (primary / "sanitize" / "blocklist.local.txt").read_text(encoding="utf-8") == before
+        assert not (sibling / "sanitize" / "blocklist.local.txt").exists()
+        assert not stamp_path(primary).exists()  # a run that wrote nothing is retried
+
+    def test_detach_relaunches_itself_without_the_detach_flag(self):
+        from unittest.mock import patch
+
+        from tools import harvest_blocklist
+
+        with patch.object(harvest_blocklist.subprocess, "Popen") as popen:
+            harvest_blocklist.detach(["--if-stale", "12", "--detach", "--sync"])
+
+        command = popen.call_args[0][0]
+        assert command[1].endswith("harvest_blocklist.py")
+        assert "--detach" not in command  # or the child would fork forever
+        assert "--if-stale" in command and "--sync" in command
