@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import socket
@@ -195,6 +196,18 @@ def _wait_for_the_browse(mock_browse) -> None:
     waiting for it.
     """
     wait_until(lambda: mock_browse.call_count >= 1, timeout=10.0)
+
+
+@contextlib.contextmanager
+def _press_channel(tmp_path):
+    """A listening dashboard press socket, its port published where the
+    runner looks for it.  Closes with the block, assertion failures included."""
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as recv_sock:
+        recv_sock.bind(("127.0.0.1", 0))
+        recv_sock.settimeout(1.0)
+        (tmp_path / "dashboard_press_port.txt").write_text(
+            str(recv_sock.getsockname()[1]), encoding="utf-8")
+        yield recv_sock
 
 
 def _presses_until(recv_sock, expected: str, *, timeout: float = 10.0) -> list[str]:
@@ -713,50 +726,36 @@ class TestDispatchLoopRunner:
         assert "quarter_button" in commands
 
     def test_backslash_key_sends_quarter_button_press_in_genau_mode(self, tmp_path):
-        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        recv_sock.bind(("127.0.0.1", 0))
-        recv_sock.settimeout(1.0)
-        port = recv_sock.getsockname()[1]
-        port_file = tmp_path / "dashboard_press_port.txt"
-        port_file.write_text(str(port), encoding="utf-8")
+        with _press_channel(tmp_path) as recv_sock:
+            runner = make_runner(tmp_path, dashboard_enabled=True)
+            runner.state = BridgeState(main_mode="genau")
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        runner = make_runner(tmp_path, dashboard_enabled=True)
-        runner.state = BridgeState(main_mode="genau")
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("backslash_key", encoding="utf-8")
+            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+                mock_dispatch.return_value = (runner.state, [])
+                runner.tick()
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.return_value = (runner.state, [])
-            runner.tick()
-
-        messages = _presses_until(recv_sock, "quarter_button")
-        recv_sock.close()
+            messages = _presses_until(recv_sock, "quarter_button")
         assert "quarter_button" in messages
 
     def test_backslash_key_sends_browse_library_press_in_nau_mode(self, tmp_path):
-        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        recv_sock.bind(("127.0.0.1", 0))
-        recv_sock.settimeout(1.0)
-        port = recv_sock.getsockname()[1]
-        port_file = tmp_path / "dashboard_press_port.txt"
-        port_file.write_text(str(port), encoding="utf-8")
+        with _press_channel(tmp_path) as recv_sock:
+            runner = make_runner(tmp_path, dashboard_enabled=True)
+            runner.state = BridgeState(main_mode="nau")
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("backslash_key", encoding="utf-8")
 
-        runner = make_runner(tmp_path, dashboard_enabled=True)
-        runner.state = BridgeState(main_mode="nau")
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("backslash_key", encoding="utf-8")
+            with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
+                 patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
+                 patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+                 patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                       return_value=None) as mock_browse:
+                runner.tick()
 
-        with patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
-                   return_value=None) as mock_browse:
-            runner.tick()
+                messages = _presses_until(recv_sock, "browse_library")
+                _wait_for_the_browse(mock_browse)
 
-            messages = _presses_until(recv_sock, "browse_library")
-            _wait_for_the_browse(mock_browse)
-
-        recv_sock.close()
         assert "browse_library" in messages
         # Browsing must NOT enter OmniPause: the old flow paused the whole
         # session for the browse and resumed only Nau, stranding the
@@ -1150,23 +1149,16 @@ class TestDispatchLoopRunner:
         assert not ahk_cmd_file.exists()
 
     def test_sends_press_via_udp_on_button_command(self, tmp_path):
-        recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        recv_sock.bind(("127.0.0.1", 0))
-        recv_sock.settimeout(1.0)
-        port = recv_sock.getsockname()[1]
-        port_file = tmp_path / "dashboard_press_port.txt"
-        port_file.write_text(str(port), encoding="utf-8")
+        with _press_channel(tmp_path) as recv_sock:
+            runner = make_runner(tmp_path, dashboard_enabled=True)
+            cmd_file = tmp_path / "dashboard_cmd.txt"
+            cmd_file.write_text("portrait_lock", encoding="utf-8")
 
-        runner = make_runner(tmp_path, dashboard_enabled=True)
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("portrait_lock", encoding="utf-8")
+            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+                mock_dispatch.return_value = (runner.state, [])
+                runner.tick()
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.return_value = (runner.state, [])
-            runner.tick()
-
-        data, _ = recv_sock.recvfrom(256)
-        recv_sock.close()
+            data, _ = recv_sock.recvfrom(256)
         assert data.decode("utf-8") == "portrait_lock"
 
     def test_help_reference_commands_send_press_but_do_not_dispatch(self, tmp_path):
@@ -1174,21 +1166,15 @@ class TestDispatchLoopRunner:
         command (toggle and close) as a press (the dashboard acts on it) and
         dispatches nothing — no player commands, no shared-state churn."""
         for command in ("help_reference", "help_reference_close"):
-            recv_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-            recv_sock.bind(("127.0.0.1", 0))
-            recv_sock.settimeout(1.0)
-            port = recv_sock.getsockname()[1]
-            (tmp_path / "dashboard_press_port.txt").write_text(str(port), encoding="utf-8")
+            with _press_channel(tmp_path) as recv_sock:
+                runner = make_runner(tmp_path, dashboard_enabled=True)
+                (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
 
-            runner = make_runner(tmp_path, dashboard_enabled=True)
-            (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
+                with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+                    runner.tick()
 
-            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-                runner.tick()
-
-            mock_dispatch.assert_not_called()
-            data, _ = recv_sock.recvfrom(256)
-            recv_sock.close()
+                mock_dispatch.assert_not_called()
+                data, _ = recv_sock.recvfrom(256)
             assert data.decode("utf-8") == command
 
     def test_a_missing_press_port_file_does_not_cost_the_command(self, tmp_path):
