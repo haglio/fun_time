@@ -586,8 +586,10 @@ def test_do_render_syncs_own_topmost_from_snapshot(cfg_path: Path):
 
     try:
         with patch.object(window, "_sync_own_topmost") as mock_sync:
-            window._do_render(None, frozenset())
-        mock_sync.assert_called_once_with(False)
+            window._do_render(_snapshot(omni_paused=True), frozenset())
+        # True, from the snapshot: rendering with None and asserting False
+        # was satisfied by an implementation that hardcodes False.
+        mock_sync.assert_called_once_with(True)
     finally:
         window.close()
 
@@ -972,16 +974,21 @@ def test_the_pause_tooltip_names_the_act_the_press_will_take():
     assert tip(True) == OMNIPAUSE_RESUME_TOOLTIP
 
 
-def test_the_bar_draws_its_controls_the_shape_a_button_is_here():
-    """Square corners and a light outline read as panels, not as the buttons the
-    other apps in this family offer.  Same radius and same edge as Origenerator's
-    toolbar."""
+def test_the_bar_wears_the_familys_button_edge_and_radius():
+    """The scene's rects carry the family's subtle outline, and the corner
+    radius the painter rounds with is shared_ui's — the cross-repo metric
+    every app's buttons share, not a number of this module's own.  (The
+    radius reaches pixels only inside paintEvent, so the shared constant is
+    the closest drawn fact a scene-level test can pin.)"""
     from shared_ui.colors import BORDER_SUBTLE
+    from shared_ui.spacing import BUTTON_RADIUS
 
     from fun_time.dashboard_app import _BUTTON_RADIUS
 
-    assert _BUTTON_RADIUS == 4
-    assert all(item.outline == BORDER_SUBTLE for item in _scene().rects)
+    rects = _scene().rects
+    assert rects
+    assert all(item.outline == BORDER_SUBTLE for item in rects)
+    assert _BUTTON_RADIUS == BUTTON_RADIUS
 
 
 def _mark_side(rect) -> int:
