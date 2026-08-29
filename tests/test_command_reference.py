@@ -11,7 +11,7 @@ from fun_time.command_reference import (
     build_reference_sections,
     render_reference_html,
 )
-from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS, VOICE_COMMANDS
+from fun_time.voice_commands import VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _NUMERIC_RE = re.compile(r"^genau_(amp|center|speed|clip_seconds)_\d+$")
@@ -574,6 +574,11 @@ def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     where the device may still be on the user — so Shift+Esc sits in the AHK
     #SuspendExempt block and its command is exempt from the voice freeze too.
     Either half missing leaves the emergency dead in the one state it is for."""
+    # Imported here, not at module scope: this file is otherwise free of the
+    # voice runtime module, the same property its subprocess test pins for the
+    # production reference.
+    from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
+
     assert "relief_omnipause" in _ahk_suspend_exempt_commands()
     assert "relief_omnipause" in SUSPEND_EXEMPT_COMMANDS
 
