@@ -704,10 +704,17 @@ def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboa
 
     window = dashboard_window
 
-    with patch.object(window, "_toggle_reference_dialog") as mock_toggle:
-        window._press_queue.put("help_reference")
-        window._handle_press_event()
-    mock_toggle.assert_called_once()
+    window._press_queue.put("help_reference")
+    window._handle_press_event()
+
+    try:
+        # The observable: a real popup is up.  (Asserting the toggle METHOD
+        # was called passed even if the toggle itself did nothing.)
+        assert window._reference_dialog is not None
+        assert window._reference_dialog.isVisible()
+    finally:
+        if window._reference_dialog is not None:
+            window._reference_dialog.close()
 
 
 def test_help_reference_close_press_closes_reference_dialog(dashboard_window, dashboard_app_config):
@@ -716,12 +723,19 @@ def test_help_reference_close_press_closes_reference_dialog(dashboard_window, da
 
     window = dashboard_window
 
-    with patch.object(window, "_close_reference_dialog") as mock_close, \
-         patch.object(window, "_toggle_reference_dialog") as mock_toggle:
-        window._press_queue.put("help_reference_close")
-        window._handle_press_event()
-    mock_close.assert_called_once()
-    mock_toggle.assert_not_called()
+    window._press_queue.put("help_reference")
+    window._handle_press_event()  # a popup is open...
+    assert window._reference_dialog is not None and window._reference_dialog.isVisible()
+
+    window._press_queue.put("help_reference_close")
+    window._handle_press_event()  # ...and the close press dismisses it
+
+    assert window._reference_dialog is None or not window._reference_dialog.isVisible()
+
+    window._press_queue.put("help_reference_close")
+    window._handle_press_event()  # closing again must not reopen anything
+
+    assert window._reference_dialog is None or not window._reference_dialog.isVisible()
 
 
 def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
