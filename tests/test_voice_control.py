@@ -595,7 +595,6 @@ class TestHandleRecognition:
         ("portrait full length please", "portrait"),
         ("landscape full length please", "landscape"),
         ("main full length please", "main"),
-        ("main full length please", "main"),
         ("full length please landscape", "landscape"),
     ])
     def test_an_unrecognized_phrase_reports_over_the_player_it_named(
