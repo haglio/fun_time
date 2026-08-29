@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import subprocess
@@ -126,8 +127,14 @@ class TestAWindowThatHasStoppedAnswering:
     """
 
     @staticmethod
+    @contextlib.contextmanager
     def _hung(monkeypatch):
-        """A user32 whose calls never return, and the switch that frees them."""
+        """A user32 whose calls never return, freed again when the block ends.
+
+        A scoped ``with patch(...)`` rather than ``.start()`` + a finally's
+        ``patch.stopall()`` — the stopall stopped EVERY active patch in the
+        process, and a raise between start() and the finally leaked the stub
+        into the rest of the session."""
         monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         released = threading.Event()
@@ -135,10 +142,13 @@ class TestAWindowThatHasStoppedAnswering:
         def block(*_args):
             released.wait(10)
 
-        mock = patch("fun_time.win32._user32").start()
-        mock.SetWindowPos.side_effect = block
-        mock.ShowWindow.side_effect = block
-        return released
+        try:
+            with patch("fun_time.win32._user32") as mock:
+                mock.SetWindowPos.side_effect = block
+                mock.ShowWindow.side_effect = block
+                yield
+        finally:
+            released.set()  # free the workers still parked on the block
 
     def test_our_own_windows_are_called_straight(self, monkeypatch):
         """The send would go to this process's UI thread — the very thread waiting
@@ -156,28 +166,22 @@ class TestAWindowThatHasStoppedAnswering:
         assert threads == [threading.current_thread().name]
 
     def test_the_caller_gives_up_instead_of_waiting_for_ever(self, monkeypatch):
-        released = self._hung(monkeypatch)
-        try:
+        with self._hung(monkeypatch):
             started = time.monotonic()
             set_always_on_top(111, True)
             minimize_window(111, activate=False)
             restore_window(111, activate=False)
             move_window(111, 0, 0, 10, 10)
 
+            # Generous next to the 0.05s timeout, tight next to the 10s each
+            # blocked call would cost if the give-up stopped working.
             assert time.monotonic() - started < 5
-        finally:
-            released.set()
-            patch.stopall()
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
         """The session gave no clue which of six windows had wedged it."""
-        released = self._hung(monkeypatch)
-        try:
+        with self._hung(monkeypatch):
             with caplog.at_level(logging.WARNING, logger="fun_time.win32"):
                 set_always_on_top(4242, True)
-        finally:
-            released.set()
-            patch.stopall()
 
         assert "4242" in caplog.text
         assert "stopped answering" in caplog.text
