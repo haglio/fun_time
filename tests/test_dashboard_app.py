@@ -47,6 +47,33 @@ def _snapshot(**overrides) -> DashboardSnapshot:
     return DashboardSnapshot(**base)
 
 
+@pytest.fixture()
+def dashboard_app_config(cfg_path):
+    """The dashboard's own config, loaded back off a written manifest exactly
+    the way the real dashboard process loads it."""
+    config = load_config(cfg_path)
+    manifest_path = write_windows_bridge_manifest(config)
+    return load_dashboard_app_config(manifest_path)
+
+
+@pytest.fixture()
+def dashboard_window(dashboard_app_config):
+    """A built dashboard window that closes however the test ends.
+
+    The per-test try/finally discipline, guaranteed instead of remembered —
+    a forgotten finally used to leak a top-level Qt window into the shared
+    session QApplication for the rest of the run.
+    """
+    window = build_dashboard_window(
+        dashboard_app_config,
+        launch_geometry=DashboardLaunchGeometry(x=100, y=200, width=300, height=400),
+    )
+    try:
+        yield window
+    finally:
+        window.close()
+
+
 def _fill(scene, rect):
     return next(item.fill for item in scene.rects if item.rect == rect)
 
@@ -298,117 +325,86 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided():
     assert (geo.x(), geo.y(), geo.width(), geo.height()) == (11, 22, 333, 444)
 
 
-def test_minimize_routes_omniminimize_command(cfg_path: Path):
+def test_minimize_routes_omniminimize_command(dashboard_window, dashboard_app_config):
     """Minimizing the dashboard writes the omniminimize command for the dispatch loop."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        cmd_file = app_config.dashboard_cmd_file
-        if cmd_file.exists():
-            cmd_file.unlink()
-
-        window._maybe_route_omniminimize(now_minimized=True, was_minimized=False)
-
-        assert cmd_file.read_text(encoding="utf-8").strip() == "omniminimize"
-    finally:
-        window.close()
-
-
-def test_omniminimize_not_routed_on_restore_or_repeat(cfg_path: Path):
-    """Only the not-minimized -> minimized transition routes; restore/repeat do not."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-
-    try:
-        cmd_file = app_config.dashboard_cmd_file
-        if cmd_file.exists():
-            cmd_file.unlink()
-
-        # Restore (minimized -> normal) must not route.
-        window._maybe_route_omniminimize(now_minimized=False, was_minimized=True)
-        # Already minimized, state re-asserted — no new transition.
-        window._maybe_route_omniminimize(now_minimized=True, was_minimized=True)
-
-        assert not cmd_file.exists()
-    finally:
-        window.close()
-
-
-def test_restore_routes_omnirestore_command(cfg_path: Path):
-    """Un-minimizing the dashboard writes omnirestore so the others come back too."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-
-    try:
-        cmd_file = app_config.dashboard_cmd_file
-        if cmd_file.exists():
-            cmd_file.unlink()
-
-        # Restore edge (minimized -> normal) routes omnirestore.
-        window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
-        assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
-
-        # Minimize edge and steady state must not route omnirestore.
+    cmd_file = dashboard_app_config.dashboard_cmd_file
+    if cmd_file.exists():
         cmd_file.unlink()
-        window._maybe_route_omnirestore(now_minimized=True, was_minimized=False)
-        window._maybe_route_omnirestore(now_minimized=False, was_minimized=False)
-        assert not cmd_file.exists()
-    finally:
-        window.close()
+
+    window._maybe_route_omniminimize(now_minimized=True, was_minimized=False)
+
+    assert cmd_file.read_text(encoding="utf-8").strip() == "omniminimize"
 
 
-def test_do_render_skips_geometry_reapply_while_minimized(cfg_path: Path):
+def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboard_app_config):
+    """Only the not-minimized -> minimized transition routes; restore/repeat do not."""
+
+    window = dashboard_window
+
+    cmd_file = dashboard_app_config.dashboard_cmd_file
+    if cmd_file.exists():
+        cmd_file.unlink()
+
+    # Restore (minimized -> normal) must not route.
+    window._maybe_route_omniminimize(now_minimized=False, was_minimized=True)
+    # Already minimized, state re-asserted — no new transition.
+    window._maybe_route_omniminimize(now_minimized=True, was_minimized=True)
+
+    assert not cmd_file.exists()
+
+
+def test_restore_routes_omnirestore_command(dashboard_window, dashboard_app_config):
+    """Un-minimizing the dashboard writes omnirestore so the others come back too."""
+
+    window = dashboard_window
+
+    cmd_file = dashboard_app_config.dashboard_cmd_file
+    if cmd_file.exists():
+        cmd_file.unlink()
+
+    # Restore edge (minimized -> normal) routes omnirestore.
+    window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
+    assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
+
+    # Minimize edge and steady state must not route omnirestore.
+    cmd_file.unlink()
+    window._maybe_route_omnirestore(now_minimized=True, was_minimized=False)
+    window._maybe_route_omnirestore(now_minimized=False, was_minimized=False)
+    assert not cmd_file.exists()
+
+
+def test_do_render_skips_geometry_reapply_while_minimized(dashboard_window, dashboard_app_config):
     """The refresh loop must not re-assert geometry on a minimized window (which would restore it)."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
-             patch.object(window, "isMinimized", return_value=True):
-            window._do_render(None, frozenset())
-        mock_geo.assert_not_called()
+    with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
+         patch.object(window, "isMinimized", return_value=True):
+        window._do_render(None, frozenset())
+    mock_geo.assert_not_called()
 
-        with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
-             patch.object(window, "isMinimized", return_value=False):
-            window._do_render(None, frozenset())
-        mock_geo.assert_called_once()
-    finally:
-        window.close()
+    with patch("fun_time.dashboard_app.apply_dashboard_window_geometry") as mock_geo, \
+         patch.object(window, "isMinimized", return_value=False):
+        window._do_render(None, frozenset())
+    mock_geo.assert_called_once()
 
 
-def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
+def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
     """While startup is still building the room the dashboard is fully hidden
     (SW_HIDE) — never shown, never minimized — so there is no flash and no
-    minimize animation."""
+    minimize animation.  Built by hand: the deferral is decided at
+    construction, so the patches must wrap the build itself."""
     import ctypes
     from unittest.mock import MagicMock
 
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-
     show_window = MagicMock()
     with patch("fun_time.dashboard_app.startup_still_building", return_value=True), \
          patch.object(ctypes.windll.user32, "ShowWindow", show_window):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+        window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
 
     try:
         assert window._deferred_for_loading is True
@@ -421,21 +417,18 @@ def test_dashboard_stays_hidden_during_loading(cfg_path: Path):
         window.close()
 
 
-def test_dashboard_reveals_with_show_after_loading(cfg_path: Path):
+def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
     """Once startup reaches its last phase the dashboard is shown (SW_SHOW) and
     minimize routing is re-enabled — a reveal from hidden fires no restore edge
-    to do it.  The cover is still up at that point; the two tests below say where
-    the panel is put relative to it."""
+    to do it.  The cover is still up at that point; the two tests below say
+    where the panel is put relative to it.  Built by hand: the deferral is
+    decided at construction, so the patch must wrap the build itself."""
     import ctypes
     from unittest.mock import MagicMock
 
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-
     with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
-        window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+        window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
 
     try:
         assert window._deferred_for_loading is True
@@ -540,58 +533,44 @@ def test_dashboard_leaves_the_z_order_alone_when_there_is_no_cover(cfg_path: Pat
         window.close()
 
 
-def test_dashboard_syncs_own_topmost_with_omnipause(cfg_path: Path):
+def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_app_config):
     """OmniPause must free the desktop, so the dashboard drops its OWN topmost
     while paused (via its reliable handle, since the orchestrator's drop of this
     Qt window is unreliable) and restores it after — drift-corrected, so it
     never issues a redundant SetWindowPos."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        # Entering OmniPause while topmost drops the dashboard out of the band.
-        with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
-             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
-            window._sync_own_topmost(omni_paused=True)
-        mock_set.assert_called_once_with(window._dash_hwnd, False)
+    # Entering OmniPause while topmost drops the dashboard out of the band.
+    with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
+         patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        window._sync_own_topmost(omni_paused=True)
+    mock_set.assert_called_once_with(window._dash_hwnd, False)
 
-        # Leaving OmniPause while non-topmost floats it back on top.
-        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
-            window._sync_own_topmost(omni_paused=False)
-        mock_set.assert_called_once_with(window._dash_hwnd, True)
+    # Leaving OmniPause while non-topmost floats it back on top.
+    with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
+         patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        window._sync_own_topmost(omni_paused=False)
+    mock_set.assert_called_once_with(window._dash_hwnd, True)
 
-        # Already in the desired band → no redundant SetWindowPos (no flicker).
-        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
-            window._sync_own_topmost(omni_paused=True)
-        mock_set.assert_not_called()
-    finally:
-        window.close()
+    # Already in the desired band → no redundant SetWindowPos (no flicker).
+    with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
+         patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        window._sync_own_topmost(omni_paused=True)
+    mock_set.assert_not_called()
 
 
-def test_do_render_syncs_own_topmost_from_snapshot(cfg_path: Path):
+def test_do_render_syncs_own_topmost_from_snapshot(dashboard_window, dashboard_app_config):
     """Every render drives the topmost sync off the snapshot's omni_paused, so
     the dashboard's band stays correct even if Qt re-asserts its StaysOnTop."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        with patch.object(window, "_sync_own_topmost") as mock_sync:
-            window._do_render(_snapshot(omni_paused=True), frozenset())
-        # True, from the snapshot: rendering with None and asserting False
-        # was satisfied by an implementation that hardcodes False.
-        mock_sync.assert_called_once_with(True)
-    finally:
-        window.close()
+    with patch.object(window, "_sync_own_topmost") as mock_sync:
+        window._do_render(_snapshot(omni_paused=True), frozenset())
+    # True, from the snapshot: rendering with None and asserting False
+    # was satisfied by an implementation that hardcodes False.
+    mock_sync.assert_called_once_with(True)
 
 
 def test_reference_dialog_syncs_topmost_with_omnipause():
@@ -626,158 +605,106 @@ def test_reference_dialog_syncs_topmost_with_omnipause():
         dialog.close()
 
 
-def test_do_render_syncs_reference_topmost_from_snapshot(cfg_path: Path):
+def test_do_render_syncs_reference_topmost_from_snapshot(dashboard_window, dashboard_app_config):
     """Every render drives the popup's band off the same snapshot the dashboard's
     own band comes from, so a pause entered while it is open drops it too."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        with patch.object(window, "_sync_reference_topmost") as mock_sync:
-            window._do_render(_snapshot(omni_paused=True), frozenset())
-        mock_sync.assert_called_once_with(True)
-    finally:
-        window.close()
+    with patch.object(window, "_sync_reference_topmost") as mock_sync:
+        window._do_render(_snapshot(omni_paused=True), frozenset())
+    mock_sync.assert_called_once_with(True)
 
 
-def test_sync_reference_topmost_is_a_noop_with_no_popup(cfg_path: Path):
+def test_sync_reference_topmost_is_a_noop_with_no_popup(dashboard_window, dashboard_app_config):
     """The popup only exists once it has been opened; before that there is no
     window to band, and the sync must not reach for one."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        assert window._reference_dialog is None
-        with patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
-            window._sync_reference_topmost(omni_paused=True)
-        mock_set.assert_not_called()
-    finally:
-        window.close()
+    assert window._reference_dialog is None
+    with patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        window._sync_reference_topmost(omni_paused=True)
+    mock_set.assert_not_called()
 
 
-def test_opening_the_reference_under_omnipause_lands_it_non_topmost(cfg_path: Path):
+def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_window, dashboard_app_config):
     """Qt applies StaysOnTop on show, so opening the popup mid-pause would
     strand it over the freed desktop until the next refresh — it is banded at
     open time instead, from the last snapshot's omni_paused."""
     from unittest.mock import MagicMock
 
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+    window = dashboard_window
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
-
-    try:
-        window._last_snapshot = _snapshot(omni_paused=True)
-        dialog = MagicMock()
-        with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
-            window._show_reference_dialog()
-        dialog.sync_topmost.assert_called_once_with(True)
-    finally:
-        window.close()
+    window._last_snapshot = _snapshot(omni_paused=True)
+    dialog = MagicMock()
+    with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
+        window._show_reference_dialog()
+    dialog.sync_topmost.assert_called_once_with(True)
 
 
-def test_help_action_opens_dialog_locally_without_routing_command(cfg_path: Path):
+def test_help_action_opens_dialog_locally_without_routing_command(dashboard_window, dashboard_app_config):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     from unittest.mock import MagicMock
     from fun_time.dashboard_app import DashboardWindow
 
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+    window = dashboard_window
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    cmd_file = dashboard_app_config.dashboard_cmd_file
+    if cmd_file.exists():
+        cmd_file.unlink()
 
-    try:
-        cmd_file = app_config.dashboard_cmd_file
-        if cmd_file.exists():
-            cmd_file.unlink()
+    with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
+        window._on_action("help_reference")
 
-        with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
-            window._on_action("help_reference")
-
-        mock_dialog.assert_called_once()
-        mock_dialog.return_value.show.assert_called_once()
-        # Must NOT be routed to the dispatch loop / command file.
-        assert not cmd_file.exists(), "help_reference should not be written as a command"
-    finally:
-        window.close()
+    mock_dialog.assert_called_once()
+    mock_dialog.return_value.show.assert_called_once()
+    # Must NOT be routed to the dispatch loop / command file.
+    assert not cmd_file.exists(), "help_reference should not be written as a command"
 
 
-def test_help_reference_press_toggles_reference_dialog(cfg_path: Path):
+def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboard_app_config):
     """A voice "help" reaches the dashboard as a UDP press, not a button click;
     processing that press must toggle the reference popup."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        with patch.object(window, "_toggle_reference_dialog") as mock_toggle:
-            window._press_queue.put("help_reference")
-            window._handle_press_event()
-        mock_toggle.assert_called_once()
-    finally:
-        window.close()
+    with patch.object(window, "_toggle_reference_dialog") as mock_toggle:
+        window._press_queue.put("help_reference")
+        window._handle_press_event()
+    mock_toggle.assert_called_once()
 
 
-def test_help_reference_close_press_closes_reference_dialog(cfg_path: Path):
+def test_help_reference_close_press_closes_reference_dialog(dashboard_window, dashboard_app_config):
     """A voice "close help" arrives as a press and must only dismiss the popup —
     never open it."""
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    window = dashboard_window
 
-    try:
-        with patch.object(window, "_close_reference_dialog") as mock_close, \
-             patch.object(window, "_toggle_reference_dialog") as mock_toggle:
-            window._press_queue.put("help_reference_close")
-            window._handle_press_event()
-        mock_close.assert_called_once()
-        mock_toggle.assert_not_called()
-    finally:
-        window.close()
+    with patch.object(window, "_close_reference_dialog") as mock_close, \
+         patch.object(window, "_toggle_reference_dialog") as mock_toggle:
+        window._press_queue.put("help_reference_close")
+        window._handle_press_event()
+    mock_close.assert_called_once()
+    mock_toggle.assert_not_called()
 
 
-def test_toggle_reference_dialog_opens_then_closes(cfg_path: Path):
+def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
     """The same trigger opens the popup, then closes it on the next invocation."""
     from unittest.mock import MagicMock
 
-    config = load_config(cfg_path)
-    manifest_path = write_windows_bridge_manifest(config)
-    app_config = load_dashboard_app_config(manifest_path)
-    launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
+    window = dashboard_window
 
-    window = build_dashboard_window(app_config, launch_geometry=launch_geo)
+    with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
+        dialog = mock_dialog.return_value
+        dialog.isVisible.return_value = False
+        window._toggle_reference_dialog()  # closed → opens
+        dialog.show.assert_called_once()
+        dialog.close.assert_not_called()
 
-    try:
-        with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
-            dialog = mock_dialog.return_value
-            dialog.isVisible.return_value = False
-            window._toggle_reference_dialog()  # closed → opens
-            dialog.show.assert_called_once()
-            dialog.close.assert_not_called()
-
-            dialog.isVisible.return_value = True
-            window._toggle_reference_dialog()  # visible → closes
-            dialog.close.assert_called_once()
-    finally:
-        window.close()
+        dialog.isVisible.return_value = True
+        window._toggle_reference_dialog()  # visible → closes
+        dialog.close.assert_called_once()
 
 
 def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
