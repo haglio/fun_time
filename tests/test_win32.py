@@ -84,7 +84,7 @@ class TestFindWindowByPid:
 
 
 class TestMoveWindow:
-    def test_restores_then_repositions(self):
+    def test_a_move_restores_a_minimized_window_before_placing_it(self):
         calls: list[tuple[str, tuple]] = []
 
         def fake_show(hwnd, cmd):
@@ -103,7 +103,7 @@ class TestMoveWindow:
 
 
 class TestSetAlwaysOnTop:
-    def test_sets_topmost(self):
+    def test_true_pins_the_window_into_the_topmost_band(self):
         with patch("fun_time.win32._user32") as mock:
             set_always_on_top(111, True)
 
@@ -111,7 +111,7 @@ class TestSetAlwaysOnTop:
         assert args[0] == 111
         assert args[1] == HWND_TOPMOST
 
-    def test_clears_topmost(self):
+    def test_false_drops_the_window_out_of_the_topmost_band(self):
         with patch("fun_time.win32._user32") as mock:
             set_always_on_top(111, False)
 
@@ -205,7 +205,7 @@ class TestAWindowThatHasStoppedAnswering:
 
 
 class TestActivateWindow:
-    def test_calls_set_foreground(self):
+    def test_activating_asks_windows_to_bring_it_to_the_foreground(self):
         with patch("fun_time.win32._user32") as mock:
             activate_window(111)
 
@@ -302,7 +302,7 @@ class TestForceForegroundWindow:
 
 
 class TestMinimizeWindow:
-    def test_calls_show_window_with_sw_minimize(self):
+    def test_minimizing_animates_and_may_take_focus_by_default(self):
         with patch("fun_time.win32._user32") as mock_user32:
             minimize_window(99999)
         mock_user32.ShowWindow.assert_called_once_with(99999, SW_MINIMIZE)
@@ -314,7 +314,7 @@ class TestMinimizeWindow:
 
 
 class TestCloseWindow:
-    def test_sends_wm_close(self):
+    def test_closing_asks_the_window_to_close_itself_not_the_process(self):
         with patch("fun_time.win32._user32") as mock:
             close_window(12345)
 
@@ -353,7 +353,7 @@ class TestGetProcessImageName:
             mock.OpenProcess.return_value = None
             assert get_process_image_name(4242) is None
 
-    def test_returns_none_when_image_query_fails(self):
+    def test_an_unanswerable_image_query_reads_as_no_name(self):
         with patch("fun_time.win32._kernel32") as mock:
             mock.OpenProcess.return_value = 42
             mock.QueryFullProcessImageNameW.return_value = 0

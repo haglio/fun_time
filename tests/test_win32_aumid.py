@@ -26,7 +26,7 @@ class TestSetAppUserModelId:
             with pytest.raises(OSError, match="SetCurrentProcessExplicitAppUserModelID failed"):
                 set_app_user_model_id("Bad.Id")
 
-    def test_constant_value(self):
+    def test_the_app_identity_is_the_one_the_pinned_shortcut_carries(self):
         assert APP_USER_MODEL_ID == "FunTime.App"
 
 
