@@ -75,7 +75,6 @@ class StartupResult:
     dashboard_pid: int
     genau_pid: int
     audio_pid: int
-    layout_plan: WindowLayoutPlan
     # The hosted Origenerator's process, or 0 for a session with none configured.
     origenerator_pid: int = 0
     # Which player the main slot was revealed on — last session's, resumed.
@@ -725,7 +724,6 @@ def _run_startup_phases(
         dashboard_pid=ui_pids["dashboard_pid"],
         genau_pid=genau_pid,
         audio_pid=ui_pids["audio_pid"],
-        layout_plan=plan,
         origenerator_pid=origenerator_pid,
         main_mode=main_mode,
         satellites_mode=satellites_mode,

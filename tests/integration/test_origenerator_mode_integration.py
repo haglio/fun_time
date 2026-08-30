@@ -40,7 +40,6 @@ from fun_time.shared_state import (
 from fun_time.windows_bridge_dispatch_loop import BridgeState
 from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows
 from fun_time.windows_bridge_sequencer import StartupResult
-from fun_time.window_layout import WindowLayoutPlan, WindowRect
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -248,7 +247,6 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     assert not is_window_topmost(portrait)
     assert not is_window_topmost(landscape)
 
-    rect = WindowRect(0, 0, 100, 100)
     _fix_post_loading_windows(StartupResult(
         nau_pid=pids["nau_pid"],
         portrait_pid=pids["portrait_pid"],
@@ -256,9 +254,6 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         dashboard_pid=0,
         genau_pid=pids["genau_pid"],
         audio_pid=0,
-        layout_plan=WindowLayoutPlan(
-            portrait=rect, landscape=rect, dashboard=rect, random_favs_browser=rect,
-        ),
         main_mode="nau",
     ))
 
