@@ -30,13 +30,11 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 from fun_time.branch_session import apply_genau_dirs_to_sys_path
 
-# Before anything that reaches the dispatch loop, for the reason
-# fun_time.orchestrator does it: a worktree's genau_project_dirs override
-# reaches Genau and Nau as subprocess PYTHONPATH, but a launcher's own process
-# resolves player_core through the venv, which is the primary's.  Every launch
-# entry point in this checkout needs this line — tests/test_launch_smoke.py
-# imports each of them the way its .vbs runs it, and goes red for whichever one
-# is missing it.
+# Before anything that reaches the dispatch loop: a worktree's
+# genau_project_dirs override reaches Genau and Nau as subprocess PYTHONPATH,
+# but a launcher's own process resolves player_core through the venv, which is
+# the primary's.  (Every entry point needs it — see CLAUDE.md, "Standing
+# rules".)
 apply_genau_dirs_to_sys_path()
 
 from fun_time.broker_control import PARK_CMD, write_broker_command

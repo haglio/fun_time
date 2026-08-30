@@ -16,9 +16,9 @@ everything and forced its brightness=1.4 hack; this pipeline needs none.)
 Every draw call rebinds the state it needs, because the mpv render contexts
 share this GL context and leave bindings wherever they finished.
 
-Not unit-tested: it needs a live GL context.  The geometry and matrices it
-draws come tested from scene.py/matrices.py, and the offscreen pixel path is
-MpvRenderPlayer's, verified against the real DLL.
+A GL shell.  The geometry and matrices it draws come tested from
+scene.py/matrices.py, and the offscreen pixel path is MpvRenderPlayer's,
+verified against the real DLL.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 

@@ -82,13 +82,8 @@ def _source_for_heard_text(text: str) -> str:
 # and adds nothing — "play" resumes, "quit"/"exit" quits, "relief omnipause"
 # retracts, and that last one has to reach a room that is ALREADY paused, because
 # a paused session can still have the device on the user.  Nothing else a paused
-# room says reaches the dispatch loop.
-#
-# The reference popup is NOT exempt, deliberately: d6f3766 exempted it ("Let the
-# reference popup answer while the room is paused") and this reverts that, at the
-# user's call.  The freeze is a flat rule about what a paused room may be heard to
-# do, and a spoken "help" is exactly the phrase room noise produced when it opened
-# the popup mid-pause.  Don't re-exempt it without asking first.
+# room says reaches the dispatch loop.  Widening this set is the owner's call --
+# see CLAUDE.md, "Standing rules", and the test that pins the whole frozenset.
 SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
 
 
