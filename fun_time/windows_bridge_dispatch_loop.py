@@ -22,7 +22,6 @@ from .command_dispatch import (
     MAIN_SIDE,
     BridgeConfig,
     BridgeState,
-    command_side,
     dispatch_command,
     routes_to_origenerator,
     side_name,
@@ -39,9 +38,9 @@ from .modes import build_mirrored_funscript_path, is_favorite_path, read_favs_co
 from .satellite_control import read_satellite_status
 from .satellites_mode import origenerator_shows
 from .shared_state import read_shared_state, write_shared_state
-from .video_timeline import VideoTimeline
 from .voice_commands import parse_command_line
-from .watch_stats import WatchTracker, record_watch_event, watch_stats_path
+from .watch_sampling import WatchSampler
+from .watch_stats import watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
@@ -259,25 +258,14 @@ class DispatchLoopRunner:
             getattr(config, "nau_notice_file", None) or Path("nau_notice.txt")
         )[0]
         self.voice_controller: VoiceController | None = None
-        # Each player's current video is sampled periodically and fed to watch
-        # tracking ("breeding"), which classifies playback into completions/skips
-        # for the stats file.  The satellites (2, 3) are read from the status file
-        # each native player publishes and additionally feed a timeline, which lets
-        # a spoken command be back-dated to the video on screen when the user
-        # started talking (see _back_dated_video); the main Nau player (1) is
-        # read from its own status file and needs no such timeline.
-        self._watch_trackers: dict[int, WatchTracker] = {
-            1: WatchTracker(),
-            2: WatchTracker(),
-            3: WatchTracker(),
-        }
-        self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
-        self._satellite_status_files = {
-            2: config.portrait_status_file,
-            3: config.landscape_status_file,
-        }
-        self._watch_stats_file = watch_stats_path(config.state_dir)
-        self._last_watch_sample = 0.0
+        # Watch tracking ("breeding"): every player's current clip, sampled and
+        # classified into completions and skips for the stats file.
+        self.watch = WatchSampler(
+            nau_status_file=config.nau_status_file,
+            satellite_status_files={2: config.portrait_status_file,
+                                    3: config.landscape_status_file},
+            stats_file=watch_stats_path(config.state_dir),
+        )
         # Hybrid funscript handoff: whether the funscript is driving the OSR2
         # right now (so Genau is paused and Nau's T-Code is on) or Genau is (a
         # funscript gap or an unscripted video).  None means "no decision applied
@@ -289,14 +277,6 @@ class DispatchLoopRunner:
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
 
-    # Twice a second: the cadence for sampling every player's current clip for
-    # watch tracking (both satellites and the main Nau feed).  A satellite
-    # video switch is only ever bracketed by two samples, so this also bounds how
-    # far a back-dated command can misplace a switch (the timeline halves it again
-    # by dating the switch to the bracket's midpoint).  Skipped under OmniPause,
-    # where playback is frozen.
-    _WATCH_SAMPLE_INTERVAL_S = 0.5
-
     # How often the standing hybrid pair (SET_TCODE_ENABLED + PAUSE/RESUME) is
     # re-queued without an edge, so a verb lost in transit converges instead of
     # staying lost until the next turn boundary.
@@ -307,17 +287,6 @@ class DispatchLoopRunner:
     # panel is index lookups plus a stat per thumbnail, and the publisher skips the
     # write entirely when the panel is unchanged, so an idle tick is nearly free.
     _HUD_PUBLISH_INTERVAL_S = 0.15
-
-    # Commands that count as the user navigating away from a video — the signal
-    # that classifies an early departure as a skip rather than a neutral advance.
-    # The main player (Nau) navigates with next/prev only; it has no lock/weird/cycle.
-    _WATCH_NAV_COMMANDS: dict[int, frozenset[str]] = {
-        1: frozenset({"main_prev", "main_next"}),
-        2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
-        3: frozenset({"landscape_prev", "landscape_next", "landscape_cycle_action", "landscape_cycle_seed"}),
-    }
-
-    _WATCH_DISCARD_COMMANDS: dict[str, int] = {"portrait_trash": 2, "landscape_trash": 3}
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
@@ -367,11 +336,7 @@ class DispatchLoopRunner:
             self._converge_origenerator_window()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        if now - self._last_watch_sample >= self._WATCH_SAMPLE_INTERVAL_S:
-            self._last_watch_sample = now
-            if not self.state.omni_paused:
-                self._sample_satellites(now=now)
-                self._sample_main()
+        self.watch.sample_due(now=now, paused=self.state.omni_paused)
         if now - self._last_hud_publish >= self._HUD_PUBLISH_INTERVAL_S:
             self._last_hud_publish = now
             self._publish_huds()
@@ -710,63 +675,16 @@ class DispatchLoopRunner:
         else:
             self._dispatch(cmd, spoken_at)
 
-    def _sample_satellites(self, *, now: float) -> None:
-        """Sample each satellite's current video for the trackers and timelines,
-        from the status file its native player publishes."""
-        for which, status_file in self._satellite_status_files.items():
-            status = read_satellite_status(status_file)
-            if status.fraction is None:
-                continue
-            self._timelines[which].observe(status.video, now=now)
-            for event, video in self._watch_trackers[which].observe(status.video, status.fraction):
-                record_watch_event(self._watch_stats_file, video, event)
-
-    def _sample_main(self) -> None:
-        """Sample the main Nau player's current video for watch tracking.
-
-        Nau publishes its playback to the status file; the watched fraction is
-        position/duration.  A paused player, one with nothing loaded, or one
-        whose duration is not yet known yields no usable sample, so those ticks
-        are dropped rather than fed to the tracker.
-        """
-        status = read_nau_status(self.config.nau_status_file)
-        if not status.video or status.paused or status.duration_ms <= 0:
-            return
-        fraction = status.position_ms / status.duration_ms
-        for event, video in self._watch_trackers[1].observe(status.video, fraction):
-            record_watch_event(self._watch_stats_file, video, event)
-
-    def _back_dated_video(self, command: str, spoken_at: float | None) -> str:
-        """The video *command* was aimed at, or "" for "whatever is playing now".
-
-        A phrase is only recognized once the speaker stops, so a satellite can
-        have auto-advanced between "lock…" and "…portrait".  The satellite's
-        timeline says which video was on screen when the utterance began — the
-        one the speaker was looking at, and therefore meant.  Hotkeys are
-        instantaneous and name no video.
-        """
-        if spoken_at is None:
-            return ""
-        timeline = self._timelines.get(command_side(command))
-        if timeline is None:
-            return ""
-        return timeline.path_at(spoken_at)
-
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
         # A transport verb bound for an Origenerator show steps that show, not
         # the paused player underneath — booking it here would classify the
         # player's frozen clip as skipped or discarded when nobody touched it.
         if not routes_to_origenerator(command, self.state, self.config):
-            for which, nav_commands in self._WATCH_NAV_COMMANDS.items():
-                if command in nav_commands:
-                    self._watch_trackers[which].note_user_nav()
-            discard_which = self._WATCH_DISCARD_COMMANDS.get(command)
-            if discard_which is not None:
-                self._watch_trackers[discard_which].note_discard()
+            self.watch.note_command(command)
         new_state, ops = dispatch_command(
             command, self.state, self.config,
-            target_path=self._back_dated_video(command, spoken_at),
+            target_path=self.watch.video_at(command, spoken_at),
         )
         self.state = new_state
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"

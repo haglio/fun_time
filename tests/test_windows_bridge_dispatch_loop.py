@@ -472,158 +472,36 @@ class TestDispatchLoopRunner:
         commands = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "portrait_next" in commands
 
-    def test_a_spoken_lock_is_back_dated_to_the_video_the_speaker_saw(self, tmp_path):
-        """The satellite advanced while "lock portrait" was being recognized, so
-        the command carries the utterance's start and is aimed at the video that
-        was on screen then."""
+    def test_a_spoken_command_carries_the_video_the_sampler_back_dates_it_to(self, tmp_path):
+        """A phrase is only recognized once the speaker stops, so the video on
+        screen when they started talking is the one they meant.  Which video
+        that was is the sampler's timeline to answer; what the runner owes is
+        putting its answer on the dispatch."""
         runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
         runner.state = BridgeState(active_side=2, locked2=False)
-        runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
-        runner._timelines[2].observe("C:\\clips\\advanced_to.mp4", now=101.0)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
+        with patch.object(runner.watch, "video_at", return_value="C:\\clips\\meant.mp4"), \
+             patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
             mock_dispatch.return_value = (runner.state, [])
             runner.tick()
 
         assert mock_dispatch.call_args[0][0] == "portrait_lock"
         assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\meant.mp4"
 
-    def test_a_spoken_command_reads_its_own_players_timeline(self, tmp_path):
-        """Each satellite keeps its own history; a landscape command must not be
-        back-dated against the portrait's videos."""
+    def test_the_tick_samples_every_player_on_the_watch_cadence(self, tmp_path):
+        """Watch tracking rides the tick, and knows whether the room is paused —
+        under OmniPause nothing is playing, so nothing is sampled."""
         runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
-        runner.state = BridgeState(active_side=3, locked3=False)
-        runner._timelines[2].observe("C:\\clips\\portrait.mp4", now=100.0)
-        runner._timelines[3].observe("C:\\clips\\landscape.mp4", now=100.0)
-        (tmp_path / "dashboard_cmd.txt").write_text("landscape_trash @100.200", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.return_value = (runner.state, [])
+        with patch.object(runner.watch, "sample_due") as sample:
             runner.tick()
+            assert sample.call_args.kwargs["paused"] is False
 
-        assert mock_dispatch.call_args.kwargs["target_path"] == "C:\\clips\\landscape.mp4"
-
-    def test_a_hotkey_command_names_no_video(self, tmp_path):
-        """A keypress is instantaneous: it means whatever is playing right now."""
-        runner = make_runner(tmp_path)
-        runner._last_watch_sample = float("inf")
-        runner._timelines[2].observe("C:\\clips\\meant.mp4", now=100.0)
-        (tmp_path / "dashboard_cmd.txt").write_text("portrait_trash", encoding="utf-8")
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.return_value = (runner.state, [])
+            runner.state = BridgeState(omni_paused=True)
+            write_shared_state(tmp_path / "shared_state.ini", runner.state)
             runner.tick()
-
-        assert mock_dispatch.call_args.kwargs["target_path"] == ""
-
-    def test_sampling_records_each_satellites_video_into_its_timeline(self, tmp_path):
-        runner = make_runner(tmp_path)
-        _write_satellite_status(runner.config.portrait_status_file, "C:\\clips\\portrait.mp4", fraction=0.1)
-        _write_satellite_status(runner.config.landscape_status_file, "C:\\clips\\landscape.mp4", fraction=0.1)
-
-        runner._sample_satellites(now=500.0)
-
-        assert runner._timelines[2].path_at(500.0) == "C:\\clips\\portrait.mp4"
-        assert runner._timelines[3].path_at(500.0) == "C:\\clips\\landscape.mp4"
-
-    def test_primary_sampling_records_a_completion_when_a_watched_nau_video_departs(self, tmp_path):
-        """Nau's status feed is watch-tracked just like a satellite: a video seen
-        to ~the end, then auto-advanced past, is one completion."""
-        runner = make_runner(tmp_path)
-        watched = _make_video(tmp_path, "watched.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
-
-        _write_nau_status(status, watched, position_ms=9000, duration_ms=10000)
-        runner._sample_main()
-        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_main()
-
-        stats = load_watch_stats(runner._watch_stats_file)
-        assert stats[normalize_path_key(str(watched))]["completions"] == 1
-
-    def test_primary_sampling_skips_when_duration_is_unknown(self, tmp_path):
-        """Before Nau knows the clip length it publishes duration_ms=0; no
-        fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
-        runner = make_runner(tmp_path)
-        early = _make_video(tmp_path, "early.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
-
-        _write_nau_status(status, early, position_ms=5000, duration_ms=0)
-        runner._sample_main()
-        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_main()
-
-        assert normalize_path_key(str(early)) not in load_watch_stats(runner._watch_stats_file)
-
-    def test_primary_sampling_ignores_paused_nau_samples(self, tmp_path):
-        """A paused player isn't watching; its samples are dropped, so a position
-        held near the end under pause is not later scored as a completion."""
-        runner = make_runner(tmp_path)
-        watched = _make_video(tmp_path, "watched.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
-
-        _write_nau_status(status, watched, position_ms=9000, duration_ms=10000, paused=True)
-        runner._sample_main()
-        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_main()
-
-        assert normalize_path_key(str(watched)) not in load_watch_stats(runner._watch_stats_file)
-
-    def test_primary_sampling_ignores_status_with_no_video(self, tmp_path):
-        """Between videos Nau can briefly publish an empty video path; that blank
-        must not read as the watched video departing (a spurious completion)."""
-        runner = make_runner(tmp_path)
-        watched = _make_video(tmp_path, "watched.mp4")
-        status = tmp_path / "nau_status.txt"
-
-        _write_nau_status(status, watched, position_ms=9000, duration_ms=10000)
-        runner._sample_main()
-        _write_nau_status(status, "", position_ms=0, duration_ms=10000)
-        runner._sample_main()
-
-        assert normalize_path_key(str(watched)) not in load_watch_stats(runner._watch_stats_file)
-
-    def test_primary_next_marks_the_departed_nau_video_as_a_skip(self, tmp_path):
-        """Pressing next on the main player is the "user nav" signal: a Nau video left
-        early right after a next counts as a skip, just like a satellite next."""
-        runner = make_runner(tmp_path)
-        early = _make_video(tmp_path, "early.mp4")
-        nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
-
-        _write_nau_status(status, early, position_ms=1000, duration_ms=10000)
-        runner._sample_main()
-        runner._dispatch("main_next")
-        _write_nau_status(status, nextv, position_ms=0, duration_ms=10000)
-        runner._sample_main()
-
-        stats = load_watch_stats(runner._watch_stats_file)
-        assert stats[normalize_path_key(str(early))]["skips"] == 1
-
-    def test_tick_samples_the_primary_player(self, tmp_path):
-        """Nau watch tracking rides the same periodic sample tick as the satellites."""
-        runner = make_runner(tmp_path)
-
-        with patch.object(runner, "_sample_main") as mock_main:
-            runner.tick()
-
-        mock_main.assert_called_once()
-
-    def test_tick_does_not_sample_the_primary_under_omnipause(self, tmp_path):
-        """Omnipause halts sampling for every player, the main one included."""
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(omni_paused=True)
-
-        with patch.object(runner, "_sample_main") as mock_main:
-            runner.tick()
-
-        mock_main.assert_not_called()
+            assert sample.call_args.kwargs["paused"] is True
 
     def test_nudge_dispatches_to_command(self, tmp_path):
         """Nau owns the main player in every mode it appears, so a nudge
@@ -3111,14 +2989,14 @@ class TestOrigeneratorWatchGuard:
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
         runner.state = replace(runner.state, satellites_mode="origenerator")
-        with patch.object(runner._watch_trackers[2], "note_user_nav") as nav:
+        with patch.object(runner.watch, "note_command") as note:
             runner._dispatch("portrait_next")
-        nav.assert_not_called()
+        note.assert_not_called()
 
     def test_a_player_mode_step_still_books_the_player(self, tmp_path):
         config = make_config(tmp_path, origenerator_enabled=True,
                              origenerator_cmd_file=tmp_path / "origenerator_cmd.txt")
         runner = make_runner(tmp_path, config=config, origenerator_pid=700)
-        with patch.object(runner._watch_trackers[2], "note_user_nav") as nav:
+        with patch.object(runner.watch, "note_command") as note:
             runner._dispatch("portrait_next")
-        nav.assert_called_once()
+        note.assert_called_once_with("portrait_next")
