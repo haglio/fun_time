@@ -13,10 +13,28 @@ class Size:
 
 @dataclass(frozen=True)
 class Rect:
+    """Where something is and how big it is, in screen pixels.
+
+    Every rectangle this session places, under whatever name: see the aliases.
+    """
+
     x: int
     y: int
     width: int
     height: int
+
+
+def add_rect_arguments(parser, *, prefix: str = "") -> None:
+    """Declare ``--x/--y/--width/--height``, optionally prefixed, on *parser*."""
+    for field in ("x", "y", "width", "height"):
+        parser.add_argument(f"--{prefix}{field}".replace("_", "-"), type=int)
+
+
+def rect_from_arguments(args, *, prefix: str = "") -> Rect | None:
+    """The rect those four name, or None unless all four were given: three of
+    four would place a window somewhere nobody asked for."""
+    values = [getattr(args, f"{prefix}{field}") for field in ("x", "y", "width", "height")]
+    return None if None in values else Rect(*values)
 
 
 def client_rect_filling_frame(

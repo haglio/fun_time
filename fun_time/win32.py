@@ -426,19 +426,16 @@ def window_exists(hwnd: int) -> bool:
 def force_foreground_window(hwnd: int) -> bool:
     """Take the foreground for *hwnd* from a process that does not hold it.
 
-    Windows refuses ``SetForegroundWindow`` outright unless the calling process
-    owns the foreground window or received the last input event — and the bridge
-    is neither when a hotkey lands: AHK got the key, and a player owns the
-    screen.  The refusal is silent; it flashes the taskbar button and delivers no
-    WM_ACTIVATE at all, which is exactly the message the window has to see.
-    Attaching this thread's input queue to the foreground window's thread makes
-    the two one queue, and a thread sharing the foreground thread's queue is one
-    of the cases the rule accepts, so the call goes through.
+    Windows refuses ``SetForegroundWindow`` unless the calling process owns the
+    foreground window or received the last input — and the bridge is neither
+    when a hotkey lands: AHK got the key, a player owns the screen.  The refusal
+    is silent, and delivers no WM_ACTIVATE, which is the message the window has
+    to see.  Attaching this thread's input queue to the foreground thread's is
+    one of the cases the rule accepts, so the call goes through.
 
-    Returns whether the window really ended up in the foreground.  A False is
-    worth logging but not worth acting on: on a non-input desktop (the hidden
-    desktop the integration suite runs on) there is no foreground window to be,
-    so this reads False there while the activation itself still lands.
+    Returns whether the window really ended up there.  A False is worth logging
+    but not acting on: a non-input desktop (the integration suite's) has no
+    foreground to be, so it reads False while the activation still lands.
     """
     if not window_exists(hwnd):
         return False

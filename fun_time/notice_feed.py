@@ -12,7 +12,6 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fun_time.config import LayoutConfig
-from fun_time.dashboard_layout import Rect
 from fun_time.event_log import EVENT_LOG_FILENAME, read_events
 from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.notice_overlay import PlayerRects, is_announcement, notice_target_rect
@@ -23,9 +22,8 @@ from fun_time.window_layout import compute_main_media_rect, compute_window_layou
 def player_rects(layout: LayoutConfig) -> PlayerRects | None:
     """Where each notice-bearing window sits, in real screen coordinates.
 
-    From the same layout functions startup positions the windows with, so the
-    overlay lands ON the window rather than near it.  None when the monitors
-    cannot be read (a headless run), so notices simply do not flash.
+    From the layout functions startup positioned them with, so a toast lands ON
+    its window.  None on a headless run, where notices simply do not flash.
     """
     try:
         monitors = enumerate_monitors()
@@ -44,23 +42,19 @@ def player_rects(layout: LayoutConfig) -> PlayerRects | None:
     main = compute_main_media_rect(
         secondary_monitor=secondary_rect, layout_config=layout,
     )
-    as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)  # noqa: E731
     return PlayerRects(
-        main=as_rect(main),
-        portrait=as_rect(plan.portrait),
-        landscape=as_rect(plan.landscape),
-        dash=as_rect(plan.dashboard),
+        main=main,
+        portrait=plan.portrait,
+        landscape=plan.landscape,
+        dash=plan.dashboard,
     )
 
 
 class NoticeFeed:
     """One session's toasts: where they go, when they may go, and how far read.
 
-    *event_log_dir* and *cover_dir* are given separately because the two files
-    are not in the same place today.
-
-    *held* starts the feed waiting for the cover.  The panel shows itself one
-    phase BEFORE the cover goes, so it cannot use its own reveal as the cue.
+    The two directories are separate because the two files are.  *held* starts
+    the feed waiting for the COVER, which the panel's own reveal precedes.
     """
 
     def __init__(

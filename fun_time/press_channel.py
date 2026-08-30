@@ -16,9 +16,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-# Where the port this end bound is published, and where
-# ``windows_bridge_dispatch_loop`` reads it.  Written with no trailing newline:
-# the far end ``int()``s the text as it finds it.
+# Read by windows_bridge_dispatch_loop, which int()s the text as it finds it.
 PRESS_PORT_FILENAME = "dashboard_press_port.txt"
 
 # An action id is a short word; nothing longer is a press.
@@ -64,13 +62,7 @@ class PressChannel:
                 return taken
 
     def stop(self) -> None:
-        """Wind the listener down.
-
-        Closing the socket is what unblocks it: the thread is parked inside
-        ``recvfrom`` and would otherwise read on past the window it belongs to,
-        which matters where several dashboards are built and closed inside one
-        longer-lived process.
-        """
+        """Wind the listener down; closing the socket is what unblocks it."""
         self._stopping.set()
         try:
             self._sock.close()

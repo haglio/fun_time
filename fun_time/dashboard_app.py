@@ -46,8 +46,10 @@ from fun_time.dashboard_layout import (
     PAD as BAR_PAD,
     DashboardBarLayout,
     Rect,
+    add_rect_arguments,
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
+    rect_from_arguments,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
 
@@ -77,12 +79,7 @@ class DashboardAppConfig:
     dashboard_cmd_file: Path
 
 
-@dataclass(frozen=True)
-class DashboardLaunchGeometry:
-    x: int
-    y: int
-    width: int
-    height: int
+DashboardLaunchGeometry = Rect
 
 
 @dataclass(frozen=True)
@@ -827,15 +824,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(Path("state") / WINDOWS_BRIDGE_MANIFEST_FILENAME),
         help="Path to the Windows bridge launch manifest",
     )
-    parser.add_argument("--x", type=int)
-    parser.add_argument("--y", type=int)
-    parser.add_argument("--width", type=int)
-    parser.add_argument("--height", type=int)
+    add_rect_arguments(parser)
     # The Random Favs Browser's rect — the reference popup opens over it.
-    parser.add_argument("--rfb-x", type=int)
-    parser.add_argument("--rfb-y", type=int)
-    parser.add_argument("--rfb-width", type=int)
-    parser.add_argument("--rfb-height", type=int)
+    add_rect_arguments(parser, prefix="rfb_")
     return parser.parse_args(argv)
 
 
@@ -854,17 +845,8 @@ def main(argv: list[str] | None = None) -> int:
 
     app_config = load_dashboard_app_config(Path(args.manifest_path))
     record_source_checkout(app_config.dashboard_state_file.parent)
-    launch_geometry = None
-    if None not in {args.x, args.y, args.width, args.height}:
-        launch_geometry = DashboardLaunchGeometry(
-            x=args.x,
-            y=args.y,
-            width=args.width,
-            height=args.height,
-        )
-    rfb_rect = None
-    if None not in {args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height}:
-        rfb_rect = Rect(args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height)
+    launch_geometry = rect_from_arguments(args)
+    rfb_rect = rect_from_arguments(args, prefix="rfb_")
     _window = build_dashboard_window(
         app_config,
         launch_geometry=launch_geometry,

@@ -1,12 +1,9 @@
 """The AppUserModelID this session's processes and its shortcut carry.
 
 Windows groups a running window under a pinned taskbar shortcut only when the
-two agree on an AppUserModelID: the process claims one before it opens any
-window, and the shortcut carries the same string in its
-``System.AppUserModel.ID`` property.  Both halves live here — the process call
-is one shell32 export, and the shortcut half is the COM ceremony below, which
-is why this is a module of its own rather than part of the window layer it
-shared a file with.
+two agree on one: the process claims it before opening any window, and the
+shortcut carries the same string in its ``System.AppUserModel.ID``.  One
+shell32 export, and the COM ceremony below.
 """
 from __future__ import annotations
 

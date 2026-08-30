@@ -10,17 +10,11 @@ from __future__ import annotations
 import ctypes
 import ctypes.wintypes
 import os
-from dataclasses import dataclass
 
 from .window_layout import MonitorRect
 
 
-@dataclass(frozen=True)
-class MonitorInfo:
-    x: int
-    y: int
-    width: int
-    height: int
+MonitorInfo = MonitorRect
 
 
 # GetSystemMetrics indices for the box every monitor sits inside.
@@ -55,14 +49,11 @@ def virtual_desktop_rect() -> MonitorInfo | None:
 def enumerate_monitors() -> list[MonitorInfo]:
     """Return work-area rectangles for all monitors via Win32 EnumDisplayMonitors.
 
-    ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides the live
-    enumeration outright.  It exists for the integration suite's hidden
-    desktop, which reports a single monitor — on it the real layout collapses
-    every window onto one screen and the players legitimately overlap, so a
-    test asserting the startup choreography ("is each player frontmost over
-    its own rect?") had nothing true to assert.  Faked side-by-side monitors
-    give the plan disjoint rects again; windows place fine at coordinates no
-    display backs.
+    ``FUN_TIME_FAKE_MONITORS`` (``x,y,w,h;x,y,w,h``) overrides it outright, for
+    the integration suite's hidden desktop: that reports ONE monitor, on which
+    the real layout collapses every window onto one screen and the players
+    legitimately overlap, so "is each player frontmost over its own rect?" had
+    nothing true to assert.  Windows place fine at coordinates no display backs.
     """
     fake = os.environ.get("FUN_TIME_FAKE_MONITORS", "").strip()
     if fake:
@@ -114,12 +105,10 @@ def get_logical_monitor_rects(
     primary_index: int,
     secondary_index: int,
 ) -> tuple[MonitorRect, MonitorRect]:
-    """Assign monitors to main/secondary roles with orientation correction.
+    """Assign monitors to main/secondary roles, correcting for orientation.
 
-    - If one monitor is landscape and the other portrait, landscape is main.
-    - If both have the same orientation, the leftmost is main.
-
-    ``primary_index`` and ``secondary_index`` are 1-based monitor numbers from config.
+    The rules, one test each: landscape wins over portrait, else leftmost wins.
+    The two indices are the 1-based monitor numbers the config carries.
     """
     if not monitors:
         raise ValueError("No monitors detected")
@@ -145,7 +134,4 @@ def get_logical_monitor_rects(
         else:
             main, secondary = configured_secondary, configured_main
 
-    return (
-        MonitorRect(main.x, main.y, main.width, main.height),
-        MonitorRect(secondary.x, secondary.y, secondary.width, secondary.height),
-    )
+    return main, secondary

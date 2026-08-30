@@ -63,12 +63,7 @@ class LoadingReveal:
         return self._routing_suppressed
 
     def took_the_first_restore(self) -> bool:
-        """Whether THIS restore edge is the one startup's minimize accounts for.
-
-        True at most once, and never after a reveal — revealing from hidden
-        fires no minimize->restore edge at all, so the reveal clears this
-        itself rather than waiting for one.
-        """
+        """Whether THIS restore edge is startup's own.  True at most once."""
         if not self._routing_suppressed:
             return False
         self._routing_suppressed = False

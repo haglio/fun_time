@@ -9,14 +9,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .dashboard_bridge import decode_snapshot
+from .dashboard_layout import Rect
 
 
-@dataclass(frozen=True)
-class DashboardWindowSnapshot:
-    x: int
-    y: int
-    width: int
-    height: int
+DashboardWindowSnapshot = Rect
 
 
 @dataclass(frozen=True)
