@@ -7,12 +7,16 @@ from unittest.mock import patch
 
 import pytest
 
-from fun_time.win32 import APP_USER_MODEL_ID, set_app_user_model_id, set_shortcut_app_user_model_id
+from fun_time.win32_taskbar import (
+    APP_USER_MODEL_ID,
+    set_app_user_model_id,
+    set_shortcut_app_user_model_id,
+)
 
 
 class TestSetAppUserModelId:
     def test_calls_shell32_with_correct_id(self):
-        with patch("fun_time.win32._shell32") as mock_shell32:
+        with patch("fun_time.win32_taskbar._shell32") as mock_shell32:
             mock_shell32.SetCurrentProcessExplicitAppUserModelID.return_value = 0
             set_app_user_model_id(APP_USER_MODEL_ID)
             mock_shell32.SetCurrentProcessExplicitAppUserModelID.assert_called_once_with(
@@ -20,7 +24,7 @@ class TestSetAppUserModelId:
             )
 
     def test_raises_on_failure(self):
-        with patch("fun_time.win32._shell32") as mock_shell32:
+        with patch("fun_time.win32_taskbar._shell32") as mock_shell32:
             # E_FAIL as signed 32-bit (HRESULT is signed; FAILED() checks < 0)
             mock_shell32.SetCurrentProcessExplicitAppUserModelID.return_value = -2147467259
             with pytest.raises(OSError, match="SetCurrentProcessExplicitAppUserModelID failed"):
@@ -58,7 +62,7 @@ class TestSetShortcutAppUserModelId:
         set_shortcut_app_user_model_id(str(lnk_path), "Test.AppId")
 
         # Read back via IPropertyStore to verify
-        from fun_time.win32 import _read_shortcut_app_user_model_id
+        from fun_time.win32_taskbar import _read_shortcut_app_user_model_id
 
         assert _read_shortcut_app_user_model_id(str(lnk_path)) == "Test.AppId"
 
