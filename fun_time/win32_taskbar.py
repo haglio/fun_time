@@ -56,7 +56,6 @@ def _make_guid(s: str) -> GUID:
                 (ctypes.c_ubyte * 8)(*u.bytes[8:]))
 
 
-# --- Shortcut AppUserModelID (COM IShellLink + IPersistFile + IPropertyStore) ---
 
 CLSID_ShellLink = _make_guid("00021401-0000-0000-C000-000000000046")
 IID_IShellLinkW = _make_guid("000214F9-0000-0000-C000-000000000046")

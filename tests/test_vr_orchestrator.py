@@ -323,3 +323,40 @@ class TestWaitForPlayer:
 
         assert ready is False
         assert "published no status" in caplog.text
+
+
+class TestTheCheckRun:
+    """``--check`` validates the config and stops, which is what `launch_vr.vbs`
+    uses to refuse a bad session before any window is opened."""
+
+    def test_a_valid_config_checks_out(self, config, monkeypatch, tmp_path):
+        from unittest.mock import patch
+
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"):
+            assert orchestrator.main(["--check"]) == 0
+
+    def test_the_handlers_land_on_the_logger_this_module_writes_through(self, config):
+        """Every function here logs through the module-level ``logger``, so the
+        one ``main`` sets up has to BE that one — it used to be threaded back in
+        as a parameter under a second name, which was the same object only
+        because the string happened to match."""
+        import logging
+        from unittest.mock import patch
+
+        from fun_time_vr import orchestrator
+
+        configured: list[logging.Logger] = []
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch.object(orchestrator, "configure_logging",
+                          side_effect=lambda name, *_a, **_k: (
+                              configured.append(logging.getLogger(name)),
+                              logging.getLogger(name))[1]):
+            orchestrator.main(["--check"])
+
+        assert configured == [orchestrator.logger]

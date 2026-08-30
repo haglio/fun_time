@@ -220,7 +220,7 @@ def _wait_for_player(status_file: Path, player: subprocess.Popen) -> bool:
     return False
 
 
-def run_vr_bridge(config, logger_) -> int:
+def run_vr_bridge(config) -> int:
     state_dir = config.paths.state_dir
     manifest_path = write_manifest_data(
         build_vr_manifest(config), state_dir / "windows_bridge_launch.ini"
@@ -296,8 +296,8 @@ def run_vr_bridge(config, logger_) -> int:
             nau_playlist, manifest.media.nau_library_sources,
             f_mode=carried.main_f_mode, recent=carried.main_latest,
         )
-        logger_.info("Resumed playlists; rebuilt the main player's, which held no VR video")
-    logger_.info(
+        logger.info("Resumed playlists; rebuilt the main player's, which held no VR video")
+    logger.info(
         "Resumed last session's playlists" if resumed else "Nothing to resume; built fresh playlists"
     )
 
@@ -309,7 +309,7 @@ def run_vr_bridge(config, logger_) -> int:
         manifest_path=manifest_path,
         log_file=state_dir / "vr_player.log",
     )
-    logger_.info("VR player launched (pid=%d)", player.pid)
+    logger.info("VR player launched (pid=%d)", player.pid)
     children = {
         "vr_player_pid": ChildProcess(
             pid=player.pid, created_at=get_process_creation_time(player.pid) or 0
@@ -363,9 +363,9 @@ def run_vr_bridge(config, logger_) -> int:
         dispatch_runner.voice_controller = voice_controller
         voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
         voice_thread.start()
-        logger_.info("Voice control thread launched")
+        logger.info("Voice control thread launched")
     elif config.voice_control.enabled:
-        logger_.warning("Voice control enabled but import failed: %s", voice_import_error())
+        logger.warning("Voice control enabled but import failed: %s", voice_import_error())
 
     command = [
         str(config.paths.ahk_exe),
@@ -373,21 +373,21 @@ def run_vr_bridge(config, logger_) -> int:
         str(manifest_path),
         str(state_dir / "bridge_pids.ini"),
     ]
-    logger_.info("Launching AHK hotkey script: %s", " ".join(command))
+    logger.info("Launching AHK hotkey script: %s", " ".join(command))
     ahk_proc = subprocess.Popen(command, cwd=config.project_dir)
 
     try:
         ended_by = _wait_for_session_end(ahk_proc, player)
         if ended_by == "player":
-            logger_.info("VR player exited -- ending the session")
+            logger.info("VR player exited -- ending the session")
             ahk_proc.terminate()
             ahk_proc.wait()
             exit_code = 0
         else:
-            logger_.info("AHK exited -- ending the session")
+            logger.info("AHK exited -- ending the session")
             exit_code = ahk_proc.wait()
     except KeyboardInterrupt:
-        logger_.info("Interrupted -- shutting down")
+        logger.info("Interrupted -- shutting down")
         exit_code = 1
     finally:
         if voice_controller is not None:
@@ -403,10 +403,8 @@ def run_vr_bridge(config, logger_) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
-    logger_ = configure_logging(
-        "fun_time_vr.orchestrator", config.log_file("vr_orchestrator"), console=True
-    )
-    install_exception_logging(logger_)
+    configure_logging(__name__, config.log_file("vr_orchestrator"), console=True)
+    install_exception_logging(logger)
 
     from fun_time.single_instance import (  # mirrors fun_time.orchestrator.main
         MUTEX_ORCHESTRATOR,
@@ -419,24 +417,24 @@ def main(argv: list[str] | None = None) -> int:
     # and the same players' channels, so they must never run together.
     _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
-        logger_.warning("Another Fun Time session (desktop or VR) is already running; exiting")
+        logger.warning("Another Fun Time session (desktop or VR) is already running; exiting")
         signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         show_already_running_message(
             "Another copy of Fun Time (desktop or VR) is already running."
         )
         return 1
 
-    logger_.info("Loaded config from %s", config.config_path)
+    logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
     validate_config(config)
     validate_vr_config(config)
 
     if args.check:
-        logger_.info("Config validation succeeded")
+        logger.info("Config validation succeeded")
         return 0
 
     signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
-    return run_vr_bridge(config, logger_)
+    return run_vr_bridge(config)
 
 
 if __name__ == "__main__":
