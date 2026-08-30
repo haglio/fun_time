@@ -45,6 +45,7 @@ from .win32 import (
     wait_for_window_by_title,
 )
 from .window_layout import (
+    MonitorRect,
     WindowLayoutPlan,
     WindowRect,
     compute_main_media_rect,
@@ -337,37 +338,69 @@ def run_startup_sequence(
         raise
 
 
-def _run_startup_phases(
-    *,
-    manifest_path: str | Path,
-    state_dir: str | Path,
-    progress: ProgressReporter,
-    hide_windows: bool,
-    cover_hwnd: int,
-    launched: _LaunchedChildren,
-) -> StartupResult:
-    manifest_path = Path(manifest_path)
-    state_dir = Path(state_dir)
-    state_dir.mkdir(parents=True, exist_ok=True)
-    m = _read_manifest(manifest_path)
+@dataclass(frozen=True)
+class _Layout:
+    """Where every window goes, computed before anything is launched.
 
-    # Compute the window layout up front so the satellites can launch straight
-    # into their real portrait/landscape rects (mpv sizes its output to the launch
-    # geometry and will NOT rescale when a later Win32 move resizes the window),
-    # exactly as Nau launches straight into its main slot rect below.
+    mpv sizes its output to the geometry it was launched with and will NOT
+    rescale when a later Win32 move resizes the window, so each satellite has to
+    be started straight into its real rect — which means the whole plan has to
+    exist before the first child does.
+    """
+
+    plan: WindowLayoutPlan
+    config: LayoutConfig
+    secondary_monitor: MonitorRect
+
+
+@dataclass(frozen=True)
+class _CoreSession:
+    """The children phase 1 leaves behind, and the modes it resumed into."""
+
+    main_mode: str
+    satellites_mode: str
+    portrait_pid: int
+    landscape_pid: int
+    genau_pid: int
+    nau_pid: int
+    origenerator_pid: int
+    # Nau's status file, dropped once phase 1 has spent last session's copy —
+    # phase 4 holds the overlay on the new one appearing.
+    nau_status_file: Path
+
+
+def _plan_the_layout(m: configparser.ConfigParser) -> _Layout:
+    """Every window's rect, from the monitors and the manifest's layout section."""
     layout_cfg = _layout_config_from_manifest(m)
     monitors = enumerate_monitors()
     primary_rect, secondary_rect = get_logical_monitor_rects(
-        monitors, primary_index=layout_cfg.primary_monitor, secondary_index=layout_cfg.secondary_monitor,
+        monitors, primary_index=layout_cfg.primary_monitor,
+        secondary_index=layout_cfg.secondary_monitor,
     )
-    plan = compute_window_layout(
-        primary_monitor=primary_rect,
+    return _Layout(
+        plan=compute_window_layout(
+            primary_monitor=primary_rect,
+            secondary_monitor=secondary_rect,
+            layout_config=layout_cfg,
+        ),
+        config=layout_cfg,
         secondary_monitor=secondary_rect,
-        layout_config=layout_cfg,
     )
 
-    # --- Phase 1: Launch core media stack ---
-    progress.advance("services")
+
+def _launch_core_media(
+    m: configparser.ConfigParser,
+    *,
+    layout: _Layout,
+    state_dir: Path,
+    launched: _LaunchedChildren,
+) -> _CoreSession:
+    """Phase 1: the two satellites, then Genau and Nau, then the hosted app.
+
+    Nothing here waits for a window.  Everything is started as early as it can
+    be so each child's own boot — pygame, a media scan, first frames, ComfyUI —
+    runs behind the rest of startup.
+    """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
     regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
@@ -375,9 +408,6 @@ def _run_startup_phases(
     # hosted Origenerator take the named checkouts exactly as Genau and Nau
     # below do.
     genau_project_dirs = m["runtime"].get("genau_project_dirs", "")
-    # The mode last session was closed in, which the core session has just seeded
-    # every cross-process flag for.  What is left is the half only this side can
-    # do: park the idle slot-mate, band the pair, and reveal on the right player.
     main_mode = start_core_session(
         config_path=m["runtime"]["config_path"],
         broker_cmd_file=m["commands"]["broker_cmd_file"],
@@ -401,8 +431,8 @@ def _run_startup_phases(
         nau_status_file=m["commands"]["nau_status_file"],
         portrait_log_file=state_dir / "portrait_satellite.log",
         landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=plan.portrait,
-        landscape_rect=plan.landscape,
+        portrait_rect=layout.plan.portrait,
+        landscape_rect=layout.plan.landscape,
         portrait_hud_file=m["commands"]["portrait_hud_file"],
         landscape_hud_file=m["commands"]["landscape_hud_file"],
         dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
@@ -433,7 +463,7 @@ def _run_startup_phases(
     # continues.  Both share the Main slot's rect, which depends only on
     # the secondary monitor + main_top_ratio (already computed above).
     main_media_rect = compute_main_media_rect(
-        secondary_monitor=secondary_rect, layout_config=layout_cfg,
+        secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
     # Genau's drive readout, which Nau draws inside its console in Hybrid.  Named
     # here and handed to BOTH players, because each resolving it for itself is how
@@ -520,7 +550,7 @@ def _run_startup_phases(
             python_exe=(m["executables"].get("origenerator_python_exe", "").strip()
                         or m["executables"]["python_exe"]),
             origenerator_dir=origenerator_dir,
-            layout_plan=plan,
+            layout_plan=layout.plan,
             command_file=m["commands"]["origenerator_cmd_file"],
             paused_file=m["commands"]["origenerator_paused_file"],
             status_file=m["commands"]["origenerator_status_file"],
@@ -549,6 +579,42 @@ def _run_startup_phases(
     # the right moment and needs no waiting on.
     if origenerator_pid and satellites_mode == "origenerator":
         append_command(Path(m["commands"]["origenerator_cmd_file"]), "OPEN_SHOWS")
+
+    return _CoreSession(
+        main_mode=main_mode,
+        satellites_mode=satellites_mode,
+        portrait_pid=portrait_pid,
+        landscape_pid=landscape_pid,
+        genau_pid=genau_pid,
+        nau_pid=nau_pid,
+        origenerator_pid=origenerator_pid,
+        nau_status_file=nau_status_file,
+    )
+
+
+def _run_startup_phases(
+    *,
+    manifest_path: str | Path,
+    state_dir: str | Path,
+    progress: ProgressReporter,
+    hide_windows: bool,
+    cover_hwnd: int,
+    launched: _LaunchedChildren,
+) -> StartupResult:
+    manifest_path = Path(manifest_path)
+    state_dir = Path(state_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    m = _read_manifest(manifest_path)
+    layout = _plan_the_layout(m)
+    plan = layout.plan
+
+    # --- Phase 1: Launch core media stack ---
+    progress.advance("services")
+    core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
+    main_mode = core.main_mode
+    satellites_mode = core.satellites_mode
+    origenerator_pid = core.origenerator_pid
+    nau_status_file = core.nau_status_file
 
     # --- Phase 2: Position windows (layout computed up front) ---
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
@@ -716,11 +782,11 @@ def _run_startup_phases(
         release_the_players(m, main_mode)
 
     return StartupResult(
-        nau_pid=nau_pid,
-        portrait_pid=portrait_pid,
-        landscape_pid=landscape_pid,
+        nau_pid=core.nau_pid,
+        portrait_pid=core.portrait_pid,
+        landscape_pid=core.landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
-        genau_pid=genau_pid,
+        genau_pid=core.genau_pid,
         audio_pid=ui_pids["audio_pid"],
         origenerator_pid=origenerator_pid,
         main_mode=main_mode,
