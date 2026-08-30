@@ -1,13 +1,8 @@
 """The announcements that flash over the player they are about.
 
 A second tail of the session's event log, faster than the panel's 500ms refresh
-so a "Clip saved" lands promptly, and with a geometry of its own: a toast is
-drawn over the window it concerns, so this reads the same two layout functions
-startup positioned that window with rather than a description of where it went.
-
-Held while the loading cover is up — a toast is topmost, and one that fired in
-that gap appeared for a moment through the scrim the cover is there to be.
-Nothing is dropped by waiting: the read offset does not advance while held.
+so a "Clip saved" lands promptly, and drawn over the window it concerns — from
+the same two layout functions startup positioned that window with.
 
 No Qt.  The overlay is a widget, so it arrives as something to call.
 """

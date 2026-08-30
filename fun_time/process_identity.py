@@ -58,6 +58,8 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 
+from fun_time.project_paths import PROJECT_ICON
+
 logger = logging.getLogger(__name__)
 
 # What marks an image name as one of ours.  Every role-named copy carries it, so
@@ -78,7 +80,7 @@ PROCESS_NAME_PATTERN = r"^pythonw?\.exe$|^py\.exe$|^" + EXE_PREFIX + r"[A-Za-z]+
 # Fun Time's mark, stamped into each copy so the row carrying its name carries
 # its face too.  The project root, where every other window in this repo reads
 # the same file from.
-ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
+ICON_PATH = PROJECT_ICON
 
 _ROLE_RE = re.compile(r"^[A-Za-z]+$")
 

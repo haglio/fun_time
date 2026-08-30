@@ -1113,8 +1113,10 @@ class TestMarkCache:
     def test_the_icon_is_rescaled_once_per_height(self):
         marks = MarkCache()
 
-        assert marks.icon("icon.ico", 24) is marks.icon("icon.ico", 24)
-        assert marks.icon("icon.ico", 24) is not marks.icon("icon.ico", 25)
+        from fun_time.project_paths import PROJECT_ICON
+
+        assert marks.icon(PROJECT_ICON, 24) is marks.icon(PROJECT_ICON, 24)
+        assert marks.icon(PROJECT_ICON, 24) is not marks.icon(PROJECT_ICON, 25)
 
     def test_a_second_bar_paints_out_of_a_cache_of_its_own(self):
         """The point of the owner: nothing is shared between two bars, and a

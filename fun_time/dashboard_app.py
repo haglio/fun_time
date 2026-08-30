@@ -22,6 +22,7 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
+from fun_time.project_paths import PROJECT_ICON
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.press_channel import PressChannel
@@ -148,14 +149,13 @@ class MarkCache:
         self._icons: dict[tuple[str, int], QPixmap] = {}
         self._marks: dict[tuple[str, int, int], QPixmap] = {}
 
-    def icon(self, filename: str, height: int) -> QPixmap:
-        """An icon .ico scaled to a square of *height* pixels."""
-        key = (filename, height)
+    def icon(self, path: Path, height: int) -> QPixmap:
+        """An .ico scaled to a square of *height* pixels."""
+        key = (str(path), height)
         if key not in self._icons:
             from PyQt6.QtCore import Qt
 
-            ico_path = Path(__file__).resolve().parent.parent / filename
-            pm = QPixmap(str(ico_path))
+            pm = QPixmap(str(path))
             if not pm.isNull():
                 pm = pm.scaled(
                     height, height,
@@ -251,7 +251,7 @@ def build_dashboard_scene(
                           anchor="w", font=_font_app),
     )
     images = (
-        DashboardImageItem(marks.icon("icon.ico", layout.app_icon.height), layout.app_icon),
+        DashboardImageItem(marks.icon(PROJECT_ICON, layout.app_icon.height), layout.app_icon),
         DashboardImageItem(marks.mark("power", layout.quit_button), layout.quit_button),
         DashboardImageItem(marks.mark(omnipause_mark, layout.omnipause_button),
                            layout.omnipause_button),
@@ -393,9 +393,8 @@ class ReferenceDialog(QDialog):
             | Qt.WindowType.WindowTitleHint
             | Qt.WindowType.WindowCloseButtonHint
         )
-        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        if PROJECT_ICON.exists():
+            self.setWindowIcon(QIcon(str(PROJECT_ICON)))
         browser = QTextBrowser(self)
         browser.setOpenExternalLinks(False)
         browser.setHtml(render_reference_html())
@@ -569,9 +568,8 @@ class DashboardWindow(QMainWindow):
         self._last_snapshot: DashboardSnapshot | None = None
 
         self.setWindowTitle("Fun Time")
-        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        if PROJECT_ICON.exists():
+            self.setWindowIcon(QIcon(str(PROJECT_ICON)))
         self.setWindowFlags(
             Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.CustomizeWindowHint

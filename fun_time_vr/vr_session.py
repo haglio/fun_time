@@ -18,15 +18,16 @@ from __future__ import annotations
 import ctypes
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import glfw
 import xr
 from OpenGL import GL
 
+from fun_time.project_paths import PROJECT_ICON
+
 logger = logging.getLogger(__name__)
 
-_ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
+_ICON_PATH = PROJECT_ICON
 
 
 @dataclass

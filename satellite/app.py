@@ -56,6 +56,9 @@ _MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
 # way, in the genau repo.  The pair is not worth sharing through player_core:
 # that package deliberately knows nothing of pygame — MpvPlayer takes a bare
 # window handle — and an icon loader is not worth breaking that for.)
+# The one copy of this left in the tree: `fun_time.project_paths` holds it for
+# everything inside `fun_time/`, and this package imports nothing from fun_time
+# at all — a graph worth more than the line.
 ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
 
 

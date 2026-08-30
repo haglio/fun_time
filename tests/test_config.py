@@ -476,3 +476,34 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_cmd_file == state / "origenerator_cmd.txt"
         assert cfg.origenerator_paused_file == state / "origenerator_paused.txt"
         assert cfg.origenerator_status_file == state / "origenerator_status.txt"
+
+
+class TestTheProjectsOwnPaths:
+    """Where this checkout is, computed once instead of at six call sites.
+
+    Each copy silently encoded that its module sits exactly one directory below
+    the root, so a module that moved a level took its icon path with it and
+    failed at run time rather than at import.
+    """
+
+    def test_the_icon_sits_at_the_root_of_this_checkout(self):
+        from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+
+        assert PROJECT_ICON == PROJECT_DIR / "icon.ico"
+        assert PROJECT_ICON.is_file()
+
+    def test_the_root_is_the_one_the_config_resolves_against(self):
+        """One root, so a relative path in the config and the icon on the
+        window's title bar cannot come from two different checkouts."""
+        from fun_time.config import PROJECT_DIR as CONFIG_ROOT
+        from fun_time.project_paths import PROJECT_DIR
+
+        assert CONFIG_ROOT is PROJECT_DIR
+
+    def test_every_module_that_wants_the_icon_asks_for_that_one(self):
+        """Five of the six copies; `satellite.app` keeps its own, and its
+        comment says why."""
+        from fun_time.process_identity import ICON_PATH
+        from fun_time.project_paths import PROJECT_ICON
+
+        assert ICON_PATH is PROJECT_ICON

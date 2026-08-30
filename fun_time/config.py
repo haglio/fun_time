@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .loopback_server import LOOPBACK_PORT
+from .project_paths import PROJECT_DIR
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 

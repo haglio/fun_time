@@ -24,6 +24,7 @@ from tkinter import ttk
 from typing import TYPE_CHECKING
 
 from .overlay_progress import parse_progress
+from .project_paths import PROJECT_ICON
 from .win32 import find_window_by_title, set_always_on_top
 
 if TYPE_CHECKING:
@@ -175,9 +176,8 @@ class OverlayWindow:
         main_cy = self._root.winfo_screenheight() // 2 - vy
         frame.place(x=main_cx, y=main_cy, anchor=tk.CENTER)
 
-        # Icon above the title — loaded from icon.ico at the project root.
         self._icon_photo = None  # prevent GC of PhotoImage
-        ico_path = Path(__file__).resolve().parent.parent / "icon.ico"
+        ico_path = PROJECT_ICON
         icon_img = load_icon_image(ico_path, ICON_DISPLAY_SIZE)
         if icon_img is not None:
             try:
