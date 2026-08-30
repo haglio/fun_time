@@ -20,7 +20,7 @@ from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.notice_overlay import is_announcement
 from fun_time.process_identity import is_fun_time_exe_name
-from fun_time.win32 import get_process_image_name
+from fun_time.win32_process import get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     kill_process_tree,

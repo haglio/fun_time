@@ -14,14 +14,16 @@ from unittest.mock import call, patch
 
 import pytest
 
-from fun_time import win32
+from fun_time import win32, win32_process
+from fun_time.win32_process import (
+    get_process_creation_time,
+    get_process_image_name,
+    is_process_alive,
+)
 from fun_time.win32 import (
     StackedWindow,
     windows_obscuring,
     close_window,
-    get_process_creation_time,
-    get_process_image_name,
-    is_process_alive,
     move_window,
     set_always_on_top,
     is_window_topmost,
@@ -351,12 +353,12 @@ class TestGetProcessImageName:
         assert Path(path).is_file()
 
     def test_returns_none_when_process_cannot_be_opened(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             mock.OpenProcess.return_value = None
             assert get_process_image_name(4242) is None
 
     def test_an_unanswerable_image_query_reads_as_no_name(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             mock.OpenProcess.return_value = 42
             mock.QueryFullProcessImageNameW.return_value = 0
             assert get_process_image_name(4242) is None
@@ -374,7 +376,7 @@ class TestGetProcessCreationTime:
 
 class TestIsProcessAlive:
     def test_false_when_process_cannot_be_opened(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             mock.OpenProcess.return_value = None
             assert is_process_alive(4242) is False
 
@@ -763,27 +765,27 @@ class TestListChildPids:
         mock.Process32NextW.side_effect = fill
 
     def test_only_the_pids_whose_parent_is_the_one_asked_about(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             self._snapshot(mock, [(501, 500), (502, 999), (503, 500)])
-            assert win32.list_child_pids(500) == [501, 503]
+            assert win32_process.list_child_pids(500) == [501, 503]
 
     def test_the_snapshot_is_always_closed(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             self._snapshot(mock, [(501, 500)], handle=4321)
-            win32.list_child_pids(500)
+            win32_process.list_child_pids(500)
             mock.CloseHandle.assert_called_once_with(4321)
 
     def test_a_snapshot_that_could_not_be_taken_is_no_children(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             mock.CreateToolhelp32Snapshot.return_value = ctypes.wintypes.HANDLE(-1).value
-            assert win32.list_child_pids(500) == []
+            assert win32_process.list_child_pids(500) == []
             mock.CloseHandle.assert_not_called()
 
     def test_a_walk_that_cannot_even_start_is_no_children(self):
-        with patch("fun_time.win32._kernel32") as mock:
+        with patch("fun_time.win32_process._kernel32") as mock:
             mock.CreateToolhelp32Snapshot.return_value = 4321
             mock.Process32FirstW.return_value = 0
-            assert win32.list_child_pids(500) == []
+            assert win32_process.list_child_pids(500) == []
             mock.CloseHandle.assert_called_once_with(4321)
 
 

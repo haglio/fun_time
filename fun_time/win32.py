@@ -1,8 +1,14 @@
-"""Win32 window and process operations for the Python orchestrator.
+"""Win32 window operations for the Python orchestrator.
 
-Wraps ctypes calls for window manipulation that the startup sequencer
-needs (find/wait for windows by PID, move, set topmost, activate, query
-size) and for process queries (liveness, executable image name).
+Wraps the ctypes calls the startup sequencer needs to manage the session's
+windows: find or wait for one by pid or title, move it, set its topmost band,
+activate it, minimize and restore it, read its rect, and walk the z-order.
+Every cross-process call goes through :func:`_without_hanging`, for the reason
+that function's docstring records.
+
+The two subsystems this file used to also hold are next door:
+:mod:`fun_time.win32_process` asks about processes rather than windows, and
+:mod:`fun_time.win32_taskbar` carries the AppUserModelID work.
 """
 from __future__ import annotations
 
@@ -14,6 +20,7 @@ import time
 from dataclasses import dataclass
 
 from fun_time.win32_loader import load_dll, win_functype
+from fun_time.win32_process import list_child_pids
 
 logger = logging.getLogger(__name__)
 
@@ -49,43 +56,6 @@ _user32.SetWindowPos.argtypes = [
 ]
 _user32.SetWindowPos.restype = ctypes.wintypes.BOOL
 
-# Process-query bindings. HANDLE argtypes/restype matter on 64-bit for the
-# same reason as the HWND declarations above.
-PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-
-_kernel32.OpenProcess.argtypes = [
-    ctypes.wintypes.DWORD,  # dwDesiredAccess
-    ctypes.wintypes.BOOL,   # bInheritHandle
-    ctypes.wintypes.DWORD,  # dwProcessId
-]
-_kernel32.OpenProcess.restype = ctypes.wintypes.HANDLE
-_kernel32.QueryFullProcessImageNameW.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hProcess
-    ctypes.wintypes.DWORD,                   # dwFlags
-    ctypes.wintypes.LPWSTR,                  # lpExeName
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpdwSize (in/out)
-]
-_kernel32.QueryFullProcessImageNameW.restype = ctypes.wintypes.BOOL
-_kernel32.GetExitCodeProcess.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hProcess
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpExitCode
-]
-_kernel32.GetExitCodeProcess.restype = ctypes.wintypes.BOOL
-_kernel32.GetProcessTimes.argtypes = [
-    ctypes.wintypes.HANDLE,                     # hProcess
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpCreationTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpExitTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpKernelTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpUserTime
-]
-_kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
-_kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
-_kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
-
-# GetExitCodeProcess reports this while the process is still running.
-_STILL_ACTIVE = 259
-
-
 WNDENUMPROC = win_functype(
     ctypes.wintypes.BOOL,
     ctypes.wintypes.HWND,
@@ -94,76 +64,6 @@ WNDENUMPROC = win_functype(
 
 
 WM_CLOSE = 0x0010
-
-
-
-
-def get_process_image_name(pid: int) -> str | None:
-    """Return the full executable path of the process *pid*.
-
-    Returns None when the process no longer exists (or cannot be opened),
-    which callers use to detect that a recorded PID is stale.
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return None
-    try:
-        size = ctypes.wintypes.DWORD(32768)
-        buf = ctypes.create_unicode_buffer(size.value)
-        if not _kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
-            return None
-        return buf.value
-    finally:
-        _kernel32.CloseHandle(handle)
-
-
-def get_process_creation_time(pid: int) -> int | None:
-    """Return the FILETIME at which the process now holding *pid* was created.
-
-    Windows hands a freed PID back out within seconds, so a PID alone does not
-    name a process.  ``(pid, creation_time)`` does: a process can only take a
-    PID after its previous owner is gone, so the newcomer's creation time is
-    strictly later.  Record this alongside a PID and compare it before killing,
-    and a recycled PID is recognized rather than shot.
-
-    ``GetProcessTimes`` fills lpCreationTime with a FILETIME (100-nanosecond
-    ticks since 1601-01-01 UTC) and accepts a handle opened for
-    PROCESS_QUERY_LIMITED_INFORMATION.  Returns None when the process no longer
-    exists (or cannot be opened).
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return None
-    try:
-        creation = ctypes.wintypes.FILETIME()
-        unused = (ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME())
-        if not _kernel32.GetProcessTimes(
-            handle, ctypes.byref(creation), *(ctypes.byref(t) for t in unused)
-        ):
-            return None
-        return (creation.dwHighDateTime << 32) | creation.dwLowDateTime
-    finally:
-        _kernel32.CloseHandle(handle)
-
-
-def is_process_alive(pid: int) -> bool:
-    """Check whether *pid* refers to a currently running process.
-
-    os.kill(pid, 0) raises WinError 87 for valid PIDs on Python 3.14 /
-    Windows 11, and OpenProcess alone still succeeds for exited processes
-    whose kernel object is kept alive by an open handle, so liveness comes
-    from GetExitCodeProcess reporting STILL_ACTIVE.
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return False
-    try:
-        exit_code = ctypes.wintypes.DWORD()
-        if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-            return False
-        return exit_code.value == _STILL_ACTIVE
-    finally:
-        _kernel32.CloseHandle(handle)
 
 
 def close_window(hwnd: int) -> None:
@@ -204,48 +104,6 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
 
     _user32.EnumWindows(WNDENUMPROC(callback), 0)
     return best
-
-
-def list_child_pids(parent_pid: int) -> list[int]:
-    """The pids whose recorded parent is *parent_pid*, via a Toolhelp snapshot.
-
-    A recorded child pid is not always the pid that owns the windows: a venv's
-    ``Scripts`` launcher spawns the real interpreter as a child and keeps the
-    recorded pid for itself.  This is the one hop that recovers the family.
-    """
-    TH32CS_SNAPPROCESS = 0x2
-    INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
-
-    class PROCESSENTRY32(ctypes.Structure):
-        _fields_ = [
-            ("dwSize", ctypes.wintypes.DWORD),
-            ("cntUsage", ctypes.wintypes.DWORD),
-            ("th32ProcessID", ctypes.wintypes.DWORD),
-            ("th32DefaultHeapID", ctypes.POINTER(ctypes.wintypes.ULONG)),
-            ("th32ModuleID", ctypes.wintypes.DWORD),
-            ("cntThreads", ctypes.wintypes.DWORD),
-            ("th32ParentProcessID", ctypes.wintypes.DWORD),
-            ("pcPriClassBase", ctypes.wintypes.LONG),
-            ("dwFlags", ctypes.wintypes.DWORD),
-            ("szExeFile", ctypes.c_wchar * 260),
-        ]
-
-    snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-    if snapshot == INVALID_HANDLE_VALUE:
-        return []
-    children: list[int] = []
-    try:
-        entry = PROCESSENTRY32()
-        entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
-        if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
-            while True:
-                if entry.th32ParentProcessID == parent_pid:
-                    children.append(int(entry.th32ProcessID))
-                if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
-                    break
-    finally:
-        _kernel32.CloseHandle(snapshot)
-    return children
 
 
 def find_window_for_process(pid: int, title: str) -> int:
@@ -678,9 +536,12 @@ def is_window_minimized(hwnd: int) -> bool:
     return bool(_user32.IsIconic(hwnd))
 
 
-# The taskbar identity moved to its own module (it is COM and shell32, not
-# windows); these three are re-exported for one release so no importer of this
-# module breaks before it is repointed.
+# The two subsystems that left this file are re-exported for one release, so no
+# importer of this module breaks before it is repointed.  `list_child_pids` is
+# imported at the top instead: `find_window_for_process` calls it.
+from fun_time.win32_process import (  # noqa: E402
+    get_process_creation_time as get_process_creation_time,
+)
 from fun_time.win32_taskbar import (  # noqa: E402
     APP_USER_MODEL_ID as APP_USER_MODEL_ID,
     set_app_user_model_id as set_app_user_model_id,
