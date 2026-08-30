@@ -20,6 +20,7 @@ from player_core.file_channel import append_command
 from .config import LayoutConfig
 from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
 from .satellite_control import read_satellite_status
+from .shared_state import read_shared_state, shared_state_path
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .monitors import enumerate_monitors, get_logical_monitor_rects
@@ -382,26 +383,24 @@ def _plan_the_layout(m: LaunchManifest) -> _Layout:
     )
 
 
-def _launch_core_media(
+def _launch_the_satellites(
     m: LaunchManifest,
     *,
-    layout: _Layout,
+    plan: WindowLayoutPlan,
     state_dir: Path,
+    project_dirs: str,
     launched: _LaunchedChildren,
-) -> _CoreSession:
-    """Phase 1: the two satellites, then Genau and Nau, then the hosted app.
+) -> tuple[str, int, int]:
+    """The core session: both satellite players, and the mode it resumed into.
 
-    Nothing here waits for a window.  Everything is started as early as it can
-    be so each child's own boot — pygame, a media scan, first frames, ComfyUI —
-    runs behind the rest of startup.
+    Returns the mode last session was closed in — the core session has just
+    seeded every cross-process flag for it, and what is left is the half only
+    this side can do: park the idle slot-mate, band the pair, and reveal on the
+    right player.
     """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
     regen_metadata_raw = m.regen.metadata_root.strip()
-    # Read before the first launch that needs it: the satellites and the
-    # hosted Origenerator take the named checkouts exactly as Genau and Nau
-    # below do.
-    genau_project_dirs = m.runtime.genau_project_dirs
     main_mode = start_core_session(
         config_path=m.runtime.config_path,
         broker_cmd_file=m.commands.broker_cmd_file,
@@ -425,8 +424,8 @@ def _launch_core_media(
         nau_status_file=m.commands.nau_status_file,
         portrait_log_file=state_dir / "portrait_satellite.log",
         landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=layout.plan.portrait,
-        landscape_rect=layout.plan.landscape,
+        portrait_rect=plan.portrait,
+        landscape_rect=plan.landscape,
         portrait_hud_file=m.commands.portrait_hud_file,
         landscape_hud_file=m.commands.landscape_hud_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
@@ -441,7 +440,7 @@ def _launch_core_media(
         # must reach them exactly as it reaches Genau and Nau — without this
         # they quietly ran the venv's primary while everything else ran the
         # branch.
-        project_dirs=genau_project_dirs,
+        project_dirs=project_dirs,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -451,7 +450,24 @@ def _launch_core_media(
         "Core session launched: portrait=%d landscape=%d",
         portrait_pid, landscape_pid,
     )
+    return main_mode, portrait_pid, landscape_pid
 
+
+def _launch_the_main_slot_players(
+    m: LaunchManifest,
+    *,
+    layout: _Layout,
+    state_dir: Path,
+    project_dirs: str,
+    launched: _LaunchedChildren,
+) -> tuple[int, int, Path]:
+    """Genau and Nau, who share the main slot's rect, and Nau's status file.
+
+    That file is how startup learns Nau has finished loading, so it is dropped
+    here — after ``start_core_session`` has read last session's copy to resume
+    Nau onto the video it names, and before Nau could write a new one.
+    """
+    regen_metadata_raw = m.regen.metadata_root.strip()
     # Launch Genau and Nau as early as possible so they can initialise
     # pygame, scan media, and decode first frames while the rest of startup
     # continues.  Both share the Main slot's rect, which depends only on
@@ -471,10 +487,10 @@ def _launch_core_media(
     # in the status file it published — read here, before this session's Genau
     # starts writing over it.
     genau_clip = read_genau_status(genau_status_path(genau_state)).clip
-    # genau_project_dirs (read above, before the satellites needed it): which
-    # checkout of ../genau these two are run out of.  Empty in an ordinary
-    # session — they resolve through their venv's editable install, which is the
-    # primary — and a worktree of that repo while a branch of it is being judged.
+    # project_dirs: which checkout of ../genau these two are run out of.  Empty
+    # in an ordinary session — they resolve through their venv's editable
+    # install, which is the primary — and a worktree of that repo while a branch
+    # of it is being judged.
     genau_pid = launch_genau(
         python_exe=m.executables.genau_python_exe,
         genau_module=m.modules.genau_module,
@@ -490,7 +506,7 @@ def _launch_core_media(
         drive_file=genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
-        project_dirs=genau_project_dirs,
+        project_dirs=project_dirs,
     )
     # Nau's status file is how startup learns Nau has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
@@ -516,15 +532,27 @@ def _launch_core_media(
         nau_width=main_media_rect.width,
         nau_height=main_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
-        project_dirs=genau_project_dirs,
+        project_dirs=project_dirs,
     )
     launched.pids.extend([genau_pid, nau_pid])
+    return genau_pid, nau_pid, nau_status_file
 
-    # The hosted Origenerator, when the config names a checkout: launched with
-    # the players so its own boot (ComfyUI, the library maintenance passes)
-    # runs behind the rest of startup.  Nothing here waits on it — it comes up
-    # parked by design, and the dispatch loop adopts its window whenever it
-    # appears, restoring it only if the session is in origenerator mode.
+
+def _launch_the_hosted_origenerator(
+    m: LaunchManifest,
+    *,
+    plan: WindowLayoutPlan,
+    project_dirs: str,
+    launched: _LaunchedChildren,
+) -> int:
+    """The hosted app, when the config names a checkout, or 0 for a session
+    with none.
+
+    Launched with the players so its own boot (ComfyUI, the library maintenance
+    passes) runs behind the rest of startup.  Nothing here waits on it — it
+    comes up parked by design, and the dispatch loop adopts its window whenever
+    it appears, restoring it only if the session is in origenerator mode.
+    """
     origenerator_dir = m.runtime.origenerator_dir.strip()
     origenerator_pid = 0
     if origenerator_dir:
@@ -544,23 +572,50 @@ def _launch_core_media(
             python_exe=(m.executables.origenerator_python_exe.strip()
                         or m.executables.python_exe),
             origenerator_dir=origenerator_dir,
-            layout_plan=layout.plan,
+            layout_plan=plan,
             command_file=m.commands.origenerator_cmd_file,
             paused_file=m.commands.origenerator_paused_file,
             status_file=m.commands.origenerator_status_file,
             dashboard_cmd_file=m.commands.dashboard_cmd_file,
             # It imports player_core too (the shows' HUD is the players'
             # shared one), so a named checkout reaches it like everyone else.
-            project_dirs=genau_project_dirs,
+            project_dirs=project_dirs,
         )
         launched.pids.append(origenerator_pid)
         logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
+    return origenerator_pid
+
+
+def _launch_core_media(
+    m: LaunchManifest,
+    *,
+    layout: _Layout,
+    state_dir: Path,
+    launched: _LaunchedChildren,
+) -> _CoreSession:
+    """Phase 1: the two satellites, then Genau and Nau, then the hosted app.
+
+    Nothing here waits for a window.  Everything is started as early as it can
+    be so each child's own boot — pygame, a media scan, first frames, ComfyUI —
+    runs behind the rest of startup.
+    """
+    # Read before the first launch that needs it: every child below takes the
+    # named checkouts, the satellites and the hosted app included, because they
+    # all import player_core.
+    project_dirs = m.runtime.genau_project_dirs
+    main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
+        m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
+        launched=launched)
+    genau_pid, nau_pid, nau_status_file = _launch_the_main_slot_players(
+        m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
+        launched=launched)
+    origenerator_pid = _launch_the_hosted_origenerator(
+        m, plan=layout.plan, project_dirs=project_dirs, launched=launched)
 
     # The satellite side's resumed mode: the core session just wrote the
     # opening state to the shared INI (see session_resume), and a session that
     # opens in origenerator mode needs its hosted window handled by the same
     # startup choreography as everyone else — not popped up after the reveal.
-    from .shared_state import read_shared_state, shared_state_path
     _shared = read_shared_state(shared_state_path(state_dir))
     satellites_mode = _shared.satellites_mode if _shared is not None else "player"
 
@@ -584,6 +639,7 @@ def _launch_core_media(
         origenerator_pid=origenerator_pid,
         nau_status_file=nau_status_file,
     )
+
 
 
 # What the two UI companions wait out before they are launched.  Nothing has
