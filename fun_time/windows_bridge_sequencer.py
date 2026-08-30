@@ -1,7 +1,9 @@
-"""Startup sequencer for the Python orchestrator.
+"""A session's startup phases, in the order they have to happen in.
 
-Runs the full startup sequence: core session launch, window positioning, UI
-companion launch.
+The children, then the windows, then the browser, then the companions, then the
+reveal — each a function of its own, called from :func:`_run_startup_phases`,
+which is the one place that says what comes after what.  The launching itself
+belongs to :mod:`fun_time.windows_bridge_startup`; this module owns the order.
 """
 from __future__ import annotations
 

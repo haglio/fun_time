@@ -1,3 +1,8 @@
+"""The primitives that launch a session's children, one call per child.
+
+Nothing here decides when: :mod:`fun_time.windows_bridge_sequencer` owns the
+order, and each of these knows only how to start the one thing it names.
+"""
 from __future__ import annotations
 
 import configparser

@@ -415,7 +415,7 @@ class TestRunController:
         logger = MagicMock()
 
         with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
-             patch("fun_time.orchestrator.run_python_orchestrated_bridge", return_value=0) as bridge:
+             patch("fun_time.orchestrator.run_session", return_value=0) as bridge:
             result = run_windows_bridge(cfg, logger)
 
         assert result == 0

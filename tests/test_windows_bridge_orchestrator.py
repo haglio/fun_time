@@ -28,7 +28,7 @@ from fun_time.windows_bridge_orchestrator import (
     kill_process_tree,
     kill_recorded_child,
     write_pids_file,
-    run_python_orchestrated_bridge,
+    run_session,
 )
 from fun_time.win32 import StackedWindow
 from fun_time.loading_screen import STALE_TIMEOUT_S
@@ -494,7 +494,7 @@ class TestHotkeySuspendDuringIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -522,7 +522,7 @@ class TestHotkeySuspendDuringIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -573,7 +573,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.get_process_creation_time", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path,
                 ahk_exe=str(tmp_path / "ahk.exe"),
                 hotkey_script=str(tmp_path / "hotkeys.ahk"),
@@ -609,7 +609,7 @@ class TestRunPythonOrchestratedBridge:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                    side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(MagicMock(), primed)) as start_priming,              patch.object(primed, "wait", return_value=True) as mock_wait:
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -632,7 +632,7 @@ class TestRunPythonOrchestratedBridge:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                    side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, primed)),              patch.object(primed, "wait") as mock_wait:
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -658,7 +658,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner, \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -689,7 +689,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -720,7 +720,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback", return_value=server):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -746,7 +746,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.serve_loopback",
                    side_effect=OSError("port busy")):
 
-            assert run_python_orchestrated_bridge(
+            assert run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             ) == 0
@@ -777,7 +777,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="C:\\ahk.exe",
                 hotkey_script="C:\\hotkeys.ahk",
@@ -823,7 +823,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -854,7 +854,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -906,7 +906,7 @@ class TestClosingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=lambda pid: events.append(f"kill:{pid}")):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1067,7 +1067,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.close_window", side_effect=closed.append), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1126,7 +1126,7 @@ class TestStartupCancellation:
                    return_value=(None, threading.Event())) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1172,7 +1172,7 @@ class TestStartupCancellation:
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1219,7 +1219,7 @@ class TestHotkeyScriptGoesUpFirst:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1250,7 +1250,7 @@ class TestHotkeyScriptGoesUpFirst:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1331,7 +1331,7 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1442,7 +1442,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1475,7 +1475,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", False), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1508,7 +1508,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1687,7 +1687,7 @@ class TestThePlayersStartWhenTheCoverIsGone:
              patch("fun_time.windows_bridge_orchestrator.release_the_players",
                    side_effect=lambda *_a: events.append("players released")), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",

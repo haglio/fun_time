@@ -1,10 +1,9 @@
-"""Python orchestrator for the Windows bridge.
+"""A session's whole lifecycle, from the first cover to the last child killed.
 
-Runs the full startup sequence, launches the minimal AHK hotkey script,
-starts the background dispatch loop, waits for AHK to exit, then shuts
-down all child processes.  Both ends of that happen behind a cover over
-every monitor, so the session's windows are never watched arriving or
-leaving one at a time.
+Runs the startup phases, launches the AHK hotkey script, starts the dispatch
+loop, holds the session open until the hotkeys exit, then shuts every child
+down.  Both ends of that happen behind a cover over every monitor, so the
+session's windows are never watched arriving or leaving one at a time.
 """
 from __future__ import annotations
 
@@ -983,7 +982,7 @@ def _run_until_the_hotkeys_exit(
     return exit_code
 
 
-def run_python_orchestrated_bridge(
+def run_session(
     *,
     manifest_path: str | Path,
     ahk_exe: str,
@@ -991,7 +990,7 @@ def run_python_orchestrated_bridge(
     state_dir: str | Path,
     project_dir: str | Path,
 ) -> int:
-    """Run the full Python-orchestrated bridge lifecycle.
+    """Open a session, hold it, and close it.
 
     1. Cover every monitor and put the hotkey script up behind it
     2. Run startup sequencer (core session + window positioning + UI companions)

@@ -1,3 +1,10 @@
+"""Fun Time's process entry point: arguments, config, and the single instance.
+
+The bottom of four layers, each of which knows only the one below it — this one
+validates and hands off; :mod:`fun_time.windows_bridge_orchestrator` runs a
+session's lifecycle; :mod:`fun_time.windows_bridge_sequencer` runs its startup
+phases in order; :mod:`fun_time.windows_bridge_startup` launches the children.
+"""
 from __future__ import annotations
 
 import argparse
@@ -21,7 +28,7 @@ apply_genau_dirs_to_sys_path()
 
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
-from .windows_bridge_orchestrator import run_python_orchestrated_bridge
+from .windows_bridge_orchestrator import run_session
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
@@ -113,7 +120,7 @@ def run_windows_bridge(config, logger) -> int:
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
 
-    exit_code = run_python_orchestrated_bridge(
+    exit_code = run_session(
         manifest_path=manifest_path,
         ahk_exe=str(config.paths.ahk_exe),
         hotkey_script=str(hotkey_script),

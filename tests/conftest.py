@@ -81,7 +81,7 @@ def _never_mutate_a_real_window(monkeypatch):
 def _never_hold_the_live_loopback_port(monkeypatch):
     """Keep the orchestrator tests off the port a live session serves on.
 
-    Every test that runs ``run_python_orchestrated_bridge`` reaches the real
+    Every test that runs ``run_session`` reaches the real
     ``serve_loopback``, and a bound port is a bound port: for the length of the
     run this pytest — not the user — would own 8770.  A Fun Time opened meanwhile
     finds it busy, logs the warning, and comes up with no loopback server at
