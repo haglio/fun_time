@@ -8,6 +8,7 @@ volume chip every video unit paints.
 from __future__ import annotations
 
 from pathlib import Path
+import threading
 from types import SimpleNamespace
 from unittest.mock import DEFAULT, patch
 
@@ -208,3 +209,24 @@ def test_no_furniture_lands_before_the_target_holds_pixels():
     unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
 
     assert player.overlays == []
+
+
+class TestWhatEveryVideoUnitOwes:
+    """The worker calls ``pump(stop, now)`` on everything in its list, and the
+    list is annotated ``list[_VideoUnit]`` — which promised a ``player`` it
+    closes and said nothing about the one method that has to be there."""
+
+    def test_the_base_refuses_to_be_pumped(self):
+        unit = _VideoUnit.__new__(_VideoUnit)
+
+        with pytest.raises(NotImplementedError):
+            unit.pump(threading.Event(), 0.0)
+
+    @pytest.mark.parametrize("unit_class", [_MainUnit, _SatelliteUnit])
+    def test_both_units_answer_the_call_the_worker_makes(self, unit_class):
+        """By convention until now: two signatures that happened to match."""
+        import inspect
+
+        assert unit_class.pump is not _VideoUnit.pump
+        names = list(inspect.signature(unit_class.pump).parameters)
+        assert names == ["self", "stop", "now"]

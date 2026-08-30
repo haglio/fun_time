@@ -236,14 +236,14 @@ class _VideoUnit:
             x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
             self.player.overlay(_OV_VOLUME, x, y, painter.bgra(volume_hud))
 
+    def pump(self, stop: threading.Event, now: float) -> None:
+        """One turn of the file-channel worker — what every unit owes it."""
+        raise NotImplementedError
+
     def _close_graphics(self) -> None:
         self.target.close()
         if self.mesh is not None:
             self.mesh.close()
-
-    def close(self) -> None:
-        self._close_graphics()
-        self.player.close()
 
 
 class _MainUnit(_VideoUnit):

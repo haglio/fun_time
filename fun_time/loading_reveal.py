@@ -1,18 +1,11 @@
 """The panel's wait behind the loading cover, and how it comes out of it.
 
-Startup builds the room behind an opaque cover.  The control panel is topmost,
-so a panel that simply came up would flash above the cover and animate a
-minimize on its way out of the way; instead it is realized without ever being
-shown, and reveals itself as startup reaches its LAST phase — not when the
-cover goes, which is a second or more later, and left "its windows are not
-ready by the time the loading screen goes away".
+The panel is topmost, so one that simply came up would flash above the cover.
+It is realized without ever being shown, and reveals itself UNDER the cover
+(:func:`win32.insert_below`) as startup reaches its last phase — not when the
+cover goes, which is a second or more later.
 
-Showing while the cover is still up needs the one care :func:`win32.insert_below`
-describes.  And it leaves a mark: the panel is minimized by the launcher, so the
-first restore edge after a reveal is the session's own doing and must not be
-mistaken for the user asking for every window back.
-
-No Qt: the window arrives as something with a show.
+No Qt: the window arrives as something with a ``show``.
 """
 from __future__ import annotations
 
