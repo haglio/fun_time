@@ -221,7 +221,7 @@ def hud_map_cells(
 
 
 def _playing_member(
-    index: GroupIndex, anchor: str, current: str, seed: list[str], action: list[str], axis: str
+    index: GroupIndex, anchor: str, current: str, action: list[str], axis: str
 ) -> str:
     """Which drawn map cell the live *current* clip is — the one the overlay
     lights up.  On the seed axis the clip is itself a seed cell; on the action
@@ -402,7 +402,7 @@ def build_hud_panel(
             index.action_by_path.get(normalize_path_key(member), "") for member in action
         )
         if map_held:
-            playing = _playing_member(index, anchor, current, seed, action, on_axis)
+            playing = _playing_member(index, anchor, current, action, on_axis)
         elif nav_frozen:
             playing = current  # the live clip is exactly the cell to light
     return HudPanel(
