@@ -1085,6 +1085,170 @@ def test_closing_the_window_ends_the_listener(dashboard_app_config):
     assert not listener.is_alive()
 
 
+# --- the notice feed ---------------------------------------------------------
+# A second, faster tail of the same event log the strip reads, flashing each
+# announcement over the player it is about.
+
+
+class _FakeOverlay:
+    """A notice overlay that records what it was asked to flash."""
+
+    def __init__(self) -> None:
+        self.flashed: list[tuple[str, object]] = []
+        self.shut_down = False
+
+    def flash(self, record, target) -> None:
+        self.flashed.append((record.message, target))
+
+    def shutdown(self) -> None:
+        self.shut_down = True
+
+
+def _monitors(primary=(0, 0, 1920, 1080), secondary=(1920, 0, 1080, 1920)):
+    """Two monitors, patched in where enumerate_monitors would read them."""
+    from fun_time.monitors import MonitorInfo
+
+    return [MonitorInfo(*primary), MonitorInfo(*secondary)]
+
+
+def test_the_player_rects_come_from_the_layout_startup_positions_with(
+        dashboard_app_config):
+    """The toast has to land ON the window, not near it, so both ends compute
+    the rect from the same two functions rather than from two descriptions."""
+    from fun_time.window_layout import compute_main_media_rect, compute_window_layout
+
+    with patch("fun_time.dashboard_app.enumerate_monitors", return_value=_monitors()):
+        window = build_dashboard_window(dashboard_app_config)
+    try:
+        rects = window._player_rects
+    finally:
+        window.close()
+
+    layout = dashboard_app_config.layout
+    with patch("fun_time.dashboard_app.enumerate_monitors", return_value=_monitors()):
+        from fun_time.monitors import get_logical_monitor_rects
+
+        primary, secondary = get_logical_monitor_rects(
+            _monitors(), primary_index=layout.primary_monitor,
+            secondary_index=layout.secondary_monitor)
+    plan = compute_window_layout(
+        primary_monitor=primary, secondary_monitor=secondary, layout_config=layout)
+    main = compute_main_media_rect(secondary_monitor=secondary, layout_config=layout)
+
+    assert (rects.portrait.x, rects.portrait.width) == (plan.portrait.x, plan.portrait.width)
+    assert (rects.landscape.y, rects.landscape.height) == (plan.landscape.y, plan.landscape.height)
+    assert (rects.dash.x, rects.dash.height) == (plan.dashboard.x, plan.dashboard.height)
+    assert (rects.main.x, rects.main.width) == (main.x, main.width)
+
+
+@pytest.mark.parametrize("failure", [ValueError("no such monitor"), OSError("no display")])
+def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
+        failure, dashboard_app_config):
+    """A headless run has no monitors to enumerate; the panel still comes up,
+    it just has nowhere to put a toast."""
+    with patch("fun_time.dashboard_app.enumerate_monitors", side_effect=failure):
+        window = build_dashboard_window(dashboard_app_config)
+    try:
+        assert window._player_rects is None
+        assert window._notice_overlay is None
+        window._poll_notices()  # and polling is a no-op rather than an error
+    finally:
+        window.close()
+
+
+def _notice_window(dashboard_app_config, *, held: bool):
+    """A window whose notice feed is wired to a fake overlay."""
+    with patch("fun_time.dashboard_app.startup_still_building", return_value=held), \
+         patch("fun_time.dashboard_app.enumerate_monitors", return_value=_monitors()):
+        window = build_dashboard_window(dashboard_app_config)
+    window._notice_overlay = _FakeOverlay()
+    return window
+
+
+def _write_event(app_config, message: str, *, level: int) -> None:
+    """One line onto the shared event log, the way EventLogHandler writes it."""
+    import json
+
+    from fun_time.event_log import EVENT_LOG_FILENAME, SOURCE_DASH
+
+    path = app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a", encoding="utf-8") as handle:
+        handle.write(json.dumps(
+            {"ts": 1.0, "level": level, "source": SOURCE_DASH, "msg": message}) + "\n")
+
+
+def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(
+        dashboard_app_config):
+    """A toast is topmost, so one that fired while the cover was up would
+    appear for a moment through the scrim the cover is there to be.  Held, the
+    read offset does not advance, so the announcement arrives afterwards over
+    the room it is about."""
+    window = _notice_window(dashboard_app_config, held=True)
+    try:
+        from fun_time.event_log import NOTICE
+
+        _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
+
+        with patch("fun_time.dashboard_app.loading_cover_is_up", return_value=True):
+            window._poll_notices()
+        assert window._notice_overlay.flashed == []
+        assert window._notice_offset == 0
+
+        with patch("fun_time.dashboard_app.loading_cover_is_up", return_value=False):
+            window._poll_notices()
+        assert [m for m, _ in window._notice_overlay.flashed] == ["Clip saved"]
+        assert window._notice_offset > 0
+    finally:
+        window.close()
+
+
+def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_config):
+    """Once the cover is down it never comes back, and this runs four times a
+    second for the length of the session."""
+    window = _notice_window(dashboard_app_config, held=True)
+    try:
+        cover = patch("fun_time.dashboard_app.loading_cover_is_up", return_value=False)
+        with cover as is_up:
+            window._poll_notices()
+            window._poll_notices()
+            window._poll_notices()
+
+        assert is_up.call_count == 1
+    finally:
+        window.close()
+
+
+def test_a_window_that_never_waited_asks_about_the_cover_at_all(dashboard_app_config):
+    """Started after the cover was gone, the feed is live from its first poll."""
+    window = _notice_window(dashboard_app_config, held=False)
+    try:
+        with patch("fun_time.dashboard_app.loading_cover_is_up") as is_up:
+            window._poll_notices()
+
+        is_up.assert_not_called()
+    finally:
+        window.close()
+
+
+def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
+        dashboard_app_config):
+    """The strip shows every event; only the announcements get a toast — and an
+    event that gets none must still not be re-read on the next poll."""
+    import logging
+
+    window = _notice_window(dashboard_app_config, held=False)
+    try:
+        _write_event(dashboard_app_config, "just a log line", level=logging.INFO)
+
+        window._poll_notices()
+
+        assert window._notice_overlay.flashed == []
+        assert window._notice_offset > 0
+    finally:
+        window.close()
+
+
 def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
     """A branch session runs from a worktree by setting the working directory,
     and nothing said whether that had taken.  A change that is in the code and
