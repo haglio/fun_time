@@ -14,7 +14,6 @@ _user32 = load_dll("user32")
 
 ERROR_ALREADY_EXISTS = 183
 
-MUTEX_BROKER = "Global\\FunTime.Broker"
 MUTEX_ORCHESTRATOR = "Global\\FunTime.Orchestrator"
 
 

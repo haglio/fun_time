@@ -24,7 +24,6 @@ tcode_udp_port  # fun_time_vr/orchestrator.py
 compositor_layers  # fun_time_vr/orchestrator.py
 
 # --- Read from outside vulture's scan ---
-MUTEX_BROKER  # tests only
 is_process_alive  # tests and the integration reap
 get_process_image_name  # the integration reap, to tell a leftover app from pytest
 is_fun_time_exe_name  # the integration reap; production sweeps use the regex form
