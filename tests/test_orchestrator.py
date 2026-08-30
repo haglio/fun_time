@@ -314,14 +314,12 @@ class TestValidateConfig:
 class TestBrokerHelpers:
     def test_is_broker_running_false_when_probe_finds_nothing(self):
         completed = subprocess_result(stdout="", returncode=0)
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
+        with patch("fun_time.orchestrator.subprocess.run", return_value=completed):
             assert is_broker_running() is False
 
     def test_is_broker_running_true_when_probe_finds_process(self):
         completed = subprocess_result(stdout="RUNNING\r\n", returncode=0)
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.run", return_value=completed):
+        with patch("fun_time.orchestrator.subprocess.run", return_value=completed):
             assert is_broker_running() is True
 
     def test_start_broker_launches_configured_tray_launcher(self, cfg_factory, tmp_path: Path):
@@ -331,8 +329,7 @@ class TestBrokerHelpers:
         cfg = load_config(cfg_factory({"paths": {"broker_tray_launcher": str(launcher)}}))
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.Popen") as popen, \
+        with patch("fun_time.orchestrator.subprocess.Popen") as popen, \
              patch("fun_time.orchestrator.orchestrator_broker.broker_launch_kwargs", return_value={"creationflags": 1}):
             start_broker(cfg, logger)
 
@@ -347,8 +344,7 @@ class TestBrokerHelpers:
         cfg = load_config(cfg_path)
         logger = MagicMock()
 
-        with patch("fun_time.orchestrator.sys.platform", "win32"), \
-             patch("fun_time.orchestrator.subprocess.Popen") as popen:
+        with patch("fun_time.orchestrator.subprocess.Popen") as popen:
             result = start_broker(cfg, logger)
 
         popen.assert_not_called()
