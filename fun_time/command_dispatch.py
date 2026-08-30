@@ -1417,9 +1417,6 @@ def dispatch_command(
     if command == "relief_omnipause":
         return _dispatch_enter_omnipause(state, config, relief=True)
 
-    if command == "leave_omnipause":
-        return _dispatch_leave_omnipause(state, config)
-
     fmode_target = _FMODE_COMMANDS.get(command)
     if fmode_target is not None:
         players, target = fmode_target
