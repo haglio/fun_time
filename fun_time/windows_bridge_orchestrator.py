@@ -37,7 +37,7 @@ from .overlay_progress import (
 from .hud_transport import HUD_FILENAME, HudPublisher
 from .library_handles import build_library_handles
 from .lock_hud import prime_group_indexes
-from .loopback_server import serve_loopback
+from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import LaunchManifest
 from .mode_plan import genau_active
 from .modes import collect_video_files
@@ -933,17 +933,6 @@ def _start_the_dispatch_loop(
     dispatch_thread.start()
     logger.info("Background dispatch loop started")
 
-    # Serve the Provider autofill userscript so Tampermonkey can auto-update it
-    # instead of needing a hand-paste after every edit, and answer the RFB tab
-    # pages when they ask whether the session is paused. The port comes from
-    # config so a session started alongside another can serve somewhere of its
-    # own; a busy one (a leftover server) is not worth failing startup over.
-    loopback_port = manifest.loopback_port
-    try:
-        serve_loopback(port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
-        logger.info("Loopback server started on 127.0.0.1:%d", loopback_port)
-    except OSError:
-        logger.warning("Loopback server not started (port %d busy)", loopback_port, exc_info=True)
     return dispatch_runner, dispatch_thread
 
 
@@ -956,6 +945,7 @@ def _run_until_the_hotkeys_exit(
     children: dict,
     voice: tuple[VoiceController | None, threading.Thread | None],
     dispatch: tuple[DispatchLoopRunner, threading.Thread],
+    loopback_server: ThreadingHTTPServer | None,
 ) -> int:
     """Hold the session open, then take it down — in that order, always.
 
@@ -980,6 +970,13 @@ def _run_until_the_hotkeys_exit(
                 voice_thread.join(timeout=2.0)
             dispatch_runner.stop()
             dispatch_thread.join(timeout=2.0)
+            if loopback_server is not None:
+                # shutdown() blocks until serve_forever returns, so it belongs
+                # here behind the cover rather than out in the open — and the
+                # port is machine-wide, so a server left listening is a port the
+                # next session cannot have.
+                loopback_server.shutdown()
+                loopback_server.server_close()
             logger.info("AHK exited — shutting down child processes")
             _shutdown_children(rfb_hwnd, children, shutdown_progress)
 
@@ -1134,6 +1131,20 @@ def run_python_orchestrated_bridge(
         hud_publisher=hud_publisher,
     )
 
+    # Serve the Provider autofill userscript so Tampermonkey can auto-update it
+    # instead of needing a hand-paste after every edit, and answer the RFB tab
+    # pages when they ask whether the session is paused. The port comes from
+    # config so a session started alongside another can serve somewhere of its
+    # own; a busy one (a leftover server) is not worth failing startup over.
+    loopback_port = manifest.loopback_port
+    loopback_server = None
+    try:
+        loopback_server = serve_loopback(
+            port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
+        logger.info("Loopback server started on 127.0.0.1:%d", loopback_port)
+    except OSError:
+        logger.warning("Loopback server not started (port %d busy)", loopback_port, exc_info=True)
+
     # --- Optional voice control ---
     voice_controller, voice_thread = _start_voice_control(
         manifest.runtime.config_path,
@@ -1149,4 +1160,5 @@ def run_python_orchestrated_bridge(
         children=children,
         voice=(voice_controller, voice_thread),
         dispatch=(dispatch_runner, dispatch_thread),
+        loopback_server=loopback_server,
     )

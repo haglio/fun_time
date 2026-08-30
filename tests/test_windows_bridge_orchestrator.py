@@ -696,6 +696,61 @@ class TestRunPythonOrchestratedBridge:
 
         assert mock_serve.call_args.kwargs["port"] == 54321
 
+    def test_the_loopback_server_goes_down_with_the_session(self, cfg_factory, tmp_path):
+        """The port is machine-wide, so a server left listening after its
+        session ends is a port the next session cannot have — and the handle
+        was thrown away at the call, so nothing could ever stop it.
+
+        It goes down inside the closing screen, with the other stops, because
+        ``shutdown()`` blocks until ``serve_forever`` returns and that pause
+        must happen behind the cover.
+        """
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+        server = MagicMock()
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.serve_loopback", return_value=server):
+
+            run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            )
+
+        server.shutdown.assert_called_once_with()
+        server.server_close.assert_called_once_with()
+
+    def test_a_busy_port_leaves_nothing_to_shut_down(self, cfg_factory, tmp_path):
+        """A leftover server on the port is not worth failing startup over, so
+        there is no handle — and the teardown must not trip over its absence."""
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.serve_loopback",
+                   side_effect=OSError("port busy")):
+
+            assert run_python_orchestrated_bridge(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            ) == 0
+
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
