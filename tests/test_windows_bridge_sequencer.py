@@ -1387,7 +1387,7 @@ class TestOrigeneratorBehindTheOverlay:
         opening in origenerator mode now holds the overlay for that window,
         restores it behind the curtain, and carries the mode out so the
         post-overlay pass bands it over the RFB."""
-        from fun_time.command_dispatch import BridgeState
+        from fun_time.shared_state import BridgeState
         from fun_time.shared_state import shared_state_path, write_shared_state
 
         cfg = load_config(cfg_factory({"paths": {

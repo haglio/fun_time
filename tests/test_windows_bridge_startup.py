@@ -14,7 +14,7 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
-from fun_time.command_dispatch import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
@@ -974,7 +974,7 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
     session that closed in it comes back with both players paused (and black,
     off the published mode) — exactly as the mode switch would have left them,
     rather than playing invisibly under the restored app."""
-    from fun_time.command_dispatch import BridgeState
+    from fun_time.shared_state import BridgeState
     from fun_time.shared_state import shared_state_path, write_shared_state
 
     kwargs = _start_core_session_kwargs(tmp_path)

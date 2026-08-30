@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import contextlib
-import json
 import logging
 import socket
 import threading
@@ -13,16 +12,12 @@ from unittest.mock import Mock, patch
 import pytest
 
 from app_support.threading_utils import wait_until
-from fun_time.command_dispatch import BridgeConfig, BridgeState, WindowOp
-from fun_time.hud_transport import HudPublisher
+from fun_time.command_dispatch import BridgeConfig, WindowOp
+from fun_time.shared_state import BridgeState
 from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line
 from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time.watch_stats import load_watch_stats
-from fun_time.windows_bridge_startup import (
-    SATELLITE_LANDSCAPE_TITLE,
-    SATELLITE_PORTRAIT_TITLE,
-)
 from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     expand_both_command,
@@ -40,10 +35,6 @@ from tests.role_window_fakes import (
     FakeClock,
     DASHBOARD_PID,
     GENAU_HWND,
-    HOSTED_HWND,
-    HOSTED_LANDSCAPE_HWND,
-    HOSTED_PID,
-    HOSTED_PORTRAIT_HWND,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
     NAU_HWND,
@@ -52,7 +43,6 @@ from tests.role_window_fakes import (
     PORTRAIT_PID,
     RFB_HWND,
     TOPMOST_HWNDS,
-    lookup_hosted,
     lookup_pid,
     lookup_title,
 )
@@ -2167,7 +2157,6 @@ class TestWatchTracking:
             runner.tick()
 
     def test_tick_records_a_completion_for_a_fully_watched_video(self, tmp_path, monkeypatch):
-        from fun_time.media_metadata import normalize_path_key
         from fun_time.watch_stats import load_watch_stats
 
         runner = make_runner(tmp_path)
@@ -2185,7 +2174,6 @@ class TestWatchTracking:
         assert stats[normalize_path_key(str(a))]["completions"] == 1
 
     def test_user_next_marks_an_early_departed_video_as_skipped(self, tmp_path, monkeypatch):
-        from fun_time.media_metadata import normalize_path_key
         from fun_time.watch_stats import load_watch_stats
 
         runner = make_runner(tmp_path)
@@ -2207,7 +2195,6 @@ class TestWatchTracking:
         assert stats[normalize_path_key(str(a))]["skips"] == 1
 
     def test_trash_suppresses_classifying_the_discarded_video(self, tmp_path, monkeypatch):
-        from fun_time.watch_stats import load_watch_stats
 
         config = make_config(tmp_path, weird_dir=tmp_path / "weird")
         runner = make_runner(tmp_path, config=config)

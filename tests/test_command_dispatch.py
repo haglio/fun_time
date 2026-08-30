@@ -784,7 +784,7 @@ def test_a_fresh_session_starts_with_the_primary_active():
     """The main player is on the display the eye opens on, so it holds the floor at
     startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
     addressed."""
-    from fun_time.command_dispatch import BridgeState
+    from fun_time.shared_state import BridgeState
 
     assert BridgeState().active_side == 1
 

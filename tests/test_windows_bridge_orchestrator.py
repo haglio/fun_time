@@ -32,7 +32,7 @@ from fun_time.windows_bridge_orchestrator import (
 )
 from fun_time.win32 import StackedWindow
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.windows_bridge_dispatch_loop import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,

@@ -37,7 +37,7 @@ from fun_time.shared_state import (
     shared_state_path,
     write_shared_state,
 )
-from fun_time.windows_bridge_dispatch_loop import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows
 from fun_time.windows_bridge_sequencer import StartupResult
 

@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .command_dispatch import MAIN_SIDE, BridgeConfig, BridgeState, side_name
+from .command_dispatch import MAIN_SIDE, BridgeConfig, side_name
+from .shared_state import BridgeState
 from .dashboard_runtime import (
     genau_status_path,
     is_broker_heartbeat_fresh,

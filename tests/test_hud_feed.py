@@ -11,7 +11,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.command_dispatch import BridgeConfig, BridgeState
+from fun_time.command_dispatch import BridgeConfig
+from fun_time.shared_state import BridgeState
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
 

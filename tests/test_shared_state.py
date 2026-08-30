@@ -1,10 +1,13 @@
 """The INI a session reads its own mode off."""
 from __future__ import annotations
 
+import subprocess
+import sys
+
 from dataclasses import fields, replace
 from pathlib import Path
 
-from fun_time.command_dispatch import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.shared_state import SHARED_STATE_FILENAME, read_shared_state, shared_state_path, write_shared_state
 
 
@@ -194,3 +197,29 @@ class TestSharedState:
         assert loaded is not None
         assert loaded.portrait_filter == ""
         assert loaded.landscape_filter == ""
+
+
+def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
+    """One small INI, and importing its reader pulled in 28 of this package's
+    modules — the whole dispatcher among them, which is the repo's hottest and
+    most complex file, because `BridgeState` lived there and this module
+    imported it.
+
+    Startup reads this file before the dispatch loop exists, and the dashboard
+    and both satellite HUDs read it from their own processes; none of them wants
+    the command vocabulary.  A ceiling that can only come down.
+    """
+    probe = (
+        "import sys, fun_time.shared_state; "
+        "print('fun_time.command_dispatch' in sys.modules); "
+        "print(len([m for m in sys.modules if m.startswith('fun_time.')]))"
+    )
+    result = subprocess.run([sys.executable, "-c", probe],
+                            capture_output=True, text=True, check=True)
+    pulls_dispatcher, count = result.stdout.split()
+
+    assert pulls_dispatcher == "False", (
+        "fun_time.shared_state imports the dispatcher again")
+    assert int(count) <= 10, (
+        f"reading the shared state file now imports {count} fun_time modules; "
+        "lower this ceiling when it drops, never raise it")

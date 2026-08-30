@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.command_dispatch import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.config import load_config
 from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time_vr.orchestrator import (
