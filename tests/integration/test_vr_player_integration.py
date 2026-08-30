@@ -28,7 +28,7 @@ from player_core.file_channel import append_command
 
 from fun_time.config import load_config
 from fun_time.dashboard_runtime import read_nau_status
-from fun_time.manifest import write_manifest_data
+from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.orchestrator import build_vr_manifest
 
@@ -92,8 +92,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
     import fun_time_vr.player as vrp  # noqa: PLC0415
 
-    manifest = vrp._read_manifest(manifest_path)
-    commands = manifest["commands"]
+    manifest = LaunchManifest.read(manifest_path)
+    vr = vrp.VrSettings.read(manifest_path)
+    commands = manifest.commands
 
     # The main player rotates real VR-library masters when the machine has them
     # (the realistic heavy-decode load), and falls back to the desktop library
@@ -101,19 +102,19 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     main_videos = _sample_library_videos(
         [*config.vr.library_dirs, *config.paths.nau_library_dirs], 2
     )
-    Path(commands["nau_playlist_file"]).write_text(
+    Path(commands.nau_playlist_file).write_text(
         "".join(f"{video}\n" for video in main_videos), encoding="utf-8"
     )
-    Path(commands["portrait_playlist_file"]).write_text(
+    Path(commands.portrait_playlist_file).write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.portrait_dirs, 2)),
         encoding="utf-8",
     )
-    Path(commands["landscape_playlist_file"]).write_text(
+    Path(commands.landscape_playlist_file).write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.landscape_dirs, 2)),
         encoding="utf-8",
     )
     for side in ("nau", "portrait", "landscape"):
-        Path(commands[f"{side}_paused_file"]).write_text("0", encoding="utf-8")
+        Path(commands.side_file(side, "paused")).write_text("0", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
@@ -129,7 +130,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     from fun_time_vr.render import SceneRenderer, immersive_mode  # noqa: PLC0415
 
     renderer = SceneRenderer()
-    main = vrp._MainUnit(manifest, glfw.get_proc_address)
+    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address)
     satellites = [
         vrp._SatelliteUnit("portrait", manifest, glfw.get_proc_address),
         vrp._SatelliteUnit("landscape", manifest, glfw.get_proc_address),
@@ -176,7 +177,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # Status flows from the worker before any frame renders — the
         # orchestrator's startup gate reads this exact file.
         _wait(
-            lambda: read_nau_status(Path(commands["nau_status_file"])).video,
+            lambda: read_nau_status(Path(commands.nau_status_file)).video,
             timeout=30, desc="the main player's first status write",
         )
 
@@ -215,10 +216,10 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         )
 
         # Commands travel the file channel through the worker thread.
-        first_video = read_nau_status(Path(commands["nau_status_file"])).video
-        append_command(Path(commands["nau_cmd_file"]), "NEXT")
+        first_video = read_nau_status(Path(commands.nau_status_file)).video
+        append_command(Path(commands.nau_cmd_file), "NEXT")
         _wait(
-            lambda: read_nau_status(Path(commands["nau_status_file"])).video
+            lambda: read_nau_status(Path(commands.nau_status_file)).video
             not in ("", first_video),
             timeout=20, desc="NEXT to advance the main player",
         )
@@ -231,7 +232,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # hundreds of milliseconds and every screen in the scene hitched.
         transition_ms: list[float] = []
         for _ in range(4):
-            append_command(Path(commands["landscape_cmd_file"]), "NEXT")
+            append_command(Path(commands.landscape_cmd_file), "NEXT")
             for _ in range(60):
                 started = time.perf_counter()
                 for unit in units:
@@ -263,15 +264,15 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         )
 
         # The paused flag freezes a satellite where it stands.
-        Path(commands["portrait_paused_file"]).write_text("1", encoding="utf-8")
+        Path(commands.portrait_paused_file).write_text("1", encoding="utf-8")
         _wait(
-            lambda: read_satellite_status(Path(commands["portrait_status_file"])).paused,
+            lambda: read_satellite_status(Path(commands.portrait_status_file)).paused,
             timeout=10, desc="the portrait satellite to report paused",
         )
-        position_before = read_satellite_status(Path(commands["portrait_status_file"])).position_ms
+        position_before = read_satellite_status(Path(commands.portrait_status_file)).position_ms
         run_frames(90, measure=False)
         time.sleep(0.3)  # one worker tick past the last status write
-        position_after = read_satellite_status(Path(commands["portrait_status_file"])).position_ms
+        position_after = read_satellite_status(Path(commands.portrait_status_file)).position_ms
         assert position_after == position_before, (
             f"paused satellite kept playing ({position_before} -> {position_after})"
         )
