@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import logging
 from pathlib import Path
 import contextlib
 from types import SimpleNamespace
@@ -1122,6 +1123,25 @@ class TestResolveShortcut:
         with patch("fun_time.windows_bridge_sequencer.subprocess.run",
                    side_effect=OSError("no powershell")):
             assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
+
+
+    def test_each_link_that_fails_says_so_before_the_next_one_is_tried(
+            self, monkeypatch, caplog):
+        """"Random Favs Browser skipped: could not resolve shortcut" was the
+        whole account of a failure with two resolvers behind it, so the one
+        question worth asking — which link broke, and how — had no answer
+        anywhere.  Each fall-through now says which resolver it was and what it
+        raised, at debug, so the working case stays silent."""
+        self._without_com(monkeypatch)
+        with caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_sequencer"), \
+             patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   side_effect=OSError("no powershell")):
+            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
+
+        said = " ".join(record.getMessage() for record in caplog.records)
+        assert "COM" in said and "PowerShell" in said
+        assert any(record.exc_info for record in caplog.records), (
+            "the fall-through has to carry what was raised, or it explains nothing")
 
 
 class TestWaitForNewChromeWindow:

@@ -1060,8 +1060,11 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
         shell = win32com.client.Dispatch("WScript.Shell")
         link = shell.CreateShortcut(shortcut_path)
         return link.TargetPath, link.WorkingDirectory, link.Arguments
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 - pywin32 raises com_error, a bare Exception
+        # Deliberately not narrowed: pywintypes.com_error derives straight from
+        # Exception, so catching ImportError alone would send the COM failure
+        # this fallback exists for straight past the fallback.
+        logger.debug("Shortcut COM resolver failed for %s", shortcut_path, exc_info=True)
 
     # Fallback: use PowerShell
     try:
@@ -1078,8 +1081,9 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
             return lines[0], lines[1], lines[2]
         if len(lines) >= 1:
             return lines[0], lines[1] if len(lines) > 1 else "", ""
-    except Exception:
-        pass
+    except (OSError, subprocess.SubprocessError):
+        logger.debug("Shortcut PowerShell resolver failed for %s", shortcut_path,
+                     exc_info=True)
 
     return "", "", ""
 

@@ -375,7 +375,7 @@ class _AppendOnWriteHandler(logging.Handler):
             msg = f"{ts} {record.getMessage()}\r\n"
             with self.log_path.open("a", encoding="utf-8") as fh:
                 fh.write(msg)
-        except Exception:
+        except Exception:  # logging must never take the app down
             pass
 
 
