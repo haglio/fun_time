@@ -338,7 +338,7 @@ class VoiceController:
         # duration, which is what dates an utterance's first block.
         audio_q: _queue.Queue[tuple[bytes, float]] = _queue.Queue()
 
-        def _callback(indata, frames, time_info, status):
+        def _callback(indata, _frames, _time_info, status):
             if status:
                 logger.debug("audio status: %s", status)
             audio_q.put((bytes(indata), time.monotonic()))
