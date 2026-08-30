@@ -427,7 +427,6 @@ def start_core_session(
     portrait_hud_file: str | Path | None = None,
     landscape_hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
-    regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
     project_dirs: str | None = None,
 ) -> str:

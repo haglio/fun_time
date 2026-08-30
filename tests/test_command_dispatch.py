@@ -1126,7 +1126,6 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert kwargs["query"] == "alpha"
     assert kwargs["cmd_file"] == config.satellite_cmd_file(2)
     assert kwargs["sources"] == config.portrait_sources
-    assert kwargs["regen_media_root"] == tmp_path / "media"
     assert any(op.op == "notice" for op in ops)
 
 
@@ -1430,7 +1429,6 @@ def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["recent"] is True  # Latest = newest-first
     assert kwargs["query"] == "alpha"  # its own filter is kept
-    assert kwargs["regen_media_root"] == tmp_path / "media"
 
 
 def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
@@ -2150,7 +2148,6 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     assert kwargs["f_mode_enabled"] is False
     assert kwargs["cmd_file"] == config.portrait_cmd_file
     # Latest must collapse action groups too, so the provider roots flow through.
-    assert kwargs["regen_media_root"] == config.regen_media_root
     assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 

@@ -318,7 +318,6 @@ def apply_satellite_filter(
     state_dir: str | Path,
     cmd_file: str | Path,
     start_at_top: bool = False,
-    regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.

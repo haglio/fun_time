@@ -21,7 +21,7 @@ from fun_time.runtime_flow import (
 
 
 def _make_action_video(
-    folder: Path, media_root: Path, metadata_root: Path, name: str, action: str, prompt: str = "x"
+    folder: Path, metadata_root: Path, name: str, action: str, prompt: str = "x"
 ) -> str:
     video = folder / f"{name}.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
@@ -562,7 +562,7 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
 
     _reorder(tmp_path, portrait_root, recent=True,
-             regen_media_root=media_root, regen_metadata_root=metadata_root)
+             regen_metadata_root=metadata_root)
 
     entries = [line for line in _satellite_lines(tmp_path / "state", "portrait") if line]
     assert entries == [str(newer)], "the two-action group collapses to its newest member"
@@ -571,10 +571,10 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
 def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root, landscape_root = media_root / "portrait", media_root / "landscape"
-    p_clip = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
-    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
-    l_kiss = _make_action_video(landscape_root, media_root, metadata_root, "lk", "Kissing")
-    _make_action_video(landscape_root, media_root, metadata_root, "lc", "Alpha")
+    p_clip = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, metadata_root, "pk", "Kissing")
+    l_kiss = _make_action_video(landscape_root, metadata_root, "lk", "Kissing")
+    _make_action_video(landscape_root, metadata_root, "lc", "Alpha")
 
     apply_fmode(
         players=FMODE_PLAYERS,
@@ -605,14 +605,14 @@ def test_recents_honors_the_sides_filter_and_orders_newest_first(tmp_path: Path)
     portrait_root = media_root / "portrait"
     # Distinct prompts keep the two Alphas in distinct seed families, so the
     # filtered build keeps both and the newest-first order is visible.
-    old = _make_action_video(portrait_root, media_root, metadata_root, "old", "Alpha", "scene one")
-    new = _make_action_video(portrait_root, media_root, metadata_root, "new", "Alpha", "scene two")
-    _make_action_video(portrait_root, media_root, metadata_root, "other", "Kissing", "scene three")
+    old = _make_action_video(portrait_root, metadata_root, "old", "Alpha", "scene one")
+    new = _make_action_video(portrait_root, metadata_root, "new", "Alpha", "scene two")
+    _make_action_video(portrait_root, metadata_root, "other", "Kissing", "scene three")
     os.utime(old, (1000, 1000))
     os.utime(new, (2000, 2000))
 
     _reorder(tmp_path, portrait_root, recent=True, query="alpha",
-             regen_media_root=media_root, regen_metadata_root=metadata_root)
+             regen_metadata_root=metadata_root)
 
     assert _satellite_lines(tmp_path / "state", "portrait") == [new, old]  # filtered to alpha, newest-first
 
@@ -620,8 +620,8 @@ def test_recents_honors_the_sides_filter_and_orders_newest_first(tmp_path: Path)
 def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    p_clip = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
-    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    p_clip = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, metadata_root, "pk", "Kissing")
     portrait_cmd_file = tmp_path / "portrait_cmd.txt"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
@@ -634,7 +634,6 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         cmd_file=portrait_cmd_file,
-        regen_media_root=media_root,
         regen_metadata_root=metadata_root,
     )
 
@@ -650,7 +649,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
 def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    _make_action_video(portrait_root, metadata_root, "pk", "Kissing")
     state_dir = tmp_path / "state"
     playlist = state_dir / "portrait_playlist.tsv"
     playlist.parent.mkdir(parents=True)
@@ -666,7 +665,6 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         cmd_file=cmd_file,
-        regen_media_root=media_root,
         regen_metadata_root=metadata_root,
     )
 
@@ -679,8 +677,8 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
 def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
-    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, metadata_root, "pk", "Kissing")
 
     result = apply_satellite_filter(
         which=2,
@@ -691,7 +689,6 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         cmd_file=tmp_path / "portrait_cmd.txt",
-        regen_media_root=media_root,
         regen_metadata_root=metadata_root,
     )
 
@@ -704,8 +701,8 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
     the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
-    clip = _make_action_video(portrait_root, media_root, metadata_root, "pc", "Alpha")
-    _make_action_video(portrait_root, media_root, metadata_root, "pk", "Kissing")
+    clip = _make_action_video(portrait_root, metadata_root, "pc", "Alpha")
+    _make_action_video(portrait_root, metadata_root, "pk", "Kissing")
 
     paths = satellite_browse_paths(
         which=2,
