@@ -57,6 +57,7 @@ from fun_time.orchestrator import (
     validate_config,
 )
 from fun_time.mode_plan import STARTUP_MAIN_MODE
+from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_resume import (
     resume_playlists,
@@ -335,7 +336,6 @@ def run_vr_bridge(config, logger_) -> int:
 
     hud_publisher, _hud_primed = _start_hud_priming(bridge_config, manifest, enabled=True)
     dispatch_runner = DispatchLoopRunner(
-        role_hwnds={},
         config=bridge_config,
         dashboard_cmd_file=dashboard_cmd_file,
         shared_state_file=shared_state_path(state_dir),
@@ -343,7 +343,7 @@ def run_vr_bridge(config, logger_) -> int:
         # Every role pid stays 0: the roles live inside the VR player, there
         # are no per-role windows, and unresolved HWNDs are exactly what makes
         # the desktop window ops settle into no-ops.
-        nau_pid=0,
+        windows=WindowRoles(pids=ChildPids()),
         dashboard_enabled=False,
         hud_publisher=hud_publisher,
     )

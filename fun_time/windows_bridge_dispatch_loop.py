@@ -53,7 +53,7 @@ from .dashboard_runtime import (
     read_nau_status,
 )
 from .runtime_flow import read_flag_file
-from .role_windows import ChildPids, WindowRoles
+from .role_windows import WindowRoles
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
@@ -63,7 +63,6 @@ from .window_roles import (
     visible_main_slot_roles,
 )
 from .win32 import (
-    activate_window,
     force_foreground_window,
     is_window_minimized,
     is_window_topmost,
@@ -76,13 +75,6 @@ from .win32 import (
 
 logger = logging.getLogger(__name__)
 
-
-# How long the outgoing main-slot player keeps its window before it is
-# minimized, so the DISPLAY_OFF it was sent in the same breath is on screen
-# first (see DispatchLoopRunner._hide_role).  Generous next to the ~1 frame the
-# player needs to read the verb and the ~1 more to present the black — this is
-# time nobody can see, and being early is the failure it exists to avoid.
-PRIMARY_BLANK_SETTLE_S = 0.25
 
 # What Nau's own notice levels mean here.  Nau has no palette — it names the kind
 # of thing that happened and this side picks the color, the same way the ops
@@ -220,20 +212,14 @@ class DispatchLoopRunner:
         dashboard_cmd_file: Path,
         shared_state_file: Path,
         ahk_cmd_file: Path,
-        nau_pid: int,
-        portrait_pid: int = 0,
-        landscape_pid: int = 0,
-        dashboard_pid: int = 0,
-        origenerator_pid: int = 0,
+        windows: WindowRoles,
         dashboard_enabled: bool,
         manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
-        rfb_hwnd: int = 0,
         rfb_shortcut_target: str = "",
         rfb_shortcut_work_dir: str = "",
         rfb_shortcut_args: str = "",
         sync_interval_ms: int = 200,
-        role_hwnds: dict[str, int] | None = None,
     ) -> None:
         self.config = config
         self.dashboard_cmd_file = dashboard_cmd_file
@@ -247,17 +233,7 @@ class DispatchLoopRunner:
         )
         # Every window the session manages, and the one cache of their HWNDs:
         # the tick and the library browser's own thread both go through here.
-        self.windows = WindowRoles(
-            pids=ChildPids(
-                nau=nau_pid,
-                portrait=portrait_pid,
-                landscape=landscape_pid,
-                dashboard=dashboard_pid,
-                origenerator=origenerator_pid,
-            ),
-            rfb_hwnd=rfb_hwnd,
-            role_hwnds=role_hwnds,
-        )
+        self.windows = windows
         self.dashboard_enabled = dashboard_enabled
         # The lock HUD's model: this loop holds the state the map is drawn from
         # (locks, filters, loops) and already ticks, so it builds each satellite's
@@ -278,9 +254,6 @@ class DispatchLoopRunner:
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
-        # Main-slot windows waiting out PRIMARY_BLANK_SETTLE_S before they are
-        # minimized, by role -> the monotonic time they are due.
-        self._pending_hides: dict[str, float] = {}
         self._stop = threading.Event()
         self._browse_lock = threading.Lock()
         # The browse now on screen, if any.  It is launched mid-session, so it
@@ -290,14 +263,6 @@ class DispatchLoopRunner:
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
-        self._minimized_hwnds: list[int] = []
-        # Windows a player's own minimize button parked, kept apart from the two
-        # other things that minimize around here: the mode switch parks the idle
-        # main-slot player (undone by the switch that brings it back) and
-        # omniminimize parks the room (undone by omnirestore).  These are undone by
-        # the room resuming, because a player parked from its own HUD took that HUD
-        # down with it and has no button left to press.
-        self._parked_hwnds: list[int] = []
         # RFB tabs opened by locks are buffered and opened in one Chrome launch
         # per poll batch: "lock both" locks two videos in one tick, and two
         # rapid chrome.exe launches race Chrome's singleton and drop a tab.
@@ -406,7 +371,7 @@ class DispatchLoopRunner:
         self._flush_rfb_tabs()
         # After the batch, so a switch and a switch straight back inside one
         # batch cancel rather than minimize the player they just brought back.
-        self._flush_pending_hides()
+        self.windows.flush_pending_hides()
 
         self._sync_voice_suspension()
 
@@ -822,19 +787,10 @@ class DispatchLoopRunner:
         suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in ops:
             if op.op == "show_role":
-                # Restore (un-minimize) rather than SW_SHOW: the idle main player
-                # player is parked by minimizing it (keeps its taskbar button),
-                # so bringing it back is a restore.  No-activate — activate_role
-                # handles focus — and DWM transitions are disabled, so it's
-                # instant.  A switch straight back cancels the settle below: the
-                # window being restored must not be minimized a moment later.
-                self._pending_hides.pop(op.key, None)
-                hwnd = self.windows.hwnd(op.key)
-                if hwnd:
-                    restore_window(hwnd, activate=False)
+                self.windows.show(op.key)
                 continue
             if op.op == "hide_role":
-                self._hide_role(op.key)
+                self.windows.hide_after_settle(op.key)
                 continue
             if op.op == "minimize_role":
                 # A player's own HUD minimize button, parking that one window.
@@ -843,16 +799,14 @@ class DispatchLoopRunner:
                 # first, and nothing here has been told to blank — the window is
                 # going down still showing its video, which is what the user
                 # pressed for, and its frozen thumbnail is then the clip it holds.
-                self._park_role(op.key)
+                self.windows.park(op.key)
                 continue
             if op.op == "restore_parked":
-                self._restore_parked()
+                self.windows.restore_parked()
                 continue
             if op.op == "activate_role":
                 if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                    hwnd = self.windows.hwnd(op.key)
-                    if hwnd:
-                        activate_window(hwnd)
+                    self.windows.activate(op.key)
                 continue
             if op.op == "restack_main":
                 # Re-stack the overlapping Nau/Genau pair for the current mode.
@@ -885,75 +839,6 @@ class DispatchLoopRunner:
             self._flush_rfb_tabs()
         if self.dashboard_enabled:
             self._update_dashboard()
-
-    def _hide_role(self, role: str) -> None:
-        """Park the main-slot player a mode switch is leaving — after a beat.
-
-        Only that pair is ever hidden (see ``_main_slot_ops``), and only they
-        need the beat.  Minimizing is what FREEZES a window's Alt-Tab thumbnail:
-        Windows stops compositing a minimized window, so whatever it last drew is
-        what the thumbnail keeps showing until it is restored.  The same switch
-        has just told this player to go dark (DISPLAY_OFF), and reading that verb
-        and presenting the black costs it a frame or two — minimize inside that
-        gap and the thumbnail keeps the video frame the player was sitting on,
-        which is the exact thing the blanking exists to prevent.
-
-        Nothing shows during the wait: the incoming player has already been
-        restored, activated and promoted over the same rect, and this one has
-        been demoted out of the topmost band (see :meth:`_restack_main_slot`).
-        """
-        self._pending_hides[role] = time.monotonic() + PRIMARY_BLANK_SETTLE_S
-
-    def _minimize_role(self, role: str) -> None:
-        # Minimize instead of SW_HIDE so the window keeps its taskbar button
-        # (running indicator) the whole session — and, for a satellite parked
-        # from its own HUD, so there is something left to click: that panel goes
-        # down with the window, so the taskbar button is the way back.
-        # No-activate, so parking one player never yanks focus to the next.
-        hwnd = self.windows.hwnd(role)
-        if hwnd:
-            minimize_window(hwnd, activate=False)
-
-    def _park_role(self, role: str) -> None:
-        """Minimize a window the user asked to have out of the way, and remember it.
-
-        Remembered here rather than inside :meth:`_minimize_role`, which the mode
-        switch also calls: the slot-mate it parks is the mode's business and comes
-        back when the mode brings it back, so putting it on this list would have
-        the next resume drag a hidden player onto a rect another one is using.
-        """
-        hwnd = self.windows.hwnd(role)
-        if not hwnd:
-            return
-        self._minimize_role(role)
-        if hwnd not in self._parked_hwnds:
-            self._parked_hwnds.append(hwnd)
-
-    def _restore_parked(self) -> None:
-        """Bring back every window a minimize button parked — leaving OmniPause.
-
-        Each returns to the rect and size it had, which is its slot: Windows keeps
-        a minimized window's restored placement, and nothing moved it meanwhile.
-        The topmost bands are re-applied right after by the ``restore_all_topmost``
-        op that follows this one, so a window comes back into the same band it
-        left as well as the same place.
-
-        This is what resume is for: OmniPause is the room stopping and leaving it
-        is the room coming back, and a player parked from its own HUD cannot ask
-        for itself — the panel with the button on it went down with the window.
-        """
-        for hwnd in self._parked_hwnds:
-            restore_window(hwnd, activate=False)
-        self._parked_hwnds = []
-
-    def _flush_pending_hides(self) -> None:
-        """Park each main-slot window whose settle time has run out."""
-        if not self._pending_hides:
-            return
-        now = time.monotonic()
-        for role in [r for r, due in self._pending_hides.items() if now >= due]:
-            del self._pending_hides[role]
-            self._minimize_role(role)
 
     def _flush_rfb_tabs(self) -> None:
         """Open every buffered RFB URL as tabs in the session's own Chrome window.
@@ -1236,12 +1121,7 @@ class DispatchLoopRunner:
         minimizing one never yanks focus to the next.  The minimized set is
         remembered so omnirestore brings back exactly these windows.
         """
-        self._minimized_hwnds = []
-        for role in self._visible_roles():
-            hwnd = self.windows.hwnd(role)
-            if hwnd:
-                minimize_window(hwnd, activate=False)
-                self._minimized_hwnds.append(hwnd)
+        self.windows.minimize_all(self._visible_roles())
 
     def _handle_omnirestore(self) -> None:
         """Un-minimize exactly the windows omniminimize minimized.
@@ -1250,10 +1130,7 @@ class DispatchLoopRunner:
         HUD button had already parked — they are up again, and the parked list is
         dropped so a later resume does not "restore" windows already restored.
         """
-        for hwnd in self._minimized_hwnds:
-            restore_window(hwnd, activate=False)
-        self._minimized_hwnds = []
-        self._parked_hwnds = []
+        self.windows.restore_minimized()
 
     def _log_topmost_state(self, label: str) -> None:
         """Log every managed window's resolved hwnd and topmost state.

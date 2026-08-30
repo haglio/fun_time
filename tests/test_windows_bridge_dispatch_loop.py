@@ -30,8 +30,14 @@ from fun_time.windows_bridge_dispatch_loop import (
     detect_sleep_gap,
     DispatchLoopRunner,
 )
+from fun_time.role_windows import (
+    PRIMARY_BLANK_SETTLE_S,
+    ChildPids,
+    WindowRoles,
+)
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
+    FakeClock,
     DASHBOARD_PID,
     GENAU_HWND,
     HOSTED_HWND,
@@ -132,19 +138,33 @@ def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
 
 
 def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
-    settings = dict(
-        nau_pid=NAU_PID,
-        portrait_pid=PORTRAIT_PID,
-        landscape_pid=LANDSCAPE_PID,
-        dashboard_pid=DASHBOARD_PID,
-        dashboard_enabled=False,
+    """A runner over the imaginary desktop in ``tests.role_window_fakes``.
+
+    The pids and the browser hwnd are the windows object's, not the runner's,
+    so they are named here the way the tests have always named them and folded
+    into one.  ``clock`` is that object's settle clock: a test that is about
+    the beat a mode switch waits out hands in a :class:`FakeClock`.
+    """
+    windows = WindowRoles(
+        pids=ChildPids(
+            nau=kwargs.pop("nau_pid", NAU_PID),
+            portrait=kwargs.pop("portrait_pid", PORTRAIT_PID),
+            landscape=kwargs.pop("landscape_pid", LANDSCAPE_PID),
+            dashboard=kwargs.pop("dashboard_pid", DASHBOARD_PID),
+            origenerator=kwargs.pop("origenerator_pid", 0),
+        ),
+        rfb_hwnd=kwargs.pop("rfb_hwnd", 0),
+        role_hwnds=kwargs.pop("role_hwnds", None),
+        **({"clock": kwargs.pop("clock")} if "clock" in kwargs else {}),
     )
+    settings = dict(dashboard_enabled=False)
     settings.update(kwargs)
     runner = DispatchLoopRunner(
         config=config or make_config(tmp_path),
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         shared_state_file=tmp_path / "shared_state.ini",
         ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+        windows=windows,
         **settings,
     )
     # Park the periodic sync (z-order convergence + dashboard update) in the
@@ -657,7 +677,7 @@ class TestDispatchLoopRunner:
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window", side_effect=activated.append), \
+             patch("fun_time.role_windows.activate_window", side_effect=activated.append), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
@@ -855,7 +875,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
             runner.tick()
 
         assert {h for h, _ in minimized} == {
@@ -875,7 +895,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
 
         assert set(minimized) == {
@@ -892,7 +912,7 @@ class TestDispatchLoopRunner:
         minimized: list[int] = []
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
 
         assert minimized == []
@@ -903,7 +923,8 @@ class TestDispatchLoopRunner:
         the DISPLAY_OFF sent with the same switch is on screen.  Minimize in the
         frame or two that takes and the thumbnail keeps the video frame it was
         sitting on, which is the whole thing the blanking is for."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        clock = FakeClock()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("genau_activate", encoding="utf-8")
 
@@ -911,26 +932,34 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch("fun_time.role_windows.restore_window"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
-
             assert minimized == [], "Nau minimized before it could paint the black"
-            assert runner._pending_hides.keys() == {"nau"}
+
+            # A tick inside the beat still leaves it up.
+            clock.advance(PRIMARY_BLANK_SETTLE_S / 2)
+            runner.tick()
+            assert minimized == []
 
             # The settle elapses; the next tick parks it, without activation.
-            runner._pending_hides["nau"] = time.monotonic() - 0.001
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            runner.tick()
+            assert minimized == [NAU_HWND]
+
+            # And it is off the list: a later tick does not park it twice.
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
             runner.tick()
 
         assert minimized == [NAU_HWND]
-        assert runner._pending_hides == {}
 
     def test_switching_straight_back_never_minimizes_the_player(self, tmp_path):
         """A switch inside the settle window would otherwise minimize the very
         player it had just restored."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        clock = FakeClock()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("genau_activate\nnau_activate", encoding="utf-8")
 
@@ -938,13 +967,12 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch("fun_time.role_windows.restore_window"), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
-            for role in list(runner._pending_hides):
-                runner._pending_hides[role] = time.monotonic() - 0.001
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
             runner.tick()
 
         assert NAU_HWND not in minimized, "Nau owns the display again"
@@ -956,22 +984,23 @@ class TestDispatchLoopRunner:
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
+        minimized_hwnds: list[int] = []
         restored: list[tuple[int, dict]] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))):
+             patch("fun_time.role_windows.minimize_window",
+                   side_effect=lambda h, **kw: minimized_hwnds.append(h)), \
+             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))):
             cmd_file.write_text("omniminimize", encoding="utf-8")
             runner.tick()
-            minimized_hwnds = list(runner._minimized_hwnds)
+            assert minimized_hwnds, "omniminimize put nothing down"
 
             cmd_file.write_text("omnirestore", encoding="utf-8")
             runner.tick()
 
             assert [h for h, _ in restored] == minimized_hwnds
             assert all(kw.get("activate") is False for _, kw in restored)
-            assert runner._minimized_hwnds == []
 
             # The minimized set was consumed: another omnirestore does nothing.
             cmd_file.write_text("omnirestore", encoding="utf-8")
@@ -992,7 +1021,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append((h, kw))):
             runner.tick()
 
         assert [h for h, _ in minimized] == [PORTRAIT_HWND]
@@ -1002,7 +1031,8 @@ class TestDispatchLoopRunner:
         """Unlike the main-slot swap, which waits out PRIMARY_BLANK_SETTLE_S so the
         outgoing player can present its black first, nothing here has been told to
         blank — so the window goes down in the same tick as the press."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        clock = FakeClock()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("landscape_minimize", encoding="utf-8")
 
@@ -1010,11 +1040,15 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+             patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
-
             assert minimized == [LANDSCAPE_HWND]
-            assert runner._pending_hides == {}
+
+            # Nothing was queued behind a settle either: letting one pass adds
+            # no second minimize.
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            runner.tick()
+            assert minimized == [LANDSCAPE_HWND]
 
     def test_the_main_players_console_button_parks_the_window_holding_the_slot(self, tmp_path):
         """Nau and Genau share the main rect, so which window the console's button
@@ -1033,7 +1067,7 @@ class TestDispatchLoopRunner:
 
             with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
                  patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-                 patch("fun_time.windows_bridge_dispatch_loop.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
+                 patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
                 runner.tick()
 
             assert minimized == wanted, mode
@@ -1050,20 +1084,19 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
+             patch("fun_time.role_windows.minimize_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
              patch.object(runner, "_restore_all_topmost"):
             cmd_file.write_text("portrait_minimize\nlandscape_minimize", encoding="utf-8")
             runner.tick()
-            assert runner._parked_hwnds == [PORTRAIT_HWND, LANDSCAPE_HWND]
+            assert restored == [], "parking a player restores nothing"
 
             cmd_file.write_text("omnipause_toggle", encoding="utf-8")
             runner.tick()
 
             assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
             assert all(kw.get("activate") is False for _, kw in restored)
-            assert runner._parked_hwnds == []
 
             write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
             cmd_file.write_text("omnipause_toggle", encoding="utf-8")
@@ -1075,23 +1108,24 @@ class TestDispatchLoopRunner:
         """The idle main-slot player is minimized by the mode switch, not by a
         button, and the switch that brings its mode back is what restores it.
         Resuming must not drag it onto a rect the other player is using."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
+        clock = FakeClock()
+        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
         restored: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: restored.append(h)), \
+             patch("fun_time.role_windows.minimize_window"), \
+             patch("fun_time.role_windows.activate_window"), \
+             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append(h)), \
              patch.object(runner, "_restore_all_topmost"), \
              patch.object(runner, "_restack_main_slot"):
             # A switch to genau parks Nau, which the settle then flushes.
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-            runner._pending_hides = {}
-            runner._minimize_role("nau")
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            runner.tick()
             restored.clear()
 
             write_shared_state(tmp_path / "shared_state.ini",
@@ -1100,7 +1134,6 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert NAU_HWND not in restored
-        assert runner._parked_hwnds == []
 
     def test_a_huds_minimize_button_says_nothing_to_ahk(self, tmp_path):
         """The op loop's fall-through writes an unrecognized op straight to the AHK
@@ -1113,7 +1146,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window"):
+             patch("fun_time.role_windows.minimize_window"):
             runner.tick()
 
         assert not ahk_cmd_file.exists()
@@ -1425,27 +1458,27 @@ class TestModeSwitchVisibility:
                          integration_env=False):
         if integration_env:
             monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        runner = make_runner(tmp_path)
+        clock = FakeClock()
+        runner = make_runner(tmp_path, clock=clock)
         runner.state = BridgeState(main_mode=from_mode)
 
         calls: list[tuple[str, int]] = []
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window",
+             patch("fun_time.role_windows.restore_window",
                    side_effect=lambda h, **kw: calls.append(("show", h))), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window",
+             patch("fun_time.role_windows.minimize_window",
                    side_effect=lambda h, **kw: calls.append(("hide", h))), \
-             patch("fun_time.windows_bridge_dispatch_loop.activate_window",
+             patch("fun_time.role_windows.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
             runner._dispatch(command)
             # The outgoing player's minimize is held back a beat, so it can paint
             # the black the same switch told it to before its Alt-Tab thumbnail
-            # freezes (see _hide_role).  Run that out here, so these tests still
-            # see the whole ordered sequence.
-            for role in runner._pending_hides:
-                runner._pending_hides[role] = time.monotonic() - 0.001
-            runner._flush_pending_hides()
+            # freezes (see WindowRoles.hide_after_settle).  Let that beat pass,
+            # so these tests still see the whole ordered sequence.
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            runner.windows.flush_pending_hides()
 
         assert runner.state.main_mode == {
             "genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid",
@@ -1528,7 +1561,7 @@ class TestResolveRole:
         show_op = WindowOp(op="show_role", key="nau")
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
+             patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
             assert runner.windows.hwnd("nau") == NAU_HWND
@@ -2448,7 +2481,7 @@ class TestSeededRoleHwnds:
         )
         shown: list[int] = []
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.windows_bridge_dispatch_loop.restore_window", side_effect=lambda h, **kw: shown.append(h)):
+        with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("genau") == 6001
             assert runner.windows.hwnd("nau") == 2001
             runner._dispatch("hybrid_activate")

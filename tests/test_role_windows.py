@@ -9,13 +9,18 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from fun_time.role_windows import ChildPids, WindowRoles
+from fun_time.role_windows import (
+    PRIMARY_BLANK_SETTLE_S,
+    ChildPids,
+    WindowRoles,
+)
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
 )
 from tests.role_window_fakes import (
     DASHBOARD_PID,
+    FakeClock,
     HOSTED_HWND,
     HOSTED_PID,
     LANDSCAPE_HWND,
@@ -112,3 +117,28 @@ class TestResolveRole:
              patch("fun_time.role_windows.find_window_for_process",
                    side_effect=lookup_hosted):
             assert windows.hwnd("origenerator") == HOSTED_HWND
+
+
+class TestParking:
+    """Which window goes down, when, and what brings it back."""
+
+    def test_a_mode_switch_holds_its_outgoing_player_up_for_the_settle(self):
+        """Minimizing freezes a window's Alt-Tab thumbnail — Windows stops
+        compositing it — so the player a switch is leaving must go down only
+        once the DISPLAY_OFF sent in the same breath is on screen.  Minimize in
+        the frame or two that takes and the thumbnail keeps the video frame the
+        player was sitting on, which is the whole thing the blanking is for."""
+        clock = FakeClock()
+        windows = make_windows(clock=clock, role_hwnds={"nau": NAU_HWND})
+
+        minimized: list[int] = []
+        with patch("fun_time.role_windows.minimize_window",
+                   side_effect=lambda h, **kw: minimized.append(h)):
+            windows.hide_after_settle("nau")
+            windows.flush_pending_hides()
+            assert minimized == [], "Nau minimized before it could paint the black"
+
+            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            windows.flush_pending_hides()
+
+        assert minimized == [NAU_HWND]

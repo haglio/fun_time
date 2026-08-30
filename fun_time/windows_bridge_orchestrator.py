@@ -42,6 +42,7 @@ from .mode_plan import genau_active
 from .modes import collect_video_files
 from .process_identity import identified_python_exe
 from .shared_state import shared_state_path
+from .role_windows import ChildPids, WindowRoles
 from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
@@ -943,20 +944,24 @@ def run_python_orchestrated_bridge(
         rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
 
     dispatch_runner = DispatchLoopRunner(
-        role_hwnds=result.role_hwnds,
         config=bridge_config,
         dashboard_cmd_file=dashboard_cmd_file,
         manifest_path=Path(manifest_path),
         shared_state_file=shared_state_path(state_dir),
         ahk_cmd_file=ahk_cmd_file,
-        nau_pid=result.nau_pid,
-        portrait_pid=result.portrait_pid,
-        landscape_pid=result.landscape_pid,
-        dashboard_pid=result.dashboard_pid,
-        origenerator_pid=result.origenerator_pid,
+        windows=WindowRoles(
+            pids=ChildPids(
+                nau=result.nau_pid,
+                portrait=result.portrait_pid,
+                landscape=result.landscape_pid,
+                dashboard=result.dashboard_pid,
+                origenerator=result.origenerator_pid,
+            ),
+            rfb_hwnd=result.rfb_hwnd,
+            role_hwnds=result.role_hwnds,
+        ),
         dashboard_enabled=dashboard_enabled,
         hud_publisher=hud_publisher,
-        rfb_hwnd=result.rfb_hwnd,
         rfb_shortcut_target=rfb_target,
         rfb_shortcut_work_dir=rfb_work_dir,
         rfb_shortcut_args=rfb_args,

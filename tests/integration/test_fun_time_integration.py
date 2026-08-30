@@ -11,7 +11,7 @@ import pytest
 
 from fun_time.media_actions import remove_from_favs
 from fun_time.satellite_control import read_satellite_status
-from fun_time.windows_bridge_dispatch_loop import PRIMARY_BLANK_SETTLE_S
+from fun_time.role_windows import PRIMARY_BLANK_SETTLE_S
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 from fun_time.win32 import (
     find_window_by_pid,

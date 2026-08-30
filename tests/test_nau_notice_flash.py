@@ -9,6 +9,8 @@ from fun_time.command_dispatch import (
     BridgeConfig,
 )
 from fun_time.event_log import NOTICE
+from fun_time.role_windows import ChildPids, WindowRoles
+from tests.role_window_fakes import NAU_PID
 from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner, read_nau_notice
 
 
@@ -42,7 +44,7 @@ def _runner(tmp_path: Path) -> DispatchLoopRunner:
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         shared_state_file=tmp_path / "shared_state.ini",
         ahk_cmd_file=tmp_path / "ahk_cmd.txt",
-        nau_pid=200,
+        windows=WindowRoles(pids=ChildPids(nau=NAU_PID)),
         dashboard_enabled=False,
     )
 

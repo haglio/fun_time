@@ -60,3 +60,18 @@ def lookup_hosted(pid, title):
         "Origenerator Portrait": HOSTED_PORTRAIT_HWND,
         "Origenerator Landscape": HOSTED_LANDSCAPE_HWND,
     }.get(title, 0)
+
+
+class FakeClock:
+    """A monotonic clock a test drives by hand, so the settle a mode switch
+    waits out can genuinely run out instead of being back-dated by reaching
+    into the deadline map."""
+
+    def __init__(self) -> None:
+        self.now = 1000.0
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
