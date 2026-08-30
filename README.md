@@ -130,7 +130,7 @@ See those projects for the serial parsing, COM-port recovery, and playback inter
 
 ### The log panel
 
-The main monitor's left column stacks the **Dashboard** across its top and the **Random Favs Browser** filling the rest below. The Dashboard spans the full column width: its schematic of the two monitors on the left and the **log panel** embedded in the strip beside it. The schematic still draws all three regions, so the picture matches the screen.
+The main monitor's left column stacks the **Dashboard** across its top and the **Random Favs Browser** filling the rest below. The Dashboard spans the full column width: a control bar across the top and the **log panel** embedded under it.
 
 The log panel is a widget inside the dashboard window — one window, not two — so it rides the dashboard's topmost band, minimize/restore and close. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel.ini`.
 

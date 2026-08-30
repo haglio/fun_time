@@ -1,7 +1,7 @@
 """Startup sequencer for the Python orchestrator.
 
-Replaces AHK's ``StartWindowsBridge()`` — runs the full startup sequence
-in Python: core session launch, window positioning, UI companion launch.
+Runs the full startup sequence: core session launch, window positioning, UI
+companion launch.
 """
 from __future__ import annotations
 

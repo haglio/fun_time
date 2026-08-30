@@ -3,7 +3,7 @@
 Runs as a subprocess: ``python -m fun_time.closing_screen <progress_file>``
 
 Covers every monitor while the orchestrator takes the session apart, so the end
-of a session is one panel rather than six windows blinking out one after
+of a session is one panel rather than the windows blinking out one after
 another.  Drops the ready flag beside *progress_file* the moment it is actually
 painted — the orchestrator holds the first kill until then — and closes when
 that file reads DONE.

@@ -40,13 +40,9 @@ def client_rect_filling_frame(
 
 
 # --- the control bar ---------------------------------------------------------
-# The dashboard used to draw a schematic of both monitors, with a box per player
-# carrying that player's buttons and a cable running to the OSR2.  Every player
-# draws its own HUD now and those buttons are on it, so what is left is the
-# handful that belong to no player: quit, pause everything, the reference popup,
-# and the microphone.  (The broker light went to the main player's HUD with the rest
-# of the OSR2 status — it is the main player's concern, not the room's; F-mode went to
-# each player's own HUD, since it is set per player now.)  They do not need to be
+# What is on the bar is the handful of controls that belong to no player: quit,
+# pause everything, the reference popup, and the microphone.  Anything about a
+# particular player is on that player's own HUD, which is why the bar is not
 # arranged like the room.
 
 # The family's own button square and the gap between two of them, so a control

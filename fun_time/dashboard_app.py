@@ -536,8 +536,8 @@ class DashboardWindow(QMainWindow):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        # The window spans the whole left column: the schematic on the left and
-        # the log stream filling the strip beside it.  The log used to be a second
+        # The window spans the whole left column: the control bar across the
+        # top and the log stream filling the rest.  The log used to be a second
         # top-level window the bridge tracked by title; embedding it as a child
         # lets it ride the dashboard's topmost band, minimize/restore and close.
         self._widget = DashboardWidget()
@@ -573,8 +573,8 @@ class DashboardWindow(QMainWindow):
                 launch_geometry.width, launch_geometry.height,
             )
 
-        # Title-bar controls: keep minimize + close, drop maximize (the schematic
-        # is a fixed size).  Close routes through closeEvent (quits everything);
+        # Title-bar controls: keep minimize + close, drop maximize (the control
+        # bar is a fixed height).  Close routes through closeEvent (quits everything);
         # minimize routes through changeEvent (omniminimize).
         # Show in taskbar via WS_EX_APPWINDOW.
         # The subprocess is launched with SW_HIDE (hidden_subprocess_kwargs),
