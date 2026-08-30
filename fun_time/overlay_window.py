@@ -23,6 +23,7 @@ from pathlib import Path
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import parse_progress
 from .project_paths import PROJECT_ICON
 from .win32 import find_window_by_title, set_always_on_top
@@ -136,22 +137,19 @@ class OverlayWindow:
         self._root.overrideredirect(True)
         self._root.configure(bg=BG)
 
-        # Query virtual-desktop bounding box (spans all monitors) so the
-        # overlay covers everything and no windows flash through.
-        try:
-            import ctypes
-            u32 = ctypes.windll.user32
-            u32.SetProcessDPIAware()
-            vx = u32.GetSystemMetrics(76)   # SM_XVIRTUALSCREEN
-            vy = u32.GetSystemMetrics(77)   # SM_YVIRTUALSCREEN
-            vw = u32.GetSystemMetrics(78)   # SM_CXVIRTUALSCREEN
-            vh = u32.GetSystemMetrics(79)   # SM_CYVIRTUALSCREEN
-        except Exception:
-            vx, vy = 0, 0
-            vw = self._root.winfo_screenwidth()
-            vh = self._root.winfo_screenheight()
+        # Tk's own screen is the fallback, asked for OUT here rather than inside
+        # the failure path, where a Tk not answering either raised a second time
+        # with nothing left to catch it.
+        desktop = virtual_desktop_rect()
+        if desktop is None:
+            desktop = MonitorInfo(
+                x=0, y=0,
+                width=self._root.winfo_screenwidth(),
+                height=self._root.winfo_screenheight(),
+            )
+        vx, vy = desktop.x, desktop.y
 
-        self._root.geometry(f"{vw}x{vh}+{vx}+{vy}")
+        self._root.geometry(f"{desktop.width}x{desktop.height}+{vx}+{vy}")
 
         # Use clam theme for full style control
         style = ttk.Style(self._root)

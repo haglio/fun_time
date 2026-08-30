@@ -1,7 +1,8 @@
 """Monitor geometry querying for the Python orchestrator.
 
 Provides ``enumerate_monitors`` (ctypes) to get live monitor work areas,
-and ``get_logical_monitor_rects`` to assign them to main/secondary roles with
+``virtual_desktop_rect`` for the box they all sit inside, and
+``get_logical_monitor_rects`` to assign them to main/secondary roles with
 orientation correction.
 """
 from __future__ import annotations
@@ -20,6 +21,35 @@ class MonitorInfo:
     y: int
     width: int
     height: int
+
+
+# GetSystemMetrics indices for the box every monitor sits inside.
+SM_XVIRTUALSCREEN = 76
+SM_YVIRTUALSCREEN = 77
+SM_CXVIRTUALSCREEN = 78
+SM_CYVIRTUALSCREEN = 79
+
+
+def virtual_desktop_rect() -> MonitorInfo | None:
+    """The bounding box of every monitor together, or None if it cannot be read.
+
+    What a window covering the WHOLE desktop is sized and placed by.  Through
+    ``ctypes.windll`` like the enumeration above, not the loader, whose stand-in
+    raises where this caller has an answer to fall back on.
+    """
+    try:
+        user32 = ctypes.windll.user32
+        user32.SetProcessDPIAware()
+        metric = user32.GetSystemMetrics
+        return MonitorInfo(
+            x=metric(SM_XVIRTUALSCREEN),
+            y=metric(SM_YVIRTUALSCREEN),
+            width=metric(SM_CXVIRTUALSCREEN),
+            height=metric(SM_CYVIRTUALSCREEN),
+        )
+    except (AttributeError, OSError):
+        # AttributeError off Windows, where ctypes carries no windll at all.
+        return None
 
 
 def enumerate_monitors() -> list[MonitorInfo]:

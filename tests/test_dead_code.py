@@ -342,10 +342,11 @@ _WIN32_REACHES = {
     # asked instead.
     "fun_time/win32_loader.py": 3,
     # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
-    # these want the AttributeError that ctypes.windll gives off Windows, and
-    # both callers catch it to fall back rather than to fail.
-    "fun_time/monitors.py": 3,
-    "fun_time/overlay_window.py": 1,
+    # this wants the AttributeError that ctypes.windll gives off Windows, and
+    # every caller catches it to fall back rather than to fail.  This is the
+    # module the rest of the family asks for a monitor rather than measuring
+    # one, which is why its count is the only one that ever goes up.
+    "fun_time/monitors.py": 4,
     # A vtable call built per invocation, inside a function body, so it never
     # runs at import — win32_loader's prototype cannot express one.
     "fun_time/win32_taskbar.py": 1,
