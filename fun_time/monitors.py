@@ -1,8 +1,8 @@
 """Monitor geometry querying for the Python orchestrator.
 
 Provides ``enumerate_monitors`` (ctypes) to get live monitor work areas,
-and ``get_logical_monitor_rects`` to assign them to main/secondary roles
-using the same orientation-correction logic as the AHK bridge.
+and ``get_logical_monitor_rects`` to assign them to main/secondary roles with
+orientation correction.
 """
 from __future__ import annotations
 
@@ -86,7 +86,6 @@ def get_logical_monitor_rects(
 ) -> tuple[MonitorRect, MonitorRect]:
     """Assign monitors to main/secondary roles with orientation correction.
 
-    Replicates the AHK ``GetLogicalMonitorRects`` logic:
     - If one monitor is landscape and the other portrait, landscape is main.
     - If both have the same orientation, the leftmost is main.
 

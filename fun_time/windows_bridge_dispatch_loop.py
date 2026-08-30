@@ -1217,8 +1217,7 @@ class DispatchLoopRunner:
                          the video and both float above the desktop.
           * genau mode — promote Genau (Nau hidden).
 
-        Promoting Nau before Genau is what keeps the HUD over the video — the
-        demote-then-promote-in-order technique the old z_order module used.
+        Promoting Nau before Genau is what keeps the HUD over the video.
         """
         mode = self.state.main_mode
         nau = self._resolve_role("nau")

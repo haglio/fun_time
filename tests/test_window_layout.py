@@ -58,7 +58,7 @@ def test_dashboard_sits_at_the_top_left_corner_of_the_left_column(cfg_path: Path
 
 def test_dashboard_spans_the_whole_left_column_above_the_rfb(cfg_path: Path):
     """The dashboard now embeds the log stream, so its window spans the full
-    left-column width — schematic on the left, log strip filling the rest —
+    left-column width — the control bar across the top, the log filling the rest —
     rather than leaving room for a second log-panel window beside it."""
     config = load_config(cfg_path)
 
@@ -144,7 +144,7 @@ def test_the_dashboard_takes_a_bar_and_a_log_and_the_browser_takes_the_rest(cfg_
     )
 
     assert plan.dashboard.height == dashboard_window_height()
-    # It spans the whole left column — there is no schematic beside the log now.
+    # It spans the whole left column.
     assert plan.dashboard.width == plan.random_favs_browser.width
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
     assert plan.random_favs_browser.height > plan.dashboard.height

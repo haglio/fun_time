@@ -79,8 +79,8 @@ logger = logging.getLogger(__name__)
 
 # Every child a session launches, grouped the way teardown reports it to the
 # closing screen.  The groups are the source of truth: a child added to one is
-# recorded at startup and killed at shutdown by the same edit, so there is no
-# way to add a seventh child and have it quietly outlive the session.
+# recorded at startup and killed at shutdown by the same edit, so a child
+# cannot quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("players", ("nau_pid", "portrait_pid", "landscape_pid")),
     ("companions", ("dashboard_pid", "genau_pid", "audio_pid", "origenerator_pid")),
@@ -254,7 +254,7 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
     Yields the reporter the teardown steps report through.  The cover is up and
     painted before the body runs and comes down only once the body has finished,
     so the moment between "quit" and an empty desktop shows one panel instead of
-    six windows going out one by one.
+    the windows going out one at a time.
 
     Disabled for an integration run, which has no eyes on it — the same reason
     such a run skips the loading screen.

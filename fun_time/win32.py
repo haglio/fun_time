@@ -320,7 +320,8 @@ def wait_for_window_by_title(
 # How long one of those calls is given before the session stops waiting on that
 # window.  A window whose owner is pumping answers in microseconds, so this is
 # only ever spent on one that has stopped — and it is spent once per call, so a
-# whole startup pass over six windows cannot cost more than a few seconds.
+# whole startup pass over the session's windows cannot cost more than a few
+# seconds.
 HUNG_WINDOW_TIMEOUT_S = 1.5
 
 

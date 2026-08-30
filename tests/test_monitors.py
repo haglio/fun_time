@@ -13,8 +13,8 @@ def _mi(x: int, y: int, w: int, h: int) -> MonitorInfo:
     return MonitorInfo(x=x, y=y, width=w, height=h)
 
 
-class TestGetLogicalMonitorRects:
-    """Replicate the AHK GetLogicalMonitorRects orientation-correction logic."""
+class TestOrientationCorrection:
+    """Landscape beats portrait for the main role; ties go to the leftmost."""
 
     def test_landscape_main_portrait_secondary_keeps_assignment(self):
         monitors = [_mi(0, 0, 2560, 1392), _mi(2560, 0, 1440, 3440)]

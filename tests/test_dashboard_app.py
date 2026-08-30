@@ -76,9 +76,8 @@ def _fill(scene, rect):
 
 
 # --- the control bar ---------------------------------------------------------
-# The dashboard drew a schematic of both monitors with a box per player, each
-# carrying that player's buttons.  Every player draws its own HUD now, so what is
-# left is the handful of controls that belong to no player.
+# Every player draws its own HUD, so what is left on the bar is the handful of
+# controls that belong to no player.
 
 
 def test_the_bar_carries_only_what_belongs_to_no_player():

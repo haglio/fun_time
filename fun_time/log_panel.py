@@ -220,7 +220,7 @@ def _copied_icon(size: int, color: QColor) -> QIcon:
 
 
 class LogPanelWidget(QWidget):
-    """Tails the event log in the strip beside the dashboard schematic.
+    """Tails the event log, filling the dashboard window under the control bar.
 
     A child of the dashboard window rather than a window of its own, so it rides
     the dashboard's topmost band, minimize/restore and close for free instead of
