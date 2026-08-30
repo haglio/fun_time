@@ -2006,23 +2006,18 @@ class TestBrowseLibrary:
         mock_handle.assert_called_once()
 
 
-class TestUpdateDashboardOsr2Off:
-    """_update_dashboard should write osr2_mode='off' when the device is off."""
+class TestOsr2Mode:
+    """What the loop tells the main console the OSR2 is doing.
 
-    def _read_osr2_mode(self, tmp_path):
-        import configparser
-        ini = tmp_path / "dashboard_state.ini"
-        parser = configparser.ConfigParser()
-        parser.read_string(ini.read_text(encoding="utf-16"))
-        return parser.get("osr2", "mode")
+    The answer reaches the console through the HUD payload the loop publishes
+    for Nau, which is the only consumer of it.
+    """
 
     def test_osr2_mode_off_when_rx_file_missing(self, tmp_path):
         runner = make_runner(tmp_path)
         # No osr2_serial_rx.txt exists
 
-        runner._update_dashboard()
-
-        assert self._read_osr2_mode(tmp_path) == "off"
+        assert runner._osr2_mode() == "off"
 
     def test_osr2_mode_off_when_rx_timestamp_stale(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2031,9 +2026,7 @@ class TestUpdateDashboardOsr2Off:
 
         with patch("fun_time.dashboard_runtime.time") as mock_time:
             mock_time.time.return_value = 200.0  # 100s stale
-            runner._update_dashboard()
-
-        assert self._read_osr2_mode(tmp_path) == "off"
+            assert runner._osr2_mode() == "off"
 
     def test_osr2_mode_controlled_when_device_on(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2042,9 +2035,7 @@ class TestUpdateDashboardOsr2Off:
 
         with patch("fun_time.dashboard_runtime.time") as mock_time:
             mock_time.time.return_value = 110.0  # 10s ago — fresh
-            runner._update_dashboard()
-
-        assert self._read_osr2_mode(tmp_path) == "controlled"
+            assert runner._osr2_mode() == "controlled"
 
     def test_osr2_mode_auto_when_device_on_and_genau(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2054,9 +2045,7 @@ class TestUpdateDashboardOsr2Off:
 
         with patch("fun_time.dashboard_runtime.time") as mock_time:
             mock_time.time.return_value = 110.0
-            runner._update_dashboard()
-
-        assert self._read_osr2_mode(tmp_path) == "auto"
+            assert runner._osr2_mode() == "auto"
 
 
 # ---------------------------------------------------------------------------

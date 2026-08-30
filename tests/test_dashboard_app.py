@@ -26,7 +26,7 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     VOICE_TOGGLE,
 )
-from fun_time.dashboard_runtime import DashboardPanelSnapshot, DashboardSnapshot, DashboardWindowSnapshot
+from fun_time.dashboard_runtime import DashboardSnapshot, DashboardWindowSnapshot
 from fun_time.dashboard_layout import compute_dashboard_bar_layout, dashboard_window_height
 from fun_time import load_config
 
@@ -37,10 +37,7 @@ def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
 
 def _snapshot(**overrides) -> DashboardSnapshot:
     base = dict(
-        main_mode="nau", osr2_mode="controlled", omni_paused=False,
-        main=DashboardPanelSnapshot(path=""),
-        portrait=DashboardPanelSnapshot(path=""),
-        landscape=DashboardPanelSnapshot(path=""),
+        omni_paused=False,
         window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
     )
     base.update(overrides)
@@ -826,18 +823,6 @@ def test_lighten_color_adds_to_each_channel():
 def test_lighten_color_caps_at_255():
     result = lighten_color(QColor(240, 240, 240), 50)
     assert (result.red(), result.green(), result.blue()) == (255, 255, 255)
-
-
-def _make_snapshot(*, main_mode: str = "nau") -> DashboardSnapshot:
-    return DashboardSnapshot(
-        main_mode=main_mode,
-        osr2_mode="auto",
-        omni_paused=False,
-        main=DashboardPanelSnapshot("", False),
-        portrait=DashboardPanelSnapshot("", False),
-        landscape=DashboardPanelSnapshot("", False),
-        window=DashboardWindowSnapshot(0, 0, 0, 0),
-    )
 
 
 def _make_layout(_cfg_path: Path | None = None):

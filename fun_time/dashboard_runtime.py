@@ -22,12 +22,6 @@ def read_genau_enabled(path: Path) -> bool:
 
 
 @dataclass(frozen=True)
-class DashboardPanelSnapshot:
-    path: str
-    locked: bool = False
-
-
-@dataclass(frozen=True)
 class DashboardWindowSnapshot:
     x: int
     y: int
@@ -37,12 +31,7 @@ class DashboardWindowSnapshot:
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
-    main_mode: str
-    osr2_mode: str
     omni_paused: bool
-    main: DashboardPanelSnapshot
-    portrait: DashboardPanelSnapshot
-    landscape: DashboardPanelSnapshot
     window: DashboardWindowSnapshot
     voice_active: bool = True
 
@@ -58,13 +47,8 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         return None
 
     return DashboardSnapshot(
-        main_mode=parser.get("main", "mode", fallback="nau"),
-        osr2_mode=parser.get("osr2", "mode", fallback="controlled"),
         omni_paused=_read_bool(parser, "omnipause", "active"),
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
-        main=_read_panel(parser, "main"),
-        portrait=_read_panel(parser, "portrait"),
-        landscape=_read_panel(parser, "landscape"),
         window=_read_window(parser),
     )
 
@@ -255,13 +239,6 @@ def _read_dashboard_text(path: Path) -> str:
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:
     return parser.get(section, option, fallback="0").strip() not in {"", "0", "false", "False"}
-
-
-def _read_panel(parser: configparser.ConfigParser, section: str) -> DashboardPanelSnapshot:
-    return DashboardPanelSnapshot(
-        path=parser.get(section, "path", fallback=""),
-        locked=_read_bool(parser, section, "locked"),
-    )
 
 
 def _read_window(parser: configparser.ConfigParser) -> DashboardWindowSnapshot:

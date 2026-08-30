@@ -1053,14 +1053,9 @@ class DispatchLoopRunner:
 
     def _update_dashboard(self) -> None:
         try:
-            osr2_mode = self._osr2_mode()
             voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
-                osr2_mode=osr2_mode,
-                main_mode=self.state.main_mode,
-                portrait_locked=self.state.locked2,
-                landscape_locked=self.state.locked3,
                 omni_paused=self.state.omni_paused,
                 voice_active=voice_active,
             )
