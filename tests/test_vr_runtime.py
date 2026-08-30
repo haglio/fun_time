@@ -219,3 +219,13 @@ def test_explain_falls_back_to_the_raw_detail_for_an_unknown_failure():
 def test_explain_never_raises_on_a_readiness_it_has_no_wording_for():
     """A crash inside the error path would put us back to failing silently."""
     assert explain(Probe(Readiness.READY, detail="ready"))
+
+
+def test_every_readiness_is_either_explained_or_deliberately_not():
+    """Wording is looked up by the member, so a member added without any is a
+    decision taken here rather than a fallback string nobody notices."""
+    from fun_time_vr.vr_runtime import _EXPLANATIONS
+
+    unexplained = {member for member in Readiness if member not in _EXPLANATIONS}
+
+    assert unexplained == {Readiness.READY, Readiness.FAILED}
