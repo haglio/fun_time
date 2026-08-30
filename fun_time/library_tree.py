@@ -35,6 +35,11 @@ class SubFolder:
     count: int
     previews: tuple[str, ...]
 
+    @property
+    def display_name(self) -> str:
+        """What the browser labels this row with; see LibraryHandle."""
+        return self.name
+
 
 @dataclass(frozen=True)
 class Folder:

@@ -131,9 +131,8 @@ class LibraryGrid(BrowseList):
         )
 
         # One entry per widget row: the handle a video tile plays, the SubFolder
-        # a folder tile opens, or None for the tile that goes back up.  Rows and
-        # handles do not line up once the grid is walkable, so what a row *is* is
-        # read from here rather than counted.
+        # a folder tile opens, or None for the tile that goes back up — rows and
+        # handles do not line up once the grid is walkable.
         self.rows: list[LibraryHandle | SubFolder | None] = []
         # One signal covers both gestures: Qt emits itemActivated for Enter
         # AND at the end of a double-click, so nothing here needs to know
@@ -485,11 +484,9 @@ class IndexLine:
         return self.row is None
 
 
-def name_of(what: object) -> str:
+def name_of(what: LibraryHandle | SubFolder | None) -> str:
     """What a row is called — a video's title, or a folder's name."""
-    if what is None:
-        return ""
-    return getattr(what, "title", None) or getattr(what, "name", "")
+    return what.display_name if what is not None else ""
 
 
 def initial_letter(name: str) -> str:
@@ -574,11 +571,9 @@ def montage_icon(stills: Sequence[str | Path]) -> QIcon:
     return QIcon(canvas)
 
 
-def previews_of(what: object) -> tuple[str, ...]:
+def previews_of(what: LibraryHandle | SubFolder | None) -> tuple[str, ...]:
     """The videos a row is pictured with — one for a video, up to four for a folder."""
-    if what is None:
-        return ()
-    return getattr(what, "previews", None) or (what.preview,)
+    return what.previews if what is not None else ()
 
 
 def rows_needing_stills(rows: Sequence[object], thumbnail_cache: str | Path) -> list[int]:

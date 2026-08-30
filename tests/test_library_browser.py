@@ -611,3 +611,37 @@ def test_a_folder_holding_one_video_gives_it_the_whole_tile(browser, tmp_path: P
     drawn = window.grid.item(0).icon().pixmap(ICON_WIDTH, ICON_HEIGHT)
 
     assert drawn.width() == ICON_WIDTH, "one still fills the tile as a video's would"
+
+
+class TestARowSaysWhatItIs:
+    """`LibraryGrid.rows` is a closed union of three cases, and the two readers
+    used to discover which they had by asking for attributes by name — rename
+    `SubFolder.name` and every read site breaks silently rather than at import,
+    and a third row kind would be handled by accident."""
+
+    def test_a_video_and_a_folder_each_name_themselves(self):
+        from fun_time.library_browser import name_of
+        from fun_time.library_handles import LibraryHandle
+        from fun_time.library_tree import SubFolder
+
+        video = LibraryHandle(title="alpha scene", versions=("C:/v/a.mp4",),
+                              section="big_batch")
+        folder = SubFolder(name="big_batch", count=3, previews=())
+
+        assert name_of(video) == "alpha scene"
+        assert name_of(folder) == "big_batch"
+        assert name_of(None) == ""
+
+    def test_a_video_shows_one_still_and_a_folder_up_to_four(self):
+        from fun_time.library_browser import previews_of
+        from fun_time.library_handles import LibraryHandle
+        from fun_time.library_tree import SubFolder
+
+        video = LibraryHandle(title="alpha scene", versions=("C:/v/a.mp4",),
+                              section="big_batch")
+        folder = SubFolder(name="big_batch", count=3,
+                           previews=("C:/v/a.mp4", "C:/v/b.mp4"))
+
+        assert previews_of(video) == ("C:/v/a.mp4",)
+        assert previews_of(folder) == ("C:/v/a.mp4", "C:/v/b.mp4")
+        assert previews_of(None) == ()
