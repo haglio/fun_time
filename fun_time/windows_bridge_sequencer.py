@@ -592,61 +592,49 @@ def _launch_core_media(
     )
 
 
-def _run_startup_phases(
-    *,
-    manifest_path: str | Path,
-    state_dir: str | Path,
-    progress: ProgressReporter,
-    hide_windows: bool,
-    cover_hwnd: int,
-    launched: _LaunchedChildren,
-) -> StartupResult:
-    manifest_path = Path(manifest_path)
-    state_dir = Path(state_dir)
-    state_dir.mkdir(parents=True, exist_ok=True)
-    m = _read_manifest(manifest_path)
-    layout = _plan_the_layout(m)
-    plan = layout.plan
+# What the two UI companions wait out before they are launched.  Nothing has
+# ever been established that this is waiting FOR: it has been here unexplained
+# since the sequencer replaced the AHK startup, the browser phase before it
+# already waits for its own Chrome window, and the dashboard and the audio
+# companion are the last children of the run.  Named rather than deleted
+# because only the hidden-desktop suite on the Windows machine can show whether
+# anything leans on it; see the changelog note.
+_COMPANION_LAUNCH_DELAY_S = 1.2
 
-    # --- Phase 1: Launch core media stack ---
-    progress.advance("services")
-    core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
-    main_mode = core.main_mode
-    satellites_mode = core.satellites_mode
-    origenerator_pid = core.origenerator_pid
-    nau_status_file = core.nau_status_file
 
-    # --- Phase 2: Position windows (layout computed up front) ---
+def _position_windows_now(plan: WindowLayoutPlan, main_mode: str) -> dict[str, int]:
+    """Phase 2, on the path with no cover: place and band every window at once.
+
+    No progress reporting here: this is the integration path, and the loading
+    screen (with the reporter that drives it) belongs to the other one.
+    """
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    role_hwnds: dict[str, int] = {}
+    portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
+    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
+    logger.info("Core windows positioned")
 
-    if not hide_windows:
-        # --- Normal mode: position immediately ---
-        # No progress reporting on this path: it is the integration one, and the
-        # loading screen (with the reporter that drives it) belongs to the other.
-        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
-        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
-        logger.info("Core windows positioned")
+    role_hwnds = _apply_startup_window_state(
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+        nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        mode=main_mode,
+    )
+    logger.info("Startup window state applied")
+    return role_hwnds
 
-        role_hwnds = _apply_startup_window_state(
-            portrait_hwnd=portrait_hwnd,
-            landscape_hwnd=landscape_hwnd,
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
-            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-            mode=main_mode,
-        )
-        logger.info("Startup window state applied")
 
-    # --- Phase 2.5: Launch Random Favs Browser ---
-    progress.advance("browser")
-    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
-    launched.rfb_hwnd = rfb_hwnd
-
-    # --- Phase 3: Launch UI companions ---
-    progress.advance("companions")
-    time.sleep(1.2)
-
+def _launch_the_companions(
+    m: configparser.ConfigParser,
+    *,
+    plan: WindowLayoutPlan,
+    state_dir: Path,
+    manifest_path: Path,
+    launched: _LaunchedChildren,
+) -> dict[str, int]:
+    """Phase 3: the dashboard and the audio companion, the run's last children."""
+    time.sleep(_COMPANION_LAUNCH_DELAY_S)
     dashboard_enabled = m["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
@@ -673,6 +661,47 @@ def _run_startup_phases(
     )
     ui_pids = _read_result_pids(ui_result_file)
     launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])
+    return ui_pids
+
+
+def _run_startup_phases(
+    *,
+    manifest_path: str | Path,
+    state_dir: str | Path,
+    progress: ProgressReporter,
+    hide_windows: bool,
+    cover_hwnd: int,
+    launched: _LaunchedChildren,
+) -> StartupResult:
+    manifest_path = Path(manifest_path)
+    state_dir = Path(state_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    m = _read_manifest(manifest_path)
+    layout = _plan_the_layout(m)
+    plan = layout.plan
+
+    # --- Phase 1: Launch core media stack ---
+    progress.advance("services")
+    core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
+    main_mode = core.main_mode
+    satellites_mode = core.satellites_mode
+    origenerator_pid = core.origenerator_pid
+    nau_status_file = core.nau_status_file
+
+    # --- Phase 2: Position windows (layout computed up front) ---
+    role_hwnds: dict[str, int] = {}
+    if not hide_windows:
+        role_hwnds = _position_windows_now(plan, main_mode)
+
+    # --- Phase 2.5: Launch Random Favs Browser ---
+    progress.advance("browser")
+    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
+    launched.rfb_hwnd = rfb_hwnd
+
+    # --- Phase 3: Launch UI companions ---
+    progress.advance("companions")
+    ui_pids = _launch_the_companions(
+        m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
