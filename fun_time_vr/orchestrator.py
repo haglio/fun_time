@@ -14,7 +14,6 @@ docs/known-issues.md.
 from __future__ import annotations
 
 import argparse
-import configparser
 import logging
 import subprocess
 import threading
@@ -39,7 +38,11 @@ from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_log import open_child_log
 from fun_time.config import load_config
 from fun_time.dashboard_runtime import read_nau_status
-from fun_time.manifest import build_windows_bridge_manifest, write_manifest_data
+from fun_time.manifest import (
+    LaunchManifest,
+    build_windows_bridge_manifest,
+    write_manifest_data,
+)
 from fun_time.modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
@@ -224,27 +227,25 @@ def run_vr_bridge(config, logger_) -> int:
         build_vr_manifest(config), state_dir / "windows_bridge_launch.ini"
     )
     _open_event_log(state_dir)
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(manifest_path), encoding="utf-8")
+    manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
-    commands = manifest["commands"]
+    commands = manifest.commands
 
     # --- The core-session bootstrap, minus the windows ---
-    write_broker_command(Path(commands["broker_cmd_file"]), PARK_CMD)
+    write_broker_command(Path(commands.broker_cmd_file), PARK_CMD)
     ensure_broker(
-        commands["broker_heartbeat_file"],
-        Path(v) if (v := commands.get("broker_tray_launcher", "").strip()) else None,
+        commands.broker_heartbeat_file,
+        Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
     )
     reset_satellite_paused_states(
-        commands["portrait_paused_file"], commands["landscape_paused_file"],
+        commands.portrait_paused_file, commands.landscape_paused_file,
     )
     # A desktop session's stranded satellites hold the same files this session
     # is claiming; so would a stranded VR player (matched by the manifest on
     # its command line).
     reap_orphaned_satellites(
-        manifest["modules"]["satellite_module"],
-        [commands["portrait_status_file"], commands["landscape_status_file"]],
+        manifest.modules.satellite_module,
+        [commands.portrait_status_file, commands.landscape_status_file],
     )
     reap_orphaned_satellites(VR_PLAYER_MODULE, [str(manifest_path)])
 
@@ -252,9 +253,9 @@ def run_vr_bridge(config, logger_) -> int:
     landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
     nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
     resumed = resume_playlists([
-        (portrait_playlist, read_satellite_status(Path(commands["portrait_status_file"])).video),
-        (landscape_playlist, read_satellite_status(Path(commands["landscape_status_file"])).video),
-        (nau_playlist, read_nau_status(Path(commands["nau_status_file"])).video),
+        (portrait_playlist, read_satellite_status(Path(commands.portrait_status_file)).video),
+        (landscape_playlist, read_satellite_status(Path(commands.landscape_status_file)).video),
+        (nau_playlist, read_nau_status(Path(commands.nau_status_file)).video),
     ])
     # And the state that session was in: F-mode, each side's filter, order and
     # lock, any group loop, the sound level.  The dispatch loop opens on this
@@ -263,23 +264,23 @@ def run_vr_bridge(config, logger_) -> int:
     # them are what those flags have to be seeded to.
     carried = resume_vr_state(shared_state_path(state_dir), resumed=resumed)
     seed_startup_states(
-        commands["genau_paused_file"], commands["audio_paused_file"],
-        commands["nau_paused_file"], commands["audio_volume_file"],
-        commands["genau_cmd_file"], nau_cmd_file=commands["nau_cmd_file"],
+        commands.genau_paused_file, commands.audio_paused_file,
+        commands.nau_paused_file, commands.audio_volume_file,
+        commands.genau_cmd_file, nau_cmd_file=commands.nau_cmd_file,
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
     )
     # A lock lives in the player process, so it has to be re-sent; the roles read
     # the satellites' own command files, and the VR player is not up yet.
     resume_satellite_locks([
-        (Path(commands["portrait_cmd_file"]), carried.locked2),
-        (Path(commands["landscape_cmd_file"]), carried.locked3),
+        (Path(commands.portrait_cmd_file), carried.locked2),
+        (Path(commands.landscape_cmd_file), carried.locked3),
     ])
     if not resumed:
         build_all_playlists(
-            main_sources=manifest["media"]["nau_library_sources"],
-            portrait_sources=manifest["media"]["portrait_dirs"],
-            landscape_sources=manifest["media"]["landscape_dirs"],
-            favs_file=Path(manifest["media"]["favs_file"]),
+            main_sources=manifest.media.nau_library_sources,
+            portrait_sources=manifest.media.portrait_dirs,
+            landscape_sources=manifest.media.landscape_dirs,
+            favs_file=Path(manifest.media.favs_file),
             state_dir=state_dir,
             library=SatelliteLibraryContext(
                 metadata_root=bridge_config.regen_metadata_root,
@@ -293,7 +294,7 @@ def run_vr_bridge(config, logger_) -> int:
         # the order it is coming back in, like its F-mode: the state carried
         # forward has to describe the file this writes, not the one it replaced.
         build_main_playlist(
-            nau_playlist, manifest["media"]["nau_library_sources"],
+            nau_playlist, manifest.media.nau_library_sources,
             f_mode=carried.main_f_mode, recent=carried.main_latest,
         )
         logger_.info("Resumed playlists; rebuilt the main player's, which held no VR video")
@@ -302,10 +303,10 @@ def run_vr_bridge(config, logger_) -> int:
     )
 
     # --- The one child: the VR player ---
-    nau_status_file = Path(commands["nau_status_file"])
+    nau_status_file = Path(commands.nau_status_file)
     nau_status_file.unlink(missing_ok=True)
     player = launch_vr_player(
-        python_exe=manifest["executables"]["python_exe"],
+        python_exe=manifest.executables.python_exe,
         manifest_path=manifest_path,
         log_file=state_dir / "vr_player.log",
     )
@@ -321,12 +322,12 @@ def run_vr_bridge(config, logger_) -> int:
         kill_recorded_child(children["vr_player_pid"])
         return 1
     # The reveal: playback starts the moment the player is up.
-    write_flag_file(commands["nau_paused_file"], False)
+    write_flag_file(commands.nau_paused_file, False)
 
     # Command files only: the shared state file already holds this session's
     # opening state, written above with whatever the resumed playlists were
     # built under, and deleting it here would drop all of it back to defaults.
-    dashboard_cmd_file = Path(commands["dashboard_cmd_file"])
+    dashboard_cmd_file = Path(commands.dashboard_cmd_file)
     for stale in (
         state_dir / "ahk_cmd.txt",
         dashboard_cmd_file,

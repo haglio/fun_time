@@ -38,6 +38,7 @@ from .hud_transport import HUD_FILENAME, HudPublisher
 from .library_handles import build_library_handles
 from .lock_hud import prime_group_indexes
 from .loopback_server import serve_loopback
+from .manifest import LaunchManifest
 from .mode_plan import genau_active
 from .modes import collect_video_files
 from .process_identity import identified_python_exe
@@ -691,9 +692,9 @@ def _start_hud_priming(
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
         {
-            **{side: Path(manifest["commands"][f"{side}_hud_file"]) for side in HUD_FILENAME},
+            **{side: Path(manifest.commands.side_file(side, "hud")) for side in HUD_FILENAME},
             # Nau's console rides the same publisher as the satellites' maps.
-            "nau": Path(manifest["commands"]["nau_console_file"]),
+            "nau": Path(manifest.commands.nau_console_file),
         },
         cache_dir,
     )
@@ -746,17 +747,15 @@ def run_python_orchestrated_bridge(
     show_overlays = (not integration_mode
                      or os.environ.get("FUN_TIME_INTEGRATION_OVERLAYS") == "1")
 
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(manifest_path), encoding="utf-8")
+    manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
-    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+    dashboard_enabled = manifest.dashboard_enabled
 
     # Route dispatch log messages to the windows bridge log file so they
     # appear alongside AHK log entries (integration tests read this file).
     # Before the hotkey script goes up, so the line naming what was launched
     # lands in the same file the script itself starts writing to.
-    _add_dispatch_file_handler(Path(manifest["runtime"]["windows_bridge_log_file"]))
+    _add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
 
     # Clear the previous session's leftovers before the hotkey script goes up,
     # since from here on it is reading two of them.  The shared state file is
@@ -769,7 +768,7 @@ def run_python_orchestrated_bridge(
     # The pids file matters most: its appearance is what tells the hotkey script
     # the session is up and its keys have something to reach, so a dead session's
     # copy would put every key live over one that is still assembling.
-    dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
+    dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     pids_file = state_dir / "bridge_pids.ini"
     for stale in (
@@ -939,8 +938,8 @@ def run_python_orchestrated_bridge(
     write_pids_file(pids_file, children)
 
     rfb_target, rfb_work_dir, rfb_args = "", "", ""
-    if manifest["random_favs_browser"]["enabled"] == "1":
-        rfb_shortcut_path = manifest["random_favs_browser"]["shortcut_path"]
+    if manifest.random_favs_browser.enabled:
+        rfb_shortcut_path = manifest.random_favs_browser.shortcut_path
         rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
 
     dispatch_runner = DispatchLoopRunner(
@@ -981,7 +980,7 @@ def run_python_orchestrated_bridge(
     # pages when they ask whether the session is paused. The port comes from
     # config so a session started alongside another can serve somewhere of its
     # own; a busy one (a leftover server) is not worth failing startup over.
-    loopback_port = int(manifest["loopback"]["port"])
+    loopback_port = manifest.loopback_port
     try:
         serve_loopback(port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
         logger.info("Loopback server started on 127.0.0.1:%d", loopback_port)
@@ -992,7 +991,7 @@ def run_python_orchestrated_bridge(
     voice_controller: VoiceController | None = None
     voice_thread: threading.Thread | None = None
     try:
-        cfg = load_config(manifest["runtime"]["config_path"])
+        cfg = load_config(manifest.runtime.config_path)
         voice_diag = (
             f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
             f"enabled={cfg.voice_control.enabled}, "

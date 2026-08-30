@@ -41,11 +41,14 @@ import logging
 import math
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from app_support.threading_utils import start_daemon_thread
+
+from fun_time.manifest import LaunchManifest
 
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.playlist import read_playlist
@@ -125,11 +128,33 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_manifest(path: Path) -> configparser.ConfigParser:
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(path), encoding="utf-8")
-    return manifest
+@dataclass(frozen=True)
+class VrSettings:
+    """The ``[vr]`` section the VR orchestrator adds to the launch manifest.
+
+    FunTimeVR's own half of the schema, read here rather than in
+    :mod:`fun_time.manifest` because a desktop session never writes it.
+    """
+
+    tcode_udp_host: str
+    tcode_udp_port: int
+    library_dirs: tuple[Path, ...]
+    compositor_layers: bool
+
+    @classmethod
+    def read(cls, path: Path) -> VrSettings:
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        parser.read(str(path), encoding="utf-8")
+        vr = parser["vr"]
+        return cls(
+            tcode_udp_host=vr["tcode_udp_host"],
+            tcode_udp_port=int(vr["tcode_udp_port"]),
+            library_dirs=tuple(Path(part) for part in vr["library_dirs"].split("|")
+                               if part.strip()),
+            compositor_layers=parser.get(
+                "vr", "compositor_layers", fallback="0").strip() == "1",
+        )
 
 
 class _VideoUnit:
@@ -220,7 +245,7 @@ class _VideoUnit:
 
 
 class _MainUnit(_VideoUnit):
-    def __init__(self, manifest: configparser.ConfigParser, get_proc_address) -> None:
+    def __init__(self, manifest: LaunchManifest, vr: VrSettings, get_proc_address) -> None:
         # Muted at birth: the main player's sound belongs on the headset, and the
         # headset's sink cannot be trusted until the compositor is presenting
         # (see route_audio) — unmuted-on-default would blare the room speakers
@@ -230,20 +255,20 @@ class _MainUnit(_VideoUnit):
             PRIMARY_VIDEO_CAP_PX,
         )
         self._set_screen(0.0, PRIMARY_WIDTH_DEG)
-        commands, vr = manifest["commands"], manifest["vr"]
-        self.cmd_file = Path(commands["nau_cmd_file"])
-        self.paused_file = Path(commands["nau_paused_file"])
-        metadata_raw = manifest.get("regen", "metadata_root", fallback="").strip()
+        commands = manifest.commands
+        self.cmd_file = Path(commands.nau_cmd_file)
+        self.paused_file = Path(commands.nau_paused_file)
+        metadata_raw = manifest.regen.metadata_root.strip()
         driver = FunscriptTCodeDriver(
-            UdpTCodeSink(vr["tcode_udp_host"], int(vr["tcode_udp_port"]))
+            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port)
         )
         self.role = MainRole(
             player=self.player,
             driver=driver,
-            playlist_file=Path(commands["nau_playlist_file"]),
+            playlist_file=Path(commands.nau_playlist_file),
             metadata_root=Path(metadata_raw) if metadata_raw else None,
             vr_dirs=tuple(
-                Path(part) for part in vr["library_dirs"].split("|") if part.strip()
+                vr.library_dirs
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
@@ -305,7 +330,7 @@ class _MainUnit(_VideoUnit):
 
 
 class _SatelliteUnit(_VideoUnit):
-    def __init__(self, side: str, manifest: configparser.ConfigParser, get_proc_address) -> None:
+    def __init__(self, side: str, manifest: LaunchManifest, get_proc_address) -> None:
         # audio=False, not merely muted: a satellite is silent by design, and
         # any audio chain in this process can wedge on the headset's parked
         # endpoint and freeze that player's video clock with it (see
@@ -319,11 +344,11 @@ class _SatelliteUnit(_VideoUnit):
         self._set_screen(
             satellite_center_azimuth(side), SATELLITE_WIDTH_DEG, SATELLITE_ELEVATION_DEG
         )
-        commands = manifest["commands"]
+        commands = manifest.commands
         self.side = side
-        self.cmd_file = Path(commands[f"{side}_cmd_file"])
-        self.paused_file = Path(commands[f"{side}_paused_file"])
-        self.playlist_file = Path(commands[f"{side}_playlist_file"])
+        self.cmd_file = Path(commands.side_file(side, "cmd"))
+        self.paused_file = Path(commands.side_file(side, "paused"))
+        self.playlist_file = Path(commands.side_file(side, "playlist"))
         self.session = SatelliteSession(
             self._read_playlist(),
             player=self.player,
@@ -371,14 +396,15 @@ class _SatelliteUnit(_VideoUnit):
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = build_parser().parse_args(argv)
-    manifest = _read_manifest(args.manifest)
+    manifest = LaunchManifest.read(args.manifest)
+    vr = VrSettings.read(args.manifest)
 
     ready = vr_runtime.ensure_ready()
     if ready.readiness is not vr_runtime.Readiness.READY:
         logger.error("VR not available: %s", ready.readiness.value)
         _show_error_popup(vr_runtime.explain(ready))
         return 1
-    return _run(manifest)
+    return _run(manifest, vr)
 
 
 def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePerf) -> None:
@@ -470,7 +496,7 @@ def _draw_eyes(
         session.release_eye_framebuffer(eye_index)
 
 
-def _run(manifest: configparser.ConfigParser) -> int:
+def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     import glfw  # GL/XR stack loads only after the runtime probe
     import xr
 
@@ -513,13 +539,13 @@ def _run(manifest: configparser.ConfigParser) -> int:
     def get_proc_address(name: str):
         return glfw.get_proc_address(name)
 
-    primary = _MainUnit(manifest, get_proc_address)
+    primary = _MainUnit(manifest, vr, get_proc_address)
     satellites = [
         _SatelliteUnit("portrait", manifest, get_proc_address),
         _SatelliteUnit("landscape", manifest, get_proc_address),
     ]
     units: list[_VideoUnit] = [primary, *satellites]
-    use_layers = manifest.get("vr", "compositor_layers", fallback="0").strip() == "1"
+    use_layers = vr.compositor_layers
     perf = FramePerf(logger=logger)
     # Recentering: RECENTER re-zeroes the scene onto the head's heading at
     # that instant, kept as both a model matrix (the eye pass) and an azimuth

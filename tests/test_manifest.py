@@ -12,12 +12,25 @@ from __future__ import annotations
 
 import configparser
 import re
+from dataclasses import fields
 from pathlib import Path
 
-from fun_time.config import load_config
+import pytest
+
+from fun_time.config import LayoutConfig, load_config
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
+    ChildModules,
+    CommandFiles,
+    Executables,
+    LaunchManifest,
+    ManifestKeyMissing,
+    MediaSources,
+    RandomFavsBrowserSettings,
+    RegenSettings,
+    RuntimePaths,
     build_windows_bridge_manifest,
+    write_manifest_data,
     write_windows_bridge_manifest,
 )
 
@@ -108,3 +121,116 @@ def test_the_written_ini_reads_back_byte_for_byte(cfg_path, tmp_path):
 
     read_back = {section: dict(parser[section]) for section in parser.sections()}
     assert read_back == data
+
+
+class TestReadingItBack:
+    """The read side: one typed reader, so no consumer spells a key itself.
+
+    ``LaunchManifest.read`` is the only place in the family that subscripts
+    this INI, which is what stops a fifth module inventing a fifth spelling of
+    a key the writer never emitted.
+    """
+
+    def test_every_key_the_writer_emits_has_a_field_to_land_in(self, cfg_path, tmp_path):
+        """The reader and the writer are two halves of one schema; a key added
+        to the writer with nowhere to read it is a key no consumer can use."""
+        covered = {section: {f.name for f in fields(record)} for section, record in (
+            ("runtime", RuntimePaths),
+            ("executables", Executables),
+            ("media", MediaSources),
+            ("modules", ChildModules),
+            ("commands", CommandFiles),
+            ("random_favs_browser", RandomFavsBrowserSettings),
+            ("regen", RegenSettings),
+            ("layout", LayoutConfig),
+        )}
+        covered["dashboard"] = {"enabled"}   # one flag, read as a bool
+        covered["loopback"] = {"port"}       # one number, read as an int
+
+        assert covered == _EXPECTED_KEYS
+
+    def test_the_values_come_back_exactly_as_the_file_carries_them(self, cfg_path, tmp_path):
+        """A child is handed these on its command line, so a value that came
+        back re-rendered — a Path round trip, a stripped separator — would
+        reach it as a different string than the writer wrote."""
+        cfg = load_config(cfg_path)
+        path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        raw = build_windows_bridge_manifest(cfg)
+
+        manifest = LaunchManifest.read(path)
+
+        assert manifest.commands.nau_cmd_file == raw["commands"]["nau_cmd_file"]
+        assert manifest.media.nau_library_sources == raw["media"]["nau_library_sources"]
+        assert manifest.executables.python_exe == raw["executables"]["python_exe"]
+        assert manifest.runtime.config_path == raw["runtime"]["config_path"]
+        assert manifest.modules.satellite_module == raw["modules"]["satellite_module"]
+
+    def test_the_four_that_were_never_strings_come_back_typed(self, cfg_path, tmp_path):
+        """Two flags, a port and the layout numbers: each was converted at the
+        four separate places that read it, in two different spellings for the
+        dashboard's."""
+        cfg = load_config(cfg_path)
+        manifest = LaunchManifest.read(
+            write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME))
+
+        assert manifest.dashboard_enabled is True
+        assert manifest.loopback_port == cfg.loopback_port
+        assert manifest.layout == cfg.layout
+        assert manifest.random_favs_browser.enabled is cfg.random_favs_browser.enabled
+
+    def test_a_sides_file_can_be_asked_for_by_that_side(self, cfg_path, tmp_path):
+        """The HUD publisher and the VR player both build their two sides in a
+        loop, so they need the key by side name rather than spelled out."""
+        cfg = load_config(cfg_path)
+        commands = LaunchManifest.read(
+            write_windows_bridge_manifest(
+                cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)).commands
+
+        assert commands.side_file("portrait", "hud") == commands.portrait_hud_file
+        assert commands.side_file("landscape", "cmd") == commands.landscape_cmd_file
+        assert commands.side_file("portrait", "playlist") == commands.portrait_playlist_file
+
+    def test_a_missing_key_names_the_key_and_the_file(self, cfg_path, tmp_path):
+        """The interesting question when this happens is always WHICH manifest
+        — a session's own, a branch session's, or one a stale process holds."""
+        cfg = load_config(cfg_path)
+        path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        path.write_text(
+            path.read_text(encoding="utf-8").replace("nau_cmd_file = ", "nau_cmd_typo = "),
+            encoding="utf-8")
+
+        with pytest.raises(ManifestKeyMissing) as raised:
+            LaunchManifest.read(path)
+
+        assert "nau_cmd_file" in str(raised.value)
+        assert str(path) in str(raised.value)
+
+    def test_a_section_this_session_does_not_read_is_left_alone(self, cfg_path, tmp_path):
+        """FunTimeVR amends the built dict with a [vr] section before writing
+        it, so the reader has to pass over what it does not know."""
+        cfg = load_config(cfg_path)
+        data = build_windows_bridge_manifest(cfg)
+        data["vr"] = {"tcode_udp_port": "8000"}
+        path = write_manifest_data(data, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+
+        assert LaunchManifest.read(path).commands.nau_cmd_file
+
+    def test_the_keys_a_reader_has_always_defaulted_stay_defaulted(self, cfg_path, tmp_path):
+        """These five were read with a fallback rather than demanded, so a
+        manifest without them must still parse — this reader refuses nothing
+        the readers it replaces accepted."""
+        cfg = load_config(cfg_path)
+        data = build_windows_bridge_manifest(cfg)
+        for key in ("broker_state_dir", "broker_tray_launcher",
+                    "origenerator_cmd_file", "origenerator_paused_file"):
+            del data["commands"][key]
+        del data["executables"]["origenerator_python_exe"]
+        for key in ("genau_project_dirs", "origenerator_dir"):
+            del data["runtime"][key]
+        path = write_manifest_data(data, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+
+        manifest = LaunchManifest.read(path)
+
+        assert manifest.commands.broker_state_dir == ""
+        assert manifest.executables.origenerator_python_exe == ""
+        assert manifest.runtime.origenerator_dir == ""

@@ -9,7 +9,12 @@ from unittest.mock import patch, MagicMock
 from fun_time.config import load_config
 from fun_time.dashboard_runtime import genau_status_path, read_nau_status
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.manifest import (
+    WINDOWS_BRIDGE_MANIFEST_FILENAME,
+    LaunchManifest,
+    RandomFavsBrowserSettings,
+    write_windows_bridge_manifest,
+)
 from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
 from fun_time.windows_bridge_sequencer import (
@@ -54,6 +59,16 @@ def _make_manifest(cfg_factory, tmp_path):
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
     return cfg, manifest_path
+
+
+def _pause_every_player(m) -> list[Path]:
+    """The three paused flags, all set — the state seed_startup_states leaves."""
+    flags = [Path(m.commands.nau_paused_file), Path(m.commands.genau_paused_file),
+             Path(m.commands.audio_paused_file)]
+    for flag in flags:
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.write_text("1", encoding="utf-8")
+    return flags
 
 
 def _write_result(result_file, values):
@@ -919,37 +934,26 @@ class TestPhase4Reveal:
         cover is off the screen.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        # Start all three flags paused, as seed_startup_states does
-        for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
-            flag = Path(m["commands"][key])
-            flag.parent.mkdir(parents=True, exist_ok=True)
-            flag.write_text("1", encoding="utf-8")
+        m = LaunchManifest.read(manifest_path)
+        held = _pause_every_player(m)
 
         self._run_hidden(manifest_path, tmp_path)
 
-        for key in ("nau_paused_file", "genau_paused_file", "audio_paused_file"):
-            assert Path(m["commands"][key]).read_text(encoding="utf-8").strip() == "1", key
+        for flag in held:
+            assert flag.read_text(encoding="utf-8").strip() == "1", flag.name
 
     def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
         """And what the orchestrator calls once the cover is gone does start them:
         Nau in nau mode, with Genau and its audio left parked."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
-            flag = Path(m["commands"][key])
-            flag.parent.mkdir(parents=True, exist_ok=True)
-            flag.write_text("1", encoding="utf-8")
+        m = LaunchManifest.read(manifest_path)
+        _pause_every_player(m)
 
         release_the_players(m, "nau")
 
-        assert Path(m["commands"]["nau_paused_file"]).read_text(encoding="utf-8").strip() == "0"
-        assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
-        assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
+        assert Path(m.commands.nau_paused_file).read_text(encoding="utf-8").strip() == "0"
+        assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "1"
+        assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "1"
 
     def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
         """The whole point of the loading overlay is to hide the mess of starting
@@ -1153,15 +1157,12 @@ class TestWaitForNewChromeWindow:
 class TestMaybeLaunchRandomFavsBrowser:
     """Regression: browser must launch (bug #3) and be positioned at its planned rect."""
 
-    def _make_manifest_parser(self, *, enabled: str = "1") -> configparser.ConfigParser:
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m["random_favs_browser"] = {
-            "enabled": enabled,
-            "shortcut_path": r"C:\fake\shortcut.lnk",
-            "manifest_file": r"C:\fake\manifest.ini",
-        }
-        return m
+    def _browser_settings(self, *, enabled: bool = True) -> RandomFavsBrowserSettings:
+        return RandomFavsBrowserSettings(
+            enabled=enabled,
+            shortcut_path=r"C:\fake\shortcut.lnk",
+            manifest_file=r"C:\fake\manifest.ini",
+        )
 
     def _fake_plan(self) -> WindowLayoutPlan:
         """Build a minimal plan with a random_favs_browser rect."""
@@ -1174,7 +1175,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
     def test_skipped_when_disabled(self):
         """When disabled=0, no browser launch or window positioning happens."""
-        m = self._make_manifest_parser(enabled="0")
+        m = self._browser_settings(enabled=False)
         plan = self._fake_plan()
         move_calls: list[tuple] = []
 
@@ -1186,7 +1187,7 @@ class TestMaybeLaunchRandomFavsBrowser:
         assert rfb_hwnd == 0
 
     def test_launches_and_positions_browser(self):
-        m = self._make_manifest_parser()
+        m = self._browser_settings()
         plan = self._fake_plan()
         browser_rect = plan.random_favs_browser
 
@@ -1209,7 +1210,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
     def test_launches_the_urls_the_manifest_already_resolved(self):
         """Lazy loading is settled when the manifest is built, not at launch."""
-        m = self._make_manifest_parser()
+        m = self._browser_settings()
         plan = self._fake_plan()
 
         launch_kwargs: dict = {}

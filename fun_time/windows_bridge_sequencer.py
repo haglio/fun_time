@@ -21,6 +21,7 @@ from .config import LayoutConfig
 from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
 from .satellite_control import read_satellite_status
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
+from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .windows_bridge_random_favs_browser import launch_random_favs_browser
@@ -92,13 +93,6 @@ class StartupResult:
     # loop's role cache is seeded from this (hidden windows cannot be
     # re-resolved by pid/title lookups).
     role_hwnds: dict[str, int] = field(default_factory=dict)
-
-
-def _read_manifest(path: str | Path) -> configparser.ConfigParser:
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(str(path), encoding="utf-8")
-    return parser
 
 
 def _read_result_pids(result_file: str | Path) -> dict[str, int]:
@@ -269,7 +263,7 @@ class _LaunchedChildren:
     rfb_hwnd: int = 0
 
 
-def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
+def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     """Start the players the session's mode puts to work.
 
     Startup holds every one of them so nothing plays into a room that is still
@@ -284,9 +278,9 @@ def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
     phases, playback starts while the cover is still hiding it, and the first
     seconds of the video are spent behind it.
     """
-    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(main_mode))
-    for key in ("genau_paused_file", "audio_paused_file"):
-        write_flag_file(m["commands"][key], not genau_active(main_mode))
+    write_flag_file(m.commands.nau_paused_file, not nau_displays(main_mode))
+    for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
+        write_flag_file(flag_file, not genau_active(main_mode))
     # Genau's stroke rides its command channel rather than that flag (see
     # seed_startup_states, which holds it there), so the mode where it drives
     # outright has to be told here or it never starts.  Only genau mode: in hybrid
@@ -295,7 +289,7 @@ def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
     # about to take the device — the same reason leaving OmniPause resumes Genau
     # in genau mode alone.
     if main_mode == "genau":
-        append_command(Path(m["commands"]["genau_cmd_file"]), "RESUME")
+        append_command(Path(m.commands.genau_cmd_file), "RESUME")
 
 
 def run_startup_sequence(
@@ -369,9 +363,9 @@ class _CoreSession:
     nau_status_file: Path
 
 
-def _plan_the_layout(m: configparser.ConfigParser) -> _Layout:
+def _plan_the_layout(m: LaunchManifest) -> _Layout:
     """Every window's rect, from the monitors and the manifest's layout section."""
-    layout_cfg = _layout_config_from_manifest(m)
+    layout_cfg = m.layout
     monitors = enumerate_monitors()
     primary_rect, secondary_rect = get_logical_monitor_rects(
         monitors, primary_index=layout_cfg.primary_monitor,
@@ -389,7 +383,7 @@ def _plan_the_layout(m: configparser.ConfigParser) -> _Layout:
 
 
 def _launch_core_media(
-    m: configparser.ConfigParser,
+    m: LaunchManifest,
     *,
     layout: _Layout,
     state_dir: Path,
@@ -402,44 +396,44 @@ def _launch_core_media(
     runs behind the rest of startup.
     """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
-    broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
-    regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
+    broker_launcher_raw = m.commands.broker_tray_launcher.strip()
+    regen_metadata_raw = m.regen.metadata_root.strip()
     # Read before the first launch that needs it: the satellites and the
     # hosted Origenerator take the named checkouts exactly as Genau and Nau
     # below do.
-    genau_project_dirs = m["runtime"].get("genau_project_dirs", "")
+    genau_project_dirs = m.runtime.genau_project_dirs
     main_mode = start_core_session(
-        config_path=m["runtime"]["config_path"],
-        broker_cmd_file=m["commands"]["broker_cmd_file"],
+        config_path=m.runtime.config_path,
+        broker_cmd_file=m.commands.broker_cmd_file,
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
-        broker_heartbeat_file=m["commands"]["broker_heartbeat_file"],
-        random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
-        genau_paused_file=m["commands"]["genau_paused_file"],
-        genau_cmd_file=m["commands"]["genau_cmd_file"],
-        audio_paused_file=m["commands"]["audio_paused_file"],
-        nau_paused_file=m["commands"]["nau_paused_file"],
-        audio_volume_file=m["commands"]["audio_volume_file"],
-        nau_cmd_file=m["commands"]["nau_cmd_file"],
-        satellite_python_exe=m["executables"]["python_exe"],
-        satellite_module=m["modules"]["satellite_module"],
-        portrait_cmd_file=m["commands"]["portrait_cmd_file"],
-        portrait_paused_file=m["commands"]["portrait_paused_file"],
-        portrait_status_file=m["commands"]["portrait_status_file"],
-        landscape_cmd_file=m["commands"]["landscape_cmd_file"],
-        landscape_paused_file=m["commands"]["landscape_paused_file"],
-        landscape_status_file=m["commands"]["landscape_status_file"],
-        nau_status_file=m["commands"]["nau_status_file"],
+        broker_heartbeat_file=m.commands.broker_heartbeat_file,
+        random_favs_browser_manifest_file=m.random_favs_browser.manifest_file,
+        genau_paused_file=m.commands.genau_paused_file,
+        genau_cmd_file=m.commands.genau_cmd_file,
+        audio_paused_file=m.commands.audio_paused_file,
+        nau_paused_file=m.commands.nau_paused_file,
+        audio_volume_file=m.commands.audio_volume_file,
+        nau_cmd_file=m.commands.nau_cmd_file,
+        satellite_python_exe=m.executables.python_exe,
+        satellite_module=m.modules.satellite_module,
+        portrait_cmd_file=m.commands.portrait_cmd_file,
+        portrait_paused_file=m.commands.portrait_paused_file,
+        portrait_status_file=m.commands.portrait_status_file,
+        landscape_cmd_file=m.commands.landscape_cmd_file,
+        landscape_paused_file=m.commands.landscape_paused_file,
+        landscape_status_file=m.commands.landscape_status_file,
+        nau_status_file=m.commands.nau_status_file,
         portrait_log_file=state_dir / "portrait_satellite.log",
         landscape_log_file=state_dir / "landscape_satellite.log",
         portrait_rect=layout.plan.portrait,
         landscape_rect=layout.plan.landscape,
-        portrait_hud_file=m["commands"]["portrait_hud_file"],
-        landscape_hud_file=m["commands"]["landscape_hud_file"],
-        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
-        main_sources=m["media"]["nau_library_sources"],
-        portrait_sources=m["media"]["portrait_dirs"],
-        landscape_sources=m["media"]["landscape_dirs"],
-        favs_file=m["media"]["favs_file"],
+        portrait_hud_file=m.commands.portrait_hud_file,
+        landscape_hud_file=m.commands.landscape_hud_file,
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
+        main_sources=m.media.nau_library_sources,
+        portrait_sources=m.media.portrait_dirs,
+        landscape_sources=m.media.landscape_dirs,
+        favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
@@ -470,7 +464,7 @@ def _launch_core_media(
     # it went wrong: Genau derived it from its own config's state dir and wrote it
     # into the Genau repo, while Nau was told to read it out of Fun Time's — so
     # Hybrid showed a console with the Genau half missing.
-    genau_state = Path(m["commands"]["genau_cmd_file"]).parent
+    genau_state = Path(m.commands.genau_cmd_file).parent
     genau_drive_file = genau_state / "genau_drive.txt"
     # Genau's own resume: it rescans its clips folder every launch and opens at
     # the top of it, so the clip the last session was left showing survives only
@@ -482,19 +476,19 @@ def _launch_core_media(
     # session — they resolve through their venv's editable install, which is the
     # primary — and a worktree of that repo while a branch of it is being judged.
     genau_pid = launch_genau(
-        python_exe=m["executables"]["genau_python_exe"],
-        genau_module=m["modules"]["genau_module"],
-        config_path=m["runtime"]["genau_config_path"],
-        clips_folder=m["media"]["genau_clips"],
+        python_exe=m.executables.genau_python_exe,
+        genau_module=m.modules.genau_module,
+        config_path=m.runtime.genau_config_path,
+        clips_folder=m.media.genau_clips,
         genau_x=main_media_rect.x,
         genau_y=main_media_rect.y,
         genau_width=main_media_rect.width,
         genau_height=main_media_rect.height,
-        command_file=m["commands"]["genau_cmd_file"],
-        paused_file=m["commands"]["genau_paused_file"],
-        console_file=m["commands"]["nau_console_file"],
+        command_file=m.commands.genau_cmd_file,
+        paused_file=m.commands.genau_paused_file,
+        console_file=m.commands.nau_console_file,
         drive_file=genau_drive_file,
-        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
         project_dirs=genau_project_dirs,
     )
@@ -503,19 +497,19 @@ def _launch_core_media(
     # read that one already, to resume Nau onto the video it names, so this is
     # the first moment it is spent — and the last before Nau could write a new
     # one.  See _wait_for_nau_loaded.
-    nau_status_file = Path(m["commands"]["nau_status_file"])
+    nau_status_file = Path(m.commands.nau_status_file)
     nau_status_file.unlink(missing_ok=True)
     nau_pid = launch_nau(
-        python_exe=m["executables"]["genau_python_exe"],
-        nau_module=m["modules"]["nau_module"],
-        config_path=m["runtime"]["genau_config_path"],
-        playlist_file=m["commands"]["nau_playlist_file"],
-        command_file=m["commands"]["nau_cmd_file"],
-        paused_file=m["commands"]["nau_paused_file"],
-        status_file=m["commands"]["nau_status_file"],
-        console_file=m["commands"]["nau_console_file"],
+        python_exe=m.executables.genau_python_exe,
+        nau_module=m.modules.nau_module,
+        config_path=m.runtime.genau_config_path,
+        playlist_file=m.commands.nau_playlist_file,
+        command_file=m.commands.nau_cmd_file,
+        paused_file=m.commands.nau_paused_file,
+        status_file=m.commands.nau_status_file,
+        console_file=m.commands.nau_console_file,
         drive_file=genau_drive_file,
-        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
         log_file=state_dir / "nau.log",
         nau_x=main_media_rect.x,
         nau_y=main_media_rect.y,
@@ -531,30 +525,30 @@ def _launch_core_media(
     # runs behind the rest of startup.  Nothing here waits on it — it comes up
     # parked by design, and the dispatch loop adopts its window whenever it
     # appears, restoring it only if the session is in origenerator mode.
-    origenerator_dir = m["runtime"].get("origenerator_dir", "").strip()
+    origenerator_dir = m.runtime.origenerator_dir.strip()
     origenerator_pid = 0
     if origenerator_dir:
         # Clear a "1" a prior session's OmniPause stranded in the hosted app's
         # paused flag: the app reads it every tick, so a stale freeze made
         # every show open frozen while the room ran.  The room opens unpaused
         # (OmniPause is never resumed into), so the flag opens unpaused too.
-        write_flag_file(m["commands"]["origenerator_paused_file"], False)
+        write_flag_file(m.commands.origenerator_paused_file, False)
         # And the command file, for the same reason and one more: the app drains
         # whatever is in it on its first tick, so a verb the last session left
         # unread would land on this one -- a stranded OPEN_SHOWS filling the
         # regions of a session that opened in player mode.
-        origenerator_cmd_file = Path(m["commands"]["origenerator_cmd_file"])
+        origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
         origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         origenerator_cmd_file.write_text("", encoding="utf-8")
         origenerator_pid = launch_origenerator(
-            python_exe=(m["executables"].get("origenerator_python_exe", "").strip()
-                        or m["executables"]["python_exe"]),
+            python_exe=(m.executables.origenerator_python_exe.strip()
+                        or m.executables.python_exe),
             origenerator_dir=origenerator_dir,
             layout_plan=layout.plan,
-            command_file=m["commands"]["origenerator_cmd_file"],
-            paused_file=m["commands"]["origenerator_paused_file"],
-            status_file=m["commands"]["origenerator_status_file"],
-            dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+            command_file=m.commands.origenerator_cmd_file,
+            paused_file=m.commands.origenerator_paused_file,
+            status_file=m.commands.origenerator_status_file,
+            dashboard_cmd_file=m.commands.dashboard_cmd_file,
             # It imports player_core too (the shows' HUD is the players'
             # shared one), so a named checkout reaches it like everyone else.
             project_dirs=genau_project_dirs,
@@ -578,7 +572,7 @@ def _launch_core_media(
     # which is after its window exists, so an early write is read at exactly
     # the right moment and needs no waiting on.
     if origenerator_pid and satellites_mode == "origenerator":
-        append_command(Path(m["commands"]["origenerator_cmd_file"]), "OPEN_SHOWS")
+        append_command(Path(m.commands.origenerator_cmd_file), "OPEN_SHOWS")
 
     return _CoreSession(
         main_mode=main_mode,
@@ -626,7 +620,7 @@ def _position_windows_now(plan: WindowLayoutPlan, main_mode: str) -> dict[str, i
 
 
 def _launch_the_companions(
-    m: configparser.ConfigParser,
+    m: LaunchManifest,
     *,
     plan: WindowLayoutPlan,
     state_dir: Path,
@@ -635,12 +629,11 @@ def _launch_the_companions(
 ) -> dict[str, int]:
     """Phase 3: the dashboard and the audio companion, the run's last children."""
     time.sleep(_COMPANION_LAUNCH_DELAY_S)
-    dashboard_enabled = m["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
-        python_exe=m["executables"]["python_exe"],
-        dashboard_module=m["modules"]["dashboard_module"],
-        dashboard_enabled=dashboard_enabled,
+        python_exe=m.executables.python_exe,
+        dashboard_module=m.modules.dashboard_module,
+        dashboard_enabled=m.dashboard_enabled,
         dashboard_log_file=state_dir / "dashboard.log",
         # The HUD rides the dashboard's enable gate so integration's
         # FUN_TIME_DISABLE_DASHBOARD keeps both always-on-top overlays off.
@@ -654,9 +647,9 @@ def _launch_the_companions(
         rfb_y=plan.random_favs_browser.y,
         rfb_width=plan.random_favs_browser.width,
         rfb_height=plan.random_favs_browser.height,
-        audio_module=m["modules"]["audio_module"],
-        config_path=m["runtime"]["config_path"],
-        audio_folder=m["media"]["genau_audio"],
+        audio_module=m.modules.audio_module,
+        config_path=m.runtime.config_path,
+        audio_folder=m.media.genau_audio,
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
@@ -665,7 +658,7 @@ def _launch_the_companions(
 
 
 def _wait_for_the_room_to_be_drawing(
-    m: configparser.ConfigParser,
+    m: LaunchManifest,
     *,
     nau_status_file: Path,
     progress: ProgressReporter,
@@ -689,8 +682,8 @@ def _wait_for_the_room_to_be_drawing(
             "still has on screen", NAU_LOAD_TIMEOUT_S,
         )
     if not _wait_for_players_drawing(
-        (m["commands"]["portrait_status_file"],
-         m["commands"]["landscape_status_file"]),
+        (m.commands.portrait_status_file,
+         m.commands.landscape_status_file),
         progress,
     ):
         logger.warning(
@@ -776,7 +769,7 @@ def _place_and_park_behind_the_cover(
 
 
 def _settle_the_room_behind_the_cover(
-    m: configparser.ConfigParser,
+    m: LaunchManifest,
     *,
     core: _CoreSession,
     plan: WindowLayoutPlan,
@@ -827,7 +820,7 @@ def _run_startup_phases(
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     state_dir.mkdir(parents=True, exist_ok=True)
-    m = _read_manifest(manifest_path)
+    m = LaunchManifest.read(manifest_path)
     layout = _plan_the_layout(m)
     plan = layout.plan
 
@@ -842,7 +835,7 @@ def _run_startup_phases(
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
-    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
+    rfb_hwnd = _maybe_launch_random_favs_browser(m.random_favs_browser, plan)
     launched.rfb_hwnd = rfb_hwnd
 
     # --- Phase 3: Launch UI companions ---
@@ -898,15 +891,6 @@ def _wait_for_origenerator_window(pid: int,
             return hwnd
         time.sleep(0.5)
     return 0
-
-
-def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
-    return LayoutConfig(
-        primary_monitor=int(m["layout"]["primary_monitor"]),
-        secondary_monitor=int(m["layout"]["secondary_monitor"]),
-        main_top_ratio=float(m["layout"]["main_top_ratio"]),
-        landscape_width_ratio=float(m["layout"]["landscape_width_ratio"]),
-    )
 
 
 def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
@@ -1045,7 +1029,7 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
 
 
 def _maybe_launch_random_favs_browser(
-    m: configparser.ConfigParser,
+    settings: RandomFavsBrowserSettings,
     plan: WindowLayoutPlan,
 ) -> int:
     """Launch the Random Favs Browser if enabled and position it.
@@ -1053,11 +1037,11 @@ def _maybe_launch_random_favs_browser(
     Returns the browser window handle (0 if not launched).  The handle is
     needed so the dispatch loop can include RFB in omnipause topmost management.
     """
-    if m["random_favs_browser"]["enabled"] != "1":
+    if not settings.enabled:
         return 0
 
-    shortcut_path = m["random_favs_browser"]["shortcut_path"]
-    manifest_file = m["random_favs_browser"]["manifest_file"]
+    shortcut_path = settings.shortcut_path
+    manifest_file = settings.manifest_file
 
     target, work_dir, args = resolve_shortcut(shortcut_path)
     if not target:

@@ -13,7 +13,7 @@ import pytest
 
 from player_core.volume import VolumeHud, VolumeHudPainter
 
-from fun_time_vr.player import _VideoUnit, _read_manifest, build_parser
+from fun_time_vr.player import VrSettings, _VideoUnit, build_parser
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -26,15 +26,37 @@ def test_the_player_is_told_its_manifest_and_nothing_else():
         build_parser().parse_args([])
 
 
-def test_the_manifest_reads_back_with_its_key_case_intact(tmp_path):
+def test_the_vr_section_reads_back_with_its_key_case_intact(tmp_path):
     """optionxform=str, like every other reader of this file: the keys are a
-    cross-process contract and their spelling is load-bearing."""
+    cross-process contract and their spelling is load-bearing.  The base
+    sections are fun_time.manifest's; this section is FunTimeVR's own, and no
+    desktop session ever writes it."""
     path = tmp_path / "windows_bridge_launch.ini"
-    path.write_text("[commands]\nnau_cmd_file=C:/state/nau_cmd.txt\n", encoding="utf-8")
+    path.write_text(
+        "[vr]\n"
+        "tcode_udp_host=127.0.0.1\n"
+        "tcode_udp_port=8000\n"
+        "library_dirs=C:/vr/one|C:/vr/two\n"
+        "compositor_layers=1\n",
+        encoding="utf-8")
 
-    manifest = _read_manifest(path)
+    vr = VrSettings.read(path)
 
-    assert manifest["commands"]["nau_cmd_file"] == "C:/state/nau_cmd.txt"
+    assert vr.tcode_udp_host == "127.0.0.1"
+    assert vr.tcode_udp_port == 8000
+    assert [str(p).replace("\\", "/") for p in vr.library_dirs] == ["C:/vr/one", "C:/vr/two"]
+    assert vr.compositor_layers is True
+
+
+def test_the_compositor_falls_back_to_off_when_the_section_does_not_say(tmp_path):
+    """The one key here with a fallback: a manifest written before layers
+    existed must not turn them on."""
+    path = tmp_path / "windows_bridge_launch.ini"
+    path.write_text(
+        "[vr]\ntcode_udp_host=127.0.0.1\ntcode_udp_port=8000\nlibrary_dirs=\n",
+        encoding="utf-8")
+
+    assert VrSettings.read(path).compositor_layers is False
 
 
 class _OverlayPlayer:

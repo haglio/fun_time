@@ -5,7 +5,6 @@ dispatch directly in Python instead of spawning subprocesses.
 """
 from __future__ import annotations
 
-import configparser
 import logging
 import os
 import socket
@@ -29,7 +28,7 @@ from .hud_feed import HudFeed
 from .hybrid_driver import HybridDriver
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
-from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
+from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .satellites_mode import origenerator_shows
@@ -801,47 +800,44 @@ class DispatchLoopRunner:
             browsing.terminate()
 
 
-def build_bridge_config_from_manifest(
-    manifest: configparser.ConfigParser,
-) -> BridgeConfig:
-    """Build a BridgeConfig from the windows bridge manifest INI."""
-    commands = manifest["commands"]
+def build_bridge_config_from_manifest(manifest: LaunchManifest) -> BridgeConfig:
+    """Build a BridgeConfig from the session's launch manifest."""
+    commands = manifest.commands
     return BridgeConfig(
-        portrait_cmd_file=Path(commands["portrait_cmd_file"]),
-        portrait_paused_file=Path(commands["portrait_paused_file"]),
-        portrait_status_file=Path(commands["portrait_status_file"]),
-        portrait_playlist_file=Path(commands["portrait_playlist_file"]),
-        landscape_cmd_file=Path(commands["landscape_cmd_file"]),
-        landscape_paused_file=Path(commands["landscape_paused_file"]),
-        landscape_status_file=Path(commands["landscape_status_file"]),
-        landscape_playlist_file=Path(commands["landscape_playlist_file"]),
-        favs_file=Path(manifest["media"]["favs_file"]),
-        weird_dir=Path(manifest["media"]["weird_dir"]),
-        state_dir=Path(manifest["commands"]["dashboard_state_file"]).parent,
-        main_sources=manifest["media"]["nau_library_sources"],
-        python_exe=manifest["executables"]["python_exe"],
-        portrait_sources=manifest["media"]["portrait_dirs"],
-        landscape_sources=manifest["media"]["landscape_dirs"],
-        genau_mode_file=Path(manifest["commands"]["genau_mode_file"]),
-        genau_cmd_file=Path(manifest["commands"]["genau_cmd_file"]),
-        genau_paused_file=Path(manifest["commands"]["genau_paused_file"]),
-        audio_paused_file=Path(manifest["commands"]["audio_paused_file"]),
-        audio_volume_file=Path(manifest["commands"]["audio_volume_file"]),
-        nau_cmd_file=Path(manifest["commands"]["nau_cmd_file"]),
-        nau_paused_file=Path(manifest["commands"]["nau_paused_file"]),
-        nau_status_file=Path(manifest["commands"]["nau_status_file"]),
-        nau_notice_file=Path(manifest["commands"]["nau_status_file"]).with_name("nau_notice.txt"),
-        dashboard_state_file=Path(manifest["commands"]["dashboard_state_file"]),
-        broker_cmd_file=Path(manifest["commands"]["broker_cmd_file"]),
-        broker_heartbeat_file=Path(manifest["commands"]["broker_heartbeat_file"]),
-        broker_state_dir=Path(v) if (v := manifest["commands"].get("broker_state_dir", "").strip()) else None,
-        broker_tray_launcher=Path(v) if (v := manifest["commands"].get("broker_tray_launcher", "").strip()) else None,
-        regen_media_root=Path(v) if (v := manifest.get("regen", "media_root", fallback="").strip()) else None,
-        regen_metadata_root=Path(v) if (v := manifest.get("regen", "metadata_root", fallback="").strip()) else None,
-        regen_generate_video_url=manifest.get("regen", "generate_video_url", fallback="https://example.com/video"),
-        regen_generate_image_url=manifest.get("regen", "generate_image_url", fallback="https://example.com/create"),
-        origenerator_enabled=bool(
-            manifest.get("runtime", "origenerator_dir", fallback="").strip()),
-        origenerator_cmd_file=Path(v) if (v := manifest["commands"].get("origenerator_cmd_file", "").strip()) else None,
-        origenerator_paused_file=Path(v) if (v := manifest["commands"].get("origenerator_paused_file", "").strip()) else None,
+        portrait_cmd_file=Path(commands.portrait_cmd_file),
+        portrait_paused_file=Path(commands.portrait_paused_file),
+        portrait_status_file=Path(commands.portrait_status_file),
+        portrait_playlist_file=Path(commands.portrait_playlist_file),
+        landscape_cmd_file=Path(commands.landscape_cmd_file),
+        landscape_paused_file=Path(commands.landscape_paused_file),
+        landscape_status_file=Path(commands.landscape_status_file),
+        landscape_playlist_file=Path(commands.landscape_playlist_file),
+        favs_file=Path(manifest.media.favs_file),
+        weird_dir=Path(manifest.media.weird_dir),
+        state_dir=Path(commands.dashboard_state_file).parent,
+        main_sources=manifest.media.nau_library_sources,
+        python_exe=manifest.executables.python_exe,
+        portrait_sources=manifest.media.portrait_dirs,
+        landscape_sources=manifest.media.landscape_dirs,
+        genau_mode_file=Path(commands.genau_mode_file),
+        genau_cmd_file=Path(commands.genau_cmd_file),
+        genau_paused_file=Path(commands.genau_paused_file),
+        audio_paused_file=Path(commands.audio_paused_file),
+        audio_volume_file=Path(commands.audio_volume_file),
+        nau_cmd_file=Path(commands.nau_cmd_file),
+        nau_paused_file=Path(commands.nau_paused_file),
+        nau_status_file=Path(commands.nau_status_file),
+        nau_notice_file=Path(commands.nau_status_file).with_name("nau_notice.txt"),
+        dashboard_state_file=Path(commands.dashboard_state_file),
+        broker_cmd_file=Path(commands.broker_cmd_file),
+        broker_heartbeat_file=Path(commands.broker_heartbeat_file),
+        broker_state_dir=Path(v) if (v := commands.broker_state_dir.strip()) else None,
+        broker_tray_launcher=Path(v) if (v := commands.broker_tray_launcher.strip()) else None,
+        regen_media_root=Path(v) if (v := manifest.regen.media_root.strip()) else None,
+        regen_metadata_root=Path(v) if (v := manifest.regen.metadata_root.strip()) else None,
+        regen_generate_video_url=manifest.regen.generate_video_url,
+        regen_generate_image_url=manifest.regen.generate_image_url,
+        origenerator_enabled=bool(manifest.runtime.origenerator_dir.strip()),
+        origenerator_cmd_file=Path(v) if (v := commands.origenerator_cmd_file.strip()) else None,
+        origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
     )
