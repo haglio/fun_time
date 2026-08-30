@@ -75,10 +75,10 @@ def folder_at(
     Order follows *handles* throughout, which arrive sectioned and alphabetical
     from :func:`fun_time.library_handles.build_library_handles`, so a folder's
     tiles and its videos come up in the order the library was already ranked in.
-    Only the stills a folder tile is drawn with are random, and *rng* is how a
-    test pins them.
+
+    The stills on a tile are sampled, but seeded from the tile's own name, so
+    they are the same four every visit.  *rng* overrides that for a test.
     """
-    randomizer = rng or random.Random()
     path = tuple(path)
     inside = [h for h in handles if _section_parts(h)[: len(path)] == path]
     names: dict[str, list[LibraryHandle]] = {}
@@ -95,7 +95,7 @@ def folder_at(
                     count=len(members),
                     previews=tuple(
                         handle.preview
-                        for handle in randomizer.sample(
+                        for handle in (rng or random.Random(name)).sample(
                             members, min(FOLDER_PREVIEWS, len(members))
                         )
                     ),

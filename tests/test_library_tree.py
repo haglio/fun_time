@@ -1,6 +1,8 @@
 """The folders the library browser walks — and the ones it refuses to."""
 from __future__ import annotations
 
+import random
+
 from fun_time.library_handles import LibraryHandle
 from fun_time.library_tree import folder_at
 
@@ -96,3 +98,37 @@ def test_a_folder_with_less_than_four_pictures_itself_with_what_it_has():
     child = folder_at(handles, ()).children[0]
 
     assert set(child.previews) == {handle.preview for handle in handles}
+
+
+class TestAFolderTileHoldsStill:
+    """The four stills a tile is drawn with are sampled from its members.  With
+    a fresh Random each call, walking into a folder and straight back up redrew
+    the parent with a different set — the tile changed under the pointer that
+    had just been on it."""
+
+    @staticmethod
+    def _handles(folder: str = "big_batch", count: int = 12):
+        return [_handle(f"scene {n}", f"{folder}/whole") for n in range(count)]
+
+    def test_the_same_folder_draws_the_same_stills_every_visit(self):
+        handles = self._handles()
+
+        first = folder_at(handles, ())
+        second = folder_at(handles, ())
+
+        assert [child.previews for child in first.children] == [
+            child.previews for child in second.children]
+
+    def test_two_folders_do_not_all_draw_the_same_four(self):
+        """Stable, not identical: each tile is seeded from its own name."""
+        handles = self._handles("one") + self._handles("two")
+
+        one, two = folder_at(handles, ()).children[:2]
+
+        assert one.previews != two.previews
+
+    def test_a_test_can_still_pin_them(self):
+        handles = self._handles()
+
+        assert folder_at(handles, (), rng=random.Random(7)).children[0].previews == (
+            folder_at(handles, (), rng=random.Random(7)).children[0].previews)
