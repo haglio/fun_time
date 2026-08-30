@@ -74,9 +74,6 @@ def validate_config(config) -> None:
 
 
 def is_broker_running() -> bool:
-    if sys.platform != "win32":
-        return False
-
     command = [
         "powershell.exe",
         "-NoProfile",
@@ -100,10 +97,6 @@ def is_broker_running() -> bool:
 
 
 def start_broker(config, logger) -> subprocess.Popen | None:
-    if sys.platform != "win32":
-        logger.warning("Broker auto-start is only implemented on Windows")
-        return None
-
     launcher = config.paths.broker_tray_launcher
     if not launcher or not launcher.is_file():
         logger.warning("broker_tray_launcher not configured or missing; skipping broker start")
