@@ -22,18 +22,13 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
-from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
-from fun_time.overlay_progress import startup_still_building
+from fun_time.loading_reveal import LoadingReveal
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.press_channel import PressChannel
 from fun_time.win32 import (
-    find_window_by_title,
-    hide_own_window,
-    insert_below,
     is_window_topmost,
     set_always_on_top,
     set_taskbar_window_styles,
-    show_own_window,
 )
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
@@ -573,18 +568,12 @@ class DashboardWindow(QMainWindow):
         self._launch_geometry = launch_geometry
         # The reference popup opens over the Random Favs Browser's screen rect.
         self._reference = ReferencePopup(self, rfb_rect)
-        # While the loading overlay is up the dashboard stays fully hidden so its
-        # always-on-top window neither flashes above the overlay nor animates a
-        # minimize on the way there (a hidden window renders nothing and the
-        # geometry re-assert is gated on not-deferred).  We auto-detect that from
-        # the loading screen's progress file and reveal ourselves once it is gone,
-        # and a loading-defer must not mirror its initial off-screen state onto
-        # the other windows.
-        self._deferred_for_loading = startup_still_building(app_config.manifest_path.parent)
-        # Toasts are topmost too, so they wait for the cover itself rather than
-        # for the earlier cue this window shows itself on.  See NoticeFeed.
-        self._notices_held = self._deferred_for_loading
-        self._suppress_minimize_routing = self._deferred_for_loading
+        # Whether the cover is still up, read once: the notice feed starts held
+        # from this same answer, and two reads of the progress file could
+        # disagree.  Toasts wait for the COVER, not for the earlier cue this
+        # window shows itself on — see NoticeFeed.
+        self._reveal = LoadingReveal(app_config.manifest_path.parent)
+        self._notices_held = self._reveal.deferred
 
         self._pressed: dict[str, float] = {}
         self._last_snapshot: DashboardSnapshot | None = None
@@ -643,14 +632,10 @@ class DashboardWindow(QMainWindow):
         # closeEvent (quits everything), minimize through changeEvent
         # (omniminimize).  winId() realizes the native handle WITHOUT showing
         # the window, so while the cover is up this one stays fully hidden and
-        # _maybe_reveal_after_loading shows it once the cover goes.
+        # LoadingReveal shows it once the cover goes.
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
-        if self._deferred_for_loading:
-            hide_own_window(_hwnd)
-        else:
-            self.show()
-            show_own_window(_hwnd)
+        self._reveal.attach(_hwnd, self)
         set_taskbar_window_styles(_hwnd)
 
         self._ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
@@ -718,43 +703,18 @@ class DashboardWindow(QMainWindow):
 
     def _maybe_route_omniminimize(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omniminimize command on the not-minimized -> minimized edge only."""
-        if self._suppress_minimize_routing:
+        if self._reveal.routing_suppressed:
             return  # startup minimize (loading overlay) — not a user gesture
         if now_minimized and not was_minimized:
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIMINIMIZE)
 
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omnirestore command on the minimized -> not-minimized edge only."""
-        if was_minimized and not now_minimized and self._suppress_minimize_routing:
-            # The post-loading reveal restored us; routing is live from here.
-            self._suppress_minimize_routing = False
+        if not (was_minimized and not now_minimized):
             return
-        if was_minimized and not now_minimized:
-            write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
-
-    def _maybe_reveal_after_loading(self) -> None:
-        """Show the window as startup reaches its last phase — BEHIND the cover.
-
-        It waits for the last phase, not for the cover coming down: waiting for
-        the cover showed the panel a second or more after the room appeared, so
-        "its windows are not ready by the time the loading screen goes away".
-        Both windows are topmost, so it is inserted below the cover rather than
-        shown over it (see :func:`win32.insert_below`).
-
-        Revealing from hidden fires no minimize->restore edge, so the
-        startup-minimize suppression is cleared here rather than by
-        _maybe_route_omnirestore.
-        """
-        if not self._deferred_for_loading:
-            return
-        if startup_still_building(self._app_config.manifest_path.parent):
-            return
-        self._deferred_for_loading = False
-        self._suppress_minimize_routing = False
-        curtain = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
-        self.show()
-        show_own_window(self._dash_hwnd)
-        insert_below(self._dash_hwnd, curtain)
+        if self._reveal.took_the_first_restore():
+            return  # startup's own minimize came back; routing is live from here
+        write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
 
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()
@@ -808,7 +768,7 @@ class DashboardWindow(QMainWindow):
         # While minimized, re-asserting geometry would restore the window and
         # fight the omniminimize — leave it minimized until the user restores it.
         # While deferred for loading it is hidden; don't touch it until reveal.
-        if not self.isMinimized() and not self._deferred_for_loading:
+        if not self.isMinimized() and not self._reveal.deferred:
             apply_dashboard_window_geometry(self, snapshot, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
 
@@ -848,7 +808,7 @@ class DashboardWindow(QMainWindow):
         )
 
     def _refresh(self) -> None:
-        self._maybe_reveal_after_loading()
+        self._reveal.maybe_reveal()
         self._do_render(
             load_dashboard_snapshot(self._app_config.dashboard_state_file),
             self._compute_pressed(),

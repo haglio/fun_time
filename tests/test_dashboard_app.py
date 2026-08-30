@@ -361,13 +361,14 @@ def test_omniminimize_not_routed_on_restore_or_repeat(dashboard_window, dashboar
     assert not cmd_file.exists()
 
 
-def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_window, dashboard_app_config):
+def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_config):
     """The reveal from hidden fires no restore edge, so the FIRST edge after
     it is the reveal's own restore: it must not route omnirestore — but it
     must clear the suppression, or the dashboard silently stops routing the
     minimize gestures for the rest of the session."""
-    window = dashboard_window
-    window._suppress_minimize_routing = True
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
+        window = build_dashboard_window(dashboard_app_config)
+    assert window._reveal.routing_suppressed is True
     cmd_file = dashboard_app_config.dashboard_cmd_file
     if cmd_file.exists():
         cmd_file.unlink()
@@ -377,6 +378,7 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_window,
 
     window._maybe_route_omnirestore(now_minimized=False, was_minimized=True)
     assert cmd_file.read_text(encoding="utf-8").strip() == "omnirestore"
+    window.close()
 
 
 def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_config):
@@ -385,7 +387,7 @@ def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_
     reveal owns the first placement.  (The minimized half has its own test
     below.)"""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
 
     try:
@@ -442,12 +444,12 @@ def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
 
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     show_window = MagicMock()
-    with patch("fun_time.dashboard_app.startup_still_building", return_value=True), \
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
          patch.object(ctypes.windll.user32, "ShowWindow", show_window):
         window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
 
     try:
-        assert window._deferred_for_loading is True
+        assert window._reveal.deferred is True
         assert not window.isVisible()
         SW_HIDE, SW_SHOWMINNOACTIVE = 0, 7
         modes = [c.args[1] for c in show_window.call_args_list if c.args[0] == window._dash_hwnd]
@@ -467,21 +469,21 @@ def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
     from unittest.mock import MagicMock
 
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
-    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
 
     try:
-        assert window._deferred_for_loading is True
-        assert window._suppress_minimize_routing is True
+        assert window._reveal.deferred is True
+        assert window._reveal.routing_suppressed is True
 
         show_window = MagicMock()
-        with patch("fun_time.dashboard_app.startup_still_building", return_value=False), \
+        with patch("fun_time.loading_reveal.startup_still_building", return_value=False), \
              patch.object(ctypes.windll.user32, "ShowWindow", show_window), \
              patch.object(window, "show") as mock_show:
-            window._maybe_reveal_after_loading()
+            window._reveal.maybe_reveal()
 
-        assert window._deferred_for_loading is False
-        assert window._suppress_minimize_routing is False
+        assert window._reveal.deferred is False
+        assert window._reveal.routing_suppressed is False
         mock_show.assert_called_once()
         SW_SHOW = 5
         modes = [c.args[1] for c in show_window.call_args_list if c.args[0] == window._dash_hwnd]
@@ -506,7 +508,7 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
 
-    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(
             app_config, launch_geometry=DashboardLaunchGeometry(100, 200, 300, 400))
 
@@ -514,13 +516,13 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
         COVER_HWND = 4242
         set_window_pos = MagicMock()
         with (
-            patch("fun_time.dashboard_app.startup_still_building", return_value=False),
-            patch("fun_time.dashboard_app.find_window_by_title", return_value=COVER_HWND),
+            patch("fun_time.loading_reveal.startup_still_building", return_value=False),
+            patch("fun_time.loading_reveal.find_window_by_title", return_value=COVER_HWND),
             patch.object(ctypes.windll.user32, "ShowWindow", MagicMock()),
             patch.object(ctypes.windll.user32, "SetWindowPos", set_window_pos),
             patch.object(window, "show"),
         ):
-            window._maybe_reveal_after_loading()
+            window._reveal.maybe_reveal()
 
         placed = [c for c in set_window_pos.call_args_list
                   if c.args[0] == window._dash_hwnd]
@@ -549,26 +551,91 @@ def test_dashboard_leaves_the_z_order_alone_when_there_is_no_cover(cfg_path: Pat
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
 
-    with patch("fun_time.dashboard_app.startup_still_building", return_value=True):
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(
             app_config, launch_geometry=DashboardLaunchGeometry(100, 200, 300, 400))
 
     try:
         set_window_pos = MagicMock()
         with (
-            patch("fun_time.dashboard_app.startup_still_building", return_value=False),
-            patch("fun_time.dashboard_app.find_window_by_title", return_value=0),
+            patch("fun_time.loading_reveal.startup_still_building", return_value=False),
+            patch("fun_time.loading_reveal.find_window_by_title", return_value=0),
             patch.object(ctypes.windll.user32, "ShowWindow", MagicMock()),
             patch.object(ctypes.windll.user32, "SetWindowPos", set_window_pos),
             patch.object(window, "show"),
         ):
-            window._maybe_reveal_after_loading()
+            window._reveal.maybe_reveal()
 
         placed = [c for c in set_window_pos.call_args_list
                   if c.args[0] == window._dash_hwnd]
         assert placed
         SWP_NOZORDER = 0x0004
         assert placed[-1].args[6] & SWP_NOZORDER
+    finally:
+        window.close()
+
+
+def test_the_cover_is_found_before_the_window_is_shown(dashboard_app_config):
+    """The panel is placed under the cover by the same call that reveals it, so
+    the cover's handle has to be in hand before anything is shown — a reveal
+    that resolved it afterwards would have nothing to place against."""
+    from unittest.mock import MagicMock
+
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
+        window = build_dashboard_window(dashboard_app_config)
+    try:
+        order: list[str] = []
+        with (
+            patch("fun_time.loading_reveal.startup_still_building", return_value=False),
+            patch("fun_time.loading_reveal.find_window_by_title",
+                  side_effect=lambda *_a, **_k: (order.append("find"), 4242)[1]),
+            patch("fun_time.loading_reveal.insert_below",
+                  side_effect=lambda *_a: order.append("place")),
+            patch("fun_time.loading_reveal.show_own_window", MagicMock()),
+            patch.object(window, "show", side_effect=lambda: order.append("show")),
+        ):
+            window._reveal.maybe_reveal()
+
+        assert order == ["find", "show", "place"]
+    finally:
+        window.close()
+
+
+@pytest.mark.parametrize("building", [True, False])
+def test_the_toasts_start_held_exactly_when_the_panel_starts_hidden(
+        building, dashboard_app_config):
+    """One answer decides both.  Read separately they could disagree — startup
+    finishes between the two reads — and the panel would then come up holding
+    toasts nothing releases, or releasing them over the cover."""
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=building):
+        window = build_dashboard_window(dashboard_app_config)
+    try:
+        assert window._notices_held is building
+        assert window._reveal.routing_suppressed is building
+    finally:
+        window.close()
+
+
+def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
+    """The panel shows itself one phase BEFORE the cover goes, so a toast
+    released here would still flash through the scrim.  They wait for the cover
+    itself; see NoticeFeed."""
+    from unittest.mock import MagicMock
+
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
+        window = build_dashboard_window(dashboard_app_config)
+    try:
+        with (
+            patch("fun_time.loading_reveal.startup_still_building", return_value=False),
+            patch("fun_time.loading_reveal.find_window_by_title", return_value=0),
+            patch("fun_time.loading_reveal.show_own_window", MagicMock()),
+            patch("fun_time.loading_reveal.insert_below", MagicMock()),
+            patch.object(window, "show"),
+        ):
+            window._reveal.maybe_reveal()
+
+        assert window._reveal.deferred is False
+        assert window._notices_held is True
     finally:
         window.close()
 
@@ -1201,7 +1268,7 @@ def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
 
 def _notice_window(dashboard_app_config, *, held: bool):
     """A window whose notice feed is wired to a fake overlay."""
-    with patch("fun_time.dashboard_app.startup_still_building", return_value=held), \
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=held), \
          patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     window._notices.overlay = _FakeOverlay()
