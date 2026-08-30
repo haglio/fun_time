@@ -52,14 +52,6 @@ _SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "lan
 
 _SCOPE_TOKENS: tuple[str, ...] = ("both", "portrait", "landscape")
 
-# Clearing a filter is NOT here.  It used to be — "clear filter" for both sides,
-# "clear portrait" for one — and that spelling put the scope word where every
-# other satellite phrase puts an action's own words: "clear portrait" against the
-# grid's "portrait <action>".  It is now "clear filter" in the grid proper (a
-# synonym of "no filter" in :mod:`fun_time.voice_commands`), so it scopes the way
-# the rest do: "portrait clear filter", either word order, and bare it reaches
-# the side last navigated instead of always both.
-
 
 def _slug(query: str) -> str:
     return query.replace(" ", "_")
