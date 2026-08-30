@@ -31,7 +31,11 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, DashboardWindowSnapshot
-from fun_time.dashboard_layout import compute_dashboard_bar_layout, dashboard_window_height
+from fun_time.dashboard_layout import (
+    Rect,
+    compute_dashboard_bar_layout,
+    dashboard_window_height,
+)
 from fun_time import load_config
 
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
@@ -647,7 +651,7 @@ def test_every_render_drives_the_popups_band_off_the_same_snapshot(dashboard_win
 
     window = dashboard_window
 
-    with patch.object(window, "_sync_reference_topmost") as mock_sync:
+    with patch.object(window._reference, "sync_topmost") as mock_sync:
         window._do_render(_snapshot(omni_paused=True), frozenset())
     mock_sync.assert_called_once_with(True)
 
@@ -658,9 +662,9 @@ def test_sync_reference_topmost_is_a_noop_with_no_popup(dashboard_window, dashbo
 
     window = dashboard_window
 
-    assert window._reference_dialog is None
+    assert window._reference.dialog is None
     with patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
-        window._sync_reference_topmost(omni_paused=True)
+        window._reference.sync_topmost(omni_paused=True)
     mock_set.assert_not_called()
 
 
@@ -675,7 +679,7 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
     window._last_snapshot = _snapshot(omni_paused=True)
     dialog = MagicMock()
     with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
-        window._show_reference_dialog()
+        window._on_action("help_reference")   # the production path, band and all
     dialog.sync_topmost.assert_called_once_with(True)
 
 
@@ -709,11 +713,11 @@ def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboa
     try:
         # The observable: a real popup is up.  (Asserting the toggle METHOD
         # was called passed even if the toggle itself did nothing.)
-        assert window._reference_dialog is not None
-        assert window._reference_dialog.isVisible()
+        assert window._reference.dialog is not None
+        assert window._reference.dialog.isVisible()
     finally:
-        if window._reference_dialog is not None:
-            window._reference_dialog.close()
+        if window._reference.dialog is not None:
+            window._reference.dialog.close()
 
 
 def test_help_reference_close_press_closes_reference_dialog(dashboard_window, dashboard_app_config):
@@ -723,15 +727,15 @@ def test_help_reference_close_press_closes_reference_dialog(dashboard_window, da
     window = dashboard_window
 
     window._apply_presses(["help_reference"])  # a popup is open...
-    assert window._reference_dialog is not None and window._reference_dialog.isVisible()
+    assert window._reference.dialog is not None and window._reference.dialog.isVisible()
 
     window._apply_presses(["help_reference_close"])  # ...and the close dismisses it
 
-    assert window._reference_dialog is None or not window._reference_dialog.isVisible()
+    assert window._reference.dialog is None or not window._reference.dialog.isVisible()
 
     window._apply_presses(["help_reference_close"])  # closing again must not reopen
 
-    assert window._reference_dialog is None or not window._reference_dialog.isVisible()
+    assert window._reference.dialog is None or not window._reference.dialog.isVisible()
 
 
 def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
@@ -743,12 +747,12 @@ def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_a
     with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
         dialog = mock_dialog.return_value
         dialog.isVisible.return_value = False
-        window._toggle_reference_dialog()  # closed → opens
+        window._reference.toggle(omni_paused=False)  # closed → opens
         dialog.show.assert_called_once()
         dialog.close.assert_not_called()
 
         dialog.isVisible.return_value = True
-        window._toggle_reference_dialog()  # visible → closes
+        window._reference.toggle(omni_paused=False)  # visible → closes
         dialog.close.assert_called_once()
 
 
@@ -775,11 +779,51 @@ def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
         dialog.geometry.return_value = QRect(7, 408, 640, 984)
         dialog.frameGeometry.return_value = QRect(7 - 8, 408 - 31, 640 + 16, 984 + 39)
         with patch("fun_time.dashboard_app.ReferenceDialog", return_value=dialog):
-            window._show_reference_dialog()
+            window._reference.open(omni_paused=False)
         calls = [c.args for c in dialog.setGeometry.call_args_list]
         assert calls[0] == (7, 408, 640, 984), "first placed at the rect"
         # Then inset so the frame fills it: down by the title bar, in by the borders.
         assert calls[-1] == (15, 439, 624, 945)
+    finally:
+        window.close()
+
+
+def test_the_popup_is_fitted_to_the_browsers_rect_on_the_first_open_only(cfg_path: Path):
+    """It fills the Random Favs Browser's rect the first time it opens; after
+    that it keeps wherever the user moved it to."""
+    config = load_config(cfg_path)
+    app_config = load_dashboard_app_config(write_windows_bridge_manifest(config))
+    rfb = Rect(x=10, y=20, width=300, height=400)
+    window = build_dashboard_window(app_config, rfb_rect=rfb)
+    try:
+        with patch.object(window._reference, "_fit_to", wraps=window._reference._fit_to) as fit:
+            window._reference.toggle(omni_paused=False)   # opens, and is fitted
+            window._reference.toggle(omni_paused=False)   # closes
+            window._reference.toggle(omni_paused=False)   # opens again, and is not
+
+        assert fit.call_count == 1
+    finally:
+        window._reference.close()
+        window.close()
+
+
+def test_the_popup_lands_in_the_right_band_after_it_is_shown_not_before(cfg_path: Path):
+    """Qt applies the StaysOnTop hint on show, so a band set before the show
+    would be undone by the show itself and the popup would sit over a desktop
+    OmniPause had just freed."""
+    config = load_config(cfg_path)
+    app_config = load_dashboard_app_config(write_windows_bridge_manifest(config))
+    window = build_dashboard_window(app_config)
+    order: list[str] = []
+    try:
+        with patch("fun_time.dashboard_app.ReferenceDialog") as dialog_class:
+            dialog = dialog_class.return_value
+            dialog.isVisible.return_value = False
+            dialog.show.side_effect = lambda: order.append("show")
+            dialog.sync_topmost.side_effect = lambda _paused: order.append("band")
+            window._reference.toggle(omni_paused=False)
+
+        assert order.index("show") < order.index("band")
     finally:
         window.close()
 

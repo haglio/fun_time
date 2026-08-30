@@ -434,6 +434,83 @@ class ReferenceDialog(QDialog):
             set_always_on_top(hwnd, desired_topmost)
 
 
+class ReferencePopup:
+    """The reference window's whole life: opened, dismissed, placed, banded.
+
+    Lazily built, so a session that never asks for it never pays for rendering
+    the reference HTML; and kept once built, so a second open lands where the
+    user left it.
+    """
+
+    def __init__(self, parent: QWidget, rfb_rect: Rect | None) -> None:
+        self._parent = parent
+        self._rfb_rect = rfb_rect
+        self.dialog: ReferenceDialog | None = None
+
+    def toggle(self, omni_paused: bool) -> None:
+        """Open it, or dismiss it if it is already showing.
+
+        Drives both the ``?`` button and the "help"/"reference"/… phrases: one
+        trigger both ways.
+        """
+        if self.dialog is not None and self.dialog.isVisible():
+            self.dialog.close()
+        else:
+            self.open(omni_paused)
+
+    def open(self, omni_paused: bool) -> None:
+        """Show it, or re-focus it if it is already open."""
+        if self.dialog is None:
+            self.dialog = ReferenceDialog(self._parent)
+            if self._rfb_rect is not None:
+                self._fit_to(self._rfb_rect)
+        self.dialog.show()
+        self.dialog.raise_()
+        self.dialog.activateWindow()
+        # Qt applies the StaysOnTop hint on show, so a band set before this
+        # would be undone by the show and the popup would be stranded above a
+        # desktop OmniPause had freed.  After, not before.
+        self.sync_topmost(omni_paused)
+
+    def close(self) -> None:
+        """Dismiss it if it is open (the "close …" phrases)."""
+        if self.dialog is not None:
+            self.dialog.close()
+
+    def sync_topmost(self, omni_paused: bool) -> None:
+        """Keep its band in step with OmniPause, open or not.
+
+        It is a separate top-level window, so it rides neither the panel's band
+        nor the orchestrator's drop.  Run while hidden too, so a re-open lands
+        in the right band.
+        """
+        if self.dialog is None:
+            return
+        self.dialog.sync_topmost(omni_paused)
+
+    def _fit_to(self, rect: Rect) -> None:
+        """Size it so its whole FRAME — title bar included — fills *rect*.
+
+        Frame margins are known only once the window is realized, so: place it
+        at the rect, show it, measure, then inset the client to fill the frame.
+        Sizing the client area instead left the chrome overhanging the top.
+        """
+        dialog = self.dialog
+        assert dialog is not None
+        dialog.setGeometry(rect.x, rect.y, rect.width, rect.height)
+        dialog.show()
+        frame = dialog.frameGeometry()
+        client = dialog.geometry()
+        x, y, w, h = client_rect_filling_frame(
+            rect,
+            left=client.left() - frame.left(),
+            top=client.top() - frame.top(),
+            right=frame.right() - client.right(),
+            bottom=frame.bottom() - client.bottom(),
+        )
+        dialog.setGeometry(x, y, w, h)
+
+
 def write_dashboard_command(path: Path, action_id: str) -> None:
     """Post a dashboard button (or voice-toggle) action for the dispatch loop.
 
@@ -494,8 +571,8 @@ class DashboardWindow(QMainWindow):
         self._app_config = app_config
         self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
-        # The Random Favs Browser's screen rect; the reference popup opens over it.
-        self._rfb_rect = rfb_rect
+        # The reference popup opens over the Random Favs Browser's screen rect.
+        self._reference = ReferencePopup(self, rfb_rect)
         # While the loading overlay is up the dashboard stays fully hidden so its
         # always-on-top window neither flashes above the overlay nor animates a
         # minimize on the way there (a hidden window renders nothing and the
@@ -510,7 +587,6 @@ class DashboardWindow(QMainWindow):
         self._suppress_minimize_routing = self._deferred_for_loading
 
         self._pressed: dict[str, float] = {}
-        self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
 
         self.setWindowTitle("Fun Time")
@@ -703,18 +779,6 @@ class DashboardWindow(QMainWindow):
         if is_window_topmost(self._dash_hwnd) != desired_topmost:
             set_always_on_top(self._dash_hwnd, desired_topmost)
 
-    def _sync_reference_topmost(self, omni_paused: bool) -> None:
-        """Keep the reference popup's band in step with OmniPause too.
-
-        The popup is a separate top-level window, so it rides neither the
-        dashboard's band nor the orchestrator's drop; see
-        :meth:`ReferenceDialog.sync_topmost`.  Runs even while the popup is
-        hidden, so re-opening it lands in the right band.
-        """
-        if self._reference_dialog is None:
-            return
-        self._reference_dialog.sync_topmost(omni_paused)
-
     @property
     def _omni_paused(self) -> bool:
         """Whether the last snapshot we rendered had OmniPause holding."""
@@ -733,7 +797,7 @@ class DashboardWindow(QMainWindow):
         # top-level window and does not, so it is corrected alongside us.
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
-        self._sync_reference_topmost(omni_paused)
+        self._reference.sync_topmost(omni_paused)
         scene = build_dashboard_scene(
             self._bar_layout,
             snapshot,
@@ -750,7 +814,7 @@ class DashboardWindow(QMainWindow):
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
-            self._toggle_reference_dialog()
+            self._reference.toggle(self._omni_paused)
             return
         self._pressed[action_id] = time.monotonic()
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
@@ -759,62 +823,6 @@ class DashboardWindow(QMainWindow):
             int(PRESS_FLASH_S * 1000) + 10,
             lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
-
-    def _toggle_reference_dialog(self) -> None:
-        """Open the reference popup, or close it if it is already showing.
-
-        Drives both the ``?`` button and the "help"/"reference"/… voice phrases:
-        the same trigger opens and dismisses.
-        """
-        if self._reference_dialog is not None and self._reference_dialog.isVisible():
-            self._reference_dialog.close()
-        else:
-            self._show_reference_dialog()
-
-    def _show_reference_dialog(self) -> None:
-        """Open (or re-focus) the hotkey/voice reference popup.
-
-        On first open it is sized and placed to fill the Random Favs Browser's
-        rect, so the reference occupies the exact same space; later opens keep
-        wherever the user moved it.
-        """
-        if self._reference_dialog is None:
-            self._reference_dialog = ReferenceDialog(self)
-            if self._rfb_rect is not None:
-                self._fit_reference_frame_to_rect(self._rfb_rect)
-        self._reference_dialog.show()
-        self._reference_dialog.raise_()
-        self._reference_dialog.activateWindow()
-        # Qt applies the StaysOnTop hint on show, so opening the popup during
-        # OmniPause would strand it above the freed desktop until the next
-        # refresh corrected it.  Land it in the right band immediately.
-        self._sync_reference_topmost(self._omni_paused)
-
-    def _fit_reference_frame_to_rect(self, rect: Rect) -> None:
-        """Size the reference popup so its whole frame — title bar included —
-        fills *rect*, rather than its client area (which left the chrome
-        overhanging the top).  Frame margins are known only once the window is
-        realized, so place it at the rect, show it, measure, then inset the
-        client to fill the frame."""
-        dialog = self._reference_dialog
-        assert dialog is not None
-        dialog.setGeometry(rect.x, rect.y, rect.width, rect.height)
-        dialog.show()
-        frame = dialog.frameGeometry()
-        client = dialog.geometry()
-        x, y, w, h = client_rect_filling_frame(
-            rect,
-            left=client.left() - frame.left(),
-            top=client.top() - frame.top(),
-            right=frame.right() - client.right(),
-            bottom=frame.bottom() - client.bottom(),
-        )
-        dialog.setGeometry(x, y, w, h)
-
-    def _close_reference_dialog(self) -> None:
-        """Dismiss the reference popup if it is open (the "close …" voice phrases)."""
-        if self._reference_dialog is not None:
-            self._reference_dialog.close()
 
     def _handle_press_event(self) -> None:
         self._apply_presses(self._press_channel.take_all())
@@ -830,9 +838,9 @@ class DashboardWindow(QMainWindow):
         for action in actions:
             self._pressed[action] = time.monotonic()
         if HELP_REFERENCE_CLOSE in actions:
-            self._close_reference_dialog()
+            self._reference.close()
         if HELP_REFERENCE in actions:
-            self._toggle_reference_dialog()
+            self._reference.toggle(self._omni_paused)
         self._do_render(self._last_snapshot, self._compute_pressed())
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,

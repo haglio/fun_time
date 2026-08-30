@@ -222,7 +222,7 @@ def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Pat
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         window._on_action(HELP_REFERENCE)  # the ? button's own path
-        dialog = window._reference_dialog
+        dialog = window._reference.dialog
         assert dialog is not None
         hwnd = int(dialog.winId())
         # The window we are banding is the one the user sees by name.
@@ -248,7 +248,7 @@ def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
         window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
 
         window._on_action(HELP_REFERENCE)
-        dialog = window._reference_dialog
+        dialog = window._reference.dialog
         assert dialog is not None
         assert not is_window_topmost(int(dialog.winId()))
     finally:
