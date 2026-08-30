@@ -232,10 +232,6 @@ class VRSession:
     # Frame loop
     # ------------------------------------------------------------------
 
-    @property
-    def window(self):
-        return self._window
-
     def window_close_requested(self) -> bool:
         return bool(glfw.window_should_close(self._window))
 

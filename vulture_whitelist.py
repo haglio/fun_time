@@ -18,6 +18,11 @@ _.optionxform  # ConfigParser hook, set to keep key case
 _.cbSize
 dwSize  # PROCESSENTRY32, for Toolhelp32
 
+# --- Read from a sibling package, which is a scan of its own ---
+tcode_udp_host  # fun_time_vr/orchestrator.py
+tcode_udp_port  # fun_time_vr/orchestrator.py
+compositor_layers  # fun_time_vr/orchestrator.py
+
 # --- Read from outside vulture's scan ---
 MUTEX_BROKER  # tests only
 is_process_alive  # tests and the integration reap

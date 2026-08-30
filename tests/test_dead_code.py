@@ -40,16 +40,22 @@ def _argparse_dests(tree):
             yield spelling.lstrip("-").replace("-", "_"), call.lineno
 
 
-def _vulture(whitelist: Path):
+def _vulture(package: str, whitelist: Path):
+    """Vulture over ONE package.
+
+    Scanned together, the three packages hide each other's corpses: vulture
+    matches by bare name, so a dead member is invisible whenever any of the
+    three has a live name like it. One package at a time is narrower -- what
+    it costs is the cross-package readers, which the whitelist names.
+
+    The satellite player ships from this repo too, so it is held to the same
+    bar. It went unscanned while it lived in genau, which is how two
+    unreachable SatelliteSession methods survived the move here.
+    """
     return subprocess.run(
         [
             sys.executable, "-m", "vulture",
-            str(ROOT / "fun_time"),
-            # The satellite player ships from this repo too, so it is held to the
-            # same bar. It went unscanned while it lived in genau, which is how
-            # two unreachable SatelliteSession methods survived the move here.
-            str(ROOT / "satellite"),
-            str(ROOT / "fun_time_vr"),
+            str(ROOT / package),
             str(whitelist),
             "--min-confidence", "60",
         ],
@@ -72,11 +78,12 @@ def _whitelisted_names():
 
 
 def test_no_dead_code():
-    result = _vulture(WHITELIST)
-    if result.returncode != 0:
-        raise AssertionError(
-            f"vulture found dead code:\n{result.stdout}{result.stderr}"
-        )
+    for package in PACKAGES:
+        result = _vulture(package, WHITELIST)
+        if result.returncode != 0:
+            raise AssertionError(
+                f"vulture found dead code in {package}:\n{result.stdout}{result.stderr}"
+            )
 
 
 def test_every_whitelist_entry_suppresses_a_report(tmp_path):
@@ -90,7 +97,11 @@ def test_every_whitelist_entry_suppresses_a_report(tmp_path):
     """
     nothing_whitelisted = tmp_path / "empty_whitelist.py"
     nothing_whitelisted.write_text("")
-    reported = set(_REPORTED_NAME.findall(_vulture(nothing_whitelisted).stdout))
+    reported = {
+        name
+        for package in PACKAGES
+        for name in _REPORTED_NAME.findall(_vulture(package, nothing_whitelisted).stdout)
+    }
 
     unnecessary = [name for name in _whitelisted_names() if name not in reported]
 
