@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+import queue
+import socket
+import threading
+import time
 from pathlib import Path
 from unittest.mock import patch
 
@@ -1001,6 +1005,90 @@ class TestMarkCache:
 def _resized(rect, side: int):
     """*rect* with its own position and a square side, for the cache cases."""
     return type(rect)(x=rect.x, y=rect.y, width=side, height=side)
+
+
+# --- the press channel -------------------------------------------------------
+# The dispatch loop tells the bar that a hotkey or a voice phrase took by
+# sending it the action id over UDP, so the control flashes the way a click on
+# it would.  The loop finds the port in a file this end publishes.
+
+
+def _press_port_file(app_config) -> Path:
+    return app_config.dashboard_state_file.parent / "dashboard_press_port.txt"
+
+
+def _send_press(port: int, payload: bytes) -> None:
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sender:
+        sender.sendto(payload, ("127.0.0.1", port))
+
+
+def _drain(window, expected: str, *, timeout: float = 5.0) -> list[str]:
+    """Every action the channel queued, up to and including *expected*."""
+    seen: list[str] = []
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        try:
+            seen.append(window._press_queue.get(timeout=0.05))
+        except queue.Empty:
+            continue
+        if seen[-1] == expected:
+            break
+    return seen
+
+
+def test_the_press_port_is_published_where_the_dispatch_loop_looks(
+        dashboard_window, dashboard_app_config):
+    """The far end reads exactly this file and int()s exactly this text
+    (windows_bridge_dispatch_loop._send_press); a trailing newline or another
+    encoding would leave every press undeliverable and say nothing."""
+    published = _press_port_file(dashboard_app_config)
+
+    raw = published.read_bytes()
+
+    assert raw == raw.strip(), "the far end int()s the text it reads"
+    assert int(raw.decode("utf-8")) == dashboard_window._press_sock.getsockname()[1]
+
+
+def test_a_datagram_becomes_a_press_on_the_queue(dashboard_window, dashboard_app_config):
+    port = int(_press_port_file(dashboard_app_config).read_text(encoding="utf-8"))
+
+    _send_press(port, b"help_reference")
+
+    assert "help_reference" in _drain(dashboard_window, "help_reference")
+
+
+def test_a_press_arrives_stripped_of_whatever_framed_it(
+        dashboard_window, dashboard_app_config):
+    """The sender writes the bare verb with no terminator, but the reader
+    strips anyway, so a sender that ever adds one stays understood."""
+    port = int(_press_port_file(dashboard_app_config).read_text(encoding="utf-8"))
+
+    _send_press(port, b"  quit \n")
+
+    assert "quit" in _drain(dashboard_window, "quit")
+
+
+def test_the_channel_binds_the_loopback_and_lets_the_machine_pick_the_port(
+        dashboard_window):
+    """Nothing off this machine may press this session's buttons, and a fixed
+    port would collide with the other agents' sessions on it."""
+    host, port = dashboard_window._press_sock.getsockname()
+
+    assert host == "127.0.0.1"
+    assert port != 0
+
+
+def test_closing_the_window_ends_the_listener(dashboard_app_config):
+    """Several dashboards are built and closed in one test process; a listener
+    left blocked in recvfrom would outlive every one of them."""
+    window = build_dashboard_window(dashboard_app_config)
+    listener = next(t for t in threading.enumerate() if t.name == "press-listener")
+
+    window.close()
+
+    assert window._stopping.is_set()
+    listener.join(timeout=5.0)
+    assert not listener.is_alive()
 
 
 def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
