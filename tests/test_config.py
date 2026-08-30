@@ -301,9 +301,12 @@ class TestRegenConfig:
         assert cfg.random_favs_browser.enabled is True
         assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
 
-    def test_nau_library_dir_property(self, cfg_path: Path, tmp_path: Path):
+    def test_a_singular_dir_key_is_read_as_a_one_folder_list(self, cfg_path: Path, tmp_path: Path):
+        """README offers `portrait_dir` beside `portrait_dirs` for the one-folder
+        case, and the test config is written the singular way."""
         cfg = load_config(cfg_path)
-        assert cfg.paths.nau_library_dir == (tmp_path / "videos" / "videos" / "nau_library").resolve()
+        assert cfg.paths.portrait_dirs == ((tmp_path / "videos" / "videos" / "portrait").resolve(),)
+        assert cfg.paths.landscape_dirs == ((tmp_path / "videos" / "videos" / "landscape").resolve(),)
 
     def test_multiple_nau_library_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
@@ -327,8 +330,8 @@ class TestRegenConfig:
         cfg = load_config(path)
         assert len(cfg.paths.portrait_dirs) == 2
         assert len(cfg.paths.landscape_dirs) == 2
-        assert cfg.paths.portrait_dir == (tmp_path / "portrait").resolve()
-        assert cfg.paths.landscape_dir == (tmp_path / "landscape").resolve()
+        assert cfg.paths.portrait_dirs[0] == (tmp_path / "portrait").resolve()
+        assert cfg.paths.landscape_dirs[0] == (tmp_path / "landscape").resolve()
 
 
 # ---------------------------------------------------------------------------
