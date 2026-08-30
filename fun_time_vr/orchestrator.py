@@ -68,7 +68,7 @@ from fun_time.session_resume import (
     resume_shared_state,
 )
 from fun_time.shared_state import shared_state_path, write_shared_state
-from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
+from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from fun_time.watch_stats import watch_stats_path
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -76,8 +76,8 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
-    _open_event_log,
-    _start_hud_priming,
+    open_event_log,
+    start_hud_priming,
     kill_recorded_child,
     write_pids_file,
 )
@@ -226,7 +226,7 @@ def run_vr_bridge(config, logger_) -> int:
     manifest_path = write_manifest_data(
         build_vr_manifest(config), state_dir / "windows_bridge_launch.ini"
     )
-    _open_event_log(state_dir)
+    open_event_log(state_dir)
     manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
     commands = manifest.commands
@@ -335,7 +335,7 @@ def run_vr_bridge(config, logger_) -> int:
     ):
         stale.unlink(missing_ok=True)
 
-    hud_publisher, _hud_primed = _start_hud_priming(bridge_config, manifest, enabled=True)
+    hud_publisher, _hud_primed = start_hud_priming(bridge_config, manifest, enabled=True)
     dispatch_runner = DispatchLoopRunner(
         config=bridge_config,
         dashboard_cmd_file=dashboard_cmd_file,
@@ -366,7 +366,7 @@ def run_vr_bridge(config, logger_) -> int:
         voice_thread.start()
         logger_.info("Voice control thread launched")
     elif config.voice_control.enabled:
-        logger_.warning("Voice control enabled but import failed: %s", _VOICE_IMPORT_ERROR)
+        logger_.warning("Voice control enabled but import failed: %s", voice_import_error())
 
     command = [
         str(config.paths.ahk_exe),

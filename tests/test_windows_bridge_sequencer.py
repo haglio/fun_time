@@ -859,7 +859,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
         calls: list[tuple[int, bool]] = []
         with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
                    side_effect=lambda h, v: calls.append((h, v))):
-            windows_bridge_sequencer._apply_topmost_bands(
+            windows_bridge_sequencer.apply_topmost_bands(
                 dict(self.ROLE_HWNDS), "nau", **kwargs)
         return calls
 

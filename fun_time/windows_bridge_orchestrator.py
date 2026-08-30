@@ -46,7 +46,7 @@ from .shared_state import shared_state_path
 from .role_windows import ChildPids, WindowRoles
 from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
-from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
+from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -56,8 +56,8 @@ from .windows_bridge_sequencer import (
     keep_the_cover_up,
     release_the_players,
     StartupResult,
-    _apply_startup_window_state,
-    _apply_topmost_bands,
+    apply_startup_window_state,
+    apply_topmost_bands,
     resolve_shortcut,
     run_startup_sequence,
 )
@@ -401,7 +401,7 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
 _NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
 
 
-def _open_event_log(state_dir: Path) -> None:
+def open_event_log(state_dir: Path) -> None:
     """Start this session's event log and feed every fun_time logger into it.
 
     The package logger's level is opened all the way to DEBUG because the log
@@ -534,7 +534,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         for role, title in ORIGENERATOR_ROLE_TITLES.items()
         if role != "origenerator"
     }
-    role_hwnds = _apply_startup_window_state(
+    role_hwnds = apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -671,7 +671,7 @@ def _main_browse_stills(bridge_config) -> list[str]:
     ]
 
 
-def _start_hud_priming(
+def start_hud_priming(
     bridge_config, manifest, *, enabled: bool
 ) -> tuple[HudPublisher | None, threading.Event]:
     """Build the HUD publisher and warm what it needs, off the startup thread.
@@ -837,7 +837,7 @@ def _reveal_the_room(
     for name, hwnd in owners():
         if hwnd and result.satellites_mode == "origenerator":
             role_hwnds[f"origenerator_{name}"] = hwnd
-    _apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
+    apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
     _settle_the_players(owners, passes=3, wait_s=0.4)
 
 
@@ -874,7 +874,7 @@ def _start_voice_control(
             voice_thread.start()
             logger.info("Voice control thread launched")
         elif cfg.voice_control.enabled:
-            logger.warning("Voice control enabled but import failed: %s", _VOICE_IMPORT_ERROR)
+            logger.warning("Voice control enabled but import failed: %s", voice_import_error())
         else:
             logger.info("Voice control disabled in config")
     except Exception:
@@ -1005,7 +1005,7 @@ def run_python_orchestrated_bridge(
 
     # Before anything else logs, and before the dashboard launches the panel that
     # tails it: this session's event log starts empty and starts collecting.
-    _open_event_log(state_dir)
+    open_event_log(state_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     # Integration runs skip the loading screen by default — most tests only
@@ -1055,7 +1055,7 @@ def run_python_orchestrated_bridge(
     # The lock HUD's model is built here and published for each satellite player
     # to draw into its own video.  It rides the dashboard's enable gate, so an
     # integration run stays free of library scans and frame grabs.
-    hud_publisher, hud_primed = _start_hud_priming(
+    hud_publisher, hud_primed = start_hud_priming(
         bridge_config, manifest, enabled=dashboard_enabled)
 
     logger.info("Running startup sequence")

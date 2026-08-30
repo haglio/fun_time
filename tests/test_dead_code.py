@@ -277,6 +277,36 @@ def _prose_and_code(path: Path) -> tuple[int, int]:
     return kind.count("prose"), kind.count("code")
 
 
+def test_no_module_reaches_into_another_ones_privates():
+    """A leading underscore is the only boundary marker these packages have.
+
+    Six imports crossed it — two banding helpers, the event log, the HUD
+    priming, and a voice-control error string read from two other modules —
+    which means the name said "mine" while five call sites in three packages
+    depended on it.  Either a name is part of a module's surface, in which case
+    it says so and carries a docstring, or it is not and nobody outside reads
+    it; this is what makes that a rule rather than an intention.
+    """
+    reaches = []
+    for path in _package_sources():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.ImportFrom):
+                continue
+            for alias in node.names:
+                if alias.name.startswith("_") and not alias.name.startswith("__"):
+                    module = node.module or "." * node.level
+                    reaches.append(
+                        f"{path.relative_to(ROOT)}:{node.lineno}: "
+                        f"from {module} import {alias.name}")
+
+    assert reaches == [], (
+        "a private name is imported across a module boundary:\n" + "\n".join(reaches)
+        + "\nEither make it public with a docstring saying what it promises, "
+          "or stop reading it from outside."
+    )
+
+
 def test_prose_does_not_outgrow_the_code_it_explains():
     """A ceiling that can only come down.
 

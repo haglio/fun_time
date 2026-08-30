@@ -186,6 +186,15 @@ except Exception as _exc:  # optional — voice control silently unavailable
 VOICE_AVAILABLE = vosk is not None and sd is not None
 
 
+def voice_import_error() -> str:
+    """Why voice control is unavailable, or "" when it is available.
+
+    An accessor rather than the module global it reads, so the two orchestrators
+    that report this cannot bind a name this module calls its own.
+    """
+    return _VOICE_IMPORT_ERROR
+
+
 class VoiceController:
     """Listens for voice commands and writes them to the dashboard command file."""
 

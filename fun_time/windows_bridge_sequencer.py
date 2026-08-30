@@ -159,8 +159,8 @@ def keep_the_cover_up(cover_hwnd: int) -> None:
         set_always_on_top(cover_hwnd, True)
 
 
-def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
-                         satellites_mode: str = "player", *, beneath: int = 0) -> None:
+def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
+                        satellites_mode: str = "player", *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy for *mode* — the same policy omnipause and mode switches honor, so
     they can never disagree.
@@ -212,7 +212,7 @@ def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> No
         minimize_window(idle, activate=False)
 
 
-def _apply_startup_window_state(
+def apply_startup_window_state(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
@@ -231,7 +231,7 @@ def _apply_startup_window_state(
     visibility.
 
     *beneath* is the loading overlay when this runs behind one, and is what keeps
-    the cover on top across the walk — see :func:`_apply_topmost_bands`.  Zero
+    the cover on top across the walk — see :func:`apply_topmost_bands`.  Zero
     when there is no cover: the integration path, which has nothing to hide
     behind, and the re-band after the cover has gone.
     """
@@ -246,7 +246,7 @@ def _apply_startup_window_state(
         origenerator_portrait_hwnd=origenerator_portrait_hwnd,
         origenerator_landscape_hwnd=origenerator_landscape_hwnd,
     )
-    _apply_topmost_bands(role_hwnds, mode, satellites_mode, beneath=beneath)
+    apply_topmost_bands(role_hwnds, mode, satellites_mode, beneath=beneath)
     _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)
     return role_hwnds
 
@@ -664,7 +664,7 @@ def _position_windows_now(plan: WindowLayoutPlan, main_mode: str) -> dict[str, i
     _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
     logger.info("Core windows positioned")
 
-    role_hwnds = _apply_startup_window_state(
+    role_hwnds = apply_startup_window_state(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
@@ -1133,7 +1133,7 @@ def _maybe_launch_random_favs_browser(
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
 
     # The RFB's static topmost flag is applied by Phase 4's
-    # _apply_startup_window_state; nothing window-related to do here.
+    # apply_startup_window_state; nothing window-related to do here.
 
     logger.info("Random Favs Browser positioned")
     return new_hwnd

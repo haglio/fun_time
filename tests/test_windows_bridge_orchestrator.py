@@ -22,7 +22,7 @@ from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
     _fix_post_loading_windows,
     _log_window_obstruction,
-    _open_event_log,
+    open_event_log,
     _shutdown_children,
     identify_children,
     kill_process_tree,
@@ -68,7 +68,7 @@ class TestFixPostLoadingWindows:
         result = replace(_fake_startup_result(), main_mode="genau")
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -89,7 +89,7 @@ class TestFixPostLoadingWindows:
         titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -120,7 +120,7 @@ class TestFixPostLoadingWindows:
         risen = [buried[1], chrome, buried[2]]  # landscape above Chrome now
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -147,7 +147,7 @@ class TestFixPostLoadingWindows:
         result = _fake_startup_result()
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -182,7 +182,7 @@ class TestFixPostLoadingWindows:
                                topmost=True, rect=(2560, 0, 1440, 2560))]
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -221,7 +221,7 @@ class TestFixPostLoadingWindows:
         promoted = []
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -258,7 +258,7 @@ class TestFixPostLoadingWindows:
         by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -284,7 +284,7 @@ class TestFixPostLoadingWindows:
         titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state",
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state",
             return_value={"portrait": 111, "landscape": 222},
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
@@ -607,7 +607,7 @@ class TestRunPythonOrchestratedBridge:
         primed = threading.Event()
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(MagicMock(), primed)) as start_priming,              patch.object(primed, "wait", return_value=True) as mock_wait:
             run_python_orchestrated_bridge(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
@@ -630,7 +630,7 @@ class TestRunPythonOrchestratedBridge:
         primed = threading.Event()
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, primed)),              patch.object(primed, "wait") as mock_wait:
             run_python_orchestrated_bridge(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
@@ -1122,7 +1122,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
@@ -1168,7 +1168,7 @@ class TestStartupCancellation:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
 
@@ -1536,7 +1536,7 @@ class TestOpenEventLog:
         original_handlers = list(package_logger.handlers)
         original_level = package_logger.level
         try:
-            _open_event_log(state_dir)
+            open_event_log(state_dir)
 
             assert package_logger.level == logging.DEBUG
             assert any(isinstance(h, EventLogHandler) for h in package_logger.handlers)
@@ -1559,8 +1559,8 @@ class TestOpenEventLog:
         original_handlers = list(package_logger.handlers)
         original_level = package_logger.level
         try:
-            _open_event_log(tmp_path / "one")
-            _open_event_log(tmp_path / "two")
+            open_event_log(tmp_path / "one")
+            open_event_log(tmp_path / "two")
 
             installed = [h for h in package_logger.handlers if isinstance(h, EventLogHandler)]
             assert len(installed) == 1
@@ -1585,7 +1585,7 @@ class TestOpenEventLog:
         try:
             orch_logger.propagate = False
             orch_logger.setLevel(logging.INFO)
-            _open_event_log(tmp_path)
+            open_event_log(tmp_path)
 
             orch_logger.info("bridge exited")
 
