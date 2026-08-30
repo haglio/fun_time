@@ -664,6 +664,157 @@ def _launch_the_companions(
     return ui_pids
 
 
+def _wait_for_the_room_to_be_drawing(
+    m: configparser.ConfigParser,
+    *,
+    nau_status_file: Path,
+    progress: ProgressReporter,
+) -> None:
+    """Hold the cover until every player has a picture under it.
+
+    Nau is the third player and by now the only one still loading: its window
+    has been up since half a second after launch with its own loading screen
+    painted into it, so revealing on the window alone shows his progress bar
+    instead of a video.  The two satellites are the same case one step earlier —
+    their windows exist within a second of launch and stay BLACK until mpv has
+    opened the first clip, which is what "the windows are not ready when the
+    loading screen goes away" looks like.
+
+    Neither wait gets to keep the desktop: a player that never arrives is
+    revealed over anyway, and the log says which one.
+    """
+    if not _wait_for_nau_loaded(nau_status_file, progress):
+        logger.warning(
+            "Nau reported no video within %.0fs; revealing over whatever it "
+            "still has on screen", NAU_LOAD_TIMEOUT_S,
+        )
+    if not _wait_for_players_drawing(
+        (m["commands"]["portrait_status_file"],
+         m["commands"]["landscape_status_file"]),
+        progress,
+    ):
+        logger.warning(
+            "A satellite reported no frames within %.0fs; revealing anyway",
+            SATELLITE_PLAY_TIMEOUT_S,
+        )
+
+
+def _restore_the_hosted_window(origenerator_pid: int, cover_hwnd: int) -> int:
+    """Bring the hosted app's window back behind the curtain, and its hwnd.
+
+    A session opening in origenerator mode holds the overlay for this window
+    too — the whole point of the loading screen is that the room is set up
+    before it is seen, and this one used to pop up seconds after the reveal.
+    Restoring is overlay-safe (no promotion); the band comes from the
+    post-overlay pass.  A boot that outruns the wait does not keep the desktop:
+    the reveal goes ahead and the dispatch loop's converger adopts the window
+    when it finally appears.
+    """
+    hwnd = _wait_for_origenerator_window(origenerator_pid)
+    if hwnd:
+        restore_window(hwnd, activate=False)
+        keep_the_cover_up(cover_hwnd)
+    else:
+        logger.warning(
+            "Origenerator window not up within %.0fs; revealing without "
+            "it — the converger adopts it when it appears",
+            ORIGENERATOR_BOOT_TIMEOUT_S,
+        )
+    return hwnd
+
+
+def _place_and_park_behind_the_cover(
+    *,
+    plan: WindowLayoutPlan,
+    main_mode: str,
+    portrait_hwnd: int,
+    landscape_hwnd: int,
+    rfb_hwnd: int,
+    dashboard_pid: int,
+    origenerator_hwnd: int,
+    cover_hwnd: int,
+) -> dict[str, int]:
+    """Place every window where the plan says and park the idle slot-mate.
+
+    Each move SHOWS the window as well as placing it, and showing one puts it at
+    the top of its band — over the cover, which is where the landscape player
+    was caught sitting for a tenth of a second on every startup.  The cover goes
+    straight back after each.
+
+    The topmost bands are deliberately NOT applied here: the overlay is topmost
+    and ``HWND_TOPMOST`` inserts above it, so each promotion would flash its
+    window over the overlay.  ``_fix_post_loading_windows`` applies them once the
+    overlay process has exited.  This is still the last moment the dashboard is
+    resolvable, and it is hidden (SW_HIDE) behind the overlay, so its lookup
+    must include hidden windows.
+    """
+    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
+    keep_the_cover_up(cover_hwnd)
+    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
+    keep_the_cover_up(cover_hwnd)
+    logger.info("Core windows positioned (deferred reveal)")
+
+    dash_hwnd = (
+        wait_for_window_by_title(
+            "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
+        )
+        if dashboard_pid
+        else 0
+    )
+    role_hwnds = _startup_role_hwnds(
+        rfb_hwnd=rfb_hwnd,
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+        nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        dashboard_hwnd=dash_hwnd,
+        origenerator_hwnd=origenerator_hwnd,
+    )
+    _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
+    logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
+    return role_hwnds
+
+
+def _settle_the_room_behind_the_cover(
+    m: configparser.ConfigParser,
+    *,
+    core: _CoreSession,
+    plan: WindowLayoutPlan,
+    rfb_hwnd: int,
+    dashboard_pid: int,
+    cover_hwnd: int,
+    progress: ProgressReporter,
+) -> dict[str, int]:
+    """Phase 4, on the path with a loading screen: everything at once, unseen."""
+    # Named for the wait it actually is: the players open their own windows,
+    # and until they have there is nothing here to position.
+    progress.advance("players")
+    # The satellites launched playing (their paused flag is unset) and own their
+    # playlists, so there is nothing to start here — just resolve and position
+    # each behind the loading overlay.
+    portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+    _wait_for_the_room_to_be_drawing(
+        m, nau_status_file=core.nau_status_file, progress=progress)
+
+    origenerator_hwnd = 0
+    if core.origenerator_pid and core.satellites_mode == "origenerator":
+        origenerator_hwnd = _restore_the_hosted_window(core.origenerator_pid, cover_hwnd)
+
+    progress.advance("windows")
+    role_hwnds = _place_and_park_behind_the_cover(
+        plan=plan,
+        main_mode=core.main_mode,
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        rfb_hwnd=rfb_hwnd,
+        dashboard_pid=dashboard_pid,
+        origenerator_hwnd=origenerator_hwnd,
+        cover_hwnd=cover_hwnd,
+    )
+    progress.advance("finalizing")
+    return role_hwnds
+
+
 def _run_startup_phases(
     *,
     manifest_path: str | Path,
@@ -683,15 +834,11 @@ def _run_startup_phases(
     # --- Phase 1: Launch core media stack ---
     progress.advance("services")
     core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
-    main_mode = core.main_mode
-    satellites_mode = core.satellites_mode
-    origenerator_pid = core.origenerator_pid
-    nau_status_file = core.nau_status_file
 
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}
     if not hide_windows:
-        role_hwnds = _position_windows_now(plan, main_mode)
+        role_hwnds = _position_windows_now(plan, core.main_mode)
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
@@ -705,102 +852,10 @@ def _run_startup_phases(
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
-        # Named for the wait it actually is: the players open their own windows,
-        # and until they have there is nothing here to position.
-        progress.advance("players")
-
-        # The satellites launched playing (their paused flag is unset) and own
-        # their playlists, so there is nothing to start here — just resolve and
-        # position each behind the loading overlay.
-        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-
-        # Nau is the third player, and by now the only one still loading: its
-        # window has been up since half a second after launch with its own
-        # loading screen painted into it.  Hold the overlay over that, so the
-        # session is revealed on a video rather than on Nau's progress bar.  A
-        # Nau that never gets there does not get to keep the desktop, though —
-        # the reveal goes ahead, and says why.
-        if not _wait_for_nau_loaded(nau_status_file, progress):
-            logger.warning(
-                "Nau reported no video within %.0fs; revealing over whatever it "
-                "still has on screen", NAU_LOAD_TIMEOUT_S,
-            )
-
-        # And for the two satellites, for the same reason: their windows exist
-        # within a second of launch and stay BLACK until mpv has opened the
-        # first clip.  Revealing on the windows alone lifts the curtain on two
-        # black rectangles that fill in a few seconds later, which is what "the
-        # windows are not ready when the loading screen goes away" looks like.
-        if not _wait_for_players_drawing(
-            (m["commands"]["portrait_status_file"],
-             m["commands"]["landscape_status_file"]),
-            progress,
-        ):
-            logger.warning(
-                "A satellite reported no frames within %.0fs; revealing anyway",
-                SATELLITE_PLAY_TIMEOUT_S,
-            )
-
-        # A session opening in origenerator mode holds the overlay for the
-        # hosted app's window too, and restores it behind the curtain — the
-        # whole point of the loading screen is that the room is set up before
-        # it is seen, and this window used to pop up seconds after the
-        # reveal.  Restoring is overlay-safe (no promotion); the band comes
-        # from the post-overlay pass.  A boot that outruns the wait does not
-        # keep the desktop: the reveal goes ahead and the dispatch loop's
-        # converger adopts the window when it finally appears.
-        origenerator_hwnd = 0
-        if origenerator_pid and satellites_mode == "origenerator":
-            origenerator_hwnd = _wait_for_origenerator_window(origenerator_pid)
-            if origenerator_hwnd:
-                restore_window(origenerator_hwnd, activate=False)
-                keep_the_cover_up(cover_hwnd)
-            else:
-                logger.warning(
-                    "Origenerator window not up within %.0fs; revealing without "
-                    "it — the converger adopts it when it appears",
-                    ORIGENERATOR_BOOT_TIMEOUT_S,
-                )
-
-        progress.advance("windows")
-        # Each move SHOWS the window as well as placing it, and showing one puts
-        # it at the top of its band — over the cover, which is where the
-        # landscape player was caught sitting for a tenth of a second on every
-        # startup.  The cover goes straight back after each.
-        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
-        keep_the_cover_up(cover_hwnd)
-        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
-        keep_the_cover_up(cover_hwnd)
-        logger.info("Core windows positioned (deferred reveal)")
-
-        # Resolve every managed window and park the idle slot-mate.  The topmost
-        # bands are deliberately NOT applied here: the overlay is topmost, and
-        # HWND_TOPMOST inserts above it, so each promotion would flash its window
-        # over the overlay.  _fix_post_loading_windows applies them once the
-        # overlay process has exited.  This is still the last moment the dashboard
-        # is resolvable, so its handle is captured now — and it is hidden (SW_HIDE)
-        # behind the loading overlay, so its lookup must include hidden windows.
-        dash_hwnd = (
-            wait_for_window_by_title(
-                "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
-            )
-            if ui_pids["dashboard_pid"]
-            else 0
-        )
-
-        role_hwnds = _startup_role_hwnds(
-            rfb_hwnd=rfb_hwnd,
-            portrait_hwnd=portrait_hwnd,
-            landscape_hwnd=landscape_hwnd,
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
-            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-            dashboard_hwnd=dash_hwnd,
-            origenerator_hwnd=origenerator_hwnd,
-        )
-        _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
-        logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
-
-        progress.advance("finalizing")
+        role_hwnds = _settle_the_room_behind_the_cover(
+            m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
+            dashboard_pid=ui_pids["dashboard_pid"], cover_hwnd=cover_hwnd,
+            progress=progress)
 
     # A session with nothing to hide behind starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this itself once
@@ -808,7 +863,7 @@ def _run_startup_phases(
     # still up is a video (and Genau's audio) running behind it, and the first
     # seconds of it are gone by the time he can see or hear them.
     if not hide_windows:
-        release_the_players(m, main_mode)
+        release_the_players(m, core.main_mode)
 
     return StartupResult(
         nau_pid=core.nau_pid,
@@ -817,9 +872,9 @@ def _run_startup_phases(
         dashboard_pid=ui_pids["dashboard_pid"],
         genau_pid=core.genau_pid,
         audio_pid=ui_pids["audio_pid"],
-        origenerator_pid=origenerator_pid,
-        main_mode=main_mode,
-        satellites_mode=satellites_mode,
+        origenerator_pid=core.origenerator_pid,
+        main_mode=core.main_mode,
+        satellites_mode=core.satellites_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
