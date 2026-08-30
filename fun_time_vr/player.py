@@ -291,7 +291,7 @@ class _MainUnit(_VideoUnit):
                 keyword = line.split(None, 1)[0].upper() if line.split() else line
                 if keyword not in self._unhandled:
                     self._unhandled.add(keyword)
-                    logger.info("Verb not in the VR prototype yet: %s", keyword)
+                    logger.info("Verb the VR main role does not handle: %s", keyword)
         self.role.tick(now)
         self._status_writer.write(self.role)
         self.overlay_furniture(

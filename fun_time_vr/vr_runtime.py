@@ -7,8 +7,7 @@ runtime at all, a runtime whose headset is off, or ready to render.
 
 Adapted from GenauVR's proven probe (genau_vr.vr_runtime), with ``xr``
 imported lazily so the pure callers of this package never pay for the OpenXR
-loader; consolidating the two copies into a shared sibling is part of the
-planned GenauVR-engine extraction.
+loader.
 """
 from __future__ import annotations
 

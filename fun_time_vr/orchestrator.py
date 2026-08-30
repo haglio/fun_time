@@ -8,10 +8,8 @@ loop's window ops resolve no HWNDs and settle into no-ops).  Everything else
 the session does — omnipause, watch stats, the hybrid arbiter's status files,
 F-mode rebuilds — runs on the same state files it always did.
 
-Not launched in VR (yet): the Qt dashboard and its log panel, the Random Favs
-Browser, the audio companion, the loopback server, and Genau — genau and
-hybrid-with-Genau arrive with the planned GenauVR-engine extraction; until
-then a mode switch changes flags whose windows do not exist, harmlessly.
+What a VR session does not launch, and what that waits on, is in
+docs/known-issues.md.
 """
 from __future__ import annotations
 
