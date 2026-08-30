@@ -48,7 +48,7 @@ def test_no_crash_when_no_shortcuts(tmp_path):
 
 
 def test_skips_unrelated_shortcuts(tmp_path):
-    """Only stamps shortcuts with 'Fun' in the name."""
+    """Only the pin whose stem is exactly "fun time" is stamped."""
     fake_pin_dir = tmp_path / "pins"
     fake_pin_dir.mkdir()
     unrelated = fake_pin_dir / "Chrome.lnk"

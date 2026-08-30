@@ -150,12 +150,19 @@ def _taskbar_pin_dir() -> Path:
     return Path(appdata) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
 
 
+def _is_the_fun_time_pin(lnk: Path) -> bool:
+    """Whether *lnk* is the taskbar pin this app puts its AppUserModelID on.
+
+    The stem, exactly: a pin named "Fun Time (branch).lnk" or "FunTime.lnk" is
+    somebody else's and is left alone.
+    """
+    return lnk.stem.lower() == "fun time"
+
+
 def stamp_shortcut_aumid() -> None:
     """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    Searches the Windows taskbar pin folder for shortcuts whose name
-    contains "Fun" and stamps them with the AppUserModelID.  Failures
-    are logged but never fatal — the app still launches, just without
+    Failures are logged but never fatal — the app still launches, just without
     the open indicator.
     """
     from .win32 import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
@@ -164,13 +171,11 @@ def stamp_shortcut_aumid() -> None:
 
     candidates: list[Path] = []
 
-    # Only stamp the pinned taskbar shortcut (outside the repo).
-    # The project's Fun Time.lnk is stamped once and committed.
+    # The pin folder is outside the repo; nothing in the checkout is stamped
+    # (*.lnk is gitignored, so there is no shortcut here to stamp).
     pin_dir = _taskbar_pin_dir()
     if pin_dir.is_dir():
-        for lnk in pin_dir.glob("*.lnk"):
-            if lnk.stem.lower() == "fun time":
-                candidates.append(lnk)
+        candidates.extend(lnk for lnk in pin_dir.glob("*.lnk") if _is_the_fun_time_pin(lnk))
 
     for lnk in candidates:
         try:
