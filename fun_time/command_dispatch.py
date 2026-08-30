@@ -2054,7 +2054,6 @@ def _rebuild_side(
         state_dir=config.state_dir,
         cmd_file=config.satellite_cmd_file(which),
         start_at_top=start_at_top,
-        regen_media_root=config.regen_media_root,
         regen_metadata_root=config.regen_metadata_root,
     )
 

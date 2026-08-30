@@ -370,7 +370,6 @@ def _run_startup_phases(
     progress.advance("services")
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
-    regen_media_raw = m.get("regen", "media_root", fallback="").strip()
     regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
     # Read before the first launch that needs it: the satellites and the
     # hosted Origenerator take the named checkouts exactly as Genau and Nau
@@ -413,7 +412,6 @@ def _run_startup_phases(
         favs_file=m["media"]["favs_file"],
         state_dir=state_dir,
         result_file=str(core_result_file),
-        regen_media_root=Path(regen_media_raw) if regen_media_raw else None,
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
         # The satellites import player_core, so a named player_core checkout
         # must reach them exactly as it reaches Genau and Nau — without this

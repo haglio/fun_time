@@ -541,7 +541,6 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         result_file=tmp_path / "core_session.ini",
-        regen_media_root=tmp_path / "media",
         regen_metadata_root=tmp_path / "metadata",
     )
 
