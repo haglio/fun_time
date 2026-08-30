@@ -276,7 +276,6 @@ def apply_fmode(
 
 def satellite_browse_paths(
     *,
-    which: int,
     query: str,
     f_mode_enabled: bool,
     recent: bool,
@@ -289,9 +288,7 @@ def satellite_browse_paths(
     ordering — one clip per group, filter-honoring, Latest/Shuffle-aware.
 
     This is the list a filter rebuild loads into the satellite, and equally the
-    target "no loop" reshapes the queue back to when a group loop ends.  ``which``
-    selects nothing here (both satellites browse the same way); it is kept for a
-    symmetric call site.
+    target "no loop" reshapes the queue back to when a group loop ends.
     """
     library = _satellite_library(state_dir, regen_metadata_root)
     return build_satellite_playlist_paths(
@@ -339,7 +336,7 @@ def apply_satellite_filter(
     label = "portrait" if which == 2 else "landscape"
     name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
-        which=which, query=query, f_mode_enabled=f_mode_enabled, recent=recent,
+        query=query, f_mode_enabled=f_mode_enabled, recent=recent,
         sources=sources, favs_file=favs_file, state_dir=state_dir,
         regen_metadata_root=regen_metadata_root,
     )
