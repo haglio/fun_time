@@ -825,16 +825,12 @@ def test_lighten_color_caps_at_255():
     assert (result.red(), result.green(), result.blue()) == (255, 255, 255)
 
 
-def _make_layout(_cfg_path: Path | None = None):
-    return compute_dashboard_bar_layout()
-
-
-def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
+def test_dashboard_widget_emits_action_on_click():
     """Clicking inside an action rect should emit action_triggered with the action ID."""
     from PyQt6.QtCore import QPoint
     from fun_time.dashboard_app import DashboardWidget
 
-    layout = _make_layout(cfg_path)
+    layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, width=layout.content_width)
 
     widget = DashboardWidget()
@@ -861,12 +857,12 @@ def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
     assert received == [QUIT_BUTTON]
 
 
-def test_dashboard_widget_ignores_click_outside_actions(cfg_path: Path):
+def test_dashboard_widget_ignores_click_outside_actions():
     """Clicking outside any action rect should not emit."""
     from PyQt6.QtCore import QPoint
     from fun_time.dashboard_app import DashboardWidget
 
-    layout = _make_layout(cfg_path)
+    layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, width=layout.content_width)
 
     widget = DashboardWidget()
