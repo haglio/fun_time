@@ -5,10 +5,6 @@ from dataclasses import dataclass
 from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE
 
 
-def clamp01(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
 @dataclass(frozen=True)
 class Size:
     width: int
