@@ -567,6 +567,90 @@ class _CancelOnAdvance:
         pass
 
 
+class TestTheOrderInsideTheStartupPhases:
+    """The sequence is the design, not an accident of how it was written.
+
+    Every one of these was a paragraph of comment inside the one 91-statement
+    function; each is now an assertion, so a phase moved past another fails
+    here instead of at the next session.
+    """
+
+    def _sequence(self, cfg_factory, tmp_path, *, hide_windows=False,
+                  overrides=None, extra_stubs=None) -> list[str]:
+        """One startup run, reduced to the order its collaborators were called."""
+        cfg = load_config(cfg_factory(overrides or {}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        order: list[str] = []
+
+        def note(name, then=None):
+            def recorder(*args, **kwargs):
+                order.append(name)
+                return then(**kwargs) if then is not None else 0
+            return recorder
+
+        stubs = dict(
+            enumerate_monitors=dict(side_effect=note("layout", lambda **k: FAKE_MONITORS)),
+            start_core_session=dict(side_effect=note("core", _fake_core)),
+            launch_genau=dict(side_effect=note("genau", lambda **k: GENAU_PID)),
+            launch_nau=dict(side_effect=note("nau", _fake_nau)),
+            launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
+        )
+        stubs.update(extra_stubs or {})
+        with _sequencer_stubs(**stubs), \
+             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser",
+                   side_effect=note("browser")), \
+             patch("fun_time.windows_bridge_sequencer.write_flag_file",
+                   side_effect=note("release")):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 hide_windows=hide_windows)
+        return order
+
+    def test_the_layout_is_computed_before_any_player_launches(self, cfg_factory, tmp_path):
+        """mpv sizes its output to the geometry it was launched with and will
+        NOT rescale when a later Win32 move resizes the window, so a satellite
+        has to be started straight into its real rect.  Computing the layout
+        after the launch would hand it the wrong one."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order.index("layout") < order.index("core")
+
+    def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
+        """Genau and Nau are launched as early as possible so they can init
+        pygame, scan media and decode first frames while the rest of startup
+        continues — which is only worth anything if the rest still follows."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order.index("genau") < order.index("companions")
+        assert order.index("nau") < order.index("companions")
+
+    def test_the_browser_is_up_before_the_dashboard_that_opens_over_it(
+            self, cfg_factory, tmp_path):
+        """The dashboard's reference popup opens over the browser's rect."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order.index("browser") < order.index("companions")
+
+    def test_the_players_are_released_only_once_the_room_is_built(
+            self, cfg_factory, tmp_path):
+        """Startup holds every player so nothing plays into a room that is
+        still being built; the release is therefore the last thing the phases
+        do on the path with no cover to hide behind."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order[-1] == "release"
+        assert order.index("companions") < order.index("release")
+
+    def test_a_covered_startup_releases_nothing_at_all(self, cfg_factory, tmp_path):
+        """With a loading screen the release belongs to the orchestrator, once
+        the cover is off the screen: released here, a video (and Genau's audio)
+        runs behind the cover and its first seconds are gone unseen."""
+        order = self._sequence(cfg_factory, tmp_path, hide_windows=True,
+                               extra_stubs=dict(restore_window=dict()))
+
+        assert "release" not in order
+
+
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
         """Cancelling at the layout checkpoint (2nd advance) has launched the
