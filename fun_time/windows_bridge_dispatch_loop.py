@@ -12,7 +12,6 @@ import socket
 import subprocess
 import threading
 import time
-from dataclasses import replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -23,7 +22,6 @@ from .command_dispatch import (
     MAIN_SIDE,
     BridgeConfig,
     BridgeState,
-    WindowOp,
     command_side,
     dispatch_command,
     routes_to_origenerator,
