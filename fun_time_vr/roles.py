@@ -116,7 +116,7 @@ class MainRole:
 
     # ------------------------------------------------------------------ verbs
 
-    def apply_command(self, command: str, *, on_quit: Callable[[], None] | None = None) -> bool:
+    def apply_command(self, command: str, *, on_quit: Callable[[], None]) -> bool:
         """Dispatch one command-file line; return whether it was handled."""
         parts = command.strip().split(None, 1)
         if not parts:
@@ -164,8 +164,6 @@ class MainRole:
             # here would leave the headset showing nothing at all.
             pass
         elif keyword == "QUIT":
-            if on_quit is None:
-                return False
             on_quit()
         else:
             return False
