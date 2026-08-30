@@ -139,6 +139,7 @@ class VrSettings:
     tcode_udp_host: str
     tcode_udp_port: int
     library_dirs: tuple[Path, ...]
+    audio_device: str
     compositor_layers: bool
 
     @classmethod
@@ -152,6 +153,7 @@ class VrSettings:
             tcode_udp_port=int(vr["tcode_udp_port"]),
             library_dirs=tuple(Path(part) for part in vr["library_dirs"].split("|")
                                if part.strip()),
+            audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
                 "vr", "compositor_layers", fallback="0").strip() == "1",
         )
@@ -272,10 +274,10 @@ class _MainUnit(_VideoUnit):
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
-        self._audio_device = vr.get("audio_device", "").strip()
+        self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._status_writer = StatusWriter(
-            Path(commands["nau_status_file"]), lambda role: role.status_fields()
+            Path(commands.nau_status_file), lambda role: role.status_fields()
         )
         self._volume_painter = VolumeHudPainter()
         self._unhandled: set[str] = set()
@@ -355,13 +357,13 @@ class _SatelliteUnit(_VideoUnit):
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
         self._status_writer = StatusWriter(
-            Path(commands[f"{side}_status_file"]), satellite_status_fields
+            Path(commands.side_file(side, "status")), satellite_status_fields
         )
         # The lock HUD panel fun_time publishes, composited into the video by
         # mpv — no mouse reaches it in VR, but the map itself carries over.
         self.hud = HudOverlay(
-            hud_file=Path(commands[f"{side}_hud_file"]),
-            command_file=Path(commands["dashboard_cmd_file"]),
+            hud_file=Path(commands.side_file(side, "hud")),
+            command_file=Path(commands.dashboard_cmd_file),
             player=self.player,
         )
         self._volume_painter = VolumeHudPainter()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
@@ -7,6 +8,7 @@ import pytest
 from fun_time.shared_state import BridgeState
 from fun_time.config import load_config
 from fun_time.shared_state import read_shared_state, write_shared_state
+from fun_time_vr.player import VrSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     build_vr_manifest,
@@ -116,6 +118,22 @@ class TestVrManifest:
         assert vr["tcode_udp_port"] == "50557"
         assert vr["audio_device"] == "Example Headset"
         assert vr["compositor_layers"] == "0"
+
+    def test_every_vr_key_the_writer_emits_has_a_field_to_land_in(self, config):
+        """The ``[vr]`` writer and ``VrSettings`` are two halves of one schema.
+
+        ``fun_time.manifest`` pins this for the sections it owns and passes over
+        this one on purpose, so nothing checked that the two ends of the section
+        FunTimeVR writes to itself still agreed — and they had already stopped:
+        ``audio_device`` was written every launch and had no field to be read
+        into, which is how the VR main player lost its audio-device routing.
+        ``player_module`` is the one key with no reader by design: the launcher
+        starts the module it names from its own constant.
+        """
+        written = set(build_vr_manifest(config)["vr"])
+        read_back = {field.name for field in fields(VrSettings)}
+
+        assert written - {"player_module"} == read_back
 
     def test_manifest_carries_a_layers_opt_in(self, config):
         import dataclasses  # noqa: PLC0415
