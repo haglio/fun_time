@@ -118,7 +118,7 @@ class VRSession:
         """Fun Time's icon via Win32 WM_SETICON — GLFW's own icon API loses to
         the taskbar (GenauVR's commit 722df45 learned this the slow way)."""
         try:
-            import ctypes.wintypes  # noqa: PLC0415 — Windows-only, error path tolerant
+            import ctypes.wintypes  # Windows-only, error path tolerant
 
             hwnd = glfw.get_win32_window(self._window)
             image_icon, lr_loadfromfile, wm_seticon = 1, 0x10, 0x80
@@ -151,7 +151,7 @@ class VRSession:
         # The loader requires this call before create_session.
         xr.get_opengl_graphics_requirements_khr(self._instance, system_id)
 
-        from OpenGL import WGL  # noqa: PLC0415 — Windows-only binding
+        from OpenGL import WGL  # Windows-only binding
 
         graphics_binding = xr.GraphicsBindingOpenGLWin32KHR(
             h_dc=WGL.wglGetCurrentDC(),

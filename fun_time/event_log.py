@@ -110,7 +110,7 @@ class EventLogHandler(logging.Handler):
             )
             with self.path.open("a", encoding="utf-8") as fh:
                 fh.write(line + "\n")
-        except Exception:  # noqa: BLE001 — logging must never take the app down
+        except Exception:  # logging must never take the app down
             pass
 
 

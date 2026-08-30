@@ -2259,7 +2259,7 @@ def _clipper_project_dir() -> Path:
     while the session runs.  Anywhere git cannot answer, this checkout is the
     best guess there is, which is also the old behavior.
     """
-    from .branch_session import primary_checkout  # noqa: PLC0415 — avoids a launcher import on the hot path
+    from .branch_session import primary_checkout  # avoids a launcher import on the hot path
 
     try:
         return primary_checkout().parent / "clipper"

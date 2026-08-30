@@ -320,7 +320,7 @@ class DashboardWidget(QWidget):
         self.setFixedSize(scene.width, scene.height)
         self.update()
 
-    def paintEvent(self, event: object) -> None:  # noqa: N802
+    def paintEvent(self, event: object) -> None:
         scene = self._scene
         if scene is None:
             return
@@ -365,7 +365,7 @@ class DashboardWidget(QWidget):
 
         p.end()
 
-    def mousePressEvent(self, event: object) -> None:  # noqa: N802
+    def mousePressEvent(self, event: object) -> None:
         scene = self._scene
         if scene is None:
             return
@@ -376,7 +376,7 @@ class DashboardWidget(QWidget):
                 self.action_triggered.emit(action_id)
                 return
 
-    def mouseMoveEvent(self, event: object) -> None:  # noqa: N802
+    def mouseMoveEvent(self, event: object) -> None:
         scene = self._scene
         if scene is None:
             return
@@ -631,7 +631,7 @@ class DashboardWindow(QMainWindow):
         self._refresh_timer.start(500)
         self._refresh()
 
-    def closeEvent(self, event: object) -> None:  # noqa: N802
+    def closeEvent(self, event: object) -> None:
         try:
             self._ahk_cmd_file.write_text("exit", encoding="utf-8")
         except OSError:
@@ -659,7 +659,7 @@ class DashboardWindow(QMainWindow):
             self._notice_overlay.shutdown()
             self._notice_overlay = None
 
-    def changeEvent(self, event: object) -> None:  # noqa: N802
+    def changeEvent(self, event: object) -> None:
         """Mirror the dashboard's own minimize/restore onto every managed window.
 
         The dashboard cannot reach the other processes' windows directly, so it
@@ -926,7 +926,7 @@ class DashboardWindow(QMainWindow):
         main = compute_main_media_rect(
             secondary_monitor=secondary_rect, layout_config=self._app_config.layout,
         )
-        as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)  # noqa: E731
+        as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)
         return PlayerRects(
             main=as_rect(main),
             portrait=as_rect(plan.portrait),
