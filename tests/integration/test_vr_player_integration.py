@@ -27,7 +27,7 @@ import pytest
 from player_core.file_channel import append_command
 
 from fun_time.config import load_config
-from fun_time.dashboard_runtime import read_nau_status
+from fun_time.player_status import read_nau_status
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.orchestrator import build_vr_manifest

@@ -14,7 +14,7 @@ from pathlib import Path
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
-from .dashboard_runtime import read_nau_status
+from .player_status import read_nau_status
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
 # without an edge, so a verb lost in transit converges instead of staying lost

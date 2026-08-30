@@ -11,7 +11,7 @@ from pathlib import Path
 
 from .command_dispatch import MAIN_SIDE, BridgeConfig, side_name
 from .shared_state import BridgeState
-from .dashboard_runtime import (
+from .player_status import (
     genau_status_path,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,

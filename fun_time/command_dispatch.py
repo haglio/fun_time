@@ -32,7 +32,11 @@ from .media_metadata import (
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 
-from .dashboard_runtime import genau_enabled_path, read_genau_enabled, read_nau_status
+from .player_status import (
+    genau_enabled_path,
+    read_genau_enabled,
+    read_nau_status,
+)
 from .lock import build_lock_plan
 from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .modes import collect_video_files, is_favorite_path, read_favs_content, write_playlist_file

@@ -14,7 +14,10 @@ from pathlib import Path
 
 from fun_time.branch_session import STATE_DIRNAME, _apply_genau_checkout_override
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
-from fun_time.dashboard_runtime import NauStatus, read_nau_status
+from fun_time.player_status import (
+    NauStatus,
+    read_nau_status,
+)
 from fun_time.event_log import EventRecord, event_log_path, read_events
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs

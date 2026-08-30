@@ -39,9 +39,7 @@ from .watch_stats import watch_stats_path
 from .windows_bridge_random_favs_browser import open_rfb_tab
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
-from .dashboard_runtime import (
-    is_broker_heartbeat_fresh,
-)
+from .player_status import is_broker_heartbeat_fresh
 from .role_windows import WindowRoles
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import visible_roles

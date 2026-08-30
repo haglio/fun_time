@@ -498,12 +498,10 @@ class ReferencePopup:
 def write_dashboard_command(path: Path, action_id: str) -> None:
     """Post a dashboard button (or voice-toggle) action for the dispatch loop.
 
-    Robust to the dispatch loop's ~20 Hz rename-drain of the same file: the append
-    retries past the transient sharing violation rather than raising into the Qt
-    slot.  Unhandled, that error propagates out of a click slot and PyQt6 aborts
-    the whole window — the "power button closed the Dash instead of quitting Fun
-    Time" bug — so a persistently locked file drops the line and the next click
-    lands.
+    Retries past the loop's ~20 Hz rename-drain of the same file and DROPS
+    rather than raising: unhandled, that error leaves a click slot and PyQt6
+    aborts the window — the "power button closed the Dash instead of quitting
+    Fun Time" bug.  Three cases in `tests/test_dashboard_app.py` hold it.
     """
     append_command(path, action_id)
 

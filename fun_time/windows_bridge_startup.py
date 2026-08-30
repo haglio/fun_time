@@ -18,7 +18,10 @@ from player_core.file_channel import append_command
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .config import load_config
-from .dashboard_runtime import is_broker_heartbeat_fresh, read_nau_status
+from .player_status import (
+    is_broker_heartbeat_fresh,
+    read_nau_status,
+)
 from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,

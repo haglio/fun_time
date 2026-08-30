@@ -3,12 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.dashboard_bridge import write_dashboard_snapshot
-from fun_time.dashboard_runtime import (
+from fun_time.dashboard_runtime import load_dashboard_snapshot
+from fun_time.player_status import (
     GenauStatus,
     NauStatus,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
-    load_dashboard_snapshot,
     read_genau_status,
     read_nau_status,
 )

@@ -8,7 +8,10 @@ from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from fun_time.config import load_config
-from fun_time.dashboard_runtime import genau_status_path, read_nau_status
+from fun_time.player_status import (
+    genau_status_path,
+    read_nau_status,
+)
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,

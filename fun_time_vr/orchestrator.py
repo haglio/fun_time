@@ -37,7 +37,7 @@ apply_genau_dirs_to_sys_path()
 from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_log import open_child_log
 from fun_time.config import load_config
-from fun_time.dashboard_runtime import read_nau_status
+from fun_time.player_status import read_nau_status
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,

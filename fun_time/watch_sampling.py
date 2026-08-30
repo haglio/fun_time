@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .command_dispatch import command_side
-from .dashboard_runtime import read_nau_status
+from .player_status import read_nau_status
 from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
 from .watch_stats import WatchTracker, record_watch_event

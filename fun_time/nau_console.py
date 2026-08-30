@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .dashboard_runtime import GenauStatus
+from .player_status import GenauStatus
 from .mode_plan import genau_active, nau_displays
 
 NAU_CONSOLE_FILENAME = "nau_console.json"

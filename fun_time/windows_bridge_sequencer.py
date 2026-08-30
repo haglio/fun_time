@@ -20,7 +20,11 @@ from pathlib import Path
 from player_core.file_channel import append_command
 
 from .config import LayoutConfig
-from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
+from .player_status import (
+    genau_status_path,
+    read_genau_status,
+    read_nau_status,
+)
 from .satellite_control import read_satellite_status
 from .shared_state import read_shared_state, shared_state_path
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays

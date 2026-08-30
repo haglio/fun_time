@@ -7,7 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fun_time.dashboard_runtime import read_nau_status
+from fun_time.player_status import read_nau_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, MainRole
 
