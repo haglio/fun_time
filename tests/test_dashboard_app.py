@@ -13,6 +13,7 @@ from fun_time.dashboard_app import (
     COLOR_APP_TITLE,
     COLOR_PANEL,
     DashboardLaunchGeometry,
+    MarkCache,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
@@ -32,6 +33,7 @@ from fun_time import load_config
 
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
+    kwargs.setdefault("marks", MarkCache())
     return build_dashboard_scene(layout, snapshot, width=layout.content_width, **kwargs)
 
 
@@ -830,7 +832,7 @@ def test_dashboard_widget_emits_action_on_click():
     from fun_time.dashboard_app import DashboardWidget
 
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.content_width)
+    scene = build_dashboard_scene(layout, width=layout.content_width, marks=MarkCache())
 
     widget = DashboardWidget()
     widget.set_scene(scene)
@@ -862,7 +864,7 @@ def test_dashboard_widget_ignores_click_outside_actions():
     from fun_time.dashboard_app import DashboardWidget
 
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.content_width)
+    scene = build_dashboard_scene(layout, width=layout.content_width, marks=MarkCache())
 
     widget = DashboardWidget()
     widget.set_scene(scene)
@@ -952,6 +954,53 @@ def _mark_side(rect) -> int:
     from shared_ui.spacing import BUTTON_ICON
 
     return min(BUTTON_ICON, min(rect.width, rect.height))
+
+
+class TestMarkCache:
+    """The pixmaps the bar is painted from, and who owns them.
+
+    Both were module-level dicts that grew for the life of the process and were
+    never cleared: one keyed marks by (name, width, height) under an annotation
+    that said (name, height), the other icons by (file, height).
+    """
+
+    def test_the_same_mark_at_the_same_size_is_drawn_once(self):
+        marks = MarkCache()
+        rect = compute_dashboard_bar_layout().quit_button
+
+        assert marks.mark("power", rect) is marks.mark("power", rect)
+
+    def test_a_control_of_another_size_gets_its_own(self):
+        marks = MarkCache()
+        layout = compute_dashboard_bar_layout()
+
+        assert marks.mark("power", layout.quit_button) is not marks.mark(
+            "power", _resized(layout.quit_button, layout.quit_button.width // 2))
+
+    def test_the_icon_is_rescaled_once_per_height(self):
+        marks = MarkCache()
+
+        assert marks.icon("icon.ico", 24) is marks.icon("icon.ico", 24)
+        assert marks.icon("icon.ico", 24) is not marks.icon("icon.ico", 25)
+
+    def test_a_second_bar_paints_out_of_a_cache_of_its_own(self):
+        """The point of the owner: nothing is shared between two bars, and a
+        test starts with an empty one instead of whatever ran before it."""
+        rect = compute_dashboard_bar_layout().quit_button
+
+        assert MarkCache().mark("power", rect) is not MarkCache().mark("power", rect)
+
+    def test_a_mark_is_drawn_at_the_familys_icon_size_not_the_controls(self):
+        """Every button in every app hugs its mark by the same amount."""
+        layout = compute_dashboard_bar_layout()
+        rect = layout.quit_button
+
+        assert MarkCache().mark("power", rect).width() == _mark_side(rect)
+
+
+def _resized(rect, side: int):
+    """*rect* with its own position and a square side, for the cache cases."""
+    return type(rect)(x=rect.x, y=rect.y, width=side, height=side)
 
 
 def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):

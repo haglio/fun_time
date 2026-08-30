@@ -146,52 +146,47 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     )
 
 
-_dashboard_pixmap_cache: dict[tuple[str, int], QPixmap] = {}
+class MarkCache:
+    """The pixmaps one bar is painted from, kept for as long as that bar.
 
-
-def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
-    """Load an icon .ico scaled to a square of *height* pixels, cached."""
-    key = (filename, height)
-    if key not in _dashboard_pixmap_cache:
-        from PyQt6.QtCore import Qt
-
-        ico_path = Path(__file__).resolve().parent.parent / filename
-        pm = QPixmap(str(ico_path))
-        if not pm.isNull():
-            pm = pm.scaled(
-                height, height,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        _dashboard_pixmap_cache[key] = pm
-    return _dashboard_pixmap_cache[key]
-
-
-def _mark(name: str, rect) -> QPixmap:
-    """One of the family's marks, sized for *rect*."""
-    return _mark_pixmap(name, rect.width, rect.height)
-
-
-def _mark_pixmap(name: str, w: int, h: int) -> QPixmap:
-    """One of the family's marks, sized to the control it sits in, cached.
-
-    Every control on this bar is drawn from shared_ui rather than typed as a
-    font character.  Typed, each one came out at whatever weight and size its
-    face gave it: the microphone was a different shape from Origenerator's, the
-    power symbol a different weight from Evolver's, and the help "?" -- set in
-    the body face rather than a symbol one -- was visibly smaller than every
-    mark beside it.
-
-    Square, because a mark drawn to a wide panel's aspect stops being round; the
-    widget that paints it centers it in the control.
+    Twice a second, every render asks for the same five images.  These were two
+    module-level dicts with no owner, no bound and no reset; a cache belongs to
+    the widget that paints out of it.
     """
-    key = (name, w, h)
-    if key not in _dashboard_pixmap_cache:
-        # The family's icon size, not the control's full height: every button in
-        # every app hugs its mark by the same amount, which they did not before.
-        side = min(BUTTON_ICON, min(w, h))
-        _dashboard_pixmap_cache[key] = glyph_pixmap(name, side, COLOR_TEXT)
-    return _dashboard_pixmap_cache[key]
+
+    def __init__(self) -> None:
+        self._icons: dict[tuple[str, int], QPixmap] = {}
+        self._marks: dict[tuple[str, int, int], QPixmap] = {}
+
+    def icon(self, filename: str, height: int) -> QPixmap:
+        """An icon .ico scaled to a square of *height* pixels."""
+        key = (filename, height)
+        if key not in self._icons:
+            from PyQt6.QtCore import Qt
+
+            ico_path = Path(__file__).resolve().parent.parent / filename
+            pm = QPixmap(str(ico_path))
+            if not pm.isNull():
+                pm = pm.scaled(
+                    height, height,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            self._icons[key] = pm
+        return self._icons[key]
+
+    def mark(self, name: str, rect) -> QPixmap:
+        """One of the family's marks, drawn square for the control it sits in.
+
+        From shared_ui, not typed as a font character: typed, each mark came out
+        at whatever weight its face gave it.  Square, because a mark drawn to a
+        wide panel's aspect stops being round; the widget centers it.
+        """
+        key = (name, rect.width, rect.height)
+        if key not in self._marks:
+            side = min(BUTTON_ICON, min(rect.width, rect.height))
+            self._marks[key] = glyph_pixmap(name, side, COLOR_TEXT)
+        return self._marks[key]
 
 
 # The reference popup's name, on its window chrome and on the ? button's tooltip
@@ -219,6 +214,7 @@ def build_dashboard_scene(
     snapshot: DashboardSnapshot | None = None,
     *,
     width: int,
+    marks: MarkCache,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     """The control bar: the app's mark, then the four controls in one run.
@@ -265,12 +261,12 @@ def build_dashboard_scene(
                           anchor="w", font=_font_app),
     )
     images = (
-        DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(_mark("power", layout.quit_button), layout.quit_button),
-        DashboardImageItem(_mark(omnipause_mark, layout.omnipause_button),
+        DashboardImageItem(marks.icon("icon.ico", layout.app_icon.height), layout.app_icon),
+        DashboardImageItem(marks.mark("power", layout.quit_button), layout.quit_button),
+        DashboardImageItem(marks.mark(omnipause_mark, layout.omnipause_button),
                            layout.omnipause_button),
-        DashboardImageItem(_mark("question", layout.help_button), layout.help_button),
-        DashboardImageItem(_mark("mic", layout.voice_panel), layout.voice_panel),
+        DashboardImageItem(marks.mark("question", layout.help_button), layout.help_button),
+        DashboardImageItem(marks.mark("mic", layout.voice_panel), layout.voice_panel),
     )
     tooltips = dict(_ACTION_TOOLTIPS)
     if omni_paused:
@@ -309,6 +305,7 @@ class DashboardWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.marks = MarkCache()
         self._scene: DashboardScene | None = None
         self.setMouseTracking(True)
 
@@ -790,6 +787,7 @@ class DashboardWindow(QMainWindow):
             self._bar_layout,
             snapshot,
             width=self._bar_layout.content_width,
+            marks=self._widget.marks,
             pressed_actions=pressed_actions,
         )
         # While minimized, re-asserting geometry would restore the window and
