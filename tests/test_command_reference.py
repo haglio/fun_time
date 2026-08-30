@@ -45,6 +45,16 @@ def _ahk_suspend_exempt_commands() -> set[str]:
     return set(_QUEUED_RE.findall(block))
 
 
+def _keys(row: CommandRef) -> tuple[str, ...]:
+    """Every key label on a row, flattened across its section's key columns.
+
+    The row stores the keys split per column, which is how they are drawn; a
+    test that only asks "does this row hold a key at all" wants them in one
+    sequence.
+    """
+    return tuple(key for column in row.key_columns for key in column)
+
+
 def _all_rows() -> list[CommandRef]:
     return [row for section in build_reference_sections() for row in section.rows]
 
@@ -63,7 +73,7 @@ def test_sections_are_non_empty_and_well_formed():
         for row in section.rows:
             assert row.description
             # Every row must offer at least one way to trigger it.
-            assert row.hotkeys or row.voice, f"row {row.description!r} has no trigger"
+            assert _keys(row) or row.voice, f"row {row.description!r} has no trigger"
 
 
 def test_every_voice_command_is_represented():
@@ -90,7 +100,7 @@ def test_every_ahk_hotkey_command_is_represented_with_a_hotkey():
     for cmd in _ahk_hotkey_commands():
         owning = [row for row in rows if cmd in row.commands]
         assert owning, f"AHK hotkey command {cmd!r} is missing from the reference"
-        assert any(row.hotkeys for row in owning), (
+        assert any(_keys(row) for row in owning), (
             f"AHK hotkey command {cmd!r} is shown without a hotkey label"
         )
 
@@ -103,7 +113,7 @@ def test_voice_toggle_is_not_key_bound():
     owning = [row for row in _all_rows() if "voice_toggle" in row.commands]
     assert owning, "voice_toggle must still be documented"
     for row in owning:
-        assert row.hotkeys == (), f"{row.description!r} must show no hotkey"
+        assert _keys(row) == (), f"{row.description!r} must show no hotkey"
 
 
 def test_cycle_action_and_seed_are_spoken_only():
@@ -125,7 +135,7 @@ def test_cycle_action_and_seed_are_spoken_only():
         assert cmd not in queued, f"{cmd} is spoken-only and must hold no key"
         owning = [r for r in rows if cmd in r.commands]
         assert len(owning) == 1, f"expected exactly one row for {cmd}"
-        assert owning[0].hotkeys == ()
+        assert _keys(owning[0]) == ()
         # The scopes share one row, so the Say column shows the folded phrase.
         assert shown in owning[0].voice
 
@@ -153,7 +163,7 @@ def test_the_group_loops_are_cycled_by_one_key_per_side():
         assert _ahk_binding_for(cmd) is None, f"{cmd} gave its key to the cycle"
         owning = [r for r in rows if cmd in r.commands]
         assert len(owning) == 1, f"expected exactly one row for {cmd}"
-        assert owning[0].hotkeys == ()
+        assert _keys(owning[0]) == ()
 
 
 def _satellite_section() -> ReferenceSection:
@@ -185,7 +195,6 @@ def test_every_scope_shares_one_grid_with_a_key_column_per_side():
                         f"row {row.description!r} omits {command}"
                     )
         assert len(row.key_columns) == 2
-        assert row.hotkeys == row.key_columns[0] + row.key_columns[1]
 
 
 def test_the_shared_grid_drops_the_scope_word_from_the_say_column():
@@ -286,7 +295,7 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     nau_rows = {s.title: s for s in build_reference_sections()}["Nau"].rows
     descs = [r.description for r in nau_rows]
     nudge = next(r for r in nau_rows if "nau_speed_up" in r.commands)
-    assert nudge.hotkeys == ()
+    assert _keys(nudge) == ()
     assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
     assert descs.index(nudge.description) + 1 == next(
         i for i, d in enumerate(descs) if d.startswith("Set video speed")
@@ -320,7 +329,7 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
     its synonyms so the legend never implies one of them is the "real" phrase."""
     rows = _all_rows()
     mute = next(r for r in rows if "audio_mute" in r.commands)
-    assert mute.hotkeys == ()
+    assert _keys(mute) == ()
     # "unmute" is one word to the reader; only the recognizer hears "un mute".
     assert mute.voice == ("mute", "unmute")
     assert "audio_unmute" in mute.commands
@@ -333,7 +342,7 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
         steps = [r for r in by_title[title].rows if "audio_volume_up" in r.commands]
         assert len(steps) == 1, f"expected one volume row in {title}"
         assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
-        assert steps[0].hotkeys == ()
+        assert _keys(steps[0]) == ()
         assert set(steps[0].voice) == {"quiet", "quieter", "loud", "louder"}
 
 
@@ -353,7 +362,7 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
     rows = [r for r in _all_rows() if "both_latest" in r.commands]
     assert len(rows) == 1, "expected exactly one Latest row"
     row = rows[0]
-    assert row.hotkeys == ()
+    assert _keys(row) == ()
     # It sits in the satellite grid like every other action, so its Say column
     # is the bare "latest" and "both latest" comes from the section's note.
     assert row.voice == ("latest",)
@@ -427,7 +436,7 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     row = genau_rows[0]
     assert "genau" in row.voice
     assert "go now" not in row.voice
-    assert any(key.lower() == "g" for key in row.hotkeys)
+    assert any(key.lower() == "g" for key in _keys(row))
 
 
 def test_section_titles_run_global_genau_nau_satellites():
@@ -445,8 +454,8 @@ def test_section_titles_run_global_genau_nau_satellites():
 def test_the_backslash_key_is_split_between_its_two_meanings():
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
-    main_backslash = [r for r in by_title["Nau"].rows if "\\" in r.hotkeys]
-    genau_backslash = [r for r in by_title["Genau"].rows if "\\" in r.hotkeys]
+    main_backslash = [r for r in by_title["Nau"].rows if "\\" in _keys(r)]
+    genau_backslash = [r for r in by_title["Genau"].rows if "\\" in _keys(r)]
     assert len(main_backslash) == 1, "expected the file-dialog '\\' row in Nau"
     assert "browse" in main_backslash[0].voice
     assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
@@ -466,7 +475,7 @@ def test_loop_control_row_consolidates_record_and_cancel():
     loop_rows = [r for r in rows if "nau_record_down" in r.commands]
     assert loop_rows, "expected a loop control row"
     row = loop_rows[0]
-    assert "R" in row.hotkeys
+    assert "R" in _keys(row)
     assert "record" in row.voice
     assert "loop" in row.voice
     # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
@@ -479,10 +488,10 @@ def test_previous_shape_is_a_separate_keyless_line():
     rows = _all_rows()
     next_rows = [r for r in rows if "genau_cycle_shape" in r.commands]
     prev_rows = [r for r in rows if "genau_cycle_shape_prev" in r.commands]
-    assert next_rows and next_rows[0].hotkeys == ("I",)
+    assert next_rows and _keys(next_rows[0]) == ("I",)
     # The "I" key does next only — it must not claim previous.
     assert "genau_cycle_shape_prev" not in next_rows[0].commands
-    assert prev_rows and prev_rows[0].hotkeys == ()
+    assert prev_rows and _keys(prev_rows[0]) == ()
     assert "previous shape" in prev_rows[0].voice
 
 
@@ -524,7 +533,7 @@ def test_previous_next_pairs_are_ordered_previous_then_next():
 
 def test_offset_voice_on_genau_backslash_row():
     rows = _all_rows()
-    offset_rows = [r for r in rows if "\\" in r.hotkeys and "quarter_button" in r.commands]
+    offset_rows = [r for r in rows if "\\" in _keys(r) and "quarter_button" in r.commands]
     assert offset_rows and "offset" in offset_rows[0].voice
 
 
@@ -540,7 +549,7 @@ def test_corrected_descriptions():
 
 def test_omnipause_row_uses_esc_and_pause_play_voice():
     rows = _all_rows()
-    esc_rows = [r for r in rows if "Esc" in r.hotkeys]
+    esc_rows = [r for r in rows if "Esc" in _keys(r)]
     assert esc_rows, "expected an Esc hotkey row"
     row = esc_rows[0]
     assert "omnipause_toggle" in row.commands
@@ -558,7 +567,7 @@ def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
     rows = [r for r in _all_rows() if "relief_omnipause" in r.commands]
     assert len(rows) == 1, "expected exactly one relief row"
     row = rows[0]
-    assert row.hotkeys == ("Shift+Esc",)
+    assert _keys(row) == ("Shift+Esc",)
     assert row.voice == ("relief omnipause", "retract", "stop")
 
 
@@ -599,7 +608,7 @@ def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
     rows = [r for r in _all_rows() if "nau_funscript_jump" in r.commands]
     assert len(rows) == 1, "expected exactly one funscript navigation row"
     assert rows[0].voice == ("jump to funscript", "next funscripted")
-    assert rows[0].hotkeys == ()
+    assert _keys(rows[0]) == ()
     for row in _all_rows():
         for phrase in row.voice:
             assert "fun script" not in phrase, phrase

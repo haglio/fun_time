@@ -35,7 +35,6 @@ class CommandRef:
     """One reference row: an action and every way to trigger it."""
 
     description: str
-    hotkeys: tuple[str, ...]
     voice: tuple[str, ...]
     commands: tuple[str, ...]
     # ``hotkeys`` split across the section's key columns — one entry per column,
@@ -483,7 +482,6 @@ def build_reference_sections() -> tuple[ReferenceSection, ...]:
         refs = tuple(
             CommandRef(
                 description=row.description,
-                hotkeys=row.hotkeys + row.hotkeys_alt,
                 voice=_display_voice(row, merge_scopes=section.merge_scopes),
                 commands=row.commands,
                 key_columns=(
