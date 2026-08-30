@@ -94,10 +94,6 @@ class MainRole:
         return self._funscript is not None
 
     @property
-    def is_paused(self) -> bool:
-        return self._paused
-
-    @property
     def position_ms(self) -> float:
         return self._player.position_ms
 
@@ -244,10 +240,6 @@ class MainRole:
     def _set_speed(self, speed: float) -> None:
         self._speed = max(MIN_SPEED, min(MAX_SPEED, speed))
         self._player.set_speed(self._speed)
-
-    @property
-    def speed(self) -> float:
-        return self._speed
 
     def _apply_set_speed(self, arg: str) -> None:
         if arg == "min":
