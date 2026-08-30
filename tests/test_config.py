@@ -502,8 +502,31 @@ class TestTheProjectsOwnPaths:
 
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
         """Five of the six copies; `satellite.app` keeps its own, and its
-        comment says why."""
-        from fun_time.process_identity import ICON_PATH
-        from fun_time.project_paths import PROJECT_ICON
+        comment says why.  Read from the source, because three of the five are
+        uses rather than bindings and an alias would not show them."""
+        import ast
 
-        assert ICON_PATH is PROJECT_ICON
+        from fun_time.project_paths import PROJECT_DIR
+
+        wants = {
+            "fun_time/process_identity.py", "fun_time_vr/vr_session.py",
+            "fun_time/overlay_window.py", "fun_time/dashboard_app.py",
+        }
+        for name in sorted(wants):
+            source = (PROJECT_DIR / name).read_text(encoding="utf-8")
+            assert "PROJECT_ICON" in source, name
+            tree = ast.parse(source)
+            recomputed = [
+                n for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and n.value == "icon.ico"]
+            assert recomputed == [], f"{name} still spells the path itself"
+
+    def test_and_the_one_that_keeps_its_own_says_why(self):
+        """`satellite/` imports nothing from `fun_time`, and one constant is
+        not worth inverting that."""
+        from fun_time.project_paths import PROJECT_DIR
+        from satellite.app import ICON_PATH
+
+        assert ICON_PATH == PROJECT_DIR / "icon.ico"
+        source = (PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8")
+        assert "imports nothing from fun_time" in source

@@ -606,19 +606,23 @@ class TestFindWindowByTitle:
             assert win32.find_window_by_title("Nau") == 11
         assert seen == [11]
 
-    def test_a_title_is_read_into_a_fixed_buffer_of_256(self):
+    def test_every_title_is_read_into_ONE_buffer_of_256(self):
         """One buffer, allocated once outside the callback and reused for every
-        window — so the read is capped at 256 characters however long the real
-        title is."""
+        window — so a read is capped at 256 characters however long the real
+        title is, and `find_window_for_process` next door does the opposite on
+        purpose.  Two windows, so a per-window allocation cannot pass."""
+        buffers: list[int] = []
         caps: list[int] = []
 
         with patch("fun_time.win32._user32") as mock:
-            self._enumerating(mock, [(11, "Nau")])
-            mock.GetWindowTextW.side_effect = lambda _h, buf, cap: (
-                caps.append(cap), setattr(buf, "value", "Nau"))[0]
-            assert win32.find_window_by_title("Nau") == 11
+            self._enumerating(mock, [(11, "Genau"), (12, "Nau")])
+            mock.GetWindowTextW.side_effect = lambda hwnd, buf, cap: (
+                buffers.append(id(buf)), caps.append(cap),
+                setattr(buf, "value", "Nau" if hwnd == 12 else "Genau"))[0]
+            assert win32.find_window_by_title("Nau", exact=True) == 12
 
-        assert caps == [256]
+        assert caps == [256, 256]
+        assert len(set(buffers)) == 1, "a buffer per window, not one for the walk"
 
     def test_nothing_matching_is_no_window(self):
         with patch("fun_time.win32._user32") as mock:
@@ -792,10 +796,20 @@ class TestListChildPids:
             mock.CloseHandle.assert_called_once_with(4321)
 
     def test_a_snapshot_that_could_not_be_taken_is_no_children(self):
+        """INVALID_HANDLE_VALUE, which is what the declared restype makes the
+        documented failure come back as.  Undeclared it answered -1, the guard
+        never fired, and the walk went on to close an invalid handle."""
         with patch("fun_time.win32_process._kernel32") as mock:
             mock.CreateToolhelp32Snapshot.return_value = ctypes.wintypes.HANDLE(-1).value
             assert win32_process.list_child_pids(500) == []
             mock.CloseHandle.assert_not_called()
+
+    def test_the_snapshot_answers_as_a_handle_not_a_32_bit_int(self):
+        """Its failure value only equals INVALID_HANDLE_VALUE when it does."""
+        assert win32_process._kernel32.CreateToolhelp32Snapshot.restype is (
+            ctypes.wintypes.HANDLE)
+        assert win32_process._kernel32.CreateToolhelp32Snapshot.argtypes == [
+            ctypes.wintypes.DWORD, ctypes.wintypes.DWORD]
 
     def test_a_walk_that_cannot_even_start_is_no_children(self):
         with patch("fun_time.win32_process._kernel32") as mock:

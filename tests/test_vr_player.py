@@ -140,6 +140,10 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         commands.nau_status_file)
     assert faked_collaborators["MainRole"].call_args.kwargs["playlist_file"] == Path(
         commands.nau_playlist_file)
+    # The one that is not a path, and the one that had no field to land in at
+    # all until this branch: without it `route_audio` never asks mpv for the
+    # headset's sink, and the primary's sound stays on the room speakers.
+    assert unit._audio_device == "Example Headset"
 
 
 @pytest.mark.parametrize("side", ["portrait", "landscape"])

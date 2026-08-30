@@ -50,6 +50,16 @@ _kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
 _kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
 
+# The Toolhelp trio.  Undeclared, CreateToolhelp32Snapshot answers as a 32-bit
+# c_int: its documented failure value comes back -1, which never equals the
+# INVALID_HANDLE_VALUE the guard below compares against, so a failed snapshot
+# fell through to a Process32FirstW and a CloseHandle on an invalid handle.
+_kernel32.CreateToolhelp32Snapshot.argtypes = [
+    ctypes.wintypes.DWORD,  # dwFlags
+    ctypes.wintypes.DWORD,  # th32ProcessID
+]
+_kernel32.CreateToolhelp32Snapshot.restype = ctypes.wintypes.HANDLE
+
 # GetExitCodeProcess reports this while the process is still running.
 _STILL_ACTIVE = 259
 
@@ -145,6 +155,13 @@ def list_child_pids(parent_pid: int) -> list[int]:
             ("dwFlags", ctypes.wintypes.DWORD),
             ("szExeFile", ctypes.c_wchar * 260),
         ]
+
+    _kernel32.Process32FirstW.argtypes = [
+        ctypes.wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
+    _kernel32.Process32FirstW.restype = ctypes.wintypes.BOOL
+    _kernel32.Process32NextW.argtypes = [
+        ctypes.wintypes.HANDLE, ctypes.POINTER(PROCESSENTRY32)]
+    _kernel32.Process32NextW.restype = ctypes.wintypes.BOOL
 
     snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
     if snapshot == INVALID_HANDLE_VALUE:

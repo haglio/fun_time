@@ -46,10 +46,9 @@ class TestTheFlagFilesThisProcessReads:
 
         assert read_paused_state(tmp_path / "never_written.txt") is False
 
-    def test_the_runtime_is_given_one_reader_for_both_flags(self, tmp_path, cfg_path):
-        """One predicate for both files.  The VR orchestrator writes one of them
-        and a player reads it back, so the two ends must not be able to
-        disagree about what a value means."""
+    @staticmethod
+    def _reader_the_runtime_was_given(tmp_path, cfg_path):
+        """The callable `main` actually hands the runtime, both times."""
         from fun_time import audio_companion_app
 
         (tmp_path / "audio").mkdir(exist_ok=True)
@@ -63,6 +62,28 @@ class TestTheFlagFilesThisProcessReads:
 
         given = runtime.call_args.kwargs
         assert given["read_mode_active"] is given["read_paused_state"]
+        return given["read_paused_state"]
+
+    @pytest.mark.parametrize("text, expected", [
+        ("1", True), ("0", False), ("", False), ("true", False),
+        (" 1 \n", True), ("\ufeff1", True),
+    ])
+    def test_that_reader_is_the_one_this_process_hands_its_runtime(
+            self, tmp_path, cfg_path, text: str, expected: bool):
+        """Not the library function in the abstract — the closure `main` builds.
+        Invert it and the companion plays whenever genau mode is OFF; nothing
+        else in the suite would notice."""
+        read_flag = self._reader_the_runtime_was_given(tmp_path, cfg_path)
+        path = tmp_path / "flag.txt"
+        path.write_text(text, encoding="utf-8")
+
+        assert read_flag(path) is expected
+
+    def test_and_a_flag_file_that_is_not_there_yet_is_not_true_either(
+            self, tmp_path, cfg_path):
+        read_flag = self._reader_the_runtime_was_given(tmp_path, cfg_path)
+
+        assert read_flag(tmp_path / "never_written.txt") is False
 
     def test_no_local_copy_of_that_reader_is_left(self):
         from fun_time import audio_companion_app

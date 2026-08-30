@@ -72,10 +72,26 @@ class TestTheShaderAndTheTableAreOneSource:
         for degrees in _FISHEYE_FOV_DEGREES.values():
             assert str(degrees) in _IMMERSIVE_FRAGMENT_SHADER
 
-    def test_the_shader_still_has_no_stray_braces(self):
-        """It is an f-string now, so every GLSL brace is doubled in the source;
-        a missed one would show up as a `{` gone from the compiled text."""
-        from fun_time_vr.render import _IMMERSIVE_FRAGMENT_SHADER as shader
+    def test_every_glsl_brace_is_doubled_in_the_source(self):
+        """It is an f-string, so a GLSL brace left single is an interpolation:
+        `{` alone is a syntax error at import, but `{PI}` would be a NameError
+        and `{0.0}` would silently render as `0.0` with the braces eaten.  The
+        rendered text cannot show that, so this reads the source."""
+        import ast
+        import inspect
 
-        assert shader.count("{") == shader.count("}") == 6
-        assert "{{" not in shader and "}}" not in shader
+        from fun_time_vr import render
+
+        tree = ast.parse(inspect.getsource(render))
+        node = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.Assign)
+            and getattr(n.targets[0], "id", "") == "_IMMERSIVE_FRAGMENT_SHADER")
+        literal = "".join(
+            part.value for part in node.value.values  # type: ignore[attr-defined]
+            if isinstance(part, ast.Constant))
+
+        # Every brace that survived as text; the interpolations are the mode
+        # ids and the two fields of view, none of which carries one.
+        assert literal.count("{") == literal.count("}") == 6
+        assert render._IMMERSIVE_FRAGMENT_SHADER.count("{") == 6
