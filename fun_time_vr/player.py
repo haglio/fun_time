@@ -27,10 +27,10 @@ never composites them, so screens submitted that way don't appear; everything
 draws in-scene inside the projection layer instead, which every runtime
 composites.
 
-Not unit-tested: this is the GL/OpenXR/mpv shell.  Everything it wires —
-roles, scene geometry, matrices, projections, furniture throttling — is
-tested pure, and the whole pipeline minus OpenXR runs against the real DLLs
-in the hidden-desktop integration suite.
+The GL/OpenXR/mpv shell.  Everything it wires — roles, scene geometry,
+matrices, projections, furniture throttling — is tested pure, and the whole
+pipeline minus OpenXR runs against the real DLLs in the hidden-desktop
+integration suite.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 

@@ -12,7 +12,7 @@ Differences from GenauVR's: no controller actions (FunTimeVR is driven by the
 orchestrator's hotkeys and voice), no per-eye depth buffers (the scene draws
 in painter's order), and the desktop window is titled/iconed as Fun Time's.
 
-Not unit-tested: it needs the OpenXR loader, a runtime, and a live GL context.
+The OpenXR/GL shell.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 

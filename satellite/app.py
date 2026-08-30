@@ -7,10 +7,9 @@ playback through the command + paused files, reading back the status file.  The
 one thing drawn on top is the lock HUD, composited into the video from the panel
 fun_time publishes (see satellite.hud_overlay).
 
-Not unit-tested: it needs the libmpv DLL and a real window.  The pure control
-logic it drives lives in satellite.session / satellite.runtime /
-player_core.satellite_hud*,
-tested against a fake player.
+A shell: the control logic it drives lives in satellite.session,
+satellite.runtime and player_core.satellite_hud*.  See CLAUDE.md, "Standing
+rules", for why nothing here is unit-tested.
 """
 from __future__ import annotations
 
@@ -166,12 +165,10 @@ def _run(args, playlist: list[Path]) -> int:
 
     while not stop_event.is_set():
         for ev in pygame.event.get():
-            # No key here ends this player.  A satellite is one of a set the
-            # sequencer placed, and killing one alone leaves the session running
-            # around a hole nothing refills — so the session ends as a whole or
-            # not at all: Ctrl+Alt+Q, which the bridge turns into the teardown
-            # that takes these processes down with it.  A Ctrl+Q handler used to
-            # sit here and quit whichever satellite had focus; don't put it back.
+            # No key here ends this player: the session ends as a whole,
+            # through Ctrl+Alt+Q, which the bridge turns into the teardown that
+            # takes these processes down with it.  See CLAUDE.md, "Standing
+            # rules".
             #
             # The window's own close is the same thing arriving by another road —
             # Alt+F4, the taskbar, the system menu — and it is asked of the

@@ -589,7 +589,10 @@ def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 
     assert "relief_omnipause" in _ahk_suspend_exempt_commands()
-    assert "relief_omnipause" in SUSPEND_EXEMPT_COMMANDS
+    # The whole set, not one member: what a paused room may be heard to do is
+    # the owner's call, so widening it has to fail here rather than depend on
+    # somebody reading a comment.  See CLAUDE.md, "Standing rules".
+    assert SUSPEND_EXEMPT_COMMANDS == frozenset({"play", "quit", "relief_omnipause"})
 
 
 def test_no_say_column_leaks_the_raw_omni_pause_form():
