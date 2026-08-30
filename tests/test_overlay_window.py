@@ -1,13 +1,19 @@
 from __future__ import annotations
 
 import os
+import sys
 import time
 import tkinter as tk
 from unittest.mock import MagicMock, call, patch
 from pathlib import Path
 
 from fun_time.overlay_progress import parse_progress
-from fun_time.overlay_window import OverlayWindow, POLL_MS, load_icon_image
+from fun_time.overlay_window import (
+    POLL_MS,
+    OverlayWindow,
+    _Content,
+    load_icon_image,
+)
 
 ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
 
@@ -98,11 +104,11 @@ def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0, cancel=None,
     window._title = title
     window._hwnd = 0
     window._root = _FakeRoot()
-    window._progress_var = _FakeVar()
-    window._status_label = _FakeLabel()
-    window._hint_label = _FakeLabel()
-    window._progress_bar = _FakeLabel()
-    window._icon_photo = None
+    window._content = _Content(
+        status_label=_FakeLabel(),
+        progress_var=_FakeVar(),
+        hint_label=_FakeLabel(),
+    )
     return window
 
 
@@ -143,8 +149,8 @@ class TestTheCoverComesDown:
         window._poll()
 
         assert not window._root.destroyed
-        assert window._progress_var.value == 3 / 7 * 100
-        assert window._status_label.text == "Launching companions..."
+        assert window._content.progress_var.value == 3 / 7 * 100
+        assert window._content.status_label.text == "Launching companions..."
         assert [ms for ms, _cb in window._root.rearmed] == [POLL_MS]
 
     def test_the_watchdog_closes_a_cover_whose_orchestrator_died(self, tmp_path: Path):
@@ -262,8 +268,8 @@ class TestTheWayOutStartupOffers:
         window._on_escape()
 
         assert asked == ["request"]
-        assert window._status_label.text == "Cancelling..."
-        assert window._hint_label.text == ""
+        assert window._content.status_label.text == "Cancelling..."
+        assert window._content.hint_label.text == ""
 
     def test_a_second_escape_asks_nothing_more(self, tmp_path: Path):
         cancel, asked = _cancel_option()
@@ -284,7 +290,7 @@ class TestTheWayOutStartupOffers:
         window._progress_file.write_text("2/6|Launching companions...", encoding="utf-8")
         window._poll()
 
-        assert window._status_label.text == "Cancelling..."
+        assert window._content.status_label.text == "Cancelling..."
 
     def test_a_cancel_the_hotkey_script_asked_for_is_picked_up_here(self, tmp_path: Path):
         """Esc reaches the orchestrator two ways, and the global hook is the one
@@ -296,7 +302,7 @@ class TestTheWayOutStartupOffers:
 
         window._poll()
 
-        assert window._status_label.text == "Cancelling..."
+        assert window._content.status_label.text == "Cancelling..."
 
     def test_a_cover_with_no_way_out_answers_escape_with_nothing(self, tmp_path: Path):
         """Shutdown's, which also never takes the keyboard focus."""
@@ -305,4 +311,26 @@ class TestTheWayOutStartupOffers:
         window._on_escape()
 
         assert window._status_held is False
-        assert window._status_label.text is None
+        assert window._content.status_label.text is None
+
+
+class TestLoadingTheIcon:
+    """The three ways this can fail, each of which used to look identical to a
+    working cover.  Narrowed from `except Exception`, so a failure this does not
+    expect now reaches the log instead of being read as "no icon"."""
+
+    def test_a_file_that_is_not_an_image_is_no_icon(self, tmp_path: Path):
+        """PIL's UnidentifiedImageError is an OSError."""
+        not_an_image = tmp_path / "notes.ico"
+        not_an_image.write_text("this is not an icon", encoding="utf-8")
+
+        assert load_icon_image(not_an_image, 128) is None
+
+    def test_a_run_without_pillow_is_no_icon(self):
+        """The covers are the one part of the session that needs Pillow, and a
+        run without it must still put the scrim up."""
+        with patch.dict(sys.modules, {"PIL": None}):
+            assert load_icon_image(ICON_PATH, 128) is None
+
+    def test_the_icon_is_resized_to_what_was_asked_for(self):
+        assert load_icon_image(ICON_PATH, 64).size == (64, 64)
