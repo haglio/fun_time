@@ -205,6 +205,13 @@ class BridgeConfig:
     dashboard_state_file: Path
     # Where Nau publishes its one-shot notices (a clip jump with nowhere to go).
     nau_notice_file: Path | None = None
+    # Which main player this session launched.  The nau file quartet is the
+    # MAIN PLAYER's channel, not Nau's: in a desktop session the reader is Nau,
+    # and in a VR session it is fun_time_vr's in-process role, which speaks the
+    # same contract plus the two verbs that need a projection and a heading.
+    # Set by whichever orchestrator built this config, since that is the only
+    # thing that knows.
+    vr_main_player: bool = False
     # Our own interpreter — what the library browser is launched with, since the
     # bridge process has no Qt event loop to host that window in.
     python_exe: str = ""
@@ -1372,18 +1379,19 @@ def dispatch_command(
         return state, ops
 
     if command == "projection_cycle":
-        # FunTimeVR's main player answers this by walking flat → 180 → fisheye →
-        # MKX200 → 360 and remembering the pick in the video's sidecar.  Routed
-        # like every main-player verb so the desktop Nau simply logs it as unknown.
-        if nau_displays(state.main_mode):
+        # Walks flat → 180 → fisheye → MKX200 → 360, remembering the pick in the
+        # video's sidecar.  Only the VR main player has a projection to walk, so
+        # a desktop session does not send it — a mode is the wrong question here,
+        # since Nau has no projection in any of them.
+        if config.vr_main_player:
             append_command(config.nau_cmd_file, "CYCLE_PROJECTION")
         return state, ops
 
     if command == "recenter_view":
-        # FunTimeVR re-zeroes its scene onto wherever the headset faces at
-        # this instant; the runtime's own recenter UI never reaches the app.
-        # Routed like every main-player verb so the desktop Nau logs it as unknown.
-        if nau_displays(state.main_mode):
+        # Re-zeroes the scene onto wherever the headset faces at this instant;
+        # the runtime's own recenter UI never reaches the app.  Same as above:
+        # only the VR main player has a heading to re-zero onto.
+        if config.vr_main_player:
             append_command(config.nau_cmd_file, "RECENTER")
         return state, ops
 

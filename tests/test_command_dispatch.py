@@ -24,7 +24,7 @@ from fun_time.event_log import NOTICE
 from fun_time.media_metadata import GroupIndex, normalize_path_key
 
 
-def _make_config(tmp_path: Path) -> BridgeConfig:
+def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfig:
     state_dir = tmp_path / "state"
     state_dir.mkdir(parents=True, exist_ok=True)
     favs_file = tmp_path / "favs.csv"
@@ -32,6 +32,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
     weird_dir = tmp_path / "weird"
     weird_dir.mkdir(exist_ok=True)
     return BridgeConfig(
+        vr_main_player=vr_main_player,
         portrait_cmd_file=state_dir / "portrait_cmd.txt",
         portrait_paused_file=state_dir / "portrait_paused.txt",
         portrait_status_file=state_dir / "portrait_status.txt",
@@ -511,46 +512,36 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: 
     assert state.active_side == 1
 
 
-# --- projection_cycle (FunTimeVR's main player) ---
+# --- projection_cycle and recenter_view (FunTimeVR's main player only) ---
 
 
-def test_projection_cycle_writes_nau_cmd_while_nau_displays(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="hybrid")
-
-    dispatch_command("projection_cycle", state, config)
-
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_PROJECTION\n"
-
-
-def test_projection_cycle_in_genau_mode_is_a_no_op(tmp_path: Path):
-    """Genau owns the display in genau mode; there is no projected video to
-    re-project, so the verb goes nowhere."""
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="genau")
-
-    dispatch_command("projection_cycle", state, config)
-
-    assert not config.nau_cmd_file.exists()
-
-
-# --- recenter_view (FunTimeVR's scene) ---
-
-
-def test_recenter_writes_nau_cmd_while_nau_displays(tmp_path: Path):
-    config = _make_config(tmp_path)
+@pytest.mark.parametrize("command, verb", [
+    ("projection_cycle", "CYCLE_PROJECTION"),
+    ("recenter_view", "RECENTER"),
+])
+def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path):
+    """A projection and a heading are things only the VR player has."""
+    config = _make_config(tmp_path, vr_main_player=True)
     state = _make_state(main_mode="nau")
 
-    dispatch_command("recenter_view", state, config)
+    dispatch_command(command, state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECENTER\n"
+    assert config.nau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
 
 
-def test_recenter_in_genau_mode_is_a_no_op(tmp_path: Path):
+@pytest.mark.parametrize("command", ["projection_cycle", "recenter_view"])
+@pytest.mark.parametrize("main_mode", ["nau", "hybrid", "genau"])
+def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
+    """Nau has no projection and no headset to face, in any mode.
+
+    The channel is the main player's, and the desktop main player answers a
+    smaller contract than the VR one -- so this is gated on which player the
+    session launched, not on which mode it is in.
+    """
     config = _make_config(tmp_path)
-    state = _make_state(main_mode="genau")
+    state = _make_state(main_mode=main_mode)
 
-    dispatch_command("recenter_view", state, config)
+    dispatch_command(command, state, config)
 
     assert not config.nau_cmd_file.exists()
 
