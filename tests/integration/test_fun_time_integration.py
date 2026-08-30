@@ -16,10 +16,10 @@ from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 from fun_time.win32 import (
     find_window_by_pid,
     find_window_by_title,
-    is_process_alive,
     is_window_minimized,
     is_window_topmost,
 )
+from fun_time.win32_process import is_process_alive
 
 from .integration_support import (
     FunTimeIntegrationSession,

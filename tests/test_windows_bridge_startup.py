@@ -18,7 +18,7 @@ from fun_time.shared_state import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
-from fun_time.win32 import APP_USER_MODEL_ID
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
     _build_satellite_launch_command,

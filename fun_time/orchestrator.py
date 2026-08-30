@@ -33,7 +33,7 @@ from .single_instance import (
     show_already_running_message,
     try_acquire_mutex,
 )
-from .win32 import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
+from .win32_taskbar import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
 from .process_identity import prepare_orchestrator_launcher
 from .windows_bridge_orchestrator import run_session
 from app_support.logging_utils import configure_logging, install_exception_logging

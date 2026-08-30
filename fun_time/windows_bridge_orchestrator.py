@@ -68,12 +68,12 @@ from .win32 import (
     close_window,
     find_window_by_pid,
     find_window_for_process,
-    get_process_creation_time,
     iter_zorder,
     set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
 )
+from .win32_process import get_process_creation_time
 
 logger = logging.getLogger(__name__)
 

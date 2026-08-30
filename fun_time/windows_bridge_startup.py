@@ -53,7 +53,7 @@ from .process_identity import PROCESS_NAME_PATTERN, identified_python_exe
 from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
-from .win32 import APP_USER_MODEL_ID
+from .win32_taskbar import APP_USER_MODEL_ID
 from .window_layout import WindowRect
 
 logger = logging.getLogger(__name__)

@@ -86,7 +86,7 @@ from fun_time.windows_bridge_startup import (
     reset_satellite_paused_states,
     seed_startup_states,
 )
-from fun_time.win32 import get_process_creation_time
+from fun_time.win32_process import get_process_creation_time
 from fun_time.runtime_flow import write_flag_file
 from player_core.playlist import read_playlist
 

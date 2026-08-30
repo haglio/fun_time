@@ -1031,7 +1031,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Set AppUserModelID before any window creation so the taskbar can group
     # this process's windows with the pinned "Fun Time" shortcut.
-    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    from .win32_taskbar import APP_USER_MODEL_ID, set_app_user_model_id
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:
