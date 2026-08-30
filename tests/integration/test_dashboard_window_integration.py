@@ -27,7 +27,6 @@ from fun_time.dashboard_app import (
     load_dashboard_app_config,
 )
 from fun_time.dashboard_runtime import (
-    DashboardPanelSnapshot,
     DashboardSnapshot,
     DashboardWindowSnapshot,
 )
@@ -206,12 +205,7 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
     """The state file's snapshot, as the dashboard's refresh reads it."""
     return DashboardSnapshot(
-        main_mode="nau",
-        osr2_mode="controlled",
         omni_paused=omni_paused,
-        main=DashboardPanelSnapshot(path=""),
-        portrait=DashboardPanelSnapshot(path=""),
-        landscape=DashboardPanelSnapshot(path=""),
         window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
     )
 

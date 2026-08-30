@@ -5,27 +5,14 @@ from pathlib import Path
 
 def build_dashboard_snapshot_text(
     *,
-    osr2_mode: str,
-    main_mode: str,
-    portrait_locked: bool,
-    landscape_locked: bool,
     omni_paused: bool = False,
     voice_active: bool = True,
 ) -> str:
     return (
-        "[osr2]\n"
-        f"mode={osr2_mode}\n"
         "[omnipause]\n"
         f"active={'1' if omni_paused else '0'}\n"
         "[voice]\n"
         f"active={'1' if voice_active else '0'}\n"
-        "[main]\n"
-        f"mode={main_mode}\n"
-        "locked=0\n"
-        "[portrait]\n"
-        f"locked={'1' if portrait_locked else '0'}\n"
-        "[landscape]\n"
-        f"locked={'1' if landscape_locked else '0'}\n"
     )
 
 
@@ -45,19 +32,11 @@ def _read_existing_snapshot(path: Path) -> str:
 def write_dashboard_snapshot(
     output_file: str | Path,
     *,
-    osr2_mode: str,
-    main_mode: str,
-    portrait_locked: bool,
-    landscape_locked: bool,
     omni_paused: bool = False,
     voice_active: bool = True,
 ) -> bool:
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
-        osr2_mode=osr2_mode,
-        main_mode=main_mode,
-        portrait_locked=portrait_locked,
-        landscape_locked=landscape_locked,
         omni_paused=omni_paused,
         voice_active=voice_active,
     )
