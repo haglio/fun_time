@@ -13,14 +13,24 @@ import time
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
-from .window_roles import ORIGENERATOR_ROLE_TITLES
+from .satellites_mode import origenerator_shows
+from .window_roles import (
+    FIXED_TOPMOST_ROLES,
+    MANAGED_ROLES,
+    ORIGENERATOR_ROLES,
+    ORIGENERATOR_ROLE_TITLES,
+    role_topmost,
+)
 from .win32 import (
     activate_window,
     find_window_by_pid,
     find_window_by_title,
     find_window_for_process,
+    is_window_minimized,
+    is_window_topmost,
     minimize_window,
     restore_window,
+    set_always_on_top,
     window_exists,
 )
 from .windows_bridge_startup import (
@@ -270,3 +280,124 @@ class WindowRoles:
             restore_window(hwnd, activate=False)
         self._minimized_hwnds = []
         self._parked_hwnds = []
+
+    # -- the topmost bands --------------------------------------------------
+
+    def remove_all_topmost(self) -> None:
+        """Drop EVERY managed window out of the TOPMOST band (omnipause frees
+        the desktop).  Dropping unconditionally — not just the normally-topmost
+        roles — is what stops Nau from being stranded on top in nau mode, where
+        it does carry the topmost flag."""
+        for role in MANAGED_ROLES:
+            hwnd = self.hwnd(role)
+            if hwnd:
+                set_always_on_top(hwnd, False)
+
+    def restore_all_topmost(self, main_mode: str, satellites_mode: str) -> None:
+        """Re-apply the topmost bands for these modes after omnipause.
+
+        Every role is asked the shared ``role_topmost`` policy, the fixed ones
+        included.  Promoting those without asking is what flashed the Random
+        Favs Browser over Origenerator on every resume: the browser shares its
+        rect with the hosted app's main window and the policy already answers
+        "not topmost" for it in origenerator mode, but this path put it in the
+        band anyway — and ``HWND_TOPMOST`` inserts at the TOP of the band, so
+        it sat above Origenerator until :meth:`restack_satellites`, a few
+        SetWindowPos calls later, promoted the host back over it.
+
+        The hosted trio then goes up (:meth:`restack_satellites`), and the
+        overlapping Nau/Genau pair last (:meth:`restack_main_slot`), so Genau's
+        HUD sits above Nau's video in hybrid.
+        """
+        for role in FIXED_TOPMOST_ROLES:
+            if not role_topmost(role, main_mode, satellites_mode):
+                continue
+            hwnd = self.hwnd(role)
+            if hwnd:
+                set_always_on_top(hwnd, True)
+        self.restack_satellites(main_mode, satellites_mode)
+        self.restack_main_slot(main_mode)
+
+    def restack_satellites(self, main_mode: str, satellites_mode: str) -> None:
+        """Promote the hosted Origenerator's windows above the ones they cover.
+
+        Only in origenerator mode — its windows share the RFB's and the
+        players' rects, and ``HWND_TOPMOST`` inserts at the top of the band, so
+        promoting them after the fixed roles is what stacks them on top.  In
+        player mode they are parked and stay out of the band.
+        """
+        for role in ORIGENERATOR_ROLES:
+            if not role_topmost(role, main_mode, satellites_mode):
+                continue
+            hwnd = self.hwnd(role)
+            if hwnd:
+                set_always_on_top(hwnd, True)
+
+    def restack_main_slot(self, main_mode: str) -> None:
+        """Re-establish the Nau/Genau z-order for this mode.
+
+        Nau and Genau share one screen rect — in hybrid Genau's transparent HUD
+        overlays Nau's video — so unlike every other window they OVERLAP and need
+        explicit stacking.  Demote both, then promote bottom-to-top so the last
+        promotion lands highest:
+
+          * nau mode   — promote Nau (Genau hidden).
+          * hybrid     — promote Nau, then Genau ABOVE it, so the HUD overlays
+                         the video and both float above the desktop.
+          * genau mode — promote Genau (Nau hidden).
+
+        Promoting Nau before Genau is what keeps the HUD over the video.
+        """
+        nau = self.hwnd("nau")
+        genau = self.hwnd("genau")
+        for hwnd in (nau, genau):
+            if hwnd:
+                set_always_on_top(hwnd, False)
+        if nau and role_topmost("nau", main_mode):
+            set_always_on_top(nau, True)
+        if genau and role_topmost("genau", main_mode):
+            set_always_on_top(genau, True)
+
+    def converge_origenerator_window(self, main_mode: str, satellites_mode: str) -> None:
+        """Keep the hosted app's main window where the satellites' mode says.
+
+        The mode-switch ops restore or park it when a command fires, but two
+        paths arrive with no op to run: a session RESUMED into origenerator
+        mode (the mode was seeded, never switched), and a switch made while the
+        app was still booting (the op resolved no window and fell through).
+        This converges both.
+
+        Judged from the WINDOW, not from a memory of what was asked: the app's
+        main thread blocks for long stretches while it boots, so a restore sent
+        to it can time out through the hung-window guard and do nothing — and a
+        converger that then remembered "shown" never tried again, which left a
+        resumed session's window parked until the user dug it out of the
+        taskbar.  Reading the minimized state each pass makes every miss retry.
+        """
+        if not self.pids.origenerator:
+            return
+        hwnd = self.hwnd("origenerator")
+        if not hwnd:
+            return  # still booting — try again next sync
+        minimized = is_window_minimized(hwnd)
+        if origenerator_shows(satellites_mode):
+            if minimized:
+                restore_window(hwnd, activate=False)
+            if minimized or not is_window_topmost(hwnd):
+                self.restack_satellites(main_mode, satellites_mode)
+        elif not minimized:
+            minimize_window(hwnd, activate=False)
+
+    def topmost_report(self) -> str:
+        """Every managed window's resolved hwnd and topmost state, one line.
+
+        Entering omnipause should leave EVERY window non-topmost; one still
+        topmost at "post-enter" is one the drop didn't reach, and this is the
+        diagnostic that names it.
+        """
+        parts = []
+        for role in MANAGED_ROLES:
+            hwnd = self.hwnd(role)
+            state = is_window_topmost(hwnd) if hwnd else "n/a"
+            parts.append(f"{role}={hwnd}:{state}")
+        return "  ".join(parts)

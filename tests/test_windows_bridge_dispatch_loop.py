@@ -68,7 +68,7 @@ def _neutralise_topmost_reads():
     playback to status files, so a tick's satellite/main-player sampling is inert
     here (no status files written).  A test asserting on topmost state patches
     is_window_topmost itself."""
-    with patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False):
+    with patch("fun_time.role_windows.is_window_topmost", return_value=False):
         yield
 
 
@@ -649,7 +649,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+             patch("fun_time.role_windows.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
@@ -676,9 +676,9 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost", return_value=False), \
+             patch("fun_time.role_windows.is_window_topmost", return_value=False), \
              patch("fun_time.role_windows.activate_window", side_effect=activated.append), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+             patch("fun_time.role_windows.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
@@ -694,7 +694,7 @@ class TestDispatchLoopRunner:
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.role_windows.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -738,7 +738,7 @@ class TestDispatchLoopRunner:
 
             with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
                  patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-                 patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+                 patch("fun_time.role_windows.set_always_on_top"), \
                  patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                        return_value=None) as mock_browse:
                 runner.tick()
@@ -934,7 +934,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.role_windows.activate_window"), \
              patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.role_windows.set_always_on_top"), \
              patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
             assert minimized == [], "Nau minimized before it could paint the black"
@@ -969,7 +969,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
              patch("fun_time.role_windows.activate_window"), \
              patch("fun_time.role_windows.restore_window"), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.role_windows.set_always_on_top"), \
              patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
             clock.advance(PRIMARY_BLANK_SETTLE_S)
@@ -1087,7 +1087,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.minimize_window"), \
              patch("fun_time.role_windows.activate_window"), \
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append((h, kw))), \
-             patch.object(runner, "_restore_all_topmost"):
+             patch.object(runner.windows, "restore_all_topmost"):
             cmd_file.write_text("portrait_minimize\nlandscape_minimize", encoding="utf-8")
             runner.tick()
             assert restored == [], "parking a player restores nothing"
@@ -1119,8 +1119,8 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.minimize_window"), \
              patch("fun_time.role_windows.activate_window"), \
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append(h)), \
-             patch.object(runner, "_restore_all_topmost"), \
-             patch.object(runner, "_restack_main_slot"):
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch.object(runner.windows, "restack_main_slot"):
             # A switch to genau parks Nau, which the settle then flushes.
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
@@ -1471,7 +1471,7 @@ class TestModeSwitchVisibility:
                    side_effect=lambda h, **kw: calls.append(("hide", h))), \
              patch("fun_time.role_windows.activate_window",
                    side_effect=lambda h: calls.append(("activate", h))), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.role_windows.set_always_on_top"):
             runner._dispatch(command)
             # The outgoing player's minimize is held back a beat, so it can paint
             # the black the same switch told it to before its Alt-Tab thumbnail
@@ -1570,83 +1570,6 @@ class TestResolveRole:
         assert shown == [NAU_HWND]
 
 
-class TestModeDependentTopmost:
-    """Every managed window is topmost in every mode EXCEPT Nau, whose band is
-    mode-dependent: topmost in nau mode (floating above the desktop like the
-    main player always has), non-topmost in hybrid (under Genau's HUD)."""
-
-    def _topmost_calls(self, runner, method_name):
-        calls: list[tuple[int, bool]] = []
-        with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
-             patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.role_windows.find_window_for_process",
-                   side_effect=lookup_hosted), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
-                   side_effect=lambda h, v: calls.append((h, v))):
-            getattr(runner, method_name)()
-        return calls
-
-    def test_remove_all_topmost_drops_every_managed_window(self, tmp_path):
-        """Omnipause enter frees the desktop entirely — Nau included, so it is
-        never left stranded on top."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-
-        calls = self._topmost_calls(runner, "_remove_all_topmost")
-
-        assert {h for h, v in calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
-
-    def test_restore_all_topmost_floats_nau_in_nau_mode(self, tmp_path):
-        """nau mode: Nau reclaims the topmost band, above the desktop."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(main_mode="nau")
-
-        calls = self._topmost_calls(runner, "_restore_all_topmost")
-
-        assert {h for h, v in calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
-
-    def test_restore_all_topmost_stacks_genau_above_nau_in_hybrid(self, tmp_path):
-        """hybrid: Nau and Genau are BOTH topmost so the composite floats above
-        the desktop, and Nau is promoted BEFORE Genau so the HUD stacks over the
-        video."""
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(main_mode="hybrid")
-
-        calls = self._topmost_calls(runner, "_restore_all_topmost")
-
-        promoted = [h for h, v in calls if v is True]
-        assert {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
-                NAU_HWND, GENAU_HWND} <= set(promoted)
-        # Nau promoted before Genau → Genau's HUD lands above Nau's video.
-        assert promoted.index(NAU_HWND) < promoted.index(GENAU_HWND)
-
-    def test_restore_all_topmost_leaves_the_browser_under_the_hosted_app(self, tmp_path):
-        """His: the Random Favs Browser flashes over Origenerator for a moment
-        every time the room resumes from OmniPause.
-
-        The browser shares its rect with the hosted app's main window, and the
-        band policy already answers "not topmost" for it in origenerator mode
-        — but this path promoted every fixed role without asking, so the
-        browser went to the top of the band (HWND_TOPMOST inserts there) and
-        stayed above Origenerator until _restack_satellites promoted the host
-        back over it a moment later.  That gap is the flash.
-        """
-        runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, origenerator_pid=HOSTED_PID)
-        runner.state = BridgeState(main_mode="nau", satellites_mode="origenerator")
-
-        calls = self._topmost_calls(runner, "_restore_all_topmost")
-
-        promoted = [h for h, v in calls if v is True]
-        assert RFB_HWND not in promoted, (
-            "the browser was promoted into the topmost band while the hosted "
-            "app owns its rect, which puts it over Origenerator until the next "
-            "promotion pushes it back down"
-        )
-        # Everything the mode really does show still comes back.
-        assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND,
-                HOSTED_HWND, HOSTED_PORTRAIT_HWND,
-                HOSTED_LANDSCAPE_HWND} <= set(promoted)
-
-
 class TestBrowseLibrary:
     """Tests for the browse_library command (the Nau "browse" feature).
 
@@ -1669,7 +1592,7 @@ class TestBrowseLibrary:
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"), \
+             patch("fun_time.role_windows.set_always_on_top"), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
@@ -1689,7 +1612,7 @@ class TestBrowseLibrary:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+             patch("fun_time.role_windows.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -1707,8 +1630,8 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path, config=config, manifest_path=tmp_path / "launch.ini")
         runner.state = BridgeState(omni_paused=False)
 
-        with patch.object(runner, "_remove_all_topmost"), \
-             patch.object(runner, "_restore_all_topmost"), \
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 400, 1080, 1520)), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -1732,8 +1655,8 @@ class TestBrowseLibrary:
         mirrored.parent.mkdir(parents=True)
         mirrored.write_text("{}", encoding="utf-8")
 
-        with patch.object(runner, "_remove_all_topmost"), \
-             patch.object(runner, "_restore_all_topmost"), \
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
             runner._handle_browse_library()
@@ -1748,8 +1671,8 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path, config=config)
         runner.state = BridgeState(omni_paused=False, main_mode="hybrid")
 
-        with patch.object(runner, "_remove_all_topmost"), \
-             patch.object(runner, "_restore_all_topmost"), \
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
@@ -1762,8 +1685,8 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch.object(runner, "_remove_all_topmost"), \
-             patch.object(runner, "_restore_all_topmost"), \
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -1780,7 +1703,7 @@ class TestBrowseLibrary:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+             patch("fun_time.role_windows.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -1796,7 +1719,7 @@ class TestBrowseLibrary:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+             patch("fun_time.role_windows.set_always_on_top",
                    side_effect=lambda hwnd, on_top: topmost_calls.append((hwnd, on_top))), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
@@ -1820,8 +1743,8 @@ class TestBrowseLibrary:
         runner.state = BridgeState(omni_paused=False)
         suspends: list[str] = []
 
-        with patch.object(runner, "_remove_all_topmost"), \
-             patch.object(runner, "_restore_all_topmost"), \
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library",
@@ -1854,7 +1777,7 @@ class TestBrowseLibrary:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
+             patch("fun_time.role_windows.set_always_on_top", side_effect=lambda h, v: call_log.append(f"topmost_{v}")), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", side_effect=lambda *a, **kw: (call_log.append("browse"), None)[-1]):
             runner._handle_browse_library()
 
@@ -1871,7 +1794,7 @@ class TestBrowseLibrary:
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=NAU_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 0, 800, 600)), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as mock_topmost, \
+             patch("fun_time.role_windows.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
             runner._handle_browse_library()
 
@@ -1888,8 +1811,8 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
-        with patch.object(runner, "_remove_all_topmost"), \
-             patch.object(runner, "_restore_all_topmost"), \
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
              patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -2112,7 +2035,7 @@ class TestIdempotentVoiceCommands:
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
+             patch("fun_time.role_windows.set_always_on_top"):
             runner.tick()
 
         assert runner.state.omni_paused is True
@@ -2127,7 +2050,7 @@ class TestIdempotentVoiceCommands:
 
         with patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=lookup_title), \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top",
+             patch("fun_time.role_windows.set_always_on_top",
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
@@ -3155,70 +3078,31 @@ class TestOrigeneratorShows:
 
 
 class TestOrigeneratorWindowConverger:
-    def test_a_resumed_origenerator_mode_restores_the_window_once_it_exists(self, tmp_path):
-        config = make_config(tmp_path)
-        runner = make_runner(tmp_path, config=config, origenerator_pid=700)
-        runner.state = replace(runner.state, satellites_mode="origenerator")
-        with patch.object(runner.windows, "hwnd", return_value=0), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore:
-            runner._converge_origenerator_window()
-        restore.assert_not_called()  # still booting — nothing to drive
-        with patch.object(runner.windows, "hwnd", return_value=4242), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
-                   return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
-            runner._converge_origenerator_window()
-        restore.assert_called_once_with(4242, activate=False)
+    """The convergence itself is the windows object's (see
+    tests/test_role_windows.py); what the runner owns is when it runs."""
 
-    def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self, tmp_path):
-        """The app's boot blocks its main thread, so a restore can time out
-        through the hung-window guard and do nothing.  The converger judges
-        from the WINDOW each pass — still minimized means try again — instead
-        of remembering it as shown and leaving a resumed session parked until
-        the user digs it out of the taskbar."""
+    def test_omnipause_leaves_the_hosted_window_exactly_where_it_is(self, tmp_path):
+        """OmniPause's window state is its own — every band is down and the
+        room is stopped — so a converger firing inside it would restore or
+        park the hosted app against what the pause just did."""
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner.state = replace(runner.state, satellites_mode="origenerator")
-        with patch.object(runner.windows, "hwnd", return_value=4242), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
-                   return_value=True), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top"):
-            runner._converge_origenerator_window()
-            runner._converge_origenerator_window()
-        assert restore.call_count == 2
+        runner.state = replace(runner.state, satellites_mode="origenerator",
+                               omni_paused=True)
 
-    def test_a_shown_window_out_of_the_band_is_re_promoted(self, tmp_path):
-        # Restored but buried (the topmost bit never took): the converger
-        # re-bands it rather than reading "not minimized" as converged.
+        with patch.object(runner.windows, "converge_origenerator_window") as converge:
+            runner._converge_origenerator_window()
+
+        converge.assert_not_called()
+
+    def test_outside_omnipause_the_windows_object_is_asked_for_these_modes(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner.state = replace(runner.state, satellites_mode="origenerator")
-        with patch.object(runner.windows, "hwnd", return_value=4242), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
-                   return_value=False), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_topmost",
-                   return_value=False), \
-             patch("fun_time.windows_bridge_dispatch_loop.restore_window") as restore, \
-             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as promote:
-            runner._converge_origenerator_window()
-        restore.assert_not_called()
-        promote.assert_any_call(4242, True)
+        runner.state = replace(runner.state, main_mode="hybrid",
+                               satellites_mode="origenerator")
 
-    def test_player_mode_parks_a_window_left_up(self, tmp_path):
-        runner = make_runner(tmp_path, origenerator_pid=700)
-        with patch.object(runner.windows, "hwnd", return_value=4242), \
-             patch("fun_time.windows_bridge_dispatch_loop.is_window_minimized",
-                   return_value=False), \
-             patch("fun_time.windows_bridge_dispatch_loop.minimize_window") as minimize:
+        with patch.object(runner.windows, "converge_origenerator_window") as converge:
             runner._converge_origenerator_window()
-        minimize.assert_called_once_with(4242, activate=False)
 
-    def test_without_a_hosted_app_the_converger_is_inert(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = replace(runner.state, satellites_mode="origenerator")
-        with patch.object(runner.windows, "hwnd") as resolve:
-            runner._converge_origenerator_window()
-        resolve.assert_not_called()
+        converge.assert_called_once_with("hybrid", "origenerator")
 
 
 class TestOrigeneratorWatchGuard:

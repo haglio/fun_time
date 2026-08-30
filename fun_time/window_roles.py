@@ -13,8 +13,9 @@ stacked relative to each other:
   * nau mode    — Nau owns the display and is topmost (Genau hidden).
   * hybrid mode — Nau is topmost so the video floats up, and Genau is stacked
                   just ABOVE it so the HUD overlays the video.  That ordering is
-                  enforced by promoting Nau before Genau (see the dispatch
-                  loop's ``_restack_main_slot``), not by these flags.
+                  enforced by promoting Nau before Genau (see
+                  ``role_windows.WindowRoles.restack_main_slot``), not by these
+                  flags.
   * genau mode  — Genau owns the display and is topmost (Nau hidden).
 """
 from __future__ import annotations
@@ -85,6 +86,12 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = "player") -> 
         # flashed the browser over Origenerator on its way past.
         return not origenerator_shows(satellites_mode)
     return True
+
+
+def visible_roles(main_mode: str, satellites_mode: str = "player") -> list[str]:
+    """Every managed role whose window these modes keep on screen."""
+    origenerator = ORIGENERATOR_ROLES if origenerator_shows(satellites_mode) else ()
+    return [*FIXED_TOPMOST_ROLES, *origenerator, *visible_main_slot_roles(main_mode)]
 
 
 def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:

@@ -55,23 +55,8 @@ from .dashboard_runtime import (
 from .runtime_flow import read_flag_file
 from .role_windows import WindowRoles
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
-from .window_roles import (
-    FIXED_TOPMOST_ROLES,
-    MANAGED_ROLES,
-    ORIGENERATOR_ROLES,
-    role_topmost,
-    visible_main_slot_roles,
-)
-from .win32 import (
-    force_foreground_window,
-    is_window_minimized,
-    is_window_topmost,
-    minimize_window,
-    restore_window,
-    set_always_on_top,
-    window_exists,
-    window_rect,
-)
+from .window_roles import visible_roles
+from .win32 import force_foreground_window, window_exists, window_rect
 
 logger = logging.getLogger(__name__)
 
@@ -812,16 +797,18 @@ class DispatchLoopRunner:
                 # Re-stack the overlapping Nau/Genau pair for the current mode.
                 # Not integration-guarded: SetWindowPos(HWND_TOPMOST) uses
                 # SWP_NOACTIVATE, so it changes only the z-band, never focus.
-                self._restack_main_slot()
+                self.windows.restack_main_slot(self.state.main_mode)
                 continue
             if op.op == "restack_satellites":
-                self._restack_satellites()
+                self.windows.restack_satellites(
+                    self.state.main_mode, self.state.satellites_mode)
                 continue
             if op.op == "disable_all_topmost":
-                self._remove_all_topmost()
+                self.windows.remove_all_topmost()
                 continue
             if op.op == "restore_all_topmost":
-                self._restore_all_topmost()
+                self.windows.restore_all_topmost(
+            self.state.main_mode, self.state.satellites_mode)
                 continue
             if suppress_unsuspend and op.op == "unsuspend_hotkeys":
                 continue
@@ -936,121 +923,13 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
-    def _visible_roles(self) -> list[str]:
-        """Roles whose windows the current modes keep on screen."""
-        origenerator = (
-            ORIGENERATOR_ROLES if origenerator_shows(self.state.satellites_mode) else ()
-        )
-        return [*FIXED_TOPMOST_ROLES, *origenerator,
-                *visible_main_slot_roles(self.state.main_mode)]
-
-    def _remove_all_topmost(self) -> None:
-        """Drop EVERY managed window out of the TOPMOST band (omnipause frees
-        the desktop).  Dropping unconditionally — not just the normally-topmost
-        roles — is what stops Nau from being stranded on top in nau mode, where
-        it does carry the topmost flag."""
-        for role in MANAGED_ROLES:
-            hwnd = self.windows.hwnd(role)
-            if hwnd:
-                set_always_on_top(hwnd, False)
-
-    def _restore_all_topmost(self) -> None:
-        """Re-apply the topmost bands for the current modes after omnipause.
-
-        Every role is asked the shared ``role_topmost`` policy, the fixed ones
-        included.  Promoting those without asking is what flashed the Random
-        Favs Browser over Origenerator on every resume: the browser shares its
-        rect with the hosted app's main window and the policy already answers
-        "not topmost" for it in origenerator mode, but this path put it in the
-        band anyway — and ``HWND_TOPMOST`` inserts at the TOP of the band, so
-        it sat above Origenerator until :meth:`_restack_satellites`, a few
-        SetWindowPos calls later, promoted the host back over it.
-
-        Then the hosted trio is promoted AFTER the fixed roles, which stacks it
-        above the windows it covers; the overlapping Nau/Genau pair is
-        re-stacked last so Genau's HUD sits above Nau's video in hybrid.  See
-        :meth:`_restack_main_slot`.
-        """
-        for role in FIXED_TOPMOST_ROLES:
-            if not role_topmost(role, self.state.main_mode, self.state.satellites_mode):
-                continue
-            hwnd = self.windows.hwnd(role)
-            if hwnd:
-                set_always_on_top(hwnd, True)
-        self._restack_satellites()
-        self._restack_main_slot()
-
     def _converge_origenerator_window(self) -> None:
-        """Keep the hosted app's main window where the satellites' mode says.
-
-        The mode-switch ops restore or park it when a command fires, but two
-        paths arrive with no op to run: a session RESUMED into origenerator
-        mode (the mode was seeded, never switched), and a switch made while the
-        app was still booting (the op resolved no window and fell through).
-        This converges both — never during OmniPause, whose window state is
-        its own.
-
-        Judged from the WINDOW, not from a memory of what was asked: the app's
-        main thread blocks for long stretches while it boots, so a restore sent
-        to it can time out through the hung-window guard and do nothing — and a
-        converger that then remembered "shown" never tried again, which left a
-        resumed session's window parked until the user dug it out of the
-        taskbar.  Reading the minimized state each pass makes every miss retry.
-        """
-        if not self.windows.pids.origenerator or self.state.omni_paused:
+        """Converge the hosted app's window — never during OmniPause, whose
+        window state is its own."""
+        if self.state.omni_paused:
             return
-        hwnd = self.windows.hwnd("origenerator")
-        if not hwnd:
-            return  # still booting — try again next sync
-        minimized = is_window_minimized(hwnd)
-        if origenerator_shows(self.state.satellites_mode):
-            if minimized:
-                restore_window(hwnd, activate=False)
-            if minimized or not is_window_topmost(hwnd):
-                self._restack_satellites()
-        elif not minimized:
-            minimize_window(hwnd, activate=False)
-
-    def _restack_satellites(self) -> None:
-        """Promote the hosted Origenerator's windows above the ones they cover.
-
-        Only in origenerator mode — its windows share the RFB's and the
-        players' rects, and ``HWND_TOPMOST`` inserts at the top of the band, so
-        promoting them after the fixed roles is what stacks them on top.  In
-        player mode they are parked and stay out of the band.
-        """
-        for role in ORIGENERATOR_ROLES:
-            if not role_topmost(role, self.state.main_mode, self.state.satellites_mode):
-                continue
-            hwnd = self.windows.hwnd(role)
-            if hwnd:
-                set_always_on_top(hwnd, True)
-
-    def _restack_main_slot(self) -> None:
-        """Re-establish the Nau/Genau z-order for the current mode.
-
-        Nau and Genau share one screen rect — in hybrid Genau's transparent HUD
-        overlays Nau's video — so unlike every other window they OVERLAP and need
-        explicit stacking.  Demote both, then promote bottom-to-top so the last
-        promotion lands highest:
-
-          * nau mode   — promote Nau (Genau hidden).
-          * hybrid     — promote Nau, then Genau ABOVE it, so the HUD overlays
-                         the video and both float above the desktop.
-          * genau mode — promote Genau (Nau hidden).
-
-        Promoting Nau before Genau is what keeps the HUD over the video.
-        """
-        mode = self.state.main_mode
-        nau = self.windows.hwnd("nau")
-        genau = self.windows.hwnd("genau")
-        for hwnd in (nau, genau):
-            if hwnd:
-                set_always_on_top(hwnd, False)
-        if nau and role_topmost("nau", mode):
-            set_always_on_top(nau, True)
-        if genau and role_topmost("genau", mode):
-            set_always_on_top(genau, True)
+        self.windows.converge_origenerator_window(
+            self.state.main_mode, self.state.satellites_mode)
 
     def _broker_heartbeat_is_fresh(self) -> bool:
         """Whether the broker is currently talking to the OSR2 — not whether it exists.
@@ -1121,7 +1000,8 @@ class DispatchLoopRunner:
         minimizing one never yanks focus to the next.  The minimized set is
         remembered so omnirestore brings back exactly these windows.
         """
-        self.windows.minimize_all(self._visible_roles())
+        self.windows.minimize_all(
+            visible_roles(self.state.main_mode, self.state.satellites_mode))
 
     def _handle_omnirestore(self) -> None:
         """Un-minimize exactly the windows omniminimize minimized.
@@ -1133,19 +1013,8 @@ class DispatchLoopRunner:
         self.windows.restore_minimized()
 
     def _log_topmost_state(self, label: str) -> None:
-        """Log every managed window's resolved hwnd and topmost state.
-
-        Entering omnipause should leave EVERY window non-topmost; a window still
-        topmost at "post-enter" is one the drop didn't reach (an unresolved or
-        re-asserting window).  Leaving restores the per-mode bands.  This is the
-        diagnostic that pins which window (e.g. a satellite) misbehaves.
-        """
-        parts = []
-        for role in MANAGED_ROLES:
-            hwnd = self.windows.hwnd(role)
-            state = is_window_topmost(hwnd) if hwnd else "n/a"
-            parts.append(f"{role}={hwnd}:{state}")
-        logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode, "  ".join(parts))
+        logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode,
+                    self.windows.topmost_report())
 
     def _handle_omnipause_toggle(self) -> None:
         """Toggle omnipause with topmost management for all windows.
@@ -1205,7 +1074,7 @@ class DispatchLoopRunner:
         manage_session = not self.state.omni_paused
 
         if manage_session:
-            self._remove_all_topmost()
+            self.windows.remove_all_topmost()
             self.ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
 
         try:
@@ -1229,7 +1098,8 @@ class DispatchLoopRunner:
                 append_command(self.config.nau_cmd_file, command)
         finally:
             if manage_session:
-                self._restore_all_topmost()
+                self.windows.restore_all_topmost(
+            self.state.main_mode, self.state.satellites_mode)
                 self.ahk_cmd_file.write_text("unsuspend_hotkeys", encoding="utf-8")
 
     def run(self) -> None:
