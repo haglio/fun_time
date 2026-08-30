@@ -43,10 +43,6 @@ class SatelliteSession:
         self.load(0)
 
     @property
-    def index(self) -> int:
-        return self._index
-
-    @property
     def is_paused(self) -> bool:
         return self._paused
 
@@ -60,7 +56,12 @@ class SatelliteSession:
 
     @property
     def playlist(self) -> list[Path]:
-        """A copy of the current playlist, so callers cannot mutate it in place."""
+        """A copy of the current playlist, so callers cannot mutate it in place.
+
+        A test seam, kept deliberately: nothing in the app reads it, and the
+        order of the whole list is what the discard, jump and reload tests are
+        about -- see CHANGELOG.md, item 25.
+        """
         return list(self._playlist)
 
     @property
