@@ -1974,7 +1974,6 @@ def _dispatch_no_loop(
     which = 2 if scope == "portrait" else 3
     current = _satellite_current(config, which)
     browse = satellite_browse_paths(
-        which=which,
         query=_side_filter(state, which),
         f_mode_enabled=_side_f_mode(state, which),
         recent=state.portrait_latest if which == 2 else state.landscape_latest,

@@ -705,7 +705,6 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
     _make_action_video(portrait_root, metadata_root, "pk", "Kissing")
 
     paths = satellite_browse_paths(
-        which=2,
         query="alpha",
         f_mode_enabled=False,
         recent=True,

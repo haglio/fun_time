@@ -212,7 +212,7 @@ def _kernel32():
     return dll
 
 
-def stamp_identity(exe: Path, *, description: str, role: str, source_stamp: str,
+def stamp_identity(exe: Path, *, description: str, source_stamp: str,
                    icon: bytes | None) -> None:
     """Write *description*, the source stamp and *icon* into *exe*'s resources.
 
@@ -342,7 +342,7 @@ def identified_python_exe(python_exe: str | Path, role: str) -> str:
         # directory left by a botched cleanup) made the copy report success and
         # handed the launcher a directory to run.  copyfile refuses it instead.
         shutil.copyfile(source, target)
-        stamp_identity(target, description=description, role=role,
+        stamp_identity(target, description=description,
                        source_stamp=stamp, icon=icon)
     except (OSError, ValueError):
         # A described copy already there, one label or one Python upgrade behind,
