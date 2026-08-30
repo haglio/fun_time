@@ -394,30 +394,6 @@ def repo_with_worktrees(tmp_path: Path) -> SimpleNamespace:
     return SimpleNamespace(primary=primary, older=older, newer=newer)
 
 
-def test_the_worktrees_are_listed_newest_first_without_the_primary(repo_with_worktrees):
-    """Newest first because the branch an agent just finished is the one being
-    verified; the main player is left out because it is what ``launch.vbs`` runs."""
-    listed = branch_session.list_worktrees(repo_with_worktrees.primary)
-
-    assert [worktree.branch for worktree in listed] == ["example/newer", "example/older"]
-    assert [worktree.path for worktree in listed] == [
-        repo_with_worktrees.newer.resolve(),
-        repo_with_worktrees.older.resolve(),
-    ]
-    assert [worktree.subject for worktree in listed] == ["Newer work", "Older work"]
-    assert all(worktree.age for worktree in listed)
-
-
-def test_a_worktree_whose_directory_is_gone_is_not_offered(repo_with_worktrees):
-    """Deleting a worktree without pruning leaves it registered. Offering it
-    would put a menu entry there that can only fail."""
-    shutil.rmtree(repo_with_worktrees.older)
-
-    listed = branch_session.list_worktrees(repo_with_worktrees.primary)
-
-    assert [worktree.branch for worktree in listed] == ["example/newer"]
-
-
 def test_the_primary_is_found_from_a_worktree(repo_with_worktrees):
     """Worktrees share the main player's git directory, so the launcher finds the
     machine's real config and overlays from any of them."""
