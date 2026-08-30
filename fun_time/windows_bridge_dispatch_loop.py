@@ -1489,10 +1489,18 @@ class DispatchLoopRunner:
 
 def build_bridge_config_from_manifest(
     manifest: configparser.ConfigParser,
+    *,
+    vr_main_player: bool = False,
 ) -> BridgeConfig:
-    """Build a BridgeConfig from the windows bridge manifest INI."""
+    """Build a BridgeConfig from the windows bridge manifest INI.
+
+    *vr_main_player* says the session hosts its main player inside the VR
+    scene rather than launching Nau.  The manifest cannot answer it — both
+    sessions build from the same one — so the orchestrator that knows says so.
+    """
     commands = manifest["commands"]
     return BridgeConfig(
+        vr_main_player=vr_main_player,
         portrait_cmd_file=Path(commands["portrait_cmd_file"]),
         portrait_paused_file=Path(commands["portrait_paused_file"]),
         portrait_status_file=Path(commands["portrait_status_file"]),

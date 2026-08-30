@@ -230,7 +230,7 @@ def run_vr_bridge(config, logger_) -> int:
     manifest = configparser.ConfigParser()
     manifest.optionxform = str
     manifest.read(str(manifest_path), encoding="utf-8")
-    bridge_config = build_bridge_config_from_manifest(manifest)
+    bridge_config = build_bridge_config_from_manifest(manifest, vr_main_player=True)
     commands = manifest["commands"]
 
     # --- The core-session bootstrap, minus the windows ---
