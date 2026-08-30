@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import contextlib
+import ctypes
+import ctypes.wintypes
 import logging
 import os
 import subprocess
@@ -526,3 +528,354 @@ class TestWindowRect:
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowRect.return_value = 0
             assert window_rect(123) is None
+
+
+class TestFindWindowByTitle:
+    """The lookup every role resolution and both covers go through.
+
+    Only the integration suite has ever driven it against real windows, so its
+    two switches — substring versus exact, and whether a hidden window counts —
+    are pinned here against a faked enumeration instead.
+    """
+
+    @staticmethod
+    def _enumerating(mock, windows, *, visible=True):
+        """Answer EnumWindows with *windows*, a list of (hwnd, title)."""
+        titles = dict(windows)
+
+        def enum(proc, _lparam):
+            for hwnd, _title in windows:
+                if not proc(hwnd, 0):
+                    break
+            return True
+
+        def text(hwnd, buf, _cap):
+            buf.value = titles[hwnd]
+            return len(titles[hwnd])
+
+        mock.EnumWindows.side_effect = enum
+        mock.GetWindowTextW.side_effect = text
+        mock.IsWindowVisible.return_value = 1 if visible else 0
+
+    def test_a_substring_matches_by_default(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Genau — Example Studio")])
+            assert win32.find_window_by_title("Genau") == 11
+
+    def test_exact_refuses_the_window_that_merely_contains_the_name(self):
+        """The session opens three windows whose titles start "Fun Time" — the
+        dashboard, the loading cover and the library browser — so only the whole
+        caption tells the dashboard from the cover it hides behind."""
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
+            assert win32.find_window_by_title("Fun Time", exact=True) == 12
+
+    def test_a_substring_would_have_taken_the_wrong_one_of_those(self):
+        """The other half of the case above: without ``exact`` the cover
+        answers a lookup meant for the dashboard."""
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
+            assert win32.find_window_by_title("Fun Time") == 11
+
+    def test_a_hidden_window_is_skipped_unless_it_is_asked_for(self):
+        """The dashboard is SW_HIDE behind the loading cover when startup has
+        to resolve it."""
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Fun Time")], visible=False)
+            assert win32.find_window_by_title("Fun Time") == 0
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Fun Time")], visible=False)
+            assert win32.find_window_by_title("Fun Time", include_hidden=True) == 11
+
+    def test_the_first_match_stops_the_walk(self):
+        seen: list[int] = []
+
+        def enum(proc, _lparam):
+            for hwnd in (11, 12):
+                seen.append(hwnd)
+                if not proc(hwnd, 0):
+                    break
+            return True
+
+        with patch("fun_time.win32._user32") as mock:
+            mock.EnumWindows.side_effect = enum
+            mock.GetWindowTextW.side_effect = lambda _h, buf, _c: setattr(buf, "value", "Nau")
+            mock.IsWindowVisible.return_value = 1
+            assert win32.find_window_by_title("Nau") == 11
+        assert seen == [11]
+
+    def test_a_title_is_read_into_a_fixed_buffer_of_256(self):
+        """One buffer, allocated once outside the callback and reused for every
+        window — so the read is capped at 256 characters however long the real
+        title is."""
+        caps: list[int] = []
+
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Nau")])
+            mock.GetWindowTextW.side_effect = lambda _h, buf, cap: (
+                caps.append(cap), setattr(buf, "value", "Nau"))[0]
+            assert win32.find_window_by_title("Nau") == 11
+
+        assert caps == [256]
+
+    def test_nothing_matching_is_no_window(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, "Genau")])
+            assert win32.find_window_by_title("Origenerator") == 0
+
+
+class TestWaitForWindowByTitle:
+    """Polling the lookup above until a window arrives, or the budget is spent."""
+
+    def test_the_first_hit_returns_without_spending_the_rest(self, monkeypatch):
+        slept: list[float] = []
+        monkeypatch.setattr(win32.time, "sleep", slept.append)
+        monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 77)
+
+        assert win32.wait_for_window_by_title("Nau", timeout_s=5.0) == 77
+        assert slept == []
+
+    def test_a_window_that_never_arrives_is_no_window(self, monkeypatch):
+        monkeypatch.setattr(win32.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 0)
+
+        assert win32.wait_for_window_by_title("Nau", timeout_s=0.0) == 0
+
+    def test_it_keeps_asking_until_the_window_opens(self, monkeypatch):
+        answers = iter([0, 0, 42])
+        monkeypatch.setattr(win32.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: next(answers))
+
+        assert win32.wait_for_window_by_title("Nau", timeout_s=5.0) == 42
+
+    def test_both_switches_reach_the_lookup(self, monkeypatch):
+        asked: list[tuple] = []
+        monkeypatch.setattr(win32.time, "sleep", lambda _s: None)
+        monkeypatch.setattr(
+            win32, "find_window_by_title",
+            lambda title, **kwargs: (asked.append((title, kwargs)), 9)[1])
+
+        win32.wait_for_window_by_title("Fun Time", exact=True, include_hidden=True)
+
+        assert asked == [("Fun Time", {"exact": True, "include_hidden": True})]
+
+
+class TestFindWindowForProcess:
+    """Pid AND title, because neither alone names one window.
+
+    A process can own several titled windows (the hosted Origenerator opens one
+    per satellite region) and a title can land on another process's window (a
+    standalone Origenerator carries the same captions).
+    """
+
+    @staticmethod
+    def _enumerating(mock, windows):
+        """*windows* is a list of (hwnd, pid, title)."""
+        by_hwnd = {hwnd: (pid, title) for hwnd, pid, title in windows}
+
+        def enum(proc, _lparam):
+            for hwnd, _pid, _title in windows:
+                if not proc(hwnd, 0):
+                    break
+            return True
+
+        def gwtpid(hwnd, pid_ref):
+            pid_ref._obj.value = by_hwnd[hwnd][0]
+            return 1
+
+        mock.EnumWindows.side_effect = enum
+        mock.GetWindowThreadProcessId.side_effect = gwtpid
+        mock.GetWindowTextLengthW.side_effect = lambda hwnd: len(by_hwnd[hwnd][1])
+        mock.GetWindowTextW.side_effect = lambda hwnd, buf, _cap: setattr(
+            buf, "value", by_hwnd[hwnd][1])
+
+    def test_the_window_of_that_pid_with_that_exact_title(self, monkeypatch):
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, "Portrait AI Player"),
+                                     (12, 500, "Landscape AI Player")])
+            assert win32.find_window_for_process(500, "Landscape AI Player") == 12
+
+    def test_a_title_that_merely_contains_the_name_is_not_it(self, monkeypatch):
+        """The match is the whole caption, not a substring of it — this lookup
+        has no ``exact`` switch because it is always exact."""
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, "Origenerator — portrait")])
+            assert win32.find_window_for_process(500, "Origenerator") == 0
+
+    def test_the_same_title_on_another_process_is_not_it(self, monkeypatch):
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 999, "Origenerator")])
+            assert win32.find_window_for_process(500, "Origenerator") == 0
+
+    def test_a_launchers_child_owns_the_window_and_still_resolves(self, monkeypatch):
+        """A venv's ``Scripts\\python.exe`` spawns the interpreter that owns the
+        windows, so the recorded pid is one generation short."""
+        monkeypatch.setattr(win32, "list_child_pids", lambda pid: [pid + 1])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 501, "Origenerator")])
+            assert win32.find_window_for_process(500, "Origenerator") == 11
+
+    def test_only_one_generation_of_children_counts(self, monkeypatch):
+        """One hop is the launcher pattern; nothing spawns windows two shims
+        deep, and the walk is asked for exactly once."""
+        asked: list[int] = []
+        monkeypatch.setattr(
+            win32, "list_child_pids", lambda pid: (asked.append(pid), [501])[1])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 502, "Origenerator")])
+            assert win32.find_window_for_process(500, "Origenerator") == 0
+        assert asked == [500]
+
+    def test_an_untitled_window_is_never_the_match(self, monkeypatch):
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, "")])
+            assert win32.find_window_for_process(500, "") == 0
+
+    def test_no_pid_is_no_window_and_no_enumeration(self, monkeypatch):
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            assert win32.find_window_for_process(0, "Nau") == 0
+            mock.EnumWindows.assert_not_called()
+
+
+class TestListChildPids:
+    """The one hop from a recorded pid to the process that owns the windows."""
+
+    @staticmethod
+    def _snapshot(mock, rows, *, handle=4321):
+        """Answer the Toolhelp walk with *rows*, a list of (pid, parent_pid)."""
+        remaining = list(rows)
+
+        def fill(_snapshot, entry_ref):
+            if not remaining:
+                return 0
+            pid, parent = remaining.pop(0)
+            entry_ref._obj.th32ProcessID = pid
+            entry_ref._obj.th32ParentProcessID = parent
+            return 1
+
+        mock.CreateToolhelp32Snapshot.return_value = handle
+        mock.Process32FirstW.side_effect = fill
+        mock.Process32NextW.side_effect = fill
+
+    def test_only_the_pids_whose_parent_is_the_one_asked_about(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            self._snapshot(mock, [(501, 500), (502, 999), (503, 500)])
+            assert win32.list_child_pids(500) == [501, 503]
+
+    def test_the_snapshot_is_always_closed(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            self._snapshot(mock, [(501, 500)], handle=4321)
+            win32.list_child_pids(500)
+            mock.CloseHandle.assert_called_once_with(4321)
+
+    def test_a_snapshot_that_could_not_be_taken_is_no_children(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            mock.CreateToolhelp32Snapshot.return_value = ctypes.wintypes.HANDLE(-1).value
+            assert win32.list_child_pids(500) == []
+            mock.CloseHandle.assert_not_called()
+
+    def test_a_walk_that_cannot_even_start_is_no_children(self):
+        with patch("fun_time.win32._kernel32") as mock:
+            mock.CreateToolhelp32Snapshot.return_value = 4321
+            mock.Process32FirstW.return_value = 0
+            assert win32.list_child_pids(500) == []
+            mock.CloseHandle.assert_called_once_with(4321)
+
+
+class TestIterZorder:
+    """The real stacking order, which EnumWindows does not give.
+
+    This is what the startup diagnostic's "what is covering Nau" reads, and the
+    only walk in the module that uses GetTopWindow + GW_HWNDNEXT.
+    """
+
+    @staticmethod
+    def _stack(mock, windows):
+        """*windows* is a list of (hwnd, title, visible, iconic, rect)."""
+        by_hwnd = {hwnd: rest for hwnd, *rest in windows}
+        order = [hwnd for hwnd, *_ in windows]
+
+        mock.GetTopWindow.return_value = order[0] if order else 0
+        mock.GetWindow.side_effect = lambda hwnd, _rel: (
+            order[order.index(hwnd) + 1] if order.index(hwnd) + 1 < len(order) else 0)
+        mock.IsWindowVisible.side_effect = lambda hwnd: 1 if by_hwnd[hwnd][1] else 0
+        mock.IsIconic.side_effect = lambda hwnd: 1 if by_hwnd[hwnd][2] else 0
+        mock.GetWindowTextLengthW.side_effect = lambda hwnd: len(by_hwnd[hwnd][0])
+        mock.GetWindowTextW.side_effect = lambda hwnd, buf, _cap: setattr(
+            buf, "value", by_hwnd[hwnd][0])
+        mock.GetWindowLongW.return_value = 0
+
+        def rect_of(hwnd, rect_ref):
+            left, top, width, height = by_hwnd[hwnd][3]
+            rect = rect_ref._obj
+            rect.left, rect.top = left, top
+            rect.right, rect.bottom = left + width, top + height
+            return 1
+
+        mock.GetWindowRect.side_effect = rect_of
+
+    def test_the_walk_reports_front_to_back(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._stack(mock, [
+                (11, "Nau", True, False, (0, 0, 100, 200)),
+                (12, "Fun Time", True, False, (100, 0, 300, 400)),
+            ])
+            stacked = win32.iter_zorder()
+
+        assert [w.hwnd for w in stacked] == [11, 12]
+        assert [w.title for w in stacked] == ["Nau", "Fun Time"]
+        assert stacked[1].rect == (100, 0, 300, 400)
+
+    def test_hidden_minimized_and_untitled_windows_are_left_out(self):
+        """None of the three can visibly cover anything, and the title filter is
+        what keeps the log line legible among the system's own surfaces."""
+        with patch("fun_time.win32._user32") as mock:
+            self._stack(mock, [
+                (11, "Hidden", False, False, (0, 0, 10, 10)),
+                (12, "Minimized", True, True, (0, 0, 10, 10)),
+                (13, "", True, False, (0, 0, 10, 10)),
+                (14, "Nau", True, False, (0, 0, 10, 10)),
+            ])
+            assert [w.hwnd for w in win32.iter_zorder()] == [14]
+
+    def test_each_window_carries_whether_it_rides_the_topmost_band(self):
+        with patch("fun_time.win32._user32") as mock:
+            self._stack(mock, [(11, "Nau", True, False, (0, 0, 10, 10))])
+            mock.GetWindowLongW.return_value = win32.WS_EX_TOPMOST
+            assert win32.iter_zorder()[0].topmost is True
+
+    def test_an_empty_desktop_is_an_empty_stack(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetTopWindow.return_value = 0
+            assert win32.iter_zorder() == []
+
+
+class TestDisableWindowTransitions:
+    """The main slot swaps by minimizing one player and restoring the other, so
+    both keep a taskbar button — and the animation that would show has to go."""
+
+    def test_the_window_is_told_to_force_its_transitions_off(self):
+        with patch("fun_time.win32._dwmapi") as mock:
+            win32.disable_window_transitions(4242)
+
+        hwnd, attribute, value_ref, size = mock.DwmSetWindowAttribute.call_args.args
+        assert (hwnd, attribute) == (4242, 3)  # DWMWA_TRANSITIONS_FORCEDISABLED
+        assert value_ref._obj.value == 1  # TRUE
+        assert size == ctypes.sizeof(ctypes.wintypes.BOOL)
+
+
+class TestIsWindowMinimized:
+    def test_an_iconic_window_reads_as_minimized(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.IsIconic.return_value = 1
+            assert win32.is_window_minimized(4242) is True
+
+    def test_anything_else_does_not(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.IsIconic.return_value = 0
+            assert win32.is_window_minimized(4242) is False

@@ -127,9 +127,10 @@ class WindowRoles:
         # record is the venv pythonw launcher's, not the interpreter that owns
         # the window, so on a cold cache by-pid alone finds nothing and every
         # band operation silently skips the player.  The captions are matched
-        # exactly — "Nau" is a substring of "Genau", and the two satellites'
-        # differ only in their first word, so a substring match hands one side's
-        # window to the other (the portrait/landscape visual swap).
+        # exactly, the way every caption this session resolves is: a substring
+        # lookup answers with whatever window it reaches first whose title
+        # merely CONTAINS the name (see find_window_by_title), and handing one
+        # side's window to the other is the portrait/landscape visual swap.
         elif role == "nau":
             hwnd = find_window_by_pid(self.pids.nau) or find_window_by_title("Nau", exact=True)
         elif role == "portrait":

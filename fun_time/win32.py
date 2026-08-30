@@ -607,8 +607,11 @@ def find_window_by_title(title: str, *, exact: bool = False, include_hidden: boo
     """Find a visible window whose title contains (or, with *exact*, equals)
     *title*. Returns 0 if not found.
 
-    Use exact=True when the title is a substring of another managed window's
-    title (e.g. "Nau" is contained in "Genau").  Set *include_hidden* to also
+    Use exact=True when the title is carried at the front of another managed
+    window's: the dashboard is "Fun Time", and the loading cover, the closing
+    cover and the library browser are "Fun Time Loading", "Fun Time Closing"
+    and "Fun Time Library", so a substring lookup for the panel answers with
+    whichever of the four the enumeration reaches first.  Set *include_hidden* to also
     match windows with WS_VISIBLE cleared (SW_HIDE) — needed to resolve the
     dashboard while it is hidden behind the loading overlay, whose window PID
     differs from the launcher PID so only the title lookup can find it.
