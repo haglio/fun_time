@@ -174,3 +174,31 @@ def test_no_dataclass_field_goes_unread():
     assert not unread, "dataclass fields nothing reads: " + ", ".join(
         f"{field} ({where})" for field, where in sorted(unread.items())
     )
+
+
+def _ruff(*rules: str):
+    return subprocess.run(
+        [
+            sys.executable, "-m", "ruff", "check",
+            "--output-format", "concise",
+            "--select", ",".join(rules),
+            *(str(ROOT / pkg) for pkg in PACKAGES),
+            str(ROOT / "tools"),
+        ],
+        capture_output=True,
+        text=True,
+        cwd=str(ROOT),
+    )
+
+
+def test_nothing_is_imported_or_assigned_and_left_unread():
+    """The hole vulture cannot see: deadness that is local to one module.
+
+    Vulture resolves names across everything it scans, so an import unused
+    HERE but live in a sibling module is invisible to it -- which is how two
+    imports sat in the busiest dispatch file reading as though it built window
+    ops. ruff answers per file.
+    """
+    result = _ruff("F401", "F811", "F841")
+
+    assert result.returncode == 0, result.stdout + result.stderr

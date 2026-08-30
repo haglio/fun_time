@@ -4,7 +4,6 @@ import argparse
 import configparser
 import ctypes
 from dataclasses import dataclass, field
-from dataclasses import replace
 from pathlib import Path
 import queue
 import socket
@@ -787,7 +786,6 @@ class DashboardWindow(QMainWindow):
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
         self._sync_reference_topmost(omni_paused)
-        state_dir = self._app_config.dashboard_state_file.parent
         scene = build_dashboard_scene(
             self._bar_layout,
             snapshot,

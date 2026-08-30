@@ -8,7 +8,6 @@ each satellite player draws it straight into its own video (:mod:`player_core.sa
 """
 from __future__ import annotations
 
-import time
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path

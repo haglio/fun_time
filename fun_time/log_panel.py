@@ -147,7 +147,6 @@ from shared_ui.colors import (
     BG_PRIMARY,
     BG_SECONDARY,
     BLUE,
-    BORDER_SUBTLE,
     GREEN,
     RED,
     TEXT_MUTED,
