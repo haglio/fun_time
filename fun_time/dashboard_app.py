@@ -23,7 +23,7 @@ from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
-from fun_time.overlay_progress import loading_cover_is_up, startup_still_building
+from fun_time.overlay_progress import startup_still_building
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.press_channel import PressChannel
 from fun_time.win32 import (
@@ -45,16 +45,10 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
-from fun_time.event_log import EVENT_LOG_FILENAME, event_log_path, read_events
+from fun_time.event_log import event_log_path
 from fun_time.log_panel import LogPanelWidget, prefs_path
-from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
-from fun_time.notice_overlay import (
-    NoticeOverlay,
-    PlayerRects,
-    is_announcement,
-    notice_target_rect,
-)
-from fun_time.window_layout import compute_main_media_rect, compute_window_layout
+from fun_time.notice_feed import NoticeFeed
+from fun_time.notice_overlay import NoticeOverlay
 from fun_time.dashboard_layout import (
     PAD as BAR_PAD,
     DashboardBarLayout,
@@ -511,7 +505,7 @@ class DashboardWindow(QMainWindow):
         # the other windows.
         self._deferred_for_loading = startup_still_building(app_config.manifest_path.parent)
         # Toasts are topmost too, so they wait for the cover itself rather than
-        # for the earlier cue this window shows itself on.  See _poll_notices.
+        # for the earlier cue this window shows itself on.  See NoticeFeed.
         self._notices_held = self._deferred_for_loading
         self._suppress_minimize_routing = self._deferred_for_loading
 
@@ -591,14 +585,17 @@ class DashboardWindow(QMainWindow):
         self._press_channel = PressChannel(
             app_config.dashboard_state_file.parent, self._press_received.emit)
 
-        # Notice overlays: flash each new event-log notice over the player it is
-        # about.  A dedicated tail (its own offset) polls the shared file a touch
-        # faster than the 500ms refresh so a "Clip saved" lands promptly.
-        self._player_rects = self._compute_player_rects()
-        self._notice_overlay = NoticeOverlay() if self._player_rects is not None else None
-        self._notice_offset = 0
+        # A dedicated tail of the event log, polled a touch faster than the
+        # 500ms refresh so a "Clip saved" lands promptly.
+        self._notices = NoticeFeed(
+            layout=app_config.layout,
+            event_log_dir=app_config.dashboard_state_file.parent,
+            cover_dir=app_config.manifest_path.parent,
+            make_overlay=NoticeOverlay,
+            held=self._notices_held,
+        )
         self._notice_timer = QTimer(self)
-        self._notice_timer.timeout.connect(self._poll_notices)
+        self._notice_timer.timeout.connect(self._notices.poll)
         self._notice_timer.start(250)
 
         # Refresh timer (500ms)
@@ -626,9 +623,7 @@ class DashboardWindow(QMainWindow):
         self._refresh_timer.stop()
         self._notice_timer.stop()
         self._log_widget.shutdown()
-        if self._notice_overlay is not None:
-            self._notice_overlay.shutdown()
-            self._notice_overlay = None
+        self._notices.shutdown()
 
     def changeEvent(self, event: object) -> None:
         """Mirror the dashboard's own minimize/restore onto every managed window.
@@ -843,67 +838,6 @@ class DashboardWindow(QMainWindow):
             int(PRESS_FLASH_S * 1000) + 10,
             lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
-
-    def _compute_player_rects(self) -> PlayerRects | None:
-        """Where each notice-bearing window sits, in real screen coordinates.
-
-        Derived from the same layout functions startup positions the windows
-        with, so the overlay lands on the window rather than near it.  Returns
-        None when the monitors can't be read (e.g. a headless run) so notices
-        simply don't flash instead of crashing the dashboard.
-        """
-        try:
-            monitors = enumerate_monitors()
-            primary_rect, secondary_rect = get_logical_monitor_rects(
-                monitors,
-                primary_index=self._app_config.layout.primary_monitor,
-                secondary_index=self._app_config.layout.secondary_monitor,
-            )
-        except (ValueError, OSError):
-            return None
-        plan = compute_window_layout(
-            primary_monitor=primary_rect,
-            secondary_monitor=secondary_rect,
-            layout_config=self._app_config.layout,
-        )
-        main = compute_main_media_rect(
-            secondary_monitor=secondary_rect, layout_config=self._app_config.layout,
-        )
-        as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)
-        return PlayerRects(
-            main=as_rect(main),
-            portrait=as_rect(plan.portrait),
-            landscape=as_rect(plan.landscape),
-            dash=as_rect(plan.dashboard),
-        )
-
-    def _poll_notices(self) -> None:
-        """Flash every new announcement over the player it concerns.
-
-        Held while the loading cover is up, and by the COVER rather than by
-        ``_deferred_for_loading``: this window shows itself one phase before the
-        cover goes (so it is in place when it does), and a toast is topmost, so
-        every announcement in that gap flashed over the cover — a thing
-        appearing for a moment through the scrim, which is what the scrim is
-        there to stop.  Nothing is dropped by waiting: the read offset does not
-        advance until they are flashed, so they arrive over the room they are
-        about.
-        """
-        if self._notice_overlay is None or self._player_rects is None:
-            return
-        if self._notices_held:
-            if loading_cover_is_up(self._app_config.manifest_path.parent):
-                return
-            # Latched, so the steady state costs no file check at all.
-            self._notices_held = False
-        records, self._notice_offset = read_events(
-            self._app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME,
-            self._notice_offset,
-        )
-        for record in records:
-            if is_announcement(record):
-                target = notice_target_rect(record.source, self._player_rects)
-                self._notice_overlay.flash(record, target)
 
     def _refresh(self) -> None:
         self._maybe_reveal_after_loading()

@@ -1117,20 +1117,19 @@ def test_the_player_rects_come_from_the_layout_startup_positions_with(
     the rect from the same two functions rather than from two descriptions."""
     from fun_time.window_layout import compute_main_media_rect, compute_window_layout
 
-    with patch("fun_time.dashboard_app.enumerate_monitors", return_value=_monitors()):
+    with patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        rects = window._player_rects
+        rects = window._notices.player_rects
     finally:
         window.close()
 
     layout = dashboard_app_config.layout
-    with patch("fun_time.dashboard_app.enumerate_monitors", return_value=_monitors()):
-        from fun_time.monitors import get_logical_monitor_rects
+    from fun_time.monitors import get_logical_monitor_rects
 
-        primary, secondary = get_logical_monitor_rects(
-            _monitors(), primary_index=layout.primary_monitor,
-            secondary_index=layout.secondary_monitor)
+    primary, secondary = get_logical_monitor_rects(
+        _monitors(), primary_index=layout.primary_monitor,
+        secondary_index=layout.secondary_monitor)
     plan = compute_window_layout(
         primary_monitor=primary, secondary_monitor=secondary, layout_config=layout)
     main = compute_main_media_rect(secondary_monitor=secondary, layout_config=layout)
@@ -1146,12 +1145,12 @@ def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
         failure, dashboard_app_config):
     """A headless run has no monitors to enumerate; the panel still comes up,
     it just has nowhere to put a toast."""
-    with patch("fun_time.dashboard_app.enumerate_monitors", side_effect=failure):
+    with patch("fun_time.notice_feed.enumerate_monitors", side_effect=failure):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        assert window._player_rects is None
-        assert window._notice_overlay is None
-        window._poll_notices()  # and polling is a no-op rather than an error
+        assert window._notices.player_rects is None
+        assert window._notices.overlay is None
+        window._notices.poll()  # and polling is a no-op rather than an error
     finally:
         window.close()
 
@@ -1159,9 +1158,9 @@ def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
 def _notice_window(dashboard_app_config, *, held: bool):
     """A window whose notice feed is wired to a fake overlay."""
     with patch("fun_time.dashboard_app.startup_still_building", return_value=held), \
-         patch("fun_time.dashboard_app.enumerate_monitors", return_value=_monitors()):
+         patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
-    window._notice_overlay = _FakeOverlay()
+    window._notices.overlay = _FakeOverlay()
     return window
 
 
@@ -1190,15 +1189,15 @@ def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(
 
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
 
-        with patch("fun_time.dashboard_app.loading_cover_is_up", return_value=True):
-            window._poll_notices()
-        assert window._notice_overlay.flashed == []
-        assert window._notice_offset == 0
+        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
+            window._notices.poll()
+        assert window._notices.overlay.flashed == []
+        assert window._notices.offset == 0
 
-        with patch("fun_time.dashboard_app.loading_cover_is_up", return_value=False):
-            window._poll_notices()
-        assert [m for m, _ in window._notice_overlay.flashed] == ["Clip saved"]
-        assert window._notice_offset > 0
+        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=False):
+            window._notices.poll()
+        assert [m for m, _ in window._notices.overlay.flashed] == ["Clip saved"]
+        assert window._notices.offset > 0
     finally:
         window.close()
 
@@ -1208,11 +1207,11 @@ def test_the_hold_is_latched_so_the_steady_state_reads_no_file(dashboard_app_con
     second for the length of the session."""
     window = _notice_window(dashboard_app_config, held=True)
     try:
-        cover = patch("fun_time.dashboard_app.loading_cover_is_up", return_value=False)
+        cover = patch("fun_time.notice_feed.loading_cover_is_up", return_value=False)
         with cover as is_up:
-            window._poll_notices()
-            window._poll_notices()
-            window._poll_notices()
+            window._notices.poll()
+            window._notices.poll()
+            window._notices.poll()
 
         assert is_up.call_count == 1
     finally:
@@ -1223,8 +1222,8 @@ def test_a_window_that_never_waited_asks_about_the_cover_at_all(dashboard_app_co
     """Started after the cover was gone, the feed is live from its first poll."""
     window = _notice_window(dashboard_app_config, held=False)
     try:
-        with patch("fun_time.dashboard_app.loading_cover_is_up") as is_up:
-            window._poll_notices()
+        with patch("fun_time.notice_feed.loading_cover_is_up") as is_up:
+            window._notices.poll()
 
         is_up.assert_not_called()
     finally:
@@ -1241,10 +1240,10 @@ def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
     try:
         _write_event(dashboard_app_config, "just a log line", level=logging.INFO)
 
-        window._poll_notices()
+        window._notices.poll()
 
-        assert window._notice_overlay.flashed == []
-        assert window._notice_offset > 0
+        assert window._notices.overlay.flashed == []
+        assert window._notices.offset > 0
     finally:
         window.close()
 
