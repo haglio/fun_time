@@ -316,8 +316,7 @@ class OverlayWindow:
                 if message and not self._status_held:
                     self._status_label.configure(text=message)
 
-                if mtime != self._last_modified:
-                    self._last_modified = mtime
+                self._last_modified = mtime
 
             # Staleness check: if the file hasn't changed in stale_timeout_s,
             # the orchestrator died holding the cover up.  Close rather than
