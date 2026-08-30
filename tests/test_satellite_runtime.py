@@ -20,9 +20,9 @@ class TestApplyCommand:
     def test_next_and_prev_navigate(self, tmp_path):
         session = _make_session(tmp_path)
         assert apply_command("NEXT", session, reload_playlist=_never_reloads) is True
-        assert session.index == 1
+        assert session.current_video.name == "v1.mp4"
         assert apply_command("PREV", session, reload_playlist=_never_reloads) is True
-        assert session.index == 0
+        assert session.current_video.name == "v0.mp4"
 
     def test_lock_and_unlock_are_idempotent_verbs(self, tmp_path):
         session = _make_session(tmp_path)
@@ -44,7 +44,7 @@ class TestApplyCommand:
     def test_keyword_is_case_insensitive(self, tmp_path):
         session = _make_session(tmp_path)
         assert apply_command("next", session, reload_playlist=_never_reloads) is True
-        assert session.index == 1
+        assert session.current_video.name == "v1.mp4"
 
     def test_reload_playlist_invokes_the_callback(self, tmp_path):
         session = _make_session(tmp_path)
