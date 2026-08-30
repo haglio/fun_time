@@ -16,17 +16,28 @@ def build_dashboard_snapshot_text(
     )
 
 
-def _read_existing_snapshot(path: Path) -> str:
-    for encoding in ("utf-16", "utf-8"):
+# utf-16 is what the writer below emits; the other two are what a reader has
+# always also accepted, and older sessions' files are still read back.
+SNAPSHOT_ENCODINGS = ("utf-8-sig", "utf-16", "utf-8")
+
+
+def decode_snapshot(raw: bytes) -> str:
+    """The snapshot's text — beside the writer, which decides the encoding."""
+    for encoding in SNAPSHOT_ENCODINGS:
         try:
-            return path.read_text(encoding=encoding)
-        except FileNotFoundError:
-            return ""
-        except UnicodeError:
+            return raw.decode(encoding)
+        except UnicodeDecodeError:
             continue
-        except OSError:
-            return ""
-    return ""
+    raise UnicodeDecodeError(
+        "dashboard_state", raw, 0, 1, "unable to decode dashboard snapshot")
+
+
+def _read_existing_snapshot(path: Path) -> str:
+    """What is already on disk, or "" — this side never fails over a read."""
+    try:
+        return decode_snapshot(path.read_bytes())
+    except (OSError, UnicodeDecodeError):
+        return ""
 
 
 def write_dashboard_snapshot(

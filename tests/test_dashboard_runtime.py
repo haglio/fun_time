@@ -339,3 +339,57 @@ def test_funscript_driving_is_scripted_and_not_resting():
     assert NauStatus(has_funscript=False).funscript_driving is False
 
 
+
+
+class TestTheTwoFreshnessChecks:
+    """One check, two windows.  They were the same four statements twice,
+    differing only in the window and in whether the boundary counts."""
+
+    def _stamped(self, tmp_path, age: float):
+        path = tmp_path / "stamp.txt"
+        path.write_text(str(1000.0 - age), encoding="utf-8")
+        return path
+
+    def test_the_device_counts_as_on_inside_its_window_and_not_on_it(self, tmp_path):
+        from fun_time.player_status import is_osr2_device_on
+
+        assert is_osr2_device_on(self._stamped(tmp_path, 15.9), now=1000.0) is True
+        assert is_osr2_device_on(self._stamped(tmp_path, 16.0), now=1000.0) is False
+
+    def test_the_heartbeat_counts_as_fresh_on_its_boundary(self, tmp_path):
+        """The one difference between them, kept: `<=`, not `<`."""
+        from fun_time.player_status import is_broker_heartbeat_fresh
+
+        assert is_broker_heartbeat_fresh(self._stamped(tmp_path, 3.0), now=1000.0) is True
+        assert is_broker_heartbeat_fresh(self._stamped(tmp_path, 3.1), now=1000.0) is False
+
+    def test_a_stamp_that_is_not_there_or_is_not_a_number_is_neither(self, tmp_path):
+        from fun_time.player_status import is_broker_heartbeat_fresh, is_osr2_device_on
+
+        missing = tmp_path / "never_written.txt"
+        garbled = tmp_path / "garbled.txt"
+        garbled.write_text("not a timestamp", encoding="utf-8")
+
+        assert is_osr2_device_on(missing, now=1000.0) is False
+        assert is_broker_heartbeat_fresh(garbled, now=1000.0) is False
+
+
+class TestTheStatusFilesShape:
+    def test_a_line_with_no_equals_is_passed_over(self, tmp_path):
+        """Both players' files are read by this one parse; a torn write leaves
+        a fragment that is not a pair, and it must not take the read down."""
+        from fun_time.player_status import read_key_values
+
+        path = tmp_path / "status.txt"
+        path.write_text("video=demo.mp4\nnonsense\nposition_ms=42\n", encoding="utf-8")
+
+        assert read_key_values(path) == {"video": "demo.mp4", "position_ms": "42"}
+
+    def test_only_the_first_equals_separates(self, tmp_path):
+        """A path with an '=' in it is a value, not a second key."""
+        from fun_time.player_status import read_key_values
+
+        path = tmp_path / "status.txt"
+        path.write_text("video=C:/clips/a=b.mp4\n", encoding="utf-8")
+
+        assert read_key_values(path) == {"video": "C:/clips/a=b.mp4"}

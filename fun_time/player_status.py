@@ -86,6 +86,26 @@ class NauStatus:
         return (self.loop_in_ms, self.loop_out_ms)
 
 
+def read_key_values(path: Path) -> dict[str, str]:
+    """One ``key=value`` status file as a dict; raises what the file raises."""
+    return dict(
+        line.split("=", 1)
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if "=" in line
+    )
+
+
+def _seconds_since(path: Path, now: float | None) -> float | None:
+    """How long ago the stamp in *path* was written, or None if unreadable."""
+    if not path.exists():
+        return None
+    try:
+        stamped = float(path.read_text(encoding="utf-8").strip())
+    except (OSError, ValueError):
+        return None
+    return (time.time() if now is None else now) - stamped
+
+
 def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStatus:
     """Nau's published status, or *fallback* (else a default) when the file is
     missing or torn mid-replace.
@@ -99,10 +119,7 @@ def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStat
     if not path.exists():
         return fallback or NauStatus()
     try:
-        text = path.read_text(encoding="utf-8")
-        values = dict(
-            line.split("=", 1) for line in text.splitlines() if "=" in line
-        )
+        values = read_key_values(path)
         return NauStatus(
             video=values.get("video", "").strip(),
             position_ms=int(values.get("position_ms", "0").strip() or 0),
@@ -164,10 +181,7 @@ def read_genau_status(path: Path) -> GenauStatus:
     if not path.exists():
         return GenauStatus()
     try:
-        text = path.read_text(encoding="utf-8").strip()
-        values = dict(
-            line.split("=", 1) for line in text.splitlines() if "=" in line
-        )
+        values = read_key_values(path)
         return GenauStatus(
             cruise_active=_status_bool(values, "cruise"),
             locked=_status_bool(values, "locked", default=True),
@@ -179,22 +193,10 @@ def read_genau_status(path: Path) -> GenauStatus:
 
 
 def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
-    if not path.exists():
-        return False
-    try:
-        last_rx = float(path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return False
-    current = time.time() if now is None else now
-    return (current - last_rx) < max_age_seconds
+    age = _seconds_since(path, now)
+    return age is not None and age < max_age_seconds
 
 
 def is_broker_heartbeat_fresh(path: Path, *, max_age_seconds: float = 3.0, now: float | None = None) -> bool:
-    if not path.exists():
-        return False
-    try:
-        heartbeat = float(path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return False
-    current = time.time() if now is None else now
-    return (current - heartbeat) <= max_age_seconds
+    age = _seconds_since(path, now)
+    return age is not None and age <= max_age_seconds

@@ -555,10 +555,8 @@ class DashboardWindow(QMainWindow):
         self._launch_geometry = launch_geometry
         # The reference popup opens over the Random Favs Browser's screen rect.
         self._reference = ReferencePopup(self, rfb_rect)
-        # Whether the cover is still up, read once: the notice feed starts held
-        # from this same answer, and two reads of the progress file could
-        # disagree.  Toasts wait for the COVER, not for the earlier cue this
-        # window shows itself on — see NoticeFeed.
+        # Read once: the notice feed starts held from this same answer, and
+        # two reads of the progress file could disagree.
         self._reveal = LoadingReveal(app_config.manifest_path.parent)
         self._notices_held = self._reveal.deferred
 
@@ -585,10 +583,8 @@ class DashboardWindow(QMainWindow):
         self._widget.action_triggered.connect(self._on_action)
         state_dir = app_config.manifest_path.parent
         self._log_widget = LogPanelWidget(event_log_path(state_dir), prefs_path(state_dir))
-        # The top bar and the log's filter controls share one row — the bar's own
-        # buttons on the left, the log controls filling the rest — so the Dash is a
-        # row shorter than when the controls sat above the log, and the Random Favs
-        # Browser below it that much taller.  The log stream fills the rest.
+        # The bar's buttons and the log's filters share one row, so the Dash is
+        # a row shorter and the Random Favs Browser below it that much taller.
         top_row = QWidget(self)
         top_layout = QHBoxLayout(top_row)
         # The bar insets its own contents by PAD; the filters at the far end get
@@ -626,14 +622,11 @@ class DashboardWindow(QMainWindow):
 
         self._ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
 
-        # The dispatch loop's presses.  Connected before the channel exists,
-        # because the channel's listener starts emitting as soon as it does.
+        # Connected first: the channel's listener emits as soon as it exists.
         self._press_received.connect(self._handle_press_event)
         self._press_channel = PressChannel(
             app_config.dashboard_state_file.parent, self._press_received.emit)
 
-        # A dedicated tail of the event log, polled a touch faster than the
-        # 500ms refresh so a "Clip saved" lands promptly.
         self._notices = NoticeFeed(
             layout=app_config.layout,
             event_log_dir=app_config.dashboard_state_file.parent,
@@ -645,7 +638,6 @@ class DashboardWindow(QMainWindow):
         self._notice_timer.timeout.connect(self._notices.poll)
         self._notice_timer.start(250)
 
-        # Refresh timer (500ms)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._refresh)
         self._refresh_timer.start(500)
@@ -729,11 +721,8 @@ class DashboardWindow(QMainWindow):
         pressed_actions: frozenset[str],
     ) -> None:
         self._last_snapshot = snapshot
-        # OmniPause must free the desktop; drop our own topmost while paused
-        # (the orchestrator's drop of this window is unreliable) and restore it
-        # after.  See _sync_own_topmost.  The log strip is a child widget, so it
-        # rides this window's band automatically — the reference popup is its own
-        # top-level window and does not, so it is corrected alongside us.
+        # The log strip is a child widget and rides this window's band; the
+        # reference popup is its own top-level window, so it is banded too.
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
         self._reference.sync_topmost(omni_paused)

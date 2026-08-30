@@ -8,6 +8,8 @@ import configparser
 from dataclasses import dataclass
 from pathlib import Path
 
+from .dashboard_bridge import decode_snapshot
+
 
 @dataclass(frozen=True)
 class DashboardWindowSnapshot:
@@ -30,7 +32,7 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
-    parser.read_string(_read_dashboard_text(path))
+    parser.read_string(decode_snapshot(path.read_bytes()))
     if not parser.sections():
         return None
 
@@ -39,16 +41,6 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
         window=_read_window(parser),
     )
-
-
-def _read_dashboard_text(path: Path) -> str:
-    raw = path.read_bytes()
-    for encoding in ("utf-8-sig", "utf-16", "utf-8"):
-        try:
-            return raw.decode(encoding)
-        except UnicodeDecodeError:
-            continue
-    raise UnicodeDecodeError("dashboard_state", raw, 0, 1, "unable to decode dashboard snapshot")
 
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:
