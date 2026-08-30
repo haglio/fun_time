@@ -4,11 +4,8 @@ A session's windows arrive one at a time and leave the same way, so both ends
 of one raise a cover and do the work behind it.  The window is borderless and
 always on top; it reads how far the work has got from a progress file the
 orchestrator writes, and closes itself when that file says DONE — and ONLY
-then.  It used to close on a full bar as well, which is not the same moment: the
-startup sequence reports its last phase and then spends seconds behind the cover
-putting the room in z-order, so a cover that left on the full bar left before any
-of that, and the user watched it happen.  DONE is the orchestrator's own word for
-"the room is finished", so it is the only thing that lifts the cover.
+then, never on a full bar, which comes seconds earlier while the room is still
+being put in z-order.
 
 Startup's cover offers a way out and shutdown's does not — see ``CancelOption``
 for that difference and for the reason it is the only one.
@@ -23,6 +20,14 @@ from pathlib import Path
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from .cover_palette import (
+    BG,
+    FACE,
+    HINT_DIM,
+    TEXT_DIM,
+    TROUGH,
+    WORDMARK_PINK,
+)
 from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import parse_progress
 from .project_paths import PROJECT_ICON
@@ -124,12 +129,6 @@ class OverlayWindow:
         self._title = title
         self._hwnd = 0
 
-        BG = "#1a1a2e"
-        PINK = "#e94560"
-        TROUGH = "#16213e"
-        TEXT_DIM = "#c0c0d8"
-        HINT_DIM = "#7a7a95"  # subtler than the status line, still legible on BG
-
         self._root = tk.Tk()
         self._root.title(title)
         self._root.resizable(False, False)
@@ -161,7 +160,7 @@ class OverlayWindow:
         style.configure(
             "FunTime.Horizontal.TProgressbar",
             troughcolor=TROUGH,
-            background=PINK,
+            background=WORDMARK_PINK,
             thickness=18,
             borderwidth=0,
         )
@@ -190,8 +189,8 @@ class OverlayWindow:
         title_label = tk.Label(
             frame,
             text="Fun Time",
-            font=("Segoe UI", 18, "bold italic"),
-            fg=PINK,
+            font=(FACE, 18, "bold italic"),
+            fg=WORDMARK_PINK,
             bg=BG,
         )
         title_label.pack(pady=(0, 10))
@@ -199,7 +198,7 @@ class OverlayWindow:
         self._status_label = tk.Label(
             frame,
             text=status,
-            font=("Segoe UI", 10),
+            font=(FACE, 10),
             fg=TEXT_DIM,
             bg=BG,
         )
@@ -219,7 +218,7 @@ class OverlayWindow:
         self._hint_label = tk.Label(
             frame,
             text=cancel.hint if cancel else "",
-            font=("Segoe UI", 8),
+            font=(FACE, 8),
             fg=HINT_DIM,
             bg=BG,
         )

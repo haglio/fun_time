@@ -22,6 +22,7 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
+from fun_time.cover_palette import WORDMARK_PINK
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -56,9 +57,8 @@ COLOR_BG = BG_PRIMARY
 # which left them reading as flat panels beside another app's raised buttons.
 COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
-# The "Fun Time" wordmark matches the loading screen's redder pink text, NOT the
-# logo's magenta-pink — they are deliberately different hues.
-COLOR_APP_TITLE = QColor("#e94560")
+# NOT the logo's magenta-pink; deliberately different hues.
+COLOR_APP_TITLE = QColor(WORDMARK_PINK)
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
