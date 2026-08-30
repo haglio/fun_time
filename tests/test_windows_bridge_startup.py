@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import configparser
 import json
 import os
@@ -196,6 +198,17 @@ def test_broker_source_mtime_is_the_newest_python_file_in_the_package(tmp_path: 
     os.utime(package / "osr2_broker.log", (9000.0, 9000.0))
 
     assert broker_source_mtime(launcher) == 3000.0
+
+
+def test_a_missing_tray_launcher_says_so_rather_than_going_quiet(tmp_path: Path, caplog):
+    """The one thing the second, deleted broker policy said that this one did
+    not: a session whose config names no tray launcher (or names a file that is
+    not there) gets no broker, and used to get no line about it either — which
+    is a silent OSR2 with nothing anywhere to explain it."""
+    with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_startup"):
+        launch_broker_tray(tmp_path / "nowhere" / "launch_broker_tray.vbs")
+
+    assert any("broker" in record.getMessage().lower() for record in caplog.records)
 
 
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):

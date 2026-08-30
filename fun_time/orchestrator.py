@@ -4,7 +4,6 @@ import argparse
 import logging
 import subprocess
 import sys
-import time
 import os
 from pathlib import Path
 
@@ -25,7 +24,6 @@ from .process_identity import prepare_orchestrator_launcher
 from .windows_bridge_orchestrator import run_python_orchestrated_bridge
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from . import orchestrator_broker
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -71,61 +69,6 @@ def validate_config(config) -> None:
         require_file(config.paths.genau_config_path)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
 
-
-
-def is_broker_running() -> bool:
-    command = [
-        "powershell.exe",
-        "-NoProfile",
-        "-Command",
-        (
-            "$proc = Get-CimInstance Win32_Process | Where-Object { "
-            "$_.Name -match '^pythonw?\\.exe$|^py\\.exe$' -and "
-            "$_.CommandLine -match '" + orchestrator_broker.BROKER_PROCESS_PATTERN + "' "
-            "} | Select-Object -First 1; "
-            "if ($null -ne $proc) { 'RUNNING' }"
-        ),
-    ]
-    result = subprocess.run(
-        command,
-        capture_output=True,
-        text=True,
-        check=False,
-        **orchestrator_broker.subprocess_window_kwargs(),
-    )
-    return result.returncode == 0 and "RUNNING" in result.stdout
-
-
-def start_broker(config, logger) -> subprocess.Popen | None:
-    launcher = config.paths.broker_tray_launcher
-    if not launcher or not launcher.is_file():
-        logger.warning("broker_tray_launcher not configured or missing; skipping broker start")
-        return None
-
-    command = ["wscript.exe", str(launcher)]
-    logger.warning("Broker was not running; starting %s", launcher)
-    return subprocess.Popen(
-        command,
-        cwd=launcher.parent,
-        **orchestrator_broker.broker_launch_kwargs(),
-    )
-
-
-def ensure_broker_running(config, logger, *, attempts: int = 20, delay_seconds: float = 0.25) -> bool:
-    if is_broker_running():
-        return True
-
-    if start_broker(config, logger) is None:
-        return False
-
-    for _ in range(max(1, attempts)):
-        time.sleep(delay_seconds)
-        if is_broker_running():
-            logger.info("Broker is now running")
-            return True
-
-    logger.warning("Broker did not appear to start successfully")
-    return False
 
 
 def refresh_content_blocklist(config, logger) -> None:
@@ -303,7 +246,6 @@ def main(argv: list[str] | None = None) -> int:
     # because it is the one doing the naming -- see prepare_orchestrator_launcher.
     prepare_orchestrator_launcher()
     refresh_content_blocklist(config, logger)
-    ensure_broker_running(config, logger)
     return run_windows_bridge(config, logger)
 
 

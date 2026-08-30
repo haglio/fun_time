@@ -14,18 +14,16 @@ from fun_time.manifest import (
 )
 from fun_time.orchestrator import (
     build_parser,
-    ensure_broker_running,
-    is_broker_running,
     main,
     refresh_content_blocklist,
     require_dir,
     require_file,
     run_windows_bridge,
     signal_startup_resolved,
-    start_broker,
     startup_marker_path,
     validate_config,
 )
+from fun_time import orchestrator
 from fun_time.config import load_config
 
 
@@ -313,95 +311,24 @@ class TestValidateConfig:
 
 
 class TestBrokerHelpers:
-    def test_is_broker_running_false_when_probe_finds_nothing(self):
-        completed = subprocess_result(stdout="", returncode=0)
-        with patch("fun_time.orchestrator.subprocess.run", return_value=completed):
-            assert is_broker_running() is False
-
-    def test_is_broker_running_true_when_probe_finds_process(self):
-        completed = subprocess_result(stdout="RUNNING\r\n", returncode=0)
-        with patch("fun_time.orchestrator.subprocess.run", return_value=completed):
-            assert is_broker_running() is True
-
-    def test_start_broker_launches_configured_tray_launcher(self, cfg_factory, tmp_path: Path):
-        launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
-        launcher.parent.mkdir()
-        launcher.touch()
-        cfg = load_config(cfg_factory({"paths": {"broker_tray_launcher": str(launcher)}}))
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.subprocess.Popen") as popen, \
-             patch("fun_time.orchestrator.orchestrator_broker.broker_launch_kwargs", return_value={"creationflags": 1}):
-            start_broker(cfg, logger)
-
-        popen.assert_called_once()
-        command = popen.call_args.args[0]
-        assert command == ["wscript.exe", str(launcher)]
-        assert popen.call_args.kwargs.get("cwd") == launcher.parent
-        # The broker must outlive an integration run's job object.
-        assert popen.call_args.kwargs.get("creationflags") == 1
-
-    def test_start_broker_skips_when_launcher_not_configured(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.subprocess.Popen") as popen:
-            result = start_broker(cfg, logger)
-
-        popen.assert_not_called()
-        assert result is None
-
-    def test_ensure_broker_running_starts_when_missing(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.is_broker_running", side_effect=[False, False, True]) as broker_probe, \
-             patch("fun_time.orchestrator.start_broker") as starter, \
-             patch("fun_time.orchestrator.time.sleep") as sleeper:
-            result = ensure_broker_running(cfg, logger, attempts=3, delay_seconds=0.01)
-
-        assert result is True
-        assert broker_probe.call_count == 3
-        starter.assert_called_once_with(cfg, logger)
-        sleeper.assert_called()
-
-    def test_ensure_broker_running_skips_poll_when_launch_not_configured(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.is_broker_running", return_value=False), \
-             patch("fun_time.orchestrator.start_broker", return_value=None), \
-             patch("fun_time.orchestrator.time.sleep") as sleeper:
-            result = ensure_broker_running(cfg, logger)
-
-        assert result is False
-        sleeper.assert_not_called()
-
-    def test_ensure_broker_running_skips_start_when_present(self, cfg_path: Path):
-        cfg = load_config(cfg_path)
-        logger = MagicMock()
-
-        with patch("fun_time.orchestrator.is_broker_running", return_value=True) as broker_probe, \
-             patch("fun_time.orchestrator.start_broker") as starter:
-            result = ensure_broker_running(cfg, logger)
-
-        assert result is True
-        broker_probe.assert_called_once_with()
-        starter.assert_not_called()
-
-    def test_main_ensures_broker_before_bridge(self, cfg_path: Path):
+    def test_the_broker_is_left_to_the_one_policy_inside_the_launch(self, cfg_path: Path):
+        """There were two start-if-missing policies, both running per launch on
+        different signals: this one before the bridge, and
+        ``windows_bridge_startup.ensure_broker`` inside it.  The one that
+        survives is the richer of the two — it can also replace a broker older
+        than its own sources — and it runs where it is needed, so this entry
+        point has no broker business at all now."""
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.refresh_content_blocklist"), \
-             patch("fun_time.orchestrator.ensure_broker_running") as ensure_broker, \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
-        ensure_broker.assert_called_once()
+        assert not hasattr(orchestrator, "ensure_broker_running")
         run_windows_bridge.assert_called_once()
 
     def test_main_refreshes_the_blocklist_on_the_way_up(self, cfg_path: Path):
@@ -414,7 +341,6 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.refresh_content_blocklist") as refresh, \
-             patch("fun_time.orchestrator.ensure_broker_running"), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
             main(["--config", str(cfg_path)])
 
@@ -544,7 +470,6 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.stamp_shortcut_aumid", stamp), \
-             patch("fun_time.orchestrator.ensure_broker_running"), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
             return main(["--config", str(cfg_path)])
 
@@ -631,7 +556,6 @@ class TestStartupMarker:
              patch("fun_time.single_instance.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.ensure_broker_running"), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
             result = main(["--config", str(cfg_path)])
 

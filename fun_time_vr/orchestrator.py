@@ -53,7 +53,6 @@ from fun_time.modes import (
     build_main_playlist,
 )
 from fun_time.orchestrator import (
-    ensure_broker_running,
     ensure_runtime_files,
     require_dir,
     signal_startup_resolved,
@@ -437,7 +436,6 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
-    ensure_broker_running(config, logger_)
     return run_vr_bridge(config, logger_)
 
 

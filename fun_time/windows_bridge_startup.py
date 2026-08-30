@@ -166,12 +166,16 @@ def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
     hidden-window ones: it has to break away from an integration run's job
     object and outlive the run that started it.
     """
-    if broker_tray_launcher and broker_tray_launcher.is_file():
-        subprocess.Popen(
-            ["wscript.exe", str(broker_tray_launcher)],
-            cwd=broker_tray_launcher.parent,
-            **broker_launch_kwargs(),
-        )
+    if not (broker_tray_launcher and broker_tray_launcher.is_file()):
+        logger.warning(
+            "No broker started: broker_tray_launcher is not configured or is "
+            "missing (%s)", broker_tray_launcher)
+        return
+    subprocess.Popen(
+        ["wscript.exe", str(broker_tray_launcher)],
+        cwd=broker_tray_launcher.parent,
+        **broker_launch_kwargs(),
+    )
 
 
 def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
