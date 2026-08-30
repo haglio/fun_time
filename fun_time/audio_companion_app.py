@@ -81,11 +81,8 @@ class AudioPlaybackController:
         if path in self.clip_lengths:
             return self.clip_lengths[path]
 
-        try:
-            length = self.sound_length(path)
-            if length is not None and (not math.isfinite(length) or length <= 0):
-                length = None
-        except Exception:
+        length = self.sound_length(path)
+        if length is not None and (not math.isfinite(length) or length <= 0):
             length = None
 
         self.clip_lengths[path] = length
@@ -130,13 +127,20 @@ class AudioPlaybackController:
         try:
             self.music.play(-1, start=start_position)
         except TypeError:
+            # A channel whose play() takes no start; seek after starting.
             self.music.play(-1)
             if start_position > 0:
                 try:
                     self.music.set_pos(start_position)
-                except Exception:
+                except (RuntimeError, OSError) as exc:
+                    self.logger.warning(
+                        "Could not seek %s to %.1fs (%s); starting it over",
+                        self.current_path.name, start_position, exc)
                     start_position = 0.0
-        except Exception:
+        except (RuntimeError, OSError) as exc:  # pygame.error is a RuntimeError
+            self.logger.warning(
+                "Could not start %s at %.1fs (%s); starting it over",
+                self.current_path.name, start_position, exc)
             self.music.play(-1)
             start_position = 0.0
 
@@ -223,7 +227,7 @@ class AudioPlaybackController:
             self.apply_state()
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> None:
     config = load_config(preparse_config_path(argv))
     logger = configure_logging("fun_time.genau_audio", config.log_file("genau_audio"))
     install_exception_logging(logger)
@@ -252,11 +256,21 @@ def main(argv: list[str] | None = None) -> int:
     def read_flag(path: Path) -> bool:
         return read_paused_state(path, logger=logger)
 
+    def clip_length(path: Path) -> float | None:
+        """How long a clip is, or None — the library-shaped failures live here,
+        so the controller takes any source that answers the same way."""
+        try:
+            return float(pygame.mixer.Sound(str(path)).get_length())
+        except (pygame.error, OSError, TypeError, ValueError) as exc:
+            logger.warning("Could not measure %s (%s); it will not wrap",
+                           path.name, exc)
+            return None
+
     controller = AudioPlaybackController(
         audio_folder=audio_folder,
         logger=logger,
         music=pygame.mixer.music,
-        sound_length=lambda path: float(pygame.mixer.Sound(str(path)).get_length()),
+        sound_length=clip_length,
         force_muted=muted,
     )
     runtime = AudioCompanionRuntime(
@@ -277,4 +291,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
-    raise SystemExit(main())
+    # No return: run_forever loops until this process is killed or interrupted.
+    main()

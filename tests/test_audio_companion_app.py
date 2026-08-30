@@ -278,3 +278,94 @@ class TestAudioPlaybackController:
 
         controller.clip_lengths[clip] = 10.0  # the cache the real lookup fills
         assert controller.normalize_position(clip, 12.5) == pytest.approx(2.5)
+
+
+class TestWhenTheSoundWillNotDoWhatItIsAsked:
+    """This process is launched hidden with its stdout redirected to a child
+    log, so a swallowed failure is the difference between a diagnosable line
+    and a companion that simply plays nothing.  None of these arms was reached
+    by any test before."""
+
+    @staticmethod
+    def _controller(tmp_path, music, **overrides):
+        return AudioPlaybackController(
+            audio_folder=tmp_path,
+            logger=logging.getLogger("test.audio"),
+            music=music,
+            sound_length=lambda _path: None,
+            **overrides,
+        )
+
+    def test_a_channel_that_cannot_start_part_way_in_starts_the_clip_over(
+            self, tmp_path, caplog):
+        """pygame.error is a RuntimeError.  A format the channel will play but
+        cannot seek into must still play."""
+        music = MagicMock()
+        music.play.side_effect = [RuntimeError("Unable to seek"), None]
+        controller = self._controller(tmp_path, music)
+        clip = tmp_path / "demo.mp3"
+        clip.write_bytes(b"demo")
+        controller.current_path = clip
+        controller.clip_positions[clip] = 30.0
+
+        with caplog.at_level(logging.WARNING):
+            controller.play_current_clip_from_saved_position()
+
+        assert controller.play_start_position == 0.0
+        assert music.play.call_args_list[-1].args == (-1,)
+        assert "demo.mp3" in caplog.text
+
+    def test_a_seek_that_fails_after_the_start_says_so_and_carries_on(
+            self, tmp_path, caplog):
+        """The older channel path: play() takes no start, so the position is
+        set afterwards — and that call can fail on its own."""
+        music = MagicMock()
+        music.play.side_effect = [TypeError("no start="), None]
+        music.set_pos.side_effect = RuntimeError("format cannot seek")
+        controller = self._controller(tmp_path, music)
+        clip = tmp_path / "demo.mp3"
+        clip.write_bytes(b"demo")
+        controller.current_path = clip
+        controller.clip_positions[clip] = 30.0
+
+        with caplog.at_level(logging.WARNING):
+            controller.play_current_clip_from_saved_position()
+
+        assert controller.play_start_position == 0.0
+        assert controller.playback_running is True
+        assert "seek" in caplog.text.lower()
+
+    def test_a_clip_that_cannot_be_measured_does_not_wrap(self, tmp_path):
+        """The length lookup answers None, and a position past the end is then
+        left alone rather than being taken modulo nothing."""
+        controller = self._controller(tmp_path, MagicMock())
+        clip = tmp_path / "demo.mp3"
+
+        assert controller.normalize_position(clip, 12.5) == 12.5
+
+    def test_measuring_a_clip_is_where_the_sound_librarys_failures_live(
+            self, tmp_path, cfg_path):
+        """main binds the measurement, so the controller can take any source
+        that answers None — and the warning names the clip."""
+        import pygame
+
+        from fun_time import audio_companion_app
+
+        (tmp_path / "audio").mkdir(exist_ok=True)
+        logger = MagicMock()
+        with patch.object(audio_companion_app.pygame.mixer, "init"), \
+             patch.object(audio_companion_app.pygame.mixer, "Sound",
+                          side_effect=pygame.error("mixer not initialized")), \
+             patch.object(audio_companion_app, "configure_logging", return_value=logger), \
+             patch.object(audio_companion_app, "install_exception_logging"), \
+             patch.object(audio_companion_app, "AudioCompanionRuntime") as runtime, \
+             patch("socket.socket"):
+            runtime.return_value.run_forever.side_effect = KeyboardInterrupt
+            with pytest.raises(KeyboardInterrupt):
+                audio_companion_app.main(
+                    ["--config", str(cfg_path), "--audio-folder", str(tmp_path / "audio")])
+            measure = runtime.call_args.kwargs["controller"].sound_length
+
+            assert measure(tmp_path / "broken.mp3") is None
+
+        assert "broken.mp3" in str(logger.warning.call_args)
