@@ -207,28 +207,21 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     stalled therefore blocks the caller *forever*: the send has no timeout, and
     no flag on our side changes that.
 
-    One did, and it took the whole session with it: Genau's main thread stopped
-    inside a file write, startup's topmost pass called this on Genau's window and
-    never came back, so the main slot was never revealed, the hotkey script was
-    never launched, and Ctrl+Alt+Q could not quit a session with no way left to
-    close its players.  Nothing said which window, either.
+    One did, and took the session with it; ``TestAWindowThatHasStoppedAnswering``
+    tells that story and holds every rule below.
 
     So the call is made on a throwaway thread and waited on for
     HUNG_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
     changes — including the ORDER the caller makes these calls in, which is what
     stacks Genau's HUD above Nau's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
-    named in the log and left where it is, and the session carries on without it.
-    The thread stays blocked in the kernel until that window's owner recovers or
-    dies; that is one leaked thread per call to a hung window, and the cost of
-    not leaking it is the wedge above.
+    named in the log and left where it is.  Its worker stays blocked in the
+    kernel until that window's owner recovers or dies: one leaked thread per
+    call to a hung window, against a wedged session.
 
     Our OWN windows are called straight, and must be: the send would go to this
-    process's UI thread, which is the very thread waiting here — so the worker
-    would wait for a pump that cannot happen until the wait returns, and the
-    dashboard would spend HUNG_WINDOW_TIMEOUT_S failing to band its own reference
-    popup.  A window this process owns cannot be hung from our side anyway: if
-    its loop has stalled, we are the ones who stalled it.
+    process's UI thread, which is the very thread waiting here.  See
+    ``show_own_window`` and the section below it.
     """
     if _owned_by_this_process(hwnd):
         call(hwnd, *args)

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import queue
 import socket
 import threading
 import time
@@ -705,8 +704,7 @@ def test_help_reference_press_toggles_reference_dialog(dashboard_window, dashboa
 
     window = dashboard_window
 
-    window._press_queue.put("help_reference")
-    window._handle_press_event()
+    window._apply_presses(["help_reference"])
 
     try:
         # The observable: a real popup is up.  (Asserting the toggle METHOD
@@ -724,17 +722,14 @@ def test_help_reference_close_press_closes_reference_dialog(dashboard_window, da
 
     window = dashboard_window
 
-    window._press_queue.put("help_reference")
-    window._handle_press_event()  # a popup is open...
+    window._apply_presses(["help_reference"])  # a popup is open...
     assert window._reference_dialog is not None and window._reference_dialog.isVisible()
 
-    window._press_queue.put("help_reference_close")
-    window._handle_press_event()  # ...and the close press dismisses it
+    window._apply_presses(["help_reference_close"])  # ...and the close dismisses it
 
     assert window._reference_dialog is None or not window._reference_dialog.isVisible()
 
-    window._press_queue.put("help_reference_close")
-    window._handle_press_event()  # closing again must not reopen anything
+    window._apply_presses(["help_reference_close"])  # closing again must not reopen
 
     assert window._reference_dialog is None or not window._reference_dialog.isVisible()
 
@@ -1027,12 +1022,10 @@ def _drain(window, expected: str, *, timeout: float = 5.0) -> list[str]:
     seen: list[str] = []
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        try:
-            seen.append(window._press_queue.get(timeout=0.05))
-        except queue.Empty:
-            continue
-        if seen[-1] == expected:
+        seen.extend(window._press_channel.take_all())
+        if expected in seen:
             break
+        time.sleep(0.02)
     return seen
 
 
@@ -1046,7 +1039,7 @@ def test_the_press_port_is_published_where_the_dispatch_loop_looks(
     raw = published.read_bytes()
 
     assert raw == raw.strip(), "the far end int()s the text it reads"
-    assert int(raw.decode("utf-8")) == dashboard_window._press_sock.getsockname()[1]
+    assert int(raw.decode("utf-8")) == dashboard_window._press_channel.port
 
 
 def test_a_datagram_becomes_a_press_on_the_queue(dashboard_window, dashboard_app_config):
@@ -1068,14 +1061,15 @@ def test_a_press_arrives_stripped_of_whatever_framed_it(
     assert "quit" in _drain(dashboard_window, "quit")
 
 
-def test_the_channel_binds_the_loopback_and_lets_the_machine_pick_the_port(
-        dashboard_window):
-    """Nothing off this machine may press this session's buttons, and a fixed
-    port would collide with the other agents' sessions on it."""
-    host, port = dashboard_window._press_sock.getsockname()
-
-    assert host == "127.0.0.1"
-    assert port != 0
+def test_the_machine_picks_the_port_so_two_sessions_never_collide(
+        dashboard_app_config, dashboard_window):
+    """A fixed port would be taken by whichever session on this machine came
+    up first, and every press of the second one would land in the first."""
+    other = build_dashboard_window(dashboard_app_config)
+    try:
+        assert dashboard_window._press_channel.port != other._press_channel.port
+    finally:
+        other.close()
 
 
 def test_closing_the_window_ends_the_listener(dashboard_app_config):
@@ -1086,7 +1080,7 @@ def test_closing_the_window_ends_the_listener(dashboard_app_config):
 
     window.close()
 
-    assert window._stopping.is_set()
+    assert not window._press_channel.listening
     listener.join(timeout=5.0)
     assert not listener.is_alive()
 

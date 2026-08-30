@@ -4,9 +4,6 @@ import argparse
 import configparser
 from dataclasses import dataclass, field
 from pathlib import Path
-import queue
-import socket
-import threading
 import time
 
 from PyQt6.QtGui import QColor, QFont
@@ -28,6 +25,7 @@ from fun_time.config import LayoutConfig
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.overlay_progress import loading_cover_is_up, startup_still_building
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.press_channel import PressChannel
 from fun_time.win32 import (
     find_window_by_title,
     hide_own_window,
@@ -517,15 +515,9 @@ class DashboardWindow(QMainWindow):
         self._notices_held = self._deferred_for_loading
         self._suppress_minimize_routing = self._deferred_for_loading
 
-        # Set on close, so the poller and press listener wind down with the
-        # window instead of reading the player status files for the life of the
-        # process.  Under test, several dashboards are built and closed in one
-        # process, and leaked pollers would keep running past their window.
-        self._stopping = threading.Event()
         self._pressed: dict[str, float] = {}
         self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
-        self._press_queue: queue.Queue[str] = queue.Queue()
 
         self.setWindowTitle("Fun Time")
         icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
@@ -593,15 +585,11 @@ class DashboardWindow(QMainWindow):
 
         self._ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
 
-        # UDP press listener
+        # The dispatch loop's presses.  Connected before the channel exists,
+        # because the channel's listener starts emitting as soon as it does.
         self._press_received.connect(self._handle_press_event)
-        self._press_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._press_sock.bind(("127.0.0.1", 0))
-        press_port = self._press_sock.getsockname()[1]
-        port_file = app_config.dashboard_state_file.parent / "dashboard_press_port.txt"
-        port_file.parent.mkdir(parents=True, exist_ok=True)
-        port_file.write_text(str(press_port), encoding="utf-8")
-        threading.Thread(target=self._press_listener, daemon=True, name="press-listener").start()
+        self._press_channel = PressChannel(
+            app_config.dashboard_state_file.parent, self._press_received.emit)
 
         # Notice overlays: flash each new event-log notice over the player it is
         # about.  A dedicated tail (its own offset) polls the shared file a touch
@@ -628,21 +616,16 @@ class DashboardWindow(QMainWindow):
         event.accept()
 
     def _stop_background_work(self) -> None:
-        """Wind down the timers, threads, socket, and the log strip's tail.
+        """Wind down the press channel, the timers and the log strip's tail.
 
-        Closing the dashboard ends the session, so in production this only tidies
-        up ahead of the process being killed.  It matters where a dashboard is
-        built and closed inside a longer-lived process — the poller would
-        otherwise keep reading the player status files forever.
+        In production the process is about to be killed anyway; this matters
+        where several dashboards are built and closed inside one longer-lived
+        process, and a leaked poller would read on past its window.
         """
-        self._stopping.set()
+        self._press_channel.stop()
         self._refresh_timer.stop()
         self._notice_timer.stop()
         self._log_widget.shutdown()
-        try:
-            self._press_sock.close()  # unblocks the listener's recvfrom
-        except OSError:
-            pass
         if self._notice_overlay is not None:
             self._notice_overlay.shutdown()
             self._notice_overlay = None
@@ -681,25 +664,14 @@ class DashboardWindow(QMainWindow):
     def _maybe_reveal_after_loading(self) -> None:
         """Show the window as startup reaches its last phase — BEHIND the cover.
 
-        The dashboard stays fully hidden (SW_HIDE, never Qt-shown) while startup
-        builds the room, so it neither flashes above the cover nor animates a
-        minimize.  What it waits for is the last phase, not the cover coming
-        down: waiting for the cover meant showing itself a second or more AFTER
-        the reveal, so the loading screen went away and the session's own control
-        panel was still missing — "its windows are not ready by the time the
-        loading screen goes away".
+        It waits for the last phase, not for the cover coming down: waiting for
+        the cover showed the panel a second or more after the room appeared, so
+        "its windows are not ready by the time the loading screen goes away".
+        Both windows are topmost, so it is inserted below the cover rather than
+        shown over it (see :func:`win32.insert_below`).
 
-        Showing while the cover is up needs one care.  Both windows are topmost,
-        and showing a window puts it at the TOP of its band, so the panel would
-        land over the cover for as long as it took the cover's next 200ms poll to
-        re-assert itself.  So it is inserted directly BELOW the cover instead
-        (``hWndInsertAfter`` = the cover's own window) in the same call that
-        shows it, and the cover keeps the screen until the orchestrator writes
-        DONE.  With no cover to find, the z-order is left alone, exactly as
-        before.
-
-        Revealing from hidden does not fire a minimize->restore edge, so we clear
-        the startup-minimize suppression here rather than relying on
+        Revealing from hidden fires no minimize->restore edge, so the
+        startup-minimize suppression is cleared here rather than by
         _maybe_route_omnirestore.
         """
         if not self._deferred_for_loading:
@@ -850,38 +822,27 @@ class DashboardWindow(QMainWindow):
             self._reference_dialog.close()
 
     def _handle_press_event(self) -> None:
-        toggle_reference = False
-        close_reference = False
-        while True:
-            try:
-                action = self._press_queue.get_nowait()
-                if action == HELP_REFERENCE:
-                    toggle_reference = True
-                elif action == HELP_REFERENCE_CLOSE:
-                    close_reference = True
-                self._pressed[action] = time.monotonic()
-            except queue.Empty:
-                break
-        # Voice arrives here as a press (the ? button drives _on_action directly):
-        # "help"/… toggles the popup, "close help"/… only dismisses it.
-        if close_reference:
+        self._apply_presses(self._press_channel.take_all())
+
+    def _apply_presses(self, actions: list[str]) -> None:
+        """Flash each of *actions*, and route the two the popup answers to.
+
+        Voice arrives here as a press (the ? button drives _on_action directly):
+        "help"/… toggles the popup, "close help"/… only dismisses it.  A burst
+        is one render, not one render each, so the two are decided across the
+        whole batch before either is acted on.
+        """
+        for action in actions:
+            self._pressed[action] = time.monotonic()
+        if HELP_REFERENCE_CLOSE in actions:
             self._close_reference_dialog()
-        if toggle_reference:
+        if HELP_REFERENCE in actions:
             self._toggle_reference_dialog()
         self._do_render(self._last_snapshot, self._compute_pressed())
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,
             lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
-
-    def _press_listener(self) -> None:
-        while not self._stopping.is_set():
-            try:
-                data, _ = self._press_sock.recvfrom(256)
-                self._press_queue.put(data.decode("utf-8").strip())
-                self._press_received.emit()
-            except OSError:
-                break
 
     def _compute_player_rects(self) -> PlayerRects | None:
         """Where each notice-bearing window sits, in real screen coordinates.

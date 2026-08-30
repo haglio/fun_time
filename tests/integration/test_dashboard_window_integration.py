@@ -267,7 +267,7 @@ def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path
 
     window.close()
 
-    assert window._stopping.is_set()
+    assert not window._press_channel.listening
     assert not window._refresh_timer.isActive()
     assert not window._notice_timer.isActive()
     assert not log._timer.isActive()
