@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import os
 import time
+import tkinter as tk
+from unittest.mock import MagicMock, call, patch
 from pathlib import Path
 
 from fun_time.overlay_progress import parse_progress
@@ -74,26 +76,50 @@ class _FakeLabel:
         self.text = kwargs.get("text", self.text)
 
 
-def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0) -> OverlayWindow:
-    """The overlay's poll loop over fakes standing in for Tk.
+def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0, cancel=None,
+           title: str = "Fun Time Loading") -> OverlayWindow:
+    """The overlay's live loops over fakes standing in for Tk.
 
     Constructing the real window opens a borderless cover over every monitor
     of whoever runs the suite — the one thing this conftest exists to prevent
     — and unlike Qt, tkinter has no offscreen platform.  So the Tk widgets
     are the boundary faked here, and everything from the progress file to the
     destroy decision runs for real.
+
+    Every attribute the constructor sets, so the topmost pass and the cancel
+    are reachable too; they were left out and could not be called at all.
     """
     window = OverlayWindow.__new__(OverlayWindow)
     window._progress_file = tmp_path / "progress.txt"
     window._stale_timeout_s = stale_timeout_s
-    window._cancel = None
+    window._cancel = cancel
     window._last_modified = 0.0
     window._status_held = False
+    window._title = title
+    window._hwnd = 0
     window._root = _FakeRoot()
     window._progress_var = _FakeVar()
     window._status_label = _FakeLabel()
     window._hint_label = _FakeLabel()
+    window._progress_bar = _FakeLabel()
+    window._icon_photo = None
     return window
+
+
+def _cancel_option(**overrides):
+    """A CancelOption whose two callables record what was asked of them."""
+    from fun_time.overlay_window import CancelOption
+
+    asked: list[str] = []
+    fields = dict(
+        hint="Press Esc to cancel",
+        pending="Cancelling...",
+        request=lambda: asked.append("request"),
+        requested=lambda: False,
+    )
+    fields.update(overrides)
+    option = CancelOption(**fields)
+    return option, asked
 
 
 class TestTheCoverComesDown:
@@ -175,3 +201,108 @@ def test_a_cover_process_loads_no_qt():
     )
 
     assert loaded.stdout.strip() == "False", loaded.stdout + loaded.stderr
+
+
+class TestTheCoverKeepsTheTopOfItsBand:
+    """Nothing keeps a topmost window above the OTHER topmost windows: every
+    window a session raises lands over this one, and Windows never says so.
+    How fast this runs IS how long a player shows through the scrim."""
+
+    def test_the_handle_is_resolved_by_title_once_and_then_reused(self, tmp_path: Path):
+        window = _cover(tmp_path)
+        looked_up: list[tuple] = []
+
+        with patch("fun_time.overlay_window.find_window_by_title",
+                   side_effect=lambda *a, **k: (looked_up.append((a, k)), 4242)[1]), \
+             patch("fun_time.overlay_window.set_always_on_top") as banded:
+            window._stay_on_top()
+            window._stay_on_top()
+
+        assert looked_up == [(("Fun Time Loading",), {"exact": True})]
+        assert banded.call_args_list == [call(4242, True), call(4242, True)]
+
+    def test_nothing_is_banded_before_the_window_can_be_found(self, tmp_path: Path):
+        """Brand new, it is at the top of the band by construction; there is
+        nothing over it to fix yet."""
+        window = _cover(tmp_path)
+
+        with patch("fun_time.overlay_window.find_window_by_title", return_value=0), \
+             patch("fun_time.overlay_window.set_always_on_top") as banded:
+            window._stay_on_top()
+
+        banded.assert_not_called()
+
+    def test_it_re_arms_itself_at_the_fast_cadence(self, tmp_path: Path):
+        from fun_time.overlay_window import TOPMOST_POLL_MS
+
+        window = _cover(tmp_path)
+
+        with patch("fun_time.overlay_window.find_window_by_title", return_value=0):
+            window._stay_on_top()
+
+        assert window._root.rearmed[-1][0] == TOPMOST_POLL_MS
+
+    def test_a_destroyed_window_stops_rather_than_raising(self, tmp_path: Path):
+        """The cover comes down on its own timer; the two are not synchronised."""
+        window = _cover(tmp_path)
+        window._root.after = MagicMock(side_effect=tk.TclError("destroyed"))
+
+        with patch("fun_time.overlay_window.find_window_by_title", return_value=0):
+            window._stay_on_top()  # must not raise
+
+
+class TestTheWayOutStartupOffers:
+    """Startup's cover can be called off; shutdown's cannot, and that is the
+    only difference between the two."""
+
+    def test_escape_asks_the_orchestrator_to_stop_and_says_so(self, tmp_path: Path):
+        cancel, asked = _cancel_option()
+        window = _cover(tmp_path, cancel=cancel)
+
+        window._on_escape()
+
+        assert asked == ["request"]
+        assert window._status_label.text == "Cancelling..."
+        assert window._hint_label.text == ""
+
+    def test_a_second_escape_asks_nothing_more(self, tmp_path: Path):
+        cancel, asked = _cancel_option()
+        window = _cover(tmp_path, cancel=cancel)
+
+        window._on_escape()
+        window._on_escape()
+
+        assert asked == ["request"]
+
+    def test_the_words_hold_against_a_step_message_still_in_flight(self, tmp_path: Path):
+        """A phase written just before the cancel would otherwise flip the line
+        back to business as usual while the teardown runs."""
+        cancel, _asked = _cancel_option()
+        window = _cover(tmp_path, cancel=cancel)
+        window._on_escape()
+
+        window._progress_file.write_text("2/6|Launching companions...", encoding="utf-8")
+        window._poll()
+
+        assert window._status_label.text == "Cancelling..."
+
+    def test_a_cancel_the_hotkey_script_asked_for_is_picked_up_here(self, tmp_path: Path):
+        """Esc reaches the orchestrator two ways, and the global hook is the one
+        that works when something else has the focus — no key ever reaches this
+        window, so the flag on disk is what the words follow."""
+        cancel, _asked = _cancel_option(requested=lambda: True)
+        window = _cover(tmp_path, cancel=cancel)
+        window._progress_file.write_text("1/6|Preparing services...", encoding="utf-8")
+
+        window._poll()
+
+        assert window._status_label.text == "Cancelling..."
+
+    def test_a_cover_with_no_way_out_answers_escape_with_nothing(self, tmp_path: Path):
+        """Shutdown's, which also never takes the keyboard focus."""
+        window = _cover(tmp_path)
+
+        window._on_escape()
+
+        assert window._status_held is False
+        assert window._status_label.text is None
