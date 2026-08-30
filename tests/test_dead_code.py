@@ -238,7 +238,7 @@ def test_no_plain_function_declares_an_argument_it_never_reads():
 # the reasoning for the design living in comments rather than in names and
 # tests -- which is how a docstring came to cite a module that had been deleted
 # and a comment came to promise a seventh child that already existed.
-MAX_PROSE_TO_CODE = 0.463
+MAX_PROSE_TO_CODE = 0.4628
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

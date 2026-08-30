@@ -737,6 +737,22 @@ class TestFindWindowForProcess:
             self._enumerating(mock, [(11, 500, "")])
             assert win32.find_window_for_process(500, "") == 0
 
+    def test_each_title_is_read_into_a_buffer_of_its_own_exact_length(self, monkeypatch):
+        """Unlike :func:`find_window_by_title`, which reuses one 256-character
+        buffer for every window it visits, this one asks each window how long
+        its caption is and allocates for exactly that — so a caption past 256
+        characters still compares whole.  The two are not interchangeable."""
+        caps: list[int] = []
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        long_title = "Origenerator " * 30  # 390 characters
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, long_title)])
+            mock.GetWindowTextW.side_effect = lambda _h, buf, cap: (
+                caps.append(cap), setattr(buf, "value", long_title))[0]
+            assert win32.find_window_for_process(500, long_title) == 11
+
+        assert caps == [len(long_title) + 1]
+
     def test_no_pid_is_no_window_and_no_enumeration(self, monkeypatch):
         monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
         with patch("fun_time.win32._user32") as mock:

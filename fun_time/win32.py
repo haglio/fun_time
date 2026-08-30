@@ -17,6 +17,7 @@ import ctypes.wintypes
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from fun_time.win32_loader import load_dll, win_functype
@@ -73,6 +74,27 @@ def close_window(hwnd: int) -> None:
     _user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
 
 
+def _first_window(match: Callable[[int], bool]) -> int:
+    """The first top-level window *match* accepts, or 0 if none does.
+
+    ``EnumWindows`` stops when its callback returns False, so every lookup that
+    wants ONE window carried the same prototype, ``nonlocal`` and inverted
+    return.  Three did; this holds them, and each keeps only its predicate —
+    including how it reads a title, which the two do differently on purpose.
+    """
+    found: int = 0
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        nonlocal found
+        if not match(hwnd):
+            return True  # keep enumerating
+        found = hwnd
+        return False  # stop enumeration
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return found
+
+
 def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     """Find a top-level window belonging to *pid*. Returns 0 if not found.
 
@@ -85,25 +107,17 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     the startup sequencer resolves its handle.  The non-empty-title filter still
     applies, so this does not match untitled internal surfaces.
     """
-    best: int = 0
-
-    def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal best
+    def matches(hwnd: int) -> bool:
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
         if window_pid.value != pid:
-            return True
+            return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
-            return True
-        # Check for non-empty title (skip internal/unnamed windows)
-        title_len = _user32.GetWindowTextLengthW(hwnd)
-        if title_len <= 0:
-            return True
-        best = hwnd
-        return False  # stop enumeration
+            return False
+        # Non-empty title only (skip internal/unnamed windows)
+        return _user32.GetWindowTextLengthW(hwnd) > 0
 
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return best
+    return _first_window(matches)
 
 
 def find_window_for_process(pid: int, title: str) -> int:
@@ -122,26 +136,22 @@ def find_window_for_process(pid: int, title: str) -> int:
     if not pid:
         return 0
     pids = {pid, *list_child_pids(pid)}
-    best: int = 0
 
-    def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal best
+    def matches(hwnd: int) -> bool:
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
         if window_pid.value not in pids:
-            return True
+            return False
         length = _user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
-            return True
+            return False
+        # A buffer per window, at that window's own length: a caption longer
+        # than find_window_by_title's shared 256 still compares whole.
         buffer = ctypes.create_unicode_buffer(length + 1)
         _user32.GetWindowTextW(hwnd, buffer, length + 1)
-        if buffer.value != title:
-            return True
-        best = hwnd
-        return False  # stop enumeration
+        return buffer.value == title
 
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return best
+    return _first_window(matches)
 
 
 def wait_for_window_by_title(
@@ -449,34 +459,24 @@ _user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
 
 
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
-    """Find a visible window whose title contains (or, with *exact*, equals)
-    *title*. Returns 0 if not found.
+    """The first visible window whose title contains — with *exact*, equals —
+    *title*, or 0.
 
-    Use exact=True when the title is carried at the front of another managed
-    window's: the dashboard is "Fun Time", and the loading cover, the closing
-    cover and the library browser are "Fun Time Loading", "Fun Time Closing"
-    and "Fun Time Library", so a substring lookup for the panel answers with
-    whichever of the four the enumeration reaches first.  Set *include_hidden* to also
-    match windows with WS_VISIBLE cleared (SW_HIDE) — needed to resolve the
-    dashboard while it is hidden behind the loading overlay, whose window PID
-    differs from the launcher PID so only the title lookup can find it.
+    Four of this session's windows are called "Fun Time" and "Fun Time
+    <something>", so the panel needs *exact*.  *include_hidden* also matches a
+    window with WS_VISIBLE cleared, which the dashboard is behind the cover.
     """
-    best: int = 0
+    # One buffer for the whole walk, so a title is read at most 256 characters
+    # deep however many windows are visited.
     buf = ctypes.create_unicode_buffer(256)
 
-    def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal best
+    def matches(hwnd: int) -> bool:
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
-            return True
-        _user32.GetWindowTextW(hwnd, buf, 256)
-        matched = buf.value == title if exact else title in buf.value
-        if matched:
-            best = hwnd
             return False
-        return True
+        _user32.GetWindowTextW(hwnd, buf, 256)
+        return buf.value == title if exact else title in buf.value
 
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return best
+    return _first_window(matches)
 
 
 SW_MINIMIZE = 6
