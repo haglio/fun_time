@@ -10,9 +10,11 @@ from pathlib import Path
 
 import subprocess
 
+import pytest
+
 from tools.harvest_blocklist import (
     EXCLUDED,
-    _stale_hours,
+    build_parser,
     already_in_code,
     candidates_from,
     harvest,
@@ -235,15 +237,27 @@ class TestStaleness:
         assert stamp_path(repo).name.endswith(".local.txt")
 
     def test_the_threshold_is_read_from_the_flag(self):
-        assert _stale_hours(["--if-stale", "6", "--sync"]) == 6.0
+        assert build_parser().parse_args(["--if-stale", "6", "--sync"]).if_stale == 6.0
 
     def test_absent_flag_means_no_throttle(self):
-        assert _stale_hours(["--sync"]) is None
+        assert build_parser().parse_args(["--sync"]).if_stale is None
 
     def test_a_malformed_threshold_falls_back_rather_than_crashing(self):
         """Fired from a startup path, so a typo must not take the caller down."""
-        assert _stale_hours(["--if-stale"]) == 24.0
-        assert _stale_hours(["--if-stale", "soon"]) == 24.0
+        assert build_parser().parse_args(["--if-stale"]).if_stale == 24.0
+        assert build_parser().parse_args(["--if-stale", "soon"]).if_stale == 24.0
+
+    def test_a_misspelled_flag_is_refused_rather_than_ignored(self):
+        """`--dryrun` used to be read as "not a dry run" and write the list."""
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["--dryrun"])
+
+    def test_every_flag_this_takes_is_declared(self):
+        parsed = build_parser().parse_args(
+            ["--if-stale", "6", "--detach", "--dry-run", "--sync"])
+
+        assert (parsed.if_stale, parsed.detach, parsed.dry_run, parsed.sync) == (
+            6.0, True, True, True)
 
 
 class TestSiblings:

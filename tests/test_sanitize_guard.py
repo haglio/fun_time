@@ -9,6 +9,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from tools.sanitize_guard import (
     blocklist_path,
     find_violations,
@@ -270,3 +272,34 @@ def test_no_blocklisted_terms_in_the_tracked_tree():
     assert not violations, "blocklisted terms in tracked files:\n" + "\n".join(
         f"  {v.path}:{v.line}  {v.excerpt}" for v in violations[:20]
     )
+
+
+class TestTheFlagsTheHookPasses:
+    """This runs inside a git hook, where a usage mistake used to be a
+    traceback and a misspelling used to be silently the other mode."""
+
+    def test_a_message_with_no_file_is_a_usage_error_not_a_traceback(self):
+        """`args[args.index("--message") + 1]` raised IndexError here."""
+        from tools.sanitize_guard import build_parser
+
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["--message"])
+
+    def test_a_misspelled_flag_is_refused_rather_than_read_as_the_other_mode(self):
+        from tools.sanitize_guard import build_parser
+
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["--staged-changes"])
+
+    def test_the_two_modes_are_exclusive(self):
+        """One scan per run: a hook is either pre-commit or commit-msg."""
+        from tools.sanitize_guard import build_parser
+
+        with pytest.raises(SystemExit):
+            build_parser().parse_args(["--staged", "--message", "MSG"])
+
+    def test_each_mode_parses_on_its_own(self):
+        from tools.sanitize_guard import build_parser
+
+        assert build_parser().parse_args(["--staged"]).staged is True
+        assert build_parser().parse_args(["--message", "MSG"]).message == "MSG"

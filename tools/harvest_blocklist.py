@@ -33,6 +33,8 @@ follows for its own excerpts.
 """
 from __future__ import annotations
 
+import argparse
+
 import re
 import subprocess
 import sys
@@ -203,12 +205,10 @@ def hours_since_harvest(repo: Path) -> float | None:
 def detach(argv: list[str]) -> None:
     """Re-run this script in the background and return immediately.
 
-    A harvest walks the whole library and takes the best part of a minute. That
-    is fine in the background and unacceptable in front of anything a person is
-    waiting on, so the callers that fire this on startup never wait for it. The
-    child is fully detached: it outlives the session that started it, and its
-    output goes nowhere, since the only thing it could print about a failure is
-    a count.
+    A harvest walks the whole library and takes the best part of a minute —
+    fine in the background, unacceptable in front of anyone waiting.  The child
+    outlives the session that started it, and its output goes nowhere: the only
+    thing it could print about a failure is a count.
     """
     flags = 0
     if sys.platform == "win32":  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
@@ -293,17 +293,42 @@ def write_list(repo: Path, terms: list[str]) -> None:
     target.write_text(HEADER + "\n".join(terms) + "\n", encoding="utf-8")
 
 
-def _stale_hours(argv: list[str]) -> float | None:
-    """The ``--if-stale HOURS`` threshold, or None when the flag is absent."""
-    if "--if-stale" not in argv:
-        return None
+def _hours(raw: str) -> float:
+    """A threshold in hours, falling back to a day rather than refusing.
+
+    Deliberate, and kept: startup fires this, so a value it cannot read must
+    throttle rather than take the caller down.  A misspelled FLAG is another
+    matter, and argparse refuses that now.
+    """
     try:
-        return float(argv[argv.index("--if-stale") + 1])
-    except (IndexError, ValueError):
+        return float(raw)
+    except ValueError:
         return 24.0
 
 
+def build_parser() -> argparse.ArgumentParser:
+    """The four flags this takes.
+
+    argparse, not membership tests over ``sys.argv``: `--dryrun` used to write
+    the list, and there was no ``--help`` anywhere.
+    """
+    parser = argparse.ArgumentParser(
+        prog="harvest_blocklist",
+        description="Harvest the library's vocabulary into the sanitize blocklist.")
+    parser.add_argument("--if-stale", type=_hours, nargs="?", const=24.0,
+                        metavar="HOURS",
+                        help="Do nothing if the last harvest was more recent than this.")
+    parser.add_argument("--detach", action="store_true",
+                        help="Re-run in the background and return at once.")
+    parser.add_argument("--dry-run", action="store_true",
+                        help="Report what would be written and write nothing.")
+    parser.add_argument("--sync", action="store_true",
+                        help="Write the list into every sibling checkout too.")
+    return parser
+
+
 def main(argv: list[str]) -> int:
+    args = build_parser().parse_args(argv)
     repo = Path(subprocess.run(
         ["git", "rev-parse", "--show-toplevel"],
         capture_output=True, text=True, check=True,
@@ -318,14 +343,14 @@ def main(argv: list[str]) -> int:
 
     # Both checks come before any work: a startup caller fires this every time
     # it starts, and must pay nothing on the runs that have nothing to do.
-    threshold = _stale_hours(argv)
+    threshold = args.if_stale
     if threshold is not None:
         age = hours_since_harvest(repo)
         if age is not None and age < threshold:
             print(f"harvested {age:.1f}h ago, under the {threshold:g}h "
                   "threshold -- nothing to do.")
             return 0
-    if "--detach" in argv:
+    if args.detach:
         detach(argv)
         return 0
     missing = [r for r in roots if not r.is_dir()]
@@ -345,12 +370,12 @@ def main(argv: list[str]) -> int:
           f"{len(collisions)} dropped as ordinary vocabulary already in code; "
           f"{added} new, list now {len(merged)}.")
 
-    if "--dry-run" in argv:
+    if args.dry_run:
         return 0
     home = primary_of(repo)
     write_list(home, merged)
     targets = [home.name]
-    if "--sync" in argv:
+    if args.sync:
         for sibling in siblings_of(repo):
             write_list(sibling, merged)
             targets.append(sibling.name)
