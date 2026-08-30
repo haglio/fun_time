@@ -34,7 +34,6 @@ from fun_time.win32 import StackedWindow
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.windows_bridge_dispatch_loop import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
-from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -46,14 +45,6 @@ from fun_time.overlay_progress import (
 )
 
 
-def _fake_plan() -> WindowLayoutPlan:
-    r = WindowRect(0, 0, 100, 100)
-    return WindowLayoutPlan(
-        portrait=r, landscape=r,
-        dashboard=r, random_favs_browser=r,
-    )
-
-
 def _fake_startup_result() -> StartupResult:
     return StartupResult(
         nau_pid=200,
@@ -63,7 +54,6 @@ def _fake_startup_result() -> StartupResult:
         genau_pid=600,
         audio_pid=700,
         origenerator_pid=800,
-        layout_plan=_fake_plan(),
     )
 
 
@@ -760,8 +750,7 @@ class TestLoadingScreenLifecycle:
         result_with_hwnds = StartupResult(
             nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
-            layout_plan=_fake_plan(),
-        )
+            )
 
         popen_calls: list[list] = []
         fake_ahk_proc = MagicMock()
@@ -1256,8 +1245,7 @@ class TestPostLoadingWindowState:
         result_with_hwnds = StartupResult(
             nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
-            layout_plan=_fake_plan(),
-            rfb_hwnd=55555,
+                rfb_hwnd=55555,
         )
 
         fake_ahk_proc = MagicMock()

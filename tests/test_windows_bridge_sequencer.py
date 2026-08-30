@@ -235,10 +235,13 @@ class TestRunStartupSequence:
         """mpv won't rescale on a later Win32 resize, so the sequencer threads
         the computed rects into the core launch — this is what makes the
         native video fill its window."""
-        _cfg, result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
+        _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
-        assert core_called["portrait_rect"] == result.layout_plan.portrait
-        assert core_called["landscape_rect"] == result.layout_plan.landscape
+        assert core_called["portrait_rect"].x == 2560
+        assert core_called["portrait_rect"].width > 0
+        assert core_called["landscape_rect"] != core_called["portrait_rect"]
+        # The same plan reaches the dashboard, which is launched separately.
+        assert ui_called["dashboard_width"] > 0
 
     def test_the_core_launch_carries_the_session_files_through(self, cfg_factory, tmp_path):
         """The favs list and state dir, the provider roots (so the startup
@@ -381,16 +384,6 @@ class TestRunStartupSequence:
         # of the band — it is promoted last, so being in it puts it over Nau.
         promoted = {h for h, on in topmost_calls if on}
         assert promoted == {3030, 4040, 2525}
-
-    def test_returns_layout_plan(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
-            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
-
-        assert result.layout_plan is not None
-        assert result.layout_plan.portrait.x == 2560
-        assert result.layout_plan.dashboard.width > 0
 
     def test_non_hidden_path_unpauses_nau(self, cfg_factory, tmp_path):
         """The no-loading-screen path (integration / normal without the

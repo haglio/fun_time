@@ -126,3 +126,51 @@ def test_every_declared_command_line_option_is_read():
     assert not unread, "command-line options nothing reads: " + ", ".join(
         f"{dest} ({where})" for dest, where in sorted(unread.items())
     )
+
+
+def test_no_dataclass_field_goes_unread():
+    """A field written on every build and read by nobody is state that lies.
+
+    It reads as part of the object's contract, so the next reader preserves
+    whatever computes it -- which is how a manifest key gets parsed, converted
+    and threaded through three call layers for nothing. Reads are matched by
+    attribute name across the three packages, plus the literal name of any
+    `getattr(x, "name", ...)`, so this shares vulture's blindness to a name
+    that collides with a live attribute elsewhere.
+    """
+    declared: dict[str, str] = {}
+    read: set[str] = set()
+    for path in _package_sources():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute):
+                read.add(node.attr)
+            elif (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr"
+                and len(node.args) >= 2
+                and isinstance(node.args[1], ast.Constant)
+            ):
+                read.add(node.args[1].value)
+            elif isinstance(node, ast.ClassDef) and any(
+                "dataclass" in ast.unparse(d) for d in node.decorator_list
+            ):
+                for statement in node.body:
+                    if isinstance(statement, ast.AnnAssign) and isinstance(
+                        statement.target, ast.Name
+                    ):
+                        declared.setdefault(
+                            f"{node.name}.{statement.target.id}",
+                            f"{path.relative_to(ROOT)}:{statement.lineno}",
+                        )
+
+    unread = {
+        field: where
+        for field, where in declared.items()
+        if field.split(".")[1] not in read
+    }
+
+    assert not unread, "dataclass fields nothing reads: " + ", ".join(
+        f"{field} ({where})" for field, where in sorted(unread.items())
+    )
