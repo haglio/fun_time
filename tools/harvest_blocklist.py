@@ -41,7 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from tools.sanitize_guard import blocklist_path, load_blocklist  # noqa: E402
+from tools.sanitize_guard import blocklist_path, load_blocklist
 
 ROOTS_NAME = "library_roots.local.txt"
 STAMP_NAME = "harvest_stamp.local.txt"

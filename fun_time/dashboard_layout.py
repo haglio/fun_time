@@ -97,7 +97,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     gap read as something adrift from the bar rather than part of it.
     """
     height = PAD * 2 + BUTTON
-    mid = lambda size: PAD + (BUTTON - size) // 2  # noqa: E731 — vertical centering
+    mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
 
     x = PAD
     app_icon = Rect(x, mid(APP_ICON), APP_ICON, APP_ICON)

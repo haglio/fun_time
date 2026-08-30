@@ -88,7 +88,7 @@ class BrowseList(QListWidget):
         self._go_up = go_up
         self.setFont(make_font(FONT_UI, SIZE_BODY))
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def keyPressEvent(self, event) -> None:  # Qt override
         """Backspace goes back up, the way it does in every other file browser."""
         if event.key() == Qt.Key.Key_Backspace:
             self._go_up()
@@ -447,7 +447,7 @@ class LibraryBrowserWindow(QWidget):
         if self._path:
             self.open_folder(self._path[:-1])
 
-    def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def closeEvent(self, event) -> None:  # Qt override
         """Tell the process the browse is over — closing this window cannot.
 
         Qt quits an app when its last window closes, but a Tool window is not

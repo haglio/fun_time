@@ -412,7 +412,7 @@ def main(argv: list[str] | None = None) -> int:
     )
     install_exception_logging(logger_)
 
-    from fun_time.single_instance import (  # noqa: PLC0415 — mirrors fun_time.orchestrator.main
+    from fun_time.single_instance import (  # mirrors fun_time.orchestrator.main
         MUTEX_ORCHESTRATOR,
         mutex_name_for_config,
         show_already_running_message,

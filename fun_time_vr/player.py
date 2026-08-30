@@ -408,7 +408,7 @@ def _update_quad_layer(
 ):
     """Refresh *unit*'s quad swapchain if its texture moved, and describe the
     layer to submit — or None before the first frame of content exists."""
-    from .vr_session import QuadLayer  # noqa: PLC0415 — sibling of the lazy VRSession import
+    from .vr_session import QuadLayer  # sibling of the lazy VRSession import
 
     if unit.layer_dirty:
         session.ensure_quad_swapchain(index, unit.target.width, unit.target.height)
@@ -471,10 +471,10 @@ def _draw_eyes(
 
 
 def _run(manifest: configparser.ConfigParser) -> int:
-    import glfw  # noqa: PLC0415 — GL/XR stack loads only after the runtime probe
-    import xr  # noqa: PLC0415
+    import glfw  # GL/XR stack loads only after the runtime probe
+    import xr
 
-    from .vr_session import VRSession  # noqa: PLC0415
+    from .vr_session import VRSession
 
     bringup_deadline = time.monotonic() + SESSION_BRINGUP_TIMEOUT_S
     while True:
