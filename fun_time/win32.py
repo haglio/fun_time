@@ -154,8 +154,7 @@ def find_window_for_process(pid: int, title: str) -> int:
         length = _user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
             return False
-        # A buffer per window, at that window's own length: a caption longer
-        # than find_window_by_title's shared 256 still compares whole.
+        # Per window, at its own length; by-title shares one 256.
         buffer = ctypes.create_unicode_buffer(length + 1)
         _user32.GetWindowTextW(hwnd, buffer, length + 1)
         return buffer.value == title
@@ -474,9 +473,7 @@ def find_window_by_title(title: str, *, exact: bool = False, include_hidden: boo
     <something>", so the panel needs *exact*.  *include_hidden* also matches a
     window with WS_VISIBLE cleared, which the dashboard is behind the cover.
     """
-    # One buffer for the whole walk, so a title is read at most 256 characters
-    # deep however many windows are visited.
-    buf = ctypes.create_unicode_buffer(256)
+    buf = ctypes.create_unicode_buffer(256)  # one for the whole walk
 
     def matches(hwnd: int) -> bool:
         if not include_hidden and not _user32.IsWindowVisible(hwnd):

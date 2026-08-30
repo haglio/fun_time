@@ -35,7 +35,7 @@ def decode_snapshot(raw: bytes) -> str:
 def _read_existing_snapshot(path: Path) -> str:
     """What is on disk, or "" — this side never fails over a read.
 
-    Newlines are normalized: `write_text` opens in text mode, so on Windows a
+    Newlines normalized: `write_text` opens in text mode, so on Windows a
     ``\n`` lands as ``\r\n`` and a raw decode never equals what we will write.
     """
     try:

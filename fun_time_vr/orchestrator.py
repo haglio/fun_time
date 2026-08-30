@@ -102,7 +102,8 @@ VR_PLAYER_MODULE = "fun_time_vr.player"
 # turns visible, so a healthy launch answers in seconds.
 PLAYER_READY_TIMEOUT_S = 120.0
 
-logger = logging.getLogger(__name__)
+# Named, not __name__: started with `-m`, where __name__ is "__main__".
+logger = logging.getLogger("fun_time_vr.orchestrator")
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -403,7 +404,7 @@ def run_vr_bridge(config) -> int:
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     config = load_config(args.config)
-    configure_logging(__name__, config.log_file("vr_orchestrator"), console=True)
+    configure_logging(logger.name, config.log_file("vr_orchestrator"), console=True)
     install_exception_logging(logger)
 
     from fun_time.single_instance import (  # mirrors fun_time.orchestrator.main

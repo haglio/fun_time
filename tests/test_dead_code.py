@@ -232,13 +232,25 @@ def test_no_plain_function_declares_an_argument_it_never_reads():
     assert result.returncode == 0, result.stdout + result.stderr
 
 
-# The share of the packages that is prose rather than code, as measured by
-# _prose_and_code below. It is a RATCHET: it may be lowered when prose goes,
-# never raised. The audit that set it measured 0.46 against a ~0.25 norm, with
-# the reasoning for the design living in comments rather than in names and
-# tests -- which is how a docstring came to cite a module that had been deleted
-# and a comment came to promise a seventh child that already existed.
-MAX_PROSE_TO_CODE = 0.4628
+# How many lines of the packages are prose rather than code, as measured by
+# _prose_and_code below. A RATCHET: lower it when prose goes, never raise it.
+# The audit that set it measured 0.46 prose per line of code against a ~0.25
+# norm, with the reasoning for the design living in comments rather than in
+# names and tests -- which is how a docstring came to cite a module that had
+# been deleted and a comment came to promise a seventh child that already
+# existed.
+#
+# A COUNT, not that ratio, since 2026-08-31. Held as a ratio it fired on any
+# small edit in EITHER direction once the number sat near its cap: deleting a
+# line of dead code -- the thing every other gate in this file exists to force
+# -- raised the ratio and failed the build, pointing the author at prose they
+# had never touched. What the gate is for is prose that outgrows what it
+# explains, and that is what this counts.
+MAX_PROSE_LINES = 7165
+
+# What the count was against at the last ratchet, so the norm the audit
+# measured stays readable. Reported on failure; not asserted.
+_PROSE_RATIO_AT_RATCHET = 0.4628
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
@@ -321,11 +333,11 @@ def test_prose_does_not_outgrow_the_code_it_explains():
         prose += module_prose
         code += module_code
 
-    ratio = prose / code
-    assert ratio <= MAX_PROSE_TO_CODE, (
-        f"{prose} prose lines to {code} of code ({ratio:.4f} > {MAX_PROSE_TO_CODE}). "
-        "Delete a stale block, or move what it says into a name or a test; "
-        "lower MAX_PROSE_TO_CODE when you do."
+    assert prose <= MAX_PROSE_LINES, (
+        f"{prose} prose lines (ceiling {MAX_PROSE_LINES}), against {code} of code "
+        f"-- {prose / code:.4f} per line, from {_PROSE_RATIO_AT_RATCHET} at the last "
+        "ratchet. Delete a stale block, or move what it says into a name or a "
+        "test; lower MAX_PROSE_LINES when you do."
     )
 
 
@@ -340,39 +352,44 @@ def test_prose_does_not_outgrow_the_code_it_explains():
 _WIN32_REACHES = {
     # The loader itself: this IS the binding, and the thing it exists to be
     # asked instead.
-    "fun_time/win32_loader.py": 3,
+    "fun_time/win32_loader.py": 5,
     # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
-    # this wants the AttributeError that ctypes.windll gives off Windows, and
-    # every caller catches it to fall back rather than to fail.  This is the
+    # these want the AttributeError ctypes.windll gives off Windows, and every
+    # caller catches it to fall back rather than to fail.  monitors.py is the
     # module the rest of the family asks for a monitor rather than measuring
     # one, which is why its count is the only one that ever goes up.
-    "fun_time/monitors.py": 4,
+    "fun_time/monitors.py": 13,
     # A vtable call built per invocation, inside a function body, so it never
-    # runs at import — win32_loader's prototype cannot express one.
-    "fun_time/win32_taskbar.py": 1,
-    # A fourth enumeration walk with its own handle and prototype; folding it
-    # into win32._first_window is its own change.
-    "fun_time/windows_bridge_sequencer.py": 2,
+    # runs at import -- win32_loader's prototype cannot express one.
+    "fun_time/win32_taskbar.py": 3,
+    # A fourth enumeration walk with its own hoisted handle and its own
+    # prototype; folding it into win32._first_window is its own change.
+    "fun_time/windows_bridge_sequencer.py": 9,
     # An error popup, and an icon handed to a window: both belong behind a
     # named call the way the dashboard's chrome now is.
-    "fun_time_vr/player.py": 1,
-    "fun_time_vr/vr_session.py": 2,
+    "fun_time_vr/player.py": 2,
+    "fun_time_vr/vr_session.py": 4,
     # use_last_error=True, which load_dll offers; not yet converted.
-    "fun_time/process_identity.py": 2,
+    "fun_time/process_identity.py": 11,
 }
 
 # What counts as reaching it.
 _WIN32_BINDING_NAMES = frozenset(
-    {"windll", "oledll", "WinDLL", "OleDLL", "WINFUNCTYPE"})
+    {"windll", "oledll", "WinDLL", "OleDLL", "CDLL", "PyDLL", "WINFUNCTYPE"})
 
 
 def _win32_reaches(tree) -> int:
-    """How many times this module names ctypes' Windows binding surface.
+    """How many CALLS this module makes past the layer, not how often it names it.
 
-    Counts the three spellings that mean the same thing — ``ctypes.windll``,
-    ``import ctypes as c`` then ``c.windll``, and ``from ctypes import windll``
-    — plus ``getattr(ctypes, "windll")``, because a gate its author can walk
-    around by renaming the import is not a gate.
+    A count of names is walked around by one hoist: ``u = ctypes.windll.user32``
+    and then eleven ``u.X()`` scores 1, with none of the guard, none of the named
+    constants and no trip through fun_time.win32 -- which is exactly the shape
+    this exists to catch. So a local bound to the binding surface is followed,
+    and every call THROUGH it counts.
+
+    The spellings that mean the same thing all count too: ``ctypes.windll``,
+    ``import ctypes as c`` then ``c.windll``, ``c = ctypes`` then ``c.windll``,
+    ``from ctypes import windll``, and ``getattr(ctypes, "windll")``.
     """
     ctypes_names = {"ctypes"}
     for node in ast.walk(tree):
@@ -380,21 +397,46 @@ def _win32_reaches(tree) -> int:
             for alias in node.names:
                 if alias.name == "ctypes" and alias.asname:
                     ctypes_names.add(alias.asname)
+        elif (isinstance(node, ast.Assign) and isinstance(node.value, ast.Name)
+                and node.value.id in ctypes_names):
+            ctypes_names.update(
+                t.id for t in node.targets if isinstance(t, ast.Name))
+
+    def names_the_surface(node) -> bool:
+        """Whether this expression IS ctypes' binding surface, however spelled."""
+        if isinstance(node, ast.Attribute):
+            if node.attr in _WIN32_BINDING_NAMES and isinstance(node.value, ast.Name):
+                return node.value.id in ctypes_names
+            return names_the_surface(node.value)      # ctypes.windll.user32
+        if isinstance(node, ast.Call):
+            if (isinstance(node.func, ast.Name) and node.func.id == "getattr"
+                    and len(node.args) >= 2
+                    and isinstance(node.args[0], ast.Name)
+                    and node.args[0].id in ctypes_names
+                    and isinstance(node.args[1], ast.Constant)
+                    and node.args[1].value in _WIN32_BINDING_NAMES):
+                return True
+            return names_the_surface(node.func)       # ctypes.WinDLL("user32")
+        if isinstance(node, ast.Name):
+            return node.id in bound_to_surface
+        return False
+
+    # Locals holding a DLL taken off that surface: the hoist.
+    bound_to_surface: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Assign) and names_the_surface(node.value):
+            bound_to_surface.update(
+                t.id for t in node.targets if isinstance(t, ast.Name))
 
     reaches = 0
     for node in ast.walk(tree):
-        if isinstance(node, ast.Attribute) and node.attr in _WIN32_BINDING_NAMES:
-            if isinstance(node.value, ast.Name) and node.value.id in ctypes_names:
-                reaches += 1
-        elif isinstance(node, ast.ImportFrom) and node.module == "ctypes":
+        if isinstance(node, ast.ImportFrom) and node.module == "ctypes":
             reaches += sum(1 for a in node.names if a.name in _WIN32_BINDING_NAMES)
-        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
-                and node.func.id == "getattr" and len(node.args) >= 2
-                and isinstance(node.args[0], ast.Name)
-                and node.args[0].id in ctypes_names
-                and isinstance(node.args[1], ast.Constant)
-                and node.args[1].value in _WIN32_BINDING_NAMES):
-            reaches += 1
+        elif isinstance(node, ast.Call) and names_the_surface(node.func):
+            reaches += 1                               # a call through it
+        elif isinstance(node, ast.Attribute) and node.attr in _WIN32_BINDING_NAMES:
+            if isinstance(node.value, ast.Name) and node.value.id in ctypes_names:
+                reaches += 1                           # named, not yet called
     return reaches
 
 

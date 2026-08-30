@@ -226,11 +226,21 @@ class TestWhatEveryVideoUnitOwes:
         with pytest.raises(NotImplementedError):
             unit.pump(threading.Event(), 0.0)
 
+    def test_the_base_refuses_to_be_closed(self):
+        """The frame loop's `finally` calls this on every unit in its list, so
+        a subclass that forgot would raise inside the teardown and leave the
+        OpenXR session and the GL contexts unreleased."""
+        unit = _VideoUnit.__new__(_VideoUnit)
+
+        with pytest.raises(NotImplementedError):
+            unit.close()
+
     @pytest.mark.parametrize("unit_class", [_MainUnit, _SatelliteUnit])
-    def test_both_units_answer_the_call_the_worker_makes(self, unit_class):
-        """By convention until now: two signatures that happened to match."""
+    def test_both_units_answer_the_calls_the_loop_makes(self, unit_class):
+        """By convention until now: signatures that happened to match."""
         import inspect
 
         assert unit_class.pump is not _VideoUnit.pump
-        names = list(inspect.signature(unit_class.pump).parameters)
-        assert names == ["self", "stop", "now"]
+        assert unit_class.close is not _VideoUnit.close
+        assert list(inspect.signature(unit_class.pump).parameters) == [
+            "self", "stop", "now"]

@@ -50,10 +50,8 @@ _kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
 _kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
 _kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
 
-# The Toolhelp trio.  Undeclared, CreateToolhelp32Snapshot answers as a 32-bit
-# c_int: its documented failure value comes back -1, which never equals the
-# INVALID_HANDLE_VALUE the guard below compares against, so a failed snapshot
-# fell through to a Process32FirstW and a CloseHandle on an invalid handle.
+# Undeclared it answered as a c_int, and its failure never equalled the
+# INVALID_HANDLE_VALUE the guard compares against.
 _kernel32.CreateToolhelp32Snapshot.argtypes = [
     ctypes.wintypes.DWORD,  # dwFlags
     ctypes.wintypes.DWORD,  # th32ProcessID

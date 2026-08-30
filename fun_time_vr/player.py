@@ -240,6 +240,9 @@ class _VideoUnit:
         """One turn of the file-channel worker — what every unit owes it."""
         raise NotImplementedError
 
+    def close(self) -> None:  # what the frame loop's `finally` calls
+        raise NotImplementedError
+
     def _close_graphics(self) -> None:
         self.target.close()
         if self.mesh is not None:

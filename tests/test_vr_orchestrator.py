@@ -361,16 +361,19 @@ class TestTheCheckRun:
 
         assert configured == [orchestrator.logger]
 
-    def test_and_it_asks_for_that_by___name___not_by_a_string(self):
-        """Under pytest the two are the same, so only the source can say which.
-        They are NOT the same in the launch: `launch_vr.vbs` runs
-        `python -m fun_time_vr.orchestrator`, where `__name__` is `"__main__"`
-        — so the literal configured a logger this module never wrote through,
-        and `_wait_for_player`'s lines went to an unconfigured one."""
+    def test_and_it_asks_for_the_name_this_module_logs_under(self):
+        """Under pytest every spelling coincides, so only the source can say
+        which was written.  They do NOT coincide in the launch:
+        `launch_vr.vbs` runs `python -m fun_time_vr.orchestrator`, where
+        `__name__` is `"__main__"` — so a literal configured a logger this
+        module never wrote through, and `__name__` would put "__main__" in
+        every line of the log."""
         import ast
         import inspect
 
         from fun_time_vr import orchestrator
+
+        assert orchestrator.logger.name == "fun_time_vr.orchestrator"
 
         tree = ast.parse(inspect.getsource(orchestrator.main))
         call = next(
@@ -378,5 +381,7 @@ class TestTheCheckRun:
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
             and node.func.id == "configure_logging")
 
-        assert isinstance(call.args[0], ast.Name)
-        assert call.args[0].id == "__name__"
+        # `logger.name`: whatever this module logs under, that is what is set up.
+        assert isinstance(call.args[0], ast.Attribute)
+        assert call.args[0].attr == "name"
+        assert call.args[0].value.id == "logger"
