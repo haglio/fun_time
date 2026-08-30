@@ -1,44 +1,73 @@
 from __future__ import annotations
 
-import importlib
 import logging
-import sys
 import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-
-@pytest.fixture()
-def audio_companion_module():
-    fake_pygame = types.SimpleNamespace(mixer=types.SimpleNamespace(music=types.SimpleNamespace(), Sound=None))
-    with patch.dict(sys.modules, {"pygame": fake_pygame}):
-        module = importlib.import_module("fun_time.audio_companion_app")
-        module = importlib.reload(module)
-    return module
+from fun_time import audio_companion_app
+from fun_time.audio_companion_app import AudioPlaybackController, find_audio
 
 
 class TestFindAudio:
-    def test_returns_first_supported_extension(self, audio_companion_module, tmp_path: Path):
+    def test_returns_first_supported_extension(self, tmp_path: Path):
         mp3 = tmp_path / "demo.mp3"
         wav = tmp_path / "demo.wav"
         mp3.write_bytes(b"mp3")
         wav.write_bytes(b"wav")
 
-        assert audio_companion_module.find_audio(tmp_path, "demo") == mp3
+        assert find_audio(tmp_path, "demo") == mp3
 
-    def test_returns_none_when_stem_missing(self, audio_companion_module, tmp_path: Path):
-        assert audio_companion_module.find_audio(tmp_path, "missing") is None
+    def test_returns_none_when_stem_missing(self, tmp_path: Path):
+        assert find_audio(tmp_path, "missing") is None
 
 
-class TestReadPausedState:
-    def test_treats_only_1_as_paused(self, audio_companion_module, tmp_path: Path):
-        path = tmp_path / "paused.txt"
-        path.write_text("1", encoding="utf-8")
-        assert audio_companion_module.read_paused_state(path) is True
-        path.write_text("0", encoding="utf-8")
-        assert audio_companion_module.read_paused_state(path) is False
+class TestTheFlagFilesThisProcessReads:
+    """Both are read through `player_core.file_channel.read_paused_state`, which
+    every other player in the family already reads its own with.  This module
+    carried two byte-identical copies of that body, differing only in name."""
+
+    @pytest.mark.parametrize("text, expected", [
+        ("1", True), ("0", False), ("", False), ("true", False),
+        (" 1 \n", True), ("\ufeff1", True),
+    ])
+    def test_only_an_exact_1_is_true(self, tmp_path: Path, text: str, expected: bool):
+        from player_core.file_channel import read_paused_state
+
+        path = tmp_path / "flag.txt"
+        path.write_text(text, encoding="utf-8")
+
+        assert read_paused_state(path) is expected
+
+    def test_a_file_that_is_not_there_yet_is_not_true(self, tmp_path: Path):
+        from player_core.file_channel import read_paused_state
+
+        assert read_paused_state(tmp_path / "never_written.txt") is False
+
+    def test_the_runtime_is_given_one_reader_for_both_flags(self, tmp_path, cfg_path):
+        """One predicate for both files.  The VR orchestrator writes one of them
+        and a player reads it back, so the two ends must not be able to
+        disagree about what a value means."""
+        from fun_time import audio_companion_app
+
+        (tmp_path / "audio").mkdir(exist_ok=True)
+        with patch.object(audio_companion_app.pygame.mixer, "init"), \
+             patch.object(audio_companion_app, "AudioCompanionRuntime") as runtime, \
+             patch("socket.socket"):
+            runtime.return_value.run_forever.side_effect = KeyboardInterrupt
+            with pytest.raises(KeyboardInterrupt):
+                audio_companion_app.main(
+                    ["--config", str(cfg_path), "--audio-folder", str(tmp_path / "audio")])
+
+        given = runtime.call_args.kwargs
+        assert given["read_mode_active"] is given["read_paused_state"]
+
+    def test_no_local_copy_of_that_reader_is_left(self):
+        from fun_time import audio_companion_app
+
+        assert not hasattr(audio_companion_app, "read_mode_active")
 
 
 class _FakeMusic:
@@ -87,28 +116,34 @@ class _FakeMusic:
 
 
 class TestAudioPlaybackController:
-    def _make_controller(self, audio_companion_module, tmp_path: Path):
-        return audio_companion_module.AudioPlaybackController(audio_folder=tmp_path, logger=logging.getLogger("test.audio"))
+    @staticmethod
+    def _make_controller(tmp_path: Path, music=None, **overrides):
+        return AudioPlaybackController(
+            audio_folder=tmp_path,
+            logger=logging.getLogger("test.audio"),
+            music=music if music is not None else _FakeMusic(),
+            sound_length=lambda _path: None,
+            **overrides,
+        )
 
-    def _running(self, audio_companion_module, tmp_path: Path, monkeypatch):
+    def _running(self, tmp_path: Path, monkeypatch):
         """A controller in genau mode with a real clip file, a remembering
         mixer, and a hand-turned clock."""
         music = _FakeMusic()
-        monkeypatch.setattr(audio_companion_module.pygame.mixer, "music", music)
         clock = {"now": 100.0}
         monkeypatch.setattr(
-            audio_companion_module, "time",
+            audio_companion_app, "time",
             types.SimpleNamespace(monotonic=lambda: clock["now"]),
         )
         clip = tmp_path / "demo.mp3"
         clip.write_bytes(b"demo")
-        controller = self._make_controller(audio_companion_module, tmp_path)
+        controller = self._make_controller(tmp_path, music)
         controller.mode_active = True
         controller.visible = True
         return controller, music, clock, clip
 
-    def test_hiding_pauses_and_remembers_where_the_clip_was(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_hiding_pauses_and_remembers_where_the_clip_was(self, tmp_path, monkeypatch):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
         assert music.play_starts == [0.0]
 
@@ -118,8 +153,8 @@ class TestAudioPlaybackController:
         assert music.events[-1] == "pause"
         assert controller.clip_positions[clip] == pytest.approx(4.0)
 
-    def test_revealing_resumes_the_paused_channel_without_restarting(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_revealing_resumes_the_paused_channel_without_restarting(self, tmp_path, monkeypatch):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
         clock["now"] += 4.0
         controller.handle_udp_line("VISIBLE 0")
@@ -132,8 +167,8 @@ class TestAudioPlaybackController:
         clock["now"] += 1.0
         assert controller.current_position_for_active_clip() == pytest.approx(5.0)
 
-    def test_a_clip_resumes_where_it_left_off_after_a_switch_away_and_back(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, first = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_a_clip_resumes_where_it_left_off_after_a_switch_away_and_back(self, tmp_path, monkeypatch):
+        controller, music, clock, first = self._running(tmp_path, monkeypatch)
         second = tmp_path / "other.mp3"
         second.write_bytes(b"other")
         controller.switch_clip(first)
@@ -147,8 +182,8 @@ class TestAudioPlaybackController:
         # Back where it left off — three seconds in, not the top.
         assert music.play_starts[-1] == pytest.approx(3.0)
 
-    def test_manual_pause_holds_even_while_visible_and_a_resume_lifts_it(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_manual_pause_holds_even_while_visible_and_a_resume_lifts_it(self, tmp_path, monkeypatch):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
         controller.set_manual_paused(True)
@@ -157,8 +192,8 @@ class TestAudioPlaybackController:
         controller.set_manual_paused(False)
         assert music.events[-1] == "unpause"
 
-    def test_repeating_the_same_manual_pause_touches_nothing(self, audio_companion_module, tmp_path, monkeypatch, caplog):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_repeating_the_same_manual_pause_touches_nothing(self, tmp_path, monkeypatch, caplog):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
         controller.set_manual_paused(True)
         before = list(music.events)
@@ -169,8 +204,8 @@ class TestAudioPlaybackController:
         assert music.events == before
         assert not caplog.records
 
-    def test_switch_clip_none_stops_and_clears_flags(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_switch_clip_none_stops_and_clears_flags(self, tmp_path, monkeypatch):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
         controller.switch_clip(None)
@@ -181,23 +216,16 @@ class TestAudioPlaybackController:
         assert controller.playback_running is False
         assert controller.play_start_position == 0.0
 
-    def test_nothing_plays_while_the_mode_file_says_genau_is_inactive(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_nothing_plays_while_the_mode_file_says_genau_is_inactive(self, tmp_path, monkeypatch):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.mode_active = False
 
         controller.switch_clip(clip)
 
         assert "play" not in music.events
 
-    def test_read_mode_active_treats_only_1_as_enabled(self, audio_companion_module, tmp_path: Path):
-        path = tmp_path / "genau_mode.txt"
-        path.write_text("1", encoding="utf-8")
-        assert audio_companion_module.read_mode_active(path) is True
-        path.write_text("0", encoding="utf-8")
-        assert audio_companion_module.read_mode_active(path) is False
-
-    def test_a_clip_line_finds_loads_and_plays_the_named_audio(self, audio_companion_module, tmp_path, monkeypatch):
-        controller, music, clock, _clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_a_clip_line_finds_loads_and_plays_the_named_audio(self, tmp_path, monkeypatch):
+        controller, music, clock, _clip = self._running(tmp_path, monkeypatch)
         named = tmp_path / "Named.mp3"
         named.write_bytes(b"named")
 
@@ -206,8 +234,8 @@ class TestAudioPlaybackController:
         assert music.loaded == str(named)
         assert music.busy
 
-    def test_a_clip_line_with_no_audio_falls_silent_and_says_so(self, audio_companion_module, tmp_path, monkeypatch, caplog):
-        controller, music, clock, clip = self._running(audio_companion_module, tmp_path, monkeypatch)
+    def test_a_clip_line_with_no_audio_falls_silent_and_says_so(self, tmp_path, monkeypatch, caplog):
+        controller, music, clock, clip = self._running(tmp_path, monkeypatch)
         controller.switch_clip(clip)
 
         with caplog.at_level(logging.WARNING, logger="test.audio"):
@@ -217,39 +245,34 @@ class TestAudioPlaybackController:
         assert controller.current_path is None
         assert any("Missing" in r.getMessage() for r in caplog.records)
 
-    def test_set_volume_scales_the_mixer(self, audio_companion_module, tmp_path: Path):
-        controller = self._make_controller(audio_companion_module, tmp_path)
+    def test_set_volume_scales_the_mixer(self, tmp_path: Path):
         music = MagicMock()
+        controller = self._make_controller(tmp_path, music)
 
-        with patch.object(audio_companion_module.pygame.mixer, "music", music):
-            controller.set_volume(30)
+        controller.set_volume(30)
 
         music.set_volume.assert_called_once_with(0.3)
 
-    def test_set_volume_is_noop_when_the_level_is_unchanged(self, audio_companion_module, tmp_path: Path):
-        controller = self._make_controller(audio_companion_module, tmp_path)
+    def test_set_volume_is_noop_when_the_level_is_unchanged(self, tmp_path: Path):
         music = MagicMock()
+        controller = self._make_controller(tmp_path, music)
 
-        with patch.object(audio_companion_module.pygame.mixer, "music", music):
-            controller.set_volume(100)  # already full
+        controller.set_volume(100)  # already full
 
         music.set_volume.assert_not_called()
 
-    def test_a_force_muted_controller_never_touches_the_mixer(self, audio_companion_module, tmp_path: Path):
+    def test_a_force_muted_controller_never_touches_the_mixer(self, tmp_path: Path):
         """FUN_TIME_MUTE_AUDIO silences hidden and integration runs; no level the
         bridge publishes may bring their sound back."""
-        controller = audio_companion_module.AudioPlaybackController(
-            audio_folder=tmp_path, logger=logging.getLogger("test.audio"), force_muted=True,
-        )
         music = MagicMock()
+        controller = self._make_controller(tmp_path, music, force_muted=True)
 
-        with patch.object(audio_companion_module.pygame.mixer, "music", music):
-            controller.set_volume(80)
+        controller.set_volume(80)
 
         music.set_volume.assert_not_called()
 
-    def test_normalize_position_wraps_when_clip_length_known(self, audio_companion_module, tmp_path: Path):
-        controller = self._make_controller(audio_companion_module, tmp_path)
+    def test_normalize_position_wraps_when_clip_length_known(self, tmp_path: Path):
+        controller = self._make_controller(tmp_path)
         clip = tmp_path / "demo.mp3"
         clip.write_bytes(b"demo")
 

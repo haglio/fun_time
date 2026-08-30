@@ -201,14 +201,11 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     answering.  True if the call returned, False if that window is hung.
 
     ``SetWindowPos`` and ``ShowWindow`` do not merely set state: each SENDS
-    messages to the thread that owns the window (WM_WINDOWPOSCHANGING /
-    WM_WINDOWPOSCHANGED, WM_SHOWWINDOW) and waits for that thread to handle them.
-    Across processes — which every window here is — a player whose own loop has
-    stalled therefore blocks the caller *forever*: the send has no timeout, and
-    no flag on our side changes that.
-
-    One did, and took the session with it; ``TestAWindowThatHasStoppedAnswering``
-    tells that story and holds every rule below.
+    messages to the thread that owns the window and waits for it to handle them,
+    with no timeout and no flag on our side that changes that — so a player
+    whose own loop has stalled blocks the caller forever.  One did, and took the
+    session with it; ``TestAWindowThatHasStoppedAnswering`` tells that story and
+    holds every rule below.
 
     So the call is made on a throwaway thread and waited on for
     HUNG_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing

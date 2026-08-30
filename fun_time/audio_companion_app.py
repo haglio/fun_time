@@ -6,14 +6,18 @@ import math
 import os
 import socket
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 import pygame
 
 from .audio_companion_runtime import AudioCompanionRuntime
 from .audio_volume import MAX_VOLUME, read_volume
 from .config import load_config
+from player_core.file_channel import read_paused_state
+
 from app_support.cli import preparse_config_path
 from app_support.logging_utils import configure_logging, install_exception_logging
 
@@ -45,28 +49,19 @@ def find_audio(audio_folder: Path, stem: str) -> Path | None:
     return None
 
 
-def read_mode_active(path: Path) -> bool:
-    try:
-        if not path.exists():
-            return False
-        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
-    except Exception:
-        return False
-
-
-def read_paused_state(path: Path) -> bool:
-    try:
-        if not path.exists():
-            return False
-        return path.read_text(encoding="utf-8").replace("\ufeff", "").strip() == "1"
-    except Exception:
-        return False
-
-
 @dataclass
 class AudioPlaybackController:
+    """The one clip the companion is playing, and where it had got to.
+
+    The sound is handed in, not reached for: driving the ``pygame.mixer.music``
+    global meant this could not be built without the audio subsystem in
+    whatever state the process had left it.
+    """
+
     audio_folder: Path
     logger: logging.Logger
+    music: Any
+    sound_length: Callable[[Path], float | None]
     # Hidden and integration runs set FUN_TIME_MUTE_AUDIO; they stay silent no
     # matter what level the bridge publishes.
     force_muted: bool = False
@@ -87,8 +82,8 @@ class AudioPlaybackController:
             return self.clip_lengths[path]
 
         try:
-            length = float(pygame.mixer.Sound(str(path)).get_length())
-            if not math.isfinite(length) or length <= 0:
+            length = self.sound_length(path)
+            if length is not None and (not math.isfinite(length) or length <= 0):
                 length = None
         except Exception:
             length = None
@@ -133,16 +128,16 @@ class AudioPlaybackController:
 
         start_position = self.normalize_position(self.current_path, self.clip_positions.get(self.current_path, 0.0))
         try:
-            pygame.mixer.music.play(-1, start=start_position)
+            self.music.play(-1, start=start_position)
         except TypeError:
-            pygame.mixer.music.play(-1)
+            self.music.play(-1)
             if start_position > 0:
                 try:
-                    pygame.mixer.music.set_pos(start_position)
+                    self.music.set_pos(start_position)
                 except Exception:
                     start_position = 0.0
         except Exception:
-            pygame.mixer.music.play(-1)
+            self.music.play(-1)
             start_position = 0.0
 
         self.play_start_position = start_position
@@ -154,18 +149,18 @@ class AudioPlaybackController:
         should_play = self.mode_active and self.visible and self.current_path is not None and not self.manual_paused
 
         if should_play:
-            if pygame.mixer.music.get_busy():
+            if self.music.get_busy():
                 if self.paused:
-                    pygame.mixer.music.unpause()
+                    self.music.unpause()
                     self.play_started_at = time.monotonic()
                     self.playback_running = True
                     self.paused = False
             else:
                 self.play_current_clip_from_saved_position()
         else:
-            if pygame.mixer.music.get_busy() and not self.paused:
+            if self.music.get_busy() and not self.paused:
                 self.save_active_clip_position()
-                pygame.mixer.music.pause()
+                self.music.pause()
                 self.playback_running = False
                 self.paused = True
 
@@ -176,13 +171,13 @@ class AudioPlaybackController:
         self.current_path = path
 
         if self.current_path is None:
-            pygame.mixer.music.stop()
+            self.music.stop()
             self.paused = False
             self.playback_running = False
             self.play_start_position = 0.0
             return
 
-        pygame.mixer.music.load(str(self.current_path))
+        self.music.load(str(self.current_path))
         self.play_start_position = self.normalize_position(self.current_path, self.clip_positions.get(self.current_path, 0.0))
         self.playback_running = False
         self.paused = False
@@ -201,7 +196,7 @@ class AudioPlaybackController:
         if self.force_muted or volume == self.volume:
             return
         self.volume = volume
-        pygame.mixer.music.set_volume(volume / MAX_VOLUME)
+        self.music.set_volume(volume / MAX_VOLUME)
 
     def set_mode_active(self, active: bool) -> None:
         self.mode_active = active
@@ -253,16 +248,24 @@ def main(argv: list[str] | None = None) -> int:
     sock.bind((args.host, args.port))
     sock.settimeout(0.15)
 
+    # Both flag files, read the way every other player reads its own.
+    def read_flag(path: Path) -> bool:
+        return read_paused_state(path, logger=logger)
+
     controller = AudioPlaybackController(
-        audio_folder=audio_folder, logger=logger, force_muted=muted,
+        audio_folder=audio_folder,
+        logger=logger,
+        music=pygame.mixer.music,
+        sound_length=lambda path: float(pygame.mixer.Sound(str(path)).get_length()),
+        force_muted=muted,
     )
     runtime = AudioCompanionRuntime(
         sock=sock,
         controller=controller,
         mode_file=mode_file,
-        read_mode_active=read_mode_active,
+        read_mode_active=read_flag,
         paused_file=paused_file,
-        read_paused_state=read_paused_state,
+        read_paused_state=read_flag,
         volume_file=volume_file,
         read_volume=read_volume,
     )
