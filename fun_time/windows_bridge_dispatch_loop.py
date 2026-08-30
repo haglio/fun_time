@@ -345,8 +345,6 @@ class DispatchLoopRunner:
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
 
-    _HOTKEY_TO_BUTTON: dict[str, str] = {}
-
     # Twice a second: the cadence for sampling every player's current clip for
     # watch tracking (both satellites and the main Nau feed).  A satellite
     # video switch is only ever bracketed by two samples, so this also bounds how
@@ -695,8 +693,7 @@ class DispatchLoopRunner:
             # voice does.
             logger.debug("OmniPause dropped spoken command: %s", cmd)
             return
-        button = self._HOTKEY_TO_BUTTON.get(cmd, cmd)
-        self._send_press(button)
+        self._send_press(cmd)
         if cmd == "quit":
             self.ahk_cmd_file.write_text("exit", encoding="utf-8")
             return
