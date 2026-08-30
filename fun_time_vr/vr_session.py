@@ -5,14 +5,13 @@ history is a catalog of the loader's traps — graphics requirements queried
 before session creation, typed event casting, waiting for READY before the
 frame loop, and gating on view validity (an unlocated view reports an
 all-zero FOV, which is a division by zero in the projection matrix).
-Consolidating the two copies into a shared sibling is part of the planned
-GenauVR-engine extraction.
 
 Differences from GenauVR's: no controller actions (FunTimeVR is driven by the
 orchestrator's hotkeys and voice), no per-eye depth buffers (the scene draws
 in painter's order), and the desktop window is titled/iconed as Fun Time's.
 
-The OpenXR/GL shell.  See CLAUDE.md, "Standing rules".
+The OpenXR/GL shell -- see CLAUDE.md, "Standing rules"; the two copies and
+what waits on merging them are in docs/known-issues.md.
 """
 from __future__ import annotations
 

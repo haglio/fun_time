@@ -13,9 +13,8 @@ The satellites need no such twin: their session/verb/status logic is already
 display-agnostic in this repo's ``satellite`` package, and the VR player
 composes those pieces directly (see fun_time_vr.player).
 
-Nau verbs outside this subset (loop recording, version cycling, clip jumps,
-length modes, compilations) are not in the VR prototype yet; they report
-unhandled and the player logs them once rather than crashing.
+Nau verbs outside this subset report unhandled, and the player logs each once
+rather than crashing; docs/known-issues.md names them.
 """
 from __future__ import annotations
 

@@ -1,5 +1,25 @@
 # Known Issues
 
+## FunTimeVR: What a VR Session Does Not Launch, and the Engine Extraction
+
+- Status: Deferred
+- Scope:
+  - Not launched in VR: the Qt dashboard and its log panel, the Random Favs Browser,
+    the audio companion, the loopback server, and Genau. A mode switch in a VR
+    session changes flags whose windows do not exist, harmlessly.
+  - Nau verbs the VR main role does not implement: loop recording, version cycling,
+    clip jumps, length modes, compilations. They report unhandled, and the player
+    logs each once rather than crashing.
+  - `fun_time_vr/vr_session.py` and `fun_time_vr/vr_runtime.py` are each adapted
+    from a GenauVR original (`genau_vr.vr_session`, `genau_vr.vr_runtime`).
+    Consolidating each pair into a shared sibling is the planned GenauVR-engine
+    extraction, which is also what genau and hybrid-with-Genau in VR wait on.
+- Notes:
+  - Recorded here rather than in five module docstrings (2026-08-30, audit item 25):
+    the same deferral was written out in `vr_session.py`, `vr_runtime.py`,
+    `orchestrator.py`, `roles.py` and a runtime log line, free to drift apart, and
+    invisible to anyone grepping for a TODO marker before starting work.
+
 ## Genau Disable / Re-enable Reliability
 
 - Status: Deferred
