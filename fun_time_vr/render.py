@@ -72,51 +72,6 @@ void main() {
 }
 """
 
-_IMMERSIVE_FRAGMENT_SHADER = """
-#version 330 core
-in vec2 screen_pos;
-out vec4 frag_color;
-
-uniform sampler2D video_tex;
-uniform mat4 inv_view_proj;
-uniform int eye;   // 0=left, 1=right
-uniform int mode;  // see _PROJECTION_MODES
-
-const float PI = 3.14159265359;
-
-void main() {
-    // Reconstruct this pixel's world-space ray direction.
-    vec4 world_dir = inv_view_proj * vec4(screen_pos, -1.0, 1.0);
-    vec3 dir = normalize(world_dir.xyz);
-
-    // Spherical coordinates (OpenGL: +X right, +Y up, -Z forward).
-    float theta = atan(dir.x, -dir.z);
-    float phi = asin(clamp(dir.y, -1.0, 1.0));
-
-    vec2 uv;
-    if (mode == 4) {
-        // Equirect 360, mono: the full sphere across the whole texture.
-        uv = vec2(theta / (2.0 * PI) + 0.5, phi / PI + 0.5);
-    } else if (mode == 1) {
-        // Equirect 180, side-by-side stereo: black behind the viewer.
-        if (abs(theta) > PI * 0.5) { frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }
-        float u = theta / PI + 0.5;
-        uv = vec2(u * 0.5 + float(eye) * 0.5, phi / PI + 0.5);
-    } else {
-        // Fisheye, side-by-side stereo, equidistant mapping: the ray's
-        // off-axis angle sets the radius from each eye-image's center.
-        float half_fov = radians(mode == 2 ? 190.0 : 200.0) * 0.5;
-        float off_axis = acos(clamp(-dir.z, -1.0, 1.0));
-        if (off_axis > half_fov) { frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }
-        float planar_len = length(dir.xy);
-        vec2 planar = planar_len > 0.0 ? dir.xy / planar_len : vec2(0.0);
-        vec2 local = vec2(0.5) + (off_axis / half_fov * 0.5) * planar;
-        uv = vec2(local.x * 0.5 + float(eye) * 0.5, local.y);
-    }
-    frag_color = texture(video_tex, uv);
-}
-"""
-
 # The immersive shader's mode ids per projection; FLAT is absent because a
 # flat video draws as a curved screen, not an immersive wrap.
 _PROJECTION_MODES = {
@@ -126,6 +81,60 @@ _PROJECTION_MODES = {
     EQUIRECT_360: 4,
 }
 
+# Each fisheye projection's full field of view, in degrees — the number its own
+# constant is named after.  The shader derived these from the mode id, so
+# renumbering the table above silently changed what it drew.
+_FISHEYE_FOV_DEGREES = {
+    FISHEYE_190_SBS: 190.0,
+    MKX200_SBS: 200.0,
+}
+
+_IMMERSIVE_FRAGMENT_SHADER = f"""
+#version 330 core
+in vec2 screen_pos;
+out vec4 frag_color;
+
+uniform sampler2D video_tex;
+uniform mat4 inv_view_proj;
+uniform int eye;   // 0=left, 1=right
+uniform int mode;  // written in from _PROJECTION_MODES below
+
+const float PI = 3.14159265359;
+
+void main() {{
+    // Reconstruct this pixel's world-space ray direction.
+    vec4 world_dir = inv_view_proj * vec4(screen_pos, -1.0, 1.0);
+    vec3 dir = normalize(world_dir.xyz);
+
+    // Spherical coordinates (OpenGL: +X right, +Y up, -Z forward).
+    float theta = atan(dir.x, -dir.z);
+    float phi = asin(clamp(dir.y, -1.0, 1.0));
+
+    vec2 uv;
+    if (mode == {_PROJECTION_MODES[EQUIRECT_360]}) {{
+        // Equirect 360, mono: the full sphere across the whole texture.
+        uv = vec2(theta / (2.0 * PI) + 0.5, phi / PI + 0.5);
+    }} else if (mode == {_PROJECTION_MODES[EQUIRECT_180_SBS]}) {{
+        // Equirect 180, side-by-side stereo: black behind the viewer.
+        if (abs(theta) > PI * 0.5) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
+        float u = theta / PI + 0.5;
+        uv = vec2(u * 0.5 + float(eye) * 0.5, phi / PI + 0.5);
+    }} else {{
+        // Fisheye, side-by-side stereo, equidistant mapping: the ray's
+        // off-axis angle sets the radius from each eye-image's center.
+        float half_fov = radians(mode == {_PROJECTION_MODES[FISHEYE_190_SBS]}
+                                 ? {_FISHEYE_FOV_DEGREES[FISHEYE_190_SBS]}
+                                 : {_FISHEYE_FOV_DEGREES[MKX200_SBS]}) * 0.5;
+        float off_axis = acos(clamp(-dir.z, -1.0, 1.0));
+        if (off_axis > half_fov) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
+        float planar_len = length(dir.xy);
+        vec2 planar = planar_len > 0.0 ? dir.xy / planar_len : vec2(0.0);
+        vec2 local = vec2(0.5) + (off_axis / half_fov * 0.5) * planar;
+        uv = vec2(local.x * 0.5 + float(eye) * 0.5, local.y);
+    }}
+    frag_color = texture(video_tex, uv);
+}}
+"""
 
 def immersive_mode(projection: str) -> int | None:
     """The shader mode for *projection*, or None when it draws as a screen."""
