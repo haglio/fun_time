@@ -82,7 +82,6 @@ def test_metadata_path_mirrors_media_tree_under_metadata_root(tmp_path: Path):
 
 
 def test_metadata_path_returns_none_when_outside_media_root(tmp_path: Path):
-    media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     outside = tmp_path / "elsewhere" / "clip.mp4"
 

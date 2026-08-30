@@ -6,7 +6,7 @@ from unittest.mock import patch
 import pytest
 from PyQt6.QtGui import QColor
 
-from shared_ui.colors import BLUE, GREEN
+from shared_ui.colors import BLUE
 
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.dashboard_app import (
@@ -681,7 +681,6 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
 def test_help_action_opens_dialog_locally_without_routing_command(dashboard_window, dashboard_app_config):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
     from unittest.mock import MagicMock
-    from fun_time.dashboard_app import DashboardWindow
 
     window = dashboard_window
 
@@ -848,7 +847,6 @@ def _make_layout(_cfg_path: Path | None = None):
 def test_dashboard_widget_emits_action_on_click(cfg_path: Path):
     """Clicking inside an action rect should emit action_triggered with the action ID."""
     from PyQt6.QtCore import QPoint
-    from PyQt6.QtWidgets import QApplication
     from fun_time.dashboard_app import DashboardWidget
 
     layout = _make_layout(cfg_path)

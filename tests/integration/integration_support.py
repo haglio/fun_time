@@ -709,7 +709,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     for path in (state_dir, weird_dir, portrait_dir, landscape_dir, primary_dir):
         path.mkdir(parents=True, exist_ok=True)
 
-    primary_paths = _link_primary_samples(real, primary_dir)
+    _link_primary_samples(real, primary_dir)
     portrait_paths = _link_sample_files(real.paths.portrait_dirs, portrait_dir, count=2)
     landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
 
