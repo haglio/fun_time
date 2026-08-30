@@ -112,7 +112,7 @@ def role_parts(tmp_path):
 
 class TestPlaybackVerbs:
     def test_opens_on_the_first_entry_with_its_funscript_and_projection(self, role_parts):
-        role, player, driver, files = role_parts.role, role_parts.player, role_parts.driver, role_parts.files
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
         one, *_ = files
         assert player.loaded == [one]
         assert role.has_funscript is True
@@ -194,7 +194,7 @@ class TestPlaybackVerbs:
         assert player.loaded[-1] == three  # resumed from two's slot, not spliced anew
 
     def test_play_file_splices_a_newcomer_with_its_funscript(self, role_parts, tmp_path):
-        role, player, files = role_parts.role, role_parts.player, role_parts.files
+        role, player = role_parts.role, role_parts.player
         newcomer = tmp_path / "videos" / "videos" / "VR" / "finished" / "scene four.mp4"
         newcomer.write_bytes(b"")
         script = tmp_path / "scene four.funscript"
@@ -251,7 +251,7 @@ class TestProjectionCycling:
         assert payload["vr"]["projection"] == "fisheye_190_sbs"
 
     def test_the_persisted_choice_holds_when_the_video_comes_back(self, role_parts):
-        role, player, files = role_parts.role, role_parts.player, role_parts.files
+        role = role_parts.role
         role.apply_command("CYCLE_PROJECTION")
         role.apply_command("NEXT")
         role.apply_command("PREV")
@@ -286,7 +286,7 @@ class TestTCode:
         assert driver.updates == [(5_000, 1.5)]
 
     def test_unscripted_video_parks(self, role_parts):
-        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
+        role, driver = role_parts.role, role_parts.driver
         role.apply_command("NEXT")  # scene two: no funscript
 
         role.tick(now=1.0)
@@ -295,7 +295,7 @@ class TestTCode:
         assert driver.updates == []
 
     def test_disabled_tcode_sends_nothing(self, role_parts):
-        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
+        role, driver = role_parts.role, role_parts.driver
         role.apply_command("SET_TCODE_ENABLED 0")
 
         role.tick(now=1.0)
@@ -304,7 +304,7 @@ class TestTCode:
         assert driver.parks == 0
 
     def test_paused_sends_nothing(self, role_parts):
-        role, player, driver = role_parts.role, role_parts.player, role_parts.driver
+        role, driver = role_parts.role, role_parts.driver
         role.set_paused(True)
 
         role.tick(now=1.0)
