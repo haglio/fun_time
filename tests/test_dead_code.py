@@ -202,3 +202,18 @@ def test_nothing_is_imported_or_assigned_and_left_unread():
     result = _ruff("F401", "F811", "F841")
 
     assert result.returncode == 0, result.stdout + result.stderr
+
+
+def test_no_plain_function_declares_an_argument_it_never_reads():
+    """A parameter nothing reads is a lie in the signature.
+
+    Someone adding a media-root feature reasonably assumes start_core_session
+    already has what it needs. Where a value really is required and unused --
+    a library's callback signature -- the name says so with a leading
+    underscore. ARG002 is deliberately not enforced: a framework override
+    (Qt's paintEvent, the satellite player's pump) is handed arguments it is
+    free to ignore, and renaming those would cost more than it says.
+    """
+    result = _ruff("ARG001")
+
+    assert result.returncode == 0, result.stdout + result.stderr

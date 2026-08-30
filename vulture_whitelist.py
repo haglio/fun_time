@@ -13,7 +13,6 @@ _.paintEvent  # Qt event override
 _.mousePressEvent  # Qt event override
 _.mouseMoveEvent  # Qt event override
 _.optionxform  # ConfigParser hook, set to keep key case
-time_info  # sounddevice callback signature
 
 # --- Win32 struct fields written for an API call, never read back ---
 _.cbSize
