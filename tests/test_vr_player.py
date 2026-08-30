@@ -57,7 +57,7 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     return unit, player
 
 
-def test_the_furniture_is_painted_once_and_not_per_tick(tmp_path):
+def test_the_furniture_is_painted_once_and_not_per_tick():
     """The pump calls this every frame; the scrubber and chip must repaint
     only when what they SHOW moves, not sixty times a second."""
     unit, player = _unit_with_pixels()

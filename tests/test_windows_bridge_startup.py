@@ -634,7 +634,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
 
 
-def _seed_resumable_session(tmp_path: Path, kwargs: dict) -> dict[str, list[str]]:
+def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     """Last session's three playlist files and status files, on disk.
 
     Each player gets two clips drawn from the very dirs this session's source
@@ -670,7 +670,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     player published and no fresh shuffle is built over them."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -713,7 +713,7 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     The mode is also handed back to the caller, because the windows have to be
     parked to match it and only the sequencer holds their handles."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     write_shared_state(
         shared_state_path(kwargs["state_dir"]), BridgeState(main_mode="genau")
     )
@@ -735,7 +735,7 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     command file before Nau launches, over the video the resume put at the top
     of the main player's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "nau_status.txt").write_text(
         f"video={left_on['nau'][1]}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
@@ -753,7 +753,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     nothing to land on and some other video leads.  Sending the bounds anyway
     would loop three seconds of a video the user never marked."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "nau_status.txt").write_text(
         f"video={tmp_path / 'deleted.mp4'}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
@@ -781,7 +781,7 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     was off, and the next "F-mode" then reported it *enabled* to no visible
     effect.  What shaped the files on disk comes back with them."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
     write_shared_state(state_file, BridgeState(
         main_f_mode=True,
@@ -813,7 +813,7 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     companion as the audible level, and to Nau as the level plus the mute it
     draws over it."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     write_shared_state(
         shared_state_path(kwargs["state_dir"]), BridgeState(volume=40, muted=True)
     )
@@ -834,7 +834,7 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     launches, and drained on its first tick over the clip the resume put at the
     top of its playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     write_shared_state(
         shared_state_path(kwargs["state_dir"]), BridgeState(locked2=True, locked3=False)
     )
@@ -867,7 +867,7 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     say F-mode.  The order it came back in rides along for the same reason: the
     state carried forward has to describe the file this writes."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
     state_dir = kwargs["state_dir"]
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
@@ -897,7 +897,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     same dirs, so their resume is still last session's and is kept."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
     # The other app's addition: a video from a library this session never names.
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
