@@ -9,8 +9,35 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 WHITELIST = ROOT / "vulture_whitelist.py"
+PACKAGES = ("fun_time", "satellite", "fun_time_vr")
 
 _REPORTED_NAME = re.compile(r"unused [a-z ]+ '([^']+)'")
+
+
+def _package_sources():
+    return sorted(p for pkg in PACKAGES for p in (ROOT / pkg).rglob("*.py"))
+
+
+def _argparse_dests(tree):
+    """Every option an ``add_argument`` call in this tree declares."""
+    for node in ast.walk(tree):
+        call = node
+        if not isinstance(call, ast.Call):
+            continue
+        if not (isinstance(call.func, ast.Attribute) and call.func.attr == "add_argument"):
+            continue
+        explicit = [
+            kw.value.value for kw in call.keywords
+            if kw.arg == "dest" and isinstance(kw.value, ast.Constant)
+        ]
+        if explicit:
+            yield explicit[0], call.lineno
+            continue
+        flags = [a.value for a in call.args if isinstance(a, ast.Constant)]
+        long_flags = [f for f in flags if f.startswith("--")]
+        spelling = next(iter(long_flags or flags), None)
+        if spelling:
+            yield spelling.lstrip("-").replace("-", "_"), call.lineno
 
 
 def _vulture(whitelist: Path):
@@ -70,4 +97,32 @@ def test_every_whitelist_entry_suppresses_a_report(tmp_path):
     assert not unnecessary, (
         "vulture_whitelist.py entries that suppress nothing: "
         + ", ".join(unnecessary)
+    )
+
+
+def test_every_declared_command_line_option_is_read():
+    """A flag nobody reads is a launcher surface that does nothing.
+
+    The parser is what a reader — and the next launcher change — takes for the
+    list of what a `python -m` entry point accepts, so an option declared and
+    never read promises behaviour the app does not have. Reads are matched by
+    attribute name across the three packages, because a parser and the code
+    that consumes its namespace need not live in the same module (satellite's
+    do not). That makes this a floor like vulture's: it cannot see an option
+    whose name collides with a live attribute elsewhere.
+    """
+    declared: dict[str, str] = {}
+    read: set[str] = set()
+    for path in _package_sources():
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        for dest, lineno in _argparse_dests(tree):
+            declared.setdefault(dest, f"{path.relative_to(ROOT)}:{lineno}")
+        read.update(
+            node.attr for node in ast.walk(tree) if isinstance(node, ast.Attribute)
+        )
+
+    unread = {dest: where for dest, where in declared.items() if dest not in read}
+
+    assert not unread, "command-line options nothing reads: " + ", ".join(
+        f"{dest} ({where})" for dest, where in sorted(unread.items())
     )

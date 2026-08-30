@@ -494,7 +494,6 @@ class DashboardWindow(QMainWindow):
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
         rfb_rect: Rect | None = None,
-        start_minimized: bool = False,
     ) -> None:
         super().__init__()
         self._app_config = app_config
@@ -506,15 +505,14 @@ class DashboardWindow(QMainWindow):
         # always-on-top window neither flashes above the overlay nor animates a
         # minimize on the way there (a hidden window renders nothing and the
         # geometry re-assert is gated on not-deferred).  We auto-detect that from
-        # the loading screen's progress file and reveal ourselves once it is gone
-        # — the launcher does not have to pass --start-minimized.  Neither a
-        # loading-defer nor a persisted-minimized start may mirror its initial
-        # off-screen state onto the other windows.
+        # the loading screen's progress file and reveal ourselves once it is gone,
+        # and a loading-defer must not mirror its initial off-screen state onto
+        # the other windows.
         self._deferred_for_loading = startup_still_building(app_config.manifest_path.parent)
         # Toasts are topmost too, so they wait for the cover itself rather than
         # for the earlier cue this window shows itself on.  See _poll_notices.
         self._notices_held = self._deferred_for_loading
-        self._suppress_minimize_routing = start_minimized or self._deferred_for_loading
+        self._suppress_minimize_routing = self._deferred_for_loading
 
         # Set on close, so the poller and press listener wind down with the
         # window instead of reading the player status files for the life of the
@@ -589,12 +587,8 @@ class DashboardWindow(QMainWindow):
         self._dash_hwnd = _hwnd
         SW_HIDE = 0
         SW_SHOW = 5
-        SW_SHOWMINNOACTIVE = 7
         if self._deferred_for_loading:
             ctypes.windll.user32.ShowWindow(_hwnd, SW_HIDE)
-        elif start_minimized:
-            self.show()
-            ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOWMINNOACTIVE)
         else:
             self.show()
             ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
@@ -1031,11 +1025,6 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--rfb-y", type=int)
     parser.add_argument("--rfb-width", type=int)
     parser.add_argument("--rfb-height", type=int)
-    parser.add_argument(
-        "--start-minimized",
-        action="store_true",
-        help="Start minimized (used while the loading screen covers startup)",
-    )
     return parser.parse_args(argv)
 
 
