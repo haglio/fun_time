@@ -327,3 +327,95 @@ def test_prose_does_not_outgrow_the_code_it_explains():
         "Delete a stale block, or move what it says into a name or a test; "
         "lower MAX_PROSE_TO_CODE when you do."
     )
+
+
+# Every module that reaches ``ctypes``' Windows binding surface directly rather
+# than through ``fun_time.win32_loader``, and how many times.  Held as an
+# EQUALITY per file: a count that has come down means a reach was consolidated
+# and this table was not lowered with it, and a file that is absent must have
+# none at all.  This is the number no length or coverage gate can see — the
+# dashboard carried eleven of these inside a QMainWindow constructor, with
+# GWL_STYLE written as a bare -16 and the style bits as inline hex, while
+# fun_time/win32.py existed to be the place that names them.
+_WIN32_REACHES = {
+    # The loader itself: this IS the binding, and the thing it exists to be
+    # asked instead.
+    "fun_time/win32_loader.py": 3,
+    # Deliberate: the stand-in raises Win32Unavailable (a RuntimeError) where
+    # these want the AttributeError that ctypes.windll gives off Windows, and
+    # both callers catch it to fall back rather than to fail.
+    "fun_time/monitors.py": 3,
+    "fun_time/overlay_window.py": 1,
+    # A vtable call built per invocation, inside a function body, so it never
+    # runs at import — win32_loader's prototype cannot express one.
+    "fun_time/win32_taskbar.py": 1,
+    # A fourth enumeration walk with its own handle and prototype; folding it
+    # into win32._first_window is its own change.
+    "fun_time/windows_bridge_sequencer.py": 2,
+    # An error popup, and an icon handed to a window: both belong behind a
+    # named call the way the dashboard's chrome now is.
+    "fun_time_vr/player.py": 1,
+    "fun_time_vr/vr_session.py": 2,
+    # use_last_error=True, which load_dll offers; not yet converted.
+    "fun_time/process_identity.py": 2,
+}
+
+# What counts as reaching it.
+_WIN32_BINDING_NAMES = frozenset(
+    {"windll", "oledll", "WinDLL", "OleDLL", "WINFUNCTYPE"})
+
+
+def _win32_reaches(tree) -> int:
+    """How many times this module names ctypes' Windows binding surface.
+
+    Counts the three spellings that mean the same thing — ``ctypes.windll``,
+    ``import ctypes as c`` then ``c.windll``, and ``from ctypes import windll``
+    — plus ``getattr(ctypes, "windll")``, because a gate its author can walk
+    around by renaming the import is not a gate.
+    """
+    ctypes_names = {"ctypes"}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == "ctypes" and alias.asname:
+                    ctypes_names.add(alias.asname)
+
+    reaches = 0
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and node.attr in _WIN32_BINDING_NAMES:
+            if isinstance(node.value, ast.Name) and node.value.id in ctypes_names:
+                reaches += 1
+        elif isinstance(node, ast.ImportFrom) and node.module == "ctypes":
+            reaches += sum(1 for a in node.names if a.name in _WIN32_BINDING_NAMES)
+        elif (isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+                and node.func.id == "getattr" and len(node.args) >= 2
+                and isinstance(node.args[0], ast.Name)
+                and node.args[0].id in ctypes_names
+                and isinstance(node.args[1], ast.Constant)
+                and node.args[1].value in _WIN32_BINDING_NAMES):
+            reaches += 1
+    return reaches
+
+
+def test_nothing_new_binds_win32_behind_the_layer_that_exists_to():
+    """A ceiling on coupling, not on size, held per file and as an equality.
+
+    ``fun_time/win32.py`` wraps every cross-process window call in a guard
+    after a stalled player once wedged a whole session, and names the constants
+    the family reads to learn its Win32 conventions.  A module that goes to
+    ``ctypes.windll`` instead gets neither, and nothing said so: the dashboard
+    made eleven such calls, five of the thirteen constants it restated inline
+    were already exported next door, and every length and coverage gate in this
+    repo passed the whole time.
+    """
+    counted = {}
+    for path in _package_sources():
+        reaches = _win32_reaches(ast.parse(path.read_text(encoding="utf-8")))
+        if reaches:
+            counted[path.relative_to(ROOT).as_posix()] = reaches
+
+    assert counted == _WIN32_REACHES, (
+        "the direct-binding count moved.  A file that is new here reaches "
+        "ctypes.windll instead of asking fun_time.win32 or fun_time.monitors; "
+        "a count that came down is one to lower here in the same commit."
+    )

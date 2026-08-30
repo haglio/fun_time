@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import configparser
-import ctypes
 from dataclasses import dataclass, field
 from pathlib import Path
 import queue
@@ -29,7 +28,15 @@ from fun_time.config import LayoutConfig
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.overlay_progress import loading_cover_is_up, startup_still_building
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.win32 import find_window_by_title, is_window_topmost, set_always_on_top
+from fun_time.win32 import (
+    find_window_by_title,
+    hide_own_window,
+    insert_below,
+    is_window_topmost,
+    set_always_on_top,
+    set_taskbar_window_styles,
+    show_own_window,
+)
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -570,35 +577,19 @@ class DashboardWindow(QMainWindow):
                 launch_geometry.width, launch_geometry.height,
             )
 
-        # Title-bar controls: keep minimize + close, drop maximize (the control
-        # bar is a fixed height).  Close routes through closeEvent (quits everything);
-        # minimize routes through changeEvent (omniminimize).
-        # Show in taskbar via WS_EX_APPWINDOW.
-        # The subprocess is launched with SW_HIDE (hidden_subprocess_kwargs),
-        # which PyQt6 inherits.  winId() realizes the native window handle
-        # without showing it, so during the loading overlay the window stays
-        # fully hidden — no flash, no minimize animation, nothing on screen —
-        # and _maybe_reveal_after_loading shows it once the overlay closes.
+        # What the title bar's two surviving controls route to: close through
+        # closeEvent (quits everything), minimize through changeEvent
+        # (omniminimize).  winId() realizes the native handle WITHOUT showing
+        # the window, so while the cover is up this one stays fully hidden and
+        # _maybe_reveal_after_loading shows it once the cover goes.
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
-        SW_HIDE = 0
-        SW_SHOW = 5
         if self._deferred_for_loading:
-            ctypes.windll.user32.ShowWindow(_hwnd, SW_HIDE)
+            hide_own_window(_hwnd)
         else:
             self.show()
-            ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
-        WS_SYSMENU = 0x00080000
-        WS_MINIMIZEBOX = 0x00020000
-        WS_MAXIMIZEBOX = 0x00010000
-        _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
-        _style = (_style | WS_SYSMENU | WS_MINIMIZEBOX) & ~WS_MAXIMIZEBOX
-        ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style)
-        _ex = ctypes.windll.user32.GetWindowLongW(_hwnd, -20)  # GWL_EXSTYLE
-        ctypes.windll.user32.SetWindowLongW(_hwnd, -20, (_ex | 0x00040000) & ~0x00000080)
-        ctypes.windll.user32.SetWindowPos(
-            _hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,
-        )
+            show_own_window(_hwnd)
+        set_taskbar_window_styles(_hwnd)
 
         self._ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
 
@@ -719,15 +710,8 @@ class DashboardWindow(QMainWindow):
         self._suppress_minimize_routing = False
         curtain = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
         self.show()
-        SW_SHOW = 5
-        SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER = 0x0001, 0x0002, 0x0004
-        SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x0010, 0x0020
-        ctypes.windll.user32.ShowWindow(self._dash_hwnd, SW_SHOW)
-        ctypes.windll.user32.SetWindowPos(
-            self._dash_hwnd, ctypes.c_void_p(curtain), 0, 0, 0, 0,
-            SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED
-            | (SWP_NOACTIVATE if curtain else SWP_NOZORDER),
-        )
+        show_own_window(self._dash_hwnd)
+        insert_below(self._dash_hwnd, curtain)
 
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()

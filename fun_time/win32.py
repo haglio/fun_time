@@ -39,8 +39,17 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
+SWP_FRAMECHANGED = 0x0020
+GWL_STYLE = -16
 GWL_EXSTYLE = -20
+WS_SYSMENU = 0x00080000
+WS_MINIMIZEBOX = 0x00020000
+WS_MAXIMIZEBOX = 0x00010000
 WS_EX_TOPMOST = 0x00000008
+WS_EX_APPWINDOW = 0x00040000
+WS_EX_TOOLWINDOW = 0x00000080
+SW_HIDE = 0
+SW_SHOW = 5
 GW_HWNDNEXT = 2  # next window DOWN the z-order (GetWindow relationship)
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
@@ -528,6 +537,55 @@ def disable_window_transitions(hwnd: int) -> None:
     value = ctypes.wintypes.BOOL(1)  # TRUE
     _dwmapi.DwmSetWindowAttribute(
         hwnd, DWMWA_TRANSITIONS_FORCEDISABLED, ctypes.byref(value), ctypes.sizeof(value)
+    )
+
+
+# --- A window this process owns ---
+#
+# The only calls here that deliberately skip _without_hanging, for the reason
+# its docstring gives.  Each takes a handle this process created; nothing else
+# may be passed to one.
+
+
+def show_own_window(hwnd: int) -> None:
+    """Show one of this process's own windows."""
+    _user32.ShowWindow(hwnd, SW_SHOW)
+
+
+def hide_own_window(hwnd: int) -> None:
+    """Hide one, so it renders nothing at all — no flash, no animation."""
+    _user32.ShowWindow(hwnd, SW_HIDE)
+
+
+def set_taskbar_window_styles(hwnd: int) -> None:
+    """Give one a taskbar button, and a title bar with minimize and close.
+
+    Read-modify-write on both style words, then a frame-changed
+    ``SetWindowPos``, without which Windows has the styles but has not redrawn
+    the frame from them.
+    """
+    style = _user32.GetWindowLongW(hwnd, GWL_STYLE)
+    _user32.SetWindowLongW(
+        hwnd, GWL_STYLE, (style | WS_SYSMENU | WS_MINIMIZEBOX) & ~WS_MAXIMIZEBOX)
+    ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    _user32.SetWindowLongW(
+        hwnd, GWL_EXSTYLE, (ex_style | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW)
+    _user32.SetWindowPos(
+        hwnd, 0, 0, 0, 0, 0,
+        SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED,
+    )
+
+
+def insert_below(hwnd: int, other_hwnd: int) -> None:
+    """Put one directly under *other_hwnd*, or leave the band alone given 0.
+
+    Showing a window puts it at the TOP of its band, so one revealed while
+    another topmost window must keep the screen is placed in the same call.
+    """
+    _user32.SetWindowPos(
+        hwnd, ctypes.c_void_p(other_hwnd), 0, 0, 0, 0,
+        SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED
+        | (SWP_NOACTIVATE if other_hwnd else SWP_NOZORDER),
     )
 
 

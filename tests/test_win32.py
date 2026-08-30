@@ -897,3 +897,97 @@ class TestIsWindowMinimized:
         with patch("fun_time.win32._user32") as mock:
             mock.IsIconic.return_value = 0
             assert win32.is_window_minimized(4242) is False
+
+
+class TestTheWindowChromeThisProcessGivesItsOwn:
+    """Three calls the dashboard used to make raw, on its OWN window.
+
+    None goes through :func:`_without_hanging`, and must not: the send would go
+    to this process's UI thread, which is the thread that would be waiting.
+    """
+
+    def test_the_taskbar_pass_keeps_minimize_and_close_and_drops_maximize(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = 0
+            win32.set_taskbar_window_styles(4242)
+
+        style = next(c for c in mock.SetWindowLongW.call_args_list
+                     if c.args[1] == win32.GWL_STYLE).args[2]
+        assert style & win32.WS_SYSMENU
+        assert style & win32.WS_MINIMIZEBOX
+        assert not style & win32.WS_MAXIMIZEBOX
+
+    def test_the_taskbar_pass_claims_a_taskbar_button(self):
+        """WS_EX_APPWINDOW on and WS_EX_TOOLWINDOW off is what puts the panel
+        in the taskbar at all."""
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = win32.WS_EX_TOOLWINDOW
+            win32.set_taskbar_window_styles(4242)
+
+        ex_style = next(c for c in mock.SetWindowLongW.call_args_list
+                        if c.args[1] == win32.GWL_EXSTYLE).args[2]
+        assert ex_style & win32.WS_EX_APPWINDOW
+        assert not ex_style & win32.WS_EX_TOOLWINDOW
+
+    def test_the_taskbar_pass_keeps_the_bits_already_on_the_window(self):
+        """Read-modify-write: the pass adds and removes its own bits and leaves
+        every other one the window came with."""
+        other = 0x00000100
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = other
+            win32.set_taskbar_window_styles(4242)
+
+        assert all(c.args[2] & other for c in mock.SetWindowLongW.call_args_list)
+
+    def test_the_taskbar_pass_asks_the_frame_to_be_recalculated(self):
+        """A style set with no SWP_FRAMECHANGED is a style Windows has not
+        drawn yet."""
+        with patch("fun_time.win32._user32") as mock:
+            mock.GetWindowLongW.return_value = 0
+            win32.set_taskbar_window_styles(4242)
+
+        flags = mock.SetWindowPos.call_args.args[6]
+        assert flags & win32.SWP_FRAMECHANGED
+        assert flags & win32.SWP_NOSIZE
+        assert flags & win32.SWP_NOMOVE
+        assert flags & win32.SWP_NOZORDER
+
+    def test_showing_and_hiding_an_own_window(self):
+        with patch("fun_time.win32._user32") as mock:
+            win32.hide_own_window(4242)
+            win32.show_own_window(4242)
+
+        assert mock.ShowWindow.call_args_list == [
+            call(4242, win32.SW_HIDE), call(4242, win32.SW_SHOW)]
+
+    def test_inserting_below_another_window_names_it_as_a_pointer(self):
+        """A bare int is marshalled as a 32-bit c_int, which truncates a 64-bit
+        handle — the window would land somewhere else in the band, or nowhere."""
+        with patch("fun_time.win32._user32") as mock:
+            win32.insert_below(4242, 99)
+
+        hwnd, insert_after, _x, _y, _cx, _cy, flags = mock.SetWindowPos.call_args.args
+        assert hwnd == 4242
+        assert isinstance(insert_after, ctypes.c_void_p)
+        assert insert_after.value == 99
+        assert flags & win32.SWP_NOACTIVATE
+        assert not flags & win32.SWP_NOZORDER
+
+    def test_inserting_below_nothing_leaves_the_z_order_alone(self):
+        """With no window to sit under there is nothing to place against, so
+        the call keeps its other work and asks for no move in the band."""
+        with patch("fun_time.win32._user32") as mock:
+            win32.insert_below(4242, 0)
+
+        flags = mock.SetWindowPos.call_args.args[6]
+        assert flags & win32.SWP_NOZORDER
+        assert not flags & win32.SWP_NOACTIVATE
+
+    def test_an_insert_moves_and_resizes_nothing(self):
+        with patch("fun_time.win32._user32") as mock:
+            win32.insert_below(4242, 99)
+
+        flags = mock.SetWindowPos.call_args.args[6]
+        assert flags & win32.SWP_NOSIZE
+        assert flags & win32.SWP_NOMOVE
+        assert flags & win32.SWP_FRAMECHANGED
