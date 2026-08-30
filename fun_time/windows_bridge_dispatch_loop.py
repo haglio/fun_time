@@ -53,25 +53,17 @@ from .dashboard_runtime import (
     read_nau_status,
 )
 from .runtime_flow import read_flag_file
-from .windows_bridge_startup import (
-    SATELLITE_LANDSCAPE_TITLE,
-    SATELLITE_PORTRAIT_TITLE,
-    launch_broker_tray,
-    stop_broker_processes,
-)
+from .role_windows import ChildPids, WindowRoles
+from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLES,
-    ORIGENERATOR_ROLE_TITLES,
     role_topmost,
     visible_main_slot_roles,
 )
 from .win32 import (
     activate_window,
-    find_window_by_pid,
-    find_window_by_title,
-    find_window_for_process,
     force_foreground_window,
     is_window_minimized,
     is_window_topmost,
@@ -253,11 +245,19 @@ class DispatchLoopRunner:
         self.manifest_path = manifest_path or (
             config.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        self.nau_pid = nau_pid
-        self.portrait_pid = portrait_pid
-        self.landscape_pid = landscape_pid
-        self.dashboard_pid = dashboard_pid
-        self.origenerator_pid = origenerator_pid
+        # Every window the session manages, and the one cache of their HWNDs:
+        # the tick and the library browser's own thread both go through here.
+        self.windows = WindowRoles(
+            pids=ChildPids(
+                nau=nau_pid,
+                portrait=portrait_pid,
+                landscape=landscape_pid,
+                dashboard=dashboard_pid,
+                origenerator=origenerator_pid,
+            ),
+            rfb_hwnd=rfb_hwnd,
+            role_hwnds=role_hwnds,
+        )
         self.dashboard_enabled = dashboard_enabled
         # The lock HUD's model: this loop holds the state the map is drawn from
         # (locks, filters, loops) and already ticks, so it builds each satellite's
@@ -272,7 +272,6 @@ class DispatchLoopRunner:
         # The clip each satellite last named, so a status read that loses the
         # race with the player's own republish does not blank its map.
         self._last_satellite_clip: dict[str, str] = {}
-        self.rfb_hwnd = rfb_hwnd
         self.rfb_shortcut_target = rfb_shortcut_target
         self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
         self.rfb_shortcut_args = rfb_shortcut_args
@@ -291,11 +290,6 @@ class DispatchLoopRunner:
         self._press_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self._press_port: int | None = None
         self._press_port_file = config.state_dir / "dashboard_press_port.txt"
-        # Seeded from the startup sequencer, which resolved every window
-        # while it was still visible — startup then hides the inactive
-        # main-slot windows, and hidden windows are invisible to the
-        # pid/title lookups.
-        self._role_hwnds: dict[str, int] = dict(role_hwnds or {})
         self._minimized_hwnds: list[int] = []
         # Windows a player's own minimize button parked, kept apart from the two
         # other things that minimize around here: the mode switch parks the idle
@@ -835,7 +829,7 @@ class DispatchLoopRunner:
                 # instant.  A switch straight back cancels the settle below: the
                 # window being restored must not be minimized a moment later.
                 self._pending_hides.pop(op.key, None)
-                hwnd = self._resolve_role(op.key)
+                hwnd = self.windows.hwnd(op.key)
                 if hwnd:
                     restore_window(hwnd, activate=False)
                 continue
@@ -856,7 +850,7 @@ class DispatchLoopRunner:
                 continue
             if op.op == "activate_role":
                 if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                    hwnd = self._resolve_role(op.key)
+                    hwnd = self.windows.hwnd(op.key)
                     if hwnd:
                         activate_window(hwnd)
                 continue
@@ -916,7 +910,7 @@ class DispatchLoopRunner:
         # from its own HUD, so there is something left to click: that panel goes
         # down with the window, so the taskbar button is the way back.
         # No-activate, so parking one player never yanks focus to the next.
-        hwnd = self._resolve_role(role)
+        hwnd = self.windows.hwnd(role)
         if hwnd:
             minimize_window(hwnd, activate=False)
 
@@ -928,7 +922,7 @@ class DispatchLoopRunner:
         back when the mode brings it back, so putting it on this list would have
         the next resume drag a hidden player onto a rect another one is using.
         """
-        hwnd = self._resolve_role(role)
+        hwnd = self.windows.hwnd(role)
         if not hwnd:
             return
         self._minimize_role(role)
@@ -995,13 +989,13 @@ class DispatchLoopRunner:
         self._pending_rfb_urls = []
         if not urls or not self.rfb_shortcut_target:
             return
-        if not window_exists(self.rfb_hwnd):
+        if not window_exists(self.windows.rfb_hwnd):
             logger.warning(
                 "RFB tab(s) skipped: no Random Favs Browser window to open into: %s",
                 ", ".join(urls),
             )
             return
-        if not force_foreground_window(self.rfb_hwnd):
+        if not force_foreground_window(self.windows.rfb_hwnd):
             # Not fatal, and expected on the integration suite's hidden desktop,
             # which has no foreground window to become.
             logger.info("RFB window did not take the foreground before the tab handoff")
@@ -1057,63 +1051,6 @@ class DispatchLoopRunner:
         except Exception:
             pass
 
-    def _resolve_role(self, role: str) -> int:
-        """HWND for a managed window role, cached on first sight.
-
-        Hidden windows are invisible to the pid/title lookups, so a
-        window's HWND must be captured while it is visible (startup shows
-        everything) and reused to show it again later.
-        """
-        if role in ("origenerator_portrait", "origenerator_landscape"):
-            # The region shows come and go with the slideshows, so a cached
-            # handle would name a destroyed window — resolved fresh every time.
-            # find_window_for_process: the recorded pid can be a launcher's,
-            # with the interpreter that owns the windows one child down.
-            return find_window_for_process(
-                self.origenerator_pid, ORIGENERATOR_ROLE_TITLES[role])
-        hwnd = self._role_hwnds.get(role, 0)
-        if hwnd and role == "origenerator" and not window_exists(hwnd):
-            # The hosted app's boot can put a short-lived twin of this caption
-            # up first (its splash), and caching that leaves every later
-            # restore aimed at a dead handle — the switch that visibly did
-            # nothing.  Only this role heals its cache: the other windows live
-            # as long as the session, and their hidden phases (SW_HIDE behind
-            # the overlay) are exactly when a re-resolve would come up empty.
-            self._role_hwnds.pop(role, None)
-            hwnd = 0
-        if hwnd:
-            return hwnd
-        if role == "genau":
-            hwnd = find_window_by_title("Genau")
-        elif role == "nau":
-            # The venv pythonw launcher's PID differs from the interpreter
-            # that owns the SDL window, so fall back to the exact window
-            # title (exact: "Nau" is a substring of "Genau").
-            hwnd = find_window_by_pid(self.nau_pid) or find_window_by_title("Nau", exact=True)
-        elif role == "portrait":
-            # By title as well as pid, like Nau: the recorded pid is the venv
-            # launcher's, not the interpreter that owns the SDL window, so on a
-            # cold cache the by-pid lookup alone finds nothing and every band
-            # operation silently skips the player.
-            hwnd = (find_window_by_pid(self.portrait_pid)
-                    or find_window_by_title(SATELLITE_PORTRAIT_TITLE, exact=True))
-        elif role == "landscape":
-            hwnd = (find_window_by_pid(self.landscape_pid)
-                    or find_window_by_title(SATELLITE_LANDSCAPE_TITLE, exact=True))
-        elif role == "dashboard":
-            hwnd = self._find_dashboard_hwnd()
-        elif role == "rfb":
-            hwnd = self.rfb_hwnd
-        elif role == "origenerator":
-            # Pid AND title: the process owns three titled windows, and a
-            # standalone Origenerator of his owns windows with the same titles.
-            # Children included, for a recorded pid that is a launcher's.
-            hwnd = find_window_for_process(
-                self.origenerator_pid, ORIGENERATOR_ROLE_TITLES[role])
-        if hwnd:
-            self._role_hwnds[role] = hwnd
-        return hwnd
-
     def _visible_roles(self) -> list[str]:
         """Roles whose windows the current modes keep on screen."""
         origenerator = (
@@ -1128,7 +1065,7 @@ class DispatchLoopRunner:
         roles — is what stops Nau from being stranded on top in nau mode, where
         it does carry the topmost flag."""
         for role in MANAGED_ROLES:
-            hwnd = self._resolve_role(role)
+            hwnd = self.windows.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, False)
 
@@ -1152,7 +1089,7 @@ class DispatchLoopRunner:
         for role in FIXED_TOPMOST_ROLES:
             if not role_topmost(role, self.state.main_mode, self.state.satellites_mode):
                 continue
-            hwnd = self._resolve_role(role)
+            hwnd = self.windows.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
         self._restack_satellites()
@@ -1175,9 +1112,9 @@ class DispatchLoopRunner:
         resumed session's window parked until the user dug it out of the
         taskbar.  Reading the minimized state each pass makes every miss retry.
         """
-        if not self.origenerator_pid or self.state.omni_paused:
+        if not self.windows.pids.origenerator or self.state.omni_paused:
             return
-        hwnd = self._resolve_role("origenerator")
+        hwnd = self.windows.hwnd("origenerator")
         if not hwnd:
             return  # still booting — try again next sync
         minimized = is_window_minimized(hwnd)
@@ -1200,7 +1137,7 @@ class DispatchLoopRunner:
         for role in ORIGENERATOR_ROLES:
             if not role_topmost(role, self.state.main_mode, self.state.satellites_mode):
                 continue
-            hwnd = self._resolve_role(role)
+            hwnd = self.windows.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
 
@@ -1220,8 +1157,8 @@ class DispatchLoopRunner:
         Promoting Nau before Genau is what keeps the HUD over the video.
         """
         mode = self.state.main_mode
-        nau = self._resolve_role("nau")
-        genau = self._resolve_role("genau")
+        nau = self.windows.hwnd("nau")
+        genau = self.windows.hwnd("genau")
         for hwnd in (nau, genau):
             if hwnd:
                 set_always_on_top(hwnd, False)
@@ -1291,22 +1228,6 @@ class DispatchLoopRunner:
                 name="broker-stop",
             ).start()
 
-    def _find_dashboard_hwnd(self) -> int:
-        """Find the Dashboard window, falling back to title search.
-
-        The PID-based lookup can fail if the venv launcher's PID differs
-        from the actual Python interpreter process that owns the Qt window.
-        """
-        hwnd = find_window_by_pid(self.dashboard_pid) if self.dashboard_pid else 0
-        if not hwnd:
-            hwnd = find_window_by_title("Fun Time", exact=True)
-            if hwnd:
-                logger.info(
-                    "Dashboard found by title (hwnd=%d) but NOT by pid %d",
-                    hwnd, self.dashboard_pid,
-                )
-        return hwnd
-
     def _handle_omniminimize(self) -> None:
         """Minimize the windows the current mode shows — the "omniminimize" command.
 
@@ -1317,7 +1238,7 @@ class DispatchLoopRunner:
         """
         self._minimized_hwnds = []
         for role in self._visible_roles():
-            hwnd = self._resolve_role(role)
+            hwnd = self.windows.hwnd(role)
             if hwnd:
                 minimize_window(hwnd, activate=False)
                 self._minimized_hwnds.append(hwnd)
@@ -1344,7 +1265,7 @@ class DispatchLoopRunner:
         """
         parts = []
         for role in MANAGED_ROLES:
-            hwnd = self._resolve_role(role)
+            hwnd = self.windows.hwnd(role)
             state = is_window_topmost(hwnd) if hwnd else "n/a"
             parts.append(f"{role}={hwnd}:{state}")
         logger.info("Topmost [%s] mode=%s: %s", label, self.state.main_mode, "  ".join(parts))
@@ -1413,7 +1334,7 @@ class DispatchLoopRunner:
         try:
             # Over Nau's own rect: the pick plays there, so the browse stands
             # where the video will, and covers nothing else on either monitor.
-            nau_hwnd = self._resolve_role("nau")
+            nau_hwnd = self.windows.hwnd("nau")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
