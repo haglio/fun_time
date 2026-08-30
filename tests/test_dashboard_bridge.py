@@ -99,3 +99,47 @@ class TestTheSnapshotsEncoding:
         path.write_bytes(b"\xff\xfe\xfd")
 
         assert write_dashboard_snapshot(path, omni_paused=True) is True
+
+
+class TestTheWriterSkipsAnUnchangedSnapshot:
+    """The dispatch loop calls this on every 200ms tick, and the panel reads
+    the same file every 500ms without a lock — so a rewrite that changes
+    nothing is a torn-read window opened for no reason."""
+
+    def _write_as_windows_would(self, path: Path, text: str) -> None:
+        """`write_text` opens in text mode, so on Windows every \\n reaches the
+        disk as \\r\\n.  This is that file, on any platform."""
+        with open(path, "w", encoding="utf-16", newline="\r\n") as handle:
+            handle.write(text)
+
+    def test_an_identical_snapshot_is_not_rewritten(self, tmp_path):
+        from fun_time.dashboard_bridge import write_dashboard_snapshot
+
+        path = tmp_path / "dashboard_state.ini"
+
+        assert write_dashboard_snapshot(path, omni_paused=True) is True
+        assert write_dashboard_snapshot(path, omni_paused=True) is False
+
+    def test_nor_when_the_file_carries_the_line_endings_windows_gave_it(self, tmp_path):
+        """The reader has to undo what the writer's text mode did, or the two
+        never match and every tick rewrites the file."""
+        from fun_time.dashboard_bridge import (
+            build_dashboard_snapshot_text,
+            write_dashboard_snapshot,
+        )
+
+        path = tmp_path / "dashboard_state.ini"
+        self._write_as_windows_would(path, build_dashboard_snapshot_text(omni_paused=True))
+
+        assert write_dashboard_snapshot(path, omni_paused=True) is False
+
+    def test_a_snapshot_that_did_change_is_written(self, tmp_path):
+        from fun_time.dashboard_bridge import (
+            build_dashboard_snapshot_text,
+            write_dashboard_snapshot,
+        )
+
+        path = tmp_path / "dashboard_state.ini"
+        self._write_as_windows_would(path, build_dashboard_snapshot_text(omni_paused=True))
+
+        assert write_dashboard_snapshot(path, omni_paused=False) is True

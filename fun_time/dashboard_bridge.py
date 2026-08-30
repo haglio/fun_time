@@ -16,8 +16,8 @@ def build_dashboard_snapshot_text(
     )
 
 
-# utf-16 is what the writer below emits; the other two are what a reader has
-# always also accepted, and older sessions' files are still read back.
+# utf-16 is what the writer emits; the other two are what a reader has always
+# also accepted, and older sessions' files are still read back.
 SNAPSHOT_ENCODINGS = ("utf-8-sig", "utf-16", "utf-8")
 
 
@@ -33,11 +33,16 @@ def decode_snapshot(raw: bytes) -> str:
 
 
 def _read_existing_snapshot(path: Path) -> str:
-    """What is already on disk, or "" — this side never fails over a read."""
+    """What is on disk, or "" — this side never fails over a read.
+
+    Newlines are normalized: `write_text` opens in text mode, so on Windows a
+    ``\n`` lands as ``\r\n`` and a raw decode never equals what we will write.
+    """
     try:
-        return decode_snapshot(path.read_bytes())
+        raw = decode_snapshot(path.read_bytes())
     except (OSError, UnicodeDecodeError):
         return ""
+    return raw.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def write_dashboard_snapshot(

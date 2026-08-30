@@ -552,10 +552,8 @@ class DashboardWindow(QMainWindow):
         self._launch_geometry = launch_geometry
         # The reference popup opens over the Random Favs Browser's screen rect.
         self._reference = ReferencePopup(self, rfb_rect)
-        # Read once: the notice feed starts held from this same answer, and
-        # two reads of the progress file could disagree.
+        # Read once; the notice feed below is seeded from this same answer.
         self._reveal = LoadingReveal(app_config.manifest_path.parent)
-        self._notices_held = self._reveal.deferred
 
         self._pressed: dict[str, float] = {}
         self._last_snapshot: DashboardSnapshot | None = None
@@ -629,7 +627,7 @@ class DashboardWindow(QMainWindow):
             event_log_dir=app_config.dashboard_state_file.parent,
             cover_dir=app_config.manifest_path.parent,
             make_overlay=NoticeOverlay,
-            held=self._notices_held,
+            held=self._reveal.deferred,
         )
         self._notice_timer = QTimer(self)
         self._notice_timer.timeout.connect(self._notices.poll)

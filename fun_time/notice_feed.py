@@ -4,7 +4,9 @@ A second tail of the session's event log, faster than the panel's 500ms refresh
 so a "Clip saved" lands promptly, and drawn over the window it concerns — from
 the same two layout functions startup positioned that window with.
 
-No Qt.  The overlay is a widget, so it arrives as something to call.
+The overlay is a widget, so it arrives as something to call and every rule here
+runs headless.  Not Qt-FREE though: `notice_overlay`, whose pure half this
+reads, imports PyQt6 for its widget.
 """
 from __future__ import annotations
 
@@ -51,10 +53,10 @@ def player_rects(layout: LayoutConfig) -> PlayerRects | None:
 
 
 class NoticeFeed:
-    """One session's toasts: where they go, when they may go, and how far read.
+    """One session's toasts: where they go, when they may go, how far read.
 
-    The two directories are separate because the two files are.  *held* starts
-    the feed waiting for the COVER, which the panel's own reveal precedes.
+    Two directories, because the two files are in two.  *held* waits for the
+    COVER, which the panel's own reveal precedes.
     """
 
     def __init__(

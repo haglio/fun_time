@@ -1,12 +1,10 @@
 """How the dispatch loop tells the bar that one of its controls just took.
 
-A hotkey or a voice phrase reaches the dispatch loop, not the dashboard, so the
-control it names would flash for a click and not for the key that does the same
-thing.  The loop sends the action id here as a datagram, and the bar flashes it
-either way.  The port is the machine's to choose, so this end publishes it.
-
-No Qt: a datagram lands on a worker thread and the GUI thread has to be told,
-but WHICH way belongs to the window.
+A hotkey or a voice phrase reaches the loop, not the panel, so the control it
+names would flash for a click and not for the key that does the same thing.
+The loop sends the action id here as a datagram; the port is the machine's to
+choose, so this end publishes it.  No Qt: telling the GUI thread is the
+window's business, not this one's.
 """
 from __future__ import annotations
 
@@ -19,16 +17,14 @@ from pathlib import Path
 # Read by windows_bridge_dispatch_loop, which int()s the text as it finds it.
 PRESS_PORT_FILENAME = "dashboard_press_port.txt"
 
-# An action id is a short word; nothing longer is a press.
-_MAX_DATAGRAM = 256
+_MAX_DATAGRAM = 256  # an action id is a short word
 
 
 class PressChannel:
     """The bar's end of that feed: one socket, one thread, one queue.
 
-    *on_press* is called on the listener's thread each time a press lands, with
-    no arguments — the window uses it to cross to the GUI thread, and then reads
-    what arrived with :meth:`take_all`.
+    *on_press* fires on the listener's thread each time a press lands; the
+    window uses it to cross to the GUI thread and then calls :meth:`take_all`.
     """
 
     def __init__(self, state_dir: Path, on_press: Callable[[], None]) -> None:

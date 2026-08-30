@@ -607,11 +607,20 @@ def test_the_toasts_start_held_exactly_when_the_panel_starts_hidden(
     """One answer decides both.  Read separately they could disagree — startup
     finishes between the two reads — and the panel would then come up holding
     toasts nothing releases, or releasing them over the cover."""
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=building):
+    from fun_time.event_log import NOTICE
+
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
+         patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
-        assert window._notices_held is building
         assert window._reveal.routing_suppressed is building
+        window._notices.overlay = _FakeOverlay()
+        _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
+        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
+            window._notices.poll()
+
+        # Held exactly when the panel is: one answer decided both.
+        assert (window._notices.overlay.flashed == []) is building
     finally:
         window.close()
 
@@ -622,7 +631,10 @@ def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
     itself; see NoticeFeed."""
     from unittest.mock import MagicMock
 
-    with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
+    from fun_time.event_log import NOTICE
+
+    with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
+         patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
         with (
@@ -635,7 +647,13 @@ def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
             window._reveal.maybe_reveal()
 
         assert window._reveal.deferred is False
-        assert window._notices_held is True
+        # Asked of the feed, which owns the hold — a reveal that cleared it
+        # would flash a toast through the scrim the cover is still holding up.
+        window._notices.overlay = _FakeOverlay()
+        _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
+        with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
+            window._notices.poll()
+        assert window._notices.overlay.flashed == []
     finally:
         window.close()
 
@@ -1400,3 +1418,24 @@ def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
     assert written.name == SOURCE_CHECKOUT_FILENAME
     assert written.read_text(encoding="utf-8").strip() == str(source_checkout())
     assert (source_checkout() / "fun_time" / "dashboard_app.py").exists()
+
+
+def test_the_two_collaborators_that_claim_to_be_qt_free_are():
+    """`press_channel` and `loading_reveal` say so in their docstrings, and a
+    docstring is not a fact until something checks it.  `notice_feed` makes no
+    such claim: it reads `notice_overlay`, whose widget half imports PyQt6."""
+    import subprocess
+    import sys
+
+    def loads_qt(module: str) -> bool:
+        result = subprocess.run(
+            [sys.executable, "-c",
+             f"import sys, {module}; print(any(m.startswith('PyQt6') for m in sys.modules))"],
+            capture_output=True, text=True,
+            cwd=str(Path(__file__).resolve().parent.parent),
+        )
+        assert result.returncode == 0, result.stderr
+        return result.stdout.strip() == "True"
+
+    assert not loads_qt("fun_time.press_channel")
+    assert not loads_qt("fun_time.loading_reveal")
