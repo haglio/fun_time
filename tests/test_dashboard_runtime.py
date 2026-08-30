@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import pytest
-
 from fun_time.dashboard_bridge import write_dashboard_snapshot
 from fun_time.dashboard_runtime import (
     GenauStatus,
