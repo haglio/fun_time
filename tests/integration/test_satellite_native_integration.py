@@ -18,7 +18,7 @@ import pytest
 
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
-from fun_time.lock_hud import build_hud_panel
+from fun_time.lock_hud import SideInputs, build_hud_panel
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.thumbnail_cache import thumbnail_for
@@ -188,8 +188,11 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
 
     def publish(locked: bool) -> None:
         publisher.publish("portrait", build_hud_panel(
-            "portrait", locked=locked, current=videos[0], index=None,
-            filter_query="alpha" if locked else "",
+            SideInputs(
+                "portrait", locked=locked, current=str(videos[0]),
+                filter_query="alpha" if locked else "",
+            ),
+            index=None,
         ))
 
     publish(locked=False)

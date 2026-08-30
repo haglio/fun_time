@@ -280,81 +280,93 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
     return ""
 
 
+@dataclass(frozen=True)
+class SideInputs:
+    """Everything one satellite's panel is built from.
+
+    The two sides take an identical set, so they travel as one object each
+    rather than as ``portrait_``/``landscape_`` twins of every field.
+    """
+
+    side: str
+    sources: str = ""
+    current: str = ""
+    locked: bool = False
+    filter_query: str = ""
+    loop_axis: str = ""
+    map_anchor: str = ""
+    widen_clip: str = ""
+    nav_anchor: str = ""
+    latest: bool = False
+    # This side's own F-mode.  Sided like the filter and the order beside it: each
+    # satellite has its own button for it, so the two can differ.
+    f_mode: bool = False
+    is_favorite: bool = False
+
+
 def build_hud_panel(
-    side: str,
+    inputs: SideInputs,
     *,
-    locked: bool,
-    current: str,
     index: GroupIndex | None,
-    filter_query: str = "",
-    loop_axis: str = "",
-    map_anchor: str = "",
-    widen_clip: str = "",
-    nav_anchor: str = "",
-    latest: bool = False,
-    f_mode: bool = False,
     active: bool = False,
-    is_favorite: bool = False,
     satellites_mode: str = "",
 ) -> HudPanel:
-    """The HUD panel for *side*, given its lock flag, current clip and index.
+    """One side's HUD panel, from everything that side is (:class:`SideInputs`).
 
     The action column collapses to one clip per distinct other act, and belongs
     to the cell the seed row lights: the corner normally, the seed actually
     playing while a held or frozen map is out along the row.  An action group is
-    seed-scoped, so those are that very seed's other acts — the corner's column
-    only ever offered the corner seed's.  *widen_clip* names the clip the seed row
-    was widened around ("more seeds"); while widening is in force the row grows
-    past the exact parameter set to the clips nearest that one's scene.
+    seed-scoped, so those are that very seed's other acts.
+    ``inputs.widen_clip`` names the clip the seed row was widened around ("more
+    seeds"); while it is in force the row grows past the exact parameter set to
+    the clips nearest that one's scene.
 
-    *map_anchor* is the clip the map hangs on — the clip a loop started on, which
-    heads the queue that loop wrote.  While it holds, the map reads in the order the
-    player plays it (that clip in the corner, the group running away from it) and
-    does not re-orient as the loop advances; ``playing`` marks the cell actually on
-    screen.  It goes on holding after the loop is switched off, for as long as the
-    clip on screen is still one of the map's cells, so ending a loop takes away the
-    loop's chrome and nothing else; once the browse moves on past the group there is
-    no cell left to light and the map re-homes on the live clip.  *loop_axis* names
-    only whether a loop is actually *running* — the lit button and the rectangle.
+    ``inputs.map_anchor`` is the clip the map hangs on — the one a loop started
+    on, which heads the queue that loop wrote.  While it holds, the map reads in
+    the order the player plays it and does not re-orient as the loop advances;
+    ``playing`` marks the cell on screen.  It holds on after the loop is
+    switched off for as long as the clip on screen is still one of the map's
+    cells, so ending a loop takes away the loop's chrome and nothing else.
+    ``inputs.loop_axis`` names only whether a loop is actually *running*.
 
-    ``nav_anchor`` hangs the map the same way for keyboard navigation, so an
-    arrow-driven selection moves across a stable map.  A loop wins over it.
+    ``inputs.nav_anchor`` hangs the map the same way for keyboard navigation.
+    A loop wins over it.
     """
-    have_siblings = bool(current) and index is not None
-    # The widened pool, ranked once around *widen_clip* and reused: ranking it again
+    have_siblings = bool(inputs.current) and index is not None
+    # The widened pool, ranked once around *inputs.widen_clip* and reused: ranking it again
     # from another member would score a different set and shuffle the row underneath
     # a map that is supposed to be holding still.
-    widened_pool = widened_seed_members(index, widen_clip) if have_siblings and widen_clip else []
+    widened_pool = widened_seed_members(index, inputs.widen_clip) if have_siblings and inputs.widen_clip else []
     pool_keys = {normalize_path_key(member) for member in widened_pool}
-    anchor = current
+    anchor = inputs.current
     active_loop = ""
     map_held = False
     nav_frozen = False
     nav_cell: Cell | None = None
-    if have_siblings and loop_axis in ("seed", "action"):
-        if loop_axis == "action":
-            group = action_group_members(index, current)
-        elif normalize_path_key(current) in pool_keys:
+    if have_siblings and inputs.loop_axis in ("seed", "action"):
+        if inputs.loop_axis == "action":
+            group = action_group_members(index, inputs.current)
+        elif normalize_path_key(inputs.current) in pool_keys:
             group = widened_pool
         else:
-            group = seed_family_members(index, current)
+            group = seed_family_members(index, inputs.current)
         if len(group) >= 2:
-            anchor = _map_anchor_in(group, map_anchor)
-            active_loop = loop_axis
+            anchor = _map_anchor_in(group, inputs.map_anchor)
+            active_loop = inputs.loop_axis
             map_held = True
-    elif have_siblings and map_anchor and _axis_holding(index, map_anchor, current, widened_pool):
-        anchor = map_anchor
+    elif have_siblings and inputs.map_anchor and _axis_holding(index, inputs.map_anchor, inputs.current, widened_pool):
+        anchor = inputs.map_anchor
         map_held = True
-    elif have_siblings and nav_anchor and normalize_path_key(nav_anchor) != normalize_path_key(current):
-        nav_seed, nav_action = hud_map_cells(index, nav_anchor)
-        nav_cell = locate_cell(current, nav_anchor, nav_seed, nav_action)
+    elif have_siblings and inputs.nav_anchor and normalize_path_key(inputs.nav_anchor) != normalize_path_key(inputs.current):
+        nav_seed, nav_action = hud_map_cells(index, inputs.nav_anchor)
+        nav_cell = locate_cell(inputs.current, inputs.nav_anchor, nav_seed, nav_action)
         if nav_cell is not None:
-            anchor = nav_anchor
+            anchor = inputs.nav_anchor
             nav_frozen = True
     # Which axis of a held or frozen map the live clip sits on: the cell the map
     # lights, and — when it is the seed row — whose acts the column shows.
     if map_held:
-        on_axis = active_loop or _axis_holding(index, anchor, current, widened_pool)
+        on_axis = active_loop or _axis_holding(index, anchor, inputs.current, widened_pool)
     elif nav_frozen and nav_cell is not None:
         on_axis = nav_cell[0]
     else:
@@ -366,8 +378,8 @@ def build_hud_panel(
     # auto-advance drops it.  Navigation walks the exact family (never widened), so
     # a nav-frozen map matches what the keys can reach.
     widen = bool(widened_pool) and (
-        normalize_path_key(current) in pool_keys if map_held
-        else normalize_path_key(current) == normalize_path_key(widen_clip)
+        normalize_path_key(inputs.current) in pool_keys if map_held
+        else normalize_path_key(inputs.current) == normalize_path_key(inputs.widen_clip)
     )
     if not have_siblings:
         seed = []
@@ -380,7 +392,7 @@ def build_hud_panel(
     # and while a held map plays a non-corner seed, those are the acts you would
     # step down into.  Hanging the corner's acts there offered only the corner
     # seed's other acts, however far along the row playback had got.
-    column_clip = current if on_axis == "seed" else anchor
+    column_clip = inputs.current if on_axis == "seed" else anchor
     if not have_siblings:
         action = []
     elif active_loop == "action":
@@ -402,15 +414,15 @@ def build_hud_panel(
             index.action_by_path.get(normalize_path_key(member), "") for member in action
         )
         if map_held:
-            playing = _playing_member(index, anchor, current, action, on_axis)
+            playing = _playing_member(index, anchor, inputs.current, action, on_axis)
         elif nav_frozen:
-            playing = current  # the live clip is exactly the cell to light
+            playing = inputs.current  # the live clip is exactly the cell to light
     return HudPanel(
-        side=side,
-        locked=locked,
-        lock_label=_status_label(locked, active_loop, latest, filter_query, f_mode),
-        is_favorite=is_favorite,
-        f_mode=f_mode,
+        side=inputs.side,
+        locked=inputs.locked,
+        lock_label=_status_label(inputs.locked, active_loop, inputs.latest, inputs.filter_query, inputs.f_mode),
+        is_favorite=inputs.is_favorite,
+        f_mode=inputs.f_mode,
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
@@ -418,38 +430,12 @@ def build_hud_panel(
         action_labels=action_labels,
         seed_count=len(seed) + 1 if have_siblings else 0,
         action_count=len(action) + 1 if have_siblings else 0,
-        filter_query=filter_query,
+        filter_query=inputs.filter_query,
         active=active,
         active_loop=active_loop,
         playing=playing,
         satellites_mode=satellites_mode,
     )
-
-
-@dataclass(frozen=True)
-class SideInputs:
-    """Everything one satellite's panel is built from.
-
-    The two sides take an identical set of inputs, so they travel as one object
-    each rather than as ``portrait_``/``landscape_`` twins of every field — which
-    is what kept every caller, and this module's own helper, restating the whole
-    list twice.
-    """
-
-    side: str
-    sources: str = ""
-    current: str = ""
-    locked: bool = False
-    filter_query: str = ""
-    loop_axis: str = ""
-    map_anchor: str = ""
-    widen_clip: str = ""
-    nav_anchor: str = ""
-    latest: bool = False
-    # This side's own F-mode.  Sided like the filter and the order beside it: each
-    # satellite has its own button for it, so the two can differ.
-    f_mode: bool = False
-    is_favorite: bool = False
 
 
 def _side_panel(
@@ -469,12 +455,7 @@ def _side_panel(
             must_contain=None,
         )
     return build_hud_panel(
-        inputs.side, locked=inputs.locked, current=inputs.current, index=index,
-        filter_query=inputs.filter_query, loop_axis=inputs.loop_axis,
-        map_anchor=inputs.map_anchor, widen_clip=inputs.widen_clip,
-        nav_anchor=inputs.nav_anchor, latest=inputs.latest,
-        is_favorite=inputs.is_favorite, f_mode=inputs.f_mode,
-        active=active_side == inputs.side,
+        inputs, index=index, active=active_side == inputs.side,
         satellites_mode=satellites_mode,
     )
 
