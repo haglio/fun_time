@@ -534,16 +534,3 @@ def disable_window_transitions(hwnd: int) -> None:
 def is_window_minimized(hwnd: int) -> bool:
     """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))
-
-
-# The two subsystems that left this file are re-exported for one release, so no
-# importer of this module breaks before it is repointed.  `list_child_pids` is
-# imported at the top instead: `find_window_for_process` calls it.
-from fun_time.win32_process import (  # noqa: E402
-    get_process_creation_time as get_process_creation_time,
-)
-from fun_time.win32_taskbar import (  # noqa: E402
-    APP_USER_MODEL_ID as APP_USER_MODEL_ID,
-    set_app_user_model_id as set_app_user_model_id,
-    set_shortcut_app_user_model_id as set_shortcut_app_user_model_id,
-)
