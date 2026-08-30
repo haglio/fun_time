@@ -78,18 +78,6 @@ class PathsConfig:
     origenerator_dir: Path | None = None
     origenerator_python_exe: Path | None = None
 
-    @property
-    def nau_library_dir(self) -> Path:
-        return self.nau_library_dirs[0]
-
-    @property
-    def portrait_dir(self) -> Path:
-        return self.portrait_dirs[0]
-
-    @property
-    def landscape_dir(self) -> Path:
-        return self.landscape_dirs[0]
-
 
 @dataclass(frozen=True)
 class LayoutConfig:
