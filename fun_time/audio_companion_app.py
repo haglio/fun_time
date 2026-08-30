@@ -20,10 +20,6 @@ from app_support.logging_utils import configure_logging, install_exception_loggi
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
 
 
-def _preparse_config(argv: list[str] | None) -> str | None:
-    return preparse_config_path(argv)
-
-
 def build_parser(config) -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Play Genau companion audio.")
     ap.add_argument("--config", help="Path to a JSON config file.")
@@ -233,7 +229,7 @@ class AudioPlaybackController:
 
 
 def main(argv: list[str] | None = None) -> int:
-    config = load_config(_preparse_config(argv))
+    config = load_config(preparse_config_path(argv))
     logger = configure_logging("fun_time.genau_audio", config.log_file("genau_audio"))
     install_exception_logging(logger)
     args = build_parser(config).parse_args(argv)
