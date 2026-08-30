@@ -294,6 +294,18 @@ def is_window_topmost(hwnd: int) -> bool:
     return bool(ex_style & WS_EX_TOPMOST)
 
 
+def keep_in_topmost_band(hwnd: int, *, topmost: bool) -> None:
+    """Put *hwnd* in or out of the topmost band — only if it is not already.
+
+    Drift correction, not assertion: three windows in this session correct their
+    own band on a timer, because the orchestrator's pass over them is not
+    reliable.  Running SetWindowPos unconditionally would fight whoever else
+    re-asserts the flag and flicker in the steady state.
+    """
+    if is_window_topmost(hwnd) != topmost:
+        set_always_on_top(hwnd, topmost)
+
+
 @dataclass(frozen=True)
 class StackedWindow:
     """A visible top-level window, as seen while walking the z-order."""

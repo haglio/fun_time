@@ -649,20 +649,20 @@ def test_dashboard_syncs_own_topmost_with_omnipause(dashboard_window, dashboard_
     window = dashboard_window
 
     # Entering OmniPause while topmost drops the dashboard out of the band.
-    with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
-         patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+    with patch("fun_time.win32.is_window_topmost", return_value=True), \
+         patch("fun_time.win32.set_always_on_top") as mock_set:
         window._sync_own_topmost(omni_paused=True)
     mock_set.assert_called_once_with(window._dash_hwnd, False)
 
     # Leaving OmniPause while non-topmost floats it back on top.
-    with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-         patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+    with patch("fun_time.win32.is_window_topmost", return_value=False), \
+         patch("fun_time.win32.set_always_on_top") as mock_set:
         window._sync_own_topmost(omni_paused=False)
     mock_set.assert_called_once_with(window._dash_hwnd, True)
 
     # Already in the desired band → no redundant SetWindowPos (no flicker).
-    with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-         patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+    with patch("fun_time.win32.is_window_topmost", return_value=False), \
+         patch("fun_time.win32.set_always_on_top") as mock_set:
         window._sync_own_topmost(omni_paused=True)
     mock_set.assert_not_called()
 
@@ -692,22 +692,45 @@ def test_reference_dialog_syncs_topmost_with_omnipause():
         hwnd = int(dialog.winId())
 
         # Entering OmniPause while topmost drops the popup out of the band.
-        with patch("fun_time.dashboard_app.is_window_topmost", return_value=True), \
-             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        with patch("fun_time.win32.is_window_topmost", return_value=True), \
+             patch("fun_time.win32.set_always_on_top") as mock_set:
             dialog.sync_topmost(omni_paused=True)
         mock_set.assert_called_once_with(hwnd, False)
 
         # Leaving OmniPause while non-topmost floats it back on top.
-        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        with patch("fun_time.win32.is_window_topmost", return_value=False), \
+             patch("fun_time.win32.set_always_on_top") as mock_set:
             dialog.sync_topmost(omni_paused=False)
         mock_set.assert_called_once_with(hwnd, True)
 
         # Already in the desired band → no redundant SetWindowPos (no flicker).
-        with patch("fun_time.dashboard_app.is_window_topmost", return_value=False), \
-             patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+        with patch("fun_time.win32.is_window_topmost", return_value=False), \
+             patch("fun_time.win32.set_always_on_top") as mock_set:
             dialog.sync_topmost(omni_paused=True)
         mock_set.assert_not_called()
+    finally:
+        dialog.close()
+
+
+def test_the_popup_asks_for_its_handle_again_every_time_it_is_banded():
+    """Qt may recreate a native window across a hide/show, so a handle cached
+    at construction would band a window that no longer exists — and the popup
+    is hidden and shown by every toggle."""
+    from fun_time.dashboard_app import ReferenceDialog
+
+    dialog = ReferenceDialog()
+    try:
+        handles: list[int] = []
+        with (
+            patch.object(type(dialog), "winId", side_effect=[111, 222]),
+            patch("fun_time.win32.is_window_topmost", return_value=False),
+            patch("fun_time.win32.set_always_on_top",
+                  side_effect=lambda hwnd, _on: handles.append(hwnd)),
+        ):
+            dialog.sync_topmost(omni_paused=False)
+            dialog.sync_topmost(omni_paused=False)
+
+        assert handles == [111, 222]
     finally:
         dialog.close()
 
@@ -730,7 +753,7 @@ def test_sync_reference_topmost_is_a_noop_with_no_popup(dashboard_window, dashbo
     window = dashboard_window
 
     assert window._reference.dialog is None
-    with patch("fun_time.dashboard_app.set_always_on_top") as mock_set:
+    with patch("fun_time.win32.set_always_on_top") as mock_set:
         window._reference.sync_topmost(omni_paused=True)
     mock_set.assert_not_called()
 

@@ -25,11 +25,7 @@ from fun_time.config import LayoutConfig
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.press_channel import PressChannel
-from fun_time.win32 import (
-    is_window_topmost,
-    set_always_on_top,
-    set_taskbar_window_styles,
-)
+from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -417,16 +413,10 @@ class ReferenceDialog(QDialog):
         own top-level window, so the dashboard's band does not carry it either;
         it corrects its own, the same way DashboardWindow._sync_own_topmost does.
 
-        Drift correction: SetWindowPos runs only when the actual band differs
-        from the desired one, so Qt re-asserting the hint (on show, say) is
-        undone on the next refresh with no flicker in the steady state.  winId()
-        is read fresh rather than cached because Qt may recreate the native
-        window across a hide/show.
+        winId() is read fresh rather than cached: Qt may recreate the native
+        window across a hide/show, and every toggle hides and shows this one.
         """
-        hwnd = int(self.winId())
-        desired_topmost = not omni_paused
-        if is_window_topmost(hwnd) != desired_topmost:
-            set_always_on_top(hwnd, desired_topmost)
+        keep_in_topmost_band(int(self.winId()), topmost=not omni_paused)
 
 
 class ReferencePopup:
@@ -726,18 +716,11 @@ class DashboardWindow(QMainWindow):
     def _sync_own_topmost(self, omni_paused: bool) -> None:
         """Keep the dashboard's own topmost band in step with OmniPause.
 
-        The dashboard floats over the players via WindowStaysOnTopHint, but
-        OmniPause must free the desktop.  The orchestrator tries to drop it, yet
-        its lookup for this Qt window (whose pid differs from the launcher's)
-        intermittently fails, so the dashboard corrects its OWN band here using
-        its reliable handle: non-topmost while paused, topmost otherwise.  It is
-        drift correction — SetWindowPos runs only when the actual band differs
-        from the desired one, so a Qt re-assert of the hint is undone on the next
-        refresh with no flicker in the steady state.
+        The orchestrator tries to drop it, but its lookup for this Qt window
+        (whose pid differs from the launcher's) intermittently fails, so the
+        panel corrects its own band from its reliable handle.
         """
-        desired_topmost = not omni_paused
-        if is_window_topmost(self._dash_hwnd) != desired_topmost:
-            set_always_on_top(self._dash_hwnd, desired_topmost)
+        keep_in_topmost_band(self._dash_hwnd, topmost=not omni_paused)
 
     @property
     def _omni_paused(self) -> bool:
