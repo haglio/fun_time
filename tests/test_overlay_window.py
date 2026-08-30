@@ -7,7 +7,7 @@ import tkinter as tk
 from unittest.mock import MagicMock, call, patch
 from pathlib import Path
 
-from fun_time.overlay_progress import parse_progress
+from fun_time.overlay_progress import Progress, parse_progress
 from fun_time.overlay_window import (
     POLL_MS,
     OverlayWindow,
@@ -20,28 +20,19 @@ ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
 
 class TestParseProgress:
     def test_parses_step_and_message(self):
-        step, total, message, done = parse_progress("3/7|Loading stuff...")
-        assert step == 3
-        assert total == 7
-        assert message == "Loading stuff..."
-        assert done is False
+        assert parse_progress("3/7|Loading stuff...") == Progress(
+            step=3, total=7, message="Loading stuff...")
 
     def test_parses_done(self):
-        step, total, message, done = parse_progress("DONE")
-        assert done is True
+        assert parse_progress("DONE").done is True
 
-    def test_returns_defaults_on_empty(self):
-        step, total, message, done = parse_progress("")
-        assert step == 0
-        assert total == 1
-        assert message == ""
-        assert done is False
+    def test_an_empty_file_is_a_line_it_cannot_read(self):
+        """Written but not yet flushed reads the same as torn, and neither is
+        a step: both leave the bar where the last readable line put it."""
+        assert parse_progress("") == Progress(malformed=True)
 
-    def test_returns_defaults_on_malformed(self):
-        step, total, message, done = parse_progress("garbage data")
-        assert step == 0
-        assert total == 1
-        assert done is False
+    def test_so_is_a_fragment(self):
+        assert parse_progress("garbage data") == Progress(malformed=True)
 
 
 class TestLoadIconImage:
@@ -334,3 +325,40 @@ class TestLoadingTheIcon:
 
     def test_the_icon_is_resized_to_what_was_asked_for(self):
         assert load_icon_image(ICON_PATH, 64).size == (64, 64)
+
+
+class TestALineTheCoverCannotRead:
+    """A torn write leaves a fragment.  Parsed as a 4-tuple, that read back as
+    "zero percent done" — indistinguishable from a genuine first phase — and
+    the bar snapped to the left in front of the user."""
+
+    def test_the_bar_holds_where_it_was(self, tmp_path: Path):
+        """A read that catches the write before its total is a prefix like
+        "3/" — parsed as a 4-tuple that came back as step 0 of 1."""
+        window = _cover(tmp_path)
+        window._progress_file.write_text("3/6|Waiting for players...", encoding="utf-8")
+        window._poll()
+        assert window._content.progress_var.value == 50.0
+
+        window._progress_file.write_text("3/", encoding="utf-8")
+        window._poll()
+
+        assert window._content.progress_var.value == 50.0
+        assert window._content.status_label.text == "Waiting for players..."
+
+    def test_a_torn_line_is_not_the_end_of_startup(self, tmp_path: Path):
+        """The one thing that lifts the cover is the orchestrator's own DONE."""
+        from fun_time.overlay_progress import startup_still_building
+
+        (tmp_path / "startup_progress.txt").write_text("3/", encoding="utf-8")
+
+        assert startup_still_building(tmp_path) is True
+
+    def test_a_line_it_can_read_says_so(self, tmp_path: Path):
+        from fun_time.overlay_progress import parse_progress
+
+        assert parse_progress("3/6|Positioning windows...") == Progress(
+            step=3, total=6, message="Positioning windows...", done=False)
+        assert parse_progress("DONE").done is True
+        assert parse_progress("nonsense").malformed is True
+        assert parse_progress("").malformed is True

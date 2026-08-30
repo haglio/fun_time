@@ -226,7 +226,7 @@ class TestStartupStillBuilding:
         progress_file = tmp_path / PROGRESS_FILENAME
         progress = PhaseProgress(progress_file, phases=STARTUP_PHASES)
         cover_may_close = lambda: parse_progress(  # noqa: E731
-            progress_file.read_text(encoding="utf-8"))[3]
+            progress_file.read_text(encoding="utf-8")).done
 
         for phase in STARTUP_PHASES[:-1]:
             progress.advance(phase.key)

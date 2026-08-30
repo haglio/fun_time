@@ -297,17 +297,21 @@ class OverlayWindow:
         try:
             if self._progress_file.exists():
                 mtime = self._progress_file.stat().st_mtime
-                text = self._progress_file.read_text(encoding="utf-8")
-                step, total, message, done = parse_progress(text)
+                progress = parse_progress(
+                    self._progress_file.read_text(encoding="utf-8"))
 
-                if done:
+                if progress.done:
                     self._root.destroy()
                     return
 
-                if total > 0:
-                    self._content.progress_var.set(step / total * 100)
-                if message and not self._status_held:
-                    self._content.status_label.configure(text=message)
+                # A torn write is not a step: keep the bar and the words where
+                # the last readable line left them rather than snapping to zero.
+                if not progress.malformed:
+                    if progress.total > 0:
+                        self._content.progress_var.set(
+                            progress.step / progress.total * 100)
+                    if progress.message and not self._status_held:
+                        self._content.status_label.configure(text=progress.message)
 
                 self._last_modified = mtime
 
