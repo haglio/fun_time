@@ -1088,7 +1088,7 @@ class TestDispatchLoopRunner:
             runner.tick()
             assert runner._parked_hwnds == [PORTRAIT_HWND, LANDSCAPE_HWND]
 
-            cmd_file.write_text("leave_omnipause", encoding="utf-8")
+            cmd_file.write_text("omnipause_toggle", encoding="utf-8")
             runner.tick()
 
             assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
@@ -1096,7 +1096,7 @@ class TestDispatchLoopRunner:
             assert runner._parked_hwnds == []
 
             write_shared_state(tmp_path / "shared_state.ini", BridgeState(omni_paused=True))
-            cmd_file.write_text("leave_omnipause", encoding="utf-8")
+            cmd_file.write_text("omnipause_toggle", encoding="utf-8")
             runner.tick()
 
         assert [h for h, _ in restored] == [PORTRAIT_HWND, LANDSCAPE_HWND]
@@ -1126,7 +1126,7 @@ class TestDispatchLoopRunner:
 
             write_shared_state(tmp_path / "shared_state.ini",
                                replace(runner.state, omni_paused=True))
-            cmd_file.write_text("leave_omnipause", encoding="utf-8")
+            cmd_file.write_text("omnipause_toggle", encoding="utf-8")
             runner.tick()
 
         assert NAU_HWND not in restored
@@ -1739,7 +1739,7 @@ class TestBrowseLibrary:
 
         dispatched = [c[0][0] for c in mock_dispatch.call_args_list]
         assert "enter_omnipause" not in dispatched
-        assert "leave_omnipause" not in dispatched
+        assert "omnipause_toggle" not in dispatched
         assert runner.state.omni_paused is False
 
     def test_removes_topmost_from_all_managed_windows(self, tmp_path):

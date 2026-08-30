@@ -2765,13 +2765,21 @@ def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
     assert any(op.op == "restore_all_topmost" for op in ops)
 
 
-def test_leave_omnipause_emits_restore_all_topmost(tmp_path: Path):
+def test_a_leave_omnipause_verb_no_producer_can_send_is_inert(tmp_path: Path):
+    """Leaving is internal: the toggle is what calls it.
+
+    No key, phrase or button in the family ever sent this verb -- it is absent
+    from windows_bridge_hotkeys.ahk, from VOICE_COMMANDS and from every HUD
+    button id -- so it is not a spelling of the resume, and a hand-written
+    command file does not get one.
+    """
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
     new_state, ops = dispatch_command("leave_omnipause", state, config)
 
-    assert any(op.op == "restore_all_topmost" for op in ops)
+    assert ops == []
+    assert new_state.omni_paused is True
 
 
 def test_leaving_omnipause_brings_back_the_players_a_button_parked(tmp_path: Path):
@@ -2780,9 +2788,9 @@ def test_leaving_omnipause_brings_back_the_players_a_button_parked(tmp_path: Pat
     would have brought it back but the taskbar."""
     config = _make_config(tmp_path)
 
-    for command in ("leave_omnipause", "omnipause_toggle"):
-        _state, ops = dispatch_command(command, _make_state(omni_paused=True), config)
-        assert any(op.op == "restore_parked" for op in ops), command
+    _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
+
+    assert any(op.op == "restore_parked" for op in ops)
 
 
 def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
@@ -2790,7 +2798,7 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
     activate raises it, or both land on something minimized."""
     config = _make_config(tmp_path)
 
-    _state, ops = dispatch_command("leave_omnipause", _make_state(omni_paused=True), config)
+    _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
     order = [op.op for op in ops]
 
     assert order.index("restore_parked") < order.index("restore_all_topmost")
@@ -2827,11 +2835,11 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
 
-def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
+def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
-    new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
@@ -2839,11 +2847,11 @@ def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
 
 
-def test_leave_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
+def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, main_mode="genau")
 
-    new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
 
