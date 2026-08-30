@@ -521,11 +521,11 @@ def _keycap(label: str) -> str:
     )
 
 
-def _cell(content: str, *, color: str = _TEXT, width: str = "") -> str:
+def _cell(content: str, *, width: str = "") -> str:
     width_attr = f' width="{width}"' if width else ""
     return (
         f'<td valign="top"{width_attr} '
-        f'style="padding:3px 8px;color:{color}">{content}</td>'
+        f'style="padding:3px 8px;color:{_TEXT}">{content}</td>'
     )
 
 
@@ -585,7 +585,7 @@ def render_reference_html() -> str:
                 "<tr>"
                 + _cell(html.escape(row.description))
                 + keys
-                + _cell(phrases, color=_TEXT, width=say_width)
+                + _cell(phrases, width=say_width)
                 + "</tr>"
             )
         parts.append("</table>")
