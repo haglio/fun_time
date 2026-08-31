@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.process_identity import (
+    _STAMP_FIELD,
     APP_NAME,
     EXE_PREFIX,
     PROCESS_NAME_PATTERN,
@@ -31,6 +32,41 @@ def _interpreter(tmp_path: Path, name: str = "pythonw.exe") -> Path:
     exe.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(REAL_INTERPRETER, exe)
     return exe
+
+
+def _stub_interpreter(tmp_path: Path, name: str = "pythonw.exe") -> Path:
+    """A stand-in interpreter for the decision tests: the fake below never
+    inspects it, so a few bytes in the right place beat copying a real one."""
+    exe = tmp_path / ".venv" / "Scripts" / name
+    exe.parent.mkdir(parents=True, exist_ok=True)
+    exe.write_bytes(b"MZ stub interpreter")
+    return exe
+
+
+class _FakeResources:
+    """The two Win32 resource calls as a recording fake.
+
+    What ``stamp_identity`` wrote is what ``read_version_field`` answers, which
+    is the contract the real pair keeps -- so the keep/refresh/discard decisions
+    can be pinned on any platform, and the real-interpreter tests above are left
+    to prove the real pair honours it.
+    """
+
+    def __init__(self) -> None:
+        self.stamped: dict[Path, dict[str, str]] = {}
+
+    def stamp(self, exe: Path, *, description: str, source_stamp: str,
+              icon: bytes | None) -> None:
+        self.stamped[Path(exe)] = {
+            "FileDescription": description, _STAMP_FIELD: source_stamp}
+
+    def read_field(self, exe: Path, field: str) -> str | None:
+        return (self.stamped.get(Path(exe)) or {}).get(field)
+
+
+def _use_fake_resources(monkeypatch: pytest.MonkeyPatch, resources: _FakeResources) -> None:
+    monkeypatch.setattr("fun_time.process_identity.stamp_identity", resources.stamp)
+    monkeypatch.setattr("fun_time.process_identity.read_version_field", resources.read_field)
 
 
 class TestRoleExeName:
@@ -193,7 +229,13 @@ class TestIdentifiedPythonExe:
         # The usual reason a refresh fails is that last session's copy is still
         # running and Windows will not overwrite a running image.  One Python
         # upgrade behind beats going back to an unidentifiable process.
-        source = _interpreter(tmp_path)
+        #
+        # On the recording fake rather than on a real PE, so the decision is
+        # pinned where no Win32 exists: with the real pair this reads the copy
+        # back as undescribed off Windows, takes the discard path instead, and
+        # passes anyway -- proving nothing on the platform the suite runs on.
+        source = _stub_interpreter(tmp_path)
+        _use_fake_resources(monkeypatch, _FakeResources())
         existing = Path(identified_python_exe(source, "ClosingScreen"))
         monkeypatch.setattr("fun_time.process_identity.APP_NAME", "Renamed App")
         monkeypatch.setattr(
@@ -202,6 +244,7 @@ class TestIdentifiedPythonExe:
         )
 
         assert identified_python_exe(source, "ClosingScreen") == str(existing)
+        assert existing.is_file(), "the copy still in use was deleted"
 
     def test_falls_back_rather_than_raising_on_a_role_it_cannot_name(self, tmp_path: Path):
         # A launch site is not a validation site: a bad role loses the name, not
