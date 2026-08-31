@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from player_core.file_channel import append_command
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -215,24 +215,27 @@ def apply_satellite_fmode(
     write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
 
 
+@dataclass(frozen=True)
+class SatelliteFmodeInputs:
+    """One satellite's F-mode rebuild inputs: its channel and narrowing."""
+
+    sources: str
+    cmd_file: str | Path
+    recent: bool = False
+    filter_query: str = ""
+
+
 def apply_fmode(
     *,
     players: Sequence[str],
     enabled: bool,
-    portrait_recent: bool,
-    landscape_recent: bool,
     main_sources: str,
-    portrait_sources: str,
-    landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
     main_recent: bool = False,
-    portrait_cmd_file: str | Path,
-    landscape_cmd_file: str | Path,
     nau_cmd_file: str | Path,
+    satellites: Mapping[Player, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
 ) -> FModeFlowResult:
     """Put each of *players* into F-mode, or take it out, and rebuild just those.
 
@@ -250,20 +253,19 @@ def apply_fmode(
             state_dir=state_dir,
             nau_cmd_file=nau_cmd_file,
         )
-    for player, which, sources, cmd_file, recent, query in (
-        (PORTRAIT_PLAYER, 2, portrait_sources, portrait_cmd_file, portrait_recent, portrait_filter),
-        (LANDSCAPE_PLAYER, 3, landscape_sources, landscape_cmd_file, landscape_recent, landscape_filter),
-    ):
+    for player, which in ((PORTRAIT_PLAYER, Player.PORTRAIT),
+                          (LANDSCAPE_PLAYER, Player.LANDSCAPE)):
         if player in named:
+            side = satellites[which]
             apply_satellite_fmode(
                 which=which,
                 enabled=enabled,
-                sources=sources,
+                sources=side.sources,
                 favs_file=favs_file,
                 state_dir=state_dir,
-                cmd_file=cmd_file,
-                recent=recent,
-                filter_query=query,
+                cmd_file=side.cmd_file,
+                recent=side.recent,
+                filter_query=side.filter_query,
                 regen_metadata_root=regen_metadata_root,
             )
     return FModeFlowResult(

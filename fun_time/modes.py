@@ -339,38 +339,39 @@ def build_one_satellite_playlist(
     write_playlist_file(build_playlist_file_path(state_dir, name), paths)
 
 
+@dataclass(frozen=True)
+class SatelliteBuild:
+    """One satellite's playlist-build inputs: what it browses, and how it is
+    narrowed — its own filter, F-mode and ordering, since every one of the
+    three is a sided command and the two satellites can be in different states."""
+
+    sources: str
+    f_mode: bool = False
+    recent: bool = False
+    filter_query: str = ""
+
+
 def build_satellite_playlists(
     *,
-    portrait_sources: str,
-    landscape_sources: str,
+    portrait: SatelliteBuild,
+    landscape: SatelliteBuild,
     favs_file: Path,
     state_dir: Path,
-    portrait_f_mode: bool = False,
-    landscape_f_mode: bool = False,
-    portrait_recent: bool = False,
-    landscape_recent: bool = False,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
 ) -> None:
-    """Build and write the Portrait/Landscape satellite playlists (the two satellites).
-
-    Each satellite honors its own filter, its own F-mode AND its own ordering —
-    newest-first when its ``*_recent`` is set, otherwise shuffled (with
-    action-group collapse and watch weighting when *library* is given) — since
-    every one of the three is a sided command and the two satellites can be in
-    different states.
-    """
+    """Build and write both satellite playlists, each honoring its own
+    :class:`SatelliteBuild` (action-group collapse and watch weighting apply
+    when *library* is given)."""
     build_one_satellite_playlist(
-        sources=portrait_sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
-        state_dir=state_dir, f_mode=portrait_f_mode, recent=portrait_recent,
-        filter_query=portrait_filter, rng=rng, library=library,
+        sources=portrait.sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
+        state_dir=state_dir, f_mode=portrait.f_mode, recent=portrait.recent,
+        filter_query=portrait.filter_query, rng=rng, library=library,
     )
     build_one_satellite_playlist(
-        sources=landscape_sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
-        state_dir=state_dir, f_mode=landscape_f_mode, recent=landscape_recent,
-        filter_query=landscape_filter, rng=rng, library=library,
+        sources=landscape.sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
+        state_dir=state_dir, f_mode=landscape.f_mode, recent=landscape.recent,
+        filter_query=landscape.filter_query, rng=rng, library=library,
     )
 
 
@@ -394,39 +395,27 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
 def build_all_playlists(
     *,
     main_sources: str,
-    portrait_sources: str,
-    landscape_sources: str,
+    portrait: SatelliteBuild,
+    landscape: SatelliteBuild,
     favs_file: Path,
     state_dir: Path,
     main_f_mode: bool = False,
-    portrait_f_mode: bool = False,
-    landscape_f_mode: bool = False,
     main_recent: bool = False,
-    portrait_recent: bool = False,
-    landscape_recent: bool = False,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
     rng: random.Random | None = None,
     library: SatelliteLibraryContext | None = None,
 ) -> None:
     """Build and write all three playlists — both satellites' and Nau's.
 
-    F-mode is per player, so each takes its own flag: a session where only the
-    landscape satellite is narrowed to favorites builds the other two whole.
-    The one caller that wants all three at once is a fresh start with nothing
-    to resume, which is why every flag defaults off.
+    F-mode is per player, so each build carries its own flag: a session where
+    only the landscape satellite is narrowed to favorites builds the other two
+    whole.  The one caller that wants all three at once is a fresh start with
+    nothing to resume, which is why every flag defaults off.
     """
     build_satellite_playlists(
-        portrait_sources=portrait_sources,
-        landscape_sources=landscape_sources,
+        portrait=portrait,
+        landscape=landscape,
         favs_file=favs_file,
         state_dir=state_dir,
-        portrait_f_mode=portrait_f_mode,
-        landscape_f_mode=landscape_f_mode,
-        portrait_recent=portrait_recent,
-        landscape_recent=landscape_recent,
-        portrait_filter=portrait_filter,
-        landscape_filter=landscape_filter,
         rng=rng,
         library=library,
     )

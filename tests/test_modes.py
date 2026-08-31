@@ -7,6 +7,7 @@ from pathlib import Path
 import json
 
 from fun_time.modes import (
+    SatelliteBuild,
     SatelliteLibraryContext,
     build_all_playlists,
     build_mirrored_funscript_path,
@@ -129,14 +130,12 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     state_dir = tmp_path / "state"
 
     build_all_playlists(
+        portrait=SatelliteBuild(sources=str(portrait_root), f_mode=True),
+        landscape=SatelliteBuild(sources=str(landscape_root), f_mode=True),
         main_sources=str(primary_root),
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
         favs_file=favs_file,
         state_dir=state_dir,
         main_f_mode=True,
-        portrait_f_mode=True,
-        landscape_f_mode=True,
         rng=random.Random(1),
     )
 
@@ -163,9 +162,9 @@ def test_build_all_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: 
     state_dir = tmp_path / "state"
 
     build_all_playlists(
+        portrait=SatelliteBuild(sources=""),
+        landscape=SatelliteBuild(sources=""),
         main_sources=str(primary_root),
-        portrait_sources="",
-        landscape_sources="",
         favs_file=favs_file,
         state_dir=state_dir,
         rng=random.Random(1),
@@ -307,12 +306,10 @@ def test_build_satellite_playlists_writes_both_recency_ordered_files(tmp_path: P
     state_dir = tmp_path / "state"
 
     build_satellite_playlists(
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
+        portrait=SatelliteBuild(sources=str(portrait_root), recent=True),
+        landscape=SatelliteBuild(sources=str(landscape_root), recent=True),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        portrait_recent=True,
-        landscape_recent=True,
     )
 
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
@@ -331,13 +328,11 @@ def test_build_all_playlists_recent_orders_satellites(tmp_path: Path):
     state_dir = tmp_path / "state"
 
     build_all_playlists(
+        portrait=SatelliteBuild(sources=str(portrait_root), recent=True),
+        landscape=SatelliteBuild(sources=str(landscape_root), recent=True),
         main_sources="",
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        portrait_recent=True,
-        landscape_recent=True,
     )
 
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(p_new), str(p_old)]
@@ -503,12 +498,10 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
     state_dir = tmp_path / "state"
 
     build_satellite_playlists(
-        portrait_sources=str(source_dir),
-        landscape_sources=str(source_dir),
+        portrait=SatelliteBuild(sources=str(source_dir), recent=False),
+        landscape=SatelliteBuild(sources=str(source_dir), recent=False),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        portrait_recent=False,
-        landscape_recent=False,
         rng=random.Random(5),
         library=library,
     )
@@ -529,9 +522,9 @@ def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
     (primary_dir / "main.mp4").write_text("x", encoding="utf-8")
 
     build_all_playlists(
+        portrait=SatelliteBuild(sources=str(source_dir)),
+        landscape=SatelliteBuild(sources=str(source_dir)),
         main_sources=str(primary_dir),
-        portrait_sources=str(source_dir),
-        landscape_sources=str(source_dir),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         rng=random.Random(5),
@@ -623,14 +616,10 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
     )
 
     build_satellite_playlists(
-        portrait_sources=str(portrait_dir),
-        landscape_sources=str(landscape_dir),
+        portrait=SatelliteBuild(sources=str(portrait_dir), recent=True, filter_query="alpha"),
+        landscape=SatelliteBuild(sources=str(landscape_dir), recent=True, filter_query="kissing"),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_recent=True,
-        landscape_recent=True,
-        portrait_filter="alpha",
-        landscape_filter="kissing",
         library=library,
     )
 

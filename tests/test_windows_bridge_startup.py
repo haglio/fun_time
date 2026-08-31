@@ -18,6 +18,7 @@ from fun_time.shared_state import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
 from fun_time.players import Player
+from fun_time.modes import SatelliteBuild
 from fun_time.satellite_slot import SatelliteSlot
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
@@ -614,8 +615,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
         main_sources=kwargs["main_sources"],
-        portrait_sources=kwargs["portrait"].sources,
-        landscape_sources=kwargs["landscape"].sources,
+        portrait=SatelliteBuild(sources=kwargs["portrait"].sources),
+        landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         library=SatelliteLibraryContext(

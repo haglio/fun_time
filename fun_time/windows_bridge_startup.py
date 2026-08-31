@@ -23,6 +23,7 @@ from .player_status import (
     read_nau_status,
 )
 from .modes import (
+    SatelliteBuild,
     PLAYLIST_NAU,
     SatelliteLibraryContext,
     build_all_playlists,
@@ -486,8 +487,8 @@ def start_core_session(
     if not resumed:
         build_all_playlists(
             main_sources=main_sources,
-            portrait_sources=portrait.sources,
-            landscape_sources=landscape.sources,
+            portrait=SatelliteBuild(sources=portrait.sources),
+            landscape=SatelliteBuild(sources=landscape.sources),
             favs_file=Path(favs_file),
             state_dir=state_path,
             library=SatelliteLibraryContext(

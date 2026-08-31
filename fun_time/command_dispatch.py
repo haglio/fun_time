@@ -62,6 +62,7 @@ from .runtime_flow import (
     PORTRAIT_PLAYER,
     MAIN_PLAYER,
     SatelliteFilterFlowResult,
+    SatelliteFmodeInputs,
     apply_enter_omnipause,
     apply_fmode,
     apply_leave_omnipause,
@@ -824,19 +825,20 @@ def _dispatch_fmode(
         players=changed,
         enabled=enabled,
         main_recent=state.main_latest,
-        portrait_recent=state.portrait_latest,
-        landscape_recent=state.landscape_latest,
         main_sources=config.main_sources,
-        portrait_sources=config.portrait_sources,
-        landscape_sources=config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        portrait_cmd_file=config.portrait_cmd_file,
-        landscape_cmd_file=config.landscape_cmd_file,
         nau_cmd_file=config.nau_cmd_file,
+        satellites={
+            player: SatelliteFmodeInputs(
+                sources=config.side(player).sources,
+                cmd_file=config.side(player).cmd_file,
+                recent=state.side(player).latest,
+                filter_query=state.side(player).filter,
+            )
+            for player in Player.SATELLITES
+        },
         regen_metadata_root=config.regen_metadata_root,
-        portrait_filter=state.portrait_filter,
-        landscape_filter=state.landscape_filter,
     )
     if result.players:
         logger.info(result.log_message)

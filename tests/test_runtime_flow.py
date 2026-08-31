@@ -7,7 +7,9 @@ import pytest
 
 import json
 
+from fun_time.players import Player
 from fun_time.runtime_flow import (
+    SatelliteFmodeInputs,
     FMODE_PLAYERS,
     PORTRAIT_PLAYER,
     apply_enter_omnipause,
@@ -262,17 +264,15 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     nau_cmd_file = tmp_path / "nau_cmd.txt"
 
     result = apply_fmode(
+        satellites={
+            Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=portrait_cmd_file),
+            Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+        },
         players=FMODE_PLAYERS,
         enabled=True,
-        portrait_recent=False,
-        landscape_recent=False,
         main_sources=str(primary_root),
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
         favs_file=favs_file,
         state_dir=state_dir,
-        portrait_cmd_file=portrait_cmd_file,
-        landscape_cmd_file=landscape_cmd_file,
         nau_cmd_file=nau_cmd_file,
     )
 
@@ -305,17 +305,15 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
     nau_cmd_file = tmp_path / "nau_cmd.txt"
 
     result = apply_fmode(
+        satellites={
+            Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
+        },
         players=(PORTRAIT_PLAYER,),
         enabled=True,
-        portrait_recent=False,
-        landscape_recent=False,
         main_sources="",
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        landscape_cmd_file=landscape_cmd_file,
         nau_cmd_file=nau_cmd_file,
     )
 
@@ -339,13 +337,16 @@ def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_pat
     def told(enabled: bool) -> list[str]:
         nau_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
         apply_fmode(
+            satellites={
+                Player.PORTRAIT: SatelliteFmodeInputs(
+                    sources="", cmd_file=tmp_path / "p_cmd.txt"),
+                Player.LANDSCAPE: SatelliteFmodeInputs(
+                    sources="", cmd_file=tmp_path / "l_cmd.txt"),
+            },
             players=FMODE_PLAYERS,
             enabled=enabled,
-            portrait_recent=False, landscape_recent=False,
-            main_sources=str(root), portrait_sources="", landscape_sources="",
+            main_sources=str(root),
             favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
-            portrait_cmd_file=tmp_path / "p_cmd.txt",
-            landscape_cmd_file=tmp_path / "l_cmd.txt",
             nau_cmd_file=nau_cmd_file,
         )
         return nau_cmd_file.read_text(encoding="utf-8").splitlines()
@@ -405,17 +406,15 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
 
     apply_fmode(
+        satellites={
+            Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+        },
         players=FMODE_PLAYERS,
         enabled=False,
-        portrait_recent=False,
-        landscape_recent=False,
         main_sources="",
-        portrait_sources=str(portrait_root),
-        landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
         regen_metadata_root=metadata_root,
     )
@@ -434,17 +433,15 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
 
     # Turning F-mode off must keep the satellite playlists newest-first, not reshuffle.
     apply_fmode(
+        satellites={
+            Player.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
+            Player.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources="", cmd_file=tmp_path / "landscape_cmd.txt"),
+        },
         players=FMODE_PLAYERS,
         enabled=False,
-        portrait_recent=True,
-        landscape_recent=True,
         main_sources="",
-        portrait_sources=str(portrait_root),
-        landscape_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
     )
 
@@ -577,21 +574,17 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
     _make_action_video(landscape_root, metadata_root, "lc", "Alpha")
 
     apply_fmode(
+        satellites={
+            Player.PORTRAIT: SatelliteFmodeInputs(recent=True, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt", filter_query="alpha"),
+            Player.LANDSCAPE: SatelliteFmodeInputs(recent=True, sources=str(landscape_root), cmd_file=tmp_path / "landscape_cmd.txt", filter_query="kissing"),
+        },
         players=FMODE_PLAYERS,
         enabled=False,  # F-mode OFF, so only the metadata filter applies
-        portrait_recent=True,
-        landscape_recent=True,
         main_sources="",
-        portrait_sources=str(portrait_root),
-        landscape_sources=str(landscape_root),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        portrait_cmd_file=tmp_path / "portrait_cmd.txt",
-        landscape_cmd_file=tmp_path / "landscape_cmd.txt",
         nau_cmd_file=tmp_path / "nau_cmd.txt",
         regen_metadata_root=metadata_root,
-        portrait_filter="alpha",
-        landscape_filter="kissing",
     )
 
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))

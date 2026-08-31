@@ -17,6 +17,7 @@ from fun_time.bridge_records import (
     BridgeConfig,
     WindowOp,
 )
+from fun_time.players import Player
 from fun_time.command_dispatch import (
     routes_to_origenerator,
     _discard,
@@ -24,6 +25,7 @@ from fun_time.command_dispatch import (
     dispatch_command,
 )
 from fun_time.satellite_groups import cancel_lock
+from fun_time.players import Player
 from fun_time.shared_state import BridgeState
 from fun_time.media_actions import ensure_in_favs
 from fun_time.event_log import NOTICE
@@ -1101,8 +1103,9 @@ def test_fmode_passes_each_sides_current_order(tmp_path: Path):
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert mock_fmode.call_args.kwargs["portrait_recent"] is True
-    assert mock_fmode.call_args.kwargs["landscape_recent"] is False
+    satellites = mock_fmode.call_args.kwargs["satellites"]
+    assert satellites[Player.PORTRAIT].recent is True
+    assert satellites[Player.LANDSCAPE].recent is False
 
 
 def test_fmode_passes_the_metadata_root_for_group_collapse(tmp_path: Path):
@@ -1420,9 +1423,9 @@ def test_fmode_passes_active_filters(tmp_path: Path):
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    kwargs = mock_fmode.call_args.kwargs
-    assert kwargs["portrait_filter"] == "alpha"
-    assert kwargs["landscape_filter"] == "kissing"
+    satellites = mock_fmode.call_args.kwargs["satellites"]
+    assert satellites[Player.PORTRAIT].filter_query == "alpha"
+    assert satellites[Player.LANDSCAPE].filter_query == "kissing"
 
 
 def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
