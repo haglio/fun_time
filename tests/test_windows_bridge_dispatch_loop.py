@@ -2063,6 +2063,33 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
+    # -- the window-op vocabulary --
+
+    def test_an_unknown_op_is_an_error_not_an_ahk_verb(self, tmp_path, caplog):
+        """The interpreter's fall-through used to write any unknown op verbatim
+        into ahk_cmd.txt, where AHK ignored it — a misspelled op was a silent
+        no-op.  Now only the two hotkey-suspension verbs pass through, and
+        anything else is an error in the log."""
+        runner = make_runner(tmp_path)
+        with patch(
+            "fun_time.windows_bridge_dispatch_loop.dispatch_command",
+            return_value=(runner.state, [WindowOp(op="frobnicate")]),
+        ), caplog.at_level(logging.ERROR, logger="fun_time.windows_bridge_dispatch_loop"):
+            (tmp_path / "dashboard_cmd.txt").write_text("portrait_next", encoding="utf-8")
+            runner.tick()
+        assert not runner.ahk_cmd_file.exists()
+        assert any("frobnicate" in record.message for record in caplog.records)
+
+    def test_the_op_interpreter_covers_the_whole_vocabulary(self):
+        """Every Op member has a handler, so a new op without one is caught by
+        this (and by the import-time assert beside the table) instead of at the
+        first press."""
+        from fun_time.bridge_records import Op
+        from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, _OP_HANDLERS
+
+        assert set(_OP_HANDLERS) == set(Op)
+        assert _AHK_PASSTHROUGH_OPS == {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS}
+
     # -- clipper save --
 
     def test_save_clip_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):

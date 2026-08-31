@@ -15,7 +15,7 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 
-from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig
+from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
 from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
@@ -436,66 +436,14 @@ class DispatchLoopRunner:
             target_path=self.watch.video_at(command, spoken_at),
         )
         self.state = new_state
-        suppress_unsuspend = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
         for op in ops:
-            if op.op == "show_role":
-                self.windows.show(op.key)
+            handler = _OP_HANDLERS.get(op.op)
+            if handler is None:
+                # Never the AHK fall-through: an op the interpreter does not
+                # know is a bug here, not a verb for the hotkey script.
+                logger.error("unhandled window op %r", op.op)
                 continue
-            if op.op == "hide_role":
-                self.windows.hide_after_settle(op.key)
-                continue
-            if op.op == "minimize_role":
-                # A player's own HUD minimize button, parking that one window.
-                # Straight away, unlike the main-slot hide above: that one waits
-                # out a settle so the player it is leaving can present its black
-                # first, and nothing here has been told to blank — the window is
-                # going down still showing its video, which is what the user
-                # pressed for, and its frozen thumbnail is then the clip it holds.
-                self.windows.park(op.key)
-                continue
-            if op.op == "restore_parked":
-                self.windows.restore_parked()
-                continue
-            if op.op == "activate_role":
-                if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
-                    self.windows.activate(op.key)
-                continue
-            if op.op == "restack_main":
-                # Re-stack the overlapping Nau/Genau pair for the current mode.
-                # Not integration-guarded: SetWindowPos(HWND_TOPMOST) uses
-                # SWP_NOACTIVATE, so it changes only the z-band, never focus.
-                self.windows.restack_main_slot(self.state.main_mode)
-                continue
-            if op.op == "restack_satellites":
-                self.windows.restack_satellites(
-                    self.state.main_mode, self.state.satellites_mode)
-                continue
-            if op.op == "disable_all_topmost":
-                self.windows.remove_all_topmost()
-                continue
-            if op.op == "restore_all_topmost":
-                self.windows.restore_all_topmost(
-            self.state.main_mode, self.state.satellites_mode)
-                continue
-            if suppress_unsuspend and op.op == "unsuspend_hotkeys":
-                continue
-            if op.op == "open_rfb_tab":
-                self._pending_rfb_urls.append(op.key)
-                continue
-            if op.op == "save_clip":
-                # Slow work runs beside the loop, like the browse and the broker
-                # toggles: clipper boots another repo's interpreter, and the
-                # thread flashes the result when the save lands.
-                threading.Thread(
-                    target=self._handle_clipper_save,
-                    daemon=True,
-                    name="clipper-save",
-                ).start()
-                continue
-            if op.op == "notice":
-                notice(logger, op.key, source=op.source, level=op.level)
-            else:
-                self.ahk_cmd_file.write_text(op.op, encoding="utf-8")
+            handler(self, op)
         write_shared_state(self.shared_state_file, self.state)
         # Outside a poll batch (e.g. a lone lock) there is nothing to coalesce
         # with, so open immediately; within a batch the tick flushes once.
@@ -620,9 +568,8 @@ class DispatchLoopRunner:
     def _handle_broker_toggle(self) -> None:
         """Stop the broker if it is running, start it if it is not.
 
-        Only the stopping half may kill.  Starting launches over whatever is
-        there, because the heartbeat this reads goes stale on a live broker
-        whenever the OSR2 is off.
+        Only the stopping half may kill: the heartbeat goes stale on a live
+        broker whenever the OSR2 is off.
         """
         if self._broker_heartbeat_is_fresh():
             stop_broker_processes()
@@ -632,11 +579,9 @@ class DispatchLoopRunner:
     def _handle_broker_start(self) -> None:
         """Start the broker if the heartbeat says none is running.
 
-        A start, never a restart.  The heartbeat only ticks while the broker
+        A start, never a restart: the heartbeat only ticks while the broker
         holds the serial port, so a broker that cannot reach a powered-off OSR2
-        reads as dead while it is alive and still serving every other client --
-        and it used to be killed here, then not relaunched at all, because no
-        tray launcher was passed.
+        reads as dead while it is alive and serving every other client.
         """
         if not self._broker_heartbeat_is_fresh():
             threading.Thread(
@@ -804,6 +749,104 @@ class DispatchLoopRunner:
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
+
+
+# --- the window-op interpreter ----------------------------------------------
+# One handler per Op member, checked complete at import: a new op without a
+# handler fails startup, not the first press.  Only the two hotkey-suspension
+# verbs may pass through to ahk_cmd.txt — AHK ignores every other string.
+
+_AHK_PASSTHROUGH_OPS = {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS}
+
+
+def _run_show_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    runner.windows.show(op.key)
+
+
+def _run_hide_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    runner.windows.hide_after_settle(op.key)
+
+
+def _run_minimize_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    # A player's own HUD minimize button, parking that one window — straight
+    # away, unlike the settled main-slot hide: the window goes down still
+    # showing its video, which is what was pressed for, and its frozen
+    # thumbnail is then the clip it holds.
+    runner.windows.park(op.key)
+
+
+def _run_restore_parked(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+    runner.windows.restore_parked()
+
+
+def _run_activate_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+        runner.windows.activate(op.key)
+
+
+def _run_restack_main(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+    # Re-stack the overlapping Nau/Genau pair for the current mode.  Not
+    # integration-guarded: SetWindowPos(HWND_TOPMOST) uses SWP_NOACTIVATE, so
+    # it changes only the z-band, never focus.
+    runner.windows.restack_main_slot(runner.state.main_mode)
+
+
+def _run_restack_satellites(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+    runner.windows.restack_satellites(
+        runner.state.main_mode, runner.state.satellites_mode)
+
+
+def _run_disable_all_topmost(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+    runner.windows.remove_all_topmost()
+
+
+def _run_restore_all_topmost(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+    runner.windows.restore_all_topmost(
+        runner.state.main_mode, runner.state.satellites_mode)
+
+
+def _run_open_rfb_tab(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    runner._pending_rfb_urls.append(op.key)
+
+
+def _run_save_clip(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+    # Slow work runs beside the loop, like the browse and the broker toggles;
+    # the thread flashes the result when the save lands.
+    threading.Thread(
+        target=runner._handle_clipper_save,
+        daemon=True,
+        name="clipper-save",
+    ).start()
+
+
+def _run_notice(_runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    notice(logger, op.key, source=op.source, level=op.level)
+
+
+def _run_ahk_passthrough(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+    if (op.op == Op.UNSUSPEND_HOTKEYS
+            and os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"):
+        return
+    runner.ahk_cmd_file.write_text(op.op, encoding="utf-8")
+
+
+_OP_HANDLERS = {
+    Op.NOTICE: _run_notice,
+    Op.SHOW_ROLE: _run_show_role,
+    Op.HIDE_ROLE: _run_hide_role,
+    Op.ACTIVATE_ROLE: _run_activate_role,
+    Op.MINIMIZE_ROLE: _run_minimize_role,
+    Op.RESTORE_PARKED: _run_restore_parked,
+    Op.RESTACK_MAIN: _run_restack_main,
+    Op.RESTACK_SATELLITES: _run_restack_satellites,
+    Op.DISABLE_ALL_TOPMOST: _run_disable_all_topmost,
+    Op.RESTORE_ALL_TOPMOST: _run_restore_all_topmost,
+    Op.SUSPEND_HOTKEYS: _run_ahk_passthrough,
+    Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
+    Op.OPEN_RFB_TAB: _run_open_rfb_tab,
+    Op.SAVE_CLIP: _run_save_clip,
+}
+assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 
 
 def build_bridge_config_from_manifest(manifest: LaunchManifest) -> BridgeConfig:

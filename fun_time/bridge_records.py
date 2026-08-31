@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from .config import RegenConfig
@@ -139,6 +140,27 @@ class SideChannel:
     status_file: Path
     playlist_file: Path
     sources: str
+
+
+class Op(StrEnum):
+    """The dispatcher's whole output vocabulary — the closed set of window work
+    a :class:`WindowOp` can ask the dispatch loop for (StrEnum: members compare
+    equal to the plain strings producers and tests have always used)."""
+
+    NOTICE = "notice"
+    SHOW_ROLE = "show_role"
+    HIDE_ROLE = "hide_role"
+    ACTIVATE_ROLE = "activate_role"
+    MINIMIZE_ROLE = "minimize_role"
+    RESTORE_PARKED = "restore_parked"
+    RESTACK_MAIN = "restack_main"
+    RESTACK_SATELLITES = "restack_satellites"
+    DISABLE_ALL_TOPMOST = "disable_all_topmost"
+    RESTORE_ALL_TOPMOST = "restore_all_topmost"
+    SUSPEND_HOTKEYS = "suspend_hotkeys"
+    UNSUSPEND_HOTKEYS = "unsuspend_hotkeys"
+    OPEN_RFB_TAB = "open_rfb_tab"
+    SAVE_CLIP = "save_clip"
 
 
 @dataclass(frozen=True)

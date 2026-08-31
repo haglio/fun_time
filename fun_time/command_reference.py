@@ -12,13 +12,11 @@ command and group the rows into sections.  Voice phrases are *derived* from
 (``tests/test_command_reference.py``) parses the AHK script and cross-checks
 ``VOICE_COMMANDS`` to guarantee every real trigger is represented here.
 
-The satellites get ONE section.  Every satellite action answers to the same
+The satellites get ONE section: every satellite action answers to the same
 phrase four ways over — bare, or with "portrait", "landscape" or "both" before
-or after it — and Portrait, Landscape, Both, Active side and Filters each used
-to print that whole grid again under its own heading.  It is authored once now,
-with a key column per side and a note carrying the scoping rule, and the Say
-column shows the action alone (see :func:`_collapse_scopes`).  Five copies
-taught nothing the later four times and were free to drift apart.
+or after it — so the grid is authored once, with a key column per side, a note
+carrying the scoping rule, and the Say column showing the action alone (see
+:func:`_collapse_scopes`).
 """
 from __future__ import annotations
 
