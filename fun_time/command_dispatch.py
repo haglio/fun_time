@@ -31,7 +31,6 @@ from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
 from .satellite_groups import (
     cancel_lock,
-    clear_nav_anchor,
     clear_side_grouping,
     cycle_variant,
     group_loop,
@@ -44,13 +43,11 @@ from .satellite_groups import (
     satellite_current,
     satellite_source,
     send_satellite,
-    side_f_mode,
-    side_filter,
     switch_to_video,
     video_action_label,
     wrong_action,
 )
-from .shared_state import BridgeState
+from .shared_state import BridgeState, SideState
 from .satellites_mode import (
     ORIGENERATOR_MODE,
     origenerator_shows,
@@ -221,7 +218,7 @@ def _toggle_genau_enabled(path: Path) -> None:
 def _toggle_lock(
     which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.locked2 if which == 2 else state.locked3
+    locked = state.side(which).locked
     current_path = satellite_current(config, which)
     # "Lock" names the video the speaker had in front of them.  If the satellite
     # auto-advanced while the phrase was being recognized, bring that video back
@@ -260,14 +257,13 @@ def _toggle_lock(
     # back into cycling that group.  The loop therefore stays in state — a lock is a
     # pause at one position *inside* the loop, and the HUD goes on drawing the loop
     # (lit button, group rectangle, frozen map) with the held clip ringed.
-    next_state = replace(state, locked2=plan.next_locked) if which == 2 else replace(state, locked3=plan.next_locked)
-    return next_state, lock_ops
+    return state.with_side(which, locked=plan.next_locked), lock_ops
 
 
 def _discard(
     which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.locked2 if which == 2 else state.locked3
+    locked = state.side(which).locked
     current_path = satellite_current(config, which)
     # "Weird" judges the video the speaker saw.  When the satellite advanced
     # while the phrase was being recognized, jump back to the condemned clip
@@ -315,8 +311,7 @@ def _discard(
         if plan.notice_message
         else []
     )
-    next_state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
-    return next_state, discard_ops
+    return state.with_side(which, locked=False), discard_ops
 
 
 # display slot (2=portrait, 3=landscape) and variation axis per cycle command.
@@ -429,13 +424,6 @@ _REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
 _GENAU_ORDER_CMD: dict[bool, str] = {True: "LATEST", False: "SHUFFLE"}
 
 
-def _set_side_latest(state: BridgeState, which: int, recent: bool) -> BridgeState:
-    """Record which order *which* satellite's browse is now in."""
-    if which == 2:
-        return replace(state, portrait_latest=recent)
-    return replace(state, landscape_latest=recent)
-
-
 # "Wrong action" — the clip is fine, its label is not.  Per side, like every
 # other judgement of the clip on screen.
 _WRONG_ACTION_SIDES: dict[str, int] = {"portrait_wrong_action": 2, "landscape_wrong_action": 3}
@@ -465,8 +453,7 @@ def _dispatch_lock_video(
     just moves the lock onto it; when unlocked, toggling the lock with the target
     both switches to it and locks it (the same back-dating a spoken "lock" uses).
     """
-    locked = state.locked2 if which == 2 else state.locked3
-    if locked:
+    if state.side(which).locked:
         return switch_to_video(which, path, state, config)
     return _toggle_lock(which, state, config, target_path=path)
 
@@ -580,7 +567,7 @@ def dispatch_command(
         # that side, so its map re-homes on the live clip; nav commands manage
         # their own anchor.
         if not _is_hud_nav_command(command):
-            state = clear_nav_anchor(state, side)
+            state = state.with_side(side, nav_anchor="")
 
     # In origenerator mode, a side's transport goes to the hosted app, never to
     # the blacked player invisibly underneath its region.  Ahead of the handler
@@ -976,12 +963,12 @@ def _dispatch_reorder(
     same way.  The rebuild replaces the queue, which drops the side's lock and any
     group loop (with the widened row that rode on it).
     """
-    state = _set_side_latest(state, which, recent)
+    state = state.with_side(which, latest=recent)
     # From the top of the new order: asking for the latest is asking to see what has
     # just arrived, and the reload alone would leave the clip on screen playing with
     # the new order applying only behind it.
-    result = _rebuild_side(which, side_filter(state, which), state, config, start_at_top=True)
-    state = replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
+    result = _rebuild_side(which, state.side(which).filter, state, config, start_at_top=True)
+    state = state.with_side(which, locked=False)
     state = clear_side_grouping(state, which)
     side = "portrait" if which == 2 else "landscape"
     # The order's own word and nothing else.  The toast flashes on the player it
@@ -994,37 +981,6 @@ def _dispatch_reorder(
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, side, result.count)
     return state, [WindowOp(op="notice", key=label, source=satellite_source(which))]
-
-
-# Everything a reset takes off a satellite, as the ``BridgeState`` field holding
-# it — portrait's, then landscape's.  The "is it already reset?" test reads this
-# same list, so a narrowing the reset clears cannot be one the test forgets: that
-# side would read as untouched and the press would do nothing while there was
-# something to undo.
-#
-# The nav anchor is not here even though a reset drops it, because it is already
-# gone: every side command that is not itself a nav step clears it on the way in
-# (see :func:`dispatch_command`), so no reset has ever seen one set.
-_RESET_STATE_FIELDS: tuple[tuple[str, str], ...] = (
-    ("locked2", "locked3"),
-    ("portrait_filter", "landscape_filter"),
-    ("portrait_f_mode", "landscape_f_mode"),
-    ("portrait_latest", "landscape_latest"),
-    ("portrait_loop", "landscape_loop"),
-    ("portrait_map_anchor", "landscape_map_anchor"),
-    ("portrait_widen_clip", "landscape_widen_clip"),
-)
-
-
-def _side_is_at_defaults(state: BridgeState, which: int) -> bool:
-    """Whether satellite *which* already sits exactly where a reset would put it.
-
-    Every one of those defaults is the empty value of its field — unlocked, no
-    filter, no F-mode, shuffled rather than newest-first, no loop, no map anchor,
-    no widened row — so "at its defaults" is "nothing in the list is set".
-    """
-    return not any(getattr(state, fields[0 if which == 2 else 1])
-                   for fields in _RESET_STATE_FIELDS)
 
 
 def _dispatch_reset(
@@ -1051,15 +1007,18 @@ def _dispatch_reset(
     """
     ops: list[WindowOp] = []
     for which in _FILTER_TARGETS[scope]:
-        if _side_is_at_defaults(state, which):
+        # Every default is the empty value of its field, so "already reset" is
+        # the side's whole SideState sitting at the default — a narrowing the
+        # reset clears cannot be one this test forgets.  (The nav anchor is
+        # already gone: every side command that is not itself a nav step clears
+        # it on the way in, so no reset has ever seen one set.)
+        if state.side(which) == SideState():
             logger.info("Reset %s: already at its defaults", satellite_source(which))
             continue
         state = cancel_lock(which, state, config)
-        state = _set_side_latest(state, which, False)
-        state = _set_side_filter(state, which, "")
-        state = _set_side_f_mode(state, which, False)
+        state = state.with_side(
+            which, latest=False, filter="", f_mode=False, nav_anchor="")
         state = clear_side_grouping(state, which)
-        state = clear_nav_anchor(state, which)
         result = _rebuild_side(which, "", state, config, start_at_top=True)
         logger.info("Reset %s: %s", satellite_source(which), result.log_message)
         ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(which)))
@@ -1067,21 +1026,6 @@ def _dispatch_reset(
 
 
 _FILTER_TARGETS = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}
-
-
-def _set_side_f_mode(state: BridgeState, which: int, enabled: bool) -> BridgeState:
-    """Record whether satellite *which* is in F-mode.  Set before the side's next
-    rebuild, since every rebuild reads the flag back off the state to know how wide
-    to build."""
-    if which == 2:
-        return replace(state, portrait_f_mode=enabled)
-    return replace(state, landscape_f_mode=enabled)
-
-
-def _set_side_filter(state: BridgeState, which: int, query: str) -> BridgeState:
-    if which == 2:
-        return replace(state, portrait_filter=query)
-    return replace(state, landscape_filter=query)
 
 
 def _rebuild_side(
@@ -1096,11 +1040,12 @@ def _rebuild_side(
     reset — since the reload otherwise keeps the clip on screen and carries on from
     where it sat, leaving the new order to apply only behind it.
     """
+    side = state.side(which)
     return apply_satellite_filter(
         which=which,
         query=query,
-        f_mode_enabled=side_f_mode(state, which),
-        recent=state.portrait_latest if which == 2 else state.landscape_latest,
+        f_mode_enabled=side.f_mode,
+        recent=side.latest,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
@@ -1128,7 +1073,7 @@ def _dispatch_set_filter(
         # also replaced any loop's sub-playlist, so the loop (and its widened row)
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
-            state = _set_side_filter(state, which, query)
+            state = state.with_side(which, filter=query)
             state = clear_side_grouping(state, which)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,

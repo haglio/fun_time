@@ -7,7 +7,7 @@ import sys
 from dataclasses import fields, replace
 from pathlib import Path
 
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, SideState
 from fun_time.shared_state import SHARED_STATE_FILENAME, read_shared_state, shared_state_path, write_shared_state
 
 
@@ -223,3 +223,48 @@ def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
     assert int(count) <= 10, (
         f"reading the shared state file now imports {count} fun_time modules; "
         "lower this ceiling when it drops, never raise it")
+
+
+class TestTheSideLens:
+    """BridgeState.side / with_side — the one crossing between the flat
+    portrait_/landscape_ fields (which the INI keeps, so the dashboard and both
+    satellite HUD processes go on reading the same keys) and the per-side view
+    every reader and writer actually wants."""
+
+    def test_side_reads_the_flat_fields_of_that_side_alone(self):
+        state = BridgeState(
+            locked2=True, portrait_filter="alpha", portrait_f_mode=True,
+            portrait_latest=True, portrait_loop="seed",
+            portrait_map_anchor="a.mp4", portrait_widen_clip="w.mp4",
+            portrait_nav_anchor="n.mp4",
+            landscape_filter="beta gamma",
+        )
+        portrait = state.side(2)
+        assert (portrait.locked, portrait.filter, portrait.f_mode) == (True, "alpha", True)
+        assert (portrait.latest, portrait.loop) == (True, "seed")
+        assert (portrait.map_anchor, portrait.widen_clip, portrait.nav_anchor) == (
+            "a.mp4", "w.mp4", "n.mp4")
+        landscape = state.side(3)
+        assert landscape.filter == "beta gamma"
+        assert landscape.locked is False
+
+    def test_with_side_writes_only_that_sides_flat_fields(self):
+        state = BridgeState(landscape_filter="delta")
+
+        state = state.with_side(2, locked=True, loop="action", map_anchor="x.mp4")
+
+        assert (state.locked2, state.portrait_loop, state.portrait_map_anchor) == (
+            True, "action", "x.mp4")
+        assert (state.locked3, state.landscape_filter) == (False, "delta")
+
+    def test_a_default_side_state_means_the_side_sits_at_its_defaults(self):
+        assert BridgeState().side(3) == SideState()
+        assert BridgeState(landscape_loop="seed").side(3) != SideState()
+
+    def test_the_lens_survives_the_ini_round_trip(self, tmp_path):
+        state_file = tmp_path / "shared_bridge_state.ini"
+        state = BridgeState().with_side(3, filter="delta", f_mode=True, latest=True)
+
+        write_shared_state(state_file, state)
+
+        assert read_shared_state(state_file).side(3) == state.side(3)

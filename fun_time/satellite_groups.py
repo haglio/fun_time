@@ -4,7 +4,6 @@ key's cycle, seed widening and HUD map navigation.  Slot-addressed (2=portrait,
 from __future__ import annotations
 
 import logging
-from dataclasses import replace
 from pathlib import Path
 
 from .bridge_records import (
@@ -72,18 +71,9 @@ def cancel_lock(which: int, state: BridgeState, config: BridgeConfig) -> BridgeS
     ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the side
     was not locked.
     """
-    locked = state.locked2 if which == 2 else state.locked3
-    if locked:
+    if state.side(which).locked:
         send_satellite(config, which, "UNLOCK")
-    return replace(state, locked2=False) if which == 2 else replace(state, locked3=False)
-
-
-def _set_side_loop(state: BridgeState, which: int, axis: str, anchor: str) -> BridgeState:
-    """Record that *which* satellite is running *axis*'s group loop, started on
-    *anchor* — the clip that heads the queue the loop just wrote."""
-    if which == 2:
-        return replace(state, portrait_loop=axis, portrait_map_anchor=anchor)
-    return replace(state, landscape_loop=axis, landscape_map_anchor=anchor)
+    return state.with_side(which, locked=False)
 
 
 def clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
@@ -91,49 +81,7 @@ def clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
     playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
     was set.  The widen only ever means something in the context of the clip/loop
     it was taken around, so a rebuild that drops the loop drops the widen with it."""
-    if which == 2:
-        return replace(state, portrait_loop="", portrait_map_anchor="", portrait_widen_clip="")
-    return replace(state, landscape_loop="", landscape_map_anchor="", landscape_widen_clip="")
-
-
-def _set_side_widen(state: BridgeState, which: int, clip: str) -> BridgeState:
-    """Record that *which* satellite's seed row is widened around *clip* ("" clears)."""
-    if which == 2:
-        return replace(state, portrait_widen_clip=clip)
-    return replace(state, landscape_widen_clip=clip)
-
-
-def side_filter(state: BridgeState, which: int) -> str:
-    """The metadata filter satellite *which* is narrowed by ("" for none)."""
-    return state.portrait_filter if which == 2 else state.landscape_filter
-
-
-def _side_loop(state: BridgeState, which: int) -> str:
-    """Which group loop satellite *which* is running — "action", "seed", or "" for
-    none.  The flag the HUD lights its loop button from, and the place the loop key
-    steps on from."""
-    return state.portrait_loop if which == 2 else state.landscape_loop
-
-
-def side_f_mode(state: BridgeState, which: int) -> bool:
-    """Whether satellite *which* is in F-mode — the flag every rebuild of that side
-    has to carry, or the rebuild would quietly widen it back to the whole library."""
-    return state.portrait_f_mode if which == 2 else state.landscape_f_mode
-
-
-def _nav_anchor(state: BridgeState, which: int) -> str:
-    return state.portrait_nav_anchor if which == 2 else state.landscape_nav_anchor
-
-
-def _set_nav_anchor(state: BridgeState, which: int, anchor: str) -> BridgeState:
-    if which == 2:
-        return replace(state, portrait_nav_anchor=anchor)
-    return replace(state, landscape_nav_anchor=anchor)
-
-
-def clear_nav_anchor(state: BridgeState, which: int) -> BridgeState:
-    """End keyboard navigation on *which* satellite, re-homing its map."""
-    return _set_nav_anchor(state, which, "")
+    return state.with_side(which, loop="", map_anchor="", widen_clip="")
 
 
 def _satellite_group_index(which: int, config: BridgeConfig, current: str) -> GroupIndex:
@@ -272,7 +220,7 @@ def more_seeds(
     wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
-    state = _set_side_widen(state, which, current)
+    state = state.with_side(which, widen_clip=current)
     # Loop the pool that was just widened: the widen anchor now matches the clip on
     # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
     # where none was running and re-shapes one that was.  Its notices are dropped —
@@ -326,8 +274,7 @@ def _loop_members(
     index = _satellite_group_index(which, config, current)
     # Loop what the HUD is showing: if the seed row has been widened around this
     # very clip ("more seeds"), loop that wider pool, not just the exact family.
-    widen_clip = state.portrait_widen_clip if which == 2 else state.landscape_widen_clip
-    widened = axis == "seed" and normalize_path_key(widen_clip) == normalize_path_key(current)
+    widened = axis == "seed" and same_video(state.side(which).widen_clip, current)
     gather = widened_seed_members if widened else (
         action_group_members if axis == "action" else seed_family_members
     )
@@ -350,7 +297,7 @@ def group_loop(
         # one video, they just mean "lock" then.  A lock is not a loop, so any
         # prior loop (and widened row) is dropped.
         send_satellite(config, which, "LOCK")
-        state = replace(state, locked2=True) if which == 2 else replace(state, locked3=True)
+        state = state.with_side(which, locked=True)
         state = clear_side_grouping(state, which)
         # Green: locking a clip puts it in the favorites, so it says so in the
         # color the favorites own.
@@ -368,11 +315,11 @@ def group_loop(
     label = "portrait" if which == 2 else "landscape"
     message = f"Loop {label}: {len(members)} {axis}s"
     logger.info(message)
-    state = _set_side_loop(state, which, axis, current)
+    state = state.with_side(which, loop=axis, map_anchor=current)
     # Anchor the widen on the loop iff it is the loose family being looped, so the
     # HUD reads a running seed loop as widened exactly when it truly is — and a
     # plain exact-family loop drops any stale anchor.
-    state = _set_side_widen(state, which, current if widened else "")
+    state = state.with_side(which, widen_clip=current if widened else "")
     ops.append(WindowOp(op="notice", key=message, source=source))
     return state, ops
 
@@ -407,7 +354,9 @@ def loop_cycle(
     current = target_path or satellite_current(config, which)
     if not current:
         return state, []
-    running = _side_loop(state, which)
+    # Which loop the side is running — the flag the HUD lights its loop button
+    # from, so the key and the HUD can never disagree.
+    running = state.side(which).loop
     # An unknown flag (a hand-edited state file) reads as "not looping", so the
     # cycle starts over at its first axis rather than raising.
     start = _LOOP_CYCLE.index(running) + 1 if running in _LOOP_CYCLE else 0
@@ -419,7 +368,7 @@ def loop_cycle(
             continue  # nothing is looping, so the off step has nothing to switch off
         if len(_loop_members(which, axis, state, config, current)[0]) >= 2:
             return group_loop(which, axis, state, config, current)
-    if state.locked2 if which == 2 else state.locked3:
+    if state.side(which).locked:
         state = cancel_lock(which, state, config)
         return state, [WindowOp(op="notice", key="Unlocked", source=satellite_source(which))]
     # The lone-clip loop's own lock, so the press means exactly what "loop seeds"
@@ -455,10 +404,11 @@ def no_loop(
     """
     which = 2 if scope == "portrait" else 3
     current = satellite_current(config, which)
+    side = state.side(which)
     browse = satellite_browse_paths(
-        query=side_filter(state, which),
-        f_mode_enabled=side_f_mode(state, which),
-        recent=state.portrait_latest if which == 2 else state.landscape_latest,
+        query=side.filter,
+        f_mode_enabled=side.f_mode,
+        recent=side.latest,
         sources=config.portrait_sources if which == 2 else config.landscape_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
@@ -474,7 +424,7 @@ def no_loop(
     # keeps hanging exactly where it was and switching a loop off takes away the lit
     # button and the rectangle and nothing else; the map lets go by itself once the
     # browse moves on past the group.
-    state = replace(state, portrait_loop="") if which == 2 else replace(state, landscape_loop="")
+    state = state.with_side(which, loop="")
     return state, [WindowOp(op="notice", key="Loop off", source=satellite_source(which))]
 
 
@@ -514,7 +464,7 @@ def navigate_hud(
     if not current:
         return state, []
     index = _satellite_group_index(which, config, current)
-    anchor = _nav_anchor(state, which)
+    anchor = state.side(which).nav_anchor
     if anchor:
         seeds, actions = hud_map_cells(index, anchor)
         if locate_cell(current, anchor, seeds, actions) is None:
@@ -533,7 +483,7 @@ def navigate_hud(
     target_cell = navigate_cell(cell, direction, seed_count=len(seeds), action_count=len(actions))
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):
-        state = _set_nav_anchor(state, which, anchor)
+        state = state.with_side(which, nav_anchor=anchor)
         return state, [WindowOp(op="notice", key="No clip that way", source=source, level=FAILED_NOTICE_LEVEL)]
-    state = _set_nav_anchor(state, which, root)
+    state = state.with_side(which, nav_anchor=root)
     return switch_to_video(which, target, state, config)

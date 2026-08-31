@@ -15,12 +15,40 @@ imports startup, so the file's shape has to sit under both.
 from __future__ import annotations
 
 import configparser
-from dataclasses import dataclass
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
 from .mode_plan import STARTUP_MAIN_MODE
 from .satellites_mode import STARTUP_SATELLITES_MODE
+
+@dataclass(frozen=True)
+class SideState:
+    """One satellite's slice of the state, by value.
+
+    The flat portrait_/landscape_ fields below stay the stored truth — the INI's
+    keys are read by the dashboard and both satellite HUD processes — and this
+    is the per-side view of them: :meth:`BridgeState.side` reads one side out,
+    :meth:`BridgeState.with_side` writes one back.  Every default is the empty
+    value of its field, so a side at ``SideState()`` sits at its defaults.
+    """
+
+    locked: bool = False
+    filter: str = ""
+    f_mode: bool = False
+    latest: bool = False
+    loop: str = ""
+    map_anchor: str = ""
+    widen_clip: str = ""
+    nav_anchor: str = ""
+
+
+def _flat_field(name: str, which: int) -> str:
+    """The BridgeState field holding side *which*'s *name* value."""
+    if name == "locked":
+        return "locked2" if which == 2 else "locked3"
+    return f"{'portrait' if which == 2 else 'landscape'}_{name}"
+
 
 @dataclass
 class BridgeState:
@@ -99,6 +127,23 @@ class BridgeState:
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
     muted: bool = False
+
+    def side(self, which: int) -> SideState:
+        """Satellite *which*'s (2=portrait, 3=landscape) slice of this state."""
+        return SideState(**{
+            field.name: getattr(self, _flat_field(field.name, which))
+            for field in fields(SideState)
+        })
+
+    def with_side(self, which: int, **changes) -> "BridgeState":
+        """This state with side *which*'s named :class:`SideState` values replaced."""
+        side_fields = {field.name for field in fields(SideState)}
+        unknown = set(changes) - side_fields
+        if unknown:
+            raise TypeError(f"not SideState fields: {sorted(unknown)}")
+        return replace(self, **{
+            _flat_field(name, which): value for name, value in changes.items()
+        })
 
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"

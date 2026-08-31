@@ -66,17 +66,18 @@ class HudFeed:
             return
         favs = self._favs_content()
 
-        def side(name: str, *, sources: str, status_file: Path, locked: bool) -> SideInputs:
+        def side(name: str, which: int, *, sources: str, status_file: Path) -> SideInputs:
             current = self._satellite_clip(name, status_file)
+            values = state.side(which)
             return SideInputs(
-                side=name, sources=sources, current=current, locked=locked,
-                filter_query=getattr(state, f"{name}_filter"),
-                loop_axis=getattr(state, f"{name}_loop"),
-                map_anchor=getattr(state, f"{name}_map_anchor"),
-                widen_clip=getattr(state, f"{name}_widen_clip"),
-                nav_anchor=getattr(state, f"{name}_nav_anchor"),
-                latest=getattr(state, f"{name}_latest"),
-                f_mode=getattr(state, f"{name}_f_mode"),
+                side=name, sources=sources, current=current, locked=values.locked,
+                filter_query=values.filter,
+                loop_axis=values.loop,
+                map_anchor=values.map_anchor,
+                widen_clip=values.widen_clip,
+                nav_anchor=values.nav_anchor,
+                latest=values.latest,
+                f_mode=values.f_mode,
                 is_favorite=is_favorite_path(current, favs),
             )
 
@@ -91,10 +92,10 @@ class HudFeed:
                 "landscape", active=side_name(state.active_side) == "landscape")
         else:
             portrait, landscape = build_panels(
-                side("portrait", sources=self.config.portrait_sources,
-                     status_file=self.config.portrait_status_file, locked=state.locked2),
-                side("landscape", sources=self.config.landscape_sources,
-                     status_file=self.config.landscape_status_file, locked=state.locked3),
+                side("portrait", 2, sources=self.config.portrait_sources,
+                     status_file=self.config.portrait_status_file),
+                side("landscape", 3, sources=self.config.landscape_sources,
+                     status_file=self.config.landscape_status_file),
                 metadata_root=self.config.regen_metadata_root,
                 active_side=side_name(state.active_side),
                 # "" for a session hosting no Origenerator — the HUDs then draw no
