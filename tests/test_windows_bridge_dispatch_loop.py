@@ -2063,6 +2063,48 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
+    # -- clipper save --
+
+    def test_save_clip_runs_on_a_worker_thread_and_flashes_the_result(self, tmp_path, caplog):
+        """The save boots a sibling repo's interpreter (up to its 10 s timeout),
+        so the tick hands it to a thread and the toast lands when it does —
+        the one command whose confirmation trails the keypress."""
+        runner = make_runner(tmp_path)
+        with patch(
+            "fun_time.windows_bridge_dispatch_loop.save_clip_session",
+            return_value="Clipper: fabricated-session",
+        ) as mock_save, caplog.at_level(
+            logging.INFO, logger="fun_time.windows_bridge_dispatch_loop"
+        ):
+            (tmp_path / "dashboard_cmd.txt").write_text("clipper_save", encoding="utf-8")
+            runner.tick()
+            wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
+            wait_until(
+                lambda: any("Clipper: fabricated-session" == r.message for r in caplog.records),
+                timeout=10.0,
+            )
+        mock_save.assert_called_once_with(runner.config)
+        flashed = [r for r in caplog.records if r.message == "Clipper: fabricated-session"]
+        assert flashed[0].source == "main"
+        # The op is handled, never mistaken for an AHK verb (the else-branch
+        # writes unknown ops verbatim into ahk_cmd.txt).
+        assert not runner.ahk_cmd_file.exists()
+
+    def test_save_clip_failure_flashes_nothing(self, tmp_path, caplog):
+        """save_clip_session answers "" on failure and has already logged why;
+        an empty toast would flash an empty box."""
+        runner = make_runner(tmp_path)
+        with patch(
+            "fun_time.windows_bridge_dispatch_loop.save_clip_session", return_value=""
+        ) as mock_save, caplog.at_level(
+            logging.INFO, logger="fun_time.windows_bridge_dispatch_loop"
+        ):
+            (tmp_path / "dashboard_cmd.txt").write_text("clipper_save", encoding="utf-8")
+            runner.tick()
+            wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
+        assert all(not getattr(r, "source", "") == "main" or "Clipper" not in r.message
+                   for r in caplog.records)
+
     # -- broker start / broker stop --
 
     def test_broker_start_starts_when_not_running(self, tmp_path):

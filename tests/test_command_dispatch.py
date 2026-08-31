@@ -2947,111 +2947,27 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
 # --- clipper_save ---
 
 
-def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
-    """Hybrid displays Nau, so clipper reads the current video/time from Nau's status."""
+def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Path):
+    """The save is a 10-second cross-repo subprocess; the dispatcher only asks
+    for it (the loop runs it on a worker thread), so the 20 Hz tick never
+    stalls behind a booting interpreter."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="hybrid")
-    config.nau_status_file.write_text(
-        "video=C:\\videos\\test.mp4\nposition_ms=42500\nstate=normal\npaused=0\n",
-        encoding="utf-8",
-    )
 
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 0
-        mock_subprocess.run.return_value.stdout = r"C:\clipper\sessions\test.json"
-        mock_subprocess.run.return_value.stderr = ""
+    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
+    mock_subprocess.run.assert_not_called()
     assert new_state == state
-    mock_subprocess.run.assert_called_once()
-    call_args = mock_subprocess.run.call_args
-    cmd = call_args[0][0]
-    assert cmd[0] == "python"
-    assert "-m" in cmd
-    assert "clipper.create_session" in cmd
-    assert "--video" in cmd
-    assert r"C:\videos\test.mp4" in cmd
-    assert "--time" in cmd
-    assert "42.5" in cmd
-    assert len(ops) == 1
-    assert ops[0].op == "notice"
-    assert ops[0].source == "main"
-    assert ops[0].key  # non-empty message
-
-
-def test_clipper_save_no_notice_on_failure(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="hybrid")
-    config.nau_status_file.write_text(
-        "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
-    )
-
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 1
-        mock_subprocess.run.return_value.stdout = ""
-        mock_subprocess.run.return_value.stderr = "ffprobe failed"
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    assert ops == []
+    assert ops == [WindowOp(op="save_clip")]
 
 
 def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
-    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
+    new_state, ops = dispatch_command("clipper_save", state, config)
 
-    mock_subprocess.run.assert_not_called()
-
-
-def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="hybrid")
-    # No nau_status file → no current video → nothing to clip.
-
-    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    mock_subprocess.run.assert_not_called()
-
-
-def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="nau")
-    config.nau_status_file.write_text(
-        "video=C:\\videos\\naustuff.mp4\n"
-        "position_ms=42500\n"
-        "duration_ms=60000\n"
-        "has_funscript=1\n"
-        "state=normal\n"
-        "paused=0\n",
-        encoding="utf-8",
-    )
-
-    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
-         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 0
-        mock_subprocess.run.return_value.stdout = "C:\\clipper\\sessions\\naustuff.json"
-        mock_subprocess.run.return_value.stderr = ""
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    cmd = mock_subprocess.run.call_args[0][0]
-    assert "C:\\videos\\naustuff.mp4" in cmd
-    assert "42.5" in cmd
-    assert len(ops) == 1 and ops[0].op == "notice"
-
-
-def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="nau")
-
-    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    mock_subprocess.run.assert_not_called()
     assert ops == []
 
 

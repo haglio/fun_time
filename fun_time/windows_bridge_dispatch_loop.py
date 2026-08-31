@@ -16,9 +16,10 @@ from pathlib import Path
 from player_core.file_channel import append_command
 
 from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig
+from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
-from .event_log import FAVORITE, NOTICE, notice
+from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, notice
 from .hud_feed import HudFeed
 from .hybrid_driver import HybridDriver
 from .hud_transport import HudPublisher
@@ -105,14 +106,10 @@ _PRIMARY_EQUIVALENTS = {
     "fmode_off": "main_fmode_off",
     # And so is a reset — "drop whatever is narrowing this player", which on the
     # main player is its length mode and its F-mode where on a satellite it is the
-    # act filter and the loop.  Without this a bare "reset" said after navigating
-    # the main player reached nothing at all.
+    # act filter and the loop.
     "reset": "main_reset",
-    # So are the two browse orders: every player browses newest-first or shuffled,
-    # and the main player is no exception now that Genau answers them too.  Left
-    # out, a bare "latest" said while the main player was the active one resolved
-    # to a command with no handler and did nothing at all — the player had to be
-    # named ("main latest") for a word that is supposed to reach whoever is active.
+    # So are the two browse orders: every player browses newest-first or
+    # shuffled, and the main player is no exception now that Genau answers them too.
     "latest": "main_latest",
     "shuffle": "main_shuffle",
 }
@@ -485,6 +482,16 @@ class DispatchLoopRunner:
             if op.op == "open_rfb_tab":
                 self._pending_rfb_urls.append(op.key)
                 continue
+            if op.op == "save_clip":
+                # Slow work runs beside the loop, like the browse and the broker
+                # toggles: clipper boots another repo's interpreter, and the
+                # thread flashes the result when the save lands.
+                threading.Thread(
+                    target=self._handle_clipper_save,
+                    daemon=True,
+                    name="clipper-save",
+                ).start()
+                continue
             if op.op == "notice":
                 notice(logger, op.key, source=op.source, level=op.level)
             else:
@@ -603,6 +610,12 @@ class DispatchLoopRunner:
             self.voice_controller.mute()
         if self.dashboard_enabled:
             self._update_dashboard()
+
+    def _handle_clipper_save(self) -> None:
+        """Run the clipper save and flash its toast — from the clipper-save thread."""
+        message = save_clip_session(self.config)
+        if message:
+            notice(logger, message, source=SOURCE_MAIN)
 
     def _handle_broker_toggle(self) -> None:
         """Stop the broker if it is running, start it if it is not.

@@ -22,7 +22,6 @@ from .player_status import (
     read_genau_enabled,
     read_nau_status,
 )
-from .clipper_save import save_clip_session
 from .lock import build_lock_plan
 from .modes import is_favorite_path, read_favs_content
 from .random_favs_browser import FavEntry, target_for_fav
@@ -447,10 +446,8 @@ def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
     return None
 
 # The two browse orderings, per player: Latest reloads newest-first, Shuffle
-# reshuffles.  "both …" reaches each satellite in turn (the dispatch loop expands
-# it), which is what the P key sends.  The main player is 1 and reloads through
-# Nau rather than through a satellite rebuild, so it is dispatched separately
-# below — the table only says which player and which order.
+# reshuffles.  The main player is 1 and reloads through Nau rather than through
+# a satellite rebuild — the table only says which player and which order.
 _REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
     "main_latest": (1, True),
     "portrait_latest": (2, True),
@@ -850,10 +847,13 @@ def dispatch_command(
         return state, ops
 
     if command == "clipper_save":
+        # Asked for, not run: clipper boots a sibling repo's interpreter, which
+        # can take its full 10 s timeout, and this function is called from the
+        # 20 Hz dispatch tick.  The loop runs the save on a worker thread and
+        # flashes the result when it lands — the one place the toast trails the
+        # keypress instead of returning with it.
         if state.main_mode != "genau":
-            msg = save_clip_session(config)
-            if msg:
-                ops.append(WindowOp(op="notice", key=msg, source=SOURCE_MAIN))
+            ops.append(WindowOp(op="save_clip"))
         return state, ops
 
     return state, ops
