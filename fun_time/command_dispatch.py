@@ -1293,8 +1293,7 @@ def _dispatch_mode_switch(
 
 # --- the handler map ---------------------------------------------------------
 # One uniform shape — handler(state, config, target_path) -> (state, ops) —
-# assembled from the tables above.  ``_target_path`` marks the handlers whose
-# command names no video.
+# assembled from the tables above; ``_target_path`` marks the video-less ones.
 
 Handler = Callable[[BridgeState, BridgeConfig, str], tuple[BridgeState, list[WindowOp]]]
 
@@ -1454,10 +1453,9 @@ def _speed(nau_cmd: str | None, genau_cmd: str | None, by_driver: bool,
 def _save_clip(state: BridgeState, _config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Ask the loop for a clipper save — asked for, not run: clipper boots a
-    sibling repo's interpreter, which can take its full 10 s timeout, and this
-    function is called from the 20 Hz dispatch tick.  The loop runs the save on
-    a worker thread and flashes the result when it lands — the one place the
-    toast trails the keypress instead of returning with it."""
+    sibling repo's interpreter (up to its 10 s timeout) and this runs on the
+    20 Hz tick, so the loop saves on a worker thread and flashes the result
+    when it lands — the one toast that trails its keypress."""
     if state.main_mode == "genau":
         return state, []
     return state, [WindowOp(op="save_clip")]
@@ -1465,9 +1463,8 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
 
 def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
                                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The hosted app's vocabulary is always in the recognizer's grammar, so its
-    phrases arrive in player mode too; there they reach nothing, a known dead
-    end rather than a missing handler (routing shadows this in origenerator mode)."""
+    """The hosted app's phrases arrive in player mode too (its vocabulary is
+    always in the grammar); there they reach nothing, a known dead end."""
     return state, []
 
 
@@ -1547,8 +1544,8 @@ _HANDLERS: dict[str, Handler] = _build_handlers()
 
 
 # --- the parsed forms --------------------------------------------------------
-# Commands that carry an argument in their spelling.  Each parser answers None
-# for a command that is not its form, and no form can match an exact id above.
+# Commands that carry an argument in their spelling; each parser answers None
+# for a command that is not its form.
 
 def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
@@ -1613,6 +1610,16 @@ def _parsed_genau_numeric(command: str, state: BridgeState, config: BridgeConfig
     return _forward_to_genau_when_active(genau_cmd, state, config, _target_path)
 
 
+def _parsed_unresolved_active(command: str, state: BridgeState, _config: BridgeConfig,
+                              _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    """An ``active_*`` command the loop could not resolve — a satellite-only
+    action ("weird", a cycle) spoken while the main player holds the floor: a
+    designed dead end, dropped quietly rather than logged as a missing handler."""
+    if not command.startswith("active_"):
+        return None
+    return state, []
+
+
 _PARSED_FORMS = (
     _parsed_nav,
     _parsed_play_video,
@@ -1621,4 +1628,5 @@ _PARSED_FORMS = (
     _parsed_filter,
     _parsed_nau_speed,
     _parsed_genau_numeric,
+    _parsed_unresolved_active,
 )

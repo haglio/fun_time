@@ -2956,6 +2956,20 @@ def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog)
     assert any("bogus_command" in record.message for record in caplog.records)
 
 
+def test_an_active_command_with_no_main_player_meaning_stays_a_quiet_no_op(tmp_path: Path, caplog):
+    """"weird" spoken while the main player is active resolves to nothing — the
+    loop hands the unresolved "active_trash" through, and that is a designed
+    dead end (the main player has no weird), not a missing handler."""
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
+        new_state, ops = dispatch_command("active_trash", _make_state(), config)
+
+    assert ops == []
+    assert new_state == _make_state()
+    assert not any("active_trash" in record.message for record in caplog.records)
+
+
 def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: Path, caplog):
     """The hosted app's vocabulary is always in the recognizer's grammar, so its
     phrases arrive in player mode too; they reach nothing there, and that is a
