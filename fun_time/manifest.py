@@ -14,7 +14,7 @@ import os
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
-from .config import LayoutConfig
+from .config import LayoutConfig, RegenConfig
 from .hud_transport import HUD_FILENAME
 from .nau_console import nau_console_path
 
@@ -260,8 +260,8 @@ class RandomFavsBrowserSettings:
 class RegenSettings:
     """[regen]: where a generated video goes and which page makes one."""
 
-    generate_video_url: str = "https://example.com/video"
-    generate_image_url: str = "https://example.com/create"
+    generate_video_url: str = RegenConfig.generate_video_url
+    generate_image_url: str = RegenConfig.generate_image_url
     media_root: str = ""
     metadata_root: str = ""
 

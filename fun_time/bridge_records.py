@@ -75,8 +75,8 @@ class BridgeConfig:
     broker_state_dir: Path | None = None
     regen_media_root: Path | None = None
     regen_metadata_root: Path | None = None
-    regen_generate_video_url: str = "https://example.com/video"
-    regen_generate_image_url: str = "https://example.com/create"
+    regen_generate_video_url: str = RegenConfig.generate_video_url
+    regen_generate_image_url: str = RegenConfig.generate_image_url
 
     def side(self, which: int) -> "SideChannel":
         """Satellite *which*'s (2=portrait, 3=landscape) file quartet and sources."""
