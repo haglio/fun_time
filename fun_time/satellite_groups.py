@@ -47,12 +47,12 @@ def same_video(left: str, right: str) -> bool:
 
 def satellite_current(config: BridgeConfig, which: int) -> str:
     """The video a satellite is showing now, read from its published status file."""
-    return read_satellite_status(config.satellite_status_file(which)).video
+    return read_satellite_status(config.side(which).status_file).video
 
 
 def send_satellite(config: BridgeConfig, which: int, verb: str) -> None:
     """Queue one verb on a satellite's command file for the player to drain."""
-    write_satellite_command(config.satellite_cmd_file(which), verb)
+    write_satellite_command(config.side(which).cmd_file, verb)
 
 
 def play_video(config: BridgeConfig, which: int, path: str) -> None:
@@ -86,7 +86,7 @@ def clear_side_grouping(state: BridgeState, which: int) -> BridgeState:
 
 def _satellite_group_index(which: int, config: BridgeConfig, current: str) -> GroupIndex:
     """The cached grouping index over a satellite's sources, fresh for *current*."""
-    sources = config.portrait_sources if which == 2 else config.landscape_sources
+    sources = config.side(which).sources
     return cached_group_index(
         sources,
         paths_supplier=lambda: collect_video_files(sources),
@@ -310,7 +310,7 @@ def group_loop(
     # survives the reload, so the clip on screen is never restarted and only what
     # comes up next becomes the group, which then cycles by auto-advance.
     members = [current] + [m for m in members if normalize_path_key(m) != normalize_path_key(current)]
-    write_playlist_file(config.satellite_playlist_file(which), members)
+    write_playlist_file(config.side(which).playlist_file, members)
     send_satellite(config, which, "RELOAD_PLAYLIST")
     label = "portrait" if which == 2 else "landscape"
     message = f"Loop {label}: {len(members)} {axis}s"
@@ -409,7 +409,7 @@ def no_loop(
         query=side.filter,
         f_mode_enabled=side.f_mode,
         recent=side.latest,
-        sources=config.portrait_sources if which == 2 else config.landscape_sources,
+        sources=config.side(which).sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
         regen_metadata_root=config.regen_metadata_root,
@@ -418,7 +418,7 @@ def no_loop(
     # browse is only reshaped when it actually has clips; otherwise the loop's
     # queue keeps playing and just the flag clears.
     if browse:
-        write_playlist_file(config.satellite_playlist_file(which), _browse_behind(browse, current))
+        write_playlist_file(config.side(which).playlist_file, _browse_behind(browse, current))
         send_satellite(config, which, "RELOAD_PLAYLIST")
     # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
     # keeps hanging exactly where it was and switching a loop off takes away the lit

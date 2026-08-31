@@ -77,14 +77,23 @@ class BridgeConfig:
     regen_generate_video_url: str = "https://example.com/video"
     regen_generate_image_url: str = "https://example.com/create"
 
-    def satellite_cmd_file(self, which: int) -> Path:
-        return self.portrait_cmd_file if which == 2 else self.landscape_cmd_file
-
-    def satellite_status_file(self, which: int) -> Path:
-        return self.portrait_status_file if which == 2 else self.landscape_status_file
-
-    def satellite_playlist_file(self, which: int) -> Path:
-        return self.portrait_playlist_file if which == 2 else self.landscape_playlist_file
+    def side(self, which: int) -> "SideChannel":
+        """Satellite *which*'s (2=portrait, 3=landscape) file quartet and sources."""
+        if which == 2:
+            return SideChannel(
+                cmd_file=self.portrait_cmd_file,
+                paused_file=self.portrait_paused_file,
+                status_file=self.portrait_status_file,
+                playlist_file=self.portrait_playlist_file,
+                sources=self.portrait_sources,
+            )
+        return SideChannel(
+            cmd_file=self.landscape_cmd_file,
+            paused_file=self.landscape_paused_file,
+            status_file=self.landscape_status_file,
+            playlist_file=self.landscape_playlist_file,
+            sources=self.landscape_sources,
+        )
 
     @property
     def broker_state(self) -> Path:
@@ -118,6 +127,18 @@ class BridgeConfig:
             media_root=self.regen_media_root,
             metadata_root=self.regen_metadata_root,
         )
+
+
+@dataclass(frozen=True)
+class SideChannel:
+    """One satellite's channel, by value: the file quartet it is driven and
+    read through, and the sources its browse is built from."""
+
+    cmd_file: Path
+    paused_file: Path
+    status_file: Path
+    playlist_file: Path
+    sources: str
 
 
 @dataclass(frozen=True)

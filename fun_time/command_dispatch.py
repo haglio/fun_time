@@ -1046,10 +1046,10 @@ def _rebuild_side(
         query=query,
         f_mode_enabled=side.f_mode,
         recent=side.latest,
-        sources=config.portrait_sources if which == 2 else config.landscape_sources,
+        sources=config.side(which).sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        cmd_file=config.satellite_cmd_file(which),
+        cmd_file=config.side(which).cmd_file,
         start_at_top=start_at_top,
         regen_metadata_root=config.regen_metadata_root,
     )

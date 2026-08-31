@@ -68,7 +68,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
 def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool = False) -> None:
     """Make read_satellite_status report *video* as satellite *which*'s current
     clip — the file-based stand-in for the old get_current_file_path mock."""
-    status = config.satellite_status_file(which)
+    status = config.side(which).status_file
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
         f"video={video}\nposition_ms=100\nduration_ms=1000\n"
@@ -79,7 +79,7 @@ def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool =
 
 def _cmds(config: BridgeConfig, which: int) -> list[str]:
     """The verbs queued on satellite *which*'s command file, in order."""
-    cmd_file = config.satellite_cmd_file(which)
+    cmd_file = config.side(which).cmd_file
     if not cmd_file.exists():
         return []
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -87,7 +87,7 @@ def _cmds(config: BridgeConfig, which: int) -> list[str]:
 
 def _playlist(config: BridgeConfig, which: int) -> list[str]:
     """The video paths written to satellite *which*'s playlist file, in order."""
-    playlist = config.satellite_playlist_file(which)
+    playlist = config.side(which).playlist_file
     if not playlist.exists():
         return []
     return [
@@ -1135,7 +1135,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["which"] == 2
     assert kwargs["query"] == "alpha"
-    assert kwargs["cmd_file"] == config.satellite_cmd_file(2)
+    assert kwargs["cmd_file"] == config.side(2).cmd_file
     assert kwargs["sources"] == config.portrait_sources
     assert any(op.op == "notice" for op in ops)
 
