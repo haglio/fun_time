@@ -3,9 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .content import WEB_PROVIDERS, WebProvider
-
-
-FORMULA_SEP = ";"
+from .favs_csv import FAVS_HEADER, hyperlink_cell
 
 
 def csv_escape(value: str) -> str:
@@ -17,7 +15,7 @@ def ensure_favs_csv_exists(favs_file: Path) -> None:
     if favs_file.exists() and favs_file.stat().st_size > 0:
         return
     with favs_file.open("w", encoding="utf-8", newline="") as fp:
-        fp.write("local_file,web_url\r\n")
+        fp.write(f"{FAVS_HEADER}\r\n")
 
 
 def to_file_uri(win_path: str) -> str:
@@ -49,7 +47,7 @@ def make_local_cell(full_path: str) -> str:
     if not full_path:
         return ""
     uri = to_file_uri(full_path)
-    return f'=HYPERLINK("{uri}"{FORMULA_SEP}"{full_path}")'
+    return hyperlink_cell(uri, full_path)
 
 
 def make_web_cell(
@@ -58,7 +56,7 @@ def make_web_cell(
     url = make_web_url_from_path(full_path, providers)
     if not url:
         return ""
-    return f'=HYPERLINK("{url}"{FORMULA_SEP}"{url}")'
+    return hyperlink_cell(url, url)
 
 
 def ensure_in_favs(
@@ -88,7 +86,7 @@ def remove_from_favs(favs_file: Path, full_path: str) -> None:
     for raw_line in favs_file.read_text(encoding="utf-8").splitlines():
         if not raw_line:
             continue
-        if raw_line.startswith("local_file,web_url"):
+        if raw_line.startswith(FAVS_HEADER):
             kept_lines.append(raw_line)
             continue
         if raw_line.startswith(target_prefix):

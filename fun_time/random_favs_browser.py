@@ -4,6 +4,8 @@ import csv
 import json
 import random
 from dataclasses import dataclass
+
+from .favs_csv import hyperlink_parts
 from pathlib import Path
 from typing import TypeVar
 
@@ -33,46 +35,23 @@ def resolve_profile_directory(user_data_dir: Path, profile_name: str) -> str:
     return ""
 
 
-_HYPERLINK_PREFIX = '=HYPERLINK("'
-_HYPERLINK_SEP = '";"'
-_HYPERLINK_SUFFIX = '")'
-
-
-def _hyperlink_parts(cell: str) -> tuple[str, str] | None:
-    """Split ``=HYPERLINK("target";"display")`` into its two arguments."""
-    if not cell.startswith(_HYPERLINK_PREFIX) or not cell.endswith(_HYPERLINK_SUFFIX):
-        return None
-    inner = cell[len(_HYPERLINK_PREFIX) : -len(_HYPERLINK_SUFFIX)]
-    separator = inner.find(_HYPERLINK_SEP)
-    if separator == -1:
-        return None
-    return inner[:separator], inner[separator + len(_HYPERLINK_SEP) :]
-
-
 def extract_url_from_hyperlink(cell: str) -> str:
-    """Extract the URL from an ``=HYPERLINK("url";"text")`` formula cell.
-
-    If *cell* is not a HYPERLINK formula it is returned stripped as-is
-    (allowing plain URLs).
-    """
+    """The URL from a HYPERLINK cell; a plain non-formula cell passes through."""
     cell = cell.strip()
-    if not cell.startswith(_HYPERLINK_PREFIX):
-        return cell
-    parts = _hyperlink_parts(cell)
-    return parts[0] if parts else ""
+    parts = hyperlink_parts(cell)
+    if parts is None:
+        return "" if cell.startswith('=HYPERLINK("') else cell
+    return parts[0]
 
 
 def extract_path_from_hyperlink(cell: str) -> str:
-    """Extract the local path from a ``local_file`` ``=HYPERLINK`` cell.
-
-    The display text holds the unescaped Windows path, so it round-trips
-    exactly, unlike the ``file://`` URI in the formula's first argument.
-    """
+    """The local path from a ``local_file`` HYPERLINK cell — the display text,
+    which holds the unescaped Windows path (the file:// URI does not)."""
     cell = cell.strip()
-    if not cell.startswith(_HYPERLINK_PREFIX):
-        return cell
-    parts = _hyperlink_parts(cell)
-    return parts[1] if parts else ""
+    parts = hyperlink_parts(cell)
+    if parts is None:
+        return "" if cell.startswith('=HYPERLINK("') else cell
+    return parts[1]
 
 
 @dataclass(frozen=True)
