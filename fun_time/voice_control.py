@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time.command_dispatch import command_side
-from fun_time.command_reference import friendly_voice
+from fun_time.voice_commands import friendly_voice
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,

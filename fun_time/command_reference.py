@@ -25,7 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
-from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
+from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS, friendly_voice
 
 
 @dataclass(frozen=True)
@@ -382,40 +382,6 @@ _SECTIONS: tuple[_Section, ...] = (
         merge_scopes=True,
     ),
 )
-
-
-# vosk can't hear "nau"/"genau", so mode-named phrases use the mode-activation
-# sound-alikes as their recognizer form.  Show the friendly mode name in the
-# reference instead of the raw sound-alike (e.g. "nau mode next", not "now mode
-# next").  The sound-alikes only appear inside these derived nav phrases — the
-# mode-activation rows themselves render via voice_display — so a plain replace
-# is safe.
-_VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
-    ("go now", "genau"),
-    ("now mode", "nau mode"),
-    # vosk has no "hotkeys" token, so the recognizer listens for "hot keys";
-    # the reference shows the single-word "hotkeys".
-    ("hot keys", "hotkeys"),
-    # Likewise no "unmute" token — but there is "un", so the recognizer hears
-    # the two-word "un mute" and the reference shows "unmute".
-    ("un mute", "unmute"),
-    ("un pause", "unpause"),
-    # …nor "funscript", though it has both halves, so the recognizer hears the
-    # split "fun script" and the reference shows the single word.  One rewrite
-    # covers "next fun scripted" too, since "fun script" sits inside it.
-    ("fun script", "funscript"),
-    # …nor "omnipause", though it has both halves, so the recognizer hears the
-    # split "omni pause" and the reference shows the single word.  Listed after
-    # "un pause" so that rewrite has already run and cannot re-split this one.
-    ("omni pause", "omnipause"),
-)
-
-
-def friendly_voice(phrase: str) -> str:
-    """Rewrite a recognizer phrase's vosk sound-alikes to the friendly names."""
-    for raw, nice in _VOICE_DISPLAY_ALIASES:
-        phrase = phrase.replace(raw, nice)
-    return phrase
 
 
 #: The words that aim a satellite phrase at a scope.  "active" is not among them:

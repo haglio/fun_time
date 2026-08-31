@@ -11,7 +11,7 @@ from fun_time.command_reference import (
     build_reference_sections,
     render_reference_html,
 )
-from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _NUMERIC_RE = re.compile(r"^genau_(amp|center|speed|clip_seconds)_\d+$")
@@ -399,7 +399,6 @@ def test_voice_phrases_are_derived_from_voice_commands():
         _SECTIONS,
         _collapse_scopes,
         _display_voice,
-        friendly_voice,
     )
 
     inverse: dict[str, list[str]] = {}

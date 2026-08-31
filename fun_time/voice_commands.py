@@ -130,7 +130,7 @@ VOICE_COMMANDS: dict[str, str] = {
     # one that has a script, landing on its action rather than at its top.  vosk
     # has no "funscript" token but has both halves, so the recognizer listens for
     # the split "fun script"/"fun scripted"; the reference joins them back up via
-    # command_reference.friendly_voice.
+    # friendly_voice below.
     "jump to fun script": "nau_funscript_jump",
     "next fun scripted": "nau_next_funscripted",
     # The phrases for the clip jump are library vocabulary, so they come from
@@ -195,7 +195,7 @@ VOICE_COMMANDS.update(
 # The hotkeys & voice reference popup toggles from several spoken names, and
 # closes from any of them prefixed with "close".  vosk has no "hotkeys" token,
 # so it listens for "hot keys" (two words); the reference shows the friendly
-# "hotkeys" via command_reference.friendly_voice.
+# "hotkeys" via friendly_voice below.
 for _ref_phrase in ("help", "reference", "hot keys", "voice commands"):
     VOICE_COMMANDS[_ref_phrase] = "help_reference"
     VOICE_COMMANDS[f"close {_ref_phrase}"] = "help_reference_close"
@@ -560,3 +560,37 @@ SELF_REPORTING_COMMANDS = frozenset({
         for order in ("latest", "shuffle")
     ),
 })
+
+
+# vosk can't hear "nau"/"genau", so mode-named phrases use the mode-activation
+# sound-alikes as their recognizer form.  Show the friendly mode name in the
+# reference instead of the raw sound-alike (e.g. "nau mode next", not "now mode
+# next").  The sound-alikes only appear inside these derived nav phrases — the
+# mode-activation rows themselves render via voice_display — so a plain replace
+# is safe.
+_VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
+    ("go now", "genau"),
+    ("now mode", "nau mode"),
+    # vosk has no "hotkeys" token, so the recognizer listens for "hot keys";
+    # the reference shows the single-word "hotkeys".
+    ("hot keys", "hotkeys"),
+    # Likewise no "unmute" token — but there is "un", so the recognizer hears
+    # the two-word "un mute" and the reference shows "unmute".
+    ("un mute", "unmute"),
+    ("un pause", "unpause"),
+    # …nor "funscript", though it has both halves, so the recognizer hears the
+    # split "fun script" and the reference shows the single word.  One rewrite
+    # covers "next fun scripted" too, since "fun script" sits inside it.
+    ("fun script", "funscript"),
+    # …nor "omnipause", though it has both halves, so the recognizer hears the
+    # split "omni pause" and the reference shows the single word.  Listed after
+    # "un pause" so that rewrite has already run and cannot re-split this one.
+    ("omni pause", "omnipause"),
+)
+
+
+def friendly_voice(phrase: str) -> str:
+    """Rewrite a recognizer phrase's vosk sound-alikes to the friendly names."""
+    for raw, nice in _VOICE_DISPLAY_ALIASES:
+        phrase = phrase.replace(raw, nice)
+    return phrase
