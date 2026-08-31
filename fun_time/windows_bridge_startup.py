@@ -52,7 +52,7 @@ from .orchestrator_broker import (
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
-from .process_identity import NAMER, PROCESS_NAME_PATTERN
+from .process_identity import NAMER
 from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
@@ -150,7 +150,7 @@ def reap_orphaned_satellites(
     ps_command = (
         f"$claimed = @({claimed}); "
         "Get-CimInstance Win32_Process | Where-Object { $p = $_; "
-        f"($p.Name -match '{PROCESS_NAME_PATTERN}') -and $p.CommandLine -and "
+        f"($p.Name -match '{NAMER.process_name_pattern}') -and $p.CommandLine -and "
         f"($p.CommandLine -match '-m\\s+{module_pattern}(\\s|$)') -and "
         "($claimed | Where-Object { $p.CommandLine.Contains($_) }) "
         "} | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"

@@ -30,10 +30,6 @@ from fun_time.project_paths import PROJECT_ICON
 # separate application this one starts, not one of this app's processes.
 NAMER = ProcessNamer("Fun Time", icon=PROJECT_ICON)
 
-# The image names a Fun Time child can run under, written for PowerShell's
-# ``-match`` -- which is where the satellite reap applies it.
-PROCESS_NAME_PATTERN = NAMER.process_name_pattern
-
 
 def prepare_orchestrator_launcher() -> None:
     """Make the copy ``launch.vbs`` runs the orchestrator through next time.

@@ -13,11 +13,8 @@ import sys
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.process_identity import (
-    NAMER,
-    PROCESS_NAME_PATTERN,
-    prepare_orchestrator_launcher,
-)
+from fun_time.process_identity import NAMER, prepare_orchestrator_launcher
+from fun_time.windows_bridge_startup import reap_orphaned_satellites
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
 
 # Every role this repo launches a child under, gathered from the launch sites in
@@ -41,8 +38,20 @@ class TestTheStringsOtherLanguagesMatchOn:
         # itself after any change.  This is what fun_time's own copy of the
         # namer produced before app_support's replaced it, and what the running
         # sweeps match today.
-        assert PROCESS_NAME_PATTERN == (
+        assert NAMER.process_name_pattern == (
             r"^pythonw?\.exe$|^py\.exe$|^FunTime-[A-Za-z]+\.exe$")
+
+    def test_the_satellite_reap_is_the_sweep_that_carries_it(self):
+        # Pinning the string proves nothing on its own: a sweep that stopped
+        # interpolating it, or interpolated a bare "pythonw", would reach past
+        # this repo's own players and force-kill whatever else the machine runs
+        # under a Python.
+        with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+        ):
+            reap_orphaned_satellites("satellite", ["C:/state/portrait_status.txt"])
+
+        assert NAMER.process_name_pattern in run.call_args.args[0][-1]
 
     def test_the_launcher_looks_for_the_name_the_namer_gives_the_orchestrator(self):
         # launch.vbs greps the venv for this file by name and runs it if it is
@@ -62,20 +71,20 @@ class TestTheRolesThisRepoLaunches:
         # player no sweep can reach.
         for role in ROLES:
             name = NAMER.exe_name("pythonw.exe", role)
-            assert re.match(PROCESS_NAME_PATTERN, name), name
+            assert re.match(NAMER.process_name_pattern, name), name
 
     def test_the_sweep_pattern_still_matches_a_plain_interpreter(self):
         # The copy is best-effort, so a child can still arrive under the plain
         # interpreter and must stay reachable.
         for name in ("pythonw.exe", "python.exe", "py.exe"):
-            assert re.match(PROCESS_NAME_PATTERN, name), name
+            assert re.match(NAMER.process_name_pattern, name), name
 
     def test_the_sweep_pattern_leaves_everything_else_alone(self):
         # These sweeps force-kill what they match, so a pattern that reaches one
         # of the user's own apps is the worst failure this module can have.
         for name in ("notepad.exe", "mypythonw.exe", "FunTimeOther.exe",
                      "python3.exe", "Broker-Tray.exe"):
-            assert not re.match(PROCESS_NAME_PATTERN, name), name
+            assert not re.match(NAMER.process_name_pattern, name), name
 
     def test_each_one_reads_as_english_under_the_app_s_own_name(self):
         # What the Processes tab actually shows.  The role has to be one word to
