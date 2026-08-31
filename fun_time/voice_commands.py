@@ -142,11 +142,9 @@ VOICE_COMMANDS: dict[str, str] = {
     "slow down": "speed_down",
     "speed down": "speed_down",
     "speed up": "speed_up",
-    # Naming the playback pins the same nudge to the video no matter who has the
-    # OSR2, so it still lands over a Genau-driven stretch in hybrid — the one
-    # thing the bare pair above cannot say.  The relative half of what "half
-    # speed" and "reset speed" set outright, and the same pair the console's
-    # playback arrows send.
+    # Naming the playback pins the same nudge to the video no matter who has
+    # the OSR2 — the one thing the bare pair above cannot say; the same pair
+    # the console's playback arrows send.
     "playback slow down": "nau_speed_down",
     "playback speed down": "nau_speed_down",
     "playback speed up": "nau_speed_up",
@@ -273,12 +271,9 @@ _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
     # "no loop" / "loop off" ends any group loop, back to the browse.  ("end loop"
     # joins them, but only sided — bare it belongs to Nau; see below.)
     "no_loop": ("no loop", "loop off"),
-    # "no filter" drops just the filter, where "reset" puts the whole side back to
-    # its defaults (lock, order, loop and all).  "clear filter" and "show
-    # everything" are the same gesture said another way; they used to live in
-    # filter_vocab with their own commands and their own scoping ("clear
-    # portrait"), which put the side word where every other phrase here puts an
-    # action's own words.  In the grid they scope like everything else.
+    # "no filter" drops just the filter, where "reset" puts the whole side back
+    # to its defaults (lock, order, loop and all); "clear filter" and "show
+    # everything" are the same gesture said another way, scoped like the grid.
     "no_filter": ("no filter", "filter off", "clear filter", "show everything"),
     # "filter" is the same gesture named after what it leaves behind — the side's
     # filter, the one the HUD lights and "no filter" drops — so "portrait filter"

@@ -52,6 +52,9 @@ from .win32 import (
     set_always_on_top,
     wait_for_window_by_title,
 )
+from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
+from .players import Player
+from .satellite_slot import SatelliteSlot
 from .window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -407,6 +410,29 @@ def _launch_the_satellites(
     core_result_file = _build_unique_result_path(state_dir, "core_session")
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
     regen_metadata_raw = m.regen.metadata_root.strip()
+    # Each satellite's whole launch bundle, built once where the manifest is read.
+    portrait_slot = SatelliteSlot(
+        side=Player.PORTRAIT,
+        sources=m.media.portrait_dirs,
+        cmd_file=m.commands.portrait_cmd_file,
+        paused_file=m.commands.portrait_paused_file,
+        status_file=m.commands.portrait_status_file,
+        log_file=state_dir / "portrait_satellite.log",
+        playlist_file=build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT),
+        rect=plan.portrait,
+        hud_file=m.commands.portrait_hud_file,
+    )
+    landscape_slot = SatelliteSlot(
+        side=Player.LANDSCAPE,
+        sources=m.media.landscape_dirs,
+        cmd_file=m.commands.landscape_cmd_file,
+        paused_file=m.commands.landscape_paused_file,
+        status_file=m.commands.landscape_status_file,
+        log_file=state_dir / "landscape_satellite.log",
+        playlist_file=build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE),
+        rect=plan.landscape,
+        hud_file=m.commands.landscape_hud_file,
+    )
     main_mode = start_core_session(
         config_path=m.runtime.config_path,
         broker_cmd_file=m.commands.broker_cmd_file,
@@ -421,23 +447,11 @@ def _launch_the_satellites(
         nau_cmd_file=m.commands.nau_cmd_file,
         satellite_python_exe=m.executables.python_exe,
         satellite_module=m.modules.satellite_module,
-        portrait_cmd_file=m.commands.portrait_cmd_file,
-        portrait_paused_file=m.commands.portrait_paused_file,
-        portrait_status_file=m.commands.portrait_status_file,
-        landscape_cmd_file=m.commands.landscape_cmd_file,
-        landscape_paused_file=m.commands.landscape_paused_file,
-        landscape_status_file=m.commands.landscape_status_file,
+        portrait=portrait_slot,
+        landscape=landscape_slot,
         nau_status_file=m.commands.nau_status_file,
-        portrait_log_file=state_dir / "portrait_satellite.log",
-        landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=plan.portrait,
-        landscape_rect=plan.landscape,
-        portrait_hud_file=m.commands.portrait_hud_file,
-        landscape_hud_file=m.commands.landscape_hud_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         main_sources=m.media.nau_library_sources,
-        portrait_sources=m.media.portrait_dirs,
-        landscape_sources=m.media.landscape_dirs,
         favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),

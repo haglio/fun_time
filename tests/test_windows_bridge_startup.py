@@ -17,6 +17,8 @@ from fun_time.broker_control import PARK_CMD
 from fun_time.shared_state import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
+from fun_time.players import Player
+from fun_time.satellite_slot import SatelliteSlot
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.windows_bridge_startup import (
@@ -537,20 +539,28 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         nau_cmd_file=state_dir / "nau_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
+        portrait=SatelliteSlot(
+            side=Player.PORTRAIT,
+            sources=str(tmp_path / "portrait_a"),
+            cmd_file=state_dir / "portrait_cmd.txt",
+            paused_file=state_dir / "portrait_paused.txt",
+            status_file=state_dir / "portrait_status.txt",
+            log_file=state_dir / "portrait_satellite.log",
+            playlist_file=state_dir / "portrait_playlist.tsv",
+            rect=WindowRect(x=2560, y=0, width=1440, height=2500),
+        ),
+        landscape=SatelliteSlot(
+            side=Player.LANDSCAPE,
+            sources=str(tmp_path / "landscape_a"),
+            cmd_file=state_dir / "landscape_cmd.txt",
+            paused_file=state_dir / "landscape_paused.txt",
+            status_file=state_dir / "landscape_status.txt",
+            log_file=state_dir / "landscape_satellite.log",
+            playlist_file=state_dir / "landscape_playlist.tsv",
+            rect=WindowRect(x=1664, y=0, width=896, height=1392),
+        ),
         nau_status_file=state_dir / "nau_status.txt",
-        portrait_log_file=state_dir / "portrait_satellite.log",
-        landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
-        landscape_rect=WindowRect(x=1664, y=0, width=896, height=1392),
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
-        portrait_sources=str(tmp_path / "portrait_a"),
-        landscape_sources=str(tmp_path / "landscape_a"),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         result_file=tmp_path / "core_session.ini",
@@ -564,8 +574,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     result_file = kwargs["result_file"]
-    portrait_rect = kwargs["portrait_rect"]
-    landscape_rect = kwargs["landscape_rect"]
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites") as reap, patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -606,8 +614,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
         main_sources=kwargs["main_sources"],
-        portrait_sources=kwargs["portrait_sources"],
-        landscape_sources=kwargs["landscape_sources"],
+        portrait_sources=kwargs["portrait"].sources,
+        landscape_sources=kwargs["landscape"].sources,
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         library=SatelliteLibraryContext(
@@ -618,31 +626,17 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # The two native satellites are launched with OUR python (the player ships
     # from this repo), the satellite module, the builder's playlists, and each
     # side's file quartet.
+    # The whole launch bundle travels as the two slots — each side's file
+    # quartet, log, playlist, rect and HUD file in one value — plus the shared
+    # settings.  project_dirs names the sibling checkouts, because the
+    # satellites import player_core like Genau and Nau do.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait_playlist=state_dir / "portrait_playlist.tsv",
-        landscape_playlist=state_dir / "landscape_playlist.tsv",
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        # Each side's stdout+stderr go to its own log, so a satellite that dies of
-        # an unhandled exception leaves the traceback on disk.
-        portrait_log_file=state_dir / "portrait_satellite.log",
-        landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=portrait_rect,
-        landscape_rect=landscape_rect,
+        portrait=kwargs["portrait"],
+        landscape=kwargs["landscape"],
         result_file=result_file,
-        # Each satellite also draws its own lock HUD, so it is told which panel
-        # file to render and where to post the clicks on it.
-        portrait_hud_file=None,
-        landscape_hud_file=None,
         dashboard_cmd_file=None,
-        # And which sibling checkouts to run out of — the satellites import
-        # player_core, so the named checkouts reach them like Genau and Nau.
         project_dirs=None,
     )
 
@@ -657,8 +651,8 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     state_dir = kwargs["state_dir"]
     state_dir.mkdir(parents=True, exist_ok=True)
     sources = {
-        "portrait": kwargs["portrait_sources"],
-        "landscape": kwargs["landscape_sources"],
+        "portrait": kwargs["portrait"].sources,
+        "landscape": kwargs["landscape"].sources,
         "nau": kwargs["main_sources"].split("|")[0],
     }
     left_on = {}
@@ -856,8 +850,8 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.locked2, state.locked3) == (True, False)
-    assert kwargs["portrait_cmd_file"].read_text(encoding="utf-8").split() == ["LOCK"]
-    assert not kwargs["landscape_cmd_file"].exists()
+    assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK"]
+    assert not kwargs["landscape"].cmd_file.exists()
 
 
 def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):
@@ -950,8 +944,8 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     fresh session's satellites would read paused and never play (frozen at 0).
     start_core_session must reset both to "0" before the satellites launch."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    portrait_paused = kwargs["portrait_paused_file"]
-    landscape_paused = kwargs["landscape_paused_file"]
+    portrait_paused = kwargs["portrait"].paused_file
+    landscape_paused = kwargs["landscape"].paused_file
     portrait_paused.parent.mkdir(parents=True, exist_ok=True)
     portrait_paused.write_text("1", encoding="utf-8")  # stranded by a prior OmniPause
     landscape_paused.write_text("1", encoding="utf-8")
@@ -992,8 +986,8 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
     ):
         start_core_session(**kwargs)
 
-    assert kwargs["portrait_paused_file"].read_text(encoding="utf-8") == "1"
-    assert kwargs["landscape_paused_file"].read_text(encoding="utf-8") == "1"
+    assert kwargs["portrait"].paused_file.read_text(encoding="utf-8") == "1"
+    assert kwargs["landscape"].paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
@@ -1553,18 +1547,26 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
-            portrait_playlist=portrait_playlist,
-            landscape_playlist=landscape_playlist,
-            portrait_cmd_file=state_dir / "portrait_cmd.txt",
-            portrait_paused_file=state_dir / "portrait_paused.txt",
-            portrait_status_file=state_dir / "portrait_status.txt",
-            landscape_cmd_file=state_dir / "landscape_cmd.txt",
-            landscape_paused_file=state_dir / "landscape_paused.txt",
-            landscape_status_file=state_dir / "landscape_status.txt",
-            portrait_log_file=state_dir / "portrait_satellite.log",
-            landscape_log_file=state_dir / "landscape_satellite.log",
-            portrait_rect=portrait_rect,
-            landscape_rect=landscape_rect,
+            portrait=SatelliteSlot(
+                side=Player.PORTRAIT,
+                sources=str(tmp_path / "portrait_a"),
+                cmd_file=state_dir / "portrait_cmd.txt",
+                paused_file=state_dir / "portrait_paused.txt",
+                status_file=state_dir / "portrait_status.txt",
+                log_file=state_dir / "portrait_satellite.log",
+                playlist_file=portrait_playlist,
+                rect=portrait_rect,
+            ),
+            landscape=SatelliteSlot(
+                side=Player.LANDSCAPE,
+                sources=str(tmp_path / "landscape_a"),
+                cmd_file=state_dir / "landscape_cmd.txt",
+                paused_file=state_dir / "landscape_paused.txt",
+                status_file=state_dir / "landscape_status.txt",
+                log_file=state_dir / "landscape_satellite.log",
+                playlist_file=landscape_playlist,
+                rect=landscape_rect,
+            ),
             result_file=result_file,
         )
 

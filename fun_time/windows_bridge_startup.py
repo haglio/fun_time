@@ -23,9 +23,7 @@ from .player_status import (
     read_nau_status,
 )
 from .modes import (
-    PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
-    PLAYLIST_PORTRAIT,
     SatelliteLibraryContext,
     build_all_playlists,
     build_playlist_file_path,
@@ -57,7 +55,8 @@ from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
 from .win32_taskbar import APP_USER_MODEL_ID
-from .window_layout import WindowRect
+from .players import Player
+from .satellite_slot import SatelliteSlot, for_side
 
 logger = logging.getLogger(__name__)
 
@@ -419,25 +418,13 @@ def start_core_session(
     nau_cmd_file: str | Path,
     satellite_python_exe: str | Path,
     satellite_module: str,
-    portrait_cmd_file: str | Path,
-    portrait_paused_file: str | Path,
-    portrait_status_file: str | Path,
-    landscape_cmd_file: str | Path,
-    landscape_paused_file: str | Path,
-    landscape_status_file: str | Path,
+    portrait: SatelliteSlot,
+    landscape: SatelliteSlot,
     nau_status_file: str | Path,
-    portrait_log_file: str | Path,
-    landscape_log_file: str | Path,
-    portrait_rect: WindowRect,
-    landscape_rect: WindowRect,
     main_sources: str,
-    portrait_sources: str,
-    landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
     result_file: str | Path,
-    portrait_hud_file: str | Path | None = None,
-    landscape_hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
     regen_metadata_root: Path | None = None,
     project_dirs: str | None = None,
@@ -445,12 +432,14 @@ def start_core_session(
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the Nau/Genau pair to match
     takes window handles only the sequencer has."""
+    portrait = for_side(portrait, Player.PORTRAIT)
+    landscape = for_side(landscape, Player.LANDSCAPE)
     # Clear any satellites stranded by a prior crash on the very files this
     # session is about to claim, so four players never race the two command/status
     # file sets.  Bounded to those files: a session elsewhere on the machine (an
     # integration run) owns different ones and must be left alone.
     reap_orphaned_satellites(
-        satellite_module, [portrait_status_file, landscape_status_file],
+        satellite_module, [portrait.status_file, landscape.status_file],
     )
     # Send the OSR2 home first, so it waits out startup parked rather than
     # wherever the last session left it — the two native players decode their
@@ -460,8 +449,6 @@ def start_core_session(
     write_broker_command(broker_cmd_file, PARK_CMD)
     ensure_broker(broker_heartbeat_file, broker_tray_launcher)
     state_path = Path(state_dir)
-    portrait_playlist = build_playlist_file_path(state_path, PLAYLIST_PORTRAIT)
-    landscape_playlist = build_playlist_file_path(state_path, PLAYLIST_LANDSCAPE)
     # Come back to the clips this session was closed on, rather than three the
     # user never chose: last session's playlists are still on disk and each
     # player's status file names the video it had on screen, so a reopen rotates
@@ -472,8 +459,8 @@ def start_core_session(
     nau_playlist = build_playlist_file_path(state_path, PLAYLIST_NAU)
     nau_status = read_nau_status(Path(nau_status_file))
     resumed = resume_playlists([
-        (portrait_playlist, read_satellite_status(Path(portrait_status_file)).video),
-        (landscape_playlist, read_satellite_status(Path(landscape_status_file)).video),
+        (Path(portrait.playlist_file), read_satellite_status(Path(portrait.status_file)).video),
+        (Path(landscape.playlist_file), read_satellite_status(Path(landscape.status_file)).video),
         (nau_playlist, nau_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
@@ -493,14 +480,14 @@ def start_core_session(
     # for the mode this session opens in — playing in player mode (clearing any
     # "1" a prior OmniPause stranded), paused when resumed into origenerator
     # mode, whose players are black and held for the whole mode.
-    reset_satellite_paused_states(portrait_paused_file, landscape_paused_file,
+    reset_satellite_paused_states(portrait.paused_file, landscape.paused_file,
                                   satellites_mode=carried.satellites_mode)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_all_playlists(
             main_sources=main_sources,
-            portrait_sources=portrait_sources,
-            landscape_sources=landscape_sources,
+            portrait_sources=portrait.sources,
+            landscape_sources=landscape.sources,
             favs_file=Path(favs_file),
             state_dir=state_path,
             library=SatelliteLibraryContext(
@@ -530,8 +517,8 @@ def start_core_session(
     # A lock has no file of its own to come back in, so queue it for each side
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
-        (Path(portrait_cmd_file), carried.locked2),
-        (Path(landscape_cmd_file), carried.locked3),
+        (Path(portrait.cmd_file), carried.locked2),
+        (Path(landscape.cmd_file), carried.locked3),
     ])
     # The main player's loop is the same kind of thing, and queued the same way —
     # but only if the main player really did come back onto the video the loop was
@@ -545,21 +532,9 @@ def start_core_session(
     launch_core_apps(
         python_exe=satellite_python_exe,
         satellite_module=satellite_module,
-        portrait_playlist=portrait_playlist,
-        landscape_playlist=landscape_playlist,
-        portrait_cmd_file=portrait_cmd_file,
-        portrait_paused_file=portrait_paused_file,
-        portrait_status_file=portrait_status_file,
-        landscape_cmd_file=landscape_cmd_file,
-        landscape_paused_file=landscape_paused_file,
-        landscape_status_file=landscape_status_file,
-        portrait_log_file=portrait_log_file,
-        landscape_log_file=landscape_log_file,
-        portrait_rect=portrait_rect,
-        landscape_rect=landscape_rect,
+        portrait=portrait,
+        landscape=landscape,
         result_file=result_file,
-        portrait_hud_file=portrait_hud_file,
-        landscape_hud_file=landscape_hud_file,
         dashboard_cmd_file=dashboard_cmd_file,
         project_dirs=project_dirs,
     )
@@ -901,21 +876,9 @@ def launch_core_apps(
     *,
     python_exe: str | Path,
     satellite_module: str,
-    portrait_playlist: str | Path,
-    landscape_playlist: str | Path,
-    portrait_cmd_file: str | Path,
-    portrait_paused_file: str | Path,
-    portrait_status_file: str | Path,
-    landscape_cmd_file: str | Path,
-    landscape_paused_file: str | Path,
-    landscape_status_file: str | Path,
-    portrait_log_file: str | Path,
-    landscape_log_file: str | Path,
-    portrait_rect: WindowRect,
-    landscape_rect: WindowRect,
+    portrait: SatelliteSlot,
+    landscape: SatelliteSlot,
     result_file: str | Path,
-    portrait_hud_file: str | Path | None = None,
-    landscape_hud_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> None:
@@ -930,36 +893,28 @@ def launch_core_apps(
     repeat-mode here — the native player owns its playlist and auto-advances (its
     wrap is repeat-all).
     """
-    portrait_pid = launch_satellite(
-        python_exe=python_exe,
-        satellite_module=satellite_module,
-        title=SATELLITE_PORTRAIT_TITLE,
-        role="Portrait",
-        playlist_file=portrait_playlist,
-        command_file=portrait_cmd_file,
-        paused_file=portrait_paused_file,
-        status_file=portrait_status_file,
-        log_file=portrait_log_file,
-        x=portrait_rect.x, y=portrait_rect.y,
-        width=portrait_rect.width, height=portrait_rect.height,
-        hud_file=portrait_hud_file, dashboard_cmd_file=dashboard_cmd_file,
-        project_dirs=project_dirs,
-    )
-    landscape_pid = launch_satellite(
-        python_exe=python_exe,
-        satellite_module=satellite_module,
-        title=SATELLITE_LANDSCAPE_TITLE,
-        role="Landscape",
-        playlist_file=landscape_playlist,
-        command_file=landscape_cmd_file,
-        paused_file=landscape_paused_file,
-        status_file=landscape_status_file,
-        log_file=landscape_log_file,
-        x=landscape_rect.x, y=landscape_rect.y,
-        width=landscape_rect.width, height=landscape_rect.height,
-        hud_file=landscape_hud_file, dashboard_cmd_file=dashboard_cmd_file,
-        project_dirs=project_dirs,
-    )
+    portrait = for_side(portrait, Player.PORTRAIT)
+    landscape = for_side(landscape, Player.LANDSCAPE)
+
+    def _launch(slot: SatelliteSlot, title: str, role: str) -> int:
+        return launch_satellite(
+            python_exe=python_exe,
+            satellite_module=satellite_module,
+            title=title,
+            role=role,
+            playlist_file=slot.playlist_file,
+            command_file=slot.cmd_file,
+            paused_file=slot.paused_file,
+            status_file=slot.status_file,
+            log_file=slot.log_file,
+            x=slot.rect.x, y=slot.rect.y,
+            width=slot.rect.width, height=slot.rect.height,
+            hud_file=slot.hud_file, dashboard_cmd_file=dashboard_cmd_file,
+            project_dirs=project_dirs,
+        )
+
+    portrait_pid = _launch(portrait, SATELLITE_PORTRAIT_TITLE, "Portrait")
+    landscape_pid = _launch(landscape, SATELLITE_LANDSCAPE_TITLE, "Landscape")
     _write_result_file(
         result_file,
         {

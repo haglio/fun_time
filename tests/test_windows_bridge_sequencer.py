@@ -241,10 +241,13 @@ class TestRunStartupSequence:
         assert core_called["satellite_module"] == "satellite"
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):
-            assert core_called[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
-            assert core_called[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
-            assert core_called[f"{side}_status_file"] == str(state / f"{side}_status.txt")
-            assert core_called[f"{side}_log_file"] == tmp_path / f"{side}_satellite.log"
+            slot = core_called[side]
+            assert slot.side.label == side
+            assert slot.cmd_file == str(state / f"{side}_cmd.txt")
+            assert slot.paused_file == str(state / f"{side}_paused.txt")
+            assert slot.status_file == str(state / f"{side}_status.txt")
+            assert slot.log_file == tmp_path / f"{side}_satellite.log"
+            assert slot.playlist_file == tmp_path / f"{side}_playlist.tsv"
         # Nau's status file rides along too: startup resumes each player onto
         # the video its status file names, and Nau is the third of the three.
         assert core_called["nau_status_file"] == str(cfg.nau_status_file)
@@ -256,9 +259,9 @@ class TestRunStartupSequence:
         native video fill its window."""
         _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
 
-        assert core_called["portrait_rect"].x == 2560
-        assert core_called["portrait_rect"].width > 0
-        assert core_called["landscape_rect"] != core_called["portrait_rect"]
+        assert core_called["portrait"].rect.x == 2560
+        assert core_called["portrait"].rect.width > 0
+        assert core_called["landscape"].rect != core_called["portrait"].rect
         # The same plan reaches the dashboard, which is launched separately.
         assert ui_called["dashboard_width"] > 0
 
