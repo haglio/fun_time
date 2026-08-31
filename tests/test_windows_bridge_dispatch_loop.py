@@ -2063,6 +2063,33 @@ class TestIdempotentVoiceCommands:
             runner.tick()
         mock_d.assert_not_called()
 
+    # -- the dashboard snapshot's failure mode --
+
+    def test_a_locked_dashboard_state_file_warns_once_a_minute_not_never(self, tmp_path, caplog):
+        """_update_dashboard swallowed EVERYTHING silently — a genuine bug in
+        the snapshot writer froze the dashboard forever, twice a second, with
+        nothing in the log.  An OSError (the file locked by a reader) now warns,
+        throttled so a stuck disk does not fill the log."""
+        runner = make_runner(tmp_path, dashboard_enabled=True)
+        with patch(
+            "fun_time.windows_bridge_dispatch_loop.write_dashboard_snapshot",
+            side_effect=OSError("locked"),
+        ), caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_dispatch_loop"):
+            runner._update_dashboard()
+            runner._update_dashboard()
+        warnings = [r for r in caplog.records if "dashboard" in r.message]
+        assert len(warnings) == 1
+
+    def test_a_bug_in_the_snapshot_writer_is_not_swallowed(self, tmp_path):
+        """A TypeError is ours, not the disk's; the loop's outer per-tick
+        exception log is where it belongs."""
+        runner = make_runner(tmp_path, dashboard_enabled=True)
+        with patch(
+            "fun_time.windows_bridge_dispatch_loop.write_dashboard_snapshot",
+            side_effect=TypeError("renamed keyword"),
+        ), pytest.raises(TypeError):
+            runner._update_dashboard()
+
     # -- the window-op vocabulary --
 
     def test_an_unknown_op_is_an_error_not_an_ahk_verb(self, tmp_path, caplog):

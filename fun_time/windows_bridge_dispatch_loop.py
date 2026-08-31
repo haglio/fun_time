@@ -208,6 +208,7 @@ class DispatchLoopRunner:
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
+        self._last_dashboard_warning = float("-inf")
         self._stop = threading.Event()
         self._browse_lock = threading.Lock()
         # The browse now on screen, if any.  It is launched mid-session, so it
@@ -455,26 +456,17 @@ class DispatchLoopRunner:
     def _flush_rfb_tabs(self) -> None:
         """Open every buffered RFB URL as tabs in the session's own Chrome window.
 
-        The RFB runs in the user's own Chrome — his user data directory, his
-        profile — so his personal windows of that profile are candidates for the
-        tab too, and nothing about handing Chrome a URL says which window is
-        meant.  A second chrome.exe finds the first one's singleton (it is keyed
-        on the user data directory) and forwards the command line; the running
-        browser resolves the profile from --profile-directory and asks
-        ``FindTabbedBrowser`` for a window, which walks its browsers
-        most-recently-active first and takes the first one whose profile matches.
-        So the window he touched last wins — a personal window he was reading a
-        moment ago beats the RFB, and the lock's tab lands there, behind the
-        players where he won't see it until later.
+        The RFB runs in the user's own Chrome profile, so his personal windows
+        are candidates for the tab too: Chrome's ``FindTabbedBrowser`` walks
+        that profile's windows most-recently-active first, so the window he
+        touched last would win and the lock's tab would land behind the
+        players.  Activating the RFB window first is what settles it — it goes
+        to the head of Chrome's own activation order, and Chrome shows the
+        window it opens into either way, so this only decides which one rises.
 
-        Activating the RFB window first is what settles that: it goes to the head
-        of Chrome's own activation order, so it is the window ``FindTabbedBrowser``
-        returns.  Chrome shows the window it opens into either way, so this costs
-        no raise that was not already coming — it only decides which window rises.
-
-        A dead handle means Fun Time has no window of its own left to open into,
-        and every URL handed over then is guaranteed to land in one of his: that
-        is worth losing the tab over, so the launch is skipped entirely.
+        A dead handle means Fun Time has no window of its own left to open
+        into, and every URL handed over then lands in one of his: worth losing
+        the tab over, so the launch is skipped entirely.
 
         In origenerator mode the buffer holds instead of flushing: the RFB is
         under the hosted app's window, and opening a tab would force Chrome over
@@ -513,10 +505,16 @@ class DispatchLoopRunner:
                     self._press_port = int(self._press_port_file.read_text(encoding="utf-8").strip())
             if self._press_port is not None:
                 self._press_socket.sendto(action.encode("utf-8"), ("127.0.0.1", self._press_port))
-        except (OSError, ValueError):
-            pass
+        except (OSError, ValueError) as exc:
+            logger.debug("press hint for %r not sent: %s", action, exc)
 
     def _update_dashboard(self) -> None:
+        """Write the dashboard's snapshot; only the disk may fail quietly.
+
+        OSError (the state file held open by a reader) warns, throttled to once
+        per failing minute since this runs twice a second; anything else is a
+        bug of ours that the loop's per-tick exception log must show.
+        """
         try:
             voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
@@ -524,8 +522,11 @@ class DispatchLoopRunner:
                 omni_paused=self.state.omni_paused,
                 voice_active=voice_active,
             )
-        except Exception:
-            pass
+        except OSError as exc:
+            now = time.monotonic()
+            if now - self._last_dashboard_warning >= 60.0:
+                self._last_dashboard_warning = now
+                logger.warning("dashboard snapshot write failed: %s", exc)
 
     def _converge_origenerator_window(self) -> None:
         """Converge the hosted app's window — never during OmniPause, whose
@@ -661,22 +662,18 @@ class DispatchLoopRunner:
             self._browse_lock.release()
 
     def _browse_library_inner(self) -> None:
-        # Browsing keeps everything playing — it must NOT enter OmniPause.  The
-        # old flow paused the whole session for the browse, and picking a video
-        # resumed only Nau, stranding the satellites + voice frozen ("we're in
-        # omnipause").  All the browser actually needs is to not be buried under
-        # the always-on-top windows, so drop the topmost bands for its duration
-        # and restore them after — playback and voice are never touched.  Under
-        # OmniPause the bands are already down and must stay down (restoring
-        # them would strand windows on top mid-pause), so only manage them when
-        # not paused.
+        # Browsing keeps everything playing — it must NOT enter OmniPause (a
+        # pause here once stranded the satellites and voice frozen).  All the
+        # browser needs is to not be buried under the always-on-top windows, so
+        # drop the topmost bands for its duration and restore them after —
+        # playback and voice are never touched.  Under OmniPause the bands are
+        # already down and must stay down (restoring them would strand windows
+        # on top mid-pause), so only manage them when not paused.
         #
-        # The hotkeys go the same way, and for the browser's sake rather than
-        # its own: they are global and they *consume* the press, so the arrows
-        # would move the portrait satellite instead of the selection and every
-        # letter would fire a command instead of typing ahead through an
-        # alphabetical grid.  Suspending hands the keyboard to the browser for
-        # the browse; under OmniPause they are already suspended and the pause
+        # The hotkeys go the same way, for the browser's sake: they are global
+        # and they *consume* the press, so the arrows would move the portrait
+        # satellite instead of the selection.  Suspending hands the keyboard to
+        # the browser; under OmniPause they are already suspended and the pause
         # owns that hold, so it is left to release it.
         manage_session = not self.state.omni_paused
 

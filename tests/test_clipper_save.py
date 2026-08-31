@@ -7,8 +7,11 @@ silence on failure.
 """
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from unittest.mock import patch
+
+import pytest
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.clipper_save import save_clip_session
@@ -98,3 +101,31 @@ def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
 
     mock_subprocess.run.assert_not_called()
     assert message == ""
+
+
+def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
+    config = _make_config(tmp_path)
+    config.nau_status_file.write_text(
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
+    )
+
+    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
+         patch("fun_time.clipper_save.subprocess.run",
+               side_effect=subprocess.TimeoutExpired(cmd="clipper", timeout=10)):
+        message = save_clip_session(config)
+
+    assert message == ""
+
+
+def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
+    """The old bare `except Exception` read a TypeError in our own code as
+    "clipper failed"; only the OS and subprocess failures are clipper's."""
+    config = _make_config(tmp_path)
+    config.nau_status_file.write_text(
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
+    )
+
+    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
+         patch("fun_time.clipper_save.subprocess.run", side_effect=TypeError("bug")), \
+         pytest.raises(TypeError):
+        save_clip_session(config)

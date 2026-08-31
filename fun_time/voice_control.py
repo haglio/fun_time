@@ -178,7 +178,10 @@ _VOICE_IMPORT_ERROR: str = ""
 try:
     import vosk
     import sounddevice as sd
-except Exception as _exc:  # optional — voice control silently unavailable
+# ImportError is what an absent optional dependency raises; OSError is
+# sounddevice's own, importing fine but failing to load PortAudio.  Anything
+# else is a broken-but-present install and must not be misreported as missing.
+except (ImportError, OSError) as _exc:
     vosk = None  # type: ignore[assignment]
     sd = None  # type: ignore[assignment]
     _VOICE_IMPORT_ERROR = str(_exc)

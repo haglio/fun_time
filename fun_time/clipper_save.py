@@ -74,6 +74,9 @@ def save_clip_session(config: BridgeConfig) -> str:
             return f"Clipper: {name}"
         logger.warning("clipper_save failed: %s", result.stderr.strip())
         return ""
-    except Exception as exc:
+    except (OSError, subprocess.SubprocessError) as exc:
+        # Only the OS and the subprocess machinery fail on clipper's behalf
+        # (TimeoutExpired included); a TypeError in our own argument building
+        # surfaces instead of reading as "clipper failed".
         logger.warning("clipper_save error: %s", exc)
         return ""
