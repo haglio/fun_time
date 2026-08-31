@@ -19,11 +19,11 @@ from fun_time.bridge_records import (
 )
 from fun_time.command_dispatch import (
     routes_to_origenerator,
-    _cancel_lock,
     _discard,
     _toggle_lock,
     dispatch_command,
 )
+from fun_time.satellite_groups import cancel_lock
 from fun_time.shared_state import BridgeState
 from fun_time.media_actions import ensure_in_favs
 from fun_time.event_log import NOTICE
@@ -1146,7 +1146,7 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha")
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
     # The browse is built with the CURRENT filter (kept), not cleared to "".
@@ -2132,7 +2132,7 @@ def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: 
     dispatch_command("portrait_cycle_action", state, config)  # warms the cached index
     dispatch_command("portrait_wrong_action", state, config)
 
-    from fun_time.command_dispatch import _satellite_group_index
+    from fun_time.satellite_groups import _satellite_group_index
 
     index = _satellite_group_index(2, config, paths["subject_zeta"])
     assert normalize_path_key(paths["subject_zeta"]) not in index.action_by_path
@@ -3296,7 +3296,7 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
     """
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
         state, _ops = dispatch_command(
             "portrait_no_loop",
             _make_state(portrait_loop="action", portrait_map_anchor="C:/v/anchor.mp4",
@@ -3315,7 +3315,7 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
     config = _make_config(tmp_path)
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(), config)
 
     # The browse is written as the side's playlist and reloaded in place.
@@ -3337,7 +3337,7 @@ def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_pat
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
     _set_current(config, 2, playing)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
     # It heads the restored list, so the reload keeps it playing and the browse is
@@ -3352,7 +3352,7 @@ def test_no_loop_leaves_a_browse_that_already_holds_the_clip_untouched(tmp_path:
     browse = ["C:/v/one.mp4", "C:/v/two.mp4", "C:/v/three.mp4"]
     _set_current(config, 2, "C:/v/two.mp4")
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
     assert _playlist(config, 2) == browse
@@ -3363,7 +3363,7 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     paths, no_loop only clears the flag and never reshapes the live queue."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[]):
         state, ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
     assert _playlist(config, 2) == []  # empty browse never blanks the live queue
@@ -3419,7 +3419,7 @@ def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="action"), config)
 
     assert state.portrait_loop == ""
@@ -3433,7 +3433,7 @@ def test_the_loop_key_wraps_from_off_back_round_to_the_seeds(tmp_path: Path):
     _set_current(config, 2, a)
 
     state = _make_state()
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[a]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
         axes = []
         for _press in range(4):
             state, _ops = dispatch_command("portrait_loop", state, config)
@@ -3467,7 +3467,7 @@ def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Pat
     config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
         state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
     browse.assert_not_called()  # the browse is never rebuilt by a press that locks
@@ -3487,7 +3487,7 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
     config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
         state, _ops = dispatch_command("portrait_loop", _make_state(), config)
         state, ops = dispatch_command("portrait_loop", state, config)
 
@@ -3503,7 +3503,7 @@ def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
     config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[a]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
 
     assert state.portrait_loop == ""
@@ -3526,7 +3526,7 @@ def test_the_loop_key_does_nothing_with_no_clip_on_screen(tmp_path: Path):
     to the off stop and rebuild the browse."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
         state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
 
     browse.assert_not_called()
@@ -4017,7 +4017,7 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
 def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    state = _cancel_lock(2, _make_state(locked2=True), config)
+    state = cancel_lock(2, _make_state(locked2=True), config)
 
     assert state.locked2 is False
     # A locked side is repeat-one; cancelling it queues UNLOCK to restore advance.
@@ -4027,7 +4027,7 @@ def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
 def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    state = _cancel_lock(2, _make_state(locked2=False), config)
+    state = cancel_lock(2, _make_state(locked2=False), config)
 
     assert state.locked2 is False
     # Nothing was locked, so there is no hold to release — no verb is queued.

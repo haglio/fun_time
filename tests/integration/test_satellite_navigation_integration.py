@@ -340,7 +340,7 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     browse = [v for v in _playlist_videos(satellite) if v != playing]
     assert playing not in browse
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", BridgeState(portrait_loop="seed"), config)
 
     _drained(satellite)
@@ -400,8 +400,8 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
             ))
 
         state = BridgeState(portrait_loop="", locked2=True)
-        with patch("fun_time.command_dispatch.seed_family_members", return_value=family), \
-                patch("fun_time.command_dispatch.widened_seed_members", return_value=widened):
+        with patch("fun_time.satellite_groups.seed_family_members", return_value=family), \
+                patch("fun_time.satellite_groups.widened_seed_members", return_value=widened):
             state, _ = dispatch_command("portrait_loop", state, config)
             publish(family, "seed")
             _drained(satellite)
