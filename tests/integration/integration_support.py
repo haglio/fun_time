@@ -22,7 +22,7 @@ from fun_time.event_log import EventRecord, event_log_path, read_events
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.notice_overlay import is_announcement
-from fun_time.process_identity import is_fun_time_exe_name
+from fun_time.process_identity import NAMER
 from fun_time.win32_process import get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
@@ -87,7 +87,7 @@ def _is_leftover_app(pid: int) -> bool:
     if image is None:
         return False
     name = Path(image).name
-    return name.lower() in _APP_IMAGE_NAMES or is_fun_time_exe_name(name)
+    return name.lower() in _APP_IMAGE_NAMES or NAMER.owns_exe_name(name)
 
 
 def _kill_leftover_app_processes() -> None:

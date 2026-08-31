@@ -23,8 +23,9 @@ End If
 ' whatever else the user is running. When a session strands one (an orchestrator
 ' that dies without reaping leaves its companions alive, with no window left to
 ' close), the task list is the only way back and it cannot say which rows are
-' safe to end. fun_time.process_identity makes these copies and explains the
-' mechanism; the orchestrator is the one process it cannot name on the way in,
+' safe to end. fun_time.process_identity asks for these copies and
+' app_support.process_identity makes them and explains the mechanism; the
+' orchestrator is the one process it cannot name on the way in,
 ' because writing the copy takes the very interpreter being launched.
 '
 ' So the naming happens one launch behind: this picks the copy up when it is

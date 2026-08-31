@@ -1780,7 +1780,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
     Without this a stranded child is an anonymous ``pythonw.exe`` among the
     user's other Python apps, and the only way to end it is to guess.  Asserted
-    at each launch site rather than on ``identified_python_exe`` alone: the
+    at each launch site rather than on ``NAMER.named_exe`` alone: the
     module can be right while a launcher still passes the plain interpreter
     straight through, which is exactly how the audio companion came to be the
     one process nobody could name.

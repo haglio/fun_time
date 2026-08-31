@@ -52,7 +52,7 @@ from .orchestrator_broker import (
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
-from .process_identity import PROCESS_NAME_PATTERN, identified_python_exe
+from .process_identity import NAMER, PROCESS_NAME_PATTERN
 from .random_favs_browser import build_manifest, write_manifest
 from .child_log import open_child_log
 from .rfb_tab_page import tabs_dir, write_tab_pages
@@ -621,7 +621,7 @@ def launch_genau(
     genau repo to run — see :func:`genau_project_kwargs`.
     """
     cmd = [
-        identified_python_exe(python_exe, "Genau"),
+        NAMER.named_exe(python_exe, "Genau"),
         "-m",
         genau_module,
         "--config",
@@ -690,7 +690,7 @@ def launch_origenerator(
     """
     rfb = layout_plan.random_favs_browser
     cmd = [
-        identified_python_exe(python_exe, "Origenerator"),
+        NAMER.named_exe(python_exe, "Origenerator"),
         "-m", "origenerator", "--fun-time",
         "--x", str(rfb.x), "--y", str(rfb.y),
         "--width", str(rfb.width), "--height", str(rfb.height),
@@ -762,7 +762,7 @@ def launch_nau(
     gives an unhandled exception nowhere to print its traceback.
     """
     cmd = [
-        identified_python_exe(python_exe, "Nau"),
+        NAMER.named_exe(python_exe, "Nau"),
         "-m",
         nau_module,
         "--config",
@@ -843,7 +843,7 @@ def launch_ui_companions(
         # "the dashboard never appeared" then looks like a window-choreography
         # fault rather than the crash it is.
         dashboard_cmd = [
-            identified_python_exe(python_exe, "Dashboard"),
+            NAMER.named_exe(python_exe, "Dashboard"),
             "-m",
             dashboard_module,
             windows_bridge_manifest_path,
@@ -877,7 +877,7 @@ def launch_ui_companions(
 
     audio_proc = subprocess.Popen(
         [
-            identified_python_exe(python_exe, "AudioCompanion"),
+            NAMER.named_exe(python_exe, "AudioCompanion"),
             "-m",
             audio_module,
             "--config",
@@ -1066,7 +1066,7 @@ def launch_satellite(
     traceback written to a handle that goes nowhere.
     """
     cmd = _build_satellite_launch_command(
-        identified_python_exe(python_exe, role),
+        NAMER.named_exe(python_exe, role),
         satellite_module,
         title=title,
         playlist_file=playlist_file,

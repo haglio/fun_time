@@ -369,8 +369,6 @@ _WIN32_REACHES = {
     # named call the way the dashboard's chrome now is.
     "fun_time_vr/player.py": 2,
     "fun_time_vr/vr_session.py": 4,
-    # use_last_error=True, which load_dll offers; not yet converted.
-    "fun_time/process_identity.py": 11,
 }
 
 # What counts as reaching it.
