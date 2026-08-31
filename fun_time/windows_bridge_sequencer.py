@@ -31,7 +31,7 @@ from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
-from .windows_bridge_random_favs_browser import launch_random_favs_browser
+from .windows_bridge_random_favs_browser import ChromeShortcut, launch_random_favs_browser
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -1133,9 +1133,7 @@ def _maybe_launch_random_favs_browser(
 
     result = launch_random_favs_browser(
         manifest_file,
-        shortcut_target=target,
-        shortcut_work_dir=work_dir,
-        shortcut_args=args,
+        shortcut=ChromeShortcut(target=target, work_dir=work_dir, args=args),
     )
     if not result.should_launch:
         logger.info("Random Favs Browser skipped: launch plan was empty")

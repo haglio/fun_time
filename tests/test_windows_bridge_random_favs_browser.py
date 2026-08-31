@@ -6,6 +6,7 @@ from pathlib import Path
 from fun_time.random_favs_browser import write_manifest
 from fun_time.rfb_tab_page import TabTarget, write_tab_pages
 from fun_time.windows_bridge_random_favs_browser import (
+    ChromeShortcut,
     build_open_rfb_tab_command,
     build_random_favs_browser_launch_plan,
     launch_random_favs_browser,
@@ -20,8 +21,10 @@ from fun_time.windows_bridge_random_favs_browser import (
 def test_build_open_rfb_tab_command_constructs_chrome_command():
     cmd = build_open_rfb_tab_command(
         urls=["https://example.com"],
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_args='--profile-directory="Profile 2"',
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir="",
+            args='--profile-directory="Profile 2"'),
     )
 
     assert cmd == r'"C:\Chrome\chrome.exe" --profile-directory="Profile 2" "https://example.com"'
@@ -30,8 +33,10 @@ def test_build_open_rfb_tab_command_constructs_chrome_command():
 def test_build_open_rfb_tab_command_with_empty_args():
     cmd = build_open_rfb_tab_command(
         urls=["https://example.com"],
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_args="",
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir="",
+            args=""),
     )
 
     assert cmd == r'"C:\Chrome\chrome.exe" "https://example.com"'
@@ -42,8 +47,10 @@ def test_build_open_rfb_tab_command_opens_multiple_urls_in_one_launch():
     in quick succession races its singleton and drops a tab (the "lock both" bug)."""
     cmd = build_open_rfb_tab_command(
         urls=["https://example.com/1", "https://example.com/2"],
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_args="",
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir="",
+            args=""),
     )
 
     assert cmd == r'"C:\Chrome\chrome.exe" "https://example.com/1" "https://example.com/2"'
@@ -61,9 +68,10 @@ def test_open_rfb_tab_calls_subprocess(monkeypatch):
 
     open_rfb_tab(
         urls=["https://example.com/1", "https://example.com/2"],
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_work_dir=r"C:\Chrome",
-        shortcut_args='--profile-directory="Profile 2"',
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir=r"C:\Chrome",
+            args='--profile-directory="Profile 2"'),
     )
 
     assert "chrome.exe" in recorded["cmd"]
@@ -97,9 +105,10 @@ def test_build_random_favs_browser_launch_plan_adds_profile_and_new_window(tmp_p
 
     plan = build_random_favs_browser_launch_plan(
         manifest_file,
-        shortcut_target=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
-        shortcut_work_dir=r"C:\Program Files\Google\Chrome\Application",
-        shortcut_args='--disable-features="Something"',
+        shortcut=ChromeShortcut(
+            target=r"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            work_dir=r"C:\Program Files\Google\Chrome\Application",
+            args='--disable-features="Something"'),
     )
 
     assert plan.should_launch is True
@@ -118,9 +127,10 @@ def test_build_random_favs_browser_launch_plan_preserves_existing_shortcut_args_
 
     plan = build_random_favs_browser_launch_plan(
         manifest_file,
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_work_dir=r"C:\Chrome",
-        shortcut_args='--disable-features="Something With Spaces"',
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir=r"C:\Chrome",
+            args='--disable-features="Something With Spaces"'),
     )
 
     assert '--disable-features="Something With Spaces"' in plan.cmd
@@ -145,9 +155,10 @@ def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch)
 
     plan = launch_random_favs_browser(
         manifest_file,
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_work_dir=r"C:\Chrome",
-        shortcut_args='--profile-directory="Profile 2"',
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir=r"C:\Chrome",
+            args='--profile-directory="Profile 2"'),
     )
 
     assert plan.should_launch is True
@@ -177,9 +188,10 @@ def test_ten_regenerate_tabs_stay_under_the_windows_command_line_limit(tmp_path:
 
     plan = build_random_favs_browser_launch_plan(
         manifest_file,
-        shortcut_target=r"C:\Chrome\chrome.exe",
-        shortcut_work_dir=r"C:\Chrome",
-        shortcut_args="",
+        shortcut=ChromeShortcut(
+            target=r"C:\Chrome\chrome.exe",
+            work_dir=r"C:\Chrome",
+            args=""),
     )
 
     assert plan.should_launch is True

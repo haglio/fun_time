@@ -21,6 +21,7 @@ from fun_time.manifest import (
 )
 from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
+from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from fun_time.windows_bridge_sequencer import (
     release_the_players,
     _wait_for_players_drawing,
@@ -1253,7 +1254,9 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.move_window"):
             _maybe_launch_random_favs_browser(m, plan)
 
-        assert set(launch_kwargs) == {"shortcut_target", "shortcut_work_dir", "shortcut_args"}
+        assert set(launch_kwargs) == {"shortcut"}
+        assert launch_kwargs["shortcut"] == ChromeShortcut(
+            target="chrome.exe", work_dir="", args="")
 
 
 class TestResolveSatelliteHwnds:

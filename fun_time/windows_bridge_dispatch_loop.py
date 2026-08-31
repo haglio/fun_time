@@ -32,7 +32,7 @@ from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .voice_commands import parse_command_line
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
-from .windows_bridge_random_favs_browser import open_rfb_tab
+from .windows_bridge_random_favs_browser import ChromeShortcut, open_rfb_tab
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .dashboard_bridge import write_dashboard_snapshot
 from .player_status import is_broker_heartbeat_fresh
@@ -180,9 +180,7 @@ class DispatchLoopRunner:
         dashboard_enabled: bool,
         manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
-        rfb_shortcut_target: str = "",
-        rfb_shortcut_work_dir: str = "",
-        rfb_shortcut_args: str = "",
+        rfb_shortcut: ChromeShortcut | None = None,
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -202,9 +200,7 @@ class DispatchLoopRunner:
         # This loop holds the state each player's own HUD is drawn from (locks,
         # filters, loops) and already ticks, so it is what feeds them.
         self.hud = HudFeed(config=config, publisher=hud_publisher)
-        self.rfb_shortcut_target = rfb_shortcut_target
-        self.rfb_shortcut_work_dir = rfb_shortcut_work_dir
-        self.rfb_shortcut_args = rfb_shortcut_args
+        self.rfb_shortcut = rfb_shortcut
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -476,7 +472,7 @@ class DispatchLoopRunner:
             return
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
-        if not urls or not self.rfb_shortcut_target:
+        if not urls or self.rfb_shortcut is None or not self.rfb_shortcut.target:
             return
         if not window_exists(self.windows.rfb_hwnd):
             logger.warning(
@@ -488,12 +484,7 @@ class DispatchLoopRunner:
             # Not fatal, and expected on the integration suite's hidden desktop,
             # which has no foreground window to become.
             logger.info("RFB window did not take the foreground before the tab handoff")
-        open_rfb_tab(
-            urls=urls,
-            shortcut_target=self.rfb_shortcut_target,
-            shortcut_work_dir=self.rfb_shortcut_work_dir,
-            shortcut_args=self.rfb_shortcut_args,
-        )
+        open_rfb_tab(urls=urls, shortcut=self.rfb_shortcut)
         logger.info("Opened RFB tab(s): %s", ", ".join(urls))
 
     def _send_press(self, action: str) -> None:

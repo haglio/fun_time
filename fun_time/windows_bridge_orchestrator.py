@@ -46,6 +46,7 @@ from .role_windows import ChildPids, WindowRoles
 from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
+from .windows_bridge_random_favs_browser import ChromeShortcut
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -924,9 +925,8 @@ def _start_the_dispatch_loop(
         ),
         dashboard_enabled=dashboard_enabled,
         hud_publisher=hud_publisher,
-        rfb_shortcut_target=rfb_target,
-        rfb_shortcut_work_dir=rfb_work_dir,
-        rfb_shortcut_args=rfb_args,
+        rfb_shortcut=ChromeShortcut(
+            target=rfb_target, work_dir=rfb_work_dir, args=rfb_args),
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
