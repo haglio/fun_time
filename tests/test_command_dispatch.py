@@ -2944,6 +2944,31 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
     assert ops == []
 
 
+def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog):
+    """The fall-through used to be indistinguishable from a handled no-op, so a
+    key bound to a misspelled id was simply a dead key.  The state still comes
+    back unchanged; the log now says why nothing happened."""
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
+        dispatch_command("bogus_command", _make_state(), config)
+
+    assert any("bogus_command" in record.message for record in caplog.records)
+
+
+def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: Path, caplog):
+    """The hosted app's vocabulary is always in the recognizer's grammar, so its
+    phrases arrive in player mode too; they reach nothing there, and that is a
+    known dead end rather than a missing handler."""
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
+        new_state, ops = dispatch_command("portrait_say_favorites", _make_state(), config)
+
+    assert ops == []
+    assert not any("portrait_say_favorites" in record.message for record in caplog.records)
+
+
 # --- clipper_save ---
 
 

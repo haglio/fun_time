@@ -4,7 +4,9 @@ command in, an updated state and a list of window ops out.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import replace
+from functools import partial
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
@@ -97,35 +99,25 @@ _GENAU_CMD_MAP = {
     "genau_toggle_cruise": "TOGGLE_CRUISE",
     "genau_cruise_on": "CRUISE_ON",
     "genau_cruise_off": "CRUISE_OFF",
-    # How long an unlocked Genau leaves each clip on screen, a second at a time.
-    # There is no switch to go with it: the padlock is the switch, and this is
-    # only its pace (see _PRIMARY_LOCK_COMMANDS).  Named for what the number is —
-    # a clip's seconds — rather than for the auto-advance that consumes it.
+    # How long an unlocked Genau leaves each clip on screen, a second at a
+    # time; the padlock (_PRIMARY_LOCK_COMMANDS) is the switch, this is its pace.
     "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",
     "genau_clip_seconds_up": "CLIP_SECONDS_UP",
     # Condemning a clip outright — Genau's counterpart of a satellite's weird.
     "genau_weird_clip": "WEIRD",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
-    # The stroke's rate as the console's own ± marks beside the wave send it.
-    # Genau's alone: the marks sit next to the drive readout and must move the
-    # thing they sit next to, never the playback rate on the far side of the
-    # panel.  The unqualified pair is _SPEED_BY_DRIVER below.
+    # The stroke's rate as the console's own ± marks beside the wave send it —
+    # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
     "genau_speed_down": "SPEED_DOWN",
     "genau_speed_up": "SPEED_UP",
 }
 
 
-# Speed control splits by which control said it.  The console draws each engine
-# its own ±: the stroke's rate on Genau's readout (see _GENAU_CMD_MAP) and the
-# video's on Nau's playback row, and neither reaches across, because a labeled
-# button has to move the thing it is labeled for.
-# Spoken ("speed up", "slow down") or pressed on J/L there is no such label, so
-# the bare pair follows whichever engine actually holds the OSR2 — Nau's video
-# while its funscript is driving, since mpv's clock scales the script with it,
-# and Genau's stroke otherwise.  Pinning it to Genau regardless nudged a paused
-# engine whose own marks the console had already dimmed for exactly that reason,
-# and nothing moved.
+# Speed control splits by which control said it: the console's ± marks move the
+# engine they sit next to (_GENAU_CMD_MAP, _SPEED_NAU_RELATIVE), while this bare
+# pair — spoken, or J/L — carries no label and follows whichever engine holds
+# the OSR2 (see :func:`_speed_target` for the whole routing).
 _SPEED_BY_DRIVER = {
     "speed_down": "SPEED_DOWN",
     "speed_up": "SPEED_UP",
@@ -155,32 +147,6 @@ def _parse_nau_speed(command: str) -> str | None:
     except ValueError:
         return None
     return f"SET_SPEED {pct / 100:g}"
-
-
-def _speed_engine_commands(command: str) -> tuple[str | None, str | None, bool] | None:
-    """Map a speed command to (nau_cmd, genau_cmd, by_driver), or None.
-
-    ``by_driver`` marks the unqualified nudge, which follows whichever engine
-    holds the OSR2; every other speed command names its engine.  A ``None`` side
-    means that engine has no equivalent and ignores the command.
-    """
-    if command in _SPEED_BY_DRIVER:
-        # Both engines answer the same verb, so which file it lands in is the
-        # whole of the routing.
-        keyword = _SPEED_BY_DRIVER[command]
-        return keyword, keyword, True
-    if command in _SPEED_NAU_RELATIVE:
-        # The video playback rate — Nau's alone.  It reaches Nau in nau and hybrid
-        # (where Nau is on screen) and is ignored in genau, where Genau's clips
-        # have no such rate.
-        return _SPEED_NAU_RELATIVE[command], None, False
-    if command in _SPEED_EXTREMES:
-        nau_cmd, genau_cmd = _SPEED_EXTREMES[command]
-        return nau_cmd, genau_cmd, False
-    nau_cmd = _parse_nau_speed(command)
-    if nau_cmd is not None:
-        return nau_cmd, None, False
-    return None
 
 
 def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) -> str:
@@ -534,11 +500,10 @@ SIDE_NAMES = {MAIN_SIDE: "main", 2: "portrait", 3: "landscape"}
 
 # The main slot's lock: repeat what is on screen, or let it move on — Nau's
 # video into the next playlist entry, Genau's clip into the next clip after its
-# interval.  Both players answer these three verbs and both open locked, so the
-# one padlock on the console means the same thing whichever is showing; the mode
-# decides which of them hears it, exactly as it decides for prev/next.  The toggle
-# is the key and the button; the absolute pair is what the spoken forms send,
-# since a speaker asks for the state they want.
+# interval.  Both players answer these three verbs and both open locked (the
+# routing is :func:`_main_lock`'s).  The toggle is the key and the button; the
+# absolute pair is what the spoken forms send, since a speaker asks for the
+# state they want.
 _PRIMARY_LOCK_COMMANDS = {
     "main_lock": "TOGGLE_LOCK",
     "main_lock_on": "LOCK_ON",
@@ -598,8 +563,6 @@ def dispatch_command(
     ignore it.  Empty means "whatever is playing now", which is how every
     keyboard and dashboard command arrives.
     """
-    ops: list[WindowOp] = []
-
     # Parking a player, before the active-side bookkeeping below: this is the one
     # side command that is not about that side's video, and a player just taken
     # off the screen must not become the one a bare "lock" or "next" reaches —
@@ -619,244 +582,32 @@ def dispatch_command(
         if not _is_hud_nav_command(command):
             state = clear_nav_anchor(state, side)
 
-    # Keyboard navigation of the HUD map: "<side>_nav_<dir>" moves the selection
-    # and switches the satellite to it.
-    nav = _parse_nav(command)
-    if nav is not None:
-        return navigate_hud(*nav, state, config)
-
-    # A HUD thumbnail click sends "<side>play_video|<path>": switch straight to
-    # that clip. The path is carried after the "|" ("|" is illegal in a Windows
-    # path, so it is an unambiguous delimiter).
-    if "play_video|" in command:
-        head, _, path = command.partition("|")
-        return switch_to_video(2 if head.startswith("portrait_") else 3, path, state, config)
-
-    # Double-click of a HUD thumbnail: "<side>_lock_video|<path>" — switch and lock.
-    if "_lock_video|" in command:
-        head, _, path = command.partition("|")
-        return _dispatch_lock_video(2 if head.startswith("portrait_") else 3, path, state, config)
-
-    cycle_target = _CYCLE_COMMANDS.get(command)
-    if cycle_target is not None:
-        which, kind = cycle_target
-        return cycle_variant(which, kind, state, config, target_path)
-
-    more_seeds_side = _MORE_SEEDS_SIDES.get(command)
-    if more_seeds_side is not None:
-        return more_seeds(more_seeds_side, state, config, target_path)
-
-    wrong_action_side = _WRONG_ACTION_SIDES.get(command)
-    if wrong_action_side is not None:
-        return wrong_action(wrong_action_side, state, config, target_path)
-
-    loop_target = _LOOP_COMMANDS.get(command)
-    if loop_target is not None:
-        which, axis = loop_target
-        return group_loop(which, axis, state, config, target_path)
-
-    loop_cycle_side = _LOOP_CYCLE_SIDES.get(command)
-    if loop_cycle_side is not None:
-        return loop_cycle(loop_cycle_side, state, config, target_path)
-
-    no_loop_scope = _NO_LOOP_SIDES.get(command)
-    if no_loop_scope is not None:
-        return no_loop(no_loop_scope, state, config)
-
-    lock_action_scope = _LOCK_ACTION_SIDES.get(command)
-    if lock_action_scope is not None:
-        return _dispatch_lock_action(lock_action_scope, state, config, target_path)
-
     # In origenerator mode, a side's transport goes to the hosted app, never to
-    # the blacked player invisibly underneath its region.
+    # the blacked player invisibly underneath its region.  Ahead of the handler
+    # lookup because five of the routed ids have player handlers below, which
+    # this mode must shadow.
     routed = _origenerator_transport(command, state, config)
     if routed is not None:
         return state, routed
 
-    if command == "portrait_prev":
-        state = cancel_lock(2, state, config)
-        send_satellite(config, 2, "PREV")
-        return state, ops
+    handler = _HANDLERS.get(command)
+    if handler is not None:
+        return handler(state, config, target_path)
 
-    if command == "portrait_next":
-        state = cancel_lock(2, state, config)
-        send_satellite(config, 2, "NEXT")
-        return state, ops
+    # The argument-carrying forms — a parsed suffix or a "|" payload — matched
+    # after the exact ids.  No parsed form can collide with an exact id: every
+    # parser demands a suffix (an integer, a direction, a payload) that no
+    # table key carries.
+    for parse in _PARSED_FORMS:
+        handled = parse(command, state, config, target_path)
+        if handled is not None:
+            return handled
 
-    if command == "portrait_lock":
-        state, lock_ops = _toggle_lock(2, state, config, target_path)
-        ops.extend(lock_ops)
-        return state, ops
-
-    if command == "portrait_trash":
-        state, discard_ops = _discard(2, state, config, target_path)
-        ops.extend(discard_ops)
-        return state, ops
-
-    if command == "landscape_prev":
-        state = cancel_lock(3, state, config)
-        send_satellite(config, 3, "PREV")
-        return state, ops
-
-    if command == "landscape_next":
-        state = cancel_lock(3, state, config)
-        send_satellite(config, 3, "NEXT")
-        return state, ops
-
-    if command == "landscape_lock":
-        state, lock_ops = _toggle_lock(3, state, config, target_path)
-        ops.extend(lock_ops)
-        return state, ops
-
-    if command == "landscape_trash":
-        state, discard_ops = _discard(3, state, config, target_path)
-        ops.extend(discard_ops)
-        return state, ops
-
-    if command in ("main_prev", "main_next"):
-        # Nau owns the main player in nau and hybrid; in genau mode the
-        # paused Nau still navigates in the background.
-        append_command(
-            config.nau_cmd_file, "PREV" if command == "main_prev" else "NEXT")
-        return state, ops
-
-    lock_verb = _PRIMARY_LOCK_COMMANDS.get(command)
-    if lock_verb is not None:
-        # To whichever player is showing, because the lock is about what is on
-        # screen: Nau's video in nau and hybrid, Genau's clip in genau.  The same
-        # split the speed controls make, and for the same reason.
-        target = (config.nau_cmd_file if nau_displays(state.main_mode)
-                  else config.genau_cmd_file)
-        append_command(target, lock_verb)
-        return state, ops
-
-    if command in ("main_nudge_prev", "main_nudge_next"):
-        # Nau owns the main player; its SEEK commands apply to a live local
-        # clock, so rapid nudges stack naturally.
-        append_command(
-            config.nau_cmd_file,
-            "SEEK_BACK" if command == "main_nudge_prev" else "SEEK_FWD")
-        return state, ops
-
-    if command == "projection_cycle":
-        # FunTimeVR's main player answers this by walking flat → 180 → fisheye →
-        # MKX200 → 360 and remembering the pick in the video's sidecar.  Routed
-        # like every main-player verb so the desktop Nau simply logs it as unknown.
-        if nau_displays(state.main_mode):
-            append_command(config.nau_cmd_file, "CYCLE_PROJECTION")
-        return state, ops
-
-    if command == "recenter_view":
-        # FunTimeVR re-zeroes its scene onto wherever the headset faces at
-        # this instant; the runtime's own recenter UI never reaches the app.
-        # Routed like every main-player verb so the desktop Nau logs it as unknown.
-        if nau_displays(state.main_mode):
-            append_command(config.nau_cmd_file, "RECENTER")
-        return state, ops
-
-    if command in _NAU_CMD_MAP:
-        # Loop recording, versions and length only make sense while Nau owns the
-        # main slot — nau and hybrid, but not genau.
-        if nau_displays(state.main_mode):
-            append_command(config.nau_cmd_file, _NAU_CMD_MAP[command])
-        return state, ops
-
-    if command in _MUTE_COMMANDS:
-        return _dispatch_audio(replace(state, muted=_MUTE_COMMANDS[command]), config)
-
-    step = _VOLUME_STEPS.get(command)
-    if step is not None:
-        return _dispatch_audio(_step_volume(state, step), config)
-
-    if command.startswith(f"{SET_VOLUME_COMMAND}|"):
-        return _dispatch_set_volume(command.partition("|")[2], state, config)
-
-    if command == "quarter_button":
-        append_command(config.genau_cmd_file, "OFFSET_QUARTER_CYCLE")
-        return state, ops
-
-    if command == "omnipause_toggle":
-        return _dispatch_omnipause_toggle(state, config)
-
-    if command == "enter_omnipause":
-        return _dispatch_enter_omnipause(state, config)
-
-    if command == "relief_omnipause":
-        return _dispatch_enter_omnipause(state, config, relief=True)
-
-    fmode_target = _FMODE_COMMANDS.get(command)
-    if fmode_target is not None:
-        players, target = fmode_target
-        return _dispatch_fmode(players, target, state, config)
-
-    reorder = _REORDER_COMMANDS.get(command)
-    if reorder is not None:
-        which, recent = reorder
-        if which == MAIN_SIDE:
-            return _dispatch_main_reorder(recent, state, config)
-        return _dispatch_reorder(which, recent, state, config)
-
-    reset_scope = _RESET_SIDES.get(command)
-    if reset_scope is not None:
-        return _dispatch_reset(reset_scope, state, config)
-
-    if command == MAIN_RESET:
-        return _dispatch_main_reset(state, config)
-
-    no_filter_scope = _NO_FILTER_SIDES.get(command)
-    if no_filter_scope is not None:
-        return _dispatch_set_filter(no_filter_scope, "", state, config)
-
-    filter_target = decode_filter_command(command)
-    if filter_target is not None:
-        scope, query = filter_target
-        return _dispatch_set_filter(scope, query, state, config)
-
-    if command in ("genau_activate", "nau_activate", "hybrid_activate"):
-        target = {"genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid"}[command]
-        return _dispatch_mode_switch(target, state, config, ops)
-
-    if command in ("origenerator_activate", "players_activate", "satellites_toggle"):
-        return _dispatch_satellites_switch(command, state, config, ops)
-
-    if command == "genau_toggle_auto":
-        # Flip whether Genau may take over while OSR2 is in auto mode. The broker
-        # reads this persisted flag each tick, so a plain file write is enough.
-        _toggle_genau_enabled(config.genau_enabled_file)
-        return state, ops
-
-    speed = _speed_engine_commands(command)
-    if speed is not None:
-        nau_cmd, genau_cmd, by_driver = speed
-        target = _speed_target(state, config, by_driver=by_driver)
-        if target == "nau" and nau_cmd is not None:
-            append_command(config.nau_cmd_file, nau_cmd)
-        elif target == "genau" and genau_cmd is not None:
-            append_command(config.genau_cmd_file, genau_cmd)
-        return state, ops
-
-    if command in _GENAU_CMD_MAP:
-        if genau_active(state.main_mode):
-            append_command(config.genau_cmd_file, _GENAU_CMD_MAP[command])
-        return state, ops
-
-    genau_numeric = _parse_genau_numeric_command(command)
-    if genau_numeric is not None:
-        if genau_active(state.main_mode):
-            append_command(config.genau_cmd_file, genau_numeric)
-        return state, ops
-
-    if command == "clipper_save":
-        # Asked for, not run: clipper boots a sibling repo's interpreter, which
-        # can take its full 10 s timeout, and this function is called from the
-        # 20 Hz dispatch tick.  The loop runs the save on a worker thread and
-        # flashes the result when it lands — the one place the toast trails the
-        # keypress instead of returning with it.
-        if state.main_mode != "genau":
-            ops.append(WindowOp(op="save_clip"))
-        return state, ops
-
-    return state, ops
+    # A missed rung used to be indistinguishable from a handled no-op — a key
+    # bound to a misspelled id was simply dead.  The state still comes back
+    # unchanged; the log says why nothing happened.
+    logger.warning("no handler for command %r", command)
+    return state, []
 
 
 _VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
@@ -1538,3 +1289,336 @@ def _dispatch_mode_switch(
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
+
+
+# --- the handler map ---------------------------------------------------------
+# One uniform shape — handler(state, config, target_path) -> (state, ops) —
+# assembled from the tables above.  ``_target_path`` marks the handlers whose
+# command names no video.
+
+Handler = Callable[[BridgeState, BridgeConfig, str], tuple[BridgeState, list[WindowOp]]]
+
+# Plain playlist navigation, per side.
+_TRANSPORT_COMMANDS: dict[str, tuple[int, str]] = {
+    "portrait_prev": (2, "PREV"),
+    "portrait_next": (2, "NEXT"),
+    "landscape_prev": (3, "PREV"),
+    "landscape_next": (3, "NEXT"),
+}
+
+# The three main-slot mode switches, by their target mode.
+_MODE_SWITCH_COMMANDS: dict[str, str] = {
+    "genau_activate": "genau",
+    "nau_activate": "nau",
+    "hybrid_activate": "hybrid",
+}
+
+
+def _transport(which: int, verb: str, state: BridgeState, config: BridgeConfig,
+               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """Advance a satellite; navigation moves on, so a repeat-one lock goes first."""
+    state = cancel_lock(which, state, config)
+    send_satellite(config, which, verb)
+    return state, []
+
+
+def _no_loop(scope: str, state: BridgeState, config: BridgeConfig,
+             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return no_loop(scope, state, config)
+
+
+def _forward_to_nau(verb: str, state: BridgeState, config: BridgeConfig,
+                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """Nau owns the main player in nau and hybrid; in genau mode the paused Nau
+    still navigates in the background, and its SEEK commands apply to a live
+    local clock, so rapid nudges stack naturally."""
+    append_command(config.nau_cmd_file, verb)
+    return state, []
+
+
+def _forward_to_nau_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
+                              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """Loop recording, versions, length and the VR verbs (projection, recenter)
+    only make sense while Nau owns the main slot — nau and hybrid, not genau."""
+    if nau_displays(state.main_mode):
+        append_command(config.nau_cmd_file, verb)
+    return state, []
+
+
+def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
+               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """To whichever player is showing, because the lock is about what is on
+    screen: Nau's video in nau and hybrid, Genau's clip in genau.  The same
+    split the speed controls make, and for the same reason."""
+    target = (config.nau_cmd_file if nau_displays(state.main_mode)
+              else config.genau_cmd_file)
+    append_command(target, verb)
+    return state, []
+
+
+def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    append_command(config.genau_cmd_file, verb)
+    return state, []
+
+
+def _forward_to_genau_when_active(verb: str, state: BridgeState, config: BridgeConfig,
+                                  _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if genau_active(state.main_mode):
+        append_command(config.genau_cmd_file, verb)
+    return state, []
+
+
+def _set_muted(muted: bool, state: BridgeState, config: BridgeConfig,
+               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_audio(replace(state, muted=muted), config)
+
+
+def _volume_step(step: int, state: BridgeState, config: BridgeConfig,
+                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_audio(_step_volume(state, step), config)
+
+
+def _omnipause_toggle(state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_omnipause_toggle(state, config)
+
+
+def _enter_omnipause(state: BridgeState, config: BridgeConfig,
+                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enter_omnipause(state, config)
+
+
+def _relief_omnipause(state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_enter_omnipause(state, config, relief=True)
+
+
+def _fmode(players: tuple[str, ...], target: bool | None, state: BridgeState,
+           config: BridgeConfig, _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_fmode(players, target, state, config)
+
+
+def _reorder(which: int, recent: bool, state: BridgeState, config: BridgeConfig,
+             _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if which == MAIN_SIDE:
+        return _dispatch_main_reorder(recent, state, config)
+    return _dispatch_reorder(which, recent, state, config)
+
+
+def _reset(scope: str, state: BridgeState, config: BridgeConfig,
+           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_reset(scope, state, config)
+
+
+def _main_reset(state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_main_reset(state, config)
+
+
+def _set_filter(scope: str, query: str, state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_set_filter(scope, query, state, config)
+
+
+def _mode_switch(target: str, state: BridgeState, config: BridgeConfig,
+                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_mode_switch(target, state, config, [])
+
+
+def _satellites_switch(command: str, state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_satellites_switch(command, state, config, [])
+
+
+def _genau_toggle_auto(state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """Flip whether Genau may take over while OSR2 is in auto mode.  The broker
+    reads this persisted flag each tick, so a plain file write is enough."""
+    _toggle_genau_enabled(config.genau_enabled_file)
+    return state, []
+
+
+def _speed(nau_cmd: str | None, genau_cmd: str | None, by_driver: bool,
+           state: BridgeState, config: BridgeConfig,
+           _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """Send a speed command to the engine it drives (see :func:`_speed_target`)."""
+    target = _speed_target(state, config, by_driver=by_driver)
+    if target == "nau" and nau_cmd is not None:
+        append_command(config.nau_cmd_file, nau_cmd)
+    elif target == "genau" and genau_cmd is not None:
+        append_command(config.genau_cmd_file, genau_cmd)
+    return state, []
+
+
+def _save_clip(state: BridgeState, _config: BridgeConfig,
+               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """Ask the loop for a clipper save — asked for, not run: clipper boots a
+    sibling repo's interpreter, which can take its full 10 s timeout, and this
+    function is called from the 20 Hz dispatch tick.  The loop runs the save on
+    a worker thread and flashes the result when it lands — the one place the
+    toast trails the keypress instead of returning with it."""
+    if state.main_mode == "genau":
+        return state, []
+    return state, [WindowOp(op="save_clip")]
+
+
+def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
+                                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """The hosted app's vocabulary is always in the recognizer's grammar, so its
+    phrases arrive in player mode too; there they reach nothing, a known dead
+    end rather than a missing handler (routing shadows this in origenerator mode)."""
+    return state, []
+
+
+def _build_handlers() -> dict[str, Handler]:
+    """Every exact command id and its handler — the map dispatch_command reads."""
+    handlers: dict[str, Handler] = {}
+    handlers.update({cmd: partial(_transport, which, verb)
+                     for cmd, (which, verb) in _TRANSPORT_COMMANDS.items()})
+    handlers["portrait_lock"] = partial(_toggle_lock, 2)
+    handlers["landscape_lock"] = partial(_toggle_lock, 3)
+    handlers["portrait_trash"] = partial(_discard, 2)
+    handlers["landscape_trash"] = partial(_discard, 3)
+    handlers.update({cmd: partial(cycle_variant, which, kind)
+                     for cmd, (which, kind) in _CYCLE_COMMANDS.items()})
+    handlers.update({cmd: partial(more_seeds, which)
+                     for cmd, which in _MORE_SEEDS_SIDES.items()})
+    handlers.update({cmd: partial(wrong_action, which)
+                     for cmd, which in _WRONG_ACTION_SIDES.items()})
+    handlers.update({cmd: partial(group_loop, which, axis)
+                     for cmd, (which, axis) in _LOOP_COMMANDS.items()})
+    handlers.update({cmd: partial(loop_cycle, which)
+                     for cmd, which in _LOOP_CYCLE_SIDES.items()})
+    handlers.update({cmd: partial(_no_loop, scope)
+                     for cmd, scope in _NO_LOOP_SIDES.items()})
+    handlers.update({cmd: partial(_dispatch_lock_action, scope)
+                     for cmd, scope in _LOCK_ACTION_SIDES.items()})
+    handlers["main_prev"] = partial(_forward_to_nau, "PREV")
+    handlers["main_next"] = partial(_forward_to_nau, "NEXT")
+    handlers["main_nudge_prev"] = partial(_forward_to_nau, "SEEK_BACK")
+    handlers["main_nudge_next"] = partial(_forward_to_nau, "SEEK_FWD")
+    handlers.update({cmd: partial(_main_lock, verb)
+                     for cmd, verb in _PRIMARY_LOCK_COMMANDS.items()})
+    # FunTimeVR's pair: projection walks flat → 180 → fisheye → MKX200 → 360 and
+    # remembers the pick in the video's sidecar; recenter re-zeroes the scene
+    # onto wherever the headset faces.  Desktop Nau logs both as unknown.
+    handlers["projection_cycle"] = partial(_forward_to_nau_on_screen, "CYCLE_PROJECTION")
+    handlers["recenter_view"] = partial(_forward_to_nau_on_screen, "RECENTER")
+    handlers.update({cmd: partial(_forward_to_nau_on_screen, verb)
+                     for cmd, verb in _NAU_CMD_MAP.items()})
+    handlers.update({cmd: partial(_set_muted, muted)
+                     for cmd, muted in _MUTE_COMMANDS.items()})
+    handlers.update({cmd: partial(_volume_step, step)
+                     for cmd, step in _VOLUME_STEPS.items()})
+    handlers["quarter_button"] = partial(_forward_to_genau, "OFFSET_QUARTER_CYCLE")
+    handlers["omnipause_toggle"] = _omnipause_toggle
+    handlers["enter_omnipause"] = _enter_omnipause
+    handlers["relief_omnipause"] = _relief_omnipause
+    handlers.update({cmd: partial(_fmode, players, target)
+                     for cmd, (players, target) in _FMODE_COMMANDS.items()})
+    handlers.update({cmd: partial(_reorder, which, recent)
+                     for cmd, (which, recent) in _REORDER_COMMANDS.items()})
+    handlers.update({cmd: partial(_reset, scope)
+                     for cmd, scope in _RESET_SIDES.items()})
+    handlers[MAIN_RESET] = _main_reset
+    handlers.update({cmd: partial(_set_filter, scope, "")
+                     for cmd, scope in _NO_FILTER_SIDES.items()})
+    handlers.update({cmd: partial(_mode_switch, target)
+                     for cmd, target in _MODE_SWITCH_COMMANDS.items()})
+    handlers.update({cmd: partial(_satellites_switch, cmd)
+                     for cmd in ("origenerator_activate", "players_activate", "satellites_toggle")})
+    handlers["genau_toggle_auto"] = _genau_toggle_auto
+    handlers.update({cmd: partial(_speed, verb, verb, True)
+                     for cmd, verb in _SPEED_BY_DRIVER.items()})
+    handlers.update({cmd: partial(_speed, verb, None, False)
+                     for cmd, verb in _SPEED_NAU_RELATIVE.items()})
+    handlers.update({cmd: partial(_speed, nau_cmd, genau_cmd, False)
+                     for cmd, (nau_cmd, genau_cmd) in _SPEED_EXTREMES.items()})
+    handlers.update({cmd: partial(_forward_to_genau_when_active, verb)
+                     for cmd, verb in _GENAU_CMD_MAP.items()})
+    handlers["clipper_save"] = _save_clip
+    handlers.update({cmd: _words_for_a_show_that_is_not_up
+                     for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
+    return handlers
+
+
+_HANDLERS: dict[str, Handler] = _build_handlers()
+
+
+# --- the parsed forms --------------------------------------------------------
+# Commands that carry an argument in their spelling.  Each parser answers None
+# for a command that is not its form, and no form can match an exact id above.
+
+def _parsed_nav(command: str, state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    """Keyboard navigation of the HUD map: "<side>_nav_<dir>" moves the
+    selection and switches the satellite to it."""
+    nav = _parse_nav(command)
+    if nav is None:
+        return None
+    return navigate_hud(*nav, state, config)
+
+
+def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    """A HUD thumbnail click: "<side>_play_video|<path>" switches straight to
+    that clip.  The path rides after the "|" ("|" is illegal in a Windows path,
+    so it is an unambiguous delimiter)."""
+    if "_play_video|" not in command:
+        return None
+    head, _, path = command.partition("|")
+    return switch_to_video(2 if head.startswith("portrait_") else 3, path, state, config)
+
+
+def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    """Double-click of a HUD thumbnail: "<side>_lock_video|<path>" — switch and lock."""
+    if "_lock_video|" not in command:
+        return None
+    head, _, path = command.partition("|")
+    return _dispatch_lock_video(2 if head.startswith("portrait_") else 3, path, state, config)
+
+
+def _parsed_set_volume(command: str, state: BridgeState, config: BridgeConfig,
+                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    if not command.startswith(f"{SET_VOLUME_COMMAND}|"):
+        return None
+    return _dispatch_set_volume(command.partition("|")[2], state, config)
+
+
+def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
+                   _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    filter_target = decode_filter_command(command)
+    if filter_target is None:
+        return None
+    scope, query = filter_target
+    return _dispatch_set_filter(scope, query, state, config)
+
+
+def _parsed_nau_speed(command: str, state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    """"nau_speed_<pct>" — an absolute video rate, Nau's alone."""
+    nau_cmd = _parse_nau_speed(command)
+    if nau_cmd is None:
+        return None
+    return _speed(nau_cmd, None, False, state, config, _target_path)
+
+
+def _parsed_genau_numeric(command: str, state: BridgeState, config: BridgeConfig,
+                          _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    genau_cmd = _parse_genau_numeric_command(command)
+    if genau_cmd is None:
+        return None
+    return _forward_to_genau_when_active(genau_cmd, state, config, _target_path)
+
+
+_PARSED_FORMS = (
+    _parsed_nav,
+    _parsed_play_video,
+    _parsed_lock_video,
+    _parsed_set_volume,
+    _parsed_filter,
+    _parsed_nau_speed,
+    _parsed_genau_numeric,
+)
