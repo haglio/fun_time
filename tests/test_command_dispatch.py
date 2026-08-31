@@ -2956,8 +2956,8 @@ def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
         encoding="utf-8",
     )
 
-    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
+         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 0
         mock_subprocess.run.return_value.stdout = r"C:\clipper\sessions\test.json"
         mock_subprocess.run.return_value.stderr = ""
@@ -2987,8 +2987,8 @@ def test_clipper_save_no_notice_on_failure(tmp_path: Path):
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
-    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
+         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 1
         mock_subprocess.run.return_value.stdout = ""
         mock_subprocess.run.return_value.stderr = "ffprobe failed"
@@ -3001,7 +3001,7 @@ def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
-    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
     mock_subprocess.run.assert_not_called()
@@ -3012,7 +3012,7 @@ def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
     state = _make_state(main_mode="hybrid")
     # No nau_status file → no current video → nothing to clip.
 
-    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
     mock_subprocess.run.assert_not_called()
@@ -3031,8 +3031,8 @@ def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
         encoding="utf-8",
     )
 
-    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
+         patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         mock_subprocess.run.return_value.returncode = 0
         mock_subprocess.run.return_value.stdout = "C:\\clipper\\sessions\\naustuff.json"
         mock_subprocess.run.return_value.stderr = ""
@@ -3048,7 +3048,7 @@ def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="nau")
 
-    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
+    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
     mock_subprocess.run.assert_not_called()
@@ -3648,7 +3648,7 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
     there is nothing there — the save died in its ``cwd=`` and the hotkey looked
     like the branch had broken it.  The siblings live beside the primary
     checkout, which a worktree can name because they share a git directory."""
-    from fun_time.command_dispatch import _clipper_project_dir
+    from fun_time.clipper_save import _clipper_project_dir
 
     _clipper_project_dir.cache_clear()
     try:
@@ -3663,16 +3663,16 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
 def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
     """No worse than it was: where git cannot answer, the checkout that is
     running is the only guess available."""
-    import fun_time.command_dispatch as command_dispatch
+    import fun_time.clipper_save as clipper_save
 
-    command_dispatch._clipper_project_dir.cache_clear()
+    clipper_save._clipper_project_dir.cache_clear()
     try:
         with patch("fun_time.branch_session.primary_checkout", side_effect=OSError("no git")):
-            resolved = command_dispatch._clipper_project_dir()
+            resolved = clipper_save._clipper_project_dir()
     finally:
-        command_dispatch._clipper_project_dir.cache_clear()
+        clipper_save._clipper_project_dir.cache_clear()
 
-    assert resolved == Path(command_dispatch.__file__).resolve().parents[1].parent / "clipper"
+    assert resolved == Path(clipper_save.__file__).resolve().parents[1].parent / "clipper"
 
 
 def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch):
