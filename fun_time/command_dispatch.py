@@ -29,6 +29,7 @@ from .modes import is_favorite_path, read_favs_content
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .mode_plan import genau_active, nau_displays
+from .players import Player
 from .satellite_groups import (
     cancel_lock,
     clear_side_grouping,
@@ -316,34 +317,35 @@ def _discard(
 
 # display slot (2=portrait, 3=landscape) and variation axis per cycle command.
 _CYCLE_COMMANDS = {
-    "portrait_cycle_action": (2, "action"),
-    "portrait_cycle_seed": (2, "seed"),
-    "landscape_cycle_action": (3, "action"),
-    "landscape_cycle_seed": (3, "seed"),
+    "portrait_cycle_action": (Player.PORTRAIT, "action"),
+    "portrait_cycle_seed": (Player.PORTRAIT, "seed"),
+    "landscape_cycle_action": (Player.LANDSCAPE, "action"),
+    "landscape_cycle_seed": (Player.LANDSCAPE, "seed"),
 }
 
 # "more seeds" — see :func:`satellite_groups.more_seeds`.
-_MORE_SEEDS_SIDES = {"portrait_more_seeds": 2, "landscape_more_seeds": 3}
+_MORE_SEEDS_SIDES = {"portrait_more_seeds": Player.PORTRAIT,
+                     "landscape_more_seeds": Player.LANDSCAPE}
 
 
 # Slot and axis per group-loop command — see :func:`satellite_groups.group_loop`.
-_LOOP_COMMANDS: dict[str, tuple[int, str]] = {
-    "portrait_action_loop": (2, "action"),
-    "portrait_seed_loop": (2, "seed"),
-    "landscape_action_loop": (3, "action"),
-    "landscape_seed_loop": (3, "seed"),
+_LOOP_COMMANDS: dict[str, tuple[Player, str]] = {
+    "portrait_action_loop": (Player.PORTRAIT, "action"),
+    "portrait_seed_loop": (Player.PORTRAIT, "seed"),
+    "landscape_action_loop": (Player.LANDSCAPE, "action"),
+    "landscape_seed_loop": (Player.LANDSCAPE, "seed"),
 }
 
-_LOCK_ACTION_SIDES: dict[str, str] = {
-    "portrait_lock_action": "portrait",
-    "landscape_lock_action": "landscape",
+_LOCK_ACTION_SIDES: dict[str, Player] = {
+    "portrait_lock_action": Player.PORTRAIT,
+    "landscape_lock_action": Player.LANDSCAPE,
 }
 
 # "reset" clears a satellite's filter and reshuffles it back to the default
 # browse; "both reset" expands to these two before dispatch.
-_RESET_SIDES: dict[str, str] = {
-    "portrait_reset": "portrait",
-    "landscape_reset": "landscape",
+_RESET_SIDES: dict[str, tuple[Player, ...]] = {
+    "portrait_reset": (Player.PORTRAIT,),
+    "landscape_reset": (Player.LANDSCAPE,),
 }
 
 # The main player's own reset — the same word, meaning for it what it means for a
@@ -355,24 +357,24 @@ _RESET_SIDES: dict[str, str] = {
 MAIN_RESET = "main_reset"
 
 # "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
-_NO_LOOP_SIDES: dict[str, str] = {
-    "portrait_no_loop": "portrait",
-    "landscape_no_loop": "landscape",
+_NO_LOOP_SIDES: dict[str, Player] = {
+    "portrait_no_loop": Player.PORTRAIT,
+    "landscape_no_loop": Player.LANDSCAPE,
 }
 
 # The key command that steps a side's loop cycle (seed, action, off — see
 # :func:`satellite_groups.loop_cycle`), against the explicit <side>_seed_loop /
 # <side>_action_loop / <side>_no_loop the voice commands reach.
-_LOOP_CYCLE_SIDES: dict[str, int] = {
-    "portrait_loop": 2,
-    "landscape_loop": 3,
+_LOOP_CYCLE_SIDES: dict[str, Player] = {
+    "portrait_loop": Player.PORTRAIT,
+    "landscape_loop": Player.LANDSCAPE,
 }
 
 # "no filter" drops just the filter — the narrow counterpart of reset, which puts
 # the whole side back to its defaults.
-_NO_FILTER_SIDES: dict[str, str] = {
-    "portrait_no_filter": "portrait",
-    "landscape_no_filter": "landscape",
+_NO_FILTER_SIDES: dict[str, tuple[Player, ...]] = {
+    "portrait_no_filter": (Player.PORTRAIT,),
+    "landscape_no_filter": (Player.LANDSCAPE,),
 }
 
 # A satellite's own minimize button (``player_core.satellite_hud.CONTROLS``), by the window
@@ -409,13 +411,13 @@ def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
 # The two browse orderings, per player: Latest reloads newest-first, Shuffle
 # reshuffles.  The main player is 1 and reloads through Nau rather than through
 # a satellite rebuild — the table only says which player and which order.
-_REORDER_COMMANDS: dict[str, tuple[int, bool]] = {
-    "main_latest": (1, True),
-    "portrait_latest": (2, True),
-    "landscape_latest": (3, True),
-    "main_shuffle": (1, False),
-    "portrait_shuffle": (2, False),
-    "landscape_shuffle": (3, False),
+_REORDER_COMMANDS: dict[str, tuple[Player, bool]] = {
+    "main_latest": (Player.MAIN, True),
+    "portrait_latest": (Player.PORTRAIT, True),
+    "landscape_latest": (Player.LANDSCAPE, True),
+    "main_shuffle": (Player.MAIN, False),
+    "portrait_shuffle": (Player.PORTRAIT, False),
+    "landscape_shuffle": (Player.LANDSCAPE, False),
 }
 
 # The same two orders as Genau answers to, keyed by ``recent``.  Every other
@@ -426,22 +428,22 @@ _GENAU_ORDER_CMD: dict[bool, str] = {True: "LATEST", False: "SHUFFLE"}
 
 # "Wrong action" — the clip is fine, its label is not.  Per side, like every
 # other judgement of the clip on screen.
-_WRONG_ACTION_SIDES: dict[str, int] = {"portrait_wrong_action": 2, "landscape_wrong_action": 3}
+_WRONG_ACTION_SIDES: dict[str, Player] = {"portrait_wrong_action": Player.PORTRAIT,
+                                          "landscape_wrong_action": Player.LANDSCAPE}
 
 
 def _dispatch_lock_action(
-    scope: str, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    which: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Filter the satellite to the current clip's action — "portrait [act]",
     with the act read off the clip instead of spoken."""
-    which = 2 if scope == "portrait" else 3
     current = target_path or satellite_current(config, which)
     if not current:
         return state, []
     action = video_action_label(current, config)
     if not action:
         return state, [WindowOp(op="notice", key="No action metadata", source=satellite_source(which), level=FAILED_NOTICE_LEVEL)]
-    return _dispatch_set_filter(scope, action.lower(), state, config)
+    return _dispatch_set_filter((which,), action.lower(), state, config)
 
 
 def _dispatch_lock_video(
@@ -479,12 +481,6 @@ def _is_hud_nav_command(command: str) -> bool:
     return _parse_nav(command) is not None
 
 
-# The dispatcher counts players in slots; everything that *draws* them names them
-# instead (the HUD panels, the publisher's filenames, each player's own side).  This
-# is the one crossing between the two, so a slot never reaches a player as a number.
-MAIN_SIDE = 1
-SIDE_NAMES = {MAIN_SIDE: "main", 2: "portrait", 3: "landscape"}
-
 # The main slot's lock: repeat what is on screen, or let it move on — Nau's
 # video into the next playlist entry, Genau's clip into the next clip after its
 # interval.  Both players answer these three verbs and both open locked (the
@@ -509,26 +505,19 @@ _PRIMARY_SELECTING_COMMANDS = frozenset(
 )
 
 
-def side_name(slot: int) -> str:
-    """The name of the player in *slot*, or "" for no player — the inverse of
-    :func:`command_side`'s numbering."""
-    return SIDE_NAMES.get(slot, "")
-
-
-def command_side(command: str) -> int | None:
-    """The player slot a command addresses: 1=main, 2=portrait, 3=landscape —
-    or None if it addresses no player.  :data:`SIDE_NAMES` is the inverse.
+def command_side(command: str) -> Player | None:
+    """The player a command addresses, or None if it addresses no player.
 
     The main (Nau) player is selected by its own next/prev navigation, by its
     lock, and by naming its F-mode or its reset — everything it shares with a
     satellite.  It has no weird/cycle, so nothing else selects it.
     """
     if command.startswith("portrait_"):
-        return 2
+        return Player.PORTRAIT
     if command.startswith("landscape_"):
-        return 3
+        return Player.LANDSCAPE
     if command in _PRIMARY_SELECTING_COMMANDS:
-        return 1
+        return Player.MAIN
     return None
 
 
@@ -565,9 +554,13 @@ def dispatch_command(
         state = replace(state, active_side=side)
         # Every side command except a navigation step ends keyboard navigation on
         # that side, so its map re-homes on the live clip; nav commands manage
-        # their own anchor.
+        # their own anchor.  The main player has no anchor of its own; its
+        # commands have always cleared LANDSCAPE's (the old binary helper read
+        # "not portrait" as landscape), and that stands until argued otherwise —
+        # see the 2026-08-31 changelog note on audit item 33.
         if not _is_hud_nav_command(command):
-            state = state.with_side(side, nav_anchor="")
+            anchored = Player.LANDSCAPE if side is Player.MAIN else side
+            state = state.with_side(anchored, nav_anchor="")
 
     # In origenerator mode, a side's transport goes to the hosted app, never to
     # the blacked player invisibly underneath its region.  Ahead of the handler
@@ -970,7 +963,7 @@ def _dispatch_reorder(
     result = _rebuild_side(which, state.side(which).filter, state, config, start_at_top=True)
     state = state.with_side(which, locked=False)
     state = clear_side_grouping(state, which)
-    side = "portrait" if which == 2 else "landscape"
+    side = Player(which).label
     # The order's own word and nothing else.  The toast flashes on the player it
     # was said to, and this is what that player's HUD calls the order it is now
     # in, so naming the player and then spelling the order out a second time
@@ -984,7 +977,7 @@ def _dispatch_reorder(
 
 
 def _dispatch_reset(
-    scope: str, state: BridgeState, config: BridgeConfig
+    players: tuple[Player, ...], state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put a satellite (or both) back to every default, not just its filter.
 
@@ -1006,7 +999,7 @@ def _dispatch_reset(
     then, so there is nothing the press could put back.
     """
     ops: list[WindowOp] = []
-    for which in _FILTER_TARGETS[scope]:
+    for which in players:
         # Every default is the empty value of its field, so "already reset" is
         # the side's whole SideState sitting at the default — a narrowing the
         # reset clears cannot be one this test forgets.  (The nav anchor is
@@ -1023,9 +1016,6 @@ def _dispatch_reset(
         logger.info("Reset %s: %s", satellite_source(which), result.log_message)
         ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(which)))
     return state, ops
-
-
-_FILTER_TARGETS = {"both": (2, 3), "portrait": (2,), "landscape": (3,)}
 
 
 def _rebuild_side(
@@ -1056,16 +1046,16 @@ def _rebuild_side(
 
 
 def _dispatch_set_filter(
-    scope: str, query: str, state: BridgeState, config: BridgeConfig
+    players: tuple[Player, ...], query: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Apply a metadata filter to one or both satellites and rebuild them.
+    """Apply a metadata filter to *players* and rebuild them.
 
-    ``scope`` is both/portrait/landscape; ``query`` is the substring to match
-    ("" clears).  Each targeted satellite records its own filter in the state so
-    later F-mode / reorder rebuilds keep it, then reloads under its own ordering.
+    ``query`` is the substring to match ("" clears).  Each targeted satellite
+    records its own filter in the state so later F-mode / reorder rebuilds keep
+    it, then reloads under its own ordering.
     """
     ops: list[WindowOp] = []
-    for which in _FILTER_TARGETS[scope]:
+    for which in players:
         result = _rebuild_side(which, query, state, config)
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
@@ -1243,11 +1233,11 @@ def _dispatch_mode_switch(
 Handler = Callable[[BridgeState, BridgeConfig, str], tuple[BridgeState, list[WindowOp]]]
 
 # Plain playlist navigation, per side.
-_TRANSPORT_COMMANDS: dict[str, tuple[int, str]] = {
-    "portrait_prev": (2, "PREV"),
-    "portrait_next": (2, "NEXT"),
-    "landscape_prev": (3, "PREV"),
-    "landscape_next": (3, "NEXT"),
+_TRANSPORT_COMMANDS: dict[str, tuple[Player, str]] = {
+    "portrait_prev": (Player.PORTRAIT, "PREV"),
+    "portrait_next": (Player.PORTRAIT, "NEXT"),
+    "landscape_prev": (Player.LANDSCAPE, "PREV"),
+    "landscape_next": (Player.LANDSCAPE, "NEXT"),
 }
 
 # The three main-slot mode switches, by their target mode.
@@ -1266,9 +1256,9 @@ def _transport(which: int, verb: str, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _no_loop(scope: str, state: BridgeState, config: BridgeConfig,
+def _no_loop(which: Player, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return no_loop(scope, state, config)
+    return no_loop(which, state, config)
 
 
 def _forward_to_nau(verb: str, state: BridgeState, config: BridgeConfig,
@@ -1343,16 +1333,16 @@ def _fmode(players: tuple[str, ...], target: bool | None, state: BridgeState,
     return _dispatch_fmode(players, target, state, config)
 
 
-def _reorder(which: int, recent: bool, state: BridgeState, config: BridgeConfig,
+def _reorder(which: Player, recent: bool, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if which == MAIN_SIDE:
+    if which is Player.MAIN:
         return _dispatch_main_reorder(recent, state, config)
     return _dispatch_reorder(which, recent, state, config)
 
 
-def _reset(scope: str, state: BridgeState, config: BridgeConfig,
+def _reset(players: tuple[Player, ...], state: BridgeState, config: BridgeConfig,
            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_reset(scope, state, config)
+    return _dispatch_reset(players, state, config)
 
 
 def _main_reset(state: BridgeState, config: BridgeConfig,
@@ -1360,9 +1350,9 @@ def _main_reset(state: BridgeState, config: BridgeConfig,
     return _dispatch_main_reset(state, config)
 
 
-def _set_filter(scope: str, query: str, state: BridgeState, config: BridgeConfig,
+def _set_filter(players: tuple[Player, ...], query: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return _dispatch_set_filter(scope, query, state, config)
+    return _dispatch_set_filter(players, query, state, config)
 
 
 def _mode_switch(target: str, state: BridgeState, config: BridgeConfig,
@@ -1432,10 +1422,10 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (which, axis) in _LOOP_COMMANDS.items()})
     handlers.update({cmd: partial(loop_cycle, which)
                      for cmd, which in _LOOP_CYCLE_SIDES.items()})
-    handlers.update({cmd: partial(_no_loop, scope)
-                     for cmd, scope in _NO_LOOP_SIDES.items()})
-    handlers.update({cmd: partial(_dispatch_lock_action, scope)
-                     for cmd, scope in _LOCK_ACTION_SIDES.items()})
+    handlers.update({cmd: partial(_no_loop, player)
+                     for cmd, player in _NO_LOOP_SIDES.items()})
+    handlers.update({cmd: partial(_dispatch_lock_action, player)
+                     for cmd, player in _LOCK_ACTION_SIDES.items()})
     handlers["main_prev"] = partial(_forward_to_nau, "PREV")
     handlers["main_next"] = partial(_forward_to_nau, "NEXT")
     handlers["main_nudge_prev"] = partial(_forward_to_nau, "SEEK_BACK")
@@ -1461,11 +1451,11 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (players, target) in _FMODE_COMMANDS.items()})
     handlers.update({cmd: partial(_reorder, which, recent)
                      for cmd, (which, recent) in _REORDER_COMMANDS.items()})
-    handlers.update({cmd: partial(_reset, scope)
-                     for cmd, scope in _RESET_SIDES.items()})
+    handlers.update({cmd: partial(_reset, players)
+                     for cmd, players in _RESET_SIDES.items()})
     handlers[MAIN_RESET] = _main_reset
-    handlers.update({cmd: partial(_set_filter, scope, "")
-                     for cmd, scope in _NO_FILTER_SIDES.items()})
+    handlers.update({cmd: partial(_set_filter, players, "")
+                     for cmd, players in _NO_FILTER_SIDES.items()})
     handlers.update({cmd: partial(_mode_switch, target)
                      for cmd, target in _MODE_SWITCH_COMMANDS.items()})
     handlers.update({cmd: partial(_satellites_switch, cmd)
@@ -1535,7 +1525,7 @@ def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
     if filter_target is None:
         return None
     scope, query = filter_target
-    return _dispatch_set_filter(scope, query, state, config)
+    return _dispatch_set_filter(Player.for_scope(scope), query, state, config)
 
 
 def _parsed_nau_speed(command: str, state: BridgeState, config: BridgeConfig,

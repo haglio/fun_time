@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from .bridge_records import BridgeConfig
-from .command_dispatch import MAIN_SIDE, side_name
+from .players import Player
 from .shared_state import BridgeState
 from .player_status import (
     genau_status_path,
@@ -87,9 +87,9 @@ class HudFeed:
             # sides say the mode instead (status + the mode row home); a show
             # covering a region wears its own map of the origenerator items.
             portrait = origenerator_mode_panel(
-                "portrait", active=side_name(state.active_side) == "portrait")
+                "portrait", active=Player.label_of(state.active_side) == "portrait")
             landscape = origenerator_mode_panel(
-                "landscape", active=side_name(state.active_side) == "landscape")
+                "landscape", active=Player.label_of(state.active_side) == "landscape")
         else:
             portrait, landscape = build_panels(
                 side("portrait", 2, sources=self.config.portrait_sources,
@@ -97,7 +97,7 @@ class HudFeed:
                 side("landscape", 3, sources=self.config.landscape_sources,
                      status_file=self.config.landscape_status_file),
                 metadata_root=self.config.regen_metadata_root,
-                active_side=side_name(state.active_side),
+                active_side=Player.label_of(state.active_side),
                 # "" for a session hosting no Origenerator — the HUDs then draw no
                 # mode pair at all, rather than a switch that can only dead-end.
                 satellites_mode=(state.satellites_mode
@@ -112,7 +112,7 @@ class HudFeed:
         nau = read_nau_status(self.config.nau_status_file)
         self.publisher.publish_payload("nau", console_payload(
             mode=state.main_mode,
-            active=state.active_side == MAIN_SIDE,
+            active=state.active_side == Player.MAIN,
             f_mode=state.main_f_mode,
             latest=state.main_latest,
             genau_latest=state.genau_latest,

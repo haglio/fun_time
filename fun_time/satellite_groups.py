@@ -12,7 +12,6 @@ from .bridge_records import (
     BridgeConfig,
     WindowOp,
 )
-from .event_log import SOURCE_LANDSCAPE, SOURCE_PORTRAIT
 from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .media_metadata import (
     GroupIndex,
@@ -29,6 +28,7 @@ from .media_metadata import (
 )
 from .modes import collect_video_files, write_playlist_file
 from .runtime_flow import satellite_browse_paths
+from .players import Player
 from .satellite_control import read_satellite_status, write_satellite_command
 from .shared_state import BridgeState
 
@@ -36,8 +36,8 @@ logger = logging.getLogger(__name__)
 
 
 def satellite_source(which: int) -> str:
-    """The event-log source for satellite slot *which* (2=portrait, 3=landscape)."""
-    return SOURCE_PORTRAIT if which == 2 else SOURCE_LANDSCAPE
+    """The event-log source for satellite *which* — the player's own label."""
+    return Player(which).label
 
 
 def same_video(left: str, right: str) -> bool:
@@ -312,8 +312,7 @@ def group_loop(
     members = [current] + [m for m in members if normalize_path_key(m) != normalize_path_key(current)]
     write_playlist_file(config.side(which).playlist_file, members)
     send_satellite(config, which, "RELOAD_PLAYLIST")
-    label = "portrait" if which == 2 else "landscape"
-    message = f"Loop {label}: {len(members)} {axis}s"
+    message = f"Loop {Player(which).label}: {len(members)} {axis}s"
     logger.info(message)
     state = state.with_side(which, loop=axis, map_anchor=current)
     # Anchor the widen on the loop iff it is the loose family being looped, so the
@@ -364,7 +363,7 @@ def loop_cycle(
         axis = _LOOP_CYCLE[(start + step) % len(_LOOP_CYCLE)]
         if not axis:
             if running:
-                return no_loop("portrait" if which == 2 else "landscape", state, config)
+                return no_loop(which, state, config)
             continue  # nothing is looping, so the off step has nothing to switch off
         if len(_loop_members(which, axis, state, config, current)[0]) >= 2:
             return group_loop(which, axis, state, config, current)
@@ -392,7 +391,7 @@ def _browse_behind(browse: list[str], current: str) -> list[str]:
 
 
 def no_loop(
-    scope: str, state: BridgeState, config: BridgeConfig
+    which: int, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """End a group loop, returning the queue to the browse — but keep the filter.
 
@@ -402,7 +401,6 @@ def no_loop(
     satellite's own filter is kept (reset, by contrast, also clears it), so the
     restored browse still honors it.
     """
-    which = 2 if scope == "portrait" else 3
     current = satellite_current(config, which)
     side = state.side(which)
     browse = satellite_browse_paths(

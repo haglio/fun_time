@@ -19,6 +19,7 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
+from .players import Player
 from .mode_plan import STARTUP_MAIN_MODE
 from .satellites_mode import STARTUP_SATELLITES_MODE
 
@@ -46,8 +47,8 @@ class SideState:
 def _flat_field(name: str, which: int) -> str:
     """The BridgeState field holding side *which*'s *name* value."""
     if name == "locked":
-        return "locked2" if which == 2 else "locked3"
-    return f"{'portrait' if which == 2 else 'landscape'}_{name}"
+        return f"locked{int(which)}"
+    return f"{Player(which).label}_{name}"
 
 
 @dataclass

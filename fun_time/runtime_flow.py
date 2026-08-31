@@ -25,6 +25,7 @@ from .modes import (
 )
 from .broker_control import RESUME_CMD, write_broker_command
 from .omnipause import build_omnipause_plan
+from .players import Player
 from .mode_plan import build_mode_switch_plan, genau_active
 from .satellite_control import write_satellite_command
 from .watch_stats import watch_stats_path
@@ -203,7 +204,7 @@ def apply_satellite_fmode(
     """
     build_one_satellite_playlist(
         sources=sources,
-        name=PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE,
+        name=PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         f_mode=enabled,
@@ -333,8 +334,8 @@ def apply_satellite_filter(
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """
-    label = "portrait" if which == 2 else "landscape"
-    name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
+    label = Player(which).label
+    name = PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, f_mode_enabled=f_mode_enabled, recent=recent,
         sources=sources, favs_file=favs_file, state_dir=state_dir,

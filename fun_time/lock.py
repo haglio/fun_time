@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .players import Player
+
 
 @dataclass(frozen=True)
 class LockActionPlan:
@@ -35,7 +37,7 @@ def build_lock_plan(
     current_path: str,
     is_favorite: bool = False,
 ) -> LockActionPlan:
-    player_name = "portrait" if which == 2 else "landscape"
+    player_name = Player(which).label
 
     if action == "toggle-lock":
         if not locked:
