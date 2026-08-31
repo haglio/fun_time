@@ -12,7 +12,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from app_support.threading_utils import wait_until
-from fun_time.command_dispatch import BridgeConfig, WindowOp
+from fun_time.bridge_records import BridgeConfig, WindowOp
 from fun_time.shared_state import BridgeState
 from fun_time.media_metadata import normalize_path_key
 from fun_time.voice_commands import parse_command_line

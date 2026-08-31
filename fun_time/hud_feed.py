@@ -9,7 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .command_dispatch import MAIN_SIDE, BridgeConfig, side_name
+from .bridge_records import BridgeConfig
+from .command_dispatch import MAIN_SIDE, side_name
 from .shared_state import BridgeState
 from .player_status import (
     genau_status_path,

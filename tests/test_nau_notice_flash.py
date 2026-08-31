@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fun_time.command_dispatch import (
+from fun_time.bridge_records import (
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
     BridgeConfig,

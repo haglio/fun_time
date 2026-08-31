@@ -15,13 +15,8 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 
-from .command_dispatch import (
-    FAILED_NOTICE_LEVEL,
-    BridgeConfig,
-    BridgeState,
-    dispatch_command,
-    routes_to_origenerator,
-)
+from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig
+from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .event_log import FAVORITE, NOTICE, notice
 from .hud_feed import HudFeed
@@ -32,7 +27,7 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .satellites_mode import origenerator_shows
-from .shared_state import read_shared_state, write_shared_state
+from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .voice_commands import parse_command_line
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path

@@ -11,18 +11,20 @@ import logging
 
 import pytest
 
-from fun_time.command_dispatch import (
-    routes_to_origenerator,
+from fun_time.bridge_records import (
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
-    BridgeState,
     BridgeConfig,
     WindowOp,
+)
+from fun_time.command_dispatch import (
+    routes_to_origenerator,
     _cancel_lock,
     _discard,
     _toggle_lock,
     dispatch_command,
 )
+from fun_time.shared_state import BridgeState
 from fun_time.media_actions import ensure_in_favs
 from fun_time.event_log import NOTICE
 from fun_time.media_metadata import normalize_path_key

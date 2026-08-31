@@ -23,7 +23,8 @@ from unittest.mock import patch
 
 import pytest
 
-from fun_time.command_dispatch import BridgeConfig, dispatch_command
+from fun_time.bridge_records import BridgeConfig
+from fun_time.command_dispatch import dispatch_command
 from fun_time.shared_state import BridgeState
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
