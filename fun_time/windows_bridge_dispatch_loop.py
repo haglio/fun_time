@@ -95,7 +95,7 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 # word reaches whichever was last addressed, the main player included.  So is F-mode,
 # though what it narrows to differs: the favorites on a satellite, the videos
 # with a funscript on the main player.
-_PRIMARY_EQUIVALENTS = {
+_MAIN_EQUIVALENTS = {
     "next": "main_next",
     "prev": "main_prev",
     "no_loop": "nau_loop_cancel",
@@ -133,7 +133,7 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     if active_side == 1:
         # What each side-agnostic action means on the main player; anything absent
         # here simply has no main-player equivalent.
-        return _PRIMARY_EQUIVALENTS.get(action, command)
+        return _MAIN_EQUIVALENTS.get(action, command)
     prefix = "portrait_" if active_side == 2 else "landscape_"
     return prefix + action
 

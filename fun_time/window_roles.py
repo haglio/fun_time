@@ -49,11 +49,11 @@ ORIGENERATOR_ROLE_TITLES: dict[str, str] = {
 
 # The two players that share the main player's rect and therefore need
 # explicit stacking (Nau under Genau's HUD in hybrid).
-PRIMARY_SLOT_ROLES: tuple[str, ...] = ("nau", "genau")
+MAIN_SLOT_ROLES: tuple[str, ...] = ("nau", "genau")
 
 # Every window role the bridge manages, in promotion order.
 MANAGED_ROLES: tuple[str, ...] = (
-    FIXED_TOPMOST_ROLES + ORIGENERATOR_ROLES + PRIMARY_SLOT_ROLES
+    FIXED_TOPMOST_ROLES + ORIGENERATOR_ROLES + MAIN_SLOT_ROLES
 )
 
 
@@ -105,4 +105,4 @@ def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:
     policy above rather than listed again: a main-slot player is in the topmost
     band exactly when it is showing something, so the two answers cannot drift.
     """
-    return tuple(role for role in PRIMARY_SLOT_ROLES if role_topmost(role, main_mode))
+    return tuple(role for role in MAIN_SLOT_ROLES if role_topmost(role, main_mode))

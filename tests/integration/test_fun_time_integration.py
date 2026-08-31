@@ -11,7 +11,7 @@ import pytest
 
 from fun_time.media_actions import remove_from_favs
 from fun_time.satellite_control import read_satellite_status
-from fun_time.role_windows import PRIMARY_BLANK_SETTLE_S
+from fun_time.role_windows import MAIN_BLANK_SETTLE_S
 from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 from fun_time.win32 import (
     find_window_by_pid,
@@ -235,7 +235,7 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
     and the same switch is what tells the outgoing player to go black.  Minimize
     before it has painted that and the thumbnail keeps the video frame it was
     sitting on, which is the whole point of the blanking.  So the minimize is
-    held back (PRIMARY_BLANK_SETTLE_S); this measures that it really is.
+    held back (MAIN_BLANK_SETTLE_S); this measures that it really is.
     """
     s = shared_integration_session
     s.write_dashboard_command("nau_activate")
@@ -257,9 +257,9 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
         raise AssertionError("Nau never minimized after switching to genau mode")
     held = time.monotonic() - started
 
-    assert held >= PRIMARY_BLANK_SETTLE_S, (
+    assert held >= MAIN_BLANK_SETTLE_S, (
         f"Nau was minimized after {held:.3f}s, inside the "
-        f"{PRIMARY_BLANK_SETTLE_S}s it is given to paint its black"
+        f"{MAIN_BLANK_SETTLE_S}s it is given to paint its black"
     )
     s.write_dashboard_command("nau_activate")
     s.wait_for_new_log("Switched to nau mode", timeout=12)

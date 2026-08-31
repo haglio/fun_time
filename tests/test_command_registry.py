@@ -24,7 +24,7 @@ import fun_time.dashboard_actions as dashboard_actions
 from fun_time.command_reference import build_reference_sections
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
-    _PRIMARY_EQUIVALENTS,
+    _MAIN_EQUIVALENTS,
     expand_both_command,
     resolve_active_side_command,
 )
@@ -142,7 +142,7 @@ def test_the_unresolvable_active_forms_are_exactly_the_satellite_only_actions():
     _, residues = _voice_resolutions()
     for residue in residues:
         action = residue[len("active_"):]
-        assert action not in _PRIMARY_EQUIVALENTS, residue
+        assert action not in _MAIN_EQUIVALENTS, residue
         assert f"portrait_{action}" in _handler_ids(), residue
         assert f"landscape_{action}" in _handler_ids(), residue
 

@@ -99,7 +99,7 @@ _GENAU_CMD_MAP = {
     "genau_cruise_on": "CRUISE_ON",
     "genau_cruise_off": "CRUISE_OFF",
     # How long an unlocked Genau leaves each clip on screen, a second at a
-    # time; the padlock (_PRIMARY_LOCK_COMMANDS) is the switch, this is its pace.
+    # time; the padlock (_MAIN_LOCK_COMMANDS) is the switch, this is its pace.
     "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",
     "genau_clip_seconds_up": "CLIP_SECONDS_UP",
     # Condemning a clip outright — Genau's counterpart of a satellite's weird.
@@ -488,7 +488,7 @@ def _is_hud_nav_command(command: str) -> bool:
 # routing is :func:`_main_lock`'s).  The toggle is the key and the button; the
 # absolute pair is what the spoken forms send, since a speaker asks for the
 # state they want.
-_PRIMARY_LOCK_COMMANDS = {
+_MAIN_LOCK_COMMANDS = {
     "main_lock": "TOGGLE_LOCK",
     "main_lock_on": "LOCK_ON",
     "main_lock_off": "LOCK_OFF",
@@ -499,9 +499,9 @@ _PRIMARY_LOCK_COMMANDS = {
 # same way, and every ``portrait_``/``landscape_`` command does it by prefix — so
 # without the F-mode forms here, "main f mode" would be the one way of
 # addressing a player that did not leave it addressed.
-_PRIMARY_SELECTING_COMMANDS = frozenset(
+_MAIN_SELECTING_COMMANDS = frozenset(
     {"main_next", "main_prev", MAIN_RESET}
-    | set(_PRIMARY_LOCK_COMMANDS)
+    | set(_MAIN_LOCK_COMMANDS)
     | {f"main_fmode{suffix}" for suffix in ("", "_on", "_off")}
 )
 
@@ -517,7 +517,7 @@ def command_side(command: str) -> Player | None:
         return Player.PORTRAIT
     if command.startswith("landscape_"):
         return Player.LANDSCAPE
-    if command in _PRIMARY_SELECTING_COMMANDS:
+    if command in _MAIN_SELECTING_COMMANDS:
         return Player.MAIN
     return None
 
@@ -874,7 +874,7 @@ def _dispatch_main_reorder(
     """Reload the main player in a fresh order — Latest (newest-first) or Shuffle.
 
     To whichever player owns the main slot's screen, the split the lock makes (see
-    ``_PRIMARY_LOCK_COMMANDS``) and for the same reason: a browse order is about
+    ``_MAIN_LOCK_COMMANDS``) and for the same reason: a browse order is about
     what you are looking at.  Sent to Nau regardless, "main latest" said in genau
     mode rewrote a playlist for a player that was neither on screen nor playing,
     and Genau — the one actually showing — went on with the order it launched in.
@@ -1433,7 +1433,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["main_nudge_prev"] = partial(_forward_to_nau, "SEEK_BACK")
     handlers["main_nudge_next"] = partial(_forward_to_nau, "SEEK_FWD")
     handlers.update({cmd: partial(_main_lock, verb)
-                     for cmd, verb in _PRIMARY_LOCK_COMMANDS.items()})
+                     for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     # FunTimeVR's pair: projection walks flat → 180 → fisheye → MKX200 → 360 and
     # remembers the pick in the video's sidecar; recenter re-zeroes the scene
     # onto wherever the headset faces.  Desktop Nau logs both as unknown.

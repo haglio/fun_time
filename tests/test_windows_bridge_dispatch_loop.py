@@ -26,7 +26,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
 )
 from fun_time.role_windows import (
-    PRIMARY_BLANK_SETTLE_S,
+    MAIN_BLANK_SETTLE_S,
     ChildPids,
     WindowRoles,
 )
@@ -808,17 +808,17 @@ class TestDispatchLoopRunner:
             assert minimized == [], "Nau minimized before it could paint the black"
 
             # A tick inside the beat still leaves it up.
-            clock.advance(PRIMARY_BLANK_SETTLE_S / 2)
+            clock.advance(MAIN_BLANK_SETTLE_S / 2)
             runner.tick()
             assert minimized == []
 
             # The settle elapses; the next tick parks it, without activation.
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
             assert minimized == [NAU_HWND]
 
             # And it is off the list: a later tick does not park it twice.
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
 
         assert minimized == [NAU_HWND]
@@ -840,7 +840,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.set_always_on_top"), \
              patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
 
         assert NAU_HWND not in minimized, "Nau owns the display again"
@@ -896,7 +896,7 @@ class TestDispatchLoopRunner:
         assert all(kw.get("activate") is False for _, kw in minimized)
 
     def test_a_huds_minimize_button_takes_effect_without_a_settle(self, tmp_path):
-        """Unlike the main-slot swap, which waits out PRIMARY_BLANK_SETTLE_S so the
+        """Unlike the main-slot swap, which waits out MAIN_BLANK_SETTLE_S so the
         outgoing player can present its black first, nothing here has been told to
         blank — so the window goes down in the same tick as the press."""
         clock = FakeClock()
@@ -914,7 +914,7 @@ class TestDispatchLoopRunner:
 
             # Nothing was queued behind a settle either: letting one pass adds
             # no second minimize.
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
@@ -992,7 +992,7 @@ class TestDispatchLoopRunner:
             # A switch to genau parks Nau, which the settle then flushes.
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
             restored.clear()
 
@@ -1345,7 +1345,7 @@ class TestModeSwitchVisibility:
             # the black the same switch told it to before its Alt-Tab thumbnail
             # freezes (see WindowRoles.hide_after_settle).  Let that beat pass,
             # so these tests still see the whole ordered sequence.
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             runner.windows.flush_pending_hides()
 
         assert runner.state.main_mode == {

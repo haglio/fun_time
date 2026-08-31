@@ -46,7 +46,7 @@ logger = logging.getLogger(__name__)
 # first (see :meth:`WindowRoles.hide_after_settle`).  Generous next to the two
 # frames the player needs to read the verb and present the black — time nobody
 # can see, and being early is the failure it exists to avoid.
-PRIMARY_BLANK_SETTLE_S = 0.25
+MAIN_BLANK_SETTLE_S = 0.25
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ class WindowRoles:
         # here that is about elapsed time.  Injectable so a test can let it run
         # out rather than reach in and back-date the deadline.
         self._clock = clock
-        # Main-slot windows waiting out PRIMARY_BLANK_SETTLE_S before they are
+        # Main-slot windows waiting out MAIN_BLANK_SETTLE_S before they are
         # minimized, by role -> the time they are due.
         self._pending_hides: dict[str, float] = {}
         # Windows a player's own minimize button parked, kept apart from the two
@@ -206,7 +206,7 @@ class WindowRoles:
         restored, activated and promoted over the same rect, and this one has
         been demoted out of the topmost band (see :meth:`restack_main_slot`).
         """
-        self._pending_hides[role] = self._clock() + PRIMARY_BLANK_SETTLE_S
+        self._pending_hides[role] = self._clock() + MAIN_BLANK_SETTLE_S
 
     def flush_pending_hides(self) -> None:
         """Park each main-slot window whose settle time has run out."""

@@ -10,7 +10,7 @@ from __future__ import annotations
 from unittest.mock import patch
 
 from fun_time.role_windows import (
-    PRIMARY_BLANK_SETTLE_S,
+    MAIN_BLANK_SETTLE_S,
     ChildPids,
     WindowRoles,
 )
@@ -146,7 +146,7 @@ class TestParking:
             windows.flush_pending_hides()
             assert minimized == [], "Nau minimized before it could paint the black"
 
-            clock.advance(PRIMARY_BLANK_SETTLE_S)
+            clock.advance(MAIN_BLANK_SETTLE_S)
             windows.flush_pending_hides()
 
         assert minimized == [NAU_HWND]
