@@ -7,7 +7,10 @@ exactly the coupling the module was split out to prevent.
 """
 from __future__ import annotations
 
+import pytest
+
 from fun_time.voice_commands import (
+    build_voice_commands,
     VOICE_COMMANDS,
     format_spoken_command,
     parse_command_line,
@@ -478,3 +481,36 @@ def test_filter_phrases_do_not_shadow_other_commands():
     for phrase, command in filter_voice_commands().items():
         assert VOICE_COMMANDS[phrase] == command
         assert decode_filter_command(command) is not None
+
+
+class TestBuildVoiceCommands:
+    """The vocabulary as a value: built from explicit inputs, read-only, with
+    the collision guards raising from inside the builder."""
+
+    def test_builds_from_explicit_inputs_without_touching_the_module_global(self):
+        built = build_voice_commands(
+            filter_commands={"fabricated act": "filter_both_fabricated_act"},
+            clip_jump_phrases=("fabricated jump phrase",),
+        )
+        assert built["fabricated jump phrase"] == "nau_clip_jump"
+        assert built["fabricated act"] == "filter_both_fabricated_act"
+        assert "fabricated jump phrase" not in VOICE_COMMANDS
+        assert built["quit"] == "quit"
+
+    def test_the_built_vocabulary_is_read_only(self):
+        built = build_voice_commands(filter_commands={}, clip_jump_phrases=())
+        with pytest.raises(TypeError):
+            built["fabricated"] = "quit"
+
+    def test_a_hosted_phrase_colliding_with_a_session_command_refuses(self):
+        with pytest.raises(RuntimeError, match="collides with a session command"):
+            build_voice_commands(
+                filter_commands={}, clip_jump_phrases=(),
+                origenerator_phrases=("next",),
+            )
+
+    def test_a_filter_phrase_shadowing_an_existing_command_refuses(self):
+        with pytest.raises(RuntimeError, match="collide with existing voice commands"):
+            build_voice_commands(
+                filter_commands={"pause": "filter_both_pause"}, clip_jump_phrases=(),
+            )
