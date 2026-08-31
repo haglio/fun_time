@@ -467,7 +467,8 @@ _NAV_DIRECTIONS = ("left", "right", "up", "down")
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
     """``(slot, direction)`` for a ``<side>_nav_<dir>`` command, else None."""
-    for prefix, which in (("portrait_nav_", 2), ("landscape_nav_", 3)):
+    for prefix, which in (("portrait_nav_", Player.PORTRAIT),
+                          ("landscape_nav_", Player.LANDSCAPE)):
         if command.startswith(prefix):
             direction = command[len(prefix):]
             if direction in _NAV_DIRECTIONS:
@@ -1250,7 +1251,7 @@ _MODE_SWITCH_COMMANDS: dict[str, str] = {
 }
 
 
-def _transport(which: int, verb: str, state: BridgeState, config: BridgeConfig,
+def _transport(which: Player, verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Advance a satellite; navigation moves on, so a repeat-one lock goes first."""
     state = cancel_lock(which, state, config)
@@ -1410,10 +1411,10 @@ def _build_handlers() -> dict[str, Handler]:
     handlers: dict[str, Handler] = {}
     handlers.update({cmd: partial(_transport, which, verb)
                      for cmd, (which, verb) in _TRANSPORT_COMMANDS.items()})
-    handlers["portrait_lock"] = partial(_toggle_lock, 2)
-    handlers["landscape_lock"] = partial(_toggle_lock, 3)
-    handlers["portrait_trash"] = partial(_discard, 2)
-    handlers["landscape_trash"] = partial(_discard, 3)
+    handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
+    handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
+    handlers["portrait_trash"] = partial(_discard, Player.PORTRAIT)
+    handlers["landscape_trash"] = partial(_discard, Player.LANDSCAPE)
     handlers.update({cmd: partial(cycle_variant, which, kind)
                      for cmd, (which, kind) in _CYCLE_COMMANDS.items()})
     handlers.update({cmd: partial(more_seeds, which)
@@ -1502,7 +1503,9 @@ def _parsed_play_video(command: str, state: BridgeState, config: BridgeConfig,
     if "_play_video|" not in command:
         return None
     head, _, path = command.partition("|")
-    return switch_to_video(2 if head.startswith("portrait_") else 3, path, state, config)
+    return switch_to_video(
+        Player.PORTRAIT if head.startswith("portrait_") else Player.LANDSCAPE,
+        path, state, config)
 
 
 def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
@@ -1511,7 +1514,9 @@ def _parsed_lock_video(command: str, state: BridgeState, config: BridgeConfig,
     if "_lock_video|" not in command:
         return None
     head, _, path = command.partition("|")
-    return _dispatch_lock_video(2 if head.startswith("portrait_") else 3, path, state, config)
+    return _dispatch_lock_video(
+        Player.PORTRAIT if head.startswith("portrait_") else Player.LANDSCAPE,
+        path, state, config)
 
 
 def _parsed_set_volume(command: str, state: BridgeState, config: BridgeConfig,
