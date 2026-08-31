@@ -58,6 +58,8 @@ import sys
 from ctypes import wintypes
 from pathlib import Path
 
+from app_support.process_identity import STAMP_FIELD
+
 from fun_time.project_paths import PROJECT_ICON
 
 logger = logging.getLogger(__name__)
@@ -85,10 +87,10 @@ ICON_PATH = PROJECT_ICON
 _ROLE_RE = re.compile(r"^[A-Za-z]+$")
 
 # Which source the copy was made from, recorded in the copy's own version
-# resource.  Size and mtime alone cannot answer it any more -- rewriting the
-# resource changes both -- and this says more than they did: it goes stale when
-# the interpreter is upgraded AND when the label we would write here changes.
-_STAMP_FIELD = "FunTimeSource"
+# resource: size and mtime cannot answer it (rewriting the resource changes
+# both), and this also goes stale when the label we would write changes.
+# app_support's name for it, so its namer and this one read each other's.
+_STAMP_FIELD = STAMP_FIELD
 
 
 def role_exe_name(python_exe: str | Path, role: str) -> str:

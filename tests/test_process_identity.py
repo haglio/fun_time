@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
+from app_support.process_identity import STAMP_FIELD
 
 from fun_time.process_identity import (
     _STAMP_FIELD,
@@ -245,6 +246,18 @@ class TestIdentifiedPythonExe:
 
         assert identified_python_exe(source, "ClosingScreen") == str(existing)
         assert existing.is_file(), "the copy still in use was deleted"
+
+    def test_stamps_the_copies_with_the_field_app_support_uses(self):
+        """One field across the family.  This repo already launches the broker
+        through app_support's ProcessNamer, so one venv holds copies made by
+        both -- and under two field names neither implementation reads the
+        other's stamp, so each treats the other's copies as foreign, discards
+        them, and hands that launch a plain interpreter.
+
+        Scaffolding for the switch: once the fork is gone there is one
+        implementation and nothing left for it to disagree with.
+        """
+        assert _STAMP_FIELD == STAMP_FIELD
 
     def test_falls_back_rather_than_raising_on_a_role_it_cannot_name(self, tmp_path: Path):
         # A launch site is not a validation site: a bad role loses the name, not
