@@ -246,11 +246,11 @@ def test_no_plain_function_declares_an_argument_it_never_reads():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
-MAX_PROSE_LINES = 7165
+MAX_PROSE_LINES = 6849
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
-_PROSE_RATIO_AT_RATCHET = 0.4628
+_PROSE_RATIO_AT_RATCHET = 0.4553
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
