@@ -9,8 +9,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import subprocess
-import sys
 import os
 from pathlib import Path
 
@@ -37,7 +35,6 @@ from .win32_taskbar import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
 from .process_identity import prepare_orchestrator_launcher
 from .windows_bridge_orchestrator import run_session
 from app_support.logging_utils import configure_logging, install_exception_logging
-from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -83,42 +80,6 @@ def validate_config(config) -> None:
         require_file(config.paths.genau_config_path)
     require_file(config.project_dir / "fun_time" / "audio_companion_app.py")
 
-
-
-def refresh_content_blocklist(config, logger) -> None:
-    """Kick off a blocklist harvest if the last one has gone stale.
-
-    The pre-publication guard can only refuse terms it knows, so its list has to
-    keep learning from the library or it silently ages out of usefulness -- and
-    a step someone has to remember is a step that stops happening. A session
-    start is the natural moment: it is on the machine the library lives on, and
-    it happens as often as the library changes.
-
-    Costs this launch nothing. The tool returns immediately when the last
-    harvest is recent, and detaches the walk into a background process when it
-    is not, so nothing here is between the user and their session. Anything that
-    goes wrong stays a log line: a stale blocklist must never be a failed launch.
-
-    Only the real session does this, for the same reason ``stamp_shortcut_aumid``
-    only runs there: the blocklist is one file per machine, outside every
-    checkout, and a session on some other config -- an integration run's temp
-    one, a developer's alternate -- has no business rewriting it. Skipping that
-    check let a unit suite spawn a real walk of the library and leave the
-    primary checkout dirty.
-    """
-    if config.config_path != DEFAULT_CONFIG_PATH:
-        return
-    harvester = config.project_dir / "tools" / "harvest_blocklist.py"
-    if not harvester.exists():
-        return
-    try:
-        subprocess.Popen(
-            [sys.executable, str(harvester), "--if-stale", "12", "--detach", "--sync"],
-            cwd=config.project_dir,
-            **hidden_subprocess_kwargs(),
-        )
-    except OSError:
-        logger.warning("Could not start the blocklist harvest", exc_info=True)
 
 
 def run_windows_bridge(config, logger) -> int:
@@ -255,7 +216,6 @@ def main(argv: list[str] | None = None) -> int:
     # Every child below is named as it is launched; this one process cannot be,
     # because it is the one doing the naming -- see prepare_orchestrator_launcher.
     prepare_orchestrator_launcher()
-    refresh_content_blocklist(config, logger)
     return run_windows_bridge(config, logger)
 
 
