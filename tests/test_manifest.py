@@ -205,6 +205,13 @@ class TestReadingItBack:
         assert "nau_cmd_file" in str(raised.value)
         assert str(path) in str(raised.value)
 
+    def test_the_message_survives_str_without_repr_escaping(self):
+        """str() of the error is the message verbatim, so a Windows manifest
+        path keeps its single backslashes.  A KeyError base applies repr() and
+        would double every one, and the file the error names is the point of it."""
+        message = r"[runtime] nau_cmd_file missing from D:\a\fun_time\state\bridge.ini"
+        assert str(ManifestKeyMissing(message)) == message
+
     def test_a_section_this_session_does_not_read_is_left_alone(self, cfg_path, tmp_path):
         """FunTimeVR amends the built dict with a [vr] section before writing
         it, so the reader has to pass over what it does not know."""

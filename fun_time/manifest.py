@@ -147,7 +147,7 @@ def write_windows_bridge_manifest(config, destination: Path | None = None) -> Pa
     return write_manifest_data(build_windows_bridge_manifest(config), manifest_path)
 
 
-class ManifestKeyMissing(KeyError):
+class ManifestKeyMissing(LookupError):  # not KeyError: str() must be the message, not its repr()
     """A manifest that does not carry a key the session needs.
 
     Raised naming the key AND the file, because the interesting question when
