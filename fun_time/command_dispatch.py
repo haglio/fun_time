@@ -1111,6 +1111,8 @@ _ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
     # has put on that region rather than needing a second spelling.
     "portrait_latest": ("portrait", "latest"),
     "landscape_latest": ("landscape", "latest"),
+    "portrait_no_filter": ("portrait", "clear filter"),
+    "landscape_no_filter": ("landscape", "clear filter"),
 }
 
 

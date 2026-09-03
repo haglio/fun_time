@@ -210,8 +210,12 @@ def test_the_reference_and_the_handlers_agree():
 def test_the_origenerator_shadow_set_is_exactly_the_transport_and_latest_pair():
     """The routing guard runs ahead of the handler map, so the ids it may
     shadow are pinned: the five transport verbs per side, plus each side's
-    "latest" (which the hosted app answers as its newest-first listing).
-    Anything else joining the routed set must be argued here first."""
+    "latest" (which the hosted app answers as its newest-first listing) and
+    each side's "no filter" -- on a player it drops the act filter, and on a
+    hosted show it drops both switches on the show's HUD (F-mode and
+    enhanced-only), the same gesture in the same words, so one phrase serves
+    both modes.  Anything else joining the routed set must be argued here
+    first."""
     routed = set(command_dispatch._ORIGENERATOR_TRANSPORT) | set(
         command_dispatch._ORIGENERATOR_SPEECH
     )
@@ -225,4 +229,6 @@ def test_the_origenerator_shadow_set_is_exactly_the_transport_and_latest_pair():
     assert player_handled == set(command_dispatch._ORIGENERATOR_TRANSPORT) | {
         "portrait_latest",
         "landscape_latest",
+        "portrait_no_filter",
+        "landscape_no_filter",
     }, sorted(player_handled)

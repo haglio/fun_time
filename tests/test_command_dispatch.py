@@ -3876,13 +3876,33 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = BridgeState(satellites_mode="origenerator")
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
-                        "landscape_say_fix_teeth"):
+                        "landscape_say_fix_teeth", "portrait_say_enhanced_only"):
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == [
             "LANDSCAPE_SAY:favorites",
             "PORTRAIT_SAY:play slideshow",
             "LANDSCAPE_SAY:fix teeth",
+            "PORTRAIT_SAY:enhanced only",
         ]
+
+    def test_no_filter_reaches_the_hosted_show_as_clear_filter(self, tmp_path):
+        """"portrait no filter" drops a player's act filter; over a hosted show
+        the same words drop both switches on its HUD.  One phrase, one meaning
+        per mode -- and in player mode the player keeps it."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator", portrait_filter="alpha")
+
+        state, _ = dispatch_command("portrait_no_filter", state, config)
+
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]
+        assert state.portrait_filter == "alpha"     # the blacked player's own is left alone
+
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+            mock_filter.return_value = _filter_result(count=10)
+            player_state, _ = dispatch_command(
+                "portrait_no_filter", BridgeState(portrait_filter="alpha"), config)
+        assert player_state.portrait_filter == ""
+        assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]  # nothing more
 
     def test_every_spoken_phrase_has_a_command_to_dispatch(self, tmp_path):
         """The vocabulary and the routing are generated from one list, so a

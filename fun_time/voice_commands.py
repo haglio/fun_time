@@ -67,6 +67,7 @@ ORIGENERATOR_PHRASES: tuple[str, ...] = (
     # origenerator mode those same two commands are routed to the hosted app
     # instead — one phrase, one meaning per mode, rather than two spellings.
     "favorites", "experiments", "requests",
+    "enhanced only", "filter enhanced",
     # The show's own controls.
     "play slideshow", "start slideshow", "pause slideshow", "stop slideshow",
     # The commands about the picture on screen: the built-in detail parts, and
