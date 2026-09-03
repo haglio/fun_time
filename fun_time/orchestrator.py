@@ -160,26 +160,28 @@ def _taskbar_pin_dir() -> Path:
 def stamp_shortcut_aumid() -> None:
     """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    Searches the Windows taskbar pin folder for shortcuts whose name
-    contains "Fun" and stamps them with the AppUserModelID.  Failures
-    are logged but never fatal — the app still launches, just without
-    the open indicator.
+    The stem has to match "Fun Time" exactly, not merely start with it: the
+    pin folder also holds "Fun Time VR.lnk", which launches the VR session and
+    must keep an identity of its own.  Stamping by prefix would hand the
+    desktop app's windows and the VR session's windows the same AUMID, which
+    is Windows' definition of one app — one pinned button for both, lighting
+    up whichever of them the user did not start.
+
+    Only the copy under %APPDATA% is ours to touch; nothing in the repo is a
+    shortcut, since .lnk is git-ignored here.  Failures are logged but never
+    fatal — the app still launches, just without the open indicator.
     """
     from .win32 import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
 
     _log = logging.getLogger(__name__)
 
-    candidates: list[Path] = []
-
-    # Only stamp the pinned taskbar shortcut (outside the repo).
-    # The project's Fun Time.lnk is stamped once and committed.
     pin_dir = _taskbar_pin_dir()
-    if pin_dir.is_dir():
-        for lnk in pin_dir.glob("*.lnk"):
-            if lnk.stem.lower() == "fun time":
-                candidates.append(lnk)
+    if not pin_dir.is_dir():
+        return
 
-    for lnk in candidates:
+    for lnk in pin_dir.glob("*.lnk"):
+        if lnk.stem.lower() != "fun time":
+            continue
         try:
             set_shortcut_app_user_model_id(str(lnk), APP_USER_MODEL_ID)
             _log.info("Stamped AppUserModelID on %s", lnk)
