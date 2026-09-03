@@ -234,7 +234,21 @@ EndSession() {
         RequestStartupCancel()
         return
     }
+    ; Say so before going, because everything the orchestrator sees from here
+    ; is identical whether this was asked for or not: the script exits, the
+    ; closing screen goes up, the session comes down with code 0.  Without the
+    ; marker a session that died on its own reads in the log exactly like one
+    ; the user quit, which is why "it crashed" could not be checked at all.
+    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
     ExitApp()
+}
+
+; The note the orchestrator reads to tell an asked-for end from an unexpected
+; one.  It removes the file, so a session only ever finds its own.
+MarkSessionEnd(reason) {
+    global STATE_DIR
+    try FileDelete(STATE_DIR . "\session_end.txt")
+    AppendWithRetry(reason, STATE_DIR . "\session_end.txt", 3, 50)
 }
 
 ; Esc calls the launch off while the session is still assembling, and pauses it
@@ -326,6 +340,7 @@ ProcessAhkCommand() {
         Suspend false
         StartupSuspended := false
     } else if (action = "exit") {
+        MarkSessionEnd("an exit on the AHK command channel")
         ExitApp()
     }
 }

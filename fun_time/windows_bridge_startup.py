@@ -656,26 +656,21 @@ def launch_genau(
     return proc.pid
 
 
-def launch_origenerator(
+def origenerator_launch_command(
     *,
     python_exe: str | Path,
-    origenerator_dir: str | Path,
     layout_plan,
     command_file: str | Path,
     paused_file: str | Path,
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
-    project_dirs: str | None = None,
-) -> int:
-    """Launch the hosted Origenerator, returning its PID.
+) -> list[str]:
+    """The argv a session launches the hosted Origenerator with.
 
-    Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
-    window takes the RFB's rect, the shows take the two satellite region rects,
-    and the file trio is how the session drives and observes it.  Run with
-    ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
-    way its own launcher picks a checkout, and what lets a worktree of it be
-    hosted for a branch verification.  It boots parked (its own doing), so
-    nothing waits on it: the dispatch loop adopts the window when it appears.
+    Split out from :func:`launch_origenerator` so a test can run the REAL
+    command rather than a hand-written copy of it — the one that would pass
+    while production was broken.  ``tests/integration/test_origenerator_launch``
+    runs exactly this, with ``--check-launch`` appended.
     """
     rfb = layout_plan.random_favs_browser
     cmd = [
@@ -698,6 +693,15 @@ def launch_origenerator(
         "--status-file", str(status_file),
         "--dashboard-cmd-file", str(dashboard_cmd_file),
     ])
+    return cmd
+
+
+def origenerator_launch_kwargs(
+    *,
+    origenerator_dir: str | Path,
+    project_dirs: str | None = None,
+) -> dict:
+    """The environment that argv runs in — also shared with the launch test."""
     # The same checkout choice Genau, Nau and the satellites get: named
     # project dirs ride the hosted app's PYTHONPATH, so a branch of
     # player_core is the one its ensure_player_core_on_path finds (it defers
@@ -716,6 +720,37 @@ def launch_origenerator(
     if checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude":
         env = kwargs.get("env") or {**os.environ}
         kwargs["env"] = {**env, "ORIGENERATOR_BRANCH_SESSION": "1"}
+    return kwargs
+
+
+def launch_origenerator(
+    *,
+    python_exe: str | Path,
+    origenerator_dir: str | Path,
+    layout_plan,
+    command_file: str | Path,
+    paused_file: str | Path,
+    status_file: str | Path,
+    dashboard_cmd_file: str | Path,
+    project_dirs: str | None = None,
+) -> int:
+    """Launch the hosted Origenerator, returning its PID.
+
+    Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
+    window takes the RFB's rect, the shows take the two satellite region rects,
+    and the file trio is how the session drives and observes it.  Run with
+    ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
+    way its own launcher picks a checkout, and what lets a worktree of it be
+    hosted for a branch verification.  It boots parked (its own doing), so
+    nothing waits on it: the dispatch loop adopts the window when it appears.
+    """
+    cmd = origenerator_launch_command(
+        python_exe=python_exe, layout_plan=layout_plan, command_file=command_file,
+        paused_file=paused_file, status_file=status_file,
+        dashboard_cmd_file=dashboard_cmd_file,
+    )
+    kwargs = origenerator_launch_kwargs(
+        origenerator_dir=origenerator_dir, project_dirs=project_dirs)
     proc = subprocess.Popen(cmd, **kwargs)
     return proc.pid
 
