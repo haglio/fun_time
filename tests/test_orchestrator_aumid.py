@@ -48,7 +48,7 @@ def test_no_crash_when_no_shortcuts(tmp_path):
 
 
 def test_skips_unrelated_shortcuts(tmp_path):
-    """Only stamps shortcuts with 'Fun' in the name."""
+    """Another app's pin is left alone."""
     fake_pin_dir = tmp_path / "pins"
     fake_pin_dir.mkdir()
     unrelated = fake_pin_dir / "Chrome.lnk"
@@ -59,3 +59,24 @@ def test_skips_unrelated_shortcuts(tmp_path):
 
     # Unrelated shortcut should not have been stamped
     assert _read_shortcut_app_user_model_id(str(unrelated)) is None
+
+
+def test_leaves_the_vr_pin_its_own_identity(tmp_path):
+    """"Fun Time VR.lnk" starts with our name and is not ours to stamp.
+
+    Both pins sit in the same folder, so a prefix or "contains" match would
+    give the VR session the desktop app's AUMID -- and Windows reads one AUMID
+    as one app, collapsing the V and the FT into a single taskbar button.
+    """
+    fake_pin_dir = tmp_path / "pins"
+    fake_pin_dir.mkdir()
+    ours = fake_pin_dir / "Fun Time.lnk"
+    vr = fake_pin_dir / "Fun Time VR.lnk"
+    _create_lnk(ours)
+    _create_lnk(vr)
+
+    with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
+        stamp_shortcut_aumid()
+
+    assert _read_shortcut_app_user_model_id(str(ours)) == APP_USER_MODEL_ID
+    assert _read_shortcut_app_user_model_id(str(vr)) is None
