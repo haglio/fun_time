@@ -40,7 +40,7 @@ from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import LaunchManifest
 from .mode_plan import genau_active
 from .modes import collect_video_files
-from .process_identity import identified_python_exe
+from .process_identity import NAMER
 from .shared_state import shared_state_path
 from .role_windows import ChildPids, WindowRoles
 from .window_roles import ORIGENERATOR_ROLE_TITLES
@@ -276,7 +276,7 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
     progress.advance("controls")
     proc = subprocess.Popen(
         [
-            identified_python_exe(sys.executable, "ClosingScreen"),
+            NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
         ],
     )
@@ -762,7 +762,7 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
 
     loading_proc = subprocess.Popen(
         [
-            identified_python_exe(sys.executable, "LoadingScreen"),
+            NAMER.named_exe(sys.executable, "LoadingScreen"),
             "-m", "fun_time.loading_screen", str(progress_file),
         ],
     )

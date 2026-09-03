@@ -39,7 +39,7 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, SIZE_SMALL, make_f
 
 from .library_handles import LibraryHandle, build_library_handles
 from .library_tree import Folder, SubFolder, folder_at
-from .process_identity import identified_python_exe
+from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
 
 WINDOW_TITLE = "Fun Time Library"
@@ -619,7 +619,7 @@ def browse_library(
     pick_file.unlink(missing_ok=True)
 
     command = [
-        identified_python_exe(python_exe, "LibraryBrowser"),
+        NAMER.named_exe(python_exe, "LibraryBrowser"),
         "-m", "fun_time.library_browser", str(manifest_path), str(pick_file),
     ]
     if over is not None:
