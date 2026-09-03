@@ -22,27 +22,27 @@ SNAPSHOT_ENCODINGS = ("utf-8-sig", "utf-16", "utf-8")
 
 
 def decode_snapshot(raw: bytes) -> str:
-    """The snapshot's text — beside the writer, which decides the encoding."""
+    """The snapshot's text — beside the writer, which decides the encoding.
+
+    Newlines are normalized here, in the decoder every reader shares: the writer
+    opens in text mode, so on Windows its ``\n`` reaches disk as ``\r\n``.
+    """
     for encoding in SNAPSHOT_ENCODINGS:
         try:
-            return raw.decode(encoding)
+            text = raw.decode(encoding)
         except UnicodeDecodeError:
             continue
+        return text.replace("\r\n", "\n").replace("\r", "\n")
     raise UnicodeDecodeError(
         "dashboard_state", raw, 0, 1, "unable to decode dashboard snapshot")
 
 
 def _read_existing_snapshot(path: Path) -> str:
-    """What is on disk, or "" — this side never fails over a read.
-
-    Newlines normalized: `write_text` opens in text mode, so on Windows a
-    ``\n`` lands as ``\r\n`` and a raw decode never equals what we will write.
-    """
+    """What is on disk, or "" — this side never fails over a read."""
     try:
-        raw = decode_snapshot(path.read_bytes())
+        return decode_snapshot(path.read_bytes())
     except (OSError, UnicodeDecodeError):
         return ""
-    return raw.replace("\r\n", "\n").replace("\r", "\n")
 
 
 def write_dashboard_snapshot(

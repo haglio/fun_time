@@ -77,6 +77,15 @@ class TestTheSnapshotsEncoding:
         assert decode_snapshot(path.read_bytes()) == build_dashboard_snapshot_text(
             omni_paused=True)
 
+    def test_the_decoder_normalizes_the_newlines_text_mode_writes(self):
+        """`write_text` opens in text mode, so on Windows the writer's ``\n``
+        lands as ``\r\n``.  The decoder every reader shares normalizes it back,
+        so a round trip equals what the builder emits on every platform."""
+        from fun_time.dashboard_bridge import decode_snapshot
+
+        assert decode_snapshot("[voice]\r\nactive=1\r\n".encode("utf-16")) == (
+            "[voice]\nactive=1\n")
+
     @pytest.mark.parametrize("encoding", ["utf-16", "utf-8", "utf-8-sig"])
     def test_an_older_sessions_file_is_still_readable(self, tmp_path, encoding):
         """Both readers took more than the writer emits, and must keep to it."""
