@@ -194,6 +194,14 @@ p::QueueCommand("projection_cycle")
 ; runtime's own recenter menu doesn't reach this app).  Desktop Nau ignores it.
 z::QueueCommand("recenter_view")
 
+; FunTimeVR: tilt the whole arrangement up and down, for watching from a
+; recliner or flat on your back; Shift+Z stands it upright again beside Z's
+; recenter.  The headset's right thumbstick does the same thing continuously —
+; these are for the desk.  Desktop Nau ignores all three.
+PgUp::QueueCommand("tilt_up")
+PgDn::QueueCommand("tilt_down")
++z::QueueCommand("tilt_reset")
+
 ; Genau direct control hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for center and speed.
 7::QueueCommand("genau_amplitude_down")

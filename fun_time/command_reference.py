@@ -255,6 +255,13 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("Z",),
                 ("recenter_view",),
             ),
+            _Row(
+                "Tilt the VR screens up / down for watching lying back, and "
+                "level them again — the headset's right thumbstick does the "
+                "same, continuously (FunTimeVR)",
+                ("PgUp", "PgDn", "Shift+Z"),
+                ("tilt_up", "tilt_down", "tilt_reset"),
+            ),
             # Named for the playback, so it reaches the video whoever holds the
             # OSR2 — the way to nudge the rate through a Genau-driven stretch in
             # hybrid, where the bare "speed up" goes to the stroke instead.
