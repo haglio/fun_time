@@ -37,6 +37,12 @@ SPEED_STEP = 0.25
 MIN_SPEED = 0.25
 MAX_SPEED = 2.0
 
+# How far one TILT_UP/TILT_DOWN swings the arrangement, and how far it can go.
+# Straight up and straight down are the ends of the travel: past either the
+# screens would be behind the viewer, upside down.
+TILT_STEP_DEG = 5.0
+TILT_LIMIT_DEG = 90.0
+
 
 class MainRole:
     def __init__(
@@ -76,6 +82,14 @@ class MainRole:
         # only carries the request, because re-zeroing the scene onto the
         # current head pose is the host's to do — no player state moves.
         self._recenter_requested = False
+        # Unlike the recenter, the tilt is state rather than a request: the
+        # host reads it every frame and it survives a recenter, because a
+        # recenter answers "which way am I facing" and the tilt answers "how
+        # am I lying" — turning to face the door does not put the viewer
+        # upright.  It has two inputs (the verbs below and the headset
+        # controller, through nudge_tilt), so one of them has to own it, and
+        # the role is the half both can reach.
+        self._tilt_deg = 0.0
         self._load(0)
 
     # ------------------------------------------------------------------ state
@@ -87,6 +101,11 @@ class MainRole:
     @property
     def projection(self) -> str:
         return self._projection
+
+    @property
+    def tilt_deg(self) -> float:
+        """How far the arrangement is tilted from level, nose-up positive."""
+        return self._tilt_deg
 
     @property
     def has_funscript(self) -> bool:
@@ -147,6 +166,12 @@ class MainRole:
             self._cycle_projection()
         elif keyword == "RECENTER":
             self._recenter_requested = True
+        elif keyword == "TILT_UP":
+            self.nudge_tilt(TILT_STEP_DEG)
+        elif keyword == "TILT_DOWN":
+            self.nudge_tilt(-TILT_STEP_DEG)
+        elif keyword == "TILT_RESET":
+            self._tilt_deg = 0.0
         elif keyword == "SET_TCODE_ENABLED" and arg:
             enabled = arg.strip() != "0"
             # Re-enabling is a takeover — the device is wherever Genau's stroke
@@ -187,6 +212,15 @@ class MainRole:
             )
         else:
             self._driver.park(now=now)
+
+    def nudge_tilt(self, degrees: float) -> None:
+        """Swing the arrangement *degrees* further from level, within travel.
+
+        The headset controller's thumbstick comes through here too, a fraction
+        of a degree per frame, so the clamp lives in one place rather than
+        once per input.
+        """
+        self._tilt_deg = max(-TILT_LIMIT_DEG, min(TILT_LIMIT_DEG, self._tilt_deg + degrees))
 
     def take_recenter(self) -> bool:
         """Whether a RECENTER arrived since last asked (consumes the request)."""

@@ -5,6 +5,7 @@ import math
 import numpy as np
 import pytest
 
+from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
     PRIMARY_WIDTH_DEG,
     RADIUS,
@@ -153,3 +154,42 @@ class TestQuadLayerPlacement:
     def test_degenerate_aspect_is_rejected(self):
         with pytest.raises(ValueError):
             quad_layer_placement(0.0, 36.0, aspect=-1.0)
+
+    def test_tilting_lifts_the_quad_and_keeps_it_facing_the_viewer(self):
+        # Tilting is not the same as raising: the screen swings up the sphere
+        # and leans back, so its face still points at the eye rather than at
+        # the ceiling.
+        pitch = 30.0
+        position, orientation, _size = quad_layer_placement(
+            0.0, PRIMARY_WIDTH_DEG, aspect=16 / 9, scene_pitch_deg=pitch,
+        )
+        assert position == pytest.approx(
+            (0.0, RADIUS * math.sin(math.radians(pitch)),
+             -RADIUS * math.cos(math.radians(pitch))), abs=1e-6,
+        )
+        front = _rotate_by_quat(orientation, (0.0, 0.0, 1.0))
+        toward_viewer = tuple(-c / RADIUS for c in position)
+        assert front == pytest.approx(toward_viewer, abs=1e-6)
+
+    def test_the_quad_lands_where_the_eye_pass_would_draw_the_curved_screen(self):
+        # The two render paths place the screens from one fact by two routes —
+        # this quaternion and the matrix product the eye pass multiplies in.
+        # A satellite off the center line is where a disagreement in the
+        # composition order would show, so that is what this pins.
+        yaw, pitch = 40.0, -25.0
+        azimuth = satellite_center_azimuth("landscape")
+        position, _orientation, _size = quad_layer_placement(
+            azimuth, SATELLITE_WIDTH_DEG, aspect=16 / 9,
+            center_elevation_deg=SATELLITE_ELEVATION_DEG,
+            scene_yaw_deg=yaw, scene_pitch_deg=pitch,
+        )
+        untilted, _o, _s = quad_layer_placement(
+            azimuth, SATELLITE_WIDTH_DEG, aspect=16 / 9,
+            center_elevation_deg=SATELLITE_ELEVATION_DEG,
+        )
+        scene = yaw_rotation_matrix(math.radians(yaw)) @ pitch_rotation_matrix(
+            math.radians(pitch)
+        )
+        expected = scene @ np.array([*untilted, 1.0], dtype=np.float32)
+        np.testing.assert_allclose(position, expected[:3], atol=1e-6)
+

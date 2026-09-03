@@ -68,6 +68,7 @@ from . import vr_runtime
 from .furniture import chip_state, scrubber_state
 from .matrices import (
     fov_to_projection_matrix,
+    pitch_rotation_matrix,
     pose_to_view_matrix,
     yaw_of_orientation,
     yaw_rotation_matrix,
@@ -96,6 +97,15 @@ _OV_VOLUME = 12
 # fraction of full-size decode-to-texture renders.
 PRIMARY_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
+
+# The headset controller's own tilt: how fast a fully-pushed thumbstick swings
+# the arrangement, and how far off center the stick has to be before it counts.
+# GenauVR's rate, which is fast enough to cross the travel in a second and slow
+# enough to stop where you meant to.  Pushing the stick away from you raises
+# the screens, the direction TILT_UP moves them, so the two inputs never
+# disagree about which way "up" is.
+TILT_RATE_DEG_S = 85.0
+CONTROLLER_DEADZONE = 0.1
 
 # The file-channel worker's cadence: the desktop dispatch loop polls these
 # same files at ~20Hz, so 30Hz loses no responsiveness — and the render
@@ -207,15 +217,18 @@ class _VideoUnit:
             self.player.render(self.target.fbo, self.target.width, self.target.height, flip_y=True)
             self.layer_dirty = True
 
-    def layer_placement(self, azimuth_offset_deg: float = 0.0):
+    def layer_placement(self, scene_yaw_deg: float = 0.0, scene_pitch_deg: float = 0.0):
         """Pose and size for this screen's compositor quad, at the aspect its
-        swapchain content was last copied at; *azimuth_offset_deg* swings the
-        whole arrangement around the viewer (recentering)."""
+        swapchain content was last copied at; the scene angles swing the whole
+        arrangement around the viewer (recentering) and tilt it (TILT_UP and
+        the controller's thumbstick)."""
         width, height = self.layer_rect
         return quad_layer_placement(
-            self._screen_azimuth + azimuth_offset_deg, self._screen_width_deg,
+            self._screen_azimuth, self._screen_width_deg,
             aspect=width / height,
             center_elevation_deg=self._screen_elevation_deg,
+            scene_yaw_deg=scene_yaw_deg,
+            scene_pitch_deg=scene_pitch_deg,
         )
 
     def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
@@ -435,7 +448,7 @@ def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePe
 
 def _update_quad_layer(
     session, renderer: SceneRenderer, index: int, unit: _VideoUnit,
-    azimuth_offset_deg: float,
+    scene_yaw_deg: float, scene_pitch_deg: float,
 ):
     """Refresh *unit*'s quad swapchain if its texture moved, and describe the
     layer to submit — or None before the first frame of content exists."""
@@ -450,7 +463,7 @@ def _update_quad_layer(
         unit.layer_rect = (unit.target.width, unit.target.height)
     if unit.layer_rect is None:
         return None
-    position, orientation, size = unit.layer_placement(azimuth_offset_deg)
+    position, orientation, size = unit.layer_placement(scene_yaw_deg, scene_pitch_deg)
     return QuadLayer(
         swapchain_index=index, position=position, orientation=orientation, size=size,
     )
@@ -469,8 +482,8 @@ def _draw_eyes(
 ) -> None:
     """Render the projection layer's two eyes: the immersive wrap, plus every
     screen when the compositor-layer path is off (*include_screens*).
-    *scene_rotation* is the recentering yaw, identity until the first
-    RECENTER."""
+    *scene_rotation* is where the arrangement sits — the recentering yaw with
+    the tilt inside it, identity until the first RECENTER or tilt."""
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
@@ -552,11 +565,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     units: list[_VideoUnit] = [primary, *satellites]
     use_layers = vr.compositor_layers
     perf = FramePerf(logger=logger)
-    # Recentering: RECENTER re-zeroes the scene onto the head's heading at
-    # that instant, kept as both a model matrix (the eye pass) and an azimuth
-    # shift in degrees (the quad-layer poses) — one fact, two consumers.
+    # Where the arrangement sits: the recentering yaw (RECENTER re-zeroes it
+    # onto the head's heading at that instant) with the tilt inside it, which
+    # the role owns because the verbs and the controller both write it.  Two
+    # consumers read the pair each frame — a model matrix for the eye pass and
+    # the same rotation as a quaternion for the quad-layer poses.
+    scene_yaw = 0.0
     scene_rotation = np.eye(4, dtype=np.float32)
-    scene_offset_deg = 0.0
+    last_frame_time = time.monotonic()
     stop = threading.Event()
     pump_thread = start_daemon_thread(
         target=_pump_channels, args=(units, stop, perf), name="file-channels",
@@ -579,6 +595,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 time.sleep(0.01)
                 continue
 
+            now = time.monotonic()
+            frame_dt = now - last_frame_time
+            last_frame_time = now
+
             t0 = time.perf_counter()
             should_render, display_time, views = session.frame_begin()
             t1 = time.perf_counter()
@@ -593,20 +613,30 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if session.focused:
                     primary.route_audio()
                 if primary.role.take_recenter():
-                    yaw = yaw_of_orientation((
+                    scene_yaw = yaw_of_orientation((
                         views[0].pose.orientation.x, views[0].pose.orientation.y,
                         views[0].pose.orientation.z, views[0].pose.orientation.w,
                     ))
-                    scene_rotation = yaw_rotation_matrix(yaw)
-                    scene_offset_deg = -math.degrees(yaw)
-                    logger.info("Recentered the scene onto heading %.0f°", math.degrees(yaw))
+                    logger.info(
+                        "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
+                    )
+                session.sync_controller()
+                if abs(session.thumbstick_y) > CONTROLLER_DEADZONE:
+                    primary.role.nudge_tilt(
+                        session.thumbstick_y * frame_dt * TILT_RATE_DEG_S
+                    )
+                scene_pitch_deg = primary.role.tilt_deg
+                scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
+                    math.radians(scene_pitch_deg)
+                )
                 mode = immersive_mode(primary.role.projection)
                 if use_layers:
                     for index, unit in enumerate(units):
                         if unit is primary and mode is not None:
                             continue
                         quad = _update_quad_layer(
-                            session, renderer, index, unit, scene_offset_deg,
+                            session, renderer, index, unit,
+                            math.degrees(scene_yaw), scene_pitch_deg,
                         )
                         if quad is not None:
                             quads.append(quad)

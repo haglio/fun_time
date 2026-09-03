@@ -7,6 +7,7 @@ import pytest
 
 from fun_time_vr.matrices import (
     fov_to_projection_matrix,
+    pitch_rotation_matrix,
     pose_to_view_matrix,
     yaw_of_orientation,
     yaw_rotation_matrix,
@@ -112,3 +113,26 @@ class TestYaw:
         moved = mat @ np.array([0.0, 0.0, -1.0, 1.0], dtype=np.float32)
         heading = math.atan2(-moved[0], -moved[2])
         assert heading == pytest.approx(math.radians(-100.0), abs=1e-6)
+
+
+class TestPitch:
+    def test_rotation_matrix_lifts_forward_by_the_pitch(self):
+        pitch = math.radians(35.0)
+        mat = pitch_rotation_matrix(pitch)
+        forward = mat @ np.array([0.0, 0.0, -1.0, 1.0], dtype=np.float32)
+        np.testing.assert_allclose(
+            forward[:3], [0.0, math.sin(pitch), -math.cos(pitch)], atol=1e-6
+        )
+
+    def test_tilting_inside_the_yaw_leaves_the_screens_level(self):
+        # The composition order is the whole of it: yaw @ pitch tilts the
+        # arrangement about its own horizontal axis, so that axis stays level.
+        # pitch @ yaw tilts about the world's, which rolls the picture by an
+        # amount that grows with the yaw -- a screen visibly off-square.
+        yaw, pitch = math.radians(60.0), math.radians(30.0)
+        scene_right = np.array([1.0, 0.0, 0.0, 1.0], dtype=np.float32)
+        right = yaw_rotation_matrix(yaw) @ pitch_rotation_matrix(pitch) @ scene_right
+        assert right[1] == pytest.approx(0.0, abs=1e-6)
+        rolled = pitch_rotation_matrix(pitch) @ yaw_rotation_matrix(yaw) @ scene_right
+        assert abs(rolled[1]) > 0.4
+

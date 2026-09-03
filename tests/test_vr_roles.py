@@ -9,7 +9,7 @@ import pytest
 
 from fun_time.player_status import read_nau_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
-from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, MainRole
+from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
 
 
 def _never_quits() -> None:
@@ -278,6 +278,50 @@ class TestRecenter:
         role.apply_command("RECENTER", on_quit=_never_quits)
         assert role.take_recenter() is True
         assert role.take_recenter() is False
+
+
+class TestTilt:
+    def test_the_verbs_walk_the_tilt_up_and_down_in_steps(self, role_parts):
+        role, *_ = role_parts
+        assert role.tilt_deg == 0.0
+        assert role.apply_command("TILT_UP") is True
+        assert role.tilt_deg == pytest.approx(TILT_STEP_DEG)
+        role.apply_command("TILT_DOWN")
+        role.apply_command("TILT_DOWN")
+        assert role.tilt_deg == pytest.approx(-TILT_STEP_DEG)
+
+    def test_the_travel_stops_at_straight_up_and_straight_down(self, role_parts):
+        role, *_ = role_parts
+        for _ in range(int(TILT_LIMIT_DEG / TILT_STEP_DEG) + 20):
+            role.apply_command("TILT_UP")
+        assert role.tilt_deg == pytest.approx(TILT_LIMIT_DEG)
+        for _ in range(int(2 * TILT_LIMIT_DEG / TILT_STEP_DEG) + 20):
+            role.apply_command("TILT_DOWN")
+        assert role.tilt_deg == pytest.approx(-TILT_LIMIT_DEG)
+
+    def test_the_controller_shares_the_one_angle_and_its_clamp(self, role_parts):
+        role, *_ = role_parts
+        role.apply_command("TILT_UP")
+        role.nudge_tilt(0.4)
+        assert role.tilt_deg == pytest.approx(TILT_STEP_DEG + 0.4)
+        role.nudge_tilt(1000.0)
+        assert role.tilt_deg == pytest.approx(TILT_LIMIT_DEG)
+
+    def test_reset_puts_the_screens_back_level(self, role_parts):
+        role, *_ = role_parts
+        role.apply_command("TILT_DOWN")
+        assert role.apply_command("TILT_RESET") is True
+        assert role.tilt_deg == 0.0
+
+    def test_a_recenter_leaves_the_tilt_alone(self, role_parts):
+        # Turning to face another way says nothing about how the viewer is
+        # lying, so re-zeroing the heading must not stand the screens up.
+        role, *_ = role_parts
+        role.apply_command("TILT_DOWN")
+        tilted = role.tilt_deg
+        role.apply_command("RECENTER")
+        role.take_recenter()
+        assert role.tilt_deg == pytest.approx(tilted)
 
 
 class TestTCode:
