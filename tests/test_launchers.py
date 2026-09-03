@@ -95,17 +95,34 @@ def test_branch_launcher_runs_branch_session_from_the_primary():
 
 
 def test_branch_launcher_watches_the_worktrees_sentinels_not_the_primarys():
-    """It reuses launch.vbs's sentinel names, kept apart by *directory*: the
-    branch session's state dir is inside the worktree, so that is where it
-    writes ``launcher.ready`` and where the launcher must look.  Watching the
-    the primary checkout's would let the live session's leftovers vouch for a branch launch
-    that never got off the ground."""
+    """It reuses the desktop launcher's sentinel names, kept apart by
+    *directory*: the branch session's state dir is inside the worktree, so that
+    is where it writes ``launcher.ready`` and where the launcher must look.
+    Watching the primary checkout's would let the live session's leftovers vouch
+    for a branch launch that never got off the ground.  The three names are
+    built from one stem so a VR branch watches its own trio rather than the
+    desktop's."""
     text = _text("launch_branch.vbs")
 
     assert 'stateDir = fso.BuildPath(worktree, "state")' in text
-    assert 'readyFile = fso.BuildPath(stateDir, "launcher.ready")' in text
-    assert 'exitedFlag = fso.BuildPath(stateDir, "launcher.exited")' in text
-    assert 'launchLog = fso.BuildPath(stateDir, "launcher.log")' in text
+    for name in ("launcher", "vr_launcher"):
+        assert f'readyFile = fso.BuildPath(stateDir, "{name}.ready")' in text
+        assert f'exitedFlag = fso.BuildPath(stateDir, "{name}.exited")' in text
+        assert f'launchLog = fso.BuildPath(stateDir, "{name}.log")' in text
+
+
+def test_branch_launcher_aims_at_the_headset_when_the_shortcut_says_so():
+    """The VR shortcut passes one more argument, and that is the whole
+    difference: the same launcher, the same worktree, ``--vr`` through to
+    branch_session -- which swaps the entry point -- and the VR trio of
+    sentinels, because FunTimeVR's orchestrator writes ``vr_launcher.ready``
+    rather than the desktop one's marker.  Watching the wrong one would pop the
+    failure dialog over a session that had started perfectly well."""
+    text = _text("launch_branch.vbs")
+
+    assert '"--vr"' in text
+    assert 'fso.BuildPath(stateDir, "vr_launcher.ready")' in text
+    assert "Fun Time VR" in text
 
 
 def test_branch_launcher_takes_the_worktree_from_the_shortcut_that_ran_it():

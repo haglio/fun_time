@@ -448,6 +448,45 @@ def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary
 
 
 @pytestmark_shortcut
+def test_a_vr_shortcut_names_itself_and_asks_the_launcher_for_the_headset(primary_with_launcher):
+    """The one file he double-clicks to see a VR branch: same launcher, same
+    worktree, one more argument — and the V so it reads as FunTimeVR in the
+    folder rather than as another Fun Time."""
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary, vr=True
+    )
+
+    assert written == primary_with_launcher.primary / "Verify example-newer in VR.lnk"
+    target, arguments = branch_session._read_shortcuts(primary_with_launcher.primary)[written]
+    assert Path(target).name.lower() == "wscript.exe"
+    assert branch_session.LAUNCHER_NAME in arguments
+    assert branch_session.VR_LAUNCH_FLAG in arguments
+    # Still discoverable as this module's, and still mapped to its worktree, so
+    # the sweep and the removal reach it exactly as they reach the desktop one.
+    assert branch_session._generated_shortcuts(primary_with_launcher.primary) == {
+        written: primary_with_launcher.newer.resolve()
+    }
+
+
+@pytestmark_shortcut
+def test_both_flavours_of_one_branch_come_back_out_together(primary_with_launcher):
+    """A branch can have had both left for him; landing it should clear both."""
+    desktop = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+    headset = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary, vr=True
+    )
+
+    removed = branch_session.remove_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert sorted(removed) == sorted([desktop, headset])
+    assert not desktop.exists() and not headset.exists()
+
+
+@pytestmark_shortcut
 def test_a_shortcut_for_a_deleted_worktree_is_cleared_away(primary_with_launcher):
     """Worktrees go when their branch lands, and this repo carries dozens of
     them — without a sweep his folder fills with files that can only fail."""
@@ -499,6 +538,14 @@ def test_a_branch_name_becomes_a_filename_windows_will_take():
     """Branch names carry slashes; filenames may not."""
     assert branch_session.shortcut_name(Path("C:/wt"), "claude/some-branch") == (
         "Verify claude-some-branch.lnk"
+    )
+
+
+def test_a_vr_branch_says_so_in_its_own_filename():
+    """A VR branch and a desktop one can be in flight at once, and they are two
+    different sessions — so the file he double-clicks has to say which."""
+    assert branch_session.shortcut_name(Path("C:/wt"), "claude/some-branch", vr=True) == (
+        "Verify claude-some-branch in VR.lnk"
     )
 
 
@@ -669,7 +716,7 @@ def test_an_agent_takes_its_shortcut_back_out_once_the_work_lands(primary_with_l
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
 
-    assert removed == written
+    assert removed == [written]
     assert not written.exists()
 
 
@@ -698,7 +745,7 @@ def test_removing_a_shortcut_that_was_never_written_is_not_an_error(primary_with
     ever made one."""
     assert branch_session.remove_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
-    ) is None
+    ) == []
 
 
 def _write_origenerator_override(checkouts, text: str) -> None:
@@ -761,3 +808,43 @@ def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch
     config = branch_session.apply_origenerator_dir_override(load_config(cfg_path))
 
     assert config.paths.origenerator_dir is None  # the config's own answer stands
+
+
+class _RecordedRun:
+    """Stands in for subprocess.run, keeping what launch() asked for."""
+
+    def __init__(self):
+        self.command: list[str] | None = None
+        self.cwd: str | None = None
+
+    def __call__(self, command, cwd=None, check=False):
+        self.command, self.cwd = list(command), cwd
+        return SimpleNamespace(returncode=0)
+
+
+def _launch_recorded(monkeypatch, tmp_path: Path, **kwargs) -> _RecordedRun:
+    recorded = _RecordedRun()
+    monkeypatch.setattr(
+        branch_session, "build_branch_config", lambda worktree, **_: tmp_path / "cfg.json"
+    )
+    monkeypatch.setattr(branch_session.subprocess, "run", recorded)
+    branch_session.launch(tmp_path, **kwargs)
+    return recorded
+
+
+def test_a_branch_session_runs_the_desktop_orchestrator(monkeypatch, tmp_path: Path):
+    recorded = _launch_recorded(monkeypatch, tmp_path)
+
+    assert "fun_time.orchestrator" in recorded.command
+    assert recorded.cwd == str(tmp_path.resolve())
+
+
+def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Path):
+    """The whole of what --vr changes: same config, same working directory that
+    swaps the code, a different entry point on top of it."""
+    recorded = _launch_recorded(monkeypatch, tmp_path, vr=True)
+
+    assert "fun_time_vr.orchestrator" in recorded.command
+    assert "fun_time.orchestrator" not in recorded.command
+    assert recorded.cwd == str(tmp_path.resolve())
+

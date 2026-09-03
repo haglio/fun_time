@@ -21,16 +21,33 @@ If WScript.Arguments.Count < 1 Then
 End If
 
 worktree = WScript.Arguments(0)
-If WScript.Arguments.Count > 1 Then
+
+' Which session this shortcut is for. The VR flavour passes "--vr" after the
+' branch, so one launcher serves both and there is one sweep, one stale check
+' and one failure dialog to keep right instead of two.
+isVR = False
+For argIndex = 1 To WScript.Arguments.Count - 1
+  If LCase(WScript.Arguments(argIndex)) = "--vr" Then isVR = True
+Next
+
+If WScript.Arguments.Count > 1 And LCase(WScript.Arguments(1)) <> "--vr" Then
   branchLabel = WScript.Arguments(1)
 Else
   branchLabel = worktree
 End If
 
+If isVR Then
+  appName = "Fun Time VR"
+  sessionFlag = " --vr"
+Else
+  appName = "Fun Time"
+  sessionFlag = ""
+End If
+
 If Not fso.FolderExists(worktree) Then
   MsgBox "That branch's worktree is gone:" & vbCrLf & worktree & vbCrLf & vbCrLf & _
          "It was probably deleted when the branch landed, in which case the work " & _
-         "is already in Fun Time. This shortcut can be deleted.", vbCritical, "Fun Time"
+         "is already in Fun Time. This shortcut can be deleted.", vbCritical, appName
   WScript.Quit 1
 End If
 
@@ -41,7 +58,7 @@ End If
 ' is the PRIMARY checkout's venv: a worktree has none of its own.
 pythonExe = fso.BuildPath(scriptDir, ".venv\Scripts\python.exe")
 If Not fso.FileExists(pythonExe) Then
-  MsgBox "Fun Time's virtual environment is missing:" & vbCrLf & pythonExe, vbCritical, "Fun Time"
+  MsgBox appName & "'s virtual environment is missing:" & vbCrLf & pythonExe, vbCritical, appName
   WScript.Quit 1
 End If
 
@@ -51,9 +68,19 @@ End If
 ' logs out of the live session's state.
 stateDir = fso.BuildPath(worktree, "state")
 If Not fso.FolderExists(stateDir) Then fso.CreateFolder stateDir
-launchLog = fso.BuildPath(stateDir, "launcher.log")
-readyFile = fso.BuildPath(stateDir, "launcher.ready")
-exitedFlag = fso.BuildPath(stateDir, "launcher.exited")
+' FunTimeVR's orchestrator drops vr_launcher.ready, not the desktop marker, so
+' a VR launch watched for the wrong file would pop "failed to start" over a
+' session that had come up perfectly well.  Spelled out either side rather than
+' built from a stem, so every name a launcher answers to can still be grepped.
+If isVR Then
+  launchLog = fso.BuildPath(stateDir, "vr_launcher.log")
+  readyFile = fso.BuildPath(stateDir, "vr_launcher.ready")
+  exitedFlag = fso.BuildPath(stateDir, "vr_launcher.exited")
+Else
+  launchLog = fso.BuildPath(stateDir, "launcher.log")
+  readyFile = fso.BuildPath(stateDir, "launcher.ready")
+  exitedFlag = fso.BuildPath(stateDir, "launcher.exited")
+End If
 If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
 If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
 
@@ -61,7 +88,7 @@ If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
 ' and only the session underneath it is the branch's (branch_session starts the
 ' orchestrator with its working directory in the worktree).
 cmd = "cmd /c cd /d """ & scriptDir & """ && """ & pythonExe & _
-      """ -m fun_time.branch_session """ & worktree & """ > """ & launchLog & _
+      """ -m fun_time.branch_session """ & worktree & """" & sessionFlag & " > """ & launchLog & _
       """ 2>&1 & type nul > """ & exitedFlag & """"
 shell.Run cmd, 0, False
 
@@ -84,11 +111,11 @@ Do
 Loop
 
 If Not started Then
-  msg = "Fun Time failed to start on " & branchLabel & "." & vbCrLf & vbCrLf & _
+  msg = appName & " failed to start on " & branchLabel & "." & vbCrLf & vbCrLf & _
         "See the full log at:" & vbCrLf & launchLog
   tail = LastLinesOf(launchLog, 15)
   If Len(tail) > 0 Then msg = msg & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
-  MsgBox msg, vbCritical, "Fun Time"
+  MsgBox msg, vbCritical, appName
 End If
 
 ' Return the tail of a text file (up to maxLines non-blank-terminated lines), so

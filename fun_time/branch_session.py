@@ -76,6 +76,13 @@ LAUNCHER_NAME = "launch_branch.vbs"
 SHORTCUT_PREFIX = "Verify "
 SHORTCUT_SUFFIX = ".lnk"
 
+SHORTCUT_VR_INFIX = " in VR"
+VR_LAUNCH_FLAG = "--vr"
+VR_ICON_NAME = "vr_icon.ico"
+DESKTOP_ICON_NAME = "icon.ico"
+
+RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
+
 STATE_DIRNAME = "state"
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
@@ -489,7 +496,10 @@ def build_branch_config(
     return destination
 
 
-def launch(worktree: Path, **kwargs) -> int:
+ORCHESTRATOR_MODULES = {False: "fun_time.orchestrator", True: "fun_time_vr.orchestrator"}
+
+
+def launch(worktree: Path, *, vr: bool = False, **kwargs) -> int:
     """Build the branch config and run a session on it out of *worktree*.
 
     The orchestrator starts on *this* interpreter — the primary checkout's venv,
@@ -505,7 +515,7 @@ def launch(worktree: Path, **kwargs) -> int:
     """
     worktree = worktree.resolve()
     config_path = build_branch_config(worktree, **kwargs)
-    command = [sys.executable, "-m", "fun_time.orchestrator", "--config", str(config_path)]
+    command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
     return subprocess.run(command, cwd=str(worktree), check=False).returncode
 
@@ -580,16 +590,17 @@ def current_branch(worktree: Path) -> str:
     return DETACHED if name == "HEAD" else name
 
 
-def shortcut_name(worktree: Path, branch: str) -> str:
+def shortcut_name(worktree: Path, branch: str, *, vr: bool = False) -> str:
     """What the generated launcher for *worktree* is called in Explorer.
 
     The branch name, because that is what an agent tells him it made — a
     worktree's directory name is a slug he has never seen.  Slashes and the
-    other characters Windows reserves become dashes, and a worktree on no
-    branch at all falls back to its directory.
+    other characters Windows reserves become dashes, a worktree on no branch at
+    all falls back to its directory, and a *vr* one says so.
     """
     name = worktree.name if branch == DETACHED else branch
-    return f"{SHORTCUT_PREFIX}{re.sub(r'[<>:"/\\|?*]', '-', name).strip()}{SHORTCUT_SUFFIX}"
+    stem = re.sub(RESERVED_IN_FILENAMES, "-", name).strip()
+    return f"{SHORTCUT_PREFIX}{stem}{SHORTCUT_VR_INFIX if vr else ''}{SHORTCUT_SUFFIX}"
 
 
 def _ps_quote(value: str) -> str:
@@ -664,7 +675,9 @@ def prune_stale_shortcuts(primary: Path) -> list[Path]:
     return removed
 
 
-def write_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Path:
+def write_launch_shortcut(
+    worktree: Path, *, primary: Path | None = None, vr: bool = False
+) -> Path:
     """Put a double-clickable launcher for *worktree* in the primary checkout.
 
     This is how a branch reaches him: an agent makes one of these, names the
@@ -684,22 +697,25 @@ def write_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Pat
             "carries the branch launcher before a shortcut to it can run."
         )
     branch = current_branch(worktree)
-    destination = primary / shortcut_name(worktree, branch)
+    destination = primary / shortcut_name(worktree, branch, vr=vr)
+    arguments = [str(launcher), str(worktree), branch]
+    if vr:
+        arguments.append(VR_LAUNCH_FLAG)
     _write_shortcut(
         destination,
         # wscript rather than the .vbs itself: a shortcut's target has to be an
         # executable for arguments to reach the script.
         target=str(Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32" / "wscript.exe"),
-        arguments=subprocess.list2cmdline([str(launcher), str(worktree), branch]),
+        arguments=subprocess.list2cmdline(arguments),
         working_dir=str(primary),
-        icon=str(primary / "icon.ico"),
-        description=f"Run Fun Time on {branch}",
+        icon=str(primary / (VR_ICON_NAME if vr else DESKTOP_ICON_NAME)),
+        description=f"Run Fun Time{' VR' if vr else ''} on {branch}",
     )
     prune_stale_shortcuts(primary)
     return destination
 
 
-def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Path | None:
+def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> list[Path]:
     """Take *worktree*'s launcher back out of the primary checkout.
 
     An agent's last step once its work has landed: the branch is in Fun Time by
@@ -709,17 +725,17 @@ def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> Pa
     days away, and it is his folder in the meantime.
 
     Matched by the worktree the shortcut runs rather than by its name, so a
-    branch renamed since makes no difference.  Returns what was removed, or
-    ``None`` if there was nothing.  Run it before removing the worktree: from a
-    directory that is gone there is no package left to run it with.
+    branch renamed since makes no difference, and both flavours go.  Returns what
+    was removed, empty if there was nothing.  Run it before removing the
+    worktree: from a gone directory there is no package left to run it with.
     """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
-    removed: Path | None = None
+    removed: list[Path] = []
     for path, target in _generated_shortcuts(primary).items():
         if target == worktree:
             path.unlink()
-            removed = path
+            removed.append(path)
     prune_stale_shortcuts(primary)
     return removed
 
@@ -765,6 +781,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Take WORKTREE's launcher (default: this checkout's) back out of the primary "
              "once its work has landed, and exit.",
     )
+    ap.add_argument(
+        "--vr",
+        action="store_true",
+        help="Aim at the headset: FunTimeVR's orchestrator instead of the desktop one, "
+             "and a launcher named for it. Applies to --shortcut and to running a session.",
+    )
     return ap
 
 
@@ -778,7 +800,7 @@ def main(argv: list[str] | None = None) -> int:
         sys.stdout.reconfigure(errors="replace")
     if args.shortcut:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
-        print(write_launch_shortcut(target))
+        print(write_launch_shortcut(target, vr=args.vr))
         print(sibling_checkouts_line(target, primary_checkout()))
         return 0
     if args.remove_shortcut:
@@ -786,11 +808,14 @@ def main(argv: list[str] | None = None) -> int:
             config_module.PROJECT_DIR if args.remove_shortcut == "." else Path(args.remove_shortcut)
         )
         removed = remove_launch_shortcut(target)
-        print(removed if removed else f"No launcher was there for {target}")
+        for path in removed:
+            print(path)
+        if not removed:
+            print(f"No launcher was there for {target}")
         return 0
     if not args.worktree:
         parser.error("give the worktree to run a session from, or --shortcut to make its launcher")
-    return launch(Path(args.worktree))
+    return launch(Path(args.worktree), vr=args.vr)
 
 
 if __name__ == "__main__":
