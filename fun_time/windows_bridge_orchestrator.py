@@ -140,6 +140,36 @@ def write_pids_file(path: Path, children: dict[str, ChildProcess]) -> None:
         parser.write(fp)
 
 
+SESSION_END_MARKER = "session_end.txt"
+
+
+def _describe_session_end(state_dir: Path, exit_code: int) -> str:
+    """In one phrase, what ended the session -- read from the marker the quit
+    chord leaves, then removed so the next session starts with none.
+
+    An unexpected end is worth saying loudly precisely because everything else
+    about it looks ordinary: the same closing screen, the same exit code, the
+    same "AHK exited" line.  Without this the only evidence a session died on
+    its own was the user noticing it was gone.
+    """
+    marker = state_dir / SESSION_END_MARKER
+    try:
+        reason = marker.read_text(encoding="utf-8").strip()
+    except OSError:
+        reason = ""
+    try:
+        marker.unlink(missing_ok=True)
+    except OSError:
+        # Something else is at that path, or holding it.  The line below is
+        # still worth logging, and a shutdown never fails over a note.
+        logger.warning("Could not clear %s", marker, exc_info=True)
+    if reason:
+        return f"asked to end: {reason}"
+    if exit_code:
+        return "the hotkey script FAILED -- see its own MsgBox/exit path"
+    return "UNEXPECTED -- nothing asked it to end; the hotkey script exited on its own"
+
+
 def kill_recorded_child(child: ChildProcess) -> None:
     """Kill *child* and its descendants, but only if its PID still names it."""
     if not child.pid:
@@ -1016,6 +1046,16 @@ def run_python_orchestrated_bridge(
 
     try:
         exit_code = ahk_proc.wait()
+        # WHY the session is ending, which the log could not say before.  A
+        # session that vanishes and one the user quit produce the same lines
+        # from here down -- the hotkey script exits either way, the closing
+        # screen goes up either way, and the orchestrator returns 0 either way
+        # -- so a report of "it crashed" had nothing in the log to confirm or
+        # deny it.  The quit chord stamps a marker on its way out (see
+        # windows_bridge_hotkeys.ahk, EndSession); no marker and the script is
+        # gone anyway means it went down on its own.
+        logger.info("Hotkey script exited with code %s (%s)", exit_code,
+                    _describe_session_end(state_dir, exit_code))
     except KeyboardInterrupt:
         logger.info("Interrupted — shutting down")
         exit_code = 1
