@@ -35,11 +35,11 @@ class TestTheStringsOtherLanguagesMatchOn:
 
     def test_the_sweep_pattern_is_the_one_the_sweeps_were_written_against(self):
         # Spelled out rather than derived, because a derivation would agree with
-        # itself after any change.  This is what fun_time's own copy of the
-        # namer produced before app_support's replaced it, and what the running
-        # sweeps match today.
+        # itself after any change.  app_support's namer escapes the prefix --
+        # re.escape turns the hyphen into ``\-`` -- and this is the exact string
+        # the running sweeps match today.
         assert NAMER.process_name_pattern == (
-            r"^pythonw?\.exe$|^py\.exe$|^FunTime-[A-Za-z]+\.exe$")
+            r"^pythonw?\.exe$|^py\.exe$|^FunTime\-[A-Za-z]+\.exe$")
 
     def test_the_satellite_reap_is_the_sweep_that_carries_it(self):
         # Pinning the string proves nothing on its own: a sweep that stopped

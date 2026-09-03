@@ -1938,7 +1938,8 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             reap_orphaned_satellites("satellite", [tmp_path / "portrait_status.txt"])
 
         ps_command = run.call_args[0][0][-1]
-        assert "FunTime-" in ps_command
+        # app_support's namer escapes the prefix, so the sweep carries FunTime\-.
+        assert r"FunTime\-" in ps_command
         assert "pythonw?" in ps_command
 
 
