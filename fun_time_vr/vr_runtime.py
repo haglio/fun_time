@@ -7,8 +7,7 @@ runtime at all, a runtime whose headset is off, or ready to render.
 
 Adapted from GenauVR's proven probe (genau_vr.vr_runtime), with ``xr``
 imported lazily so the pure callers of this package never pay for the OpenXR
-loader; consolidating the two copies into a shared sibling is part of the
-planned GenauVR-engine extraction.
+loader.
 """
 from __future__ import annotations
 
@@ -43,19 +42,6 @@ _LAUNCHER_RELATIVE_PATHS = (
 
 _UNKNOWN_FAILURE = "VR could not be started."
 
-_EXPLANATIONS = {
-    "no_headset": (
-        "No VR headset is answering.\n\n"
-        "Power the headset on and connect it, then start FunTimeVR again."
-    ),
-    "no_runtime": (
-        "No OpenXR runtime is available.\n\n"
-        "Install or start your VR runtime (PimaxXR, SteamVR), then start "
-        "FunTimeVR again."
-    ),
-}
-
-
 class Readiness(Enum):
     """How far the OpenXR stack got before it stopped answering."""
 
@@ -63,6 +49,20 @@ class Readiness(Enum):
     NO_RUNTIME = "no_runtime"
     NO_HEADSET = "no_headset"
     FAILED = "failed"
+
+
+# Keyed by the member: a typo is a NameError, not wording nothing finds.
+_EXPLANATIONS = {
+    Readiness.NO_HEADSET: (
+        "No VR headset is answering.\n\n"
+        "Power the headset on and connect it, then start FunTimeVR again."
+    ),
+    Readiness.NO_RUNTIME: (
+        "No OpenXR runtime is available.\n\n"
+        "Install or start your VR runtime (PimaxXR, SteamVR), then start "
+        "FunTimeVR again."
+    ),
+}
 
 
 @dataclass(frozen=True)
@@ -211,5 +211,5 @@ def explain(result: Probe) -> str:
     Falls back rather than raising on a readiness it has no wording for: this
     runs on the error path, and a crash here is the silent failure it replaces.
     """
-    lead = _EXPLANATIONS.get(result.readiness.value, _UNKNOWN_FAILURE)
+    lead = _EXPLANATIONS.get(result.readiness, _UNKNOWN_FAILURE)
     return f"{lead}\n\nDetail: {result.detail}"

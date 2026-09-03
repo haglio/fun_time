@@ -61,6 +61,18 @@ def _announce_waiting(seconds: float) -> None:
 
 
 @pytest.fixture(autouse=True)
+def _never_inherit_the_integration_flag():
+    """Override the unit suite's flag scrub.
+
+    The hidden-desktop runner exported ``FUN_TIME_RUN_INTEGRATION`` on
+    purpose, and every production branch under test here reads it live —
+    scrubbing it per test would run the session with the real focus steals
+    and activations the flag exists to suppress.
+    """
+    yield
+
+
+@pytest.fixture(autouse=True)
 def _never_mutate_a_real_window():
     """Override the unit suite's window-mutation guard.
 

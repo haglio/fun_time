@@ -12,13 +12,11 @@ command and group the rows into sections.  Voice phrases are *derived* from
 (``tests/test_command_reference.py``) parses the AHK script and cross-checks
 ``VOICE_COMMANDS`` to guarantee every real trigger is represented here.
 
-The satellites get ONE section.  Every satellite action answers to the same
+The satellites get ONE section: every satellite action answers to the same
 phrase four ways over — bare, or with "portrait", "landscape" or "both" before
-or after it — and Portrait, Landscape, Both, Active side and Filters each used
-to print that whole grid again under its own heading.  It is authored once now,
-with a key column per side and a note carrying the scoping rule, and the Say
-column shows the action alone (see :func:`_collapse_scopes`).  Five copies
-taught nothing the later four times and were free to drift apart.
+or after it — so the grid is authored once, with a key column per side, a note
+carrying the scoping rule, and the Say column showing the action alone (see
+:func:`_collapse_scopes`).
 """
 from __future__ import annotations
 
@@ -27,7 +25,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
-from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
+from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS, friendly_voice
 
 
 @dataclass(frozen=True)
@@ -35,7 +33,6 @@ class CommandRef:
     """One reference row: an action and every way to trigger it."""
 
     description: str
-    hotkeys: tuple[str, ...]
     voice: tuple[str, ...]
     commands: tuple[str, ...]
     # ``hotkeys`` split across the section's key columns — one entry per column,
@@ -387,40 +384,6 @@ _SECTIONS: tuple[_Section, ...] = (
 )
 
 
-# vosk can't hear "nau"/"genau", so mode-named phrases use the mode-activation
-# sound-alikes as their recognizer form.  Show the friendly mode name in the
-# reference instead of the raw sound-alike (e.g. "nau mode next", not "now mode
-# next").  The sound-alikes only appear inside these derived nav phrases — the
-# mode-activation rows themselves render via voice_display — so a plain replace
-# is safe.
-_VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
-    ("go now", "genau"),
-    ("now mode", "nau mode"),
-    # vosk has no "hotkeys" token, so the recognizer listens for "hot keys";
-    # the reference shows the single-word "hotkeys".
-    ("hot keys", "hotkeys"),
-    # Likewise no "unmute" token — but there is "un", so the recognizer hears
-    # the two-word "un mute" and the reference shows "unmute".
-    ("un mute", "unmute"),
-    ("un pause", "unpause"),
-    # …nor "funscript", though it has both halves, so the recognizer hears the
-    # split "fun script" and the reference shows the single word.  One rewrite
-    # covers "next fun scripted" too, since "fun script" sits inside it.
-    ("fun script", "funscript"),
-    # …nor "omnipause", though it has both halves, so the recognizer hears the
-    # split "omni pause" and the reference shows the single word.  Listed after
-    # "un pause" so that rewrite has already run and cannot re-split this one.
-    ("omni pause", "omnipause"),
-)
-
-
-def friendly_voice(phrase: str) -> str:
-    """Rewrite a recognizer phrase's vosk sound-alikes to the friendly names."""
-    for raw, nice in _VOICE_DISPLAY_ALIASES:
-        phrase = phrase.replace(raw, nice)
-    return phrase
-
-
 #: The words that aim a satellite phrase at a scope.  "active" is not among them:
 #: it is the scope you get by saying none of these.
 _SCOPE_WORDS = frozenset(("portrait", "landscape", "both"))
@@ -483,7 +446,6 @@ def build_reference_sections() -> tuple[ReferenceSection, ...]:
         refs = tuple(
             CommandRef(
                 description=row.description,
-                hotkeys=row.hotkeys + row.hotkeys_alt,
                 voice=_display_voice(row, merge_scopes=section.merge_scopes),
                 commands=row.commands,
                 key_columns=(
@@ -523,11 +485,11 @@ def _keycap(label: str) -> str:
     )
 
 
-def _cell(content: str, *, color: str = _TEXT, width: str = "") -> str:
+def _cell(content: str, *, width: str = "") -> str:
     width_attr = f' width="{width}"' if width else ""
     return (
         f'<td valign="top"{width_attr} '
-        f'style="padding:3px 8px;color:{color}">{content}</td>'
+        f'style="padding:3px 8px;color:{_TEXT}">{content}</td>'
     )
 
 
@@ -587,7 +549,7 @@ def render_reference_html() -> str:
                 "<tr>"
                 + _cell(html.escape(row.description))
                 + keys
-                + _cell(phrases, color=_TEXT, width=say_width)
+                + _cell(phrases, width=say_width)
                 + "</tr>"
             )
         parts.append("</table>")

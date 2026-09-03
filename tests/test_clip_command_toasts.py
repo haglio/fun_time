@@ -3,29 +3,17 @@ from __future__ import annotations
 from fun_time.voice_commands import SELF_REPORTING_COMMANDS, VOICE_COMMANDS
 
 
-def test_the_self_reporting_commands_flash_their_own_outcome():
-    """Nau flashes the outcome of the clip and funscript jumps, and the dispatch
-    flashes F-mode's (green on, red off) and a discard's ("Unfavorited" vs "Marked
-    weird").  Fun Time must not also echo a green "I heard you" on top — that
-    stacked a confirmation under a red correction."""
-    assert SELF_REPORTING_COMMANDS == {
+def test_the_clip_and_funscript_jumps_flash_their_own_outcome():
+    """Nau flashes the outcome of the clip and funscript jumps itself, so Fun
+    Time must not also echo a green "I heard you" on top — that stacked a
+    confirmation under a red correction.  (The old version of this test
+    restated the constant's whole definition, comprehensions included, so any
+    edit failed it and the fix was pasting the new value in; the family-wide
+    memberships are the tests below.)"""
+    assert {
         "nau_compilation", "nau_full_vid", "nau_clip_jump",
         "nau_funscript_jump", "nau_next_funscripted",
-        "portrait_trash", "landscape_trash", "active_trash", "both_trash",
-        "portrait_wrong_action", "landscape_wrong_action",
-        "active_wrong_action", "both_wrong_action",
-        "fmode_toggle", "fmode_on", "fmode_off",
-        *(
-            f"{player}_fmode{suffix}"
-            for player in ("main", "portrait", "landscape", "both", "active")
-            for suffix in ("", "_on", "_off")
-        ),
-        *(
-            f"{player}_{order}"
-            for player in ("main", "portrait", "landscape", "both", "active")
-            for order in ("latest", "shuffle")
-        ),
-    }
+    } <= SELF_REPORTING_COMMANDS
 
 
 def test_every_spoken_browse_order_is_self_reporting():

@@ -3,7 +3,7 @@ from __future__ import annotations
 import configparser
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import call, patch, MagicMock, call
+from unittest.mock import MagicMock, call, patch
 
 import threading
 
@@ -22,19 +22,18 @@ from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
     _fix_post_loading_windows,
     _log_window_obstruction,
-    _open_event_log,
+    open_event_log,
     _shutdown_children,
     identify_children,
     kill_process_tree,
     kill_recorded_child,
     write_pids_file,
-    run_python_orchestrated_bridge,
+    run_session,
 )
 from fun_time.win32 import StackedWindow
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.windows_bridge_dispatch_loop import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_sequencer import StartupResult
-from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -46,14 +45,6 @@ from fun_time.overlay_progress import (
 )
 
 
-def _fake_plan() -> WindowLayoutPlan:
-    r = WindowRect(0, 0, 100, 100)
-    return WindowLayoutPlan(
-        portrait=r, landscape=r,
-        dashboard=r, random_favs_browser=r,
-    )
-
-
 def _fake_startup_result() -> StartupResult:
     return StartupResult(
         nau_pid=200,
@@ -63,7 +54,6 @@ def _fake_startup_result() -> StartupResult:
         genau_pid=600,
         audio_pid=700,
         origenerator_pid=800,
-        layout_plan=_fake_plan(),
     )
 
 
@@ -78,7 +68,7 @@ class TestFixPostLoadingWindows:
         result = replace(_fake_startup_result(), main_mode="genau")
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -99,7 +89,7 @@ class TestFixPostLoadingWindows:
         titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -130,7 +120,7 @@ class TestFixPostLoadingWindows:
         risen = [buried[1], chrome, buried[2]]  # landscape above Chrome now
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -157,7 +147,7 @@ class TestFixPostLoadingWindows:
         result = _fake_startup_result()
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -192,7 +182,7 @@ class TestFixPostLoadingWindows:
                                topmost=True, rect=(2560, 0, 1440, 2560))]
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -231,7 +221,7 @@ class TestFixPostLoadingWindows:
         promoted = []
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -268,7 +258,7 @@ class TestFixPostLoadingWindows:
         by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state"
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ) as apply, patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
@@ -294,7 +284,7 @@ class TestFixPostLoadingWindows:
         titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
         with patch(
-            "fun_time.windows_bridge_orchestrator._apply_startup_window_state",
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state",
             return_value={"portrait": 111, "landscape": 222},
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
@@ -504,7 +494,7 @@ class TestHotkeySuspendDuringIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -515,8 +505,7 @@ class TestHotkeySuspendDuringIntegration:
         ahk_cmd_file = state_dir / "ahk_cmd.txt"
         assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
 
-    def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -533,7 +522,7 @@ class TestHotkeySuspendDuringIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -546,8 +535,7 @@ class TestHotkeySuspendDuringIntegration:
 
 
 class TestRunPythonOrchestratedBridge:
-    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_runs_startup_then_launches_ahk_then_shuts_down(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -585,7 +573,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.get_process_creation_time", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path,
                 ahk_exe=str(tmp_path / "ahk.exe"),
                 hotkey_script=str(tmp_path / "hotkeys.ahk"),
@@ -604,12 +592,11 @@ class TestRunPythonOrchestratedBridge:
         assert 600 in killed_pids  # genau
         assert 700 in killed_pids  # audio
 
-    def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path, monkeypatch):
+    def test_holds_loading_screen_until_the_hud_indexes_are_primed(self, cfg_factory, tmp_path):
         """The reveal blocks on the HUD's group indexes being built, so Fun Time
         never appears with its satellites' maps still blank.  Priming runs in this
         process now (the dispatch loop owns the model), so the wait is on its
         event rather than a flag file another process writes."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -620,9 +607,9 @@ class TestRunPythonOrchestratedBridge:
         primed = threading.Event()
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(MagicMock(), primed)) as start_priming,              patch.object(primed, "wait", return_value=True) as mock_wait:
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -630,10 +617,9 @@ class TestRunPythonOrchestratedBridge:
         start_priming.assert_called_once()
         mock_wait.assert_called_once_with(timeout=20.0)
 
-    def test_does_not_wait_on_the_hud_when_it_is_disabled(self, cfg_factory, tmp_path, monkeypatch):
+    def test_does_not_wait_on_the_hud_when_it_is_disabled(self, cfg_factory, tmp_path):
         """No publisher (an integration run) means no indexes to prime, so the
         reveal must not block on one."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -644,20 +630,19 @@ class TestRunPythonOrchestratedBridge:
         primed = threading.Event()
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+                   side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, primed)),              patch.object(primed, "wait") as mock_wait:
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
 
         mock_wait.assert_not_called()
 
-    def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path, monkeypatch):
+    def test_lets_the_browser_pages_read_the_live_omnipause_state(self, cfg_factory, tmp_path):
         """The RFB tab pages poll the loopback server to decide whether to freeze
         their clips, so it has to read the dispatch loop as it runs — a state
         copied at startup would answer "playing" for the rest of the session."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -673,7 +658,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner, \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -684,13 +669,12 @@ class TestRunPythonOrchestratedBridge:
         mock_runner.return_value.state = BridgeState(omni_paused=False)
         assert omni_paused() is False
 
-    def test_serves_on_the_port_its_own_config_named(self, cfg_factory, tmp_path, monkeypatch):
+    def test_serves_on_the_port_its_own_config_named(self, cfg_factory, tmp_path):
         """8770 is machine-wide, and a busy one costs the loser its whole loopback
         surface: no Tampermonkey auto-update, and RFB tab pages that never hear
         about OmniPause.  A session started alongside another — an integration run
         above all — has to be able to serve somewhere else.
         """
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory({"loopback_port": 54321}))
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -705,12 +689,67 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
 
         assert mock_serve.call_args.kwargs["port"] == 54321
+
+    def test_the_loopback_server_goes_down_with_the_session(self, cfg_factory, tmp_path):
+        """The port is machine-wide, so a server left listening after its
+        session ends is a port the next session cannot have — and the handle
+        was thrown away at the call, so nothing could ever stop it.
+
+        It goes down inside the closing screen, with the other stops, because
+        ``shutdown()`` blocks until ``serve_forever`` returns and that pause
+        must happen behind the cover.
+        """
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+        server = MagicMock()
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.serve_loopback", return_value=server):
+
+            run_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            )
+
+        server.shutdown.assert_called_once_with()
+        server.server_close.assert_called_once_with()
+
+    def test_a_busy_port_leaves_nothing_to_shut_down(self, cfg_factory, tmp_path):
+        """A leftover server on the port is not worth failing startup over, so
+        there is no handle — and the teardown must not trip over its absence."""
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=lambda **kwargs: _fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.serve_loopback",
+                   side_effect=OSError("port busy")):
+
+            assert run_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+            ) == 0
 
     def test_passes_manifest_and_pids_file_to_ahk(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
@@ -738,7 +777,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="C:\\ahk.exe",
                 hotkey_script="C:\\hotkeys.ahk",
@@ -757,8 +796,7 @@ class TestRunPythonOrchestratedBridge:
 class TestLoadingScreenLifecycle:
     """Loading screen is launched in normal mode and skipped in integration mode."""
 
-    def test_loading_screen_launched_in_normal_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_loading_screen_launched_in_normal_mode(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -767,8 +805,7 @@ class TestLoadingScreenLifecycle:
         result_with_hwnds = StartupResult(
             nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
-            layout_plan=_fake_plan(),
-        )
+            )
 
         popen_calls: list[list] = []
         fake_ahk_proc = MagicMock()
@@ -786,7 +823,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -817,7 +854,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -869,7 +906,7 @@ class TestClosingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=lambda pid: events.append(f"kill:{pid}")):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -878,8 +915,7 @@ class TestClosingScreenLifecycle:
             )
         return state_dir
 
-    def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         self._run(cfg_factory, tmp_path, events=events)
@@ -890,11 +926,10 @@ class TestClosingScreenLifecycle:
             "kill:500", "kill:600", "kill:700", "kill:800",
         }
 
-    def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path, monkeypatch):
+    def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path):
         """A tkinter process needs a moment to boot, and a cover that is not on
         screen yet hides nothing — so teardown holds until the screen's own
         ready flag lands, not merely until its process has been spawned."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         events: list[str] = []
         seen_when_killing: list[bool] = []
 
@@ -910,8 +945,7 @@ class TestClosingScreenLifecycle:
 
         assert seen_when_killing == [True]
 
-    def test_the_cover_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_the_cover_comes_down_only_once_everything_is_gone(self, cfg_factory, tmp_path):
         events: list[str] = []
 
         real_advance = PhaseProgress.advance
@@ -952,13 +986,20 @@ class TestClosingScreenLifecycle:
 class TestWaitForClosingScreen:
     """The hold itself, so it runs on the real timeout the session spends."""
 
-    def test_returns_as_soon_as_the_flag_lands(self, tmp_path):
+    def test_returns_as_soon_as_the_flag_lands(self, tmp_path, caplog):
+        """The flag exit is the only quiet one — the other two ways out (a dead
+        screen, the timeout) both log a warning.  So a clean return with no
+        warning is the proof the flag branch took it; without that branch the
+        hold would spin out the whole real timeout and land on the warning."""
         ready_file = tmp_path / "shutdown_ready.flag"
         ready_file.write_text("", encoding="utf-8")
         proc = MagicMock()
         proc.poll.return_value = None
 
-        windows_bridge_orchestrator._wait_for_closing_screen(ready_file, proc)
+        with caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
+            windows_bridge_orchestrator._wait_for_closing_screen(ready_file, proc)
+
+        assert not caplog.records
 
     def test_stops_waiting_on_a_screen_that_died(self, tmp_path, caplog):
         """No flag will ever land from a process that has exited, so waiting out
@@ -995,8 +1036,7 @@ class TestStartupCancellation:
     hotkey script that read the Esc is taken back out, and the dispatch loop
     never starts."""
 
-    def test_cancel_mid_startup_kills_launched_children_and_stops_the_hotkeys(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_cancel_mid_startup_kills_launched_children_and_stops_the_hotkeys(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1027,7 +1067,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.close_window", side_effect=closed.append), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1048,11 +1088,10 @@ class TestStartupCancellation:
         # The overlay is brought down after teardown.
         fake_loading_proc.wait.assert_called()
 
-    def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path, monkeypatch):
+    def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path):
         """The user can hit Esc in the sliver between the last checkpoint and the
         reveal: the sequence returns a full result but the flag is set, so the
         whole result is torn down and the reveal never happens."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1083,11 +1122,11 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=killed.append), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
-             patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1101,10 +1140,9 @@ class TestStartupCancellation:
         # reveal, so no dispatch loop was ever started to publish what it warmed.
         mock_priming.assert_called_once()
 
-    def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path, monkeypatch):
+    def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path):
         """A cancel flag left over from a previous session must not abort this
         one — it is cleared before the loading screen launches."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1130,11 +1168,11 @@ class TestStartupCancellation:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator._start_hud_priming",
+             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
 
-            code = run_python_orchestrated_bridge(
+            code = run_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1181,7 +1219,7 @@ class TestHotkeyScriptGoesUpFirst:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1191,9 +1229,8 @@ class TestHotkeyScriptGoesUpFirst:
         return state_dir
 
     def test_the_script_is_up_before_the_sequence_starts_launching_windows(
-        self, cfg_factory, tmp_path, monkeypatch
+        self, cfg_factory, tmp_path
     ):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         calls: list[str] = []
 
         cfg = load_config(cfg_factory())
@@ -1213,7 +1250,7 @@ class TestHotkeyScriptGoesUpFirst:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1224,13 +1261,12 @@ class TestHotkeyScriptGoesUpFirst:
         assert calls.index("ahk") < calls.index("sequence")
 
     def test_a_dead_sessions_pids_file_is_gone_before_the_script_can_read_it(
-        self, cfg_factory, tmp_path, monkeypatch
+        self, cfg_factory, tmp_path
     ):
         """The pids file appearing is what tells the script the session is up and
         its keys have something to reach.  A previous session's copy would put
         every key live over one that is still assembling — and would take Esc's
         cancel away with them, since Esc only cancels while the hold is on."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
         (state_dir / "bridge_pids.ini").write_text("[pids]\nnau_pid = 999\n", encoding="utf-8")
@@ -1255,8 +1291,7 @@ class TestPostLoadingWindowState:
     orchestrator must correct this after the loading screen exits.
     """
 
-    def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_window_state_reasserted_after_loading_closes(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1265,8 +1300,7 @@ class TestPostLoadingWindowState:
         result_with_hwnds = StartupResult(
             nau_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
-            layout_plan=_fake_plan(),
-            rfb_hwnd=55555,
+                rfb_hwnd=55555,
         )
 
         fake_ahk_proc = MagicMock()
@@ -1297,7 +1331,7 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1383,8 +1417,7 @@ class TestNauObstructionLog:
 
 
 class TestVoiceControlIntegration:
-    def test_voice_controller_started_when_enabled(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_voice_controller_started_when_enabled(self, cfg_factory, tmp_path):
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
@@ -1409,7 +1442,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1419,8 +1452,7 @@ class TestVoiceControlIntegration:
 
         mock_vc.stop.assert_called_once()
 
-    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path):
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
@@ -1443,7 +1475,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", False), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1453,8 +1485,7 @@ class TestVoiceControlIntegration:
 
         mock_vc_class.assert_not_called()
 
-    def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path):
         # voice_control section absent → defaults to disabled
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -1477,7 +1508,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
 
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1505,7 +1536,7 @@ class TestOpenEventLog:
         original_handlers = list(package_logger.handlers)
         original_level = package_logger.level
         try:
-            _open_event_log(state_dir)
+            open_event_log(state_dir)
 
             assert package_logger.level == logging.DEBUG
             assert any(isinstance(h, EventLogHandler) for h in package_logger.handlers)
@@ -1528,8 +1559,8 @@ class TestOpenEventLog:
         original_handlers = list(package_logger.handlers)
         original_level = package_logger.level
         try:
-            _open_event_log(tmp_path / "one")
-            _open_event_log(tmp_path / "two")
+            open_event_log(tmp_path / "one")
+            open_event_log(tmp_path / "two")
 
             installed = [h for h in package_logger.handlers if isinstance(h, EventLogHandler)]
             assert len(installed) == 1
@@ -1554,7 +1585,7 @@ class TestOpenEventLog:
         try:
             orch_logger.propagate = False
             orch_logger.setLevel(logging.INFO)
-            _open_event_log(tmp_path)
+            open_event_log(tmp_path)
 
             orch_logger.info("bridge exited")
 
@@ -1632,8 +1663,7 @@ class TestThePlayersStartWhenTheCoverIsGone:
     the orchestrator's, and it comes after the cover's process is gone.
     """
 
-    def _run(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def _run(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1657,7 +1687,7 @@ class TestThePlayersStartWhenTheCoverIsGone:
              patch("fun_time.windows_bridge_orchestrator.release_the_players",
                    side_effect=lambda *_a: events.append("players released")), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-            run_python_orchestrated_bridge(
+            run_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1666,8 +1696,8 @@ class TestThePlayersStartWhenTheCoverIsGone:
             )
         return events
 
-    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path, monkeypatch):
-        events = self._run(cfg_factory, tmp_path, monkeypatch)
+    def test_the_release_waits_for_the_cover_to_go(self, cfg_factory, tmp_path):
+        events = self._run(cfg_factory, tmp_path)
 
         assert "players released" in events, "the players were never started"
         assert events.index("cover gone") < events.index("players released"), (

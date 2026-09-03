@@ -4,7 +4,7 @@ from fun_time.window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLES,
-    PRIMARY_SLOT_ROLES,
+    MAIN_SLOT_ROLES,
     role_topmost,
     visible_main_slot_roles,
 )
@@ -51,7 +51,7 @@ class TestRoleTopmost:
         cannot drift: a main-slot player is in the band exactly when it shows."""
         for mode in ("nau", "hybrid", "genau"):
             assert visible_main_slot_roles(mode) == tuple(
-                role for role in PRIMARY_SLOT_ROLES if role_topmost(role, mode)), mode
+                role for role in MAIN_SLOT_ROLES if role_topmost(role, mode)), mode
 
     def test_role_groups_partition_the_managed_set(self):
         assert set(MANAGED_ROLES) == {
@@ -59,12 +59,12 @@ class TestRoleTopmost:
             "origenerator", "origenerator_portrait", "origenerator_landscape",
         }
         assert set(FIXED_TOPMOST_ROLES) == {"rfb", "portrait", "landscape", "dashboard"}
-        assert set(PRIMARY_SLOT_ROLES) == {"nau", "genau"}
+        assert set(MAIN_SLOT_ROLES) == {"nau", "genau"}
         assert set(ORIGENERATOR_ROLES) == {
             "origenerator", "origenerator_portrait", "origenerator_landscape",
         }
         # The three groups are disjoint and together cover every managed role.
-        groups = [set(FIXED_TOPMOST_ROLES), set(ORIGENERATOR_ROLES), set(PRIMARY_SLOT_ROLES)]
+        groups = [set(FIXED_TOPMOST_ROLES), set(ORIGENERATOR_ROLES), set(MAIN_SLOT_ROLES)]
         assert sum(len(group) for group in groups) == len(MANAGED_ROLES)
         assert set().union(*groups) == set(MANAGED_ROLES)
 

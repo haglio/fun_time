@@ -26,22 +26,37 @@ CANCEL_FILENAME = "startup_cancel.flag"
 SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 
 
-def parse_progress(text: str) -> tuple[int, int, str, bool]:
-    """Parse a progress file line.
+@dataclass(frozen=True)
+class Progress:
+    """One line of the progress file, parsed.
 
-    Returns (step, total, message, done).
+    *malformed* is the difference between "nothing written yet" and "wrote
+    something we could not read".  Both used to arrive as step 0 of 1, which a
+    reader could only take for a genuine first phase.
     """
+
+    step: int = 0
+    total: int = 1
+    message: str = ""
+    done: bool = False
+    malformed: bool = False
+
+
+def parse_progress(text: str) -> Progress:
+    """One line of the progress file the orchestrator writes."""
     text = text.strip()
     if text == "DONE":
-        return 0, 1, "", True
+        return Progress(done=True)
     try:
         parts = text.split("|", 1)
-        step_part = parts[0]
-        message = parts[1] if len(parts) > 1 else ""
-        step_str, total_str = step_part.split("/")
-        return int(step_str), int(total_str), message, False
+        step_str, total_str = parts[0].split("/")
+        return Progress(
+            step=int(step_str),
+            total=int(total_str),
+            message=parts[1] if len(parts) > 1 else "",
+        )
     except (ValueError, IndexError):
-        return 0, 1, "", False
+        return Progress(malformed=True)
 
 
 def cancel_file_for(progress_file: str | Path) -> Path:
@@ -102,10 +117,11 @@ def startup_still_building(state_dir: Path) -> bool:
     """
     path = Path(state_dir) / PROGRESS_FILENAME
     try:
-        step, total, _message, done = parse_progress(path.read_text(encoding="utf-8"))
+        progress = parse_progress(path.read_text(encoding="utf-8"))
     except OSError:
         return False
-    return not done and not (total > 0 and step >= total)
+    return not progress.done and not (
+        progress.total > 0 and progress.step >= progress.total)
 
 
 @dataclass(frozen=True)

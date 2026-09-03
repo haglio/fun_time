@@ -21,6 +21,9 @@ from fun_time.win32 import find_window_by_title
 from fun_time.windows_bridge_orchestrator import _closing_screen
 
 pytestmark = [
+    # The cover is a real window on a real desktop, and the wait for it is the
+    # thing under test; the unit conftest's zeroed startup waits do not apply.
+    pytest.mark.real_startup_waits,
     pytest.mark.skipif(sys.platform != "win32", reason="launches a real Win32 window"),
     pytest.mark.skipif(
         os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",

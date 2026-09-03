@@ -4,11 +4,8 @@ A session's windows arrive one at a time and leave the same way, so both ends
 of one raise a cover and do the work behind it.  The window is borderless and
 always on top; it reads how far the work has got from a progress file the
 orchestrator writes, and closes itself when that file says DONE — and ONLY
-then.  It used to close on a full bar as well, which is not the same moment: the
-startup sequence reports its last phase and then spends seconds behind the cover
-putting the room in z-order, so a cover that left on the full bar left before any
-of that, and the user watched it happen.  DONE is the orchestrator's own word for
-"the room is finished", so it is the only thing that lifts the cover.
+then, never on a full bar, which comes seconds earlier while the room is still
+being put in z-order.
 
 Startup's cover offers a way out and shutdown's does not — see ``CancelOption``
 for that difference and for the reason it is the only one.
@@ -23,7 +20,17 @@ from pathlib import Path
 from tkinter import ttk
 from typing import TYPE_CHECKING
 
+from .cover_palette import (
+    BG,
+    FACE,
+    HINT_DIM,
+    TEXT_DIM,
+    TROUGH,
+    WORDMARK_PINK,
+)
+from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import parse_progress
+from .project_paths import PROJECT_ICON
 from .win32 import find_window_by_title, set_always_on_top
 
 if TYPE_CHECKING:
@@ -46,24 +53,20 @@ def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
         # high-quality downsample to the requested display size.
         img = img.resize((size, size), Image.LANCZOS)
         return img.convert("RGBA")
-    except Exception:
+    except (ImportError, OSError):
+        # No Pillow, no such file, or a file that is not an image (PIL's
+        # UnidentifiedImageError is an OSError).
         return None
 
 
 POLL_MS = 200
 
-# How often the cover puts itself back at the top of the topmost band.  Separate
-# from POLL_MS, and much shorter, because they answer different questions: how
-# stale the bar may be, versus how long another window may sit over the cover.
-#
-# Nothing keeps a topmost window on top of the OTHER topmost windows.  Every
-# raise a session makes — showing a player's window, moving it onto its rect,
-# promoting it into the band — inserts that window ABOVE this one, and Windows
-# offers no way to refuse: a window is not told when another displaces it.  So
-# the cover has to keep taking the top back, and how fast it does that IS how
-# long a window shows through it.  At 200ms that was a fifth of a second of a
-# player visible through the scrim, once per raise, which is plainly visible; a
-# frame of it is not.
+# How often the cover takes the top of the topmost band back (see
+# _stay_on_top).  Separate from POLL_MS, and much shorter, because they answer
+# different questions: how stale the bar may be, versus how long another window
+# may sit over the cover.  This number IS that second answer — at 200ms it was
+# a fifth of a second of a player through the scrim per raise, plainly visible;
+# a frame of it is not.
 #
 # Re-asserted through SetWindowPos on our own HWND rather than Tk's
 # ``-topmost``: the style is still set (being pushed down within the band does
@@ -102,6 +105,81 @@ class CancelOption:
     cancel" right through the teardown it had just started."""
 
 
+@dataclass(frozen=True)
+class _Content:
+    """The three widgets the cover writes to as it runs."""
+
+    status_label: tk.Label
+    progress_var: tk.DoubleVar
+    hint_label: tk.Label
+
+
+def _apply_theme(root: tk.Tk) -> None:
+    """The two ttk styles the bar and its frame are drawn with."""
+    style = ttk.Style(root)
+    try:
+        style.theme_use("clam")  # full style control; not every Tk ships it
+    except tk.TclError:
+        pass
+    style.configure(
+        "FunTime.Horizontal.TProgressbar",
+        troughcolor=TROUGH,
+        background=WORDMARK_PINK,
+        thickness=18,
+        borderwidth=0,
+    )
+    style.configure("FunTime.TFrame", background=BG)
+
+
+def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
+                   hint: str) -> _Content:
+    """The panel in the middle: icon, wordmark, status, bar, hint.
+
+    Centred on the main player's monitor, not on the virtual desktop's
+    midpoint, which may fall between two of them.
+    """
+    frame = ttk.Frame(root, padding=24, style="FunTime.TFrame")
+    origin_x, origin_y = origin
+    frame.place(
+        x=root.winfo_screenwidth() // 2 - origin_x,
+        y=root.winfo_screenheight() // 2 - origin_y,
+        anchor=tk.CENTER,
+    )
+
+    icon_img = load_icon_image(PROJECT_ICON, ICON_DISPLAY_SIZE)
+    if icon_img is not None:
+        try:
+            from PIL import ImageTk
+
+            icon_label = tk.Label(frame, bg=BG)
+            # On the label, which is what keeps the PhotoImage from being
+            # collected out from under the icon it is drawing.
+            icon_label.image = ImageTk.PhotoImage(icon_img)
+            icon_label.configure(image=icon_label.image)
+            icon_label.pack(pady=(0, 12))
+        except (ImportError, tk.TclError):
+            # Pillow without its Tk extension, or a Tk that will not take the
+            # image: the cover comes up plain rather than not at all.
+            pass
+
+    tk.Label(frame, text="Fun Time", font=(FACE, 18, "bold italic"),
+             fg=WORDMARK_PINK, bg=BG).pack(pady=(0, 10))
+
+    status_label = tk.Label(frame, text=status, font=(FACE, 10), fg=TEXT_DIM, bg=BG)
+    status_label.pack(pady=(0, 10))
+
+    progress_var = tk.DoubleVar(value=0)
+    ttk.Progressbar(
+        frame, variable=progress_var, maximum=100, length=360,
+        mode="determinate", style="FunTime.Horizontal.TProgressbar",
+    ).pack(pady=(0, 8))
+
+    hint_label = tk.Label(frame, text=hint, font=(FACE, 8), fg=HINT_DIM, bg=BG)
+    hint_label.pack()
+
+    return _Content(status_label, progress_var, hint_label)
+
+
 class OverlayWindow:
     """One borderless, always-on-top window covering the whole virtual desktop."""
 
@@ -122,12 +200,6 @@ class OverlayWindow:
         self._title = title
         self._hwnd = 0
 
-        BG = "#1a1a2e"
-        PINK = "#e94560"
-        TROUGH = "#16213e"
-        TEXT_DIM = "#c0c0d8"
-        HINT_DIM = "#7a7a95"  # subtler than the status line, still legible on BG
-
         self._root = tk.Tk()
         self._root.title(title)
         self._root.resizable(False, False)
@@ -135,97 +207,25 @@ class OverlayWindow:
         self._root.overrideredirect(True)
         self._root.configure(bg=BG)
 
-        # Query virtual-desktop bounding box (spans all monitors) so the
-        # overlay covers everything and no windows flash through.
-        try:
-            import ctypes
-            u32 = ctypes.windll.user32
-            u32.SetProcessDPIAware()
-            vx = u32.GetSystemMetrics(76)   # SM_XVIRTUALSCREEN
-            vy = u32.GetSystemMetrics(77)   # SM_YVIRTUALSCREEN
-            vw = u32.GetSystemMetrics(78)   # SM_CXVIRTUALSCREEN
-            vh = u32.GetSystemMetrics(79)   # SM_CYVIRTUALSCREEN
-        except Exception:
-            vx, vy = 0, 0
-            vw = self._root.winfo_screenwidth()
-            vh = self._root.winfo_screenheight()
+        # The fallback is asked for OUT here, not inside the failure path where
+        # a Tk not answering either raised again with nothing left to catch it.
+        desktop = virtual_desktop_rect()
+        if desktop is None:
+            desktop = MonitorInfo(
+                x=0, y=0,
+                width=self._root.winfo_screenwidth(),
+                height=self._root.winfo_screenheight(),
+            )
+        vx, vy = desktop.x, desktop.y
 
-        self._root.geometry(f"{vw}x{vh}+{vx}+{vy}")
+        self._root.geometry(f"{desktop.width}x{desktop.height}+{vx}+{vy}")
 
-        # Use clam theme for full style control
-        style = ttk.Style(self._root)
-        try:
-            style.theme_use("clam")
-        except tk.TclError:
-            pass
+        _apply_theme(self._root)
 
-        style.configure(
-            "FunTime.Horizontal.TProgressbar",
-            troughcolor=TROUGH,
-            background=PINK,
-            thickness=18,
-            borderwidth=0,
+        self._content = _build_content(
+            self._root, origin=(vx, vy), status=status,
+            hint=cancel.hint if cancel else "",
         )
-        style.configure("FunTime.TFrame", background=BG)
-
-        # Center the content panel on the main player monitor (0,0 origin),
-        # not the virtual-desktop midpoint which may fall between monitors.
-        frame = ttk.Frame(self._root, padding=24, style="FunTime.TFrame")
-        main_cx = self._root.winfo_screenwidth() // 2 - vx
-        main_cy = self._root.winfo_screenheight() // 2 - vy
-        frame.place(x=main_cx, y=main_cy, anchor=tk.CENTER)
-
-        # Icon above the title — loaded from icon.ico at the project root.
-        self._icon_photo = None  # prevent GC of PhotoImage
-        ico_path = Path(__file__).resolve().parent.parent / "icon.ico"
-        icon_img = load_icon_image(ico_path, ICON_DISPLAY_SIZE)
-        if icon_img is not None:
-            try:
-                from PIL import ImageTk
-
-                self._icon_photo = ImageTk.PhotoImage(icon_img)
-                icon_label = tk.Label(frame, image=self._icon_photo, bg=BG)
-                icon_label.pack(pady=(0, 12))
-            except Exception:
-                pass
-
-        title_label = tk.Label(
-            frame,
-            text="Fun Time",
-            font=("Segoe UI", 18, "bold italic"),
-            fg=PINK,
-            bg=BG,
-        )
-        title_label.pack(pady=(0, 10))
-
-        self._status_label = tk.Label(
-            frame,
-            text=status,
-            font=("Segoe UI", 10),
-            fg=TEXT_DIM,
-            bg=BG,
-        )
-        self._status_label.pack(pady=(0, 10))
-
-        self._progress_var = tk.DoubleVar(value=0)
-        self._progress_bar = ttk.Progressbar(
-            frame,
-            variable=self._progress_var,
-            maximum=100,
-            length=360,
-            mode="determinate",
-            style="FunTime.Horizontal.TProgressbar",
-        )
-        self._progress_bar.pack(pady=(0, 8))
-
-        self._hint_label = tk.Label(
-            frame,
-            text=cancel.hint if cancel else "",
-            font=("Segoe UI", 8),
-            fg=HINT_DIM,
-            bg=BG,
-        )
-        self._hint_label.pack()
 
         if cancel is not None:
             # Esc anywhere on the overlay asks the orchestrator to stop.  The
@@ -248,11 +248,8 @@ class OverlayWindow:
         call goes straight through rather than onto the hung-window guard's
         worker thread — it cannot block on anything but ourselves.
 
-        The handle is looked up by title (this window's own, which is distinct
-        from every other window in the suite) and only once: ``winfo_id`` on a
-        Tk toplevel is not reliably the top-level HWND.  Before it resolves,
-        there is nothing over the cover to fix anyway — the window is brand new
-        and at the top of the band by construction.
+        The handle is looked up by this window's own title, and only once:
+        ``winfo_id`` on a Tk toplevel is not reliably the top-level HWND.
         """
         if not self._hwnd:
             self._hwnd = find_window_by_title(self._title, exact=True)
@@ -282,19 +279,15 @@ class OverlayWindow:
             return
         self._status_held = True
         try:
-            self._status_label.configure(text=self._cancel.pending)
-            self._hint_label.configure(text="")
+            self._content.status_label.configure(text=self._cancel.pending)
+            self._content.hint_label.configure(text="")
         except tk.TclError:
             pass
 
     def _poll(self) -> None:
-        # Staying on top is _stay_on_top's job, on its own much faster timer:
-        # this one is paced for reading a file, and a fifth of a second is far
-        # too long to leave another window showing through the scrim.
-        #
         # A cancel the hotkey script asked for on our behalf: the flag is on
         # disk and no key ever reached this window, so the words are picked up
-        # here instead.
+        # here.  (Staying on top is _stay_on_top's much faster timer's job.)
         if self._cancel is not None and not self._status_held:
             try:
                 if self._cancel.requested():
@@ -304,20 +297,23 @@ class OverlayWindow:
         try:
             if self._progress_file.exists():
                 mtime = self._progress_file.stat().st_mtime
-                text = self._progress_file.read_text(encoding="utf-8")
-                step, total, message, done = parse_progress(text)
+                progress = parse_progress(
+                    self._progress_file.read_text(encoding="utf-8"))
 
-                if done:
+                if progress.done:
                     self._root.destroy()
                     return
 
-                if total > 0:
-                    self._progress_var.set(step / total * 100)
-                if message and not self._status_held:
-                    self._status_label.configure(text=message)
+                # A torn write is not a step: keep the bar and the words where
+                # the last readable line left them rather than snapping to zero.
+                if not progress.malformed:
+                    if progress.total > 0:
+                        self._content.progress_var.set(
+                            progress.step / progress.total * 100)
+                    if progress.message and not self._status_held:
+                        self._content.status_label.configure(text=progress.message)
 
-                if mtime != self._last_modified:
-                    self._last_modified = mtime
+                self._last_modified = mtime
 
             # Staleness check: if the file hasn't changed in stale_timeout_s,
             # the orchestrator died holding the cover up.  Close rather than

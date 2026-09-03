@@ -1,8 +1,14 @@
-"""Win32 window and process operations for the Python orchestrator.
+"""Win32 window operations for the Python orchestrator.
 
-Wraps ctypes calls for window manipulation that the startup sequencer
-needs (find/wait for windows by PID, move, set topmost, activate, query
-size) and for process queries (liveness, executable image name).
+Wraps the ctypes calls the startup sequencer needs to manage the session's
+windows: find or wait for one by pid or title, move it, set its topmost band,
+activate it, minimize and restore it, read its rect, and walk the z-order.
+Every cross-process call goes through :func:`_without_hanging`, for the reason
+that function's docstring records.
+
+The two subsystems this file used to also hold are next door:
+:mod:`fun_time.win32_process` asks about processes rather than windows, and
+:mod:`fun_time.win32_taskbar` carries the AppUserModelID work.
 """
 from __future__ import annotations
 
@@ -11,20 +17,18 @@ import ctypes.wintypes
 import logging
 import threading
 import time
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from fun_time.win32_loader import load_dll, win_functype
+from fun_time.win32_process import list_child_pids
 
 logger = logging.getLogger(__name__)
 
 _user32 = load_dll("user32")
-_ole32 = load_dll("ole32")
-_shell32 = load_dll("shell32")
 _kernel32 = load_dll("kernel32")
 _dwmapi = load_dll("dwmapi")
 
-# AppUserModelID — must match the value set on the pinned taskbar shortcut.
-APP_USER_MODEL_ID = "FunTime.App"
 
 # Constants
 SW_RESTORE = 9
@@ -35,8 +39,17 @@ SWP_NOMOVE = 0x0002
 SWP_NOSIZE = 0x0001
 HWND_TOPMOST = ctypes.wintypes.HWND(-1)
 HWND_NOTOPMOST = ctypes.wintypes.HWND(-2)
+SWP_FRAMECHANGED = 0x0020
+GWL_STYLE = -16
 GWL_EXSTYLE = -20
+WS_SYSMENU = 0x00080000
+WS_MINIMIZEBOX = 0x00020000
+WS_MAXIMIZEBOX = 0x00010000
 WS_EX_TOPMOST = 0x00000008
+WS_EX_APPWINDOW = 0x00040000
+WS_EX_TOOLWINDOW = 0x00000080
+SW_HIDE = 0
+SW_SHOW = 5
 GW_HWNDNEXT = 2  # next window DOWN the z-order (GetWindow relationship)
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
@@ -53,43 +66,6 @@ _user32.SetWindowPos.argtypes = [
 ]
 _user32.SetWindowPos.restype = ctypes.wintypes.BOOL
 
-# Process-query bindings. HANDLE argtypes/restype matter on 64-bit for the
-# same reason as the HWND declarations above.
-PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
-
-_kernel32.OpenProcess.argtypes = [
-    ctypes.wintypes.DWORD,  # dwDesiredAccess
-    ctypes.wintypes.BOOL,   # bInheritHandle
-    ctypes.wintypes.DWORD,  # dwProcessId
-]
-_kernel32.OpenProcess.restype = ctypes.wintypes.HANDLE
-_kernel32.QueryFullProcessImageNameW.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hProcess
-    ctypes.wintypes.DWORD,                   # dwFlags
-    ctypes.wintypes.LPWSTR,                  # lpExeName
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpdwSize (in/out)
-]
-_kernel32.QueryFullProcessImageNameW.restype = ctypes.wintypes.BOOL
-_kernel32.GetExitCodeProcess.argtypes = [
-    ctypes.wintypes.HANDLE,                  # hProcess
-    ctypes.POINTER(ctypes.wintypes.DWORD),   # lpExitCode
-]
-_kernel32.GetExitCodeProcess.restype = ctypes.wintypes.BOOL
-_kernel32.GetProcessTimes.argtypes = [
-    ctypes.wintypes.HANDLE,                     # hProcess
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpCreationTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpExitTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpKernelTime
-    ctypes.POINTER(ctypes.wintypes.FILETIME),   # lpUserTime
-]
-_kernel32.GetProcessTimes.restype = ctypes.wintypes.BOOL
-_kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
-_kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
-
-# GetExitCodeProcess reports this while the process is still running.
-_STILL_ACTIVE = 259
-
-
 WNDENUMPROC = win_functype(
     ctypes.wintypes.BOOL,
     ctypes.wintypes.HWND,
@@ -100,90 +76,32 @@ WNDENUMPROC = win_functype(
 WM_CLOSE = 0x0010
 
 
-def set_app_user_model_id(app_id: str) -> None:
-    """Set the AppUserModelID for the current process.
-
-    This must be called before any windows are created so the taskbar can
-    group the process's windows with the matching pinned shortcut.
-    """
-    hr = _shell32.SetCurrentProcessExplicitAppUserModelID(app_id)
-    if hr < 0:  # FAILED() macro
-        raise OSError(f"SetCurrentProcessExplicitAppUserModelID failed: HRESULT 0x{hr:08x}")
-
-
-def get_process_image_name(pid: int) -> str | None:
-    """Return the full executable path of the process *pid*.
-
-    Returns None when the process no longer exists (or cannot be opened),
-    which callers use to detect that a recorded PID is stale.
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return None
-    try:
-        size = ctypes.wintypes.DWORD(32768)
-        buf = ctypes.create_unicode_buffer(size.value)
-        if not _kernel32.QueryFullProcessImageNameW(handle, 0, buf, ctypes.byref(size)):
-            return None
-        return buf.value
-    finally:
-        _kernel32.CloseHandle(handle)
-
-
-def get_process_creation_time(pid: int) -> int | None:
-    """Return the FILETIME at which the process now holding *pid* was created.
-
-    Windows hands a freed PID back out within seconds, so a PID alone does not
-    name a process.  ``(pid, creation_time)`` does: a process can only take a
-    PID after its previous owner is gone, so the newcomer's creation time is
-    strictly later.  Record this alongside a PID and compare it before killing,
-    and a recycled PID is recognized rather than shot.
-
-    ``GetProcessTimes`` fills lpCreationTime with a FILETIME (100-nanosecond
-    ticks since 1601-01-01 UTC) and accepts a handle opened for
-    PROCESS_QUERY_LIMITED_INFORMATION.  Returns None when the process no longer
-    exists (or cannot be opened).
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return None
-    try:
-        creation = ctypes.wintypes.FILETIME()
-        unused = (ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME(), ctypes.wintypes.FILETIME())
-        if not _kernel32.GetProcessTimes(
-            handle, ctypes.byref(creation), *(ctypes.byref(t) for t in unused)
-        ):
-            return None
-        return (creation.dwHighDateTime << 32) | creation.dwLowDateTime
-    finally:
-        _kernel32.CloseHandle(handle)
-
-
-def is_process_alive(pid: int) -> bool:
-    """Check whether *pid* refers to a currently running process.
-
-    os.kill(pid, 0) raises WinError 87 for valid PIDs on Python 3.14 /
-    Windows 11, and OpenProcess alone still succeeds for exited processes
-    whose kernel object is kept alive by an open handle, so liveness comes
-    from GetExitCodeProcess reporting STILL_ACTIVE.
-    """
-    handle = _kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
-    if not handle:
-        return False
-    try:
-        exit_code = ctypes.wintypes.DWORD()
-        if not _kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code)):
-            return False
-        return exit_code.value == _STILL_ACTIVE
-    finally:
-        _kernel32.CloseHandle(handle)
-
-
 def close_window(hwnd: int) -> None:
     """Close a window gracefully by posting WM_CLOSE."""
     if not hwnd:
         return
     _user32.PostMessageW(hwnd, WM_CLOSE, 0, 0)
+
+
+def _first_window(match: Callable[[int], bool]) -> int:
+    """The first top-level window *match* accepts, or 0 if none does.
+
+    ``EnumWindows`` stops when its callback returns False, so every lookup that
+    wants ONE window carried the same prototype, ``nonlocal`` and inverted
+    return.  Three did; this holds them, and each keeps only its predicate —
+    including how it reads a title, which the two do differently on purpose.
+    """
+    found: int = 0
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        nonlocal found
+        if not match(hwnd):
+            return True  # keep enumerating
+        found = hwnd
+        return False  # stop enumeration
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return found
 
 
 def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
@@ -198,67 +116,17 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     the startup sequencer resolves its handle.  The non-empty-title filter still
     applies, so this does not match untitled internal surfaces.
     """
-    best: int = 0
-
-    def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal best
+    def matches(hwnd: int) -> bool:
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
         if window_pid.value != pid:
-            return True
+            return False
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
-            return True
-        # Check for non-empty title (skip internal/unnamed windows)
-        title_len = _user32.GetWindowTextLengthW(hwnd)
-        if title_len <= 0:
-            return True
-        best = hwnd
-        return False  # stop enumeration
+            return False
+        # Non-empty title only (skip internal/unnamed windows)
+        return _user32.GetWindowTextLengthW(hwnd) > 0
 
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return best
-
-
-def list_child_pids(parent_pid: int) -> list[int]:
-    """The pids whose recorded parent is *parent_pid*, via a Toolhelp snapshot.
-
-    A recorded child pid is not always the pid that owns the windows: a venv's
-    ``Scripts`` launcher spawns the real interpreter as a child and keeps the
-    recorded pid for itself.  This is the one hop that recovers the family.
-    """
-    TH32CS_SNAPPROCESS = 0x2
-    INVALID_HANDLE_VALUE = ctypes.wintypes.HANDLE(-1).value
-
-    class PROCESSENTRY32(ctypes.Structure):
-        _fields_ = [
-            ("dwSize", ctypes.wintypes.DWORD),
-            ("cntUsage", ctypes.wintypes.DWORD),
-            ("th32ProcessID", ctypes.wintypes.DWORD),
-            ("th32DefaultHeapID", ctypes.POINTER(ctypes.wintypes.ULONG)),
-            ("th32ModuleID", ctypes.wintypes.DWORD),
-            ("cntThreads", ctypes.wintypes.DWORD),
-            ("th32ParentProcessID", ctypes.wintypes.DWORD),
-            ("pcPriClassBase", ctypes.wintypes.LONG),
-            ("dwFlags", ctypes.wintypes.DWORD),
-            ("szExeFile", ctypes.c_wchar * 260),
-        ]
-
-    snapshot = _kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
-    if snapshot == INVALID_HANDLE_VALUE:
-        return []
-    children: list[int] = []
-    try:
-        entry = PROCESSENTRY32()
-        entry.dwSize = ctypes.sizeof(PROCESSENTRY32)
-        if _kernel32.Process32FirstW(snapshot, ctypes.byref(entry)):
-            while True:
-                if entry.th32ParentProcessID == parent_pid:
-                    children.append(int(entry.th32ProcessID))
-                if not _kernel32.Process32NextW(snapshot, ctypes.byref(entry)):
-                    break
-    finally:
-        _kernel32.CloseHandle(snapshot)
-    return children
+    return _first_window(matches)
 
 
 def find_window_for_process(pid: int, title: str) -> int:
@@ -277,26 +145,21 @@ def find_window_for_process(pid: int, title: str) -> int:
     if not pid:
         return 0
     pids = {pid, *list_child_pids(pid)}
-    best: int = 0
 
-    def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal best
+    def matches(hwnd: int) -> bool:
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
         if window_pid.value not in pids:
-            return True
+            return False
         length = _user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
-            return True
+            return False
+        # Per window, at its own length; by-title shares one 256.
         buffer = ctypes.create_unicode_buffer(length + 1)
         _user32.GetWindowTextW(hwnd, buffer, length + 1)
-        if buffer.value != title:
-            return True
-        best = hwnd
-        return False  # stop enumeration
+        return buffer.value == title
 
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return best
+    return _first_window(matches)
 
 
 def wait_for_window_by_title(
@@ -320,7 +183,8 @@ def wait_for_window_by_title(
 # How long one of those calls is given before the session stops waiting on that
 # window.  A window whose owner is pumping answers in microseconds, so this is
 # only ever spent on one that has stopped — and it is spent once per call, so a
-# whole startup pass over six windows cannot cost more than a few seconds.
+# whole startup pass over the session's windows cannot cost more than a few
+# seconds.
 HUNG_WINDOW_TIMEOUT_S = 1.5
 
 
@@ -336,34 +200,24 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     answering.  True if the call returned, False if that window is hung.
 
     ``SetWindowPos`` and ``ShowWindow`` do not merely set state: each SENDS
-    messages to the thread that owns the window (WM_WINDOWPOSCHANGING /
-    WM_WINDOWPOSCHANGED, WM_SHOWWINDOW) and waits for that thread to handle them.
-    Across processes — which every window here is — a player whose own loop has
-    stalled therefore blocks the caller *forever*: the send has no timeout, and
-    no flag on our side changes that.
-
-    One did, and it took the whole session with it: Genau's main thread stopped
-    inside a file write, startup's topmost pass called this on Genau's window and
-    never came back, so the main slot was never revealed, the hotkey script was
-    never launched, and Ctrl+Alt+Q could not quit a session with no way left to
-    close its players.  Nothing said which window, either.
+    messages to the thread that owns the window and waits for it to handle them,
+    with no timeout and no flag on our side that changes that — so a player
+    whose own loop has stalled blocks the caller forever.  One did, and took the
+    session with it; ``TestAWindowThatHasStoppedAnswering`` tells that story and
+    holds every rule below.
 
     So the call is made on a throwaway thread and waited on for
     HUNG_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
     changes — including the ORDER the caller makes these calls in, which is what
     stacks Genau's HUD above Nau's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
-    named in the log and left where it is, and the session carries on without it.
-    The thread stays blocked in the kernel until that window's owner recovers or
-    dies; that is one leaked thread per call to a hung window, and the cost of
-    not leaking it is the wedge above.
+    named in the log and left where it is.  Its worker stays blocked in the
+    kernel until that window's owner recovers or dies: one leaked thread per
+    call to a hung window, against a wedged session.
 
     Our OWN windows are called straight, and must be: the send would go to this
-    process's UI thread, which is the very thread waiting here — so the worker
-    would wait for a pump that cannot happen until the wait returns, and the
-    dashboard would spend HUNG_WINDOW_TIMEOUT_S failing to band its own reference
-    popup.  A window this process owns cannot be hung from our side anyway: if
-    its loop has stalled, we are the ones who stalled it.
+    process's UI thread, which is the very thread waiting here.  See
+    ``show_own_window`` and the section below it.
     """
     if _owned_by_this_process(hwnd):
         call(hwnd, *args)
@@ -434,6 +288,18 @@ def is_window_topmost(hwnd: int) -> bool:
     """Check whether a window has the WS_EX_TOPMOST extended style."""
     ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
     return bool(ex_style & WS_EX_TOPMOST)
+
+
+def keep_in_topmost_band(hwnd: int, *, topmost: bool) -> None:
+    """Put *hwnd* in or out of the topmost band — only if it is not already.
+
+    Drift correction, not assertion: three windows in this session correct their
+    own band on a timer, because the orchestrator's pass over them is not
+    reliable.  Running SetWindowPos unconditionally would fight whoever else
+    re-asserts the flag and flicker in the steady state.
+    """
+    if is_window_topmost(hwnd) != topmost:
+        set_always_on_top(hwnd, topmost)
 
 
 @dataclass(frozen=True)
@@ -559,19 +425,16 @@ def window_exists(hwnd: int) -> bool:
 def force_foreground_window(hwnd: int) -> bool:
     """Take the foreground for *hwnd* from a process that does not hold it.
 
-    Windows refuses ``SetForegroundWindow`` outright unless the calling process
-    owns the foreground window or received the last input event — and the bridge
-    is neither when a hotkey lands: AHK got the key, and a player owns the
-    screen.  The refusal is silent; it flashes the taskbar button and delivers no
-    WM_ACTIVATE at all, which is exactly the message the window has to see.
-    Attaching this thread's input queue to the foreground window's thread makes
-    the two one queue, and a thread sharing the foreground thread's queue is one
-    of the cases the rule accepts, so the call goes through.
+    Windows refuses ``SetForegroundWindow`` unless the calling process owns the
+    foreground window or received the last input — and the bridge is neither
+    when a hotkey lands: AHK got the key, a player owns the screen.  The refusal
+    is silent, and delivers no WM_ACTIVATE, which is the message the window has
+    to see.  Attaching this thread's input queue to the foreground thread's is
+    one of the cases the rule accepts, so the call goes through.
 
-    Returns whether the window really ended up in the foreground.  A False is
-    worth logging but not worth acting on: on a non-input desktop (the hidden
-    desktop the integration suite runs on) there is no foreground window to be,
-    so this reads False there while the activation itself still lands.
+    Returns whether the window really ended up there.  A False is worth logging
+    but not acting on: a non-input desktop (the integration suite's) has no
+    foreground to be, so it reads False while the activation still lands.
     """
     if not window_exists(hwnd):
         return False
@@ -603,31 +466,22 @@ _user32.GetWindowThreadProcessId.restype = ctypes.wintypes.DWORD
 
 
 def find_window_by_title(title: str, *, exact: bool = False, include_hidden: bool = False) -> int:
-    """Find a visible window whose title contains (or, with *exact*, equals)
-    *title*. Returns 0 if not found.
+    """The first visible window whose title contains — with *exact*, equals —
+    *title*, or 0.
 
-    Use exact=True when the title is a substring of another managed window's
-    title (e.g. "Nau" is contained in "Genau").  Set *include_hidden* to also
-    match windows with WS_VISIBLE cleared (SW_HIDE) — needed to resolve the
-    dashboard while it is hidden behind the loading overlay, whose window PID
-    differs from the launcher PID so only the title lookup can find it.
+    Four of this session's windows are called "Fun Time" and "Fun Time
+    <something>", so the panel needs *exact*.  *include_hidden* also matches a
+    window with WS_VISIBLE cleared, which the dashboard is behind the cover.
     """
-    best: int = 0
-    buf = ctypes.create_unicode_buffer(256)
+    buf = ctypes.create_unicode_buffer(256)  # one for the whole walk
 
-    def callback(hwnd: int, _lparam: int) -> bool:
-        nonlocal best
+    def matches(hwnd: int) -> bool:
         if not include_hidden and not _user32.IsWindowVisible(hwnd):
-            return True
-        _user32.GetWindowTextW(hwnd, buf, 256)
-        matched = buf.value == title if exact else title in buf.value
-        if matched:
-            best = hwnd
             return False
-        return True
+        _user32.GetWindowTextW(hwnd, buf, 256)
+        return buf.value == title if exact else title in buf.value
 
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return best
+    return _first_window(matches)
 
 
 SW_MINIMIZE = 6
@@ -682,233 +536,55 @@ def disable_window_transitions(hwnd: int) -> None:
     )
 
 
+# --- A window this process owns ---
+#
+# The only calls here that deliberately skip _without_hanging, for the reason
+# its docstring gives.  Each takes a handle this process created; nothing else
+# may be passed to one.
+
+
+def show_own_window(hwnd: int) -> None:
+    """Show one of this process's own windows."""
+    _user32.ShowWindow(hwnd, SW_SHOW)
+
+
+def hide_own_window(hwnd: int) -> None:
+    """Hide one, so it renders nothing at all — no flash, no animation."""
+    _user32.ShowWindow(hwnd, SW_HIDE)
+
+
+def set_taskbar_window_styles(hwnd: int) -> None:
+    """Give one a taskbar button, and a title bar with minimize and close.
+
+    Read-modify-write on both style words, then a frame-changed
+    ``SetWindowPos``, without which Windows has the styles but has not redrawn
+    the frame from them.
+    """
+    style = _user32.GetWindowLongW(hwnd, GWL_STYLE)
+    _user32.SetWindowLongW(
+        hwnd, GWL_STYLE, (style | WS_SYSMENU | WS_MINIMIZEBOX) & ~WS_MAXIMIZEBOX)
+    ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    _user32.SetWindowLongW(
+        hwnd, GWL_EXSTYLE, (ex_style | WS_EX_APPWINDOW) & ~WS_EX_TOOLWINDOW)
+    _user32.SetWindowPos(
+        hwnd, 0, 0, 0, 0, 0,
+        SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED,
+    )
+
+
+def insert_below(hwnd: int, other_hwnd: int) -> None:
+    """Put one directly under *other_hwnd*, or leave the band alone given 0.
+
+    Showing a window puts it at the TOP of its band, so one revealed while
+    another topmost window must keep the screen is placed in the same call.
+    """
+    _user32.SetWindowPos(
+        hwnd, ctypes.c_void_p(other_hwnd), 0, 0, 0, 0,
+        SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED
+        | (SWP_NOACTIVATE if other_hwnd else SWP_NOZORDER),
+    )
+
+
 def is_window_minimized(hwnd: int) -> bool:
     """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))
-
-
-# --- COM plumbing (the shortcut's AppUserModelID) ---
-
-import uuid
-
-COINIT_APARTMENTTHREADED = 0x2
-
-# IUnknown vtable index, for _release below.
-_VTBL_RELEASE = 2
-CLSCTX_ALL = 0x17
-
-
-class GUID(ctypes.Structure):
-    _fields_ = [
-        ("Data1", ctypes.c_ulong),
-        ("Data2", ctypes.c_ushort),
-        ("Data3", ctypes.c_ushort),
-        ("Data4", ctypes.c_ubyte * 8),
-    ]
-
-
-def _make_guid(s: str) -> GUID:
-    u = uuid.UUID(s)
-    return GUID(u.time_low, u.time_mid, u.time_hi_version,
-                (ctypes.c_ubyte * 8)(*u.bytes[8:]))
-
-# --- Shortcut AppUserModelID (COM IShellLink + IPersistFile + IPropertyStore) ---
-
-CLSID_ShellLink = _make_guid("00021401-0000-0000-C000-000000000046")
-IID_IShellLinkW = _make_guid("000214F9-0000-0000-C000-000000000046")
-IID_IPersistFile = _make_guid("0000010B-0000-0000-C000-000000000046")
-IID_IPropertyStore = _make_guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99")
-
-
-class PROPERTYKEY(ctypes.Structure):
-    _fields_ = [("fmtid", GUID), ("pid", ctypes.c_ulong)]
-
-
-PKEY_AppUserModel_ID = PROPERTYKEY(
-    _make_guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), 5
-)
-
-VT_LPWSTR = 31
-
-
-class PROPVARIANT(ctypes.Structure):
-    _fields_ = [
-        ("vt", ctypes.c_ushort),
-        ("wReserved1", ctypes.c_ushort),
-        ("wReserved2", ctypes.c_ushort),
-        ("wReserved3", ctypes.c_ushort),
-        ("pwszVal", ctypes.wintypes.LPWSTR),
-        ("_pad", ctypes.c_void_p),
-    ]
-
-
-STGM_READWRITE = 0x00000002
-
-# IPersistFile vtable indices (IUnknown=0..2 + IPersist::GetClassID=3)
-_VTBL_IPF_LOAD = 5
-_VTBL_IPF_SAVE = 6
-
-# IPropertyStore vtable indices (IUnknown=0..2)
-_VTBL_IPS_GET_VALUE = 5
-_VTBL_IPS_SET_VALUE = 6
-_VTBL_IPS_COMMIT = 7
-
-# IUnknown
-_VTBL_QI = 0
-
-
-def _query_interface(obj_addr: int, iid: GUID) -> int:
-    """QueryInterface on a COM object. Returns the new interface pointer or raises."""
-    out = ctypes.c_void_p()
-    hr = _vtbl_call(obj_addr, _VTBL_QI, ctypes.HRESULT,
-                    ctypes.POINTER(GUID), ctypes.POINTER(ctypes.c_void_p))(
-        obj_addr, ctypes.byref(iid), ctypes.byref(out))
-    if hr < 0:  # FAILED() macro
-        raise OSError(f"QueryInterface failed: HRESULT 0x{hr:08x}")
-    return out.value
-
-
-def set_shortcut_app_user_model_id(lnk_path: str, app_id: str) -> None:
-    """Set the AppUserModelID property on a .lnk shortcut file.
-
-    Uses COM (IShellLink → IPersistFile → IPropertyStore) to write the
-    System.AppUserModel.ID property, which Windows uses to match a running
-    process's windows with a pinned taskbar shortcut.
-    """
-    _enter_apartment()
-    try:
-        _set_lnk_aumid(lnk_path, app_id)
-    finally:
-        _ole32.CoUninitialize()
-
-
-def _enter_apartment() -> None:
-    """Take this thread's single-threaded apartment, or refuse to work in it.
-
-    The caller owes exactly one ``CoUninitialize`` for every call that returns
-    ``S_OK`` (this call opened the apartment) or ``S_FALSE`` (the thread already
-    had one, and this call still took a reference), and none at all for a call
-    that failed.  The failure that reaches this path is ``RPC_E_CHANGED_MODE``:
-    something else put this thread in the other concurrency model first.
-    Balancing that with a ``CoUninitialize`` anyway would decrement *their*
-    reference count, and the apartment they hold objects in can close under
-    them; the shortcut work would also be asking for a shell link with no
-    apartment of its own.  So a failed init raises before either happens.
-    """
-    hr = _ole32.CoInitializeEx(None, COINIT_APARTMENTTHREADED)
-    if hr < 0:
-        raise OSError(f"CoInitializeEx failed: HRESULT 0x{hr & 0xFFFFFFFF:08x}")
-
-
-def _set_lnk_aumid(lnk_path: str, app_id: str) -> None:
-    # Create IShellLink instance
-    shell_link = ctypes.c_void_p()
-    hr = _ole32.CoCreateInstance(
-        ctypes.byref(CLSID_ShellLink), None, CLSCTX_ALL,
-        ctypes.byref(IID_IShellLinkW), ctypes.byref(shell_link),
-    )
-    if hr < 0:
-        raise OSError(f"CoCreateInstance(ShellLink) failed: HRESULT 0x{hr:08x}")
-    try:
-        # Get IPersistFile and load the .lnk
-        persist_file = _query_interface(shell_link.value, IID_IPersistFile)
-        try:
-            hr = _vtbl_call(persist_file, _VTBL_IPF_LOAD,
-                            ctypes.HRESULT, ctypes.wintypes.LPCWSTR, ctypes.c_ulong)(
-                persist_file, lnk_path, STGM_READWRITE)
-            if hr < 0:
-                raise OSError(f"IPersistFile::Load failed: HRESULT 0x{hr:08x}")
-
-            # Get IPropertyStore and set the AUMID
-            prop_store = _query_interface(shell_link.value, IID_IPropertyStore)
-            try:
-                pv = PROPVARIANT()
-                pv.vt = VT_LPWSTR
-                pv.pwszVal = app_id
-
-                hr = _vtbl_call(prop_store, _VTBL_IPS_SET_VALUE,
-                                ctypes.HRESULT,
-                                ctypes.POINTER(PROPERTYKEY),
-                                ctypes.POINTER(PROPVARIANT))(
-                    prop_store,
-                    ctypes.byref(PKEY_AppUserModel_ID),
-                    ctypes.byref(pv))
-                if hr < 0:  # FAILED() macro — S_FALSE (1) is success
-                    raise OSError(f"IPropertyStore::SetValue failed: HRESULT 0x{hr:08x}")
-
-                hr = _vtbl_call(prop_store, _VTBL_IPS_COMMIT, ctypes.HRESULT)(prop_store)
-                if hr < 0:
-                    raise OSError(f"IPropertyStore::Commit failed: HRESULT 0x{hr:08x}")
-            finally:
-                _release(prop_store)
-
-            # Save the .lnk back to disk
-            hr = _vtbl_call(persist_file, _VTBL_IPF_SAVE,
-                            ctypes.HRESULT, ctypes.wintypes.LPCWSTR, ctypes.wintypes.BOOL)(
-                persist_file, lnk_path, True)
-            if hr < 0:
-                raise OSError(f"IPersistFile::Save failed: HRESULT 0x{hr:08x}")
-        finally:
-            _release(persist_file)
-    finally:
-        _release(shell_link.value)
-
-
-def _read_shortcut_app_user_model_id(lnk_path: str) -> str | None:
-    """Read the AppUserModelID property from a .lnk file (for testing)."""
-    _enter_apartment()
-    try:
-        return _get_lnk_aumid(lnk_path)
-    finally:
-        _ole32.CoUninitialize()
-
-
-def _get_lnk_aumid(lnk_path: str) -> str | None:
-    shell_link = ctypes.c_void_p()
-    hr = _ole32.CoCreateInstance(
-        ctypes.byref(CLSID_ShellLink), None, CLSCTX_ALL,
-        ctypes.byref(IID_IShellLinkW), ctypes.byref(shell_link),
-    )
-    if hr != 0:
-        return None
-    try:
-        persist_file = _query_interface(shell_link.value, IID_IPersistFile)
-        try:
-            hr = _vtbl_call(persist_file, _VTBL_IPF_LOAD,
-                            ctypes.HRESULT, ctypes.wintypes.LPCWSTR, ctypes.c_ulong)(
-                persist_file, lnk_path, 0)  # STGM_READ = 0
-            if hr != 0:
-                return None
-
-            prop_store = _query_interface(shell_link.value, IID_IPropertyStore)
-            try:
-                pv = PROPVARIANT()
-                hr = _vtbl_call(prop_store, _VTBL_IPS_GET_VALUE,
-                                ctypes.HRESULT,
-                                ctypes.POINTER(PROPERTYKEY),
-                                ctypes.POINTER(PROPVARIANT))(
-                    prop_store,
-                    ctypes.byref(PKEY_AppUserModel_ID),
-                    ctypes.byref(pv))
-                if hr != 0 or pv.vt != VT_LPWSTR:
-                    return None
-                return pv.pwszVal
-            finally:
-                _release(prop_store)
-        finally:
-            _release(persist_file)
-    finally:
-        _release(shell_link.value)
-
-
-def _vtbl_call(obj_addr: int, index: int, restype: type, *argtypes: type):
-    """Build a callable for COM vtable method at *index*. Caller passes 'this' as first arg."""
-    vtbl = ctypes.c_void_p.from_address(obj_addr).value
-    func_ptr = ctypes.c_void_p.from_address(
-        vtbl + index * ctypes.sizeof(ctypes.c_void_p)
-    ).value
-    return ctypes.WINFUNCTYPE(restype, ctypes.c_void_p, *argtypes)(func_ptr)
-
-
-def _release(obj_addr: int) -> None:
-    _vtbl_call(obj_addr, _VTBL_RELEASE, ctypes.c_ulong)(obj_addr)

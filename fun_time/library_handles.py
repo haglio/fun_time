@@ -43,6 +43,16 @@ class LibraryHandle:
         return self.versions[0]
 
     @property
+    def display_name(self) -> str:
+        """What the browser labels this row with; a folder answers too."""
+        return self.title
+
+    @property
+    def previews(self) -> tuple[str, ...]:
+        """The stills this row shows — one, where a folder has four."""
+        return (self.preview,)
+
+    @property
     def preview(self) -> str:
         """The rendition to take a thumbnail off — the smallest, so cheapest.
 

@@ -15,12 +15,137 @@ imports startup, so the file's shape has to sit under both.
 from __future__ import annotations
 
 import configparser
+from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
-from .command_dispatch import BridgeState
+from .players import Player
 from .mode_plan import STARTUP_MAIN_MODE
 from .satellites_mode import STARTUP_SATELLITES_MODE
+
+@dataclass(frozen=True)
+class SideState:
+    """One satellite's slice of the state, by value.
+
+    The flat portrait_/landscape_ fields below stay the stored truth — the INI's
+    keys are read by the dashboard and both satellite HUD processes — and this
+    is the per-side view of them: :meth:`BridgeState.side` reads one side out,
+    :meth:`BridgeState.with_side` writes one back.  Every default is the empty
+    value of its field, so a side at ``SideState()`` sits at its defaults.
+    """
+
+    locked: bool = False
+    filter: str = ""
+    f_mode: bool = False
+    latest: bool = False
+    loop: str = ""
+    map_anchor: str = ""
+    widen_clip: str = ""
+    nav_anchor: str = ""
+
+
+def _flat_field(name: str, which: int) -> str:
+    """The BridgeState field holding side *which*'s *name* value."""
+    if name == "locked":
+        return f"locked{int(which)}"
+    return f"{Player(which).label}_{name}"
+
+
+@dataclass
+class BridgeState:
+    locked2: bool = False
+    locked3: bool = False
+    main_mode: str = STARTUP_MAIN_MODE
+    # The satellite side's own mode axis (see fun_time.satellites_mode):
+    # "player" is the session as ever, "origenerator" puts the hosted
+    # Origenerator over the RFB and its shows over the players.
+    satellites_mode: str = STARTUP_SATELLITES_MODE
+    # Whether each player is in F-mode, held per player because it is set per
+    # player: each HUD carries its own button, and only the bare "f mode" (and the
+    # F key) still reaches all three at once.  It narrows the satellites to the
+    # favorites and the main player to the videos that have a funscript, so which
+    # player it is on genuinely changes what it means.
+    main_f_mode: bool = False
+    portrait_f_mode: bool = False
+    landscape_f_mode: bool = False
+    omni_paused: bool = False
+    # Which browse order each player is in: newest-first ("Latest") when set,
+    # else shuffled.  Per player, since Latest and Shuffle name one, and read by
+    # every later rebuild (a filter, F-mode) so that player reloads the same way.
+    main_latest: bool = False
+    portrait_latest: bool = False
+    landscape_latest: bool = False
+    # Genau's own, kept apart from ``main_latest`` even though the two players
+    # share the main slot: ``main_latest`` describes the playlist file we built
+    # for Nau, and a Genau reorder rewrites nothing of Nau's.  One flag for both
+    # would light "Latest" on Nau's console over a playlist nobody reordered.
+    # Unlike the other three it does not resume: Genau rescans and reshuffles its
+    # clips folder at every launch, so a new session's Genau is not in the order
+    # the last one left it in (see fun_time.session_resume.RESUMED_FIELDS).
+    genau_latest: bool = False
+    # The player most recently navigated (1=main/Nau, 2=portrait,
+    # 3=landscape). Any portrait_/landscape_ command, or a main next/prev,
+    # updates it; the side-agnostic "active_*" commands resolve against it —
+    # nav (next/prev) reaches all three, the satellite-only actions only 2/3.
+    # Starts on the main player: it is the display the eye opens on, so it holds the
+    # floor until a satellite is addressed.
+    active_side: int = 1
+    # Per-satellite metadata filter queries ("" = no filter). Persisted in the shared
+    # state file so they survive the dispatch loop's per-tick state resync and
+    # are honored by later F-mode / reorder rebuilds.
+    portrait_filter: str = ""
+    landscape_filter: str = ""
+    # Which group loop each satellite is running: "" none, "action" (looping the
+    # action column) or "seed" (looping the seed row).  A loop is repeat-all over
+    # a sub-playlist; the satellite's own auto-advance keeps it alive, but any dispatch
+    # command that rebuilds or re-navigates the side drops it.  Persisted so the
+    # HUD can freeze its map on the looped group and keep the loop button lit
+    # while the clip auto-advances.
+    portrait_loop: str = ""
+    landscape_loop: str = ""
+    # The clip each satellite's HUD map hangs on — the head of the queue a loop
+    # wrote.  The map is ordered from it, so the group is drawn in the order the
+    # player actually plays it: the clip you pressed loop on in the corner, the rest
+    # walking away from it.  It outlives the loop: switching a loop off leaves the
+    # map hanging here, so only the loop's own chrome goes, and the map re-homes on
+    # its own once the browse moves on past the group.
+    portrait_map_anchor: str = ""
+    landscape_map_anchor: str = ""
+    # The clip each satellite's seed row has been widened around ("more seeds").
+    # While it equals the clip on screen the HUD shows the near-matches ranked in
+    # alongside the family; navigating to another clip leaves it behind, so the
+    # widen auto-resets without any explicit clear.
+    portrait_widen_clip: str = ""
+    landscape_widen_clip: str = ""
+    # The clip each satellite's HUD map is frozen on for keyboard navigation ("" =
+    # not navigating).  The arrow / WASD keys move a selection across that frozen
+    # map, switching the satellite to each cell's clip; the anchor holds until Enter
+    # locks the selection, another command re-homes the side, or the satellite
+    # drifts off the map.  Persisted so the HUD freezes its map to match.
+    portrait_nav_anchor: str = ""
+    landscape_nav_anchor: str = ""
+    # The main player's sound level, 0-100, and whether it is silenced.  A
+    # mute leaves the level alone so a second "mute" restores what was set.
+    volume: int = MAX_VOLUME
+    muted: bool = False
+
+    def side(self, which: int) -> SideState:
+        """Satellite *which*'s (2=portrait, 3=landscape) slice of this state."""
+        return SideState(**{
+            field.name: getattr(self, _flat_field(field.name, which))
+            for field in fields(SideState)
+        })
+
+    def with_side(self, which: int, **changes) -> "BridgeState":
+        """This state with side *which*'s named :class:`SideState` values replaced."""
+        side_fields = {field.name for field in fields(SideState)}
+        unknown = set(changes) - side_fields
+        if unknown:
+            raise TypeError(f"not SideState fields: {sorted(unknown)}")
+        return replace(self, **{
+            _flat_field(name, which): value for name, value in changes.items()
+        })
+
 
 SHARED_STATE_FILENAME = "shared_bridge_state.ini"
 

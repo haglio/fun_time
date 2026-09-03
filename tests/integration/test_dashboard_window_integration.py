@@ -27,7 +27,6 @@ from fun_time.dashboard_app import (
     load_dashboard_app_config,
 )
 from fun_time.dashboard_runtime import (
-    DashboardPanelSnapshot,
     DashboardSnapshot,
     DashboardWindowSnapshot,
 )
@@ -179,14 +178,14 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         writer.addHandler(EventLogHandler(event_log_path(state_dir)))
 
         notice(writer, "Clip saved", source="portrait")
-        window._poll_notices()
+        window._notices.poll()
 
-        overlay = window._notice_overlay
+        overlay = window._notices.overlay
         assert overlay is not None
         assert overlay.isVisible()
         assert overlay.text() == "Clip saved"
         # Centered across the portrait player's top, not the dashboard's.
-        portrait = window._player_rects.portrait
+        portrait = window._notices.player_rects.portrait
         assert portrait.x <= overlay.x() <= portrait.x + portrait.width
         assert overlay.y() < portrait.y + portrait.height // 2
         # A normal notice reads green; a dead-end (ERROR) reads red.  The flash
@@ -195,7 +194,7 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 
         assert level_color(NOTICE).name() in overlay.styleSheet()
         notice(writer, "No other seeds", source="portrait", level=logging.ERROR)
-        window._poll_notices()
+        window._notices.poll()
         assert overlay.text() == "No other seeds"
         assert level_color(logging.ERROR).name() in overlay.styleSheet()
         assert level_color(NOTICE).name() != level_color(logging.ERROR).name()
@@ -206,12 +205,7 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
     """The state file's snapshot, as the dashboard's refresh reads it."""
     return DashboardSnapshot(
-        main_mode="nau",
-        osr2_mode="controlled",
         omni_paused=omni_paused,
-        main=DashboardPanelSnapshot(path=""),
-        portrait=DashboardPanelSnapshot(path=""),
-        landscape=DashboardPanelSnapshot(path=""),
         window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
     )
 
@@ -228,7 +222,7 @@ def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Pat
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         window._on_action(HELP_REFERENCE)  # the ? button's own path
-        dialog = window._reference_dialog
+        dialog = window._reference.dialog
         assert dialog is not None
         hwnd = int(dialog.winId())
         # The window we are banding is the one the user sees by name.
@@ -254,7 +248,7 @@ def test_the_reference_popup_opens_non_topmost_under_omnipause(cfg_path: Path):
         window._do_render(_omnipause_snapshot(omni_paused=True), frozenset())
 
         window._on_action(HELP_REFERENCE)
-        dialog = window._reference_dialog
+        dialog = window._reference.dialog
         assert dialog is not None
         assert not is_window_topmost(int(dialog.winId()))
     finally:
@@ -269,14 +263,14 @@ def test_closing_the_dashboard_stops_its_pollers_and_the_log_tail(cfg_path: Path
     tail must stop with them."""
     window, _state_dir = _build_merged_dashboard(cfg_path)
     log = window._log_widget
-    overlay = window._notice_overlay
+    overlay = window._notices.overlay
 
     window.close()
 
-    assert window._stopping.is_set()
+    assert not window._press_channel.listening
     assert not window._refresh_timer.isActive()
     assert not window._notice_timer.isActive()
     assert not log._timer.isActive()
-    assert window._notice_overlay is None
+    assert window._notices.overlay is None
     if overlay is not None:
         assert not overlay.isVisible()

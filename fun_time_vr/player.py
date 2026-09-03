@@ -27,10 +27,10 @@ never composites them, so screens submitted that way don't appear; everything
 draws in-scene inside the projection layer instead, which every runtime
 composites.
 
-Not unit-tested: this is the GL/OpenXR/mpv shell.  Everything it wires —
-roles, scene geometry, matrices, projections, furniture throttling — is
-tested pure, and the whole pipeline minus OpenXR runs against the real DLLs
-in the hidden-desktop integration suite.
+The GL/OpenXR/mpv shell.  Everything it wires — roles, scene geometry,
+matrices, projections, furniture throttling — is tested pure, and the whole
+pipeline minus OpenXR runs against the real DLLs in the hidden-desktop
+integration suite.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 
@@ -41,11 +41,14 @@ import logging
 import math
 import threading
 import time
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
 
 from app_support.threading_utils import start_daemon_thread
+
+from fun_time.manifest import LaunchManifest
 
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.playlist import read_playlist
@@ -125,11 +128,35 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _read_manifest(path: Path) -> configparser.ConfigParser:
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(path), encoding="utf-8")
-    return manifest
+@dataclass(frozen=True)
+class VrSettings:
+    """The ``[vr]`` section the VR orchestrator adds to the launch manifest.
+
+    FunTimeVR's own half of the schema, read here rather than in
+    :mod:`fun_time.manifest` because a desktop session never writes it.
+    """
+
+    tcode_udp_host: str
+    tcode_udp_port: int
+    library_dirs: tuple[Path, ...]
+    audio_device: str
+    compositor_layers: bool
+
+    @classmethod
+    def read(cls, path: Path) -> VrSettings:
+        parser = configparser.ConfigParser()
+        parser.optionxform = str
+        parser.read(str(path), encoding="utf-8")
+        vr = parser["vr"]
+        return cls(
+            tcode_udp_host=vr["tcode_udp_host"],
+            tcode_udp_port=int(vr["tcode_udp_port"]),
+            library_dirs=tuple(Path(part) for part in vr["library_dirs"].split("|")
+                               if part.strip()),
+            audio_device=parser.get("vr", "audio_device", fallback=""),
+            compositor_layers=parser.get(
+                "vr", "compositor_layers", fallback="0").strip() == "1",
+        )
 
 
 class _VideoUnit:
@@ -209,18 +236,21 @@ class _VideoUnit:
             x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
             self.player.overlay(_OV_VOLUME, x, y, painter.bgra(volume_hud))
 
+    def pump(self, stop: threading.Event, now: float) -> None:
+        """One turn of the file-channel worker — what every unit owes it."""
+        raise NotImplementedError
+
+    def close(self) -> None:  # what the frame loop's `finally` calls
+        raise NotImplementedError
+
     def _close_graphics(self) -> None:
         self.target.close()
         if self.mesh is not None:
             self.mesh.close()
 
-    def close(self) -> None:
-        self._close_graphics()
-        self.player.close()
-
 
 class _MainUnit(_VideoUnit):
-    def __init__(self, manifest: configparser.ConfigParser, get_proc_address) -> None:
+    def __init__(self, manifest: LaunchManifest, vr: VrSettings, get_proc_address) -> None:
         # Muted at birth: the main player's sound belongs on the headset, and the
         # headset's sink cannot be trusted until the compositor is presenting
         # (see route_audio) — unmuted-on-default would blare the room speakers
@@ -230,27 +260,27 @@ class _MainUnit(_VideoUnit):
             PRIMARY_VIDEO_CAP_PX,
         )
         self._set_screen(0.0, PRIMARY_WIDTH_DEG)
-        commands, vr = manifest["commands"], manifest["vr"]
-        self.cmd_file = Path(commands["nau_cmd_file"])
-        self.paused_file = Path(commands["nau_paused_file"])
-        metadata_raw = manifest.get("regen", "metadata_root", fallback="").strip()
+        commands = manifest.commands
+        self.cmd_file = Path(commands.nau_cmd_file)
+        self.paused_file = Path(commands.nau_paused_file)
+        metadata_raw = manifest.regen.metadata_root.strip()
         driver = FunscriptTCodeDriver(
-            UdpTCodeSink(vr["tcode_udp_host"], int(vr["tcode_udp_port"]))
+            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port)
         )
         self.role = MainRole(
             player=self.player,
             driver=driver,
-            playlist_file=Path(commands["nau_playlist_file"]),
+            playlist_file=Path(commands.nau_playlist_file),
             metadata_root=Path(metadata_raw) if metadata_raw else None,
             vr_dirs=tuple(
-                Path(part) for part in vr["library_dirs"].split("|") if part.strip()
+                vr.library_dirs
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
-        self._audio_device = vr.get("audio_device", "").strip()
+        self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._status_writer = StatusWriter(
-            Path(commands["nau_status_file"]), lambda role: role.status_fields()
+            Path(commands.nau_status_file), lambda role: role.status_fields()
         )
         self._volume_painter = VolumeHudPainter()
         self._unhandled: set[str] = set()
@@ -291,7 +321,7 @@ class _MainUnit(_VideoUnit):
                 keyword = line.split(None, 1)[0].upper() if line.split() else line
                 if keyword not in self._unhandled:
                     self._unhandled.add(keyword)
-                    logger.info("Verb not in the VR prototype yet: %s", keyword)
+                    logger.info("Verb the VR main role does not handle: %s", keyword)
         self.role.tick(now)
         self._status_writer.write(self.role)
         self.overlay_furniture(
@@ -305,7 +335,7 @@ class _MainUnit(_VideoUnit):
 
 
 class _SatelliteUnit(_VideoUnit):
-    def __init__(self, side: str, manifest: configparser.ConfigParser, get_proc_address) -> None:
+    def __init__(self, side: str, manifest: LaunchManifest, get_proc_address) -> None:
         # audio=False, not merely muted: a satellite is silent by design, and
         # any audio chain in this process can wedge on the headset's parked
         # endpoint and freeze that player's video clock with it (see
@@ -319,24 +349,24 @@ class _SatelliteUnit(_VideoUnit):
         self._set_screen(
             satellite_center_azimuth(side), SATELLITE_WIDTH_DEG, SATELLITE_ELEVATION_DEG
         )
-        commands = manifest["commands"]
+        commands = manifest.commands
         self.side = side
-        self.cmd_file = Path(commands[f"{side}_cmd_file"])
-        self.paused_file = Path(commands[f"{side}_paused_file"])
-        self.playlist_file = Path(commands[f"{side}_playlist_file"])
+        self.cmd_file = Path(commands.side_file(side, "cmd"))
+        self.paused_file = Path(commands.side_file(side, "paused"))
+        self.playlist_file = Path(commands.side_file(side, "playlist"))
         self.session = SatelliteSession(
             self._read_playlist(),
             player=self.player,
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
         self._status_writer = StatusWriter(
-            Path(commands[f"{side}_status_file"]), satellite_status_fields
+            Path(commands.side_file(side, "status")), satellite_status_fields
         )
         # The lock HUD panel fun_time publishes, composited into the video by
         # mpv — no mouse reaches it in VR, but the map itself carries over.
         self.hud = HudOverlay(
-            hud_file=Path(commands[f"{side}_hud_file"]),
-            command_file=Path(commands["dashboard_cmd_file"]),
+            hud_file=Path(commands.side_file(side, "hud")),
+            command_file=Path(commands.dashboard_cmd_file),
             player=self.player,
         )
         self._volume_painter = VolumeHudPainter()
@@ -371,14 +401,15 @@ class _SatelliteUnit(_VideoUnit):
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = build_parser().parse_args(argv)
-    manifest = _read_manifest(args.manifest)
+    manifest = LaunchManifest.read(args.manifest)
+    vr = VrSettings.read(args.manifest)
 
     ready = vr_runtime.ensure_ready()
     if ready.readiness is not vr_runtime.Readiness.READY:
         logger.error("VR not available: %s", ready.readiness.value)
         _show_error_popup(vr_runtime.explain(ready))
         return 1
-    return _run(manifest)
+    return _run(manifest, vr)
 
 
 def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePerf) -> None:
@@ -408,7 +439,7 @@ def _update_quad_layer(
 ):
     """Refresh *unit*'s quad swapchain if its texture moved, and describe the
     layer to submit — or None before the first frame of content exists."""
-    from .vr_session import QuadLayer  # noqa: PLC0415 — sibling of the lazy VRSession import
+    from .vr_session import QuadLayer  # sibling of the lazy VRSession import
 
     if unit.layer_dirty:
         session.ensure_quad_swapchain(index, unit.target.width, unit.target.height)
@@ -470,11 +501,11 @@ def _draw_eyes(
         session.release_eye_framebuffer(eye_index)
 
 
-def _run(manifest: configparser.ConfigParser) -> int:
-    import glfw  # noqa: PLC0415 — GL/XR stack loads only after the runtime probe
-    import xr  # noqa: PLC0415
+def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
+    import glfw  # GL/XR stack loads only after the runtime probe
+    import xr
 
-    from .vr_session import VRSession  # noqa: PLC0415
+    from .vr_session import VRSession
 
     bringup_deadline = time.monotonic() + SESSION_BRINGUP_TIMEOUT_S
     while True:
@@ -513,13 +544,13 @@ def _run(manifest: configparser.ConfigParser) -> int:
     def get_proc_address(name: str):
         return glfw.get_proc_address(name)
 
-    primary = _MainUnit(manifest, get_proc_address)
+    primary = _MainUnit(manifest, vr, get_proc_address)
     satellites = [
         _SatelliteUnit("portrait", manifest, get_proc_address),
         _SatelliteUnit("landscape", manifest, get_proc_address),
     ]
     units: list[_VideoUnit] = [primary, *satellites]
-    use_layers = manifest.get("vr", "compositor_layers", fallback="0").strip() == "1"
+    use_layers = vr.compositor_layers
     perf = FramePerf(logger=logger)
     # Recentering: RECENTER re-zeroes the scene onto the head's heading at
     # that instant, kept as both a model matrix (the eye pass) and an azimuth

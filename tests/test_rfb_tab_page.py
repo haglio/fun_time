@@ -14,18 +14,15 @@ def _video(tmp_path: Path, name: str = "clip.mp4") -> Path:
     return video
 
 
-def test_render_tab_page_navigates_to_the_target_on_reload():
+def test_render_tab_page_embeds_the_target_and_the_label():
+    """The render is four token substitutions into a static template; what it
+    owns is that the target URL and the fav's label both land and no token
+    survives.  What the template's own CSS and JS then DO with them is the
+    page's business, not this module's — asserting the template's spelling
+    here only change-detects a static asset."""
     html = render_tab_page(TabTarget(REGEN_URL, "https://example.com/image/abc"))
 
     assert f'"{REGEN_URL}"' in html
-    assert "location.replace(target)" in html
-    assert "'reload'" in html
-
-
-def test_render_tab_page_shows_the_label_not_the_payload():
-    """A regenerate URL is kilobytes of encoded prompt — the page names the fav."""
-    html = render_tab_page(TabTarget(REGEN_URL, "https://example.com/image/abc"))
-
     assert '"https://example.com/image/abc"' in html
     assert "__FT_TARGET__" not in html
     assert "__FT_LABEL__" not in html
@@ -63,27 +60,11 @@ def test_render_tab_page_embeds_no_video_for_a_relative_path():
     assert 'var video = "";' in html
 
 
-def test_render_tab_page_decodes_only_while_the_tab_is_visible(tmp_path: Path):
-    """Ten background tabs all decoding video would burn the CPU for nothing."""
-    html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
-
-    assert "visibilitychange" in html
-    assert "clip.pause()" in html
-
-
 def test_render_tab_page_asks_this_session_whether_it_is_omnipaused(tmp_path: Path):
     """A page pointed at the wrong URL just never freezes — silently, forever."""
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
 
     assert f'"{omnipause_url()}"' in html
-
-
-def test_render_tab_page_centers_the_clip(tmp_path: Path):
-    """The clip is revealed as a block box narrower than the text around it, so
-    the container's text-align cannot center it — only auto side margins can."""
-    html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
-
-    assert "margin: 0 auto" in html
 
 
 # --- writing pages ---

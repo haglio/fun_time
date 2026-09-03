@@ -14,7 +14,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time.command_dispatch import command_side
-from fun_time.command_reference import friendly_voice
+from fun_time.voice_commands import friendly_voice
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_PORTRAIT,
@@ -56,7 +56,6 @@ _SPOKEN_PLAYER_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
     "main": SOURCE_MAIN,
-    "main": SOURCE_MAIN,
 }
 
 
@@ -83,13 +82,8 @@ def _source_for_heard_text(text: str) -> str:
 # and adds nothing — "play" resumes, "quit"/"exit" quits, "relief omnipause"
 # retracts, and that last one has to reach a room that is ALREADY paused, because
 # a paused session can still have the device on the user.  Nothing else a paused
-# room says reaches the dispatch loop.
-#
-# The reference popup is NOT exempt, deliberately: d6f3766 exempted it ("Let the
-# reference popup answer while the room is paused") and this reverts that, at the
-# user's call.  The freeze is a flat rule about what a paused room may be heard to
-# do, and a spoken "help" is exactly the phrase room noise produced when it opened
-# the popup mid-pause.  Don't re-exempt it without asking first.
+# room says reaches the dispatch loop.  Widening this set is the owner's call --
+# see CLAUDE.md, "Standing rules", and the test that pins the whole frozenset.
 SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
 
 
@@ -184,12 +178,24 @@ _VOICE_IMPORT_ERROR: str = ""
 try:
     import vosk
     import sounddevice as sd
-except Exception as _exc:  # optional — voice control silently unavailable
+# Absent (ImportError), present but without PortAudio (OSError), or broken --
+# sounddevice dies in ctypes.util where ctypes has no Win32 half, which
+# tests/test_win32_loader.py stages: unavailable either way, message kept.
+except Exception as _exc:
     vosk = None  # type: ignore[assignment]
     sd = None  # type: ignore[assignment]
     _VOICE_IMPORT_ERROR = str(_exc)
 
 VOICE_AVAILABLE = vosk is not None and sd is not None
+
+
+def voice_import_error() -> str:
+    """Why voice control is unavailable, or "" when it is available.
+
+    An accessor rather than the module global it reads, so the two orchestrators
+    that report this cannot bind a name this module calls its own.
+    """
+    return _VOICE_IMPORT_ERROR
 
 
 class VoiceController:
@@ -339,7 +345,7 @@ class VoiceController:
         # duration, which is what dates an utterance's first block.
         audio_q: _queue.Queue[tuple[bytes, float]] = _queue.Queue()
 
-        def _callback(indata, frames, time_info, status):
+        def _callback(indata, _frames, _time_info, status):
             if status:
                 logger.debug("audio status: %s", status)
             audio_q.put((bytes(indata), time.monotonic()))

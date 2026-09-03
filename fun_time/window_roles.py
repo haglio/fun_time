@@ -13,8 +13,9 @@ stacked relative to each other:
   * nau mode    — Nau owns the display and is topmost (Genau hidden).
   * hybrid mode — Nau is topmost so the video floats up, and Genau is stacked
                   just ABOVE it so the HUD overlays the video.  That ordering is
-                  enforced by promoting Nau before Genau (see the dispatch
-                  loop's ``_restack_main_slot``), not by these flags.
+                  enforced by promoting Nau before Genau (see
+                  ``role_windows.WindowRoles.restack_main_slot``), not by these
+                  flags.
   * genau mode  — Genau owns the display and is topmost (Nau hidden).
 """
 from __future__ import annotations
@@ -48,11 +49,11 @@ ORIGENERATOR_ROLE_TITLES: dict[str, str] = {
 
 # The two players that share the main player's rect and therefore need
 # explicit stacking (Nau under Genau's HUD in hybrid).
-PRIMARY_SLOT_ROLES: tuple[str, ...] = ("nau", "genau")
+MAIN_SLOT_ROLES: tuple[str, ...] = ("nau", "genau")
 
 # Every window role the bridge manages, in promotion order.
 MANAGED_ROLES: tuple[str, ...] = (
-    FIXED_TOPMOST_ROLES + ORIGENERATOR_ROLES + PRIMARY_SLOT_ROLES
+    FIXED_TOPMOST_ROLES + ORIGENERATOR_ROLES + MAIN_SLOT_ROLES
 )
 
 
@@ -87,6 +88,12 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = "player") -> 
     return True
 
 
+def visible_roles(main_mode: str, satellites_mode: str = "player") -> list[str]:
+    """Every managed role whose window these modes keep on screen."""
+    origenerator = ORIGENERATOR_ROLES if origenerator_shows(satellites_mode) else ()
+    return [*FIXED_TOPMOST_ROLES, *origenerator, *visible_main_slot_roles(main_mode)]
+
+
 def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:
     """Which of the two main-slot players *main_mode* has on the screen: Nau in
     nau, Genau in genau, and both in hybrid, where Genau's HUD sits over Nau's
@@ -98,4 +105,4 @@ def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:
     policy above rather than listed again: a main-slot player is in the topmost
     band exactly when it is showing something, so the two answers cannot drift.
     """
-    return tuple(role for role in PRIMARY_SLOT_ROLES if role_topmost(role, main_mode))
+    return tuple(role for role in MAIN_SLOT_ROLES if role_topmost(role, main_mode))

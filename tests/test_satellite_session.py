@@ -1,18 +1,6 @@
 from __future__ import annotations
 
-from satellite.session import SatelliteSession
-from tests.satellite_fakes import FakeSatellitePlayer
-
-
-def _make_session(tmp_path, *, entries=1, start_paused=False, duration_ms=5_000.0):
-    playlist = []
-    for i in range(entries):
-        vid = tmp_path / f"v{i}.mp4"
-        vid.write_text("fake")
-        playlist.append(vid)
-    player = FakeSatellitePlayer(duration_ms=duration_ms)
-    session = SatelliteSession(playlist, player=player, start_paused=start_paused)
-    return session, player
+from tests.satellite_fakes import make_satellite_session as _make_session
 
 
 class TestLoadAndPlay:
@@ -22,7 +10,6 @@ class TestLoadAndPlay:
         assert player.opened == [tmp_path / "v0.mp4"]
         assert player.paused is False
         assert session.current_video == tmp_path / "v0.mp4"
-        assert session.index == 0
 
     def test_init_start_paused_tells_player_to_pause(self, tmp_path):
         session, player = _make_session(tmp_path, start_paused=True)
@@ -37,11 +24,11 @@ class TestNavigation:
 
         session.step(1)
         assert player.opened[-1] == tmp_path / "v1.mp4"
-        assert session.index == 1
+        assert session.current_video == tmp_path / "v1.mp4"
 
         session.step(1)
         assert player.opened[-1] == tmp_path / "v0.mp4"  # wraps forward
-        assert session.index == 0
+        assert session.current_video == tmp_path / "v0.mp4"
 
         session.step(-1)
         assert player.opened[-1] == tmp_path / "v1.mp4"  # wraps backward
@@ -89,7 +76,6 @@ class TestPrefetch:
         player.simulate_eof_advance()
         session.advance()
 
-        assert session.index == 1
         assert session.current_video == tmp_path / "v1.mp4"
         # The whole point: the next clip was NOT cold-opened on screen...
         assert player.opened == [tmp_path / "v0.mp4"]
@@ -104,14 +90,14 @@ class TestAdvance:
 
         session.advance()
 
-        assert session.index == 1
+        assert session.current_video == tmp_path / "v1.mp4"
 
     def test_advance_before_eof_is_a_noop(self, tmp_path):
         session, _player = _make_session(tmp_path, entries=2)
 
         session.advance()
 
-        assert session.index == 0
+        assert session.current_video == tmp_path / "v0.mp4"
 
     def test_advance_while_paused_never_steps(self, tmp_path):
         # The OmniPause guarantee: a paused satellite cannot walk its playlist,
@@ -122,7 +108,7 @@ class TestAdvance:
 
         session.advance()
 
-        assert session.index == 0
+        assert session.current_video == tmp_path / "v0.mp4"
 
 
 class TestLock:
@@ -134,7 +120,7 @@ class TestLock:
         player.simulate_eof_advance()
         session.advance()
 
-        assert session.index == 0  # repeat-one: stays on the locked clip
+        assert session.current_video == tmp_path / "v0.mp4"  # repeat-one: stays on the locked clip
 
     def test_lock_engages_native_loop_and_clears_the_prefetch(self, tmp_path):
         # mpv loops the file itself (loop_file=inf) so a locked short clip repeats
@@ -158,7 +144,7 @@ class TestLock:
         player.simulate_eof_advance()
         session.advance()
 
-        assert session.index == 1
+        assert session.current_video == tmp_path / "v1.mp4"
 
 
 class TestDiscard:
@@ -198,7 +184,6 @@ class TestPlayFile:
 
         session.play_file(tmp_path / "v2.mp4")
 
-        assert session.index == 2
         assert session.current_video == tmp_path / "v2.mp4"
         assert player.opened[-1] == tmp_path / "v2.mp4"
         assert len(session.playlist) == 3  # a member jump does not grow the list
@@ -211,7 +196,6 @@ class TestPlayFile:
         session.play_file(newcomer)
 
         assert session.current_video == newcomer
-        assert session.index == 1
         assert [p.name for p in session.playlist] == ["v0.mp4", "brought_back.mp4", "v1.mp4"]
         assert player.opened[-1] == newcomer
 
@@ -229,7 +213,6 @@ class TestPlaylistReplacement:
         session.replace_playlist([x, tmp_path / "v1.mp4", y])
 
         assert session.current_video == tmp_path / "v1.mp4"
-        assert session.index == 1
         assert player.opened == opened_before  # keeps playing, no reload flicker
         assert player.staged_next == y  # but the prefetched next is refreshed
 
@@ -241,7 +224,6 @@ class TestPlaylistReplacement:
 
         session.replace_playlist([x, y])
 
-        assert session.index == 0
         assert session.current_video == x
         assert player.opened[-1] == x
 

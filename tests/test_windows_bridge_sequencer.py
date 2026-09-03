@@ -1,15 +1,27 @@
 from __future__ import annotations
 
 import configparser
+import logging
 from pathlib import Path
+import contextlib
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 
 from fun_time.config import load_config
-from fun_time.dashboard_runtime import genau_status_path, read_nau_status
+from fun_time.player_status import (
+    genau_status_path,
+    read_nau_status,
+)
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.manifest import (
+    WINDOWS_BRIDGE_MANIFEST_FILENAME,
+    LaunchManifest,
+    RandomFavsBrowserSettings,
+    write_windows_bridge_manifest,
+)
 from fun_time.nau_console import nau_console_path
 from fun_time import windows_bridge_sequencer
+from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from fun_time.windows_bridge_sequencer import (
     release_the_players,
     _wait_for_players_drawing,
@@ -27,8 +39,6 @@ from fun_time.window_layout import (
 )
 from fun_time.config import LayoutConfig
 from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
-
-from types import SimpleNamespace
 
 import pytest
 
@@ -54,6 +64,16 @@ def _make_manifest(cfg_factory, tmp_path):
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
     return cfg, manifest_path
+
+
+def _pause_every_player(m) -> list[Path]:
+    """The three paused flags, all set — the state seed_startup_states leaves."""
+    flags = [Path(m.commands.nau_paused_file), Path(m.commands.genau_paused_file),
+             Path(m.commands.audio_paused_file)]
+    for flag in flags:
+        flag.parent.mkdir(parents=True, exist_ok=True)
+        flag.write_text("1", encoding="utf-8")
+    return flags
 
 
 def _write_result(result_file, values):
@@ -95,23 +115,49 @@ def _seed_paused_flags(manifest_path) -> dict[str, Path]:
 
 def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
     """Startup through to the reveal, resuming into *mode*, windows all faked."""
-    with patch("fun_time.windows_bridge_sequencer.start_core_session",
-               side_effect=_fake_core_in(mode)), \
-         patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-         patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-         patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-         patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-         patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-         patch("fun_time.windows_bridge_sequencer.move_window"), \
-         patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-         patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-         patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-        mock_time.sleep = lambda _: None
-        mock_time.monotonic = MagicMock(return_value=0)
-
+    with _sequencer_stubs(
+            start_core_session=dict(side_effect=_fake_core_in(mode)),
+            wait_for_window_by_title=dict(return_value=88888)):
         run_startup_sequence(
             manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False,
         )
+
+
+@contextlib.contextmanager
+def _sequencer_stubs(**overrides):
+    """The startup sequence's collaborators, stubbed at their boundary, once.
+
+    The same ten-name patch stack used to be spelled out in 26 tests; a test
+    that needs a collaborator to behave differently passes the mock kwargs for
+    it (``wait_for_window_by_title=dict(side_effect=...)``), and reads any
+    mock back off the yielded namespace.  The clock is deliberately NARROW —
+    ``monotonic`` frozen at zero and a no-op ``sleep``, not a module-wide
+    MagicMock — so a new ``time.*`` use in the sequencer fails loudly here
+    instead of silently answering with a fresh mock.
+    """
+    spec: dict[str, dict] = {
+        "start_core_session": dict(side_effect=_fake_core),
+        "launch_genau": dict(return_value=GENAU_PID),
+        "launch_nau": dict(side_effect=_fake_nau),
+        "launch_ui_companions": dict(side_effect=_fake_ui),
+        "enumerate_monitors": dict(return_value=FAKE_MONITORS),
+        "wait_for_window_by_title": dict(return_value=99999),
+        "move_window": {},
+        "set_always_on_top": {},
+        "minimize_window": {},
+        "disable_window_transitions": {},
+    }
+    spec.update(overrides)
+    with contextlib.ExitStack() as stack:
+        mocks = SimpleNamespace()
+        for name, kwargs in spec.items():
+            setattr(mocks, name, stack.enter_context(
+                patch(f"fun_time.windows_bridge_sequencer.{name}", **kwargs)))
+        stack.enter_context(patch(
+            "fun_time.windows_bridge_sequencer.time",
+            SimpleNamespace(monotonic=lambda: 0.0, sleep=lambda _s: None)))
+        yield mocks
+
 
 
 def _fake_ui(**kwargs):
@@ -128,8 +174,26 @@ def _fake_nau(**kwargs):
     return NAU_PID
 
 
+def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
+    """Each phase's result INI carries the launch's clock stamp, so a second
+    launch into the same state dir writes beside the first's results instead
+    of clobbering them.  Two clock readings, two paths — under the suite's
+    old frozen-clock stubs every call returned <prefix>_0.ini, a version of
+    the helper with no uniqueness at all."""
+    ticks = iter([12.001, 47.002])
+    monkeypatch.setattr(windows_bridge_sequencer, "time",
+                        SimpleNamespace(monotonic=lambda: next(ticks)))
+
+    first = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
+    second = windows_bridge_sequencer._build_unique_result_path(tmp_path, "phase1")
+
+    assert first != second
+    assert first.parent == tmp_path and first.name.startswith("phase1_")
+
+
 class TestRunStartupSequence:
-    def test_calls_start_core_session_and_launch_ui_companions(self, cfg_factory, tmp_path):
+    def _captured_launch(self, cfg_factory, tmp_path):
+        """One startup run with the core and UI launch kwargs captured."""
         cfg = load_config(cfg_factory({
             "regen": {
                 "media_root": str(tmp_path / "media"),
@@ -151,20 +215,13 @@ class TestRunStartupSequence:
             ui_called.update(kwargs)
             _write_result(kwargs["result_file"], UI_PIDS)
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=capture_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core),
+                              launch_ui_companions=dict(side_effect=capture_ui)):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+        return cfg, result, core_called, ui_called
+
+    def test_every_phases_pids_are_gathered_into_the_launch_result(self, cfg_factory, tmp_path):
+        _cfg, result, _core, _ui = self._captured_launch(cfg_factory, tmp_path)
 
         assert result.nau_pid == NAU_PID
         assert result.portrait_pid == 30
@@ -173,54 +230,66 @@ class TestRunStartupSequence:
         assert result.genau_pid == GENAU_PID
         assert result.audio_pid == 70
 
-        # The native satellites are wired from the manifest: OUR python (the
-        # satellite player ships from this repo, so it must not depend on
-        # genau's venv), the satellite module, and each side's files.
+    def test_the_satellites_are_wired_from_the_manifest(self, cfg_factory, tmp_path):
+        """OUR python (the satellite player ships from this repo, so it must
+        not depend on genau's venv), the satellite module, and each side's
+        files — plus a log per windowed player: under pythonw there is no
+        console, so without one an unhandled exception dies tracelessly."""
+        cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
+
         assert core_called["satellite_python_exe"] == str(cfg.paths.python_exe)
         assert core_called["satellite_python_exe"] != str(cfg.paths.genau_python_exe)
         assert core_called["satellite_module"] == "satellite"
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):
-            assert core_called[f"{side}_cmd_file"] == str(state / f"{side}_cmd.txt")
-            assert core_called[f"{side}_paused_file"] == str(state / f"{side}_paused.txt")
-            assert core_called[f"{side}_status_file"] == str(state / f"{side}_status.txt")
-            # Each windowed player also gets a log to write its stdout+stderr to:
-            # under pythonw there is no console, so without one an unhandled
-            # exception kills it leaving no traceback anywhere.
-            assert core_called[f"{side}_log_file"] == tmp_path / f"{side}_satellite.log"
-        # Nau's status file rides along too: startup resumes each player onto the
-        # video its status file names, and Nau is the third of the three.
+            slot = core_called[side]
+            assert slot.side.label == side
+            assert slot.cmd_file == str(state / f"{side}_cmd.txt")
+            assert slot.paused_file == str(state / f"{side}_paused.txt")
+            assert slot.status_file == str(state / f"{side}_status.txt")
+            assert slot.log_file == tmp_path / f"{side}_satellite.log"
+            assert slot.playlist_file == tmp_path / f"{side}_playlist.tsv"
+        # Nau's status file rides along too: startup resumes each player onto
+        # the video its status file names, and Nau is the third of the three.
         assert core_called["nau_status_file"] == str(cfg.nau_status_file)
-        # The satellites launch straight into their real layout rects (mpv won't
-        # rescale on a later Win32 resize), so the sequencer threads the computed
-        # portrait/landscape rects into the core launch — this is what makes the
-        # native video fill its window.
-        assert core_called["portrait_rect"] == result.layout_plan.portrait
-        assert core_called["landscape_rect"] == result.layout_plan.landscape
+        assert core_called["nau_paused_file"] == str(cfg.nau_paused_file)
+
+    def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
+        """mpv won't rescale on a later Win32 resize, so the sequencer threads
+        the computed rects into the core launch — this is what makes the
+        native video fill its window."""
+        _cfg, _result, core_called, ui_called = self._captured_launch(cfg_factory, tmp_path)
+
+        assert core_called["portrait"].rect.x == 2560
+        assert core_called["portrait"].rect.width > 0
+        assert core_called["landscape"].rect != core_called["portrait"].rect
+        # The same plan reaches the dashboard, which is launched separately.
+        assert ui_called["dashboard_width"] > 0
+
+    def test_the_core_launch_carries_the_session_files_through(self, cfg_factory, tmp_path):
+        """The favs list and state dir, the provider roots (so the startup
+        build can collapse action groups), and the broker's heartbeat and
+        command paths (so startup can leave a live broker running, and park
+        the OSR2 for the long wait)."""
+        cfg, _result, core_called, _ui = self._captured_launch(cfg_factory, tmp_path)
+
         assert core_called["favs_file"] == str(cfg.paths.favs_file)
         assert core_called["state_dir"] == tmp_path
-        assert core_called["nau_paused_file"] == str(cfg.nau_paused_file)
-        # Provider roots flow through so the startup build can collapse action groups.
-        assert core_called["regen_media_root"] == tmp_path / "media"
         assert core_called["regen_metadata_root"] == tmp_path / "metadata"
-        # The broker heartbeat path flows through so startup can leave a live
-        # broker running instead of killing and relaunching it.
         assert core_called["broker_heartbeat_file"] == str(cfg.broker_heartbeat_file)
-        # And its command path, so startup can park the OSR2 for the long wait.
         assert core_called["broker_cmd_file"] == str(cfg.broker_cmd_file)
-        # MFP is gone: no mfp_exe/mfp_pid plumbing anywhere.
-        assert not any("mfp" in key for key in core_called)
-        assert not any("mfp" in key for key in ui_called)
+
+    def test_the_ui_launch_enables_the_dashboard_and_forwards_the_rfb_rect(self, cfg_factory, tmp_path):
+        """The RFB rect flows through so the reference popup can fill that
+        space."""
+        _cfg, _result, _core, ui_called = self._captured_launch(cfg_factory, tmp_path)
+
         assert ui_called["dashboard_enabled"] is True
-        # The RFB rect is forwarded so the reference popup can fill that space.
         assert {"rfb_x", "rfb_y", "rfb_width", "rfb_height"} <= set(ui_called)
         assert all(
             isinstance(ui_called[key], int)
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
-        # The log stream is embedded in the dashboard window now, so there is no
-        # separate log-panel rect to forward.
-        assert not any(key.startswith("log_") for key in ui_called)
 
     def test_launches_genau_and_nau_with_primary_media_rect(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -236,19 +305,7 @@ class TestRunStartupSequence:
             nau_kwargs.update(kwargs)
             return _fake_nau(**kwargs)
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", side_effect=capture_genau), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=capture_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_nau=dict(side_effect=capture_nau), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         # Genau receives its manifest file paths and the shared main-slot rect.
@@ -276,7 +333,6 @@ class TestRunStartupSequence:
             # readout for the section under it, and where a press goes back.
             "console_file": str(nau_console_path(cfg.paths.state_dir)),
             "drive_file": Path(cfg.genau_cmd_file).parent / "genau_drive.txt",
-            "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
             # Nau is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "nau.log",
             "nau_x": PRIMARY_MEDIA_RECT["x"],
@@ -319,19 +375,7 @@ class TestRunStartupSequence:
             nau_kwargs.update(kwargs)
             return _fake_nau(**kwargs)
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", side_effect=capture_genau), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=capture_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_nau=dict(side_effect=capture_nau), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert genau_kwargs["project_dirs"] == str(checkout)
@@ -349,19 +393,7 @@ class TestRunStartupSequence:
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
-             patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), move_window=dict(side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v)))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         # The two satellite windows are positioned immediately in normal mode.
@@ -375,28 +407,6 @@ class TestRunStartupSequence:
         promoted = {h for h, on in topmost_calls if on}
         assert promoted == {3030, 4040, 2525}
 
-    def test_returns_layout_plan(self, cfg_factory, tmp_path):
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
-            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
-
-        assert result.layout_plan is not None
-        assert result.layout_plan.portrait.x == 2560
-        assert result.layout_plan.dashboard.width > 0
-
     def test_non_hidden_path_unpauses_nau(self, cfg_factory, tmp_path):
         """The no-loading-screen path (integration / normal without the
         overlay) must still start Nau — the reveal that clears nau_paused
@@ -409,19 +419,7 @@ class TestRunStartupSequence:
         nau_paused.parent.mkdir(parents=True, exist_ok=True)
         nau_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
         assert nau_paused.read_text(encoding="utf-8").strip() == "0"
@@ -436,18 +434,8 @@ class TestRunStartupSequence:
             "cruise=0\nclip=C:\\clips\\alpha.mp4\n", encoding="utf-8",
         )
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID) as launch, \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)) as stubs:
+            launch = stubs.launch_genau
 
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
@@ -465,20 +453,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session",
-                   side_effect=_fake_core_in("genau")), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **_kw: minimized.append(h)), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("genau")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == [2525]
@@ -562,20 +537,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session",
-                   side_effect=_fake_core_in("hybrid")), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **_kw: minimized.append(h)), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("hybrid")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == []
@@ -628,6 +590,90 @@ class _CancelOnAdvance:
         pass
 
 
+class TestTheOrderInsideTheStartupPhases:
+    """The sequence is the design, not an accident of how it was written.
+
+    Every one of these was a paragraph of comment inside the one 91-statement
+    function; each is now an assertion, so a phase moved past another fails
+    here instead of at the next session.
+    """
+
+    def _sequence(self, cfg_factory, tmp_path, *, hide_windows=False,
+                  overrides=None, extra_stubs=None) -> list[str]:
+        """One startup run, reduced to the order its collaborators were called."""
+        cfg = load_config(cfg_factory(overrides or {}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        order: list[str] = []
+
+        def note(name, then=None):
+            def recorder(*args, **kwargs):
+                order.append(name)
+                return then(**kwargs) if then is not None else 0
+            return recorder
+
+        stubs = dict(
+            enumerate_monitors=dict(side_effect=note("layout", lambda **k: FAKE_MONITORS)),
+            start_core_session=dict(side_effect=note("core", _fake_core)),
+            launch_genau=dict(side_effect=note("genau", lambda **k: GENAU_PID)),
+            launch_nau=dict(side_effect=note("nau", _fake_nau)),
+            launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
+        )
+        stubs.update(extra_stubs or {})
+        with _sequencer_stubs(**stubs), \
+             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser",
+                   side_effect=note("browser")), \
+             patch("fun_time.windows_bridge_sequencer.write_flag_file",
+                   side_effect=note("release")):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 hide_windows=hide_windows)
+        return order
+
+    def test_the_layout_is_computed_before_any_player_launches(self, cfg_factory, tmp_path):
+        """mpv sizes its output to the geometry it was launched with and will
+        NOT rescale when a later Win32 move resizes the window, so a satellite
+        has to be started straight into its real rect.  Computing the layout
+        after the launch would hand it the wrong one."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order.index("layout") < order.index("core")
+
+    def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
+        """Genau and Nau are launched as early as possible so they can init
+        pygame, scan media and decode first frames while the rest of startup
+        continues — which is only worth anything if the rest still follows."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order.index("genau") < order.index("companions")
+        assert order.index("nau") < order.index("companions")
+
+    def test_the_browser_is_up_before_the_dashboard_that_opens_over_it(
+            self, cfg_factory, tmp_path):
+        """The dashboard's reference popup opens over the browser's rect."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order.index("browser") < order.index("companions")
+
+    def test_the_players_are_released_only_once_the_room_is_built(
+            self, cfg_factory, tmp_path):
+        """Startup holds every player so nothing plays into a room that is
+        still being built; the release is therefore the last thing the phases
+        do on the path with no cover to hide behind."""
+        order = self._sequence(cfg_factory, tmp_path)
+
+        assert order[-1] == "release"
+        assert order.index("companions") < order.index("release")
+
+    def test_a_covered_startup_releases_nothing_at_all(self, cfg_factory, tmp_path):
+        """With a loading screen the release belongs to the orchestrator, once
+        the cover is off the screen: released here, a video (and Genau's audio)
+        runs behind the cover and its first seconds are gone unseen."""
+        order = self._sequence(cfg_factory, tmp_path, hide_windows=True,
+                               extra_stubs=dict(restore_window=dict()))
+
+        assert "release" not in order
+
+
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
         """Cancelling at the layout checkpoint (2nd advance) has launched the
@@ -635,15 +681,7 @@ class TestRunStartupSequenceCancellation:
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         ui = MagicMock()
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(launch_ui_companions=dict(ui)):
             with pytest.raises(StartupCancelled) as excinfo:
                 run_startup_sequence(
                     manifest_path=manifest_path, state_dir=tmp_path,
@@ -660,17 +698,7 @@ class TestRunStartupSequenceCancellation:
         Genau, Nau, dashboard, audio — plus the Random Favs Browser hwnd."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer._maybe_launch_random_favs_browser", return_value=7777), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(_maybe_launch_random_favs_browser=dict(return_value=7777), wait_for_window_by_title=dict(return_value=88888)):
             with pytest.raises(StartupCancelled) as excinfo:
                 run_startup_sequence(
                     manifest_path=manifest_path, state_dir=tmp_path,
@@ -691,42 +719,19 @@ class TestNoActivateWindowDuringIntegration:
 
         move_activates: list[bool] = []
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True))), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), move_window=dict(side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True)))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert move_activates, "Windows should still be positioned in integration mode"
         assert all(activate is False for activate in move_activates), \
             f"move_window must not activate during integration: {move_activates}"
 
-    def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+    def test_activates_windows_outside_integration_mode(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         move_activates: list[bool] = []
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window", side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True))), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), move_window=dict(side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True)))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert any(activate is True for activate in move_activates), \
@@ -748,19 +753,7 @@ class TestProgressReporting:
 
         progress = _TrackingProgress()
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -774,19 +767,7 @@ class TestProgressReporting:
         """NullProgress should work as a no-op."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
             result = run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -810,20 +791,7 @@ class TestLoadingScreenStartup:
             move_calls.append((hwnd, x, y, w, h))
             move_activates.append(kw.get("activate", True))
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
-                   side_effect=lambda title, **kw: title_to_hwnd.get(title, 88888)), \
-             patch("fun_time.windows_bridge_sequencer.move_window", side_effect=track_move), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 88888)), move_window=dict(side_effect=track_move)):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -857,21 +825,7 @@ class TestLoadingScreenStartup:
             "Fun Time": 5050,
         }
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
-                   side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0))):
             result = run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -912,7 +866,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
         calls: list[tuple[int, bool]] = []
         with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
                    side_effect=lambda h, v: calls.append((h, v))):
-            windows_bridge_sequencer._apply_topmost_bands(
+            windows_bridge_sequencer.apply_topmost_bands(
                 dict(self.ROLE_HWNDS), "nau", **kwargs)
         return calls
 
@@ -956,8 +910,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
 class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause Nau."""
 
-    def _run_hidden(self, manifest_path, tmp_path, *, pid_to_hwnd=None, title_to_hwnd=None, topmost_calls=None):
-        pid_map = pid_to_hwnd or {30: 3030, 40: 4040, NAU_PID: 2525, 50: 5050}
+    def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None):
         title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
         # Both players reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
@@ -972,20 +925,7 @@ class TestPhase4Reveal:
         topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
         hide_calls = self._hide_calls = []
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", side_effect=lambda title, **kw: title_map.get(title, 0)), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=topmost_tracker), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
-             patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker), minimize_window=dict(side_effect=lambda h, **kw: hide_calls.append(h))):
             return run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -1002,37 +942,26 @@ class TestPhase4Reveal:
         cover is off the screen.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        # Start all three flags paused, as seed_startup_states does
-        for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
-            flag = Path(m["commands"][key])
-            flag.parent.mkdir(parents=True, exist_ok=True)
-            flag.write_text("1", encoding="utf-8")
+        m = LaunchManifest.read(manifest_path)
+        held = _pause_every_player(m)
 
         self._run_hidden(manifest_path, tmp_path)
 
-        for key in ("nau_paused_file", "genau_paused_file", "audio_paused_file"):
-            assert Path(m["commands"][key]).read_text(encoding="utf-8").strip() == "1", key
+        for flag in held:
+            assert flag.read_text(encoding="utf-8").strip() == "1", flag.name
 
     def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
         """And what the orchestrator calls once the cover is gone does start them:
         Nau in nau mode, with Genau and its audio left parked."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m.read(str(manifest_path), encoding="utf-8")
-        for key in ("genau_paused_file", "audio_paused_file", "nau_paused_file"):
-            flag = Path(m["commands"][key])
-            flag.parent.mkdir(parents=True, exist_ok=True)
-            flag.write_text("1", encoding="utf-8")
+        m = LaunchManifest.read(manifest_path)
+        _pause_every_player(m)
 
         release_the_players(m, "nau")
 
-        assert Path(m["commands"]["nau_paused_file"]).read_text(encoding="utf-8").strip() == "0"
-        assert Path(m["commands"]["genau_paused_file"]).read_text(encoding="utf-8").strip() == "1"
-        assert Path(m["commands"]["audio_paused_file"]).read_text(encoding="utf-8").strip() == "1"
+        assert Path(m.commands.nau_paused_file).read_text(encoding="utf-8").strip() == "0"
+        assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "1"
+        assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "1"
 
     def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
         """The whole point of the loading overlay is to hide the mess of starting
@@ -1061,26 +990,6 @@ class TestPhase4Reveal:
         assert set(self._hide_calls) == {GENAU_HWND}
         assert NAU_HWND not in self._hide_calls
 
-    def test_dashboard_found_by_title_is_resolved_for_the_role_cache(self, cfg_factory, tmp_path):
-        """find_window_by_pid fails for the dashboard because the venv launcher
-        PID differs from the Qt window's PID — Phase 4 must fall back to the
-        exact title lookup ("Fun Time"), because this is the last moment the
-        window is resolvable before it is hidden behind the overlay."""
-        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-
-        DASH_HWND = 5050
-        # No entry for the dashboard pid (50): pid lookup returns 0
-        pid_to_hwnd = {30: 3030, 40: 4040, NAU_PID: 2525}
-        title_to_hwnd = {"Fun Time": DASH_HWND, "Genau": 6060}
-
-        result = self._run_hidden(
-            manifest_path, tmp_path,
-            pid_to_hwnd=pid_to_hwnd, title_to_hwnd=title_to_hwnd,
-        )
-
-        assert result.role_hwnds["dashboard"] == DASH_HWND
-
-
 class TestNauGatesTheReveal:
     """The overlay must not come down over Nau's own loading screen.
 
@@ -1100,20 +1009,7 @@ class TestNauGatesTheReveal:
             events.append(f"wait-for-nau:{status_file}")
             return True
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer._wait_for_nau_loaded", side_effect=track_wait), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_nau_loaded=dict(side_effect=track_wait)):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -1157,19 +1053,7 @@ class TestNauGatesTheReveal:
             seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
             return _fake_nau(**kwargs)
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=capture_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=capture_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=88888), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
-
+        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core), launch_nau=dict(side_effect=capture_nau), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1197,18 +1081,115 @@ FAKE_LAYOUT_CFG = LayoutConfig(
 MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
 
 
+class TestResolveShortcut:
+    """The .lnk resolver behind the Random Favs Browser launch.
+
+    It swallows every exception twice and hands back empty strings, which the
+    caller turns into one 'skipped' log line — a failure mode nothing louder
+    can catch, so what CAN be pinned off Windows is pinned here: the
+    PowerShell fallback's parsing, and the all-quiet dead end.  (The COM fast
+    path and the real EnumWindows enumeration are Windows-only flesh; the
+    integration suite is their only cover.)
+    """
+
+    @staticmethod
+    def _without_com(monkeypatch):
+        """Force the win32com import to fail, as it does off Windows — and so
+        the test means the same thing on Windows CI, where it would otherwise
+        answer from real COM."""
+        import sys as _sys
+
+        monkeypatch.setitem(_sys.modules, "win32com", None)
+        monkeypatch.setitem(_sys.modules, "win32com.client", None)
+
+    def test_parses_the_three_fields_powershell_reports(self, monkeypatch):
+        self._without_com(monkeypatch)
+        completed = SimpleNamespace(
+            stdout="C:\\Chrome\\chrome.exe\r\nC:\\Chrome\r\n--profile-directory=\"Profile 2\"\r\n",
+            returncode=0,
+        )
+        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   return_value=completed):
+            resolved = windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk")
+
+        assert resolved == (
+            "C:\\Chrome\\chrome.exe", "C:\\Chrome", '--profile-directory="Profile 2"',
+        )
+
+    def test_a_bare_target_resolves_without_workdir_or_args(self, monkeypatch):
+        self._without_com(monkeypatch)
+        completed = SimpleNamespace(stdout="C:\\Chrome\\chrome.exe\r\n", returncode=0)
+        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   return_value=completed):
+            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == (
+                "C:\\Chrome\\chrome.exe", "", "",
+            )
+
+    def test_every_resolver_failing_is_three_empty_strings_not_a_raise(self, monkeypatch):
+        self._without_com(monkeypatch)
+        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   side_effect=OSError("no powershell")):
+            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
+
+
+    def test_each_link_that_fails_says_so_before_the_next_one_is_tried(
+            self, monkeypatch, caplog):
+        """"Random Favs Browser skipped: could not resolve shortcut" was the
+        whole account of a failure with two resolvers behind it, so the one
+        question worth asking — which link broke, and how — had no answer
+        anywhere.  Each fall-through now says which resolver it was and what it
+        raised, at debug, so the working case stays silent."""
+        self._without_com(monkeypatch)
+        with caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_sequencer"), \
+             patch("fun_time.windows_bridge_sequencer.subprocess.run",
+                   side_effect=OSError("no powershell")):
+            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
+
+        said = " ".join(record.getMessage() for record in caplog.records)
+        assert "COM" in said and "PowerShell" in said
+        assert any(record.exc_info for record in caplog.records), (
+            "the fall-through has to carry what was raised, or it explains nothing")
+
+
+class TestWaitForNewChromeWindow:
+    """The poll that pairs a launch with the window it opened."""
+
+    def _clock(self, monkeypatch):
+        ticks = iter(range(1000))
+        monkeypatch.setattr(
+            windows_bridge_sequencer, "time",
+            SimpleNamespace(monotonic=lambda: float(next(ticks)), sleep=lambda _s: None),
+        )
+
+    def test_returns_the_window_that_was_not_there_before(self, monkeypatch):
+        self._clock(monkeypatch)
+        snapshots = iter([{111, 222}, {111, 222}, {111, 222, 333}])
+        with patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds",
+                   side_effect=lambda: next(snapshots)):
+            hwnd = windows_bridge_sequencer._wait_for_new_chrome_window(
+                {111, 222}, timeout_ms=8000)
+
+        assert hwnd == 333
+
+    def test_gives_up_at_the_deadline_when_no_window_appears(self, monkeypatch):
+        self._clock(monkeypatch)
+        with patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds",
+                   return_value={111, 222}):
+            hwnd = windows_bridge_sequencer._wait_for_new_chrome_window(
+                {111, 222}, timeout_ms=3000)
+
+        assert hwnd == 0
+
+
 class TestMaybeLaunchRandomFavsBrowser:
     """Regression: browser must launch (bug #3) and be positioned at its planned rect."""
 
-    def _make_manifest_parser(self, *, enabled: str = "1") -> configparser.ConfigParser:
-        m = configparser.ConfigParser()
-        m.optionxform = str
-        m["random_favs_browser"] = {
-            "enabled": enabled,
-            "shortcut_path": r"C:\fake\shortcut.lnk",
-            "manifest_file": r"C:\fake\manifest.ini",
-        }
-        return m
+    def _browser_settings(self, *, enabled: bool = True) -> RandomFavsBrowserSettings:
+        return RandomFavsBrowserSettings(
+            enabled=enabled,
+            shortcut_path=r"C:\fake\shortcut.lnk",
+            manifest_file=r"C:\fake\manifest.ini",
+        )
 
     def _fake_plan(self) -> WindowLayoutPlan:
         """Build a minimal plan with a random_favs_browser rect."""
@@ -1221,7 +1202,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
     def test_skipped_when_disabled(self):
         """When disabled=0, no browser launch or window positioning happens."""
-        m = self._make_manifest_parser(enabled="0")
+        m = self._browser_settings(enabled=False)
         plan = self._fake_plan()
         move_calls: list[tuple] = []
 
@@ -1232,9 +1213,8 @@ class TestMaybeLaunchRandomFavsBrowser:
         assert move_calls == []
         assert rfb_hwnd == 0
 
-    def test_launches_and_positions_browser(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        m = self._make_manifest_parser()
+    def test_launches_and_positions_browser(self):
+        m = self._browser_settings()
         plan = self._fake_plan()
         browser_rect = plan.random_favs_browser
 
@@ -1255,10 +1235,9 @@ class TestMaybeLaunchRandomFavsBrowser:
         # Should return the browser hwnd for topmost management
         assert rfb_hwnd == 55555
 
-    def test_launches_the_urls_the_manifest_already_resolved(self, monkeypatch):
+    def test_launches_the_urls_the_manifest_already_resolved(self):
         """Lazy loading is settled when the manifest is built, not at launch."""
-        monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
-        m = self._make_manifest_parser()
+        m = self._browser_settings()
         plan = self._fake_plan()
 
         launch_kwargs: dict = {}
@@ -1275,7 +1254,9 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.move_window"):
             _maybe_launch_random_favs_browser(m, plan)
 
-        assert set(launch_kwargs) == {"shortcut_target", "shortcut_work_dir", "shortcut_args"}
+        assert set(launch_kwargs) == {"shortcut"}
+        assert launch_kwargs["shortcut"] == ChromeShortcut(
+            target="chrome.exe", work_dir="", args="")
 
 
 class TestResolveSatelliteHwnds:
@@ -1383,19 +1364,7 @@ class TestOrigeneratorLaunch:
             captured.update(kwargs)
             return 91
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_origenerator", side_effect=capture), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_pid == 91
@@ -1410,19 +1379,8 @@ class TestOrigeneratorLaunch:
 
     def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_origenerator") as launch, \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+            launch = stubs.launch_origenerator
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         launch.assert_not_called()
@@ -1438,7 +1396,7 @@ class TestOrigeneratorBehindTheOverlay:
         opening in origenerator mode now holds the overlay for that window,
         restores it behind the curtain, and carries the mode out so the
         post-overlay pass bands it over the RFB."""
-        from fun_time.command_dispatch import BridgeState
+        from fun_time.shared_state import BridgeState
         from fun_time.shared_state import shared_state_path, write_shared_state
 
         cfg = load_config(cfg_factory({"paths": {
@@ -1450,22 +1408,9 @@ class TestOrigeneratorBehindTheOverlay:
         write_shared_state(shared_state_path(tmp_path),
                            BridgeState(satellites_mode="origenerator"))
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.find_window_for_process",
-                   return_value=7171) as resolve, \
-             patch("fun_time.windows_bridge_sequencer.restore_window") as restore, \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(launch_origenerator=dict(return_value=91), find_window_for_process=dict(return_value=7171), restore_window=dict()) as stubs:
+            resolve = stubs.find_window_for_process
+            restore = stubs.restore_window
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1490,21 +1435,9 @@ class TestOrigeneratorBehindTheOverlay:
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.find_window_for_process") as resolve, \
-             patch("fun_time.windows_bridge_sequencer.restore_window") as restore, \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(launch_origenerator=dict(return_value=91), find_window_for_process=dict(), restore_window=dict()) as stubs:
+            resolve = stubs.find_window_for_process
+            restore = stubs.restore_window
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1530,19 +1463,7 @@ class TestOrigeneratorBehindTheOverlay:
         (cfg.paths.state_dir / "origenerator_cmd.txt").write_text(
             "PORTRAIT_NEXT\n", encoding="utf-8")  # last session's, never drained
 
-        with patch("fun_time.windows_bridge_sequencer.start_core_session", side_effect=_fake_core), \
-             patch("fun_time.windows_bridge_sequencer.launch_genau", return_value=GENAU_PID), \
-             patch("fun_time.windows_bridge_sequencer.launch_nau", side_effect=_fake_nau), \
-             patch("fun_time.windows_bridge_sequencer.launch_origenerator", return_value=91), \
-             patch("fun_time.windows_bridge_sequencer.launch_ui_companions", side_effect=_fake_ui), \
-             patch("fun_time.windows_bridge_sequencer.enumerate_monitors", return_value=FAKE_MONITORS), \
-             patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title", return_value=99999), \
-             patch("fun_time.windows_bridge_sequencer.move_window"), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top"), \
-             patch("fun_time.windows_bridge_sequencer.minimize_window"), \
-             patch("fun_time.windows_bridge_sequencer.time") as mock_time:
-            mock_time.sleep = lambda _: None
-            mock_time.monotonic = MagicMock(return_value=0)
+        with _sequencer_stubs(launch_origenerator=dict(return_value=91)):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )

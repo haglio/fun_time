@@ -29,7 +29,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.win32 import close_window, find_window_by_title, force_foreground_window
-from fun_time.windows_bridge_random_favs_browser import open_rfb_tab
+from fun_time.windows_bridge_random_favs_browser import ChromeShortcut, open_rfb_tab
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="drives a real Chrome through Win32"),
@@ -99,9 +99,11 @@ def test_a_locked_videos_tab_goes_to_fun_times_window_not_the_users(tmp_path: Pa
         this test sees."""
         open_rfb_tab(
             urls=[_page(pages, marker)],
-            shortcut_target=str(chrome),
-            shortcut_work_dir=str(chrome.parent),
-            shortcut_args=f"{args} --new-window" if new_window else args,
+            shortcut=ChromeShortcut(
+                target=str(chrome),
+                work_dir=str(chrome.parent),
+                args=f"{args} --new-window" if new_window else args,
+            ),
         )
 
     launch(RFB_MARKER, new_window=True)

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+from dataclasses import fields
 from pathlib import Path
 
 import pytest
 
-from fun_time.command_dispatch import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.config import load_config
 from fun_time.shared_state import read_shared_state, write_shared_state
+from fun_time_vr.player import VrSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     build_vr_manifest,
@@ -116,6 +118,22 @@ class TestVrManifest:
         assert vr["tcode_udp_port"] == "50557"
         assert vr["audio_device"] == "Example Headset"
         assert vr["compositor_layers"] == "0"
+
+    def test_every_vr_key_the_writer_emits_has_a_field_to_land_in(self, config):
+        """The ``[vr]`` writer and ``VrSettings`` are two halves of one schema.
+
+        ``fun_time.manifest`` pins this for the sections it owns and passes over
+        this one on purpose, so nothing checked that the two ends of the section
+        FunTimeVR writes to itself still agreed — and they had already stopped:
+        ``audio_device`` was written every launch and had no field to be read
+        into, which is how the VR main player lost its audio-device routing.
+        ``player_module`` is the one key with no reader by design: the launcher
+        starts the module it names from its own constant.
+        """
+        written = set(build_vr_manifest(config)["vr"])
+        read_back = {field.name for field in fields(VrSettings)}
+
+        assert written - {"player_module"} == read_back
 
     def test_manifest_carries_a_layers_opt_in(self, config):
         import dataclasses  # noqa: PLC0415
@@ -230,3 +248,140 @@ class TestResumeVrState:
         carried = resume_vr_state(state_file, resumed=True)
 
         assert (carried.volume, carried.portrait_f_mode, carried.locked3) == (40, True, True)
+
+
+class TestLaunchVrPlayer:
+    def test_the_player_starts_on_the_named_python_against_the_manifest(self, tmp_path):
+        """The command line is the whole contract: OUR interpreter (the VR
+        player ships from this repo), the player module, and the manifest that
+        tells it everything else — with its console kept in a log, because
+        under pythonw an import-time death is otherwise traceless."""
+        from unittest.mock import patch
+
+        from fun_time_vr.orchestrator import launch_vr_player
+
+        with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
+            launch_vr_player(
+                python_exe=tmp_path / "python.exe",
+                manifest_path=tmp_path / "windows_bridge_launch.ini",
+                log_file=tmp_path / "vr_player.log",
+            )
+
+        command = popen.call_args[0][0]
+        assert command == [
+            str(tmp_path / "python.exe"), "-m", VR_PLAYER_MODULE,
+            "--manifest", str(tmp_path / "windows_bridge_launch.ini"),
+        ]
+        assert popen.call_args.kwargs["stdout"] is popen.call_args.kwargs["stderr"]
+        assert (tmp_path / "vr_player.log").exists()
+
+
+class TestWaitForPlayer:
+    """The startup readiness handshake: the first status write means ready,
+    and both ways it can fail are reported at once, by name."""
+
+    class _Alive:
+        returncode = None
+
+        def poll(self):
+            return None
+
+    class _Dead:
+        returncode = 3
+
+        def poll(self):
+            return 3
+
+    def test_the_first_status_write_is_ready(self, tmp_path):
+        from fun_time_vr.orchestrator import _wait_for_player
+
+        status = tmp_path / "nau_status.txt"
+        status.write_text("video=C:\\v\\scene one.mp4\n", encoding="utf-8")
+
+        assert _wait_for_player(status, self._Alive()) is True
+
+    def test_an_early_death_is_reported_at_once_not_after_the_timeout(self, tmp_path, caplog):
+        import logging
+
+        from fun_time_vr.orchestrator import _wait_for_player
+
+        with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
+            ready = _wait_for_player(tmp_path / "nau_status.txt", self._Dead())
+
+        assert ready is False
+        assert "exited during startup" in caplog.text
+        assert "3" in caplog.text
+
+    def test_a_silent_player_is_given_up_on_at_the_deadline(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        from fun_time_vr import orchestrator
+
+        monkeypatch.setattr(orchestrator, "PLAYER_READY_TIMEOUT_S", 0.0)
+        with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
+            ready = orchestrator._wait_for_player(tmp_path / "nau_status.txt", self._Alive())
+
+        assert ready is False
+        assert "published no status" in caplog.text
+
+
+class TestTheCheckRun:
+    """``--check`` validates the config and stops, which is what `launch_vr.vbs`
+    uses to refuse a bad session before any window is opened."""
+
+    def test_a_valid_config_checks_out(self, config, monkeypatch, tmp_path):
+        from unittest.mock import patch
+
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"):
+            assert orchestrator.main(["--check"]) == 0
+
+    def test_the_handlers_land_on_the_logger_this_module_writes_through(self, config):
+        """Every function here logs through the module-level ``logger``, so the
+        one ``main`` sets up has to BE that one — it used to be threaded back in
+        as a parameter under a second name, which was the same object only
+        because the string happened to match."""
+        import logging
+        from unittest.mock import patch
+
+        from fun_time_vr import orchestrator
+
+        configured: list[logging.Logger] = []
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch("fun_time.single_instance.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch.object(orchestrator, "configure_logging",
+                          side_effect=lambda name, *_a, **_k: (
+                              configured.append(logging.getLogger(name)),
+                              logging.getLogger(name))[1]):
+            orchestrator.main(["--check"])
+
+        assert configured == [orchestrator.logger]
+
+    def test_and_it_asks_for_the_name_this_module_logs_under(self):
+        """Under pytest every spelling coincides, so only the source can say
+        which was written.  They do NOT coincide in the launch:
+        `launch_vr.vbs` runs `python -m fun_time_vr.orchestrator`, where
+        `__name__` is `"__main__"` — so a literal configured a logger this
+        module never wrote through, and `__name__` would put "__main__" in
+        every line of the log."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        assert orchestrator.logger.name == "fun_time_vr.orchestrator"
+
+        tree = ast.parse(inspect.getsource(orchestrator.main))
+        call = next(
+            node for node in ast.walk(tree)
+            if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
+            and node.func.id == "configure_logging")
+
+        # `logger.name`: whatever this module logs under, that is what is set up.
+        assert isinstance(call.args[0], ast.Attribute)
+        assert call.args[0].attr == "name"
+        assert call.args[0].value.id == "logger"

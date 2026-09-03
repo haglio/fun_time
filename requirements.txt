@@ -22,4 +22,5 @@ hypothesis
 pytest
 pytest-cov
 pytest-timeout
+ruff
 vulture

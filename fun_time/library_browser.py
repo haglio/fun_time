@@ -39,7 +39,7 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, SIZE_SMALL, make_f
 
 from .library_handles import LibraryHandle, build_library_handles
 from .library_tree import Folder, SubFolder, folder_at
-from .process_identity import identified_python_exe
+from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
 
 WINDOW_TITLE = "Fun Time Library"
@@ -88,7 +88,7 @@ class BrowseList(QListWidget):
         self._go_up = go_up
         self.setFont(make_font(FONT_UI, SIZE_BODY))
 
-    def keyPressEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def keyPressEvent(self, event) -> None:  # Qt override
         """Backspace goes back up, the way it does in every other file browser."""
         if event.key() == Qt.Key.Key_Backspace:
             self._go_up()
@@ -131,9 +131,8 @@ class LibraryGrid(BrowseList):
         )
 
         # One entry per widget row: the handle a video tile plays, the SubFolder
-        # a folder tile opens, or None for the tile that goes back up.  Rows and
-        # handles do not line up once the grid is walkable, so what a row *is* is
-        # read from here rather than counted.
+        # a folder tile opens, or None for the tile that goes back up — rows and
+        # handles do not line up once the grid is walkable.
         self.rows: list[LibraryHandle | SubFolder | None] = []
         # One signal covers both gestures: Qt emits itemActivated for Enter
         # AND at the end of a double-click, so nothing here needs to know
@@ -447,7 +446,7 @@ class LibraryBrowserWindow(QWidget):
         if self._path:
             self.open_folder(self._path[:-1])
 
-    def closeEvent(self, event) -> None:  # noqa: N802 (Qt override)
+    def closeEvent(self, event) -> None:  # Qt override
         """Tell the process the browse is over — closing this window cannot.
 
         Qt quits an app when its last window closes, but a Tool window is not
@@ -485,11 +484,9 @@ class IndexLine:
         return self.row is None
 
 
-def name_of(what: object) -> str:
+def name_of(what: LibraryHandle | SubFolder | None) -> str:
     """What a row is called — a video's title, or a folder's name."""
-    if what is None:
-        return ""
-    return getattr(what, "title", None) or getattr(what, "name", "")
+    return what.display_name if what is not None else ""
 
 
 def initial_letter(name: str) -> str:
@@ -574,11 +571,9 @@ def montage_icon(stills: Sequence[str | Path]) -> QIcon:
     return QIcon(canvas)
 
 
-def previews_of(what: object) -> tuple[str, ...]:
+def previews_of(what: LibraryHandle | SubFolder | None) -> tuple[str, ...]:
     """The videos a row is pictured with — one for a video, up to four for a folder."""
-    if what is None:
-        return ()
-    return getattr(what, "previews", None) or (what.preview,)
+    return what.previews if what is not None else ()
 
 
 def rows_needing_stills(rows: Sequence[object], thumbnail_cache: str | Path) -> list[int]:
@@ -624,7 +619,7 @@ def browse_library(
     pick_file.unlink(missing_ok=True)
 
     command = [
-        identified_python_exe(python_exe, "LibraryBrowser"),
+        NAMER.named_exe(python_exe, "LibraryBrowser"),
         "-m", "fun_time.library_browser", str(manifest_path), str(pick_file),
     ]
     if over is not None:
@@ -681,7 +676,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     # Claim Fun Time's identity before any window exists, so the browse is never
     # mistaken for an unrelated app's window (see the Tool flag above).
-    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    from .win32_taskbar import APP_USER_MODEL_ID, set_app_user_model_id
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:

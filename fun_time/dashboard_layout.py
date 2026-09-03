@@ -5,10 +5,6 @@ from dataclasses import dataclass
 from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE
 
 
-def clamp01(value: float) -> float:
-    return max(0.0, min(1.0, value))
-
-
 @dataclass(frozen=True)
 class Size:
     width: int
@@ -17,10 +13,28 @@ class Size:
 
 @dataclass(frozen=True)
 class Rect:
+    """Where something is and how big it is, in screen pixels.
+
+    Every rectangle this session places, under whatever name: see the aliases.
+    """
+
     x: int
     y: int
     width: int
     height: int
+
+
+def add_rect_arguments(parser, *, prefix: str = "") -> None:
+    """Declare ``--x/--y/--width/--height``, optionally prefixed, on *parser*."""
+    for field in ("x", "y", "width", "height"):
+        parser.add_argument(f"--{prefix}{field}".replace("_", "-"), type=int)
+
+
+def rect_from_arguments(args, *, prefix: str = "") -> Rect | None:
+    """The rect those four name, or None unless all four were given: three of
+    four would place a window somewhere nobody asked for."""
+    values = [getattr(args, f"{prefix}{field}") for field in ("x", "y", "width", "height")]
+    return None if None in values else Rect(*values)
 
 
 def client_rect_filling_frame(
@@ -44,13 +58,9 @@ def client_rect_filling_frame(
 
 
 # --- the control bar ---------------------------------------------------------
-# The dashboard used to draw a schematic of both monitors, with a box per player
-# carrying that player's buttons and a cable running to the OSR2.  Every player
-# draws its own HUD now and those buttons are on it, so what is left is the
-# handful that belong to no player: quit, pause everything, the reference popup,
-# and the microphone.  (The broker light went to the main player's HUD with the rest
-# of the OSR2 status — it is the main player's concern, not the room's; F-mode went to
-# each player's own HUD, since it is set per player now.)  They do not need to be
+# What is on the bar is the handful of controls that belong to no player: quit,
+# pause everything, the reference popup, and the microphone.  Anything about a
+# particular player is on that player's own HUD, which is why the bar is not
 # arranged like the room.
 
 # The family's own button square and the gap between two of them, so a control
@@ -101,7 +111,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     gap read as something adrift from the bar rather than part of it.
     """
     height = PAD * 2 + BUTTON
-    mid = lambda size: PAD + (BUTTON - size) // 2  # noqa: E731 — vertical centering
+    mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
 
     x = PAD
     app_icon = Rect(x, mid(APP_ICON), APP_ICON, APP_ICON)

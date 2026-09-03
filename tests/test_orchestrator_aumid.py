@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.orchestrator import stamp_shortcut_aumid
-from fun_time.win32 import APP_USER_MODEL_ID, _read_shortcut_app_user_model_id
+from fun_time.win32_taskbar import APP_USER_MODEL_ID, _read_shortcut_app_user_model_id
 
 
 def _create_lnk(path: Path) -> None:

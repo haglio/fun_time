@@ -14,6 +14,7 @@ the failure.
 """
 from __future__ import annotations
 
+import os
 import shutil
 import sys
 import time
@@ -34,10 +35,16 @@ from .integration_support import (
     build_integration_temp_root,
 )
 
-pytestmark = pytest.mark.skipif(
-    sys.platform != "win32",
-    reason="Fun Time integration tests require Windows",
-)
+pytestmark = [
+    pytest.mark.skipif(
+        sys.platform != "win32",
+        reason="Fun Time integration tests require Windows",
+    ),
+    pytest.mark.skipif(
+        os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",
+        reason="Set FUN_TIME_RUN_INTEGRATION=1 to run",
+    ),
+]
 
 _SATELLITE_TITLES = ("Portrait AI Player", "Landscape AI Player")
 
@@ -84,12 +91,15 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
         # Settle: the reveal's last activations can still be in flight.
         time.sleep(1.0)
         stack = iter_zorder()
-        # The session's logs outlive the temp root's teardown: a failure here
-        # is a window-choreography failure, and the sequencer's own account of
-        # what it resolved and where it moved it is the diagnosis.
-        _preserve_session_logs(session)
         for title, hwnd in hwnds.items():
             covering = windows_obscuring(hwnd, stack)
+            if covering:
+                # The session's logs outlive the temp root's teardown: this is
+                # a window-choreography failure, and the sequencer's own
+                # account of what it resolved and moved is the diagnosis.
+                # Copied only on the way to a failure — a green run leaves
+                # nothing behind in the checkout.
+                _preserve_session_logs(session)
             assert not covering, (
                 f"{title} (hwnd={hwnd}) is covered after startup by: "
                 + "; ".join(

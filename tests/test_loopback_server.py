@@ -26,6 +26,18 @@ def _get(port: int, path: str):
     return urllib.request.urlopen(f"http://127.0.0.1:{port}{path}", timeout=5)
 
 
+def test_the_server_binds_localhost_only(tmp_path):
+    """The one listening socket Fun Time opens.  Bound to 127.0.0.1 the
+    OmniPause state and the userscript are the machine's own business; bound
+    to 0.0.0.0 they are on every interface — asserted off the live socket's
+    own address, not the source string."""
+    server = make_server(port=0, script_path=tmp_path / USERSCRIPT_NAME)
+    try:
+        assert server.socket.getsockname()[0] == "127.0.0.1"
+    finally:
+        server.server_close()
+
+
 def test_serves_the_userscript_with_a_javascript_content_type(tmp_path):
     script = tmp_path / USERSCRIPT_NAME
     script.write_bytes(b"// unit-test userscript\n")

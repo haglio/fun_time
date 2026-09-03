@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 
 from player_core.file_channel import append_command
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,6 +25,7 @@ from .modes import (
 )
 from .broker_control import RESUME_CMD, write_broker_command
 from .omnipause import build_omnipause_plan
+from .players import Player
 from .mode_plan import build_mode_switch_plan, genau_active
 from .satellite_control import write_satellite_command
 from .watch_stats import watch_stats_path
@@ -203,7 +204,7 @@ def apply_satellite_fmode(
     """
     build_one_satellite_playlist(
         sources=sources,
-        name=PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE,
+        name=PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         f_mode=enabled,
@@ -214,24 +215,27 @@ def apply_satellite_fmode(
     write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
 
 
+@dataclass(frozen=True)
+class SatelliteFmodeInputs:
+    """One satellite's F-mode rebuild inputs: its channel and narrowing."""
+
+    sources: str
+    cmd_file: str | Path
+    recent: bool = False
+    filter_query: str = ""
+
+
 def apply_fmode(
     *,
     players: Sequence[str],
     enabled: bool,
-    portrait_recent: bool,
-    landscape_recent: bool,
     main_sources: str,
-    portrait_sources: str,
-    landscape_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
     main_recent: bool = False,
-    portrait_cmd_file: str | Path,
-    landscape_cmd_file: str | Path,
     nau_cmd_file: str | Path,
+    satellites: Mapping[Player, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
-    portrait_filter: str = "",
-    landscape_filter: str = "",
 ) -> FModeFlowResult:
     """Put each of *players* into F-mode, or take it out, and rebuild just those.
 
@@ -249,20 +253,19 @@ def apply_fmode(
             state_dir=state_dir,
             nau_cmd_file=nau_cmd_file,
         )
-    for player, which, sources, cmd_file, recent, query in (
-        (PORTRAIT_PLAYER, 2, portrait_sources, portrait_cmd_file, portrait_recent, portrait_filter),
-        (LANDSCAPE_PLAYER, 3, landscape_sources, landscape_cmd_file, landscape_recent, landscape_filter),
-    ):
+    for player, which in ((PORTRAIT_PLAYER, Player.PORTRAIT),
+                          (LANDSCAPE_PLAYER, Player.LANDSCAPE)):
         if player in named:
+            side = satellites[which]
             apply_satellite_fmode(
                 which=which,
                 enabled=enabled,
-                sources=sources,
+                sources=side.sources,
                 favs_file=favs_file,
                 state_dir=state_dir,
-                cmd_file=cmd_file,
-                recent=recent,
-                filter_query=query,
+                cmd_file=side.cmd_file,
+                recent=side.recent,
+                filter_query=side.filter_query,
                 regen_metadata_root=regen_metadata_root,
             )
     return FModeFlowResult(
@@ -276,7 +279,6 @@ def apply_fmode(
 
 def satellite_browse_paths(
     *,
-    which: int,
     query: str,
     f_mode_enabled: bool,
     recent: bool,
@@ -289,9 +291,7 @@ def satellite_browse_paths(
     ordering — one clip per group, filter-honoring, Latest/Shuffle-aware.
 
     This is the list a filter rebuild loads into the satellite, and equally the
-    target "no loop" reshapes the queue back to when a group loop ends.  ``which``
-    selects nothing here (both satellites browse the same way); it is kept for a
-    symmetric call site.
+    target "no loop" reshapes the queue back to when a group loop ends.
     """
     library = _satellite_library(state_dir, regen_metadata_root)
     return build_satellite_playlist_paths(
@@ -318,7 +318,6 @@ def apply_satellite_filter(
     state_dir: str | Path,
     cmd_file: str | Path,
     start_at_top: bool = False,
-    regen_media_root: Path | None = None,
     regen_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
@@ -337,10 +336,10 @@ def apply_satellite_filter(
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """
-    label = "portrait" if which == 2 else "landscape"
-    name = PLAYLIST_PORTRAIT if which == 2 else PLAYLIST_LANDSCAPE
+    label = Player(which).label
+    name = PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
-        which=which, query=query, f_mode_enabled=f_mode_enabled, recent=recent,
+        query=query, f_mode_enabled=f_mode_enabled, recent=recent,
         sources=sources, favs_file=favs_file, state_dir=state_dir,
         regen_metadata_root=regen_metadata_root,
     )

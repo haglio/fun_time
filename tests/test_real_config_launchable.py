@@ -34,6 +34,9 @@ import pytest
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.orchestrator import validate_config
 
+# Off the machine the whole file is uncollected (see tests/conftest.py); this
+# mark only backstops a direct invocation naming the file, which bypasses
+# collect_ignore.
 pytestmark = pytest.mark.skipif(
     not DEFAULT_CONFIG_PATH.is_file(),
     reason=f"no local config at {DEFAULT_CONFIG_PATH} (git-ignored; absent in CI)",

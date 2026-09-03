@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import fields
 from pathlib import Path
 
-from fun_time.command_dispatch import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.session_resume import (
     RESUMED_FIELDS,
     playlist_fits_sources,

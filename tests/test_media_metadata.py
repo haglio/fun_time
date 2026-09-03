@@ -16,7 +16,6 @@ from fun_time.media_metadata import (
     normalize_path_key,
     path_matches_query,
     reject_action,
-    reset_group_index_cache,
     filter_haystack,
     seed_group_key,
     widened_seed_members,
@@ -83,7 +82,6 @@ def test_metadata_path_mirrors_media_tree_under_metadata_root(tmp_path: Path):
 
 
 def test_metadata_path_returns_none_when_outside_media_root(tmp_path: Path):
-    media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     outside = tmp_path / "elsewhere" / "clip.mp4"
 
@@ -249,7 +247,6 @@ def test_build_group_index_reads_each_clips_scene_tags(tmp_path: Path):
 
 
 def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Path):
-    reset_group_index_cache()
     media_root, metadata_root, paths = _library(tmp_path, {
         "known": _i2v_meta(action="Alpha", video_seed="1"),
     })

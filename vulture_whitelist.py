@@ -1,83 +1,30 @@
 """Vulture whitelist — false positives that are not dead code.
 
-Each entry tells vulture the name is used, suppressing the report.
-Grouped by reason so reviewers can verify each entry belongs here.
+Each entry tells vulture the name is used, suppressing the report.  Vulture
+matches by bare name, so an entry that suppresses nothing keeps covering
+whatever is given that name next: tests/test_dead_code.py asserts every entry
+here still answers a report, and an entry may only be added with the reason it
+answers one.
 """
 
-# --- http.server handler dispatch (called by the framework via getattr) ---
-_.do_GET  # noqa
+# --- Called by a framework, not by us ---
+_.do_GET  # http.server dispatches by getattr
+_.paintEvent  # Qt event override
+_.mousePressEvent  # Qt event override
+_.mouseMoveEvent  # Qt event override
+_.optionxform  # ConfigParser hook, set to keep key case
 
-# --- Qt event overrides (called by the framework, not by our code) ---
-_.paintEvent  # noqa
-_.mousePressEvent  # noqa
-_.mouseMoveEvent  # noqa
-_.closeEvent  # noqa
+# --- Win32 struct fields written for an API call, never read back ---
+_.cbSize
+dwSize  # PROCESSENTRY32, for Toolhelp32
 
-# --- Win32 struct fields (must be set for API calls to work) ---
-_.cbSize  # noqa
-_.dwFlags  # noqa
+# --- Read from a sibling package, which is a scan of its own ---
+tcode_udp_host  # fun_time_vr/orchestrator.py
+tcode_udp_port  # fun_time_vr/orchestrator.py
+compositor_layers  # fun_time_vr/orchestrator.py
 
-# --- ConfigParser case-sensitivity (optionxform = str) ---
-_.optionxform  # noqa
-
-# --- sounddevice callback signature (all params required by library) ---
-frames  # noqa
-time_info  # noqa
-
-# --- Dataclass fields (accessed through instances; vulture can't trace) ---
-# GenauConfig
-shuffle_on_load  # noqa
-beats_per_loop  # noqa
-clip_cache_size  # noqa
-render_batch  # noqa
-bpm_smoothing  # noqa
-sync_strength  # noqa
-notify_host  # noqa
-notify_port  # noqa
-status_hide_ms  # noqa
-resize_debounce_ms  # noqa
-# FModeFlowResult
-success  # noqa
-# StartupResult
-layout_plan  # noqa
-
-# --- Functions vulture reports as unused at low confidence (false positive) ---
-# build_mode_switch_plan is called from runtime_flow.py
-build_mode_switch_plan  # noqa
-
-# --- Dashboard layout fields accessed through instances (vulture can't trace) ---
-hybrid_mode_button  # noqa
-nau_mode_button  # noqa
-hybrid_quarter_button  # noqa
-hybrid_genau_amp_label  # noqa
-hybrid_genau_amp_up  # noqa
-hybrid_genau_amp_down  # noqa
-hybrid_genau_ctr_label  # noqa
-hybrid_genau_ctr_up  # noqa
-hybrid_genau_ctr_down  # noqa
-hybrid_genau_spd_label  # noqa
-hybrid_genau_spd_up  # noqa
-hybrid_genau_spd_down  # noqa
-
-# --- Constants / functions used only from tests or integration tests ---
-# (vulture scans production code only; test imports are invisible to it)
-COLOR_YELLOW  # noqa
-MUTEX_BROKER  # noqa
-is_process_alive  # noqa
-# The integration reap uses this to tell a leftover app process from the pytest
-# that must survive; production kills children by recorded creation time instead.
-get_process_image_name  # noqa
-is_window_minimized  # noqa
-# The integration reap tells its leftovers apart by image name, so it needs the
-# Python-side answer; production sweeps are PowerShell and use the regex form of
-# the same rule (process_identity.PROCESS_NAME_PATTERN).
-is_fun_time_exe_name  # noqa
-_read_shortcut_app_user_model_id  # noqa
-# reset_group_index_cache is test isolation support for the module-level
-# group-index cache.
-reset_group_index_cache  # noqa
-# PROCESSENTRY32.dwSize is written for the Toolhelp32 API, never read back.
-dwSize  # noqa
-# HudClicks lives in player_core now; hud_overlay mirrors the published
-# filter onto it, and the reads are in that sibling, outside vulture's scan.
-_.active_filter  # noqa
+# --- Read from outside vulture's scan ---
+is_process_alive  # tests and the integration reap
+get_process_image_name  # the integration reap, to tell a leftover app from pytest
+_read_shortcut_app_user_model_id  # tests only
+_.active_filter  # HudClicks lives in player_core; the reads are in that sibling

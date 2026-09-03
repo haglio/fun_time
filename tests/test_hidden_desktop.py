@@ -15,7 +15,7 @@ from unittest.mock import patch
 
 import pytest
 
-from fun_time.win32 import is_process_alive
+from fun_time.win32_process import is_process_alive
 from tests.integration import hidden_desktop
 from tests.integration.hidden_desktop import (
     _close_process_handles,
