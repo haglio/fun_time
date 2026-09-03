@@ -26,10 +26,9 @@ pytest-cache-files-*/
 /fun_time_config.json
 #   real copy — filter vocabulary and other content: use content.example.json
 /content.local.json
-#   the real blocklist is itself a catalogue of excluded terms, the library paths
-#   it is harvested from name the machine, and the harvest stamp is per-machine
-#   too — every overlay in there is local by construction, so ignore the shape
-#   rather than adding a line each time one is invented
+#   the real blocklist is itself a catalogue of excluded terms — every overlay
+#   in there is local by construction, so ignore the shape rather than adding a
+#   line each time one is invented
 /sanitize/*.local.txt
 #   real userscript — provider-specific autofill: use regen_autofill.example.user.js
 /fun_time/static/regen_autofill.user.js
