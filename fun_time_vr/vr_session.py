@@ -25,11 +25,11 @@ import glfw
 import xr
 from OpenGL import GL
 
-from fun_time.project_paths import PROJECT_ICON
+from fun_time.project_paths import PROJECT_VR_ICON
 
 logger = logging.getLogger(__name__)
 
-_ICON_PATH = PROJECT_ICON
+_ICON_PATH = PROJECT_VR_ICON
 
 
 @dataclass
@@ -133,7 +133,7 @@ class VRSession:
         self._set_window_icon()
 
     def _set_window_icon(self) -> None:
-        """Fun Time's icon via Win32 WM_SETICON — GLFW's own icon API loses to
+        """FunTimeVR's icon via Win32 WM_SETICON — GLFW's own icon API loses to
         the taskbar (GenauVR's commit 722df45 learned this the slow way)."""
         try:
             import ctypes.wintypes  # Windows-only, error path tolerant
