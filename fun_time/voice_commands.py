@@ -147,6 +147,11 @@ def build_voice_commands(
         # FunTimeVR: re-zero the scene onto wherever the headset is facing now —
         # the in-app recenter, since the runtime's own menu doesn't reach the app.
         "recenter": "recenter_view",
+    # FunTimeVR: swing the screens up or down for a viewer who is lying back.
+    # "level" puts them upright; a recenter deliberately does not.
+    "tilt up": "tilt_up",
+    "tilt down": "tilt_down",
+    "level": "tilt_reset",
         "browse": "browse_library",
         "clip": "clipper_save",
         "save clip": "clipper_save",

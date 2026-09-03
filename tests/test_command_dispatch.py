@@ -520,15 +520,18 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: 
     assert state.active_side == 1
 
 
-# --- projection_cycle and recenter_view (FunTimeVR's main player only) ---
+# --- projection_cycle, recenter_view and the tilt (FunTimeVR's main player) ---
 
 
 @pytest.mark.parametrize("command, verb", [
     ("projection_cycle", "CYCLE_PROJECTION"),
     ("recenter_view", "RECENTER"),
+    ("tilt_up", "TILT_UP"),
+    ("tilt_down", "TILT_DOWN"),
+    ("tilt_reset", "TILT_RESET"),
 ])
 def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path):
-    """A projection and a heading are things only the VR player has."""
+    """A projection, a heading and a tilt are things only the VR player has."""
     config = _make_config(tmp_path, vr_main_player=True)
     state = _make_state(main_mode="nau")
 
@@ -537,7 +540,10 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
     assert config.nau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
 
 
-@pytest.mark.parametrize("command", ["projection_cycle", "recenter_view"])
+@pytest.mark.parametrize(
+    "command",
+    ["projection_cycle", "recenter_view", "tilt_up", "tilt_down", "tilt_reset"],
+)
 @pytest.mark.parametrize("main_mode", ["nau", "hybrid", "genau"])
 def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
     """Nau has no projection and no headset to face, in any mode.

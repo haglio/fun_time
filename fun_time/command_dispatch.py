@@ -1512,6 +1512,9 @@ def _build_handlers() -> dict[str, Handler]:
     # onto wherever the headset faces.  Sent only where there is VR to answer.
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_player, "RECENTER")
+    handlers["tilt_up"] = partial(_forward_to_the_vr_main_player, "TILT_UP")
+    handlers["tilt_down"] = partial(_forward_to_the_vr_main_player, "TILT_DOWN")
+    handlers["tilt_reset"] = partial(_forward_to_the_vr_main_player, "TILT_RESET")
     handlers.update({cmd: partial(_forward_to_nau_on_screen, verb)
                      for cmd, verb in _NAU_CMD_MAP.items()})
     handlers.update({cmd: partial(_set_muted, muted)
