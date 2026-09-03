@@ -137,7 +137,11 @@ class TestVoiceCommands:
         """A phrase built from a word outside the model's lexicon can never be
         recognized — the command is unreachable, and silently so.  Every one of
         these has a sound-alike the recognizer listens for instead."""
-        oov_words = {"genau", "nau", "hotkeys", "unmute"}
+        # "upscales" is what the desk calls the pictures a hosted Origenerator
+        # show can narrow to; the app hears it on its own mic, but this model
+        # has no such token, so the relayed phrase is "enhanced only" (and the
+        # way back out is the room's own "clear filter", routed to the show).
+        oov_words = {"genau", "nau", "hotkeys", "unmute", "upscales", "upscaled"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
