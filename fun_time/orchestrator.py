@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import logging
 import subprocess
-import sys
 import time
 import os
 from pathlib import Path
