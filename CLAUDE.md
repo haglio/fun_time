@@ -122,7 +122,10 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   was once "land it unverified rather than park it". It no longer is. With your
   suites green, run `python -m fun_time.branch_session --shortcut` from your
   worktree: it leaves a `Verify <branch>.lnk` in the primary checkout and prints
-  the path. Then hand him that `.lnk` as a **markdown link to the file itself**,
+  the path. **A branch that changes FunTimeVR gets `--shortcut --vr`**, which
+  leaves `Verify <branch> in VR.lnk` and starts the VR orchestrator instead —
+  the desktop launcher can only show him a desktop session, so a VR branch
+  handed over without it is a change he cannot see. Then hand him that `.lnk` as a **markdown link to the file itself**,
   `file:///` prefixed and spaces percent-encoded —
   `run [Verify my-branch.lnk](file:///C:/Users/<you>/workspace/haglio/fun_time/Verify%20my-branch.lnk)`
   (the `--shortcut` run prints the real path — paste that, not this shape)
