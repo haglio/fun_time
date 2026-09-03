@@ -8,8 +8,8 @@ from pathlib import Path
 from typing import Any
 
 from .loopback_server import LOOPBACK_PORT
+from .project_paths import PROJECT_DIR
 
-PROJECT_DIR = Path(__file__).resolve().parent.parent
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 
@@ -77,18 +77,6 @@ class PathsConfig:
     # finds.  Absent, the satellites have no Origenerator mode at all.
     origenerator_dir: Path | None = None
     origenerator_python_exe: Path | None = None
-
-    @property
-    def nau_library_dir(self) -> Path:
-        return self.nau_library_dirs[0]
-
-    @property
-    def portrait_dir(self) -> Path:
-        return self.portrait_dirs[0]
-
-    @property
-    def landscape_dir(self) -> Path:
-        return self.landscape_dirs[0]
 
 
 @dataclass(frozen=True)

@@ -18,7 +18,7 @@ def apply_command(
     session,
     *,
     stop_event=None,
-    reload_playlist=None,
+    reload_playlist,
 ) -> bool:
     """Dispatch one command line to *session*; return whether it was handled."""
     parts = command.strip().split(None, 1)
@@ -40,8 +40,6 @@ def apply_command(
     elif keyword == "PLAY_FILE" and arg:
         session.play_file(Path(arg))
     elif keyword == "RELOAD_PLAYLIST":
-        if reload_playlist is None:
-            return False
         reload_playlist()
     elif keyword == "QUIT":
         if stop_event is None:

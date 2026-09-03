@@ -3,27 +3,16 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
-from fun_time.dashboard_layout import dashboard_window_height
+from fun_time.dashboard_layout import Rect, dashboard_window_height
 
 
 def clamp01(value: float) -> float:
     return max(0.0, min(1.0, value))
 
 
-@dataclass(frozen=True)
-class MonitorRect:
-    x: int
-    y: int
-    width: int
-    height: int
-
-
-@dataclass(frozen=True)
-class WindowRect:
-    x: int
-    y: int
-    width: int
-    height: int
+# One rectangle under the two names this module calls it by.
+MonitorRect = Rect
+WindowRect = Rect
 
 
 @dataclass(frozen=True)

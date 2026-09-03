@@ -2,13 +2,8 @@ from __future__ import annotations
 
 import argparse
 import configparser
-import ctypes
 from dataclasses import dataclass, field
-from dataclasses import replace
 from pathlib import Path
-import queue
-import socket
-import threading
 import time
 
 from PyQt6.QtGui import QColor, QFont
@@ -27,10 +22,12 @@ from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.config import LayoutConfig
-from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
-from fun_time.overlay_progress import loading_cover_is_up, startup_still_building
+from fun_time.cover_palette import WORDMARK_PINK
+from fun_time.project_paths import PROJECT_ICON
+from fun_time.loading_reveal import LoadingReveal
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.win32 import find_window_by_title, is_window_topmost, set_always_on_top
+from fun_time.press_channel import PressChannel
+from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -41,22 +38,18 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.command_reference import render_reference_html
-from fun_time.event_log import EVENT_LOG_FILENAME, event_log_path, read_events
+from fun_time.event_log import event_log_path
 from fun_time.log_panel import LogPanelWidget, prefs_path
-from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
-from fun_time.notice_overlay import (
-    NoticeOverlay,
-    PlayerRects,
-    is_announcement,
-    notice_target_rect,
-)
-from fun_time.window_layout import compute_main_media_rect, compute_window_layout
+from fun_time.notice_feed import NoticeFeed
+from fun_time.notice_overlay import NoticeOverlay
 from fun_time.dashboard_layout import (
     PAD as BAR_PAD,
     DashboardBarLayout,
     Rect,
+    add_rect_arguments,
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
+    rect_from_arguments,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
 
@@ -66,9 +59,8 @@ COLOR_BG = BG_PRIMARY
 # which left them reading as flat panels beside another app's raised buttons.
 COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
-# The "Fun Time" wordmark matches the loading screen's redder pink text, NOT the
-# logo's magenta-pink — they are deliberately different hues.
-COLOR_APP_TITLE = QColor("#e94560")
+# NOT the logo's magenta-pink; deliberately different hues.
+COLOR_APP_TITLE = QColor(WORDMARK_PINK)
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -87,12 +79,7 @@ class DashboardAppConfig:
     dashboard_cmd_file: Path
 
 
-@dataclass(frozen=True)
-class DashboardLaunchGeometry:
-    x: int
-    y: int
-    width: int
-    height: int
+DashboardLaunchGeometry = Rect
 
 
 @dataclass(frozen=True)
@@ -147,52 +134,46 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
     )
 
 
-_dashboard_pixmap_cache: dict[tuple[str, int], QPixmap] = {}
+class MarkCache:
+    """The pixmaps one bar is painted from, kept for as long as that bar.
 
-
-def _load_icon_pixmap(filename: str, height: int) -> QPixmap:
-    """Load an icon .ico scaled to a square of *height* pixels, cached."""
-    key = (filename, height)
-    if key not in _dashboard_pixmap_cache:
-        from PyQt6.QtCore import Qt
-
-        ico_path = Path(__file__).resolve().parent.parent / filename
-        pm = QPixmap(str(ico_path))
-        if not pm.isNull():
-            pm = pm.scaled(
-                height, height,
-                Qt.AspectRatioMode.KeepAspectRatio,
-                Qt.TransformationMode.SmoothTransformation,
-            )
-        _dashboard_pixmap_cache[key] = pm
-    return _dashboard_pixmap_cache[key]
-
-
-def _mark(name: str, rect) -> QPixmap:
-    """One of the family's marks, sized for *rect*."""
-    return _mark_pixmap(name, rect.width, rect.height)
-
-
-def _mark_pixmap(name: str, w: int, h: int) -> QPixmap:
-    """One of the family's marks, sized to the control it sits in, cached.
-
-    Every control on this bar is drawn from shared_ui rather than typed as a
-    font character.  Typed, each one came out at whatever weight and size its
-    face gave it: the microphone was a different shape from Origenerator's, the
-    power symbol a different weight from Evolver's, and the help "?" -- set in
-    the body face rather than a symbol one -- was visibly smaller than every
-    mark beside it.
-
-    Square, because a mark drawn to a wide panel's aspect stops being round; the
-    widget that paints it centers it in the control.
+    Twice a second, every render asks for the same five images.  These were two
+    module-level dicts with no owner, no bound and no reset; a cache belongs to
+    the widget that paints out of it.
     """
-    key = (name, w, h)
-    if key not in _dashboard_pixmap_cache:
-        # The family's icon size, not the control's full height: every button in
-        # every app hugs its mark by the same amount, which they did not before.
-        side = min(BUTTON_ICON, min(w, h))
-        _dashboard_pixmap_cache[key] = glyph_pixmap(name, side, COLOR_TEXT)
-    return _dashboard_pixmap_cache[key]
+
+    def __init__(self) -> None:
+        self._icons: dict[tuple[str, int], QPixmap] = {}
+        self._marks: dict[tuple[str, int, int], QPixmap] = {}
+
+    def icon(self, path: Path, height: int) -> QPixmap:
+        """An .ico scaled to a square of *height* pixels."""
+        key = (str(path), height)
+        if key not in self._icons:
+            from PyQt6.QtCore import Qt
+
+            pm = QPixmap(str(path))
+            if not pm.isNull():
+                pm = pm.scaled(
+                    height, height,
+                    Qt.AspectRatioMode.KeepAspectRatio,
+                    Qt.TransformationMode.SmoothTransformation,
+                )
+            self._icons[key] = pm
+        return self._icons[key]
+
+    def mark(self, name: str, rect) -> QPixmap:
+        """One of the family's marks, drawn square for the control it sits in.
+
+        From shared_ui, not typed as a font character: typed, each mark came out
+        at whatever weight its face gave it.  Square, because a mark drawn to a
+        wide panel's aspect stops being round; the widget centers it.
+        """
+        key = (name, rect.width, rect.height)
+        if key not in self._marks:
+            side = min(BUTTON_ICON, min(rect.width, rect.height))
+            self._marks[key] = glyph_pixmap(name, side, COLOR_TEXT)
+        return self._marks[key]
 
 
 # The reference popup's name, on its window chrome and on the ? button's tooltip
@@ -220,6 +201,7 @@ def build_dashboard_scene(
     snapshot: DashboardSnapshot | None = None,
     *,
     width: int,
+    marks: MarkCache,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     """The control bar: the app's mark, then the four controls in one run.
@@ -266,12 +248,12 @@ def build_dashboard_scene(
                           anchor="w", font=_font_app),
     )
     images = (
-        DashboardImageItem(_load_icon_pixmap("icon.ico", layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(_mark("power", layout.quit_button), layout.quit_button),
-        DashboardImageItem(_mark(omnipause_mark, layout.omnipause_button),
+        DashboardImageItem(marks.icon(PROJECT_ICON, layout.app_icon.height), layout.app_icon),
+        DashboardImageItem(marks.mark("power", layout.quit_button), layout.quit_button),
+        DashboardImageItem(marks.mark(omnipause_mark, layout.omnipause_button),
                            layout.omnipause_button),
-        DashboardImageItem(_mark("question", layout.help_button), layout.help_button),
-        DashboardImageItem(_mark("mic", layout.voice_panel), layout.voice_panel),
+        DashboardImageItem(marks.mark("question", layout.help_button), layout.help_button),
+        DashboardImageItem(marks.mark("mic", layout.voice_panel), layout.voice_panel),
     )
     tooltips = dict(_ACTION_TOOLTIPS)
     if omni_paused:
@@ -310,6 +292,7 @@ class DashboardWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
+        self.marks = MarkCache()
         self._scene: DashboardScene | None = None
         self.setMouseTracking(True)
 
@@ -321,7 +304,7 @@ class DashboardWidget(QWidget):
         self.setFixedSize(scene.width, scene.height)
         self.update()
 
-    def paintEvent(self, event: object) -> None:  # noqa: N802
+    def paintEvent(self, event: object) -> None:
         scene = self._scene
         if scene is None:
             return
@@ -366,7 +349,7 @@ class DashboardWidget(QWidget):
 
         p.end()
 
-    def mousePressEvent(self, event: object) -> None:  # noqa: N802
+    def mousePressEvent(self, event: object) -> None:
         scene = self._scene
         if scene is None:
             return
@@ -377,7 +360,7 @@ class DashboardWidget(QWidget):
                 self.action_triggered.emit(action_id)
                 return
 
-    def mouseMoveEvent(self, event: object) -> None:  # noqa: N802
+    def mouseMoveEvent(self, event: object) -> None:
         scene = self._scene
         if scene is None:
             return
@@ -407,9 +390,8 @@ class ReferenceDialog(QDialog):
             | Qt.WindowType.WindowTitleHint
             | Qt.WindowType.WindowCloseButtonHint
         )
-        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        if PROJECT_ICON.exists():
+            self.setWindowIcon(QIcon(str(PROJECT_ICON)))
         browser = QTextBrowser(self)
         browser.setOpenExternalLinks(False)
         browser.setHtml(render_reference_html())
@@ -427,27 +409,96 @@ class ReferenceDialog(QDialog):
         own top-level window, so the dashboard's band does not carry it either;
         it corrects its own, the same way DashboardWindow._sync_own_topmost does.
 
-        Drift correction: SetWindowPos runs only when the actual band differs
-        from the desired one, so Qt re-asserting the hint (on show, say) is
-        undone on the next refresh with no flicker in the steady state.  winId()
-        is read fresh rather than cached because Qt may recreate the native
-        window across a hide/show.
+        winId() is read fresh rather than cached: Qt may recreate the native
+        window across a hide/show, and every toggle hides and shows this one.
         """
-        hwnd = int(self.winId())
-        desired_topmost = not omni_paused
-        if is_window_topmost(hwnd) != desired_topmost:
-            set_always_on_top(hwnd, desired_topmost)
+        keep_in_topmost_band(int(self.winId()), topmost=not omni_paused)
+
+
+class ReferencePopup:
+    """The reference window's whole life: opened, dismissed, placed, banded.
+
+    Lazily built, so a session that never asks for it never pays for rendering
+    the reference HTML; and kept once built, so a second open lands where the
+    user left it.
+    """
+
+    def __init__(self, parent: QWidget, rfb_rect: Rect | None) -> None:
+        self._parent = parent
+        self._rfb_rect = rfb_rect
+        self.dialog: ReferenceDialog | None = None
+
+    def toggle(self, omni_paused: bool) -> None:
+        """Open it, or dismiss it if it is already showing.
+
+        Drives both the ``?`` button and the "help"/"reference"/… phrases: one
+        trigger both ways.
+        """
+        if self.dialog is not None and self.dialog.isVisible():
+            self.dialog.close()
+        else:
+            self.open(omni_paused)
+
+    def open(self, omni_paused: bool) -> None:
+        """Show it, or re-focus it if it is already open."""
+        if self.dialog is None:
+            self.dialog = ReferenceDialog(self._parent)
+            if self._rfb_rect is not None:
+                self._fit_to(self._rfb_rect)
+        self.dialog.show()
+        self.dialog.raise_()
+        self.dialog.activateWindow()
+        # Qt applies the StaysOnTop hint on show, so a band set before this
+        # would be undone by the show and the popup would be stranded above a
+        # desktop OmniPause had freed.  After, not before.
+        self.sync_topmost(omni_paused)
+
+    def close(self) -> None:
+        """Dismiss it if it is open (the "close …" phrases)."""
+        if self.dialog is not None:
+            self.dialog.close()
+
+    def sync_topmost(self, omni_paused: bool) -> None:
+        """Keep its band in step with OmniPause, open or not.
+
+        It is a separate top-level window, so it rides neither the panel's band
+        nor the orchestrator's drop.  Run while hidden too, so a re-open lands
+        in the right band.
+        """
+        if self.dialog is None:
+            return
+        self.dialog.sync_topmost(omni_paused)
+
+    def _fit_to(self, rect: Rect) -> None:
+        """Size it so its whole FRAME — title bar included — fills *rect*.
+
+        Frame margins are known only once the window is realized, so: place it
+        at the rect, show it, measure, then inset the client to fill the frame.
+        Sizing the client area instead left the chrome overhanging the top.
+        """
+        dialog = self.dialog
+        assert dialog is not None
+        dialog.setGeometry(rect.x, rect.y, rect.width, rect.height)
+        dialog.show()
+        frame = dialog.frameGeometry()
+        client = dialog.geometry()
+        x, y, w, h = client_rect_filling_frame(
+            rect,
+            left=client.left() - frame.left(),
+            top=client.top() - frame.top(),
+            right=frame.right() - client.right(),
+            bottom=frame.bottom() - client.bottom(),
+        )
+        dialog.setGeometry(x, y, w, h)
 
 
 def write_dashboard_command(path: Path, action_id: str) -> None:
     """Post a dashboard button (or voice-toggle) action for the dispatch loop.
 
-    Robust to the dispatch loop's ~20 Hz rename-drain of the same file: the append
-    retries past the transient sharing violation rather than raising into the Qt
-    slot.  Unhandled, that error propagates out of a click slot and PyQt6 aborts
-    the whole window — the "power button closed the Dash instead of quitting Fun
-    Time" bug — so a persistently locked file drops the line and the next click
-    lands.
+    Retries past the loop's ~20 Hz rename-drain of the same file and DROPS
+    rather than raising: unhandled, that error leaves a click slot and PyQt6
+    aborts the window — the "power button closed the Dash instead of quitting
+    Fun Time" bug.  Three cases in `tests/test_dashboard_app.py` hold it.
     """
     append_command(path, action_id)
 
@@ -494,42 +545,22 @@ class DashboardWindow(QMainWindow):
         *,
         launch_geometry: DashboardLaunchGeometry | None = None,
         rfb_rect: Rect | None = None,
-        start_minimized: bool = False,
     ) -> None:
         super().__init__()
         self._app_config = app_config
         self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
-        # The Random Favs Browser's screen rect; the reference popup opens over it.
-        self._rfb_rect = rfb_rect
-        # While the loading overlay is up the dashboard stays fully hidden so its
-        # always-on-top window neither flashes above the overlay nor animates a
-        # minimize on the way there (a hidden window renders nothing and the
-        # geometry re-assert is gated on not-deferred).  We auto-detect that from
-        # the loading screen's progress file and reveal ourselves once it is gone
-        # — the launcher does not have to pass --start-minimized.  Neither a
-        # loading-defer nor a persisted-minimized start may mirror its initial
-        # off-screen state onto the other windows.
-        self._deferred_for_loading = startup_still_building(app_config.manifest_path.parent)
-        # Toasts are topmost too, so they wait for the cover itself rather than
-        # for the earlier cue this window shows itself on.  See _poll_notices.
-        self._notices_held = self._deferred_for_loading
-        self._suppress_minimize_routing = start_minimized or self._deferred_for_loading
+        # The reference popup opens over the Random Favs Browser's screen rect.
+        self._reference = ReferencePopup(self, rfb_rect)
+        # Read once; the notice feed below is seeded from this same answer.
+        self._reveal = LoadingReveal(app_config.manifest_path.parent)
 
-        # Set on close, so the poller and press listener wind down with the
-        # window instead of reading the player status files for the life of the
-        # process.  Under test, several dashboards are built and closed in one
-        # process, and leaked pollers would keep running past their window.
-        self._stopping = threading.Event()
         self._pressed: dict[str, float] = {}
-        self._reference_dialog: ReferenceDialog | None = None
         self._last_snapshot: DashboardSnapshot | None = None
-        self._press_queue: queue.Queue[str] = queue.Queue()
 
         self.setWindowTitle("Fun Time")
-        icon_path = Path(__file__).resolve().parent.parent / "icon.ico"
-        if icon_path.exists():
-            self.setWindowIcon(QIcon(str(icon_path)))
+        if PROJECT_ICON.exists():
+            self.setWindowIcon(QIcon(str(PROJECT_ICON)))
         self.setWindowFlags(
             Qt.WindowType.WindowStaysOnTopHint
             | Qt.WindowType.CustomizeWindowHint
@@ -539,18 +570,16 @@ class DashboardWindow(QMainWindow):
             | Qt.WindowType.WindowCloseButtonHint
         )
 
-        # The window spans the whole left column: the schematic on the left and
-        # the log stream filling the strip beside it.  The log used to be a second
+        # The window spans the whole left column: the control bar across the
+        # top and the log stream filling the rest.  The log used to be a second
         # top-level window the bridge tracked by title; embedding it as a child
         # lets it ride the dashboard's topmost band, minimize/restore and close.
         self._widget = DashboardWidget()
         self._widget.action_triggered.connect(self._on_action)
         state_dir = app_config.manifest_path.parent
         self._log_widget = LogPanelWidget(event_log_path(state_dir), prefs_path(state_dir))
-        # The top bar and the log's filter controls share one row — the bar's own
-        # buttons on the left, the log controls filling the rest — so the Dash is a
-        # row shorter than when the controls sat above the log, and the Random Favs
-        # Browser below it that much taller.  The log stream fills the rest.
+        # The bar's buttons and the log's filters share one row, so the Dash is
+        # a row shorter and the Random Favs Browser below it that much taller.
         top_row = QWidget(self)
         top_layout = QHBoxLayout(top_row)
         # The bar insets its own contents by PAD; the filters at the far end get
@@ -576,69 +605,40 @@ class DashboardWindow(QMainWindow):
                 launch_geometry.width, launch_geometry.height,
             )
 
-        # Title-bar controls: keep minimize + close, drop maximize (the schematic
-        # is a fixed size).  Close routes through closeEvent (quits everything);
-        # minimize routes through changeEvent (omniminimize).
-        # Show in taskbar via WS_EX_APPWINDOW.
-        # The subprocess is launched with SW_HIDE (hidden_subprocess_kwargs),
-        # which PyQt6 inherits.  winId() realizes the native window handle
-        # without showing it, so during the loading overlay the window stays
-        # fully hidden — no flash, no minimize animation, nothing on screen —
-        # and _maybe_reveal_after_loading shows it once the overlay closes.
+        # What the title bar's two surviving controls route to: close through
+        # closeEvent (quits everything), minimize through changeEvent
+        # (omniminimize).  winId() realizes the native handle WITHOUT showing
+        # the window, so while the cover is up this one stays fully hidden and
+        # LoadingReveal shows it once the cover goes.
         _hwnd = int(self.winId())
         self._dash_hwnd = _hwnd
-        SW_HIDE = 0
-        SW_SHOW = 5
-        SW_SHOWMINNOACTIVE = 7
-        if self._deferred_for_loading:
-            ctypes.windll.user32.ShowWindow(_hwnd, SW_HIDE)
-        elif start_minimized:
-            self.show()
-            ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOWMINNOACTIVE)
-        else:
-            self.show()
-            ctypes.windll.user32.ShowWindow(_hwnd, SW_SHOW)
-        WS_SYSMENU = 0x00080000
-        WS_MINIMIZEBOX = 0x00020000
-        WS_MAXIMIZEBOX = 0x00010000
-        _style = ctypes.windll.user32.GetWindowLongW(_hwnd, -16)  # GWL_STYLE
-        _style = (_style | WS_SYSMENU | WS_MINIMIZEBOX) & ~WS_MAXIMIZEBOX
-        ctypes.windll.user32.SetWindowLongW(_hwnd, -16, _style)
-        _ex = ctypes.windll.user32.GetWindowLongW(_hwnd, -20)  # GWL_EXSTYLE
-        ctypes.windll.user32.SetWindowLongW(_hwnd, -20, (_ex | 0x00040000) & ~0x00000080)
-        ctypes.windll.user32.SetWindowPos(
-            _hwnd, 0, 0, 0, 0, 0, 0x0001 | 0x0002 | 0x0004 | 0x0020,
-        )
+        self._reveal.attach(_hwnd, self)
+        set_taskbar_window_styles(_hwnd)
 
         self._ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
 
-        # UDP press listener
+        # Connected first: the channel's listener emits as soon as it exists.
         self._press_received.connect(self._handle_press_event)
-        self._press_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._press_sock.bind(("127.0.0.1", 0))
-        press_port = self._press_sock.getsockname()[1]
-        port_file = app_config.dashboard_state_file.parent / "dashboard_press_port.txt"
-        port_file.parent.mkdir(parents=True, exist_ok=True)
-        port_file.write_text(str(press_port), encoding="utf-8")
-        threading.Thread(target=self._press_listener, daemon=True, name="press-listener").start()
+        self._press_channel = PressChannel(
+            app_config.dashboard_state_file.parent, self._press_received.emit)
 
-        # Notice overlays: flash each new event-log notice over the player it is
-        # about.  A dedicated tail (its own offset) polls the shared file a touch
-        # faster than the 500ms refresh so a "Clip saved" lands promptly.
-        self._player_rects = self._compute_player_rects()
-        self._notice_overlay = NoticeOverlay() if self._player_rects is not None else None
-        self._notice_offset = 0
+        self._notices = NoticeFeed(
+            layout=app_config.layout,
+            event_log_dir=app_config.dashboard_state_file.parent,
+            cover_dir=app_config.manifest_path.parent,
+            make_overlay=NoticeOverlay,
+            held=self._reveal.deferred,
+        )
         self._notice_timer = QTimer(self)
-        self._notice_timer.timeout.connect(self._poll_notices)
+        self._notice_timer.timeout.connect(self._notices.poll)
         self._notice_timer.start(250)
 
-        # Refresh timer (500ms)
         self._refresh_timer = QTimer(self)
         self._refresh_timer.timeout.connect(self._refresh)
         self._refresh_timer.start(500)
         self._refresh()
 
-    def closeEvent(self, event: object) -> None:  # noqa: N802
+    def closeEvent(self, event: object) -> None:
         try:
             self._ahk_cmd_file.write_text("exit", encoding="utf-8")
         except OSError:
@@ -647,26 +647,19 @@ class DashboardWindow(QMainWindow):
         event.accept()
 
     def _stop_background_work(self) -> None:
-        """Wind down the timers, threads, socket, and the log strip's tail.
+        """Wind down the press channel, the timers and the log strip's tail.
 
-        Closing the dashboard ends the session, so in production this only tidies
-        up ahead of the process being killed.  It matters where a dashboard is
-        built and closed inside a longer-lived process — the poller would
-        otherwise keep reading the player status files forever.
+        In production the process is about to be killed anyway; this matters
+        where several dashboards are built and closed inside one longer-lived
+        process, and a leaked poller would read on past its window.
         """
-        self._stopping.set()
+        self._press_channel.stop()
         self._refresh_timer.stop()
         self._notice_timer.stop()
         self._log_widget.shutdown()
-        try:
-            self._press_sock.close()  # unblocks the listener's recvfrom
-        except OSError:
-            pass
-        if self._notice_overlay is not None:
-            self._notice_overlay.shutdown()
-            self._notice_overlay = None
+        self._notices.shutdown()
 
-    def changeEvent(self, event: object) -> None:  # noqa: N802
+    def changeEvent(self, event: object) -> None:
         """Mirror the dashboard's own minimize/restore onto every managed window.
 
         The dashboard cannot reach the other processes' windows directly, so it
@@ -683,61 +676,18 @@ class DashboardWindow(QMainWindow):
 
     def _maybe_route_omniminimize(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omniminimize command on the not-minimized -> minimized edge only."""
-        if self._suppress_minimize_routing:
+        if self._reveal.routing_suppressed:
             return  # startup minimize (loading overlay) — not a user gesture
         if now_minimized and not was_minimized:
             write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIMINIMIZE)
 
     def _maybe_route_omnirestore(self, *, now_minimized: bool, was_minimized: bool) -> None:
         """Write the omnirestore command on the minimized -> not-minimized edge only."""
-        if was_minimized and not now_minimized and self._suppress_minimize_routing:
-            # The post-loading reveal restored us; routing is live from here.
-            self._suppress_minimize_routing = False
+        if not (was_minimized and not now_minimized):
             return
-        if was_minimized and not now_minimized:
-            write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
-
-    def _maybe_reveal_after_loading(self) -> None:
-        """Show the window as startup reaches its last phase — BEHIND the cover.
-
-        The dashboard stays fully hidden (SW_HIDE, never Qt-shown) while startup
-        builds the room, so it neither flashes above the cover nor animates a
-        minimize.  What it waits for is the last phase, not the cover coming
-        down: waiting for the cover meant showing itself a second or more AFTER
-        the reveal, so the loading screen went away and the session's own control
-        panel was still missing — "its windows are not ready by the time the
-        loading screen goes away".
-
-        Showing while the cover is up needs one care.  Both windows are topmost,
-        and showing a window puts it at the TOP of its band, so the panel would
-        land over the cover for as long as it took the cover's next 200ms poll to
-        re-assert itself.  So it is inserted directly BELOW the cover instead
-        (``hWndInsertAfter`` = the cover's own window) in the same call that
-        shows it, and the cover keeps the screen until the orchestrator writes
-        DONE.  With no cover to find, the z-order is left alone, exactly as
-        before.
-
-        Revealing from hidden does not fire a minimize->restore edge, so we clear
-        the startup-minimize suppression here rather than relying on
-        _maybe_route_omnirestore.
-        """
-        if not self._deferred_for_loading:
-            return
-        if startup_still_building(self._app_config.manifest_path.parent):
-            return
-        self._deferred_for_loading = False
-        self._suppress_minimize_routing = False
-        curtain = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
-        self.show()
-        SW_SHOW = 5
-        SWP_NOSIZE, SWP_NOMOVE, SWP_NOZORDER = 0x0001, 0x0002, 0x0004
-        SWP_NOACTIVATE, SWP_FRAMECHANGED = 0x0010, 0x0020
-        ctypes.windll.user32.ShowWindow(self._dash_hwnd, SW_SHOW)
-        ctypes.windll.user32.SetWindowPos(
-            self._dash_hwnd, ctypes.c_void_p(curtain), 0, 0, 0, 0,
-            SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED
-            | (SWP_NOACTIVATE if curtain else SWP_NOZORDER),
-        )
+        if self._reveal.took_the_first_restore():
+            return  # startup's own minimize came back; routing is live from here
+        write_dashboard_command(self._app_config.dashboard_cmd_file, OMNIRESTORE)
 
     def _compute_pressed(self) -> frozenset[str]:
         now = time.monotonic()
@@ -749,30 +699,11 @@ class DashboardWindow(QMainWindow):
     def _sync_own_topmost(self, omni_paused: bool) -> None:
         """Keep the dashboard's own topmost band in step with OmniPause.
 
-        The dashboard floats over the players via WindowStaysOnTopHint, but
-        OmniPause must free the desktop.  The orchestrator tries to drop it, yet
-        its lookup for this Qt window (whose pid differs from the launcher's)
-        intermittently fails, so the dashboard corrects its OWN band here using
-        its reliable handle: non-topmost while paused, topmost otherwise.  It is
-        drift correction — SetWindowPos runs only when the actual band differs
-        from the desired one, so a Qt re-assert of the hint is undone on the next
-        refresh with no flicker in the steady state.
+        The orchestrator tries to drop it, but its lookup for this Qt window
+        (whose pid differs from the launcher's) intermittently fails, so the
+        panel corrects its own band from its reliable handle.
         """
-        desired_topmost = not omni_paused
-        if is_window_topmost(self._dash_hwnd) != desired_topmost:
-            set_always_on_top(self._dash_hwnd, desired_topmost)
-
-    def _sync_reference_topmost(self, omni_paused: bool) -> None:
-        """Keep the reference popup's band in step with OmniPause too.
-
-        The popup is a separate top-level window, so it rides neither the
-        dashboard's band nor the orchestrator's drop; see
-        :meth:`ReferenceDialog.sync_topmost`.  Runs even while the popup is
-        hidden, so re-opening it lands in the right band.
-        """
-        if self._reference_dialog is None:
-            return
-        self._reference_dialog.sync_topmost(omni_paused)
+        keep_in_topmost_band(self._dash_hwnd, topmost=not omni_paused)
 
     @property
     def _omni_paused(self) -> bool:
@@ -785,31 +716,28 @@ class DashboardWindow(QMainWindow):
         pressed_actions: frozenset[str],
     ) -> None:
         self._last_snapshot = snapshot
-        # OmniPause must free the desktop; drop our own topmost while paused
-        # (the orchestrator's drop of this window is unreliable) and restore it
-        # after.  See _sync_own_topmost.  The log strip is a child widget, so it
-        # rides this window's band automatically — the reference popup is its own
-        # top-level window and does not, so it is corrected alongside us.
+        # The log strip is a child widget and rides this window's band; the
+        # reference popup is its own top-level window, so it is banded too.
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
-        self._sync_reference_topmost(omni_paused)
-        state_dir = self._app_config.dashboard_state_file.parent
+        self._reference.sync_topmost(omni_paused)
         scene = build_dashboard_scene(
             self._bar_layout,
             snapshot,
             width=self._bar_layout.content_width,
+            marks=self._widget.marks,
             pressed_actions=pressed_actions,
         )
         # While minimized, re-asserting geometry would restore the window and
         # fight the omniminimize — leave it minimized until the user restores it.
         # While deferred for loading it is hidden; don't touch it until reveal.
-        if not self.isMinimized() and not self._deferred_for_loading:
+        if not self.isMinimized() and not self._reveal.deferred:
             apply_dashboard_window_geometry(self, snapshot, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:
-            self._toggle_reference_dialog()
+            self._reference.toggle(self._omni_paused)
             return
         self._pressed[action_id] = time.monotonic()
         write_dashboard_command(self._app_config.dashboard_cmd_file, action_id)
@@ -819,159 +747,31 @@ class DashboardWindow(QMainWindow):
             lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
 
-    def _toggle_reference_dialog(self) -> None:
-        """Open the reference popup, or close it if it is already showing.
-
-        Drives both the ``?`` button and the "help"/"reference"/… voice phrases:
-        the same trigger opens and dismisses.
-        """
-        if self._reference_dialog is not None and self._reference_dialog.isVisible():
-            self._reference_dialog.close()
-        else:
-            self._show_reference_dialog()
-
-    def _show_reference_dialog(self) -> None:
-        """Open (or re-focus) the hotkey/voice reference popup.
-
-        On first open it is sized and placed to fill the Random Favs Browser's
-        rect, so the reference occupies the exact same space; later opens keep
-        wherever the user moved it.
-        """
-        if self._reference_dialog is None:
-            self._reference_dialog = ReferenceDialog(self)
-            if self._rfb_rect is not None:
-                self._fit_reference_frame_to_rect(self._rfb_rect)
-        self._reference_dialog.show()
-        self._reference_dialog.raise_()
-        self._reference_dialog.activateWindow()
-        # Qt applies the StaysOnTop hint on show, so opening the popup during
-        # OmniPause would strand it above the freed desktop until the next
-        # refresh corrected it.  Land it in the right band immediately.
-        self._sync_reference_topmost(self._omni_paused)
-
-    def _fit_reference_frame_to_rect(self, rect: Rect) -> None:
-        """Size the reference popup so its whole frame — title bar included —
-        fills *rect*, rather than its client area (which left the chrome
-        overhanging the top).  Frame margins are known only once the window is
-        realized, so place it at the rect, show it, measure, then inset the
-        client to fill the frame."""
-        dialog = self._reference_dialog
-        assert dialog is not None
-        dialog.setGeometry(rect.x, rect.y, rect.width, rect.height)
-        dialog.show()
-        frame = dialog.frameGeometry()
-        client = dialog.geometry()
-        x, y, w, h = client_rect_filling_frame(
-            rect,
-            left=client.left() - frame.left(),
-            top=client.top() - frame.top(),
-            right=frame.right() - client.right(),
-            bottom=frame.bottom() - client.bottom(),
-        )
-        dialog.setGeometry(x, y, w, h)
-
-    def _close_reference_dialog(self) -> None:
-        """Dismiss the reference popup if it is open (the "close …" voice phrases)."""
-        if self._reference_dialog is not None:
-            self._reference_dialog.close()
-
     def _handle_press_event(self) -> None:
-        toggle_reference = False
-        close_reference = False
-        while True:
-            try:
-                action = self._press_queue.get_nowait()
-                if action == HELP_REFERENCE:
-                    toggle_reference = True
-                elif action == HELP_REFERENCE_CLOSE:
-                    close_reference = True
-                self._pressed[action] = time.monotonic()
-            except queue.Empty:
-                break
-        # Voice arrives here as a press (the ? button drives _on_action directly):
-        # "help"/… toggles the popup, "close help"/… only dismisses it.
-        if close_reference:
-            self._close_reference_dialog()
-        if toggle_reference:
-            self._toggle_reference_dialog()
+        self._apply_presses(self._press_channel.take_all())
+
+    def _apply_presses(self, actions: list[str]) -> None:
+        """Flash each of *actions*, and route the two the popup answers to.
+
+        Voice arrives here as a press (the ? button drives _on_action directly):
+        "help"/… toggles the popup, "close help"/… only dismisses it.  A burst
+        is one render, not one render each, so the two are decided across the
+        whole batch before either is acted on.
+        """
+        for action in actions:
+            self._pressed[action] = time.monotonic()
+        if HELP_REFERENCE_CLOSE in actions:
+            self._reference.close()
+        if HELP_REFERENCE in actions:
+            self._reference.toggle(self._omni_paused)
         self._do_render(self._last_snapshot, self._compute_pressed())
         QTimer.singleShot(
             int(PRESS_FLASH_S * 1000) + 10,
             lambda: self._do_render(self._last_snapshot, self._compute_pressed()),
         )
 
-    def _press_listener(self) -> None:
-        while not self._stopping.is_set():
-            try:
-                data, _ = self._press_sock.recvfrom(256)
-                self._press_queue.put(data.decode("utf-8").strip())
-                self._press_received.emit()
-            except OSError:
-                break
-
-    def _compute_player_rects(self) -> PlayerRects | None:
-        """Where each notice-bearing window sits, in real screen coordinates.
-
-        Derived from the same layout functions startup positions the windows
-        with, so the overlay lands on the window rather than near it.  Returns
-        None when the monitors can't be read (e.g. a headless run) so notices
-        simply don't flash instead of crashing the dashboard.
-        """
-        try:
-            monitors = enumerate_monitors()
-            primary_rect, secondary_rect = get_logical_monitor_rects(
-                monitors,
-                primary_index=self._app_config.layout.primary_monitor,
-                secondary_index=self._app_config.layout.secondary_monitor,
-            )
-        except (ValueError, OSError):
-            return None
-        plan = compute_window_layout(
-            primary_monitor=primary_rect,
-            secondary_monitor=secondary_rect,
-            layout_config=self._app_config.layout,
-        )
-        main = compute_main_media_rect(
-            secondary_monitor=secondary_rect, layout_config=self._app_config.layout,
-        )
-        as_rect = lambda w: Rect(w.x, w.y, w.width, w.height)  # noqa: E731
-        return PlayerRects(
-            main=as_rect(main),
-            portrait=as_rect(plan.portrait),
-            landscape=as_rect(plan.landscape),
-            dash=as_rect(plan.dashboard),
-        )
-
-    def _poll_notices(self) -> None:
-        """Flash every new announcement over the player it concerns.
-
-        Held while the loading cover is up, and by the COVER rather than by
-        ``_deferred_for_loading``: this window shows itself one phase before the
-        cover goes (so it is in place when it does), and a toast is topmost, so
-        every announcement in that gap flashed over the cover — a thing
-        appearing for a moment through the scrim, which is what the scrim is
-        there to stop.  Nothing is dropped by waiting: the read offset does not
-        advance until they are flashed, so they arrive over the room they are
-        about.
-        """
-        if self._notice_overlay is None or self._player_rects is None:
-            return
-        if self._notices_held:
-            if loading_cover_is_up(self._app_config.manifest_path.parent):
-                return
-            # Latched, so the steady state costs no file check at all.
-            self._notices_held = False
-        records, self._notice_offset = read_events(
-            self._app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME,
-            self._notice_offset,
-        )
-        for record in records:
-            if is_announcement(record):
-                target = notice_target_rect(record.source, self._player_rects)
-                self._notice_overlay.flash(record, target)
-
     def _refresh(self) -> None:
-        self._maybe_reveal_after_loading()
+        self._reveal.maybe_reveal()
         self._do_render(
             load_dashboard_snapshot(self._app_config.dashboard_state_file),
             self._compute_pressed(),
@@ -1022,20 +822,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=str(Path("state") / WINDOWS_BRIDGE_MANIFEST_FILENAME),
         help="Path to the Windows bridge launch manifest",
     )
-    parser.add_argument("--x", type=int)
-    parser.add_argument("--y", type=int)
-    parser.add_argument("--width", type=int)
-    parser.add_argument("--height", type=int)
+    add_rect_arguments(parser)
     # The Random Favs Browser's rect — the reference popup opens over it.
-    parser.add_argument("--rfb-x", type=int)
-    parser.add_argument("--rfb-y", type=int)
-    parser.add_argument("--rfb-width", type=int)
-    parser.add_argument("--rfb-height", type=int)
-    parser.add_argument(
-        "--start-minimized",
-        action="store_true",
-        help="Start minimized (used while the loading screen covers startup)",
-    )
+    add_rect_arguments(parser, prefix="rfb_")
     return parser.parse_args(argv)
 
 
@@ -1044,7 +833,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Set AppUserModelID before any window creation so the taskbar can group
     # this process's windows with the pinned "Fun Time" shortcut.
-    from .win32 import APP_USER_MODEL_ID, set_app_user_model_id
+    from .win32_taskbar import APP_USER_MODEL_ID, set_app_user_model_id
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:
@@ -1054,17 +843,8 @@ def main(argv: list[str] | None = None) -> int:
 
     app_config = load_dashboard_app_config(Path(args.manifest_path))
     record_source_checkout(app_config.dashboard_state_file.parent)
-    launch_geometry = None
-    if None not in {args.x, args.y, args.width, args.height}:
-        launch_geometry = DashboardLaunchGeometry(
-            x=args.x,
-            y=args.y,
-            width=args.width,
-            height=args.height,
-        )
-    rfb_rect = None
-    if None not in {args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height}:
-        rfb_rect = Rect(args.rfb_x, args.rfb_y, args.rfb_width, args.rfb_height)
+    launch_geometry = rect_from_arguments(args)
+    rfb_rect = rect_from_arguments(args, prefix="rfb_")
     _window = build_dashboard_window(
         app_config,
         launch_geometry=launch_geometry,

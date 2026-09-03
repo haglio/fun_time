@@ -1,7 +1,9 @@
-"""Startup sequencer for the Python orchestrator.
+"""A session's startup phases, in the order they have to happen in.
 
-Replaces AHK's ``StartWindowsBridge()`` — runs the full startup sequence
-in Python: core session launch, window positioning, UI companion launch.
+The children, then the windows, then the browser, then the companions, then the
+reveal — each a function of its own, called from :func:`_run_startup_phases`,
+which is the one place that says what comes after what.  The launching itself
+belongs to :mod:`fun_time.windows_bridge_startup`; this module owns the order.
 """
 from __future__ import annotations
 
@@ -18,12 +20,18 @@ from pathlib import Path
 from player_core.file_channel import append_command
 
 from .config import LayoutConfig
-from .dashboard_runtime import genau_status_path, read_genau_status, read_nau_status
+from .player_status import (
+    genau_status_path,
+    read_genau_status,
+    read_nau_status,
+)
 from .satellite_control import read_satellite_status
+from .shared_state import read_shared_state, shared_state_path
 from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
+from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
-from .windows_bridge_random_favs_browser import launch_random_favs_browser
+from .windows_bridge_random_favs_browser import ChromeShortcut, launch_random_favs_browser
 from .runtime_flow import write_flag_file
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -44,7 +52,11 @@ from .win32 import (
     set_always_on_top,
     wait_for_window_by_title,
 )
+from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
+from .players import Player
+from .satellite_slot import SatelliteSlot
 from .window_layout import (
+    MonitorRect,
     WindowLayoutPlan,
     WindowRect,
     compute_main_media_rect,
@@ -75,7 +87,6 @@ class StartupResult:
     dashboard_pid: int
     genau_pid: int
     audio_pid: int
-    layout_plan: WindowLayoutPlan
     # The hosted Origenerator's process, or 0 for a session with none configured.
     origenerator_pid: int = 0
     # Which player the main slot was revealed on — last session's, resumed.
@@ -92,13 +103,6 @@ class StartupResult:
     # loop's role cache is seeded from this (hidden windows cannot be
     # re-resolved by pid/title lookups).
     role_hwnds: dict[str, int] = field(default_factory=dict)
-
-
-def _read_manifest(path: str | Path) -> configparser.ConfigParser:
-    parser = configparser.ConfigParser()
-    parser.optionxform = str
-    parser.read(str(path), encoding="utf-8")
-    return parser
 
 
 def _read_result_pids(result_file: str | Path) -> dict[str, int]:
@@ -164,8 +168,8 @@ def keep_the_cover_up(cover_hwnd: int) -> None:
         set_always_on_top(cover_hwnd, True)
 
 
-def _apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
-                         satellites_mode: str = "player", *, beneath: int = 0) -> None:
+def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
+                        satellites_mode: str = "player", *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy for *mode* — the same policy omnipause and mode switches honor, so
     they can never disagree.
@@ -217,7 +221,7 @@ def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> No
         minimize_window(idle, activate=False)
 
 
-def _apply_startup_window_state(
+def apply_startup_window_state(
     *,
     portrait_hwnd: int,
     landscape_hwnd: int,
@@ -236,7 +240,7 @@ def _apply_startup_window_state(
     visibility.
 
     *beneath* is the loading overlay when this runs behind one, and is what keeps
-    the cover on top across the walk — see :func:`_apply_topmost_bands`.  Zero
+    the cover on top across the walk — see :func:`apply_topmost_bands`.  Zero
     when there is no cover: the integration path, which has nothing to hide
     behind, and the re-band after the cover has gone.
     """
@@ -251,7 +255,7 @@ def _apply_startup_window_state(
         origenerator_portrait_hwnd=origenerator_portrait_hwnd,
         origenerator_landscape_hwnd=origenerator_landscape_hwnd,
     )
-    _apply_topmost_bands(role_hwnds, mode, satellites_mode, beneath=beneath)
+    apply_topmost_bands(role_hwnds, mode, satellites_mode, beneath=beneath)
     _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)
     return role_hwnds
 
@@ -269,7 +273,7 @@ class _LaunchedChildren:
     rfb_hwnd: int = 0
 
 
-def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
+def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     """Start the players the session's mode puts to work.
 
     Startup holds every one of them so nothing plays into a room that is still
@@ -284,9 +288,9 @@ def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
     phases, playback starts while the cover is still hiding it, and the first
     seconds of the video are spent behind it.
     """
-    write_flag_file(m["commands"]["nau_paused_file"], not nau_displays(main_mode))
-    for key in ("genau_paused_file", "audio_paused_file"):
-        write_flag_file(m["commands"][key], not genau_active(main_mode))
+    write_flag_file(m.commands.nau_paused_file, not nau_displays(main_mode))
+    for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
+        write_flag_file(flag_file, not genau_active(main_mode))
     # Genau's stroke rides its command channel rather than that flag (see
     # seed_startup_states, which holds it there), so the mode where it drives
     # outright has to be told here or it never starts.  Only genau mode: in hybrid
@@ -295,7 +299,7 @@ def release_the_players(m: configparser.ConfigParser, main_mode: str) -> None:
     # about to take the device — the same reason leaving OmniPause resumes Genau
     # in genau mode alone.
     if main_mode == "genau":
-        append_command(Path(m["commands"]["genau_cmd_file"]), "RESUME")
+        append_command(Path(m.commands.genau_cmd_file), "RESUME")
 
 
 def run_startup_sequence(
@@ -338,89 +342,125 @@ def run_startup_sequence(
         raise
 
 
-def _run_startup_phases(
-    *,
-    manifest_path: str | Path,
-    state_dir: str | Path,
-    progress: ProgressReporter,
-    hide_windows: bool,
-    cover_hwnd: int,
-    launched: _LaunchedChildren,
-) -> StartupResult:
-    manifest_path = Path(manifest_path)
-    state_dir = Path(state_dir)
-    state_dir.mkdir(parents=True, exist_ok=True)
-    m = _read_manifest(manifest_path)
+@dataclass(frozen=True)
+class _Layout:
+    """Where every window goes, computed before anything is launched.
 
-    # Compute the window layout up front so the satellites can launch straight
-    # into their real portrait/landscape rects (mpv sizes its output to the launch
-    # geometry and will NOT rescale when a later Win32 move resizes the window),
-    # exactly as Nau launches straight into its main slot rect below.
-    layout_cfg = _layout_config_from_manifest(m)
+    mpv sizes its output to the geometry it was launched with and will NOT
+    rescale when a later Win32 move resizes the window, so each satellite has to
+    be started straight into its real rect — which means the whole plan has to
+    exist before the first child does.
+    """
+
+    plan: WindowLayoutPlan
+    config: LayoutConfig
+    secondary_monitor: MonitorRect
+
+
+@dataclass(frozen=True)
+class _CoreSession:
+    """The children phase 1 leaves behind, and the modes it resumed into."""
+
+    main_mode: str
+    satellites_mode: str
+    portrait_pid: int
+    landscape_pid: int
+    genau_pid: int
+    nau_pid: int
+    origenerator_pid: int
+    # Nau's status file, dropped once phase 1 has spent last session's copy —
+    # phase 4 holds the overlay on the new one appearing.
+    nau_status_file: Path
+
+
+def _plan_the_layout(m: LaunchManifest) -> _Layout:
+    """Every window's rect, from the monitors and the manifest's layout section."""
+    layout_cfg = m.layout
     monitors = enumerate_monitors()
     primary_rect, secondary_rect = get_logical_monitor_rects(
-        monitors, primary_index=layout_cfg.primary_monitor, secondary_index=layout_cfg.secondary_monitor,
+        monitors, primary_index=layout_cfg.primary_monitor,
+        secondary_index=layout_cfg.secondary_monitor,
     )
-    plan = compute_window_layout(
-        primary_monitor=primary_rect,
+    return _Layout(
+        plan=compute_window_layout(
+            primary_monitor=primary_rect,
+            secondary_monitor=secondary_rect,
+            layout_config=layout_cfg,
+        ),
+        config=layout_cfg,
         secondary_monitor=secondary_rect,
-        layout_config=layout_cfg,
     )
 
-    # --- Phase 1: Launch core media stack ---
-    progress.advance("services")
+
+def _launch_the_satellites(
+    m: LaunchManifest,
+    *,
+    plan: WindowLayoutPlan,
+    state_dir: Path,
+    project_dirs: str,
+    launched: _LaunchedChildren,
+) -> tuple[str, int, int]:
+    """The core session: both satellite players, and the mode it resumed into.
+
+    Returns the mode last session was closed in — the core session has just
+    seeded every cross-process flag for it, and what is left is the half only
+    this side can do: park the idle slot-mate, band the pair, and reveal on the
+    right player.
+    """
     core_result_file = _build_unique_result_path(state_dir, "core_session")
-    broker_launcher_raw = m["commands"].get("broker_tray_launcher", "").strip()
-    regen_media_raw = m.get("regen", "media_root", fallback="").strip()
-    regen_metadata_raw = m.get("regen", "metadata_root", fallback="").strip()
-    # Read before the first launch that needs it: the satellites and the
-    # hosted Origenerator take the named checkouts exactly as Genau and Nau
-    # below do.
-    genau_project_dirs = m["runtime"].get("genau_project_dirs", "")
-    # The mode last session was closed in, which the core session has just seeded
-    # every cross-process flag for.  What is left is the half only this side can
-    # do: park the idle slot-mate, band the pair, and reveal on the right player.
+    broker_launcher_raw = m.commands.broker_tray_launcher.strip()
+    regen_metadata_raw = m.regen.metadata_root.strip()
+    # Each satellite's whole launch bundle, built once where the manifest is read.
+    portrait_slot = SatelliteSlot(
+        side=Player.PORTRAIT,
+        sources=m.media.portrait_dirs,
+        cmd_file=m.commands.portrait_cmd_file,
+        paused_file=m.commands.portrait_paused_file,
+        status_file=m.commands.portrait_status_file,
+        log_file=state_dir / "portrait_satellite.log",
+        playlist_file=build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT),
+        rect=plan.portrait,
+        hud_file=m.commands.portrait_hud_file,
+    )
+    landscape_slot = SatelliteSlot(
+        side=Player.LANDSCAPE,
+        sources=m.media.landscape_dirs,
+        cmd_file=m.commands.landscape_cmd_file,
+        paused_file=m.commands.landscape_paused_file,
+        status_file=m.commands.landscape_status_file,
+        log_file=state_dir / "landscape_satellite.log",
+        playlist_file=build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE),
+        rect=plan.landscape,
+        hud_file=m.commands.landscape_hud_file,
+    )
     main_mode = start_core_session(
-        config_path=m["runtime"]["config_path"],
-        broker_cmd_file=m["commands"]["broker_cmd_file"],
+        config_path=m.runtime.config_path,
+        broker_cmd_file=m.commands.broker_cmd_file,
         broker_tray_launcher=Path(broker_launcher_raw) if broker_launcher_raw else None,
-        broker_heartbeat_file=m["commands"]["broker_heartbeat_file"],
-        random_favs_browser_manifest_file=m["random_favs_browser"]["manifest_file"],
-        genau_paused_file=m["commands"]["genau_paused_file"],
-        genau_cmd_file=m["commands"]["genau_cmd_file"],
-        audio_paused_file=m["commands"]["audio_paused_file"],
-        nau_paused_file=m["commands"]["nau_paused_file"],
-        audio_volume_file=m["commands"]["audio_volume_file"],
-        nau_cmd_file=m["commands"]["nau_cmd_file"],
-        satellite_python_exe=m["executables"]["python_exe"],
-        satellite_module=m["modules"]["satellite_module"],
-        portrait_cmd_file=m["commands"]["portrait_cmd_file"],
-        portrait_paused_file=m["commands"]["portrait_paused_file"],
-        portrait_status_file=m["commands"]["portrait_status_file"],
-        landscape_cmd_file=m["commands"]["landscape_cmd_file"],
-        landscape_paused_file=m["commands"]["landscape_paused_file"],
-        landscape_status_file=m["commands"]["landscape_status_file"],
-        nau_status_file=m["commands"]["nau_status_file"],
-        portrait_log_file=state_dir / "portrait_satellite.log",
-        landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=plan.portrait,
-        landscape_rect=plan.landscape,
-        portrait_hud_file=m["commands"]["portrait_hud_file"],
-        landscape_hud_file=m["commands"]["landscape_hud_file"],
-        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
-        main_sources=m["media"]["nau_library_sources"],
-        portrait_sources=m["media"]["portrait_dirs"],
-        landscape_sources=m["media"]["landscape_dirs"],
-        favs_file=m["media"]["favs_file"],
+        broker_heartbeat_file=m.commands.broker_heartbeat_file,
+        random_favs_browser_manifest_file=m.random_favs_browser.manifest_file,
+        genau_paused_file=m.commands.genau_paused_file,
+        genau_cmd_file=m.commands.genau_cmd_file,
+        audio_paused_file=m.commands.audio_paused_file,
+        nau_paused_file=m.commands.nau_paused_file,
+        audio_volume_file=m.commands.audio_volume_file,
+        nau_cmd_file=m.commands.nau_cmd_file,
+        satellite_python_exe=m.executables.python_exe,
+        satellite_module=m.modules.satellite_module,
+        portrait=portrait_slot,
+        landscape=landscape_slot,
+        nau_status_file=m.commands.nau_status_file,
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
+        main_sources=m.media.nau_library_sources,
+        favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),
-        regen_media_root=Path(regen_media_raw) if regen_media_raw else None,
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
         # The satellites import player_core, so a named player_core checkout
         # must reach them exactly as it reaches Genau and Nau — without this
         # they quietly ran the venv's primary while everything else ran the
         # branch.
-        project_dirs=genau_project_dirs,
+        project_dirs=project_dirs,
     )
     core_pids = _read_result_pids(core_result_file)
     portrait_pid = core_pids["portrait_pid"]
@@ -430,116 +470,172 @@ def _run_startup_phases(
         "Core session launched: portrait=%d landscape=%d",
         portrait_pid, landscape_pid,
     )
+    return main_mode, portrait_pid, landscape_pid
 
+
+def _launch_the_main_slot_players(
+    m: LaunchManifest,
+    *,
+    layout: _Layout,
+    state_dir: Path,
+    project_dirs: str,
+    launched: _LaunchedChildren,
+) -> tuple[int, int, Path]:
+    """Genau and Nau, who share the main slot's rect, and Nau's status file.
+
+    That file is how startup learns Nau has finished loading, so it is dropped
+    here — after ``start_core_session`` has read last session's copy to resume
+    Nau onto the video it names, and before Nau could write a new one.
+    """
+    regen_metadata_raw = m.regen.metadata_root.strip()
     # Launch Genau and Nau as early as possible so they can initialise
     # pygame, scan media, and decode first frames while the rest of startup
     # continues.  Both share the Main slot's rect, which depends only on
     # the secondary monitor + main_top_ratio (already computed above).
     main_media_rect = compute_main_media_rect(
-        secondary_monitor=secondary_rect, layout_config=layout_cfg,
+        secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
     # Genau's drive readout, which Nau draws inside its console in Hybrid.  Named
     # here and handed to BOTH players, because each resolving it for itself is how
     # it went wrong: Genau derived it from its own config's state dir and wrote it
     # into the Genau repo, while Nau was told to read it out of Fun Time's — so
     # Hybrid showed a console with the Genau half missing.
-    genau_state = Path(m["commands"]["genau_cmd_file"]).parent
+    genau_state = Path(m.commands.genau_cmd_file).parent
     genau_drive_file = genau_state / "genau_drive.txt"
     # Genau's own resume: it rescans its clips folder every launch and opens at
     # the top of it, so the clip the last session was left showing survives only
     # in the status file it published — read here, before this session's Genau
     # starts writing over it.
     genau_clip = read_genau_status(genau_status_path(genau_state)).clip
-    # genau_project_dirs (read above, before the satellites needed it): which
-    # checkout of ../genau these two are run out of.  Empty in an ordinary
-    # session — they resolve through their venv's editable install, which is the
-    # primary — and a worktree of that repo while a branch of it is being judged.
+    # project_dirs: which checkout of ../genau these two are run out of.  Empty
+    # in an ordinary session — they resolve through their venv's editable
+    # install, which is the primary — and a worktree of that repo while a branch
+    # of it is being judged.
     genau_pid = launch_genau(
-        python_exe=m["executables"]["genau_python_exe"],
-        genau_module=m["modules"]["genau_module"],
-        config_path=m["runtime"]["genau_config_path"],
-        clips_folder=m["media"]["genau_clips"],
+        python_exe=m.executables.genau_python_exe,
+        genau_module=m.modules.genau_module,
+        config_path=m.runtime.genau_config_path,
+        clips_folder=m.media.genau_clips,
         genau_x=main_media_rect.x,
         genau_y=main_media_rect.y,
         genau_width=main_media_rect.width,
         genau_height=main_media_rect.height,
-        command_file=m["commands"]["genau_cmd_file"],
-        paused_file=m["commands"]["genau_paused_file"],
-        console_file=m["commands"]["nau_console_file"],
+        command_file=m.commands.genau_cmd_file,
+        paused_file=m.commands.genau_paused_file,
+        console_file=m.commands.nau_console_file,
         drive_file=genau_drive_file,
-        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
-        project_dirs=genau_project_dirs,
+        project_dirs=project_dirs,
     )
     # Nau's status file is how startup learns Nau has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
     # read that one already, to resume Nau onto the video it names, so this is
     # the first moment it is spent — and the last before Nau could write a new
     # one.  See _wait_for_nau_loaded.
-    nau_status_file = Path(m["commands"]["nau_status_file"])
+    nau_status_file = Path(m.commands.nau_status_file)
     nau_status_file.unlink(missing_ok=True)
     nau_pid = launch_nau(
-        python_exe=m["executables"]["genau_python_exe"],
-        nau_module=m["modules"]["nau_module"],
-        config_path=m["runtime"]["genau_config_path"],
-        playlist_file=m["commands"]["nau_playlist_file"],
-        command_file=m["commands"]["nau_cmd_file"],
-        paused_file=m["commands"]["nau_paused_file"],
-        status_file=m["commands"]["nau_status_file"],
-        console_file=m["commands"]["nau_console_file"],
+        python_exe=m.executables.genau_python_exe,
+        nau_module=m.modules.nau_module,
+        config_path=m.runtime.genau_config_path,
+        playlist_file=m.commands.nau_playlist_file,
+        command_file=m.commands.nau_cmd_file,
+        paused_file=m.commands.nau_paused_file,
+        status_file=m.commands.nau_status_file,
+        console_file=m.commands.nau_console_file,
         drive_file=genau_drive_file,
-        dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
         log_file=state_dir / "nau.log",
         nau_x=main_media_rect.x,
         nau_y=main_media_rect.y,
         nau_width=main_media_rect.width,
         nau_height=main_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
-        project_dirs=genau_project_dirs,
+        project_dirs=project_dirs,
     )
     launched.pids.extend([genau_pid, nau_pid])
+    return genau_pid, nau_pid, nau_status_file
 
-    # The hosted Origenerator, when the config names a checkout: launched with
-    # the players so its own boot (ComfyUI, the library maintenance passes)
-    # runs behind the rest of startup.  Nothing here waits on it — it comes up
-    # parked by design, and the dispatch loop adopts its window whenever it
-    # appears, restoring it only if the session is in origenerator mode.
-    origenerator_dir = m["runtime"].get("origenerator_dir", "").strip()
+
+def _launch_the_hosted_origenerator(
+    m: LaunchManifest,
+    *,
+    plan: WindowLayoutPlan,
+    project_dirs: str,
+    launched: _LaunchedChildren,
+) -> int:
+    """The hosted app, when the config names a checkout, or 0 for a session
+    with none.
+
+    Launched with the players so its own boot (ComfyUI, the library maintenance
+    passes) runs behind the rest of startup.  Nothing here waits on it — it
+    comes up parked by design, and the dispatch loop adopts its window whenever
+    it appears, restoring it only if the session is in origenerator mode.
+    """
+    origenerator_dir = m.runtime.origenerator_dir.strip()
     origenerator_pid = 0
     if origenerator_dir:
         # Clear a "1" a prior session's OmniPause stranded in the hosted app's
         # paused flag: the app reads it every tick, so a stale freeze made
         # every show open frozen while the room ran.  The room opens unpaused
         # (OmniPause is never resumed into), so the flag opens unpaused too.
-        write_flag_file(m["commands"]["origenerator_paused_file"], False)
+        write_flag_file(m.commands.origenerator_paused_file, False)
         # And the command file, for the same reason and one more: the app drains
         # whatever is in it on its first tick, so a verb the last session left
         # unread would land on this one -- a stranded OPEN_SHOWS filling the
         # regions of a session that opened in player mode.
-        origenerator_cmd_file = Path(m["commands"]["origenerator_cmd_file"])
+        origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
         origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         origenerator_cmd_file.write_text("", encoding="utf-8")
         origenerator_pid = launch_origenerator(
-            python_exe=(m["executables"].get("origenerator_python_exe", "").strip()
-                        or m["executables"]["python_exe"]),
+            python_exe=(m.executables.origenerator_python_exe.strip()
+                        or m.executables.python_exe),
             origenerator_dir=origenerator_dir,
             layout_plan=plan,
-            command_file=m["commands"]["origenerator_cmd_file"],
-            paused_file=m["commands"]["origenerator_paused_file"],
-            status_file=m["commands"]["origenerator_status_file"],
-            dashboard_cmd_file=m["commands"]["dashboard_cmd_file"],
+            command_file=m.commands.origenerator_cmd_file,
+            paused_file=m.commands.origenerator_paused_file,
+            status_file=m.commands.origenerator_status_file,
+            dashboard_cmd_file=m.commands.dashboard_cmd_file,
             # It imports player_core too (the shows' HUD is the players'
             # shared one), so a named checkout reaches it like everyone else.
-            project_dirs=genau_project_dirs,
+            project_dirs=project_dirs,
         )
         launched.pids.append(origenerator_pid)
         logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
+    return origenerator_pid
+
+
+def _launch_core_media(
+    m: LaunchManifest,
+    *,
+    layout: _Layout,
+    state_dir: Path,
+    launched: _LaunchedChildren,
+) -> _CoreSession:
+    """Phase 1: the two satellites, then Genau and Nau, then the hosted app.
+
+    Nothing here waits for a window.  Everything is started as early as it can
+    be so each child's own boot — pygame, a media scan, first frames, ComfyUI —
+    runs behind the rest of startup.
+    """
+    # Read before the first launch that needs it: every child below takes the
+    # named checkouts, the satellites and the hosted app included, because they
+    # all import player_core.
+    project_dirs = m.runtime.genau_project_dirs
+    main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
+        m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
+        launched=launched)
+    genau_pid, nau_pid, nau_status_file = _launch_the_main_slot_players(
+        m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
+        launched=launched)
+    origenerator_pid = _launch_the_hosted_origenerator(
+        m, plan=layout.plan, project_dirs=project_dirs, launched=launched)
 
     # The satellite side's resumed mode: the core session just wrote the
     # opening state to the shared INI (see session_resume), and a session that
     # opens in origenerator mode needs its hosted window handled by the same
     # startup choreography as everyone else — not popped up after the reveal.
-    from .shared_state import read_shared_state, shared_state_path
     _shared = read_shared_state(shared_state_path(state_dir))
     satellites_mode = _shared.satellites_mode if _shared is not None else "player"
 
@@ -551,45 +647,69 @@ def _run_startup_phases(
     # which is after its window exists, so an early write is read at exactly
     # the right moment and needs no waiting on.
     if origenerator_pid and satellites_mode == "origenerator":
-        append_command(Path(m["commands"]["origenerator_cmd_file"]), "OPEN_SHOWS")
+        append_command(Path(m.commands.origenerator_cmd_file), "OPEN_SHOWS")
 
-    # --- Phase 2: Position windows (layout computed up front) ---
+    return _CoreSession(
+        main_mode=main_mode,
+        satellites_mode=satellites_mode,
+        portrait_pid=portrait_pid,
+        landscape_pid=landscape_pid,
+        genau_pid=genau_pid,
+        nau_pid=nau_pid,
+        origenerator_pid=origenerator_pid,
+        nau_status_file=nau_status_file,
+    )
+
+
+
+# What the two UI companions wait out before they are launched.  Nothing has
+# ever been established that this is waiting FOR: it has been here unexplained
+# since the sequencer replaced the AHK startup, the browser phase before it
+# already waits for its own Chrome window, and the dashboard and the audio
+# companion are the last children of the run.  Named rather than deleted
+# because only the hidden-desktop suite on the Windows machine can show whether
+# anything leans on it; see the changelog note.
+_COMPANION_LAUNCH_DELAY_S = 1.2
+
+
+def _position_windows_now(plan: WindowLayoutPlan, main_mode: str) -> dict[str, int]:
+    """Phase 2, on the path with no cover: place and band every window at once.
+
+    No progress reporting here: this is the integration path, and the loading
+    screen (with the reporter that drives it) belongs to the other one.
+    """
     skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    role_hwnds: dict[str, int] = {}
+    portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
+    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
+    logger.info("Core windows positioned")
 
-    if not hide_windows:
-        # --- Normal mode: position immediately ---
-        # No progress reporting on this path: it is the integration one, and the
-        # loading screen (with the reporter that drives it) belongs to the other.
-        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
-        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
-        logger.info("Core windows positioned")
+    role_hwnds = apply_startup_window_state(
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+        nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        mode=main_mode,
+    )
+    logger.info("Startup window state applied")
+    return role_hwnds
 
-        role_hwnds = _apply_startup_window_state(
-            portrait_hwnd=portrait_hwnd,
-            landscape_hwnd=landscape_hwnd,
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
-            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-            mode=main_mode,
-        )
-        logger.info("Startup window state applied")
 
-    # --- Phase 2.5: Launch Random Favs Browser ---
-    progress.advance("browser")
-    rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
-    launched.rfb_hwnd = rfb_hwnd
-
-    # --- Phase 3: Launch UI companions ---
-    progress.advance("companions")
-    time.sleep(1.2)
-
-    dashboard_enabled = m["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+def _launch_the_companions(
+    m: LaunchManifest,
+    *,
+    plan: WindowLayoutPlan,
+    state_dir: Path,
+    manifest_path: Path,
+    launched: _LaunchedChildren,
+) -> dict[str, int]:
+    """Phase 3: the dashboard and the audio companion, the run's last children."""
+    time.sleep(_COMPANION_LAUNCH_DELAY_S)
     ui_result_file = _build_unique_result_path(state_dir, "ui_companions")
     launch_ui_companions(
-        python_exe=m["executables"]["python_exe"],
-        dashboard_module=m["modules"]["dashboard_module"],
-        dashboard_enabled=dashboard_enabled,
+        python_exe=m.executables.python_exe,
+        dashboard_module=m.modules.dashboard_module,
+        dashboard_enabled=m.dashboard_enabled,
         dashboard_log_file=state_dir / "dashboard.log",
         # The HUD rides the dashboard's enable gate so integration's
         # FUN_TIME_DISABLE_DASHBOARD keeps both always-on-top overlays off.
@@ -603,112 +723,208 @@ def _run_startup_phases(
         rfb_y=plan.random_favs_browser.y,
         rfb_width=plan.random_favs_browser.width,
         rfb_height=plan.random_favs_browser.height,
-        audio_module=m["modules"]["audio_module"],
-        config_path=m["runtime"]["config_path"],
-        audio_folder=m["media"]["genau_audio"],
+        audio_module=m.modules.audio_module,
+        config_path=m.runtime.config_path,
+        audio_folder=m.media.genau_audio,
         result_file=str(ui_result_file),
     )
     ui_pids = _read_result_pids(ui_result_file)
     launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])
+    return ui_pids
+
+
+def _wait_for_the_room_to_be_drawing(
+    m: LaunchManifest,
+    *,
+    nau_status_file: Path,
+    progress: ProgressReporter,
+) -> None:
+    """Hold the cover until every player has a picture under it.
+
+    Nau is the third player and by now the only one still loading: its window
+    has been up since half a second after launch with its own loading screen
+    painted into it, so revealing on the window alone shows his progress bar
+    instead of a video.  The two satellites are the same case one step earlier —
+    their windows exist within a second of launch and stay BLACK until mpv has
+    opened the first clip, which is what "the windows are not ready when the
+    loading screen goes away" looks like.
+
+    Neither wait gets to keep the desktop: a player that never arrives is
+    revealed over anyway, and the log says which one.
+    """
+    if not _wait_for_nau_loaded(nau_status_file, progress):
+        logger.warning(
+            "Nau reported no video within %.0fs; revealing over whatever it "
+            "still has on screen", NAU_LOAD_TIMEOUT_S,
+        )
+    if not _wait_for_players_drawing(
+        (m.commands.portrait_status_file,
+         m.commands.landscape_status_file),
+        progress,
+    ):
+        logger.warning(
+            "A satellite reported no frames within %.0fs; revealing anyway",
+            SATELLITE_PLAY_TIMEOUT_S,
+        )
+
+
+def _restore_the_hosted_window(origenerator_pid: int, cover_hwnd: int) -> int:
+    """Bring the hosted app's window back behind the curtain, and its hwnd.
+
+    A session opening in origenerator mode holds the overlay for this window
+    too — the whole point of the loading screen is that the room is set up
+    before it is seen, and this one used to pop up seconds after the reveal.
+    Restoring is overlay-safe (no promotion); the band comes from the
+    post-overlay pass.  A boot that outruns the wait does not keep the desktop:
+    the reveal goes ahead and the dispatch loop's converger adopts the window
+    when it finally appears.
+    """
+    hwnd = _wait_for_origenerator_window(origenerator_pid)
+    if hwnd:
+        restore_window(hwnd, activate=False)
+        keep_the_cover_up(cover_hwnd)
+    else:
+        logger.warning(
+            "Origenerator window not up within %.0fs; revealing without "
+            "it — the converger adopts it when it appears",
+            ORIGENERATOR_BOOT_TIMEOUT_S,
+        )
+    return hwnd
+
+
+def _place_and_park_behind_the_cover(
+    *,
+    plan: WindowLayoutPlan,
+    main_mode: str,
+    portrait_hwnd: int,
+    landscape_hwnd: int,
+    rfb_hwnd: int,
+    dashboard_pid: int,
+    origenerator_hwnd: int,
+    cover_hwnd: int,
+) -> dict[str, int]:
+    """Place every window where the plan says and park the idle slot-mate.
+
+    Each move SHOWS the window as well as placing it, and showing one puts it at
+    the top of its band — over the cover, which is where the landscape player
+    was caught sitting for a tenth of a second on every startup.  The cover goes
+    straight back after each.
+
+    The topmost bands are deliberately NOT applied here: the overlay is topmost
+    and ``HWND_TOPMOST`` inserts above it, so each promotion would flash its
+    window over the overlay.  ``_fix_post_loading_windows`` applies them once the
+    overlay process has exited.  This is still the last moment the dashboard is
+    resolvable, and it is hidden (SW_HIDE) behind the overlay, so its lookup
+    must include hidden windows.
+    """
+    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
+    keep_the_cover_up(cover_hwnd)
+    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
+    keep_the_cover_up(cover_hwnd)
+    logger.info("Core windows positioned (deferred reveal)")
+
+    dash_hwnd = (
+        wait_for_window_by_title(
+            "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
+        )
+        if dashboard_pid
+        else 0
+    )
+    role_hwnds = _startup_role_hwnds(
+        rfb_hwnd=rfb_hwnd,
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+        nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        dashboard_hwnd=dash_hwnd,
+        origenerator_hwnd=origenerator_hwnd,
+    )
+    _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
+    logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
+    return role_hwnds
+
+
+def _settle_the_room_behind_the_cover(
+    m: LaunchManifest,
+    *,
+    core: _CoreSession,
+    plan: WindowLayoutPlan,
+    rfb_hwnd: int,
+    dashboard_pid: int,
+    cover_hwnd: int,
+    progress: ProgressReporter,
+) -> dict[str, int]:
+    """Phase 4, on the path with a loading screen: everything at once, unseen."""
+    # Named for the wait it actually is: the players open their own windows,
+    # and until they have there is nothing here to position.
+    progress.advance("players")
+    # The satellites launched playing (their paused flag is unset) and own their
+    # playlists, so there is nothing to start here — just resolve and position
+    # each behind the loading overlay.
+    portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
+    _wait_for_the_room_to_be_drawing(
+        m, nau_status_file=core.nau_status_file, progress=progress)
+
+    origenerator_hwnd = 0
+    if core.origenerator_pid and core.satellites_mode == "origenerator":
+        origenerator_hwnd = _restore_the_hosted_window(core.origenerator_pid, cover_hwnd)
+
+    progress.advance("windows")
+    role_hwnds = _place_and_park_behind_the_cover(
+        plan=plan,
+        main_mode=core.main_mode,
+        portrait_hwnd=portrait_hwnd,
+        landscape_hwnd=landscape_hwnd,
+        rfb_hwnd=rfb_hwnd,
+        dashboard_pid=dashboard_pid,
+        origenerator_hwnd=origenerator_hwnd,
+        cover_hwnd=cover_hwnd,
+    )
+    progress.advance("finalizing")
+    return role_hwnds
+
+
+def _run_startup_phases(
+    *,
+    manifest_path: str | Path,
+    state_dir: str | Path,
+    progress: ProgressReporter,
+    hide_windows: bool,
+    cover_hwnd: int,
+    launched: _LaunchedChildren,
+) -> StartupResult:
+    manifest_path = Path(manifest_path)
+    state_dir = Path(state_dir)
+    state_dir.mkdir(parents=True, exist_ok=True)
+    m = LaunchManifest.read(manifest_path)
+    layout = _plan_the_layout(m)
+    plan = layout.plan
+
+    # --- Phase 1: Launch core media stack ---
+    progress.advance("services")
+    core = _launch_core_media(m, layout=layout, state_dir=state_dir, launched=launched)
+
+    # --- Phase 2: Position windows (layout computed up front) ---
+    role_hwnds: dict[str, int] = {}
+    if not hide_windows:
+        role_hwnds = _position_windows_now(plan, core.main_mode)
+
+    # --- Phase 2.5: Launch Random Favs Browser ---
+    progress.advance("browser")
+    rfb_hwnd = _maybe_launch_random_favs_browser(m.random_favs_browser, plan)
+    launched.rfb_hwnd = rfb_hwnd
+
+    # --- Phase 3: Launch UI companions ---
+    progress.advance("companions")
+    ui_pids = _launch_the_companions(
+        m, plan=plan, state_dir=state_dir, manifest_path=manifest_path, launched=launched)
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
-        # Named for the wait it actually is: the players open their own windows,
-        # and until they have there is nothing here to position.
-        progress.advance("players")
-
-        # The satellites launched playing (their paused flag is unset) and own
-        # their playlists, so there is nothing to start here — just resolve and
-        # position each behind the loading overlay.
-        portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-
-        # Nau is the third player, and by now the only one still loading: its
-        # window has been up since half a second after launch with its own
-        # loading screen painted into it.  Hold the overlay over that, so the
-        # session is revealed on a video rather than on Nau's progress bar.  A
-        # Nau that never gets there does not get to keep the desktop, though —
-        # the reveal goes ahead, and says why.
-        if not _wait_for_nau_loaded(nau_status_file, progress):
-            logger.warning(
-                "Nau reported no video within %.0fs; revealing over whatever it "
-                "still has on screen", NAU_LOAD_TIMEOUT_S,
-            )
-
-        # And for the two satellites, for the same reason: their windows exist
-        # within a second of launch and stay BLACK until mpv has opened the
-        # first clip.  Revealing on the windows alone lifts the curtain on two
-        # black rectangles that fill in a few seconds later, which is what "the
-        # windows are not ready when the loading screen goes away" looks like.
-        if not _wait_for_players_drawing(
-            (m["commands"]["portrait_status_file"],
-             m["commands"]["landscape_status_file"]),
-            progress,
-        ):
-            logger.warning(
-                "A satellite reported no frames within %.0fs; revealing anyway",
-                SATELLITE_PLAY_TIMEOUT_S,
-            )
-
-        # A session opening in origenerator mode holds the overlay for the
-        # hosted app's window too, and restores it behind the curtain — the
-        # whole point of the loading screen is that the room is set up before
-        # it is seen, and this window used to pop up seconds after the
-        # reveal.  Restoring is overlay-safe (no promotion); the band comes
-        # from the post-overlay pass.  A boot that outruns the wait does not
-        # keep the desktop: the reveal goes ahead and the dispatch loop's
-        # converger adopts the window when it finally appears.
-        origenerator_hwnd = 0
-        if origenerator_pid and satellites_mode == "origenerator":
-            origenerator_hwnd = _wait_for_origenerator_window(origenerator_pid)
-            if origenerator_hwnd:
-                restore_window(origenerator_hwnd, activate=False)
-                keep_the_cover_up(cover_hwnd)
-            else:
-                logger.warning(
-                    "Origenerator window not up within %.0fs; revealing without "
-                    "it — the converger adopts it when it appears",
-                    ORIGENERATOR_BOOT_TIMEOUT_S,
-                )
-
-        progress.advance("windows")
-        # Each move SHOWS the window as well as placing it, and showing one puts
-        # it at the top of its band — over the cover, which is where the
-        # landscape player was caught sitting for a tenth of a second on every
-        # startup.  The cover goes straight back after each.
-        _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
-        keep_the_cover_up(cover_hwnd)
-        _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
-        keep_the_cover_up(cover_hwnd)
-        logger.info("Core windows positioned (deferred reveal)")
-
-        # Resolve every managed window and park the idle slot-mate.  The topmost
-        # bands are deliberately NOT applied here: the overlay is topmost, and
-        # HWND_TOPMOST inserts above it, so each promotion would flash its window
-        # over the overlay.  _fix_post_loading_windows applies them once the
-        # overlay process has exited.  This is still the last moment the dashboard
-        # is resolvable, so its handle is captured now — and it is hidden (SW_HIDE)
-        # behind the loading overlay, so its lookup must include hidden windows.
-        dash_hwnd = (
-            wait_for_window_by_title(
-                "Fun Time", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True, include_hidden=True,
-            )
-            if ui_pids["dashboard_pid"]
-            else 0
-        )
-
-        role_hwnds = _startup_role_hwnds(
-            rfb_hwnd=rfb_hwnd,
-            portrait_hwnd=portrait_hwnd,
-            landscape_hwnd=landscape_hwnd,
-            genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
-            nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
-            dashboard_hwnd=dash_hwnd,
-            origenerator_hwnd=origenerator_hwnd,
-        )
-        _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
-        logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
-
-        progress.advance("finalizing")
+        role_hwnds = _settle_the_room_behind_the_cover(
+            m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
+            dashboard_pid=ui_pids["dashboard_pid"], cover_hwnd=cover_hwnd,
+            progress=progress)
 
     # A session with nothing to hide behind starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this itself once
@@ -716,19 +932,18 @@ def _run_startup_phases(
     # still up is a video (and Genau's audio) running behind it, and the first
     # seconds of it are gone by the time he can see or hear them.
     if not hide_windows:
-        release_the_players(m, main_mode)
+        release_the_players(m, core.main_mode)
 
     return StartupResult(
-        nau_pid=nau_pid,
-        portrait_pid=portrait_pid,
-        landscape_pid=landscape_pid,
+        nau_pid=core.nau_pid,
+        portrait_pid=core.portrait_pid,
+        landscape_pid=core.landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
-        genau_pid=genau_pid,
+        genau_pid=core.genau_pid,
         audio_pid=ui_pids["audio_pid"],
-        layout_plan=plan,
-        origenerator_pid=origenerator_pid,
-        main_mode=main_mode,
-        satellites_mode=satellites_mode,
+        origenerator_pid=core.origenerator_pid,
+        main_mode=core.main_mode,
+        satellites_mode=core.satellites_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,
     )
@@ -752,15 +967,6 @@ def _wait_for_origenerator_window(pid: int,
             return hwnd
         time.sleep(0.5)
     return 0
-
-
-def _layout_config_from_manifest(m: configparser.ConfigParser) -> LayoutConfig:
-    return LayoutConfig(
-        primary_monitor=int(m["layout"]["primary_monitor"]),
-        secondary_monitor=int(m["layout"]["secondary_monitor"]),
-        main_top_ratio=float(m["layout"]["main_top_ratio"]),
-        landscape_width_ratio=float(m["layout"]["landscape_width_ratio"]),
-    )
 
 
 def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool = True) -> None:
@@ -874,8 +1080,11 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
         shell = win32com.client.Dispatch("WScript.Shell")
         link = shell.CreateShortcut(shortcut_path)
         return link.TargetPath, link.WorkingDirectory, link.Arguments
-    except Exception:
-        pass
+    except Exception:  # noqa: BLE001 - pywin32 raises com_error, a bare Exception
+        # Deliberately not narrowed: pywintypes.com_error derives straight from
+        # Exception, so catching ImportError alone would send the COM failure
+        # this fallback exists for straight past the fallback.
+        logger.debug("Shortcut COM resolver failed for %s", shortcut_path, exc_info=True)
 
     # Fallback: use PowerShell
     try:
@@ -892,14 +1101,15 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
             return lines[0], lines[1], lines[2]
         if len(lines) >= 1:
             return lines[0], lines[1] if len(lines) > 1 else "", ""
-    except Exception:
-        pass
+    except (OSError, subprocess.SubprocessError):
+        logger.debug("Shortcut PowerShell resolver failed for %s", shortcut_path,
+                     exc_info=True)
 
     return "", "", ""
 
 
 def _maybe_launch_random_favs_browser(
-    m: configparser.ConfigParser,
+    settings: RandomFavsBrowserSettings,
     plan: WindowLayoutPlan,
 ) -> int:
     """Launch the Random Favs Browser if enabled and position it.
@@ -907,11 +1117,11 @@ def _maybe_launch_random_favs_browser(
     Returns the browser window handle (0 if not launched).  The handle is
     needed so the dispatch loop can include RFB in omnipause topmost management.
     """
-    if m["random_favs_browser"]["enabled"] != "1":
+    if not settings.enabled:
         return 0
 
-    shortcut_path = m["random_favs_browser"]["shortcut_path"]
-    manifest_file = m["random_favs_browser"]["manifest_file"]
+    shortcut_path = settings.shortcut_path
+    manifest_file = settings.manifest_file
 
     target, work_dir, args = resolve_shortcut(shortcut_path)
     if not target:
@@ -923,9 +1133,7 @@ def _maybe_launch_random_favs_browser(
 
     result = launch_random_favs_browser(
         manifest_file,
-        shortcut_target=target,
-        shortcut_work_dir=work_dir,
-        shortcut_args=args,
+        shortcut=ChromeShortcut(target=target, work_dir=work_dir, args=args),
     )
     if not result.should_launch:
         logger.info("Random Favs Browser skipped: launch plan was empty")
@@ -943,7 +1151,7 @@ def _maybe_launch_random_favs_browser(
     move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
 
     # The RFB's static topmost flag is applied by Phase 4's
-    # _apply_startup_window_state; nothing window-related to do here.
+    # apply_startup_window_state; nothing window-related to do here.
 
     logger.info("Random Favs Browser positioned")
     return new_hwnd

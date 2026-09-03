@@ -6,6 +6,15 @@ from pathlib import Path
 
 
 @dataclass(frozen=True)
+class ChromeShortcut:
+    """A resolved Chrome shortcut: target, start-in directory, baked-in args."""
+
+    target: str
+    work_dir: str
+    args: str
+
+
+@dataclass(frozen=True)
 class RandomFavsBrowserManifest:
     profile_dir: str
     urls: list[str]
@@ -33,22 +42,24 @@ def read_random_favs_browser_manifest(path: str | Path) -> RandomFavsBrowserMani
     return RandomFavsBrowserManifest(profile_dir=profile_dir, urls=urls)
 
 
-def build_random_favs_browser_launch_plan(
-    manifest_path: str | Path,
-    *,
-    shortcut_target: str,
-    shortcut_work_dir: str,
-    shortcut_args: str,
-) -> RandomFavsBrowserLaunchPlan:
-    manifest = read_random_favs_browser_manifest(manifest_path)
-    if not shortcut_target or not manifest.urls:
-        return RandomFavsBrowserLaunchPlan(should_launch=False, cmd="", work_dir="")
-
-    cmd = _quote(shortcut_target)
-    existing_args = shortcut_args.strip()
+def _command_opening(shortcut: ChromeShortcut) -> str:
+    """The quoted target plus the shortcut's own arguments."""
+    cmd = _quote(shortcut.target)
+    existing_args = shortcut.args.strip()
     if existing_args:
         cmd += f" {existing_args}"
-    lowered = existing_args.lower()
+    return cmd
+
+
+def build_random_favs_browser_launch_plan(
+    manifest_path: str | Path, *, shortcut: ChromeShortcut
+) -> RandomFavsBrowserLaunchPlan:
+    manifest = read_random_favs_browser_manifest(manifest_path)
+    if not shortcut.target or not manifest.urls:
+        return RandomFavsBrowserLaunchPlan(should_launch=False, cmd="", work_dir="")
+
+    cmd = _command_opening(shortcut)
+    lowered = shortcut.args.strip().lower()
     if manifest.profile_dir and "--profile-directory" not in lowered:
         cmd += f" --profile-directory={_quote(manifest.profile_dir)}"
     if "--new-window" not in lowered:
@@ -59,63 +70,33 @@ def build_random_favs_browser_launch_plan(
     return RandomFavsBrowserLaunchPlan(
         should_launch=True,
         cmd=cmd,
-        work_dir=shortcut_work_dir,
+        work_dir=shortcut.work_dir,
     )
 
 
 def launch_random_favs_browser(
-    manifest_path: str | Path,
-    *,
-    shortcut_target: str,
-    shortcut_work_dir: str,
-    shortcut_args: str,
+    manifest_path: str | Path, *, shortcut: ChromeShortcut
 ) -> RandomFavsBrowserLaunchPlan:
-    plan = build_random_favs_browser_launch_plan(
-        manifest_path,
-        shortcut_target=shortcut_target,
-        shortcut_work_dir=shortcut_work_dir,
-        shortcut_args=shortcut_args,
-    )
+    plan = build_random_favs_browser_launch_plan(manifest_path, shortcut=shortcut)
     if plan.should_launch and plan.cmd:
         subprocess.Popen(plan.cmd, cwd=plan.work_dir)
     return plan
 
 
-def build_open_rfb_tab_command(
-    *,
-    urls: list[str],
-    shortcut_target: str,
-    shortcut_args: str,
-) -> str:
-    """Build a Chrome command to open one or more URLs as tabs in the RFB profile.
-
-    All URLs go on a single command line: Chrome routes them into its running
-    window as tabs in one handoff.  Launching chrome.exe once per URL in quick
-    succession races its singleton and silently drops tabs (the "lock both" bug).
-    """
-    cmd = _quote(shortcut_target)
-    existing_args = shortcut_args.strip()
-    if existing_args:
-        cmd += f" {existing_args}"
+def build_open_rfb_tab_command(*, urls: list[str], shortcut: ChromeShortcut) -> str:
+    """Build ONE Chrome command opening every URL as a tab in the RFB profile:
+    launching chrome.exe once per URL in quick succession races its singleton
+    and silently drops tabs (the "lock both" bug)."""
+    cmd = _command_opening(shortcut)
     for url in urls:
         cmd += f" {_quote(url)}"
     return cmd
 
 
-def open_rfb_tab(
-    *,
-    urls: list[str],
-    shortcut_target: str,
-    shortcut_work_dir: str,
-    shortcut_args: str,
-) -> None:
+def open_rfb_tab(*, urls: list[str], shortcut: ChromeShortcut) -> None:
     """Open one or more URLs as tabs in the RFB Chrome window, in one launch."""
-    cmd = build_open_rfb_tab_command(
-        urls=urls,
-        shortcut_target=shortcut_target,
-        shortcut_args=shortcut_args,
-    )
-    subprocess.Popen(cmd, cwd=shortcut_work_dir)
+    cmd = build_open_rfb_tab_command(urls=urls, shortcut=shortcut)
+    subprocess.Popen(cmd, cwd=shortcut.work_dir)
 
 
 def _quote(value: str) -> str:

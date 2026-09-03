@@ -7,7 +7,6 @@ from pathlib import Path
 
 from fun_time.single_instance import (
     ERROR_ALREADY_EXISTS,
-    MUTEX_BROKER,
     MUTEX_ORCHESTRATOR,
     mutex_name_for_config,
     show_already_running_message,
@@ -89,5 +88,5 @@ class TestMutexNameForConfig:
         assert a != b
 
     def test_includes_base_prefix(self):
-        name = mutex_name_for_config(MUTEX_BROKER, Path("C:/foo/config.json"))
-        assert name.startswith(MUTEX_BROKER)
+        name = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
+        assert name.startswith(MUTEX_ORCHESTRATOR)

@@ -1,10 +1,9 @@
-"""Python orchestrator for the Windows bridge.
+"""A session's whole lifecycle, from the first cover to the last child killed.
 
-Runs the full startup sequence, launches the minimal AHK hotkey script,
-starts the background dispatch loop, waits for AHK to exit, then shuts
-down all child processes.  Both ends of that happen behind a cover over
-every monitor, so the session's windows are never watched arriving or
-leaving one at a time.
+Runs the startup phases, launches the AHK hotkey script, starts the dispatch
+loop, holds the session open until the hotkeys exit, then shuts every child
+down.  Both ends of that happen behind a cover over every monitor, so the
+session's windows are never watched arriving or leaving one at a time.
 """
 from __future__ import annotations
 
@@ -37,14 +36,17 @@ from .overlay_progress import (
 from .hud_transport import HUD_FILENAME, HudPublisher
 from .library_handles import build_library_handles
 from .lock_hud import prime_group_indexes
-from .loopback_server import serve_loopback
+from .loopback_server import ThreadingHTTPServer, serve_loopback
+from .manifest import LaunchManifest
 from .mode_plan import genau_active
 from .modes import collect_video_files
-from .process_identity import identified_python_exe
+from .process_identity import NAMER
 from .shared_state import shared_state_path
+from .role_windows import ChildPids, WindowRoles
 from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
-from .voice_control import VOICE_AVAILABLE, VoiceController, _VOICE_IMPORT_ERROR
+from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
+from .windows_bridge_random_favs_browser import ChromeShortcut
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -54,8 +56,8 @@ from .windows_bridge_sequencer import (
     keep_the_cover_up,
     release_the_players,
     StartupResult,
-    _apply_startup_window_state,
-    _apply_topmost_bands,
+    apply_startup_window_state,
+    apply_topmost_bands,
     resolve_shortcut,
     run_startup_sequence,
 )
@@ -67,20 +69,20 @@ from .win32 import (
     close_window,
     find_window_by_pid,
     find_window_for_process,
-    get_process_creation_time,
     iter_zorder,
     set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
 )
+from .win32_process import get_process_creation_time
 
 logger = logging.getLogger(__name__)
 
 
 # Every child a session launches, grouped the way teardown reports it to the
 # closing screen.  The groups are the source of truth: a child added to one is
-# recorded at startup and killed at shutdown by the same edit, so there is no
-# way to add a seventh child and have it quietly outlive the session.
+# recorded at startup and killed at shutdown by the same edit, so a child
+# cannot quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("players", ("nau_pid", "portrait_pid", "landscape_pid")),
     ("companions", ("dashboard_pid", "genau_pid", "audio_pid", "origenerator_pid")),
@@ -284,7 +286,7 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
     Yields the reporter the teardown steps report through.  The cover is up and
     painted before the body runs and comes down only once the body has finished,
     so the moment between "quit" and an empty desktop shows one panel instead of
-    six windows going out one by one.
+    the windows going out one at a time.
 
     Disabled for an integration run, which has no eyes on it — the same reason
     such a run skips the loading screen.
@@ -304,7 +306,7 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
     progress.advance("controls")
     proc = subprocess.Popen(
         [
-            identified_python_exe(sys.executable, "ClosingScreen"),
+            NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
         ],
     )
@@ -403,7 +405,7 @@ class _AppendOnWriteHandler(logging.Handler):
             msg = f"{ts} {record.getMessage()}\r\n"
             with self.log_path.open("a", encoding="utf-8") as fh:
                 fh.write(msg)
-        except Exception:
+        except Exception:  # logging must never take the app down
             pass
 
 
@@ -429,7 +431,7 @@ def _add_dispatch_file_handler(log_path: Path) -> None:
 _NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
 
 
-def _open_event_log(state_dir: Path) -> None:
+def open_event_log(state_dir: Path) -> None:
     """Start this session's event log and feed every fun_time logger into it.
 
     The package logger's level is opened all the way to DEBUG because the log
@@ -562,7 +564,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         for role, title in ORIGENERATOR_ROLE_TITLES.items()
         if role != "origenerator"
     }
-    role_hwnds = _apply_startup_window_state(
+    role_hwnds = apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
@@ -699,7 +701,7 @@ def _main_browse_stills(bridge_config) -> list[str]:
     ]
 
 
-def _start_hud_priming(
+def start_hud_priming(
     bridge_config, manifest, *, enabled: bool
 ) -> tuple[HudPublisher | None, threading.Event]:
     """Build the HUD publisher and warm what it needs, off the startup thread.
@@ -720,9 +722,9 @@ def _start_hud_priming(
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
         {
-            **{side: Path(manifest["commands"][f"{side}_hud_file"]) for side in HUD_FILENAME},
+            **{side: Path(manifest.commands.side_file(side, "hud")) for side in HUD_FILENAME},
             # Nau's console rides the same publisher as the satellites' maps.
-            "nau": Path(manifest["commands"]["nau_console_file"]),
+            "nau": Path(manifest.commands.nau_console_file),
         },
         cache_dir,
     )
@@ -741,7 +743,286 @@ def _start_hud_priming(
     return publisher, primed
 
 
-def run_python_orchestrated_bridge(
+@dataclass(frozen=True)
+class _Cover:
+    """The loading screen, or the absence of one on the path without a curtain.
+
+    Its window is resolved as it opens rather than at the reveal: the startup
+    phases raise windows of their own long before then, and each one lands over
+    the cover until it is put back (see ``keep_the_cover_up``).
+    """
+
+    process: subprocess.Popen | None
+    progress: ProgressReporter
+    hwnd: int
+    progress_file: Path
+    cancel_file: Path
+
+
+def _clear_last_sessions_leftovers(
+    ahk_cmd_file: Path, pids_file: Path, dashboard_cmd_file: Path,
+) -> None:
+    """Drop the files a previous session left, before the hotkey script goes up
+    and starts reading two of them.
+
+    The shared state file is deliberately NOT among them: startup writes this
+    session's opening state to it (see ``session_resume.resume_shared_state``),
+    including whatever the resumed playlists were built under, and deleting it
+    here would drop all of that back to defaults — the crashed-session
+    leftovers that delete was for are cleared by that write instead.
+
+    The pids file matters most: its appearance is what tells the hotkey script
+    the session is up and its keys have something to reach, so a dead session's
+    copy would put every key live over one that is still assembling.
+    """
+    for stale in (ahk_cmd_file, pids_file, dashboard_cmd_file,
+                  dashboard_cmd_file.with_suffix(".processing")):
+        stale.unlink(missing_ok=True)
+
+
+def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
+    """Put the loading screen up over every monitor, and resolve its window."""
+    progress_file = state_dir / PROGRESS_FILENAME
+    cancel_file = state_dir / CANCEL_FILENAME
+    # Clear a cancel flag left over from a previous session so it can't abort
+    # this one before the user has touched anything.
+    cancel_file.unlink(missing_ok=True)
+    if not show_overlays:
+        return _Cover(None, NullProgress(), 0, progress_file, cancel_file)
+
+    loading_proc = subprocess.Popen(
+        [
+            NAMER.named_exe(sys.executable, "LoadingScreen"),
+            "-m", "fun_time.loading_screen", str(progress_file),
+        ],
+    )
+    logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
+    overlay_hwnd = wait_for_window_by_title(
+        LOADING_SCREEN_TITLE, timeout_s=5.0, exact=True, include_hidden=True,
+    )
+    if overlay_hwnd:
+        logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
+    else:
+        logger.warning("The loading cover's window did not appear; startup "
+                       "will show through whatever it raises")
+    return _Cover(loading_proc, PhaseProgress(progress_file, cancel_file=cancel_file),
+                  overlay_hwnd, progress_file, cancel_file)
+
+
+def _reveal_the_room(
+    result: StartupResult,
+    *,
+    manifest: LaunchManifest,
+    cover: _Cover,
+    hud_publisher,
+    hud_primed,
+) -> None:
+    """Take the curtain down on a session that is finished behind it.
+
+    The sequencer already positioned every window in phase 4; what is left is
+    the sorting phase 4 deliberately left off, then the cover, then the players.
+    """
+    # Hold the loading screen until the HUD's group indexes are primed, so
+    # Fun Time isn't revealed with the maps still blank.  Capped so a slow
+    # library scan can't wedge startup — the maps just fill in late.
+    if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
+        logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
+                       HUD_PRIME_TIMEOUT_S)
+    # Band the room and settle its z-order BEHIND the curtain.  Phase 4
+    # deliberately left the bands off (each promotion inserts above the
+    # overlay), so at this moment nothing of the session is topmost at all:
+    # revealing here is revealing players sitting under whatever was on
+    # those monitors, climbing over it a second later — and in origenerator
+    # mode the RFB showing through until its host was promoted over it.
+    # The overlay goes back on top after every promotion, so what the
+    # curtain hides is the sorting rather than the result.
+    role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=cover.hwnd)
+
+    cover.progress.finish()
+    if cover.process:
+        try:
+            cover.process.wait(timeout=3.0)
+        except subprocess.TimeoutExpired:
+            cover.process.kill()
+            logger.warning("Loading screen did not exit, killed")
+    cover.progress_file.unlink(missing_ok=True)
+
+    # The cover is off the screen: NOW the players may run.  The phase walk
+    # deliberately leaves this to us (see ``release_the_players``) — released
+    # with the phases, Nau's video and Genau's audio would have been running
+    # for the whole finishing pass, behind a cover he cannot see or hear
+    # through, and the opening seconds of the video would be gone by the time
+    # it lifted.
+    release_the_players(manifest, result.main_mode)
+
+    # The overlay's own teardown hands activation to whatever is next in
+    # the z-order, so the bands are asserted once more over the finished
+    # room — cheap, since every window is already resolved and in place.
+    owners = satellite_rect_owners(
+        result, role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0))
+    # A show that came up after the pass behind the curtain has a handle
+    # now, and this band is what puts it back above the player it covers:
+    # the role order promotes it last for exactly that reason, and with a
+    # zero in the map it was simply skipped.
+    for name, hwnd in owners():
+        if hwnd and result.satellites_mode == "origenerator":
+            role_hwnds[f"origenerator_{name}"] = hwnd
+    apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
+    _settle_the_players(owners, passes=3, wait_s=0.4)
+
+
+def _start_voice_control(
+    config_path: str, *, dashboard_cmd_file: Path, dispatch_runner: DispatchLoopRunner,
+) -> tuple[VoiceController | None, threading.Thread | None]:
+    """Start listening, when the config asks for it and the import took.
+
+    Every failure here is logged and swallowed: a session without voice is a
+    session, and one that refuses to open because a microphone stack did not
+    import is not.
+    """
+    voice_controller: VoiceController | None = None
+    voice_thread: threading.Thread | None = None
+    try:
+        cfg = load_config(config_path)
+        voice_diag = (
+            f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
+            f"enabled={cfg.voice_control.enabled}, "
+            f"model={cfg.voice_control.model_path}, "
+            f"device_name={cfg.voice_control.device_name}"
+        )
+        logger.info("Voice control check: %s", voice_diag)
+        if VOICE_AVAILABLE and cfg.voice_control.enabled:
+            voice_controller = VoiceController(
+                cmd_file=dashboard_cmd_file,
+                model_path=cfg.voice_control.model_path,
+                confidence_threshold=cfg.voice_control.confidence_threshold,
+                device_name=cfg.voice_control.device_name,
+                sample_rate=cfg.voice_control.sample_rate,
+            )
+            dispatch_runner.voice_controller = voice_controller
+            voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
+            voice_thread.start()
+            logger.info("Voice control thread launched")
+        elif cfg.voice_control.enabled:
+            logger.warning("Voice control enabled but import failed: %s", voice_import_error())
+        else:
+            logger.info("Voice control disabled in config")
+    except Exception:
+        logger.exception("Voice control setup failed")
+    return voice_controller, voice_thread
+
+
+def _start_the_dispatch_loop(
+    result: StartupResult,
+    *,
+    manifest: LaunchManifest,
+    manifest_path: Path,
+    bridge_config,
+    state_dir: Path,
+    dashboard_cmd_file: Path,
+    ahk_cmd_file: Path,
+    dashboard_enabled: bool,
+    hud_publisher,
+) -> tuple[DispatchLoopRunner, threading.Thread]:
+    """Hand the finished session to the loop that runs it, on its own thread.
+
+    Genau startup detection rides the loop's first sync tick: if the broker has
+    already written genau_mode.txt = "1" (it infers auto mode within ~4 s from
+    BPM and stroke), the sync sees the entering transition and hands the main
+    player over to Genau naturally.
+    """
+    rfb_target, rfb_work_dir, rfb_args = "", "", ""
+    if manifest.random_favs_browser.enabled:
+        rfb_shortcut_path = manifest.random_favs_browser.shortcut_path
+        rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
+
+    dispatch_runner = DispatchLoopRunner(
+        config=bridge_config,
+        dashboard_cmd_file=dashboard_cmd_file,
+        manifest_path=manifest_path,
+        shared_state_file=shared_state_path(state_dir),
+        ahk_cmd_file=ahk_cmd_file,
+        windows=WindowRoles(
+            pids=ChildPids(
+                nau=result.nau_pid,
+                portrait=result.portrait_pid,
+                landscape=result.landscape_pid,
+                dashboard=result.dashboard_pid,
+                origenerator=result.origenerator_pid,
+            ),
+            rfb_hwnd=result.rfb_hwnd,
+            role_hwnds=result.role_hwnds,
+        ),
+        dashboard_enabled=dashboard_enabled,
+        hud_publisher=hud_publisher,
+        rfb_shortcut=ChromeShortcut(
+            target=rfb_target, work_dir=rfb_work_dir, args=rfb_args),
+    )
+    dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
+    dispatch_thread.start()
+    logger.info("Background dispatch loop started")
+
+    return dispatch_runner, dispatch_thread
+
+
+def _run_until_the_hotkeys_exit(
+    ahk_proc: subprocess.Popen,
+    *,
+    state_dir: Path,
+    show_overlays: bool,
+    rfb_hwnd: int,
+    children: dict,
+    voice: tuple[VoiceController | None, threading.Thread | None],
+    dispatch: tuple[DispatchLoopRunner, threading.Thread],
+    loopback_server: ThreadingHTTPServer | None,
+) -> int:
+    """Hold the session open, then take it down — in that order, always.
+
+    The hotkey script's exit IS the session ending, so this is where the
+    session lives out its life; the teardown is in a ``finally`` because an
+    interrupt has to bring the children down exactly as a quit does.
+    """
+    voice_controller, voice_thread = voice
+    dispatch_runner, dispatch_thread = dispatch
+    try:
+        exit_code = ahk_proc.wait()
+        # WHY the session is ending, which the log could not say before.  A
+        # session that vanishes and one the user quit produce the same lines
+        # from here down -- the hotkey script exits either way, the closing
+        # screen goes up either way, and the orchestrator returns 0 either way
+        # -- so a report of "it crashed" had nothing in the log to confirm or
+        # deny it.  The quit chord stamps a marker on its way out (see
+        # windows_bridge_hotkeys.ahk, EndSession); no marker and the script is
+        # gone anyway means it went down on its own.
+        logger.info("Hotkey script exited with code %s (%s)", exit_code,
+                    _describe_session_end(state_dir, exit_code))
+    except KeyboardInterrupt:
+        logger.info("Interrupted — shutting down")
+        exit_code = 1
+    finally:
+        # The cover goes up first and stays up through everything below: the
+        # controls stopping, the browser closing, and every child being killed.
+        with _closing_screen(state_dir, enabled=show_overlays) as shutdown_progress:
+            if voice_controller is not None:
+                voice_controller.stop()
+            if voice_thread is not None:
+                voice_thread.join(timeout=2.0)
+            dispatch_runner.stop()
+            dispatch_thread.join(timeout=2.0)
+            if loopback_server is not None:
+                # shutdown() blocks until serve_forever returns, so it belongs
+                # here behind the cover rather than out in the open — and the
+                # port is machine-wide, so a server left listening is a port the
+                # next session cannot have.
+                loopback_server.shutdown()
+                loopback_server.server_close()
+            logger.info("AHK exited — shutting down child processes")
+            _shutdown_children(rfb_hwnd, children, shutdown_progress)
+
+    return exit_code
+
+
+def run_session(
     *,
     manifest_path: str | Path,
     ahk_exe: str,
@@ -749,7 +1030,7 @@ def run_python_orchestrated_bridge(
     state_dir: str | Path,
     project_dir: str | Path,
 ) -> int:
-    """Run the full Python-orchestrated bridge lifecycle.
+    """Open a session, hold it, and close it.
 
     1. Cover every monitor and put the hotkey script up behind it
     2. Run startup sequencer (core session + window positioning + UI companions)
@@ -763,7 +1044,7 @@ def run_python_orchestrated_bridge(
 
     # Before anything else logs, and before the dashboard launches the panel that
     # tails it: this session's event log starts empty and starts collecting.
-    _open_event_log(state_dir)
+    open_event_log(state_dir)
 
     integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
     # Integration runs skip the loading screen by default — most tests only
@@ -775,70 +1056,25 @@ def run_python_orchestrated_bridge(
     show_overlays = (not integration_mode
                      or os.environ.get("FUN_TIME_INTEGRATION_OVERLAYS") == "1")
 
-    manifest = configparser.ConfigParser()
-    manifest.optionxform = str
-    manifest.read(str(manifest_path), encoding="utf-8")
+    manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
-    dashboard_enabled = manifest["dashboard"]["enabled"].strip() not in {"", "0", "false", "False"}
+    dashboard_enabled = manifest.dashboard_enabled
 
     # Route dispatch log messages to the windows bridge log file so they
     # appear alongside AHK log entries (integration tests read this file).
     # Before the hotkey script goes up, so the line naming what was launched
     # lands in the same file the script itself starts writing to.
-    _add_dispatch_file_handler(Path(manifest["runtime"]["windows_bridge_log_file"]))
+    _add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
 
-    # Clear the previous session's leftovers before the hotkey script goes up,
-    # since from here on it is reading two of them.  The shared state file is
-    # deliberately NOT among them: startup writes this session's opening state to
-    # it (see session_resume.resume_shared_state), including whatever the resumed
-    # playlists were built under, and deleting it here would drop all of that back
-    # to defaults — the crashed-session leftovers that delete was for are cleared
-    # by that write instead.
-    #
-    # The pids file matters most: its appearance is what tells the hotkey script
-    # the session is up and its keys have something to reach, so a dead session's
-    # copy would put every key live over one that is still assembling.
-    dashboard_cmd_file = Path(manifest["commands"]["dashboard_cmd_file"])
+    dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     pids_file = state_dir / "bridge_pids.ini"
-    for stale in (
-        ahk_cmd_file,
-        pids_file,
-        dashboard_cmd_file,
-        dashboard_cmd_file.with_suffix(".processing"),
-    ):
-        stale.unlink(missing_ok=True)
+    _clear_last_sessions_leftovers(ahk_cmd_file, pids_file, dashboard_cmd_file)
 
     # --- Launch loading screen (normal mode only) ---
-    loading_proc = None
-    progress_file = state_dir / PROGRESS_FILENAME
-    cancel_file = state_dir / CANCEL_FILENAME
-    # Clear a cancel flag left over from a previous session so it can't abort
-    # this one before the user has touched anything.
-    cancel_file.unlink(missing_ok=True)
-    if show_overlays:
-        progress = PhaseProgress(progress_file, cancel_file=cancel_file)
-        loading_proc = subprocess.Popen(
-            [
-                identified_python_exe(sys.executable, "LoadingScreen"),
-                "-m", "fun_time.loading_screen", str(progress_file),
-            ],
-        )
-        logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
-        # Resolved here rather than at the reveal: the startup phases raise
-        # windows of their own long before then, and each one lands over the
-        # cover until it is put back (see ``keep_the_cover_up``).
-        overlay_hwnd = wait_for_window_by_title(
-            LOADING_SCREEN_TITLE, timeout_s=5.0, exact=True, include_hidden=True,
-        )
-        if overlay_hwnd:
-            logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
-        else:
-            logger.warning("The loading cover's window did not appear; startup "
-                           "will show through whatever it raises")
-    else:
-        progress = NullProgress()
-        overlay_hwnd = 0
+    cover = _open_the_cover(state_dir, show_overlays=show_overlays)
+    loading_proc, progress, overlay_hwnd = cover.process, cover.progress, cover.hwnd
+    progress_file, cancel_file = cover.progress_file, cover.cancel_file
 
     if integration_mode:
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
@@ -858,7 +1094,7 @@ def run_python_orchestrated_bridge(
     # The lock HUD's model is built here and published for each satellite player
     # to draw into its own video.  It rides the dashboard's enable gate, so an
     # integration run stays free of library scans and frame grabs.
-    hud_publisher, hud_primed = _start_hud_priming(
+    hud_publisher, hud_primed = start_hud_priming(
         bridge_config, manifest, enabled=dashboard_enabled)
 
     logger.info("Running startup sequence")
@@ -912,53 +1148,8 @@ def run_python_orchestrated_bridge(
     # --- Close loading screen (normal mode only) ---
     # The sequencer already positioned all windows in Phase 4 (the reveal).
     if show_overlays:
-        # Hold the loading screen until the HUD's group indexes are primed, so
-        # Fun Time isn't revealed with the maps still blank.  Capped so a slow
-        # library scan can't wedge startup — the maps just fill in late.
-        if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
-            logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
-                           HUD_PRIME_TIMEOUT_S)
-        # Band the room and settle its z-order BEHIND the curtain.  Phase 4
-        # deliberately left the bands off (each promotion inserts above the
-        # overlay), so at this moment nothing of the session is topmost at all:
-        # revealing here is revealing players sitting under whatever was on
-        # those monitors, climbing over it a second later — and in origenerator
-        # mode the RFB showing through until its host was promoted over it.
-        # The overlay goes back on top after every promotion, so what the
-        # curtain hides is the sorting rather than the result.
-        role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=overlay_hwnd)
-
-        progress.finish()
-        if loading_proc:
-            try:
-                loading_proc.wait(timeout=3.0)
-            except subprocess.TimeoutExpired:
-                loading_proc.kill()
-                logger.warning("Loading screen did not exit, killed")
-        progress_file.unlink(missing_ok=True)
-
-        # The cover is off the screen: NOW the players may run.  The phase walk
-        # deliberately leaves this to us (see ``release_the_players``) — released
-        # with the phases, Nau's video and Genau's audio would have been running
-        # for the whole finishing pass, behind a cover he cannot see or hear
-        # through, and the opening seconds of the video would be gone by the time
-        # it lifted.
-        release_the_players(manifest, result.main_mode)
-
-        # The overlay's own teardown hands activation to whatever is next in
-        # the z-order, so the bands are asserted once more over the finished
-        # room — cheap, since every window is already resolved and in place.
-        owners = satellite_rect_owners(
-            result, role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0))
-        # A show that came up after the pass behind the curtain has a handle
-        # now, and this band is what puts it back above the player it covers:
-        # the role order promotes it last for exactly that reason, and with a
-        # zero in the map it was simply skipped.
-        for name, hwnd in owners():
-            if hwnd and result.satellites_mode == "origenerator":
-                role_hwnds[f"origenerator_{name}"] = hwnd
-        _apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
-        _settle_the_players(owners, passes=3, wait_s=0.4)
+        _reveal_the_room(result, manifest=manifest, cover=cover,
+                         hud_publisher=hud_publisher, hud_primed=hud_primed)
 
     # The session is up and its windows are placed.  Writing this file records
     # the children for teardown and, by appearing, hands the keyboard over: the
@@ -967,109 +1158,46 @@ def run_python_orchestrated_bridge(
     children = identify_children(result)
     write_pids_file(pids_file, children)
 
-    rfb_target, rfb_work_dir, rfb_args = "", "", ""
-    if manifest["random_favs_browser"]["enabled"] == "1":
-        rfb_shortcut_path = manifest["random_favs_browser"]["shortcut_path"]
-        rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
-
-    dispatch_runner = DispatchLoopRunner(
-        role_hwnds=result.role_hwnds,
-        config=bridge_config,
+    dispatch_runner, dispatch_thread = _start_the_dispatch_loop(
+        result,
+        manifest=manifest,
+        manifest_path=manifest_path,
+        bridge_config=bridge_config,
+        state_dir=state_dir,
         dashboard_cmd_file=dashboard_cmd_file,
-        manifest_path=Path(manifest_path),
-        shared_state_file=shared_state_path(state_dir),
         ahk_cmd_file=ahk_cmd_file,
-        nau_pid=result.nau_pid,
-        portrait_pid=result.portrait_pid,
-        landscape_pid=result.landscape_pid,
-        dashboard_pid=result.dashboard_pid,
-        origenerator_pid=result.origenerator_pid,
         dashboard_enabled=dashboard_enabled,
         hud_publisher=hud_publisher,
-        rfb_hwnd=result.rfb_hwnd,
-        rfb_shortcut_target=rfb_target,
-        rfb_shortcut_work_dir=rfb_work_dir,
-        rfb_shortcut_args=rfb_args,
     )
-    # Genau startup detection is handled by the dispatch loop's first
-    # sync tick: if the broker has already written genau_mode.txt = "1"
-    # (it detects auto mode within ~4s via BPM/stroke inference), the sync
-    # will detect the entering transition and hand the main player over
-    # to Genau naturally.
-
-    dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
-    dispatch_thread.start()
-    logger.info("Background dispatch loop started")
 
     # Serve the Provider autofill userscript so Tampermonkey can auto-update it
     # instead of needing a hand-paste after every edit, and answer the RFB tab
     # pages when they ask whether the session is paused. The port comes from
     # config so a session started alongside another can serve somewhere of its
     # own; a busy one (a leftover server) is not worth failing startup over.
-    loopback_port = int(manifest["loopback"]["port"])
+    loopback_port = manifest.loopback_port
+    loopback_server = None
     try:
-        serve_loopback(port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
+        loopback_server = serve_loopback(
+            port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
         logger.info("Loopback server started on 127.0.0.1:%d", loopback_port)
     except OSError:
         logger.warning("Loopback server not started (port %d busy)", loopback_port, exc_info=True)
 
     # --- Optional voice control ---
-    voice_controller: VoiceController | None = None
-    voice_thread: threading.Thread | None = None
-    try:
-        cfg = load_config(manifest["runtime"]["config_path"])
-        voice_diag = (
-            f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
-            f"enabled={cfg.voice_control.enabled}, "
-            f"model={cfg.voice_control.model_path}, "
-            f"device_name={cfg.voice_control.device_name}"
-        )
-        logger.info("Voice control check: %s", voice_diag)
-        if VOICE_AVAILABLE and cfg.voice_control.enabled:
-            voice_controller = VoiceController(
-                cmd_file=dashboard_cmd_file,
-                model_path=cfg.voice_control.model_path,
-                confidence_threshold=cfg.voice_control.confidence_threshold,
-                device_name=cfg.voice_control.device_name,
-                sample_rate=cfg.voice_control.sample_rate,
-            )
-            dispatch_runner.voice_controller = voice_controller
-            voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
-            voice_thread.start()
-            logger.info("Voice control thread launched")
-        elif cfg.voice_control.enabled:
-            logger.warning("Voice control enabled but import failed: %s", _VOICE_IMPORT_ERROR)
-        else:
-            logger.info("Voice control disabled in config")
-    except Exception:
-        logger.exception("Voice control setup failed")
+    voice_controller, voice_thread = _start_voice_control(
+        manifest.runtime.config_path,
+        dashboard_cmd_file=dashboard_cmd_file,
+        dispatch_runner=dispatch_runner,
+    )
 
-    try:
-        exit_code = ahk_proc.wait()
-        # WHY the session is ending, which the log could not say before.  A
-        # session that vanishes and one the user quit produce the same lines
-        # from here down -- the hotkey script exits either way, the closing
-        # screen goes up either way, and the orchestrator returns 0 either way
-        # -- so a report of "it crashed" had nothing in the log to confirm or
-        # deny it.  The quit chord stamps a marker on its way out (see
-        # windows_bridge_hotkeys.ahk, EndSession); no marker and the script is
-        # gone anyway means it went down on its own.
-        logger.info("Hotkey script exited with code %s (%s)", exit_code,
-                    _describe_session_end(state_dir, exit_code))
-    except KeyboardInterrupt:
-        logger.info("Interrupted — shutting down")
-        exit_code = 1
-    finally:
-        # The cover goes up first and stays up through everything below: the
-        # controls stopping, the browser closing, and every child being killed.
-        with _closing_screen(state_dir, enabled=show_overlays) as shutdown_progress:
-            if voice_controller is not None:
-                voice_controller.stop()
-            if voice_thread is not None:
-                voice_thread.join(timeout=2.0)
-            dispatch_runner.stop()
-            dispatch_thread.join(timeout=2.0)
-            logger.info("AHK exited — shutting down child processes")
-            _shutdown_children(result.rfb_hwnd, children, shutdown_progress)
-
-    return exit_code
+    return _run_until_the_hotkeys_exit(
+        ahk_proc,
+        state_dir=state_dir,
+        show_overlays=show_overlays,
+        rfb_hwnd=result.rfb_hwnd,
+        children=children,
+        voice=(voice_controller, voice_thread),
+        dispatch=(dispatch_runner, dispatch_thread),
+        loopback_server=loopback_server,
+    )

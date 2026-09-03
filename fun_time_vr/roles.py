@@ -13,9 +13,8 @@ The satellites need no such twin: their session/verb/status logic is already
 display-agnostic in this repo's ``satellite`` package, and the VR player
 composes those pieces directly (see fun_time_vr.player).
 
-Nau verbs outside this subset (loop recording, version cycling, clip jumps,
-length modes, compilations) are not in the VR prototype yet; they report
-unhandled and the player logs them once rather than crashing.
+Nau verbs outside this subset report unhandled, and the player logs each once
+rather than crashing; docs/known-issues.md names them.
 """
 from __future__ import annotations
 
@@ -94,10 +93,6 @@ class MainRole:
         return self._funscript is not None
 
     @property
-    def is_paused(self) -> bool:
-        return self._paused
-
-    @property
     def position_ms(self) -> float:
         return self._player.position_ms
 
@@ -120,7 +115,7 @@ class MainRole:
 
     # ------------------------------------------------------------------ verbs
 
-    def apply_command(self, command: str, *, on_quit: Callable[[], None] | None = None) -> bool:
+    def apply_command(self, command: str, *, on_quit: Callable[[], None]) -> bool:
         """Dispatch one command-file line; return whether it was handled."""
         parts = command.strip().split(None, 1)
         if not parts:
@@ -168,8 +163,6 @@ class MainRole:
             # here would leave the headset showing nothing at all.
             pass
         elif keyword == "QUIT":
-            if on_quit is None:
-                return False
             on_quit()
         else:
             return False
@@ -244,10 +237,6 @@ class MainRole:
     def _set_speed(self, speed: float) -> None:
         self._speed = max(MIN_SPEED, min(MAX_SPEED, speed))
         self._player.set_speed(self._speed)
-
-    @property
-    def speed(self) -> float:
-        return self._speed
 
     def _apply_set_speed(self, arg: str) -> None:
         if arg == "min":

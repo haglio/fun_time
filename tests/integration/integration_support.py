@@ -14,13 +14,16 @@ from pathlib import Path
 
 from fun_time.branch_session import STATE_DIRNAME, _apply_genau_checkout_override
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
-from fun_time.dashboard_runtime import NauStatus, read_nau_status
+from fun_time.player_status import (
+    NauStatus,
+    read_nau_status,
+)
 from fun_time.event_log import EventRecord, event_log_path, read_events
 from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.notice_overlay import is_announcement
-from fun_time.process_identity import is_fun_time_exe_name
-from fun_time.win32 import get_process_image_name
+from fun_time.process_identity import NAMER
+from fun_time.win32_process import get_process_image_name
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     kill_process_tree,
@@ -84,7 +87,7 @@ def _is_leftover_app(pid: int) -> bool:
     if image is None:
         return False
     name = Path(image).name
-    return name.lower() in _APP_IMAGE_NAMES or is_fun_time_exe_name(name)
+    return name.lower() in _APP_IMAGE_NAMES or NAMER.owns_exe_name(name)
 
 
 def _kill_leftover_app_processes() -> None:
@@ -709,7 +712,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     for path in (state_dir, weird_dir, portrait_dir, landscape_dir, primary_dir):
         path.mkdir(parents=True, exist_ok=True)
 
-    primary_paths = _link_primary_samples(real, primary_dir)
+    _link_primary_samples(real, primary_dir)
     portrait_paths = _link_sample_files(real.paths.portrait_dirs, portrait_dir, count=2)
     landscape_paths = _link_sample_files(real.paths.landscape_dirs, landscape_dir, count=2)
 
@@ -754,6 +757,30 @@ def build_integration_temp_root() -> Path:
     return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
 
 
+def sample_library_clips(candidates, count: int, *, desc: str) -> list:
+    """*count* clips drawn at random from *candidates*, reproducibly.
+
+    A fresh draw each run — the same clips every run masks bugs that only one
+    codec, aspect or duration shows — but never an unrepeatable one: the seed
+    comes from ``FUN_TIME_INTEGRATION_SEED`` when set (re-running a failure on
+    the same media) or is drawn fresh, and the seed and the chosen files are
+    printed either way, so a failure names what it played.  Candidates are
+    sorted first so the draw depends only on the seed, not on glob order, and
+    a library smaller than *count* fails saying so instead of raising
+    ``Sample larger than population`` from inside a test.
+    """
+    candidates = sorted(candidates, key=str)
+    assert len(candidates) >= count, (
+        f"need {count} {desc}, found {len(candidates)}"
+    )
+    seed = os.environ.get("FUN_TIME_INTEGRATION_SEED") or str(random.randrange(10 ** 8))
+    chosen = random.Random(seed).sample(candidates, count)
+    print(f"[integration] sample seed {seed} for {desc}:")
+    for clip in chosen:
+        print(f"[integration]   {clip}")
+    return chosen
+
+
 def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:
     candidates: list[tuple[Path, Path]] = []  # (candidate, source_root)
     for source_root in real_config.paths.nau_library_dirs:
@@ -764,7 +791,8 @@ def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> lis
                 candidates.append((candidate, source_root))
     if not candidates:
         raise FileNotFoundError("Could not find a main-library video with a matching funscript for integration config")
-    chosen = random.sample(candidates, min(count, len(candidates)))
+    chosen = sample_library_clips(
+        candidates, min(count, len(candidates)), desc="funscripted main-library clips")
     targets: list[Path] = []
     seen_names: set[str] = set()
     for candidate, source_root in chosen:
@@ -794,7 +822,7 @@ def _link_sample_files(source_dirs: tuple[Path, ...], dest_dir: Path, *, count: 
             candidates.append(candidate)
     if len(candidates) < count:
         raise FileNotFoundError(f"Could not find {count} sample media files in {source_dirs}")
-    chosen = random.sample(candidates, count)
+    chosen = sample_library_clips(candidates, count, desc=f"sample media files in {source_dirs}")
     selected: list[Path] = []
     for candidate in chosen:
         target = dest_dir / candidate.name

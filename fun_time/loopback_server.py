@@ -62,7 +62,7 @@ def _make_handler(script_path: Path, omni_paused: Callable[[], bool]):
     request_path = "/" + USERSCRIPT_NAME
 
     class _Handler(BaseHTTPRequestHandler):
-        def do_GET(self):  # noqa: N802 - http.server API name
+        def do_GET(self):  # http.server API name
             path = self.path.split("?", 1)[0]
             if path == OMNIPAUSE_PATH:
                 # Asked per request, never captured at startup: the answer is

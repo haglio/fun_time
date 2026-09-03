@@ -11,17 +11,25 @@ import logging
 
 import pytest
 
-from fun_time.command_dispatch import (
-    routes_to_origenerator,
+from fun_time.bridge_records import (
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
-    BridgeState,
     BridgeConfig,
     WindowOp,
+)
+from fun_time.players import Player
+from fun_time.command_dispatch import (
+    routes_to_origenerator,
+    _discard,
+    _toggle_lock,
     dispatch_command,
 )
+from fun_time.satellite_groups import cancel_lock
+from fun_time.players import Player
+from fun_time.shared_state import BridgeState
+from fun_time.media_actions import ensure_in_favs
 from fun_time.event_log import NOTICE
-from fun_time.media_metadata import GroupIndex, normalize_path_key
+from fun_time.media_metadata import normalize_path_key
 
 
 def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfig:
@@ -63,7 +71,7 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
 def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool = False) -> None:
     """Make read_satellite_status report *video* as satellite *which*'s current
     clip — the file-based stand-in for the old get_current_file_path mock."""
-    status = config.satellite_status_file(which)
+    status = config.side(which).status_file
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
         f"video={video}\nposition_ms=100\nduration_ms=1000\n"
@@ -74,7 +82,7 @@ def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool =
 
 def _cmds(config: BridgeConfig, which: int) -> list[str]:
     """The verbs queued on satellite *which*'s command file, in order."""
-    cmd_file = config.satellite_cmd_file(which)
+    cmd_file = config.side(which).cmd_file
     if not cmd_file.exists():
         return []
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
@@ -82,7 +90,7 @@ def _cmds(config: BridgeConfig, which: int) -> list[str]:
 
 def _playlist(config: BridgeConfig, which: int) -> list[str]:
     """The video paths written to satellite *which*'s playlist file, in order."""
-    playlist = config.satellite_playlist_file(which)
+    playlist = config.side(which).playlist_file
     if not playlist.exists():
         return []
     return [
@@ -709,6 +717,61 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     assert _cmds(config, 3) == ["UNLOCK", "PREV"]
 
 
+def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
+    """The eight side branches are copy-paste siblings, so the mistake they
+    invite is a side mix-up: the D key advancing the portrait player nobody
+    was looking at while the landscape clip stays put."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True)
+
+    new_state, _ops = dispatch_command("landscape_next", state, config)
+
+    assert new_state.locked3 is False
+    assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
+    assert _cmds(config, 2) == []
+
+
+def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: Path):
+    """Same side-mix-up pin for the destructive sibling: a swapped side here
+    would condemn whatever the portrait player happened to be showing."""
+    config = _make_config(tmp_path)
+    state = _make_state(locked3=True)
+
+    _set_current(config, 3, "C:\\clips\\landscape.mp4")
+    with (
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+    ):
+        new_state, _ops = dispatch_command("landscape_trash", state, config)
+
+    assert new_state.locked3 is False
+    assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
+    assert _cmds(config, 2) == []
+
+
+@pytest.mark.parametrize("command", [
+    "portrait_more_seeds",
+    "landscape_wrong_action",
+    "portrait_action_loop",
+    "landscape_loop",
+    "portrait_lock_action",
+    "landscape_cycle_seed",
+])
+def test_a_satellite_with_no_clip_on_screen_ignores_clip_scoped_commands(
+    tmp_path: Path, command: str,
+):
+    """A satellite that has not published its first status — mid-startup, or
+    between clips — has no current video, and a key mashed exactly then must
+    be inert: no crash, no notice, no verb queued against an empty path."""
+    config = _make_config(tmp_path)
+
+    _state, ops = dispatch_command(command, _make_state(), config)
+
+    assert ops == []
+    assert _cmds(config, 2) == []
+    assert _cmds(config, 3) == []
+
+
 # --- active side tracking ---
 
 
@@ -716,7 +779,7 @@ def test_a_fresh_session_starts_with_the_primary_active():
     """The main player is on the display the eye opens on, so it holds the floor at
     startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
     addressed."""
-    from fun_time.command_dispatch import BridgeState
+    from fun_time.shared_state import BridgeState
 
     assert BridgeState().active_side == 1
 
@@ -1031,8 +1094,9 @@ def test_fmode_passes_each_sides_current_order(tmp_path: Path):
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert mock_fmode.call_args.kwargs["portrait_recent"] is True
-    assert mock_fmode.call_args.kwargs["landscape_recent"] is False
+    satellites = mock_fmode.call_args.kwargs["satellites"]
+    assert satellites[Player.PORTRAIT].recent is True
+    assert satellites[Player.LANDSCAPE].recent is False
 
 
 def test_fmode_passes_the_metadata_root_for_group_collapse(tmp_path: Path):
@@ -1065,9 +1129,8 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["which"] == 2
     assert kwargs["query"] == "alpha"
-    assert kwargs["cmd_file"] == config.satellite_cmd_file(2)
+    assert kwargs["cmd_file"] == config.side(2).cmd_file
     assert kwargs["sources"] == config.portrait_sources
-    assert kwargs["regen_media_root"] == tmp_path / "media"
     assert any(op.op == "notice" for op in ops)
 
 
@@ -1077,7 +1140,7 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait_filter="alpha")
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
     # The browse is built with the CURRENT filter (kept), not cleared to "".
@@ -1351,9 +1414,9 @@ def test_fmode_passes_active_filters(tmp_path: Path):
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    kwargs = mock_fmode.call_args.kwargs
-    assert kwargs["portrait_filter"] == "alpha"
-    assert kwargs["landscape_filter"] == "kissing"
+    satellites = mock_fmode.call_args.kwargs["satellites"]
+    assert satellites[Player.PORTRAIT].filter_query == "alpha"
+    assert satellites[Player.LANDSCAPE].filter_query == "kissing"
 
 
 def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
@@ -1371,7 +1434,6 @@ def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["recent"] is True  # Latest = newest-first
     assert kwargs["query"] == "alpha"  # its own filter is kept
-    assert kwargs["regen_media_root"] == tmp_path / "media"
 
 
 def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
@@ -1592,31 +1654,49 @@ def _cycle_meta(image_seed: str, action: str) -> dict:
     }
 
 
-def _make_grouped_config(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[BridgeConfig, dict[str, str]]:
-    """A BridgeConfig whose portrait source dir holds *videos* (+ sidecars)."""
-    from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
+def _make_grouped_config(
+    tmp_path: Path, videos: dict[str, dict | None], side: int = 2,
+) -> tuple[BridgeConfig, dict[str, str]]:
+    """A BridgeConfig whose *side*'s source dir holds *videos* (+ sidecars).
 
-    reset_group_index_cache()
+    Only the named side's sources point at the dir, so a command that reads
+    the wrong side's library comes up empty instead of silently passing.
+    """
+    from fun_time.media_metadata import metadata_path_for
+
     media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
     metadata_root = tmp_path / "videos" / "metadata"
-    portrait_dir = media_root / "portrait"
-    portrait_dir.mkdir(parents=True, exist_ok=True)
+    side_dir = media_root / ("portrait" if side == 2 else "landscape")
+    side_dir.mkdir(parents=True, exist_ok=True)
     paths: dict[str, str] = {}
     for name, meta in videos.items():
-        video = portrait_dir / f"{name}.mp4"
+        video = side_dir / f"{name}.mp4"
         video.write_text("x", encoding="utf-8")
         paths[name] = str(video)
         if meta is not None:
             sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
+    sources_key = "portrait_sources" if side == 2 else "landscape_sources"
     config = replace(
         _make_config(tmp_path),
-        portrait_sources=str(portrait_dir),
         regen_media_root=media_root,
         regen_metadata_root=metadata_root,
+        **{sources_key: str(side_dir)},
     )
     return config, paths
+
+
+def _subject_meta(*, prompt: str = "x, y, z", image_seed: str = "1",
+                  action: str = "Alpha", quality: str = "Best") -> dict:
+    """A sidecar whose grouping the real index derives: clips sharing *prompt*
+    and *quality* (and the other image-identity fields) are one seed family;
+    the same family with the same *image_seed* is one subject (action group);
+    and *prompt*'s comma tags are the scene the widen ranks near-matches by."""
+    return {
+        "video": {"prompt": f"do {action}", "action": action, "seed": "9"},
+        "source_image": {"positive_prompt": prompt, "seed": image_seed, "quality": quality},
+    }
 
 
 def test_portrait_cycle_action_swaps_to_next_action_of_the_group(tmp_path: Path):
@@ -1792,24 +1872,15 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
     """"more seeds" never jumps to another clip — it records that this clip's seed
     row is widened (which the HUD reads to grow the row in place) and loops that
     row, which reshapes the queue but leaves the clip on screen playing."""
-    cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
-    cur.write_text("x", encoding="utf-8")
-    other.write_text("x", encoding="utf-8")
-    c, o = str(cur), str(other)
-    kc, ko = normalize_path_key(c), normalize_path_key(o)
-    config = _make_config(tmp_path)
-    index = GroupIndex(
-        action_key_by_path={kc: "g1", ko: "g2"},   # different subjects
-        action_members={"g1": [c], "g2": [o]},
-        action_by_path={kc: "Gamma", ko: "Gamma"},   # same act
-        seed_key_by_path={}, seed_members={},
-        path_by_key={kc: c, ko: o},
-        scene_tags_by_path={kc: frozenset({"a", "b"}), ko: frozenset({"a", "c"})},
-    )
+    config, paths = _make_grouped_config(tmp_path, {
+        # Different subjects (different prompts), the same act, overlapping scenes.
+        "cur": _subject_meta(prompt="a, b", action="Gamma"),
+        "other": _subject_meta(prompt="a, c", action="Gamma"),
+    })
+    c = paths["cur"]
 
     _set_current(config, 2, c)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+    state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))  # no jump
     assert _playlist(config, 2)[0] == c   # the clip on screen leads the looped queue
@@ -1821,24 +1892,15 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
     """A wider seed row is more of *this act*, so an act nothing else in the library
     does has no wider row — and says so, rather than widening into another act, which
     it would then loop and play."""
-    cur, other = tmp_path / "cur.mp4", tmp_path / "other.mp4"
-    cur.write_text("x", encoding="utf-8")
-    other.write_text("x", encoding="utf-8")
-    c, o = str(cur), str(other)
-    kc, ko = normalize_path_key(c), normalize_path_key(o)
-    config = _make_config(tmp_path)
-    index = GroupIndex(
-        action_key_by_path={kc: "g1", ko: "g2"},
-        action_members={"g1": [c], "g2": [o]},
-        action_by_path={kc: "Zeta", ko: "Alpha"},   # nothing else does Zeta
-        seed_key_by_path={}, seed_members={},
-        path_by_key={kc: c, ko: o},
-        scene_tags_by_path={kc: frozenset({"a"}), ko: frozenset({"a"})},   # the same scene
-    )
+    config, paths = _make_grouped_config(tmp_path, {
+        # The same scene, but nothing else does cur's act.
+        "cur": _subject_meta(prompt="a", action="Zeta"),
+        "other": _subject_meta(prompt="a", image_seed="2", action="Alpha"),
+    })
+    c = paths["cur"]
 
     _set_current(config, 2, c)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+    state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert state.portrait_widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
@@ -1848,20 +1910,10 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
 
 def test_more_seeds_reports_widening_failed_when_the_library_holds_one_clip(tmp_path: Path):
     """The other dead end: there is no other video at all to widen to."""
-    config = _make_config(tmp_path)
-    only = tmp_path / "only.mp4"
-    only.write_text("x", encoding="utf-8")
-    key = normalize_path_key(str(only))
-    index = GroupIndex(
-        action_key_by_path={key: "g"}, action_members={"g": [str(only)]},
-        action_by_path={key: "Alpha"},
-        seed_key_by_path={}, seed_members={},
-        path_by_key={key: str(only)},
-    )
+    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
 
-    _set_current(config, 2, str(only))
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+    _set_current(config, 2, paths["only"])
+    state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert state.portrait_widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
@@ -1873,12 +1925,10 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
     """Widening the row starts the seed loop too — the point of a wider row is to
     cycle it, so the satellite plays the widened pool without a separate "loop
     seeds" after it."""
-    config = _make_config(tmp_path)
-    index, a, a2, b = _widened_loop_index(tmp_path)
+    config, a, a2, b = _widened_loop_config(tmp_path)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)  # no loop running
+    state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)  # no loop running
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])   # looping the widened pool
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
@@ -1887,37 +1937,27 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
-def _other_act_widen_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str, str]:
-    """Four same-subject clips on real files.  {a, a2} share the exact seed family
-    F1; c is another family doing a's act; b is its own family doing something
-    else, and its scene is the closest of all — so an unbounded widen took it."""
-    files = {name: tmp_path / f"{name}.mp4" for name in ("a", "a2", "b", "c")}
-    for f in files.values():
-        f.write_text("x", encoding="utf-8")
-    a, a2, b, c = (str(files[name]) for name in ("a", "a2", "b", "c"))
-    ka, ka2, kb, kc = (normalize_path_key(p) for p in (a, a2, b, c))
-    scene = frozenset({"x", "y", "z"})
-    return GroupIndex(
-        action_key_by_path={ka: "scene", ka2: "scene", kb: "scene", kc: "scene"},
-        action_members={"scene": sorted([a, a2, b, c])},
-        action_by_path={ka: "Alpha", ka2: "Alpha", kb: "Theta", kc: "Alpha"},
-        seed_key_by_path={ka: ("F1", "0"), ka2: ("F1", "1"), kb: ("F3", "0"), kc: ("F2", "0")},
-        seed_members={"F1": sorted([a, a2]), "F2": [c], "F3": [b]},
-        path_by_key={ka: a, ka2: a2, kb: b, kc: c},
-        scene_tags_by_path={ka: scene, ka2: scene, kb: scene, kc: frozenset({"q"})},
-    ), a, a2, b, c
+def _other_act_widen_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str, str]:
+    """Four clips: {a, a2} share the exact seed family; c is another family
+    (same act, a barely-overlapping scene); b shares a's scene exactly — the
+    closest of all — but does another act, so an unbounded widen took it."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "a": _subject_meta(image_seed="1"),
+        "a2": _subject_meta(image_seed="2"),
+        "b": _subject_meta(image_seed="3", action="Theta"),
+        "c": _subject_meta(prompt="q", image_seed="1"),
+    })
+    return config, paths["a"], paths["a2"], paths["b"], paths["c"]
 
 
 def test_more_seeds_never_queues_a_clip_of_another_action(tmp_path: Path):
     """"more seeds" loops what it draws, so a clip ranked into the row *plays*.  The
     row is this act's other subjects; the nearest-scened clip of another act belongs
     to the action column, and queueing it put that act on screen unasked."""
-    config = _make_config(tmp_path)
-    index, a, a2, b, c = _other_act_widen_index(tmp_path)
+    config, a, a2, b, c = _other_act_widen_config(tmp_path)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("portrait_more_seeds", _make_state(), config)
+    state, _ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, c])  # b does something else
     assert b not in _playlist(config, 2)
@@ -1927,13 +1967,11 @@ def test_more_seeds_never_queues_a_clip_of_another_action(tmp_path: Path):
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
     """Widening the row while a seed loop runs must widen the loop too, so the satellite
     cycles the wider pool the HUD now shows instead of only the exact family."""
-    config = _make_config(tmp_path)
-    index, a, a2, b = _widened_loop_index(tmp_path)
+    config, a, a2, b = _widened_loop_config(tmp_path)
     state = _make_state(portrait_loop="seed")  # a seed loop is already running
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        new_state, ops = dispatch_command("portrait_more_seeds", state, config)
+    new_state, ops = dispatch_command("portrait_more_seeds", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])  # re-looped wide
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
@@ -1968,9 +2006,8 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
 
 def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     """The landscape variants must hit the landscape port and lock flag."""
-    from fun_time.media_metadata import metadata_path_for, reset_group_index_cache
+    from fun_time.media_metadata import metadata_path_for
 
-    reset_group_index_cache()
     config, paths = _make_grouped_config(tmp_path, {})
     media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"
@@ -2089,7 +2126,7 @@ def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: 
     dispatch_command("portrait_cycle_action", state, config)  # warms the cached index
     dispatch_command("portrait_wrong_action", state, config)
 
-    from fun_time.command_dispatch import _satellite_group_index
+    from fun_time.satellite_groups import _satellite_group_index
 
     index = _satellite_group_index(2, config, paths["subject_zeta"])
     assert normalize_path_key(paths["subject_zeta"]) not in index.action_by_path
@@ -2116,7 +2153,6 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     assert kwargs["f_mode_enabled"] is False
     assert kwargs["cmd_file"] == config.portrait_cmd_file
     # Latest must collapse action groups too, so the provider roots flow through.
-    assert kwargs["regen_media_root"] == config.regen_media_root
     assert kwargs["regen_metadata_root"] == config.regen_metadata_root
 
 
@@ -2731,13 +2767,21 @@ def test_omnipause_toggle_leave_emits_restore_all_topmost(tmp_path: Path):
     assert any(op.op == "restore_all_topmost" for op in ops)
 
 
-def test_leave_omnipause_emits_restore_all_topmost(tmp_path: Path):
+def test_a_leave_omnipause_verb_no_producer_can_send_is_inert(tmp_path: Path):
+    """Leaving is internal: the toggle is what calls it.
+
+    No key, phrase or button in the family ever sent this verb -- it is absent
+    from windows_bridge_hotkeys.ahk, from VOICE_COMMANDS and from every HUD
+    button id -- so it is not a spelling of the resume, and a hand-written
+    command file does not get one.
+    """
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
     new_state, ops = dispatch_command("leave_omnipause", state, config)
 
-    assert any(op.op == "restore_all_topmost" for op in ops)
+    assert ops == []
+    assert new_state.omni_paused is True
 
 
 def test_leaving_omnipause_brings_back_the_players_a_button_parked(tmp_path: Path):
@@ -2746,9 +2790,9 @@ def test_leaving_omnipause_brings_back_the_players_a_button_parked(tmp_path: Pat
     would have brought it back but the taskbar."""
     config = _make_config(tmp_path)
 
-    for command in ("leave_omnipause", "omnipause_toggle"):
-        _state, ops = dispatch_command(command, _make_state(omni_paused=True), config)
-        assert any(op.op == "restore_parked" for op in ops), command
+    _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
+
+    assert any(op.op == "restore_parked" for op in ops)
 
 
 def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
@@ -2756,7 +2800,7 @@ def test_the_restore_comes_before_the_bands_and_the_focus(tmp_path: Path):
     activate raises it, or both land on something minimized."""
     config = _make_config(tmp_path)
 
-    _state, ops = dispatch_command("leave_omnipause", _make_state(omni_paused=True), config)
+    _state, ops = dispatch_command("omnipause_toggle", _make_state(omni_paused=True), config)
     order = [op.op for op in ops]
 
     assert order.index("restore_parked") < order.index("restore_all_topmost")
@@ -2793,11 +2837,11 @@ def test_omnipause_toggle_enter_does_not_remove_genau_topmost(tmp_path: Path):
     assert not any(op.op == "hide_role" and op.key == "genau" for op in ops)
 
 
-def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
+def test_leaving_omnipause_resumes_satellites_only(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True)
 
-    new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
@@ -2805,11 +2849,11 @@ def test_leave_omnipause_resumes_satellites_only(tmp_path: Path):
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
 
 
-def test_leave_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
+def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(omni_paused=True, main_mode="genau")
 
-    new_state, ops = dispatch_command("leave_omnipause", state, config)
+    new_state, ops = dispatch_command("omnipause_toggle", state, config)
 
     assert any(op.op == "activate_role" and op.key == "genau" for op in ops)
 
@@ -2894,173 +2938,106 @@ def test_unknown_command_returns_unchanged_state(tmp_path: Path):
     assert ops == []
 
 
+def test_unknown_command_warns_instead_of_dying_silently(tmp_path: Path, caplog):
+    """The fall-through used to be indistinguishable from a handled no-op, so a
+    key bound to a misspelled id was simply a dead key.  The state still comes
+    back unchanged; the log now says why nothing happened."""
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
+        dispatch_command("bogus_command", _make_state(), config)
+
+    assert any("bogus_command" in record.message for record in caplog.records)
+
+
+def test_an_active_command_with_no_main_player_meaning_stays_a_quiet_no_op(tmp_path: Path, caplog):
+    """"weird" spoken while the main player is active resolves to nothing — the
+    loop hands the unresolved "active_trash" through, and that is a designed
+    dead end (the main player has no weird), not a missing handler."""
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
+        new_state, ops = dispatch_command("active_trash", _make_state(), config)
+
+    assert ops == []
+    assert new_state == _make_state()
+    assert not any("active_trash" in record.message for record in caplog.records)
+
+
+def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: Path, caplog):
+    """The hosted app's vocabulary is always in the recognizer's grammar, so its
+    phrases arrive in player mode too; they reach nothing there, and that is a
+    known dead end rather than a missing handler."""
+    config = _make_config(tmp_path)
+
+    with caplog.at_level(logging.WARNING, logger="fun_time.command_dispatch"):
+        new_state, ops = dispatch_command("portrait_say_favorites", _make_state(), config)
+
+    assert ops == []
+    assert not any("portrait_say_favorites" in record.message for record in caplog.records)
+
+
 # --- clipper_save ---
 
 
-def test_clipper_save_calls_subprocess_in_hybrid_mode(tmp_path: Path):
-    """Hybrid displays Nau, so clipper reads the current video/time from Nau's status."""
+def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Path):
+    """The save is a 10-second cross-repo subprocess; the dispatcher only asks
+    for it (the loop runs it on a worker thread), so the 20 Hz tick never
+    stalls behind a booting interpreter."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="hybrid")
-    config.nau_status_file.write_text(
-        "video=C:\\videos\\test.mp4\nposition_ms=42500\nstate=normal\npaused=0\n",
-        encoding="utf-8",
-    )
 
-    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 0
-        mock_subprocess.run.return_value.stdout = r"C:\clipper\sessions\test.json"
-        mock_subprocess.run.return_value.stderr = ""
+    with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         new_state, ops = dispatch_command("clipper_save", state, config)
 
+    mock_subprocess.run.assert_not_called()
     assert new_state == state
-    mock_subprocess.run.assert_called_once()
-    call_args = mock_subprocess.run.call_args
-    cmd = call_args[0][0]
-    assert cmd[0] == "python"
-    assert "-m" in cmd
-    assert "clipper.create_session" in cmd
-    assert "--video" in cmd
-    assert r"C:\videos\test.mp4" in cmd
-    assert "--time" in cmd
-    assert "42.5" in cmd
-    assert len(ops) == 1
-    assert ops[0].op == "notice"
-    assert ops[0].source == "main"
-    assert ops[0].key  # non-empty message
-
-
-def test_clipper_save_no_notice_on_failure(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="hybrid")
-    config.nau_status_file.write_text(
-        "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
-    )
-
-    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 1
-        mock_subprocess.run.return_value.stdout = ""
-        mock_subprocess.run.return_value.stderr = "ffprobe failed"
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    assert ops == []
+    assert ops == [WindowOp(op="save_clip")]
 
 
 def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
-    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
+    new_state, ops = dispatch_command("clipper_save", state, config)
 
-    mock_subprocess.run.assert_not_called()
-
-
-def test_clipper_save_skips_when_no_video_playing(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="hybrid")
-    # No nau_status file → no current video → nothing to clip.
-
-    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    mock_subprocess.run.assert_not_called()
-
-
-def test_clipper_save_in_nau_mode_uses_nau_status(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="nau")
-    config.nau_status_file.write_text(
-        "video=C:\\videos\\naustuff.mp4\n"
-        "position_ms=42500\n"
-        "duration_ms=60000\n"
-        "has_funscript=1\n"
-        "state=normal\n"
-        "paused=0\n",
-        encoding="utf-8",
-    )
-
-    with patch("fun_time.command_dispatch._clipper_python", return_value="python"), \
-         patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        mock_subprocess.run.return_value.returncode = 0
-        mock_subprocess.run.return_value.stdout = "C:\\clipper\\sessions\\naustuff.json"
-        mock_subprocess.run.return_value.stderr = ""
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    cmd = mock_subprocess.run.call_args[0][0]
-    assert "C:\\videos\\naustuff.mp4" in cmd
-    assert "42.5" in cmd
-    assert len(ops) == 1 and ops[0].op == "notice"
-
-
-def test_clipper_save_in_nau_mode_skips_without_status(tmp_path: Path):
-    config = _make_config(tmp_path)
-    state = _make_state(main_mode="nau")
-
-    with patch("fun_time.command_dispatch.subprocess") as mock_subprocess:
-        new_state, ops = dispatch_command("clipper_save", state, config)
-
-    mock_subprocess.run.assert_not_called()
     assert ops == []
 
 
 # --- group loops and lock-action --------------------------------------------
 
-def _loop_index(tmp_path: Path, *, axis: str) -> tuple[GroupIndex, str, str]:
-    """A two-member group index on real files, keyed on the requested axis."""
-    first, second = tmp_path / "a.mp4", tmp_path / "b.mp4"
-    first.write_text("x", encoding="utf-8")
-    second.write_text("x", encoding="utf-8")
-    a, b = str(first), str(second)
-    ka, kb = normalize_path_key(a), normalize_path_key(b)
+def _loop_config(tmp_path: Path, *, axis: str, side: int = 2) -> tuple[BridgeConfig, str, str]:
+    """A config whose side holds a two-member group on the requested axis,
+    grouped by the real index over real sidecars."""
     if axis == "action":
-        # Same subject, different acts.
-        return GroupIndex(
-            action_key_by_path={ka: "subject", kb: "subject"},
-            action_members={"subject": [a, b]},
-            action_by_path={ka: "Alpha", kb: "Kissing"},
-            seed_key_by_path={}, seed_members={},
-            path_by_key={ka: a, kb: b},
-        ), a, b
-    # Same act + params, different seeds.
-    return GroupIndex(
-        action_key_by_path={}, action_members={},
-        action_by_path={ka: "Alpha", kb: "Alpha"},
-        seed_key_by_path={ka: ("family", "1"), kb: ("family", "2")},
-        seed_members={"family": [a, b]},
-        path_by_key={ka: a, kb: b},
-    ), a, b
+        # Same subject (one source image), different acts.
+        videos = {"a": _subject_meta(action="Alpha"), "b": _subject_meta(action="Kissing")}
+    else:
+        # Same act + params, different image seeds.
+        videos = {"a": _subject_meta(image_seed="1"), "b": _subject_meta(image_seed="2")}
+    config, paths = _make_grouped_config(tmp_path, videos, side=side)
+    return config, paths["a"], paths["b"]
 
 
-def _widened_loop_index(tmp_path: Path) -> tuple[GroupIndex, str, str, str]:
-    """Three same-scene clips {a, a2, b} on real files whose exact seed families
-    split: a and a2 share the exact family F1, while b is its own render F2.  So
-    `seed_family_members(a)` is {a, a2} but `widened_seed_members(a)` — b ranks in
-    on its identical scene tags — is all three."""
-    files = {name: tmp_path / f"{name}.mp4" for name in ("a", "a2", "b")}
-    for f in files.values():
-        f.write_text("x", encoding="utf-8")
-    a, a2, b = (str(files["a"]), str(files["a2"]), str(files["b"]))
-    ka, ka2, kb = normalize_path_key(a), normalize_path_key(a2), normalize_path_key(b)
-    return GroupIndex(
-        action_key_by_path={ka: "scene", ka2: "scene", kb: "scene"},
-        action_members={"scene": sorted([a, a2, b])},
-        action_by_path={ka: "Alpha", ka2: "Alpha", kb: "Alpha"},
-        seed_key_by_path={ka: ("F1", "0"), ka2: ("F1", "1"), kb: ("F2", "0")},
-        seed_members={"F1": sorted([a, a2]), "F2": [b]},
-        path_by_key={ka: a, ka2: a2, kb: b},
-        scene_tags_by_path={k: frozenset({"x", "y", "z"}) for k in (ka, ka2, kb)},
-    ), a, a2, b
+def _widened_loop_config(tmp_path: Path) -> tuple[BridgeConfig, str, str, str]:
+    """Three same-scene clips {a, a2, b} whose exact seed families split: a and
+    a2 share one family (same prompt + quality, seeds apart), while b is its
+    own render (a Draft of the identical prompt).  So a's exact seed row is
+    {a, a2}, but the widen — which ranks b in on its identical scene tags —
+    is all three."""
+    config, paths = _make_grouped_config(tmp_path, {
+        "a": _subject_meta(image_seed="1"),
+        "a2": _subject_meta(image_seed="2"),
+        "b": _subject_meta(image_seed="3", quality="Draft"),
+    })
+    return config, paths["a"], paths["a2"], paths["b"]
 
 
 def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: Path):
-    config = _make_config(tmp_path)
-    index, a, b = _loop_index(tmp_path, axis="action")
+    config, a, b = _loop_config(tmp_path, axis="action")
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
+    _state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     # The group is written as the side's playlist (current-first) and reloaded; the
     # native player then loops it by auto-advance.
@@ -3070,12 +3047,10 @@ def test_action_loop_reshapes_the_queue_to_the_subjects_action_group(tmp_path: P
 
 
 def test_seed_loop_reshapes_the_queue_to_the_current_acts_seed_family(tmp_path: Path):
-    config = _make_config(tmp_path)
-    index, a, b = _loop_index(tmp_path, axis="seed")
+    config, a, b = _loop_config(tmp_path, axis="seed", side=3)
 
     _set_current(config, 3, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        dispatch_command("landscape_seed_loop", _make_state(), config)
+    dispatch_command("landscape_seed_loop", _make_state(), config)
 
     assert sorted(_playlist(config, 3)) == sorted([a, b])
     assert "RELOAD_PLAYLIST" in _cmds(config, 3)
@@ -3085,13 +3060,11 @@ def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(t
     """When the row was widened around the clip on screen, "loop seeds" loops the
     whole loose family (across its exact seed families) and keeps the widen anchor in
     state, so the HUD stays widened and frozen as the loop auto-advances the re-renders."""
-    config = _make_config(tmp_path)
-    index, a, a2, b = _widened_loop_index(tmp_path)
+    config, a, a2, b = _widened_loop_config(tmp_path)
     state = _make_state(portrait_widen_clip=a)  # widened around the clip on screen
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
+    new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
     assert new_state.portrait_loop == "seed"
@@ -3102,13 +3075,11 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
     """A plain "loop seeds" (widen anchor does not match the clip on screen) loops
     only the exact family, so it must drop any stale widen anchor — otherwise the
     HUD would wrongly read the exact-family loop as a widened one."""
-    config = _make_config(tmp_path)
-    index, a, b = _loop_index(tmp_path, axis="seed")
+    config, a, b = _loop_config(tmp_path, axis="seed")
     state = _make_state(portrait_widen_clip="C:/somewhere/else.mp4")  # stale, not on screen
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
+    new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, b])  # exact family only
     assert new_state.portrait_loop == "seed"
@@ -3118,20 +3089,11 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     """A group of one is not a dead end: the loop buttons still work, they just
     mean "lock" then — repeat-one on the current clip, no sub-playlist."""
-    config = _make_config(tmp_path)
-    only = tmp_path / "only.mp4"
-    only.write_text("x", encoding="utf-8")
-    key = normalize_path_key(str(only))
-    index = GroupIndex(
-        action_key_by_path={key: "subject"}, action_members={"subject": [str(only)]},
-        action_by_path={key: "Alpha"},
-        seed_key_by_path={}, seed_members={},
-        path_by_key={key: str(only)},
-    )
+    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    only = Path(paths["only"])
 
     _set_current(config, 2, str(only))
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
+    new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     assert _playlist(config, 2) == []  # no queue reshape for a group of one
     assert _cmds(config, 2) == ["LOCK"]  # a group of one is really a single-video lock
@@ -3145,24 +3107,20 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
 def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     """The HUD reads this flag to freeze its map on the looped group and keep the
     loop button lit while the clip auto-advances, so it must live in the state."""
-    config = _make_config(tmp_path)
-    index, a, _b = _loop_index(tmp_path, axis="action")
+    config, a, _b = _loop_config(tmp_path, axis="action")
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
+    state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     assert state.portrait_loop == "action"
     assert state.landscape_loop == ""
 
 
 def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
-    config = _make_config(tmp_path)
-    index, a, _b = _loop_index(tmp_path, axis="seed")
+    config, a, _b = _loop_config(tmp_path, axis="seed", side=3)
 
     _set_current(config, 3, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
+    state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
 
     assert state.landscape_loop == "seed"
     assert state.portrait_loop == ""
@@ -3176,12 +3134,10 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
     clip on screen somewhere in the middle of the row the instant the loop began,
     and made the action column light up bottom-to-top as the group played.
     """
-    config = _make_config(tmp_path)
-    index, a, b = _loop_index(tmp_path, axis="seed")
+    config, a, b = _loop_config(tmp_path, axis="seed")
 
     _set_current(config, 2, b)  # the loop starts on the group's *second* member
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
+    state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
     assert state.portrait_map_anchor == b
     assert _playlist(config, 2) == [b, a]  # the map's order is the queue's order
@@ -3190,23 +3146,14 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     """The one-member "loop" is really a lock, so it must drop any loop the side
     was running instead of leaving a stale flag."""
-    config = _make_config(tmp_path)
-    only = tmp_path / "only.mp4"
-    only.write_text("x", encoding="utf-8")
-    key = normalize_path_key(str(only))
-    index = GroupIndex(
-        action_key_by_path={key: "subject"}, action_members={"subject": [str(only)]},
-        action_by_path={key: "Alpha"},
-        seed_key_by_path={}, seed_members={},
-        path_by_key={key: str(only)},
-    )
+    config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
+    only = Path(paths["only"])
 
     _set_current(config, 2, str(only))
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command(
-            "portrait_action_loop",
-            _make_state(portrait_loop="seed", portrait_widen_clip=str(only)), config,
-        )
+    state, _ops = dispatch_command(
+        "portrait_action_loop",
+        _make_state(portrait_loop="seed", portrait_widen_clip=str(only)), config,
+    )
 
     assert state.portrait_loop == ""
     assert state.portrait_widen_clip == ""  # the lock drops the widened row too
@@ -3298,7 +3245,7 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
     """
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
         state, _ops = dispatch_command(
             "portrait_no_loop",
             _make_state(portrait_loop="action", portrait_map_anchor="C:/v/anchor.mp4",
@@ -3317,7 +3264,7 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
     config = _make_config(tmp_path)
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(), config)
 
     # The browse is written as the side's playlist and reloaded in place.
@@ -3339,7 +3286,7 @@ def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_pat
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
     _set_current(config, 2, playing)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
     # It heads the restored list, so the reload keeps it playing and the browse is
@@ -3354,7 +3301,7 @@ def test_no_loop_leaves_a_browse_that_already_holds_the_clip_untouched(tmp_path:
     browse = ["C:/v/one.mp4", "C:/v/two.mp4", "C:/v/three.mp4"]
     _set_current(config, 2, "C:/v/two.mp4")
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
     assert _playlist(config, 2) == browse
@@ -3365,7 +3312,7 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     paths, no_loop only clears the flag and never reshapes the live queue."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[]):
         state, ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
 
     assert _playlist(config, 2) == []  # empty browse never blanks the live queue
@@ -3376,34 +3323,29 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
 
 # --- the loop key's cycle: seeds, actions, off -------------------------------
 
-def _cycle_index(tmp_path: Path, *, seed_family: bool = True,
-                 action_group: bool = True) -> tuple[GroupIndex, str, str, str]:
-    """A three-clip index where the clip on screen (a) has both loops to offer: an
-    action group {a, b} and a seed family {a, c}.  Either can be collapsed to a
-    group of one — a clip nobody re-seeded, or a subject with a single act."""
-    files = {name: tmp_path / f"{name}.mp4" for name in ("a", "b", "c")}
-    for f in files.values():
-        f.write_text("x", encoding="utf-8")
-    a, b, c = (str(files["a"]), str(files["b"]), str(files["c"]))
-    ka, kb, kc = normalize_path_key(a), normalize_path_key(b), normalize_path_key(c)
-    return GroupIndex(
-        action_key_by_path={ka: "subject", kb: "subject"},
-        action_members={"subject": [a, b] if action_group else [a]},
-        action_by_path={ka: "Alpha", kb: "Beta", kc: "Alpha"},
-        seed_key_by_path={ka: ("family", "1"), kc: ("family", "2")},
-        seed_members={"family": [a, c] if seed_family else [a]},
-        path_by_key={ka: a, kb: b, kc: c},
-    ), a, b, c
+def _cycle_config(tmp_path: Path, *, seed_family: bool = True,
+                  action_group: bool = True, side: int = 2) -> tuple[BridgeConfig, str, str, str]:
+    """A three-clip library where the clip on screen (a) has both loops to
+    offer: an action group {a, b} and a seed family {a, c}.  Either can be
+    collapsed to a group of one — a subject with a single act (b rendered from
+    another scene entirely), or a clip nobody re-seeded doing a's act (c
+    re-labelled to an act of its own)."""
+    videos = {
+        "a": _subject_meta(image_seed="1", action="Alpha"),
+        "b": (_subject_meta(image_seed="1", action="Beta") if action_group
+              else _subject_meta(prompt="another scene", image_seed="7", action="Beta")),
+        "c": _subject_meta(image_seed="2", action="Alpha" if seed_family else "Gamma"),
+    }
+    config, paths = _make_grouped_config(tmp_path, videos, side=side)
+    return config, paths["a"], paths["b"], paths["c"]
 
 
 def test_the_loop_key_starts_a_seed_loop_when_nothing_is_looping(tmp_path: Path):
     """The cycle's first stop: a side that is not looping starts on the seed family."""
-    config = _make_config(tmp_path)
-    index, a, _b, c = _cycle_index(tmp_path)
+    config, a, _b, c = _cycle_config(tmp_path)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, ops = dispatch_command("portrait_loop", _make_state(), config)
+    state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
     assert state.portrait_loop == "seed"
     assert _playlist(config, 2) == [a, c]
@@ -3411,12 +3353,10 @@ def test_the_loop_key_starts_a_seed_loop_when_nothing_is_looping(tmp_path: Path)
 
 
 def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
-    config = _make_config(tmp_path)
-    index, a, b, _c = _cycle_index(tmp_path)
+    config, a, b, _c = _cycle_config(tmp_path)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+    state, _ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
 
     assert state.portrait_loop == "action"
     assert _playlist(config, 2) == [a, b]
@@ -3424,13 +3364,11 @@ def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
 
 def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
     """The cycle's last stop is the old behavior — back to the browse, filter kept."""
-    config = _make_config(tmp_path)
-    index, a, _b, _c = _cycle_index(tmp_path)
+    config, a, _b, _c = _cycle_config(tmp_path)
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-            patch("fun_time.command_dispatch.satellite_browse_paths", return_value=browse):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="action"), config)
 
     assert state.portrait_loop == ""
@@ -3440,13 +3378,11 @@ def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
 
 def test_the_loop_key_wraps_from_off_back_round_to_the_seeds(tmp_path: Path):
     """Three presses come back where they started, so the key never dead-ends."""
-    config = _make_config(tmp_path)
-    index, a, _b, _c = _cycle_index(tmp_path)
+    config, a, _b, _c = _cycle_config(tmp_path)
     _set_current(config, 2, a)
 
     state = _make_state()
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-            patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[a]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
         axes = []
         for _press in range(4):
             state, _ops = dispatch_command("portrait_loop", state, config)
@@ -3463,12 +3399,10 @@ def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
     tried the seeds again and locked again — the action loop was unreachable from
     the keyboard on every clip with a family of one.
     """
-    config = _make_config(tmp_path)
-    index, a, b, _c = _cycle_index(tmp_path, seed_family=False)
+    config, a, b, _c = _cycle_config(tmp_path, seed_family=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("portrait_loop", _make_state(), config)
+    state, _ops = dispatch_command("portrait_loop", _make_state(), config)
 
     assert state.portrait_loop == "action"
     assert _playlist(config, 2) == [a, b]
@@ -3479,12 +3413,10 @@ def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Pat
     """With nothing on the clip to loop, the press does what "loop seeds" does on a
     lone clip — a single-video lock — rather than falling through to an off that is
     already off, which would rebuild the browse for nothing."""
-    config = _make_config(tmp_path)
-    index, a, _b, _c = _cycle_index(tmp_path, seed_family=False, action_group=False)
+    config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-            patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
         state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
     browse.assert_not_called()  # the browse is never rebuilt by a press that locks
@@ -3501,12 +3433,10 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
     such a clip, so a second press that locked again held the clip with no way to
     release it from the keys the loop owns.
     """
-    config = _make_config(tmp_path)
-    index, a, _b, _c = _cycle_index(tmp_path, seed_family=False, action_group=False)
+    config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-            patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
         state, _ops = dispatch_command("portrait_loop", _make_state(), config)
         state, ops = dispatch_command("portrait_loop", state, config)
 
@@ -3519,12 +3449,10 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
 def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
     """A loop whose clip has auto-advanced somewhere with no groups still steps
     off — the off stop is never skipped for want of a loopable axis."""
-    config = _make_config(tmp_path)
-    index, a, _b, _c = _cycle_index(tmp_path, seed_family=False, action_group=False)
+    config, a, _b, _c = _cycle_config(tmp_path, seed_family=False, action_group=False)
 
     _set_current(config, 2, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index), \
-            patch("fun_time.command_dispatch.satellite_browse_paths", return_value=[a]):
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
         state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
 
     assert state.portrait_loop == ""
@@ -3532,12 +3460,10 @@ def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
 
 
 def test_the_loop_key_drives_only_its_own_side(tmp_path: Path):
-    config = _make_config(tmp_path)
-    index, a, _b, c = _cycle_index(tmp_path)
+    config, a, _b, c = _cycle_config(tmp_path, side=3)
 
     _set_current(config, 3, a)
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        state, _ops = dispatch_command("landscape_loop", _make_state(), config)
+    state, _ops = dispatch_command("landscape_loop", _make_state(), config)
 
     assert (state.landscape_loop, state.portrait_loop) == ("seed", "")
     assert _playlist(config, 3) == [a, c]
@@ -3549,7 +3475,7 @@ def test_the_loop_key_does_nothing_with_no_clip_on_screen(tmp_path: Path):
     to the off stop and rebuild the browse."""
     config = _make_config(tmp_path)
 
-    with patch("fun_time.command_dispatch.satellite_browse_paths") as browse:
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
         state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
 
     browse.assert_not_called()
@@ -3605,11 +3531,12 @@ def test_a_sided_fmode_leaves_the_other_sides_loop_running(tmp_path: Path):
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
-    config = _make_config(tmp_path)
+    config, paths = _make_grouped_config(tmp_path, {
+        "clip": _subject_meta(action="Beta Gamma"),
+    })
 
-    _set_current(config, 2, "C:/v/clip.mp4")
-    with patch("fun_time.command_dispatch._video_action_label", return_value="Beta Gamma"), \
-         patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    _set_current(config, 2, paths["clip"])
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
 
@@ -3621,39 +3548,36 @@ def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
 def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Path):
     """A group command names the clip the speaker had in front of them, so the
     group is that clip's — not that of whatever the satellite advanced to."""
-    config = _make_config(tmp_path)
-    index, meant, sibling = _loop_index(tmp_path, axis="action")
+    config, meant, sibling = _loop_config(tmp_path, axis="action")
 
     _set_current(config, 2, "C:/v/advanced_to.mp4")
-    with patch("fun_time.command_dispatch._satellite_group_index", return_value=index):
-        dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)
+    dispatch_command("portrait_action_loop", _make_state(), config, target_path=meant)
 
     # The group is the back-dated (spoken) clip's, not the newcomer's.
     assert sorted(_playlist(config, 2)) == sorted([meant, sibling])
 
 
 def test_lock_action_filters_to_the_action_of_the_video_playing_when_spoken(tmp_path: Path):
-    config = _make_config(tmp_path)
-    meant = "C:/v/meant.mp4"
-    labeled: list[str] = []
+    config, paths = _make_grouped_config(tmp_path, {
+        "meant": _subject_meta(action="Beta Gamma"),
+        "advanced_to": _subject_meta(image_seed="2", action="Other"),
+    })
 
-    _set_current(config, 2, "C:/v/advanced_to.mp4")
-    with patch("fun_time.command_dispatch._video_action_label",
-               side_effect=lambda path, _config: labeled.append(path) or "Beta Gamma"), \
-         patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    _set_current(config, 2, paths["advanced_to"])
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result()
-        dispatch_command("portrait_lock_action", _make_state(), config, target_path=meant)
+        dispatch_command("portrait_lock_action", _make_state(), config,
+                         target_path=paths["meant"])
 
-    assert labeled == [meant]
+    # The act filtered to is the back-dated (spoken) clip's, not the newcomer's.
     assert mock_filter.call_args.kwargs["query"] == "beta gamma"
 
 
 def test_lock_action_without_metadata_says_so(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    _set_current(config, 3, "C:/v/clip.mp4")
-    with patch("fun_time.command_dispatch._video_action_label", return_value=""), \
-         patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
+    _set_current(config, 3, "C:/v/clip.mp4")  # a clip with no sidecar at all
+    with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
 
     mock_filter.assert_not_called()
@@ -3673,7 +3597,7 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
     there is nothing there — the save died in its ``cwd=`` and the hotkey looked
     like the branch had broken it.  The siblings live beside the primary
     checkout, which a worktree can name because they share a git directory."""
-    from fun_time.command_dispatch import _clipper_project_dir
+    from fun_time.clipper_save import _clipper_project_dir
 
     _clipper_project_dir.cache_clear()
     try:
@@ -3688,16 +3612,16 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
 def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
     """No worse than it was: where git cannot answer, the checkout that is
     running is the only guess available."""
-    import fun_time.command_dispatch as command_dispatch
+    import fun_time.clipper_save as clipper_save
 
-    command_dispatch._clipper_project_dir.cache_clear()
+    clipper_save._clipper_project_dir.cache_clear()
     try:
         with patch("fun_time.branch_session.primary_checkout", side_effect=OSError("no git")):
-            resolved = command_dispatch._clipper_project_dir()
+            resolved = clipper_save._clipper_project_dir()
     finally:
-        command_dispatch._clipper_project_dir.cache_clear()
+        clipper_save._clipper_project_dir.cache_clear()
 
-    assert resolved == Path(command_dispatch.__file__).resolve().parents[1].parent / "clipper"
+    assert resolved == Path(clipper_save.__file__).resolve().parents[1].parent / "clipper"
 
 
 def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch):
@@ -4000,3 +3924,201 @@ class TestOmniPauseWithOrigenerator:
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
         assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
         assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+
+
+# --- the lock helpers, at the file channel ----------------------------------
+# Each lock action appends a verb to the satellite's command file — LOCK to
+# hold the current clip, UNLOCK to release it, NEXT to advance, TRASH to drop
+# and move on.  These drive the three helpers directly; the routing through
+# dispatch_command is covered above, and the pure decision table they follow
+# is tests/test_lock.py's.
+
+def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
+    config = _make_config(tmp_path)
+    _set_current(config, 2, "clip.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.ensure_in_favs") as favs,
+        caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
+    ):
+        state, _ops = _toggle_lock(2, _make_state(locked2=False), config)
+
+    assert state.locked2 is True
+    # Locking holds the current clip (LOCK) and does not advance past it.
+    assert _cmds(config, 2) == ["LOCK"]
+    assert favs.call_args[0][1] == "clip.mp4"
+    assert "Locked portrait satellite" in caplog.text
+
+
+def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, "clip.mp4")
+
+    with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
+        state, _ops = _toggle_lock(3, _make_state(locked3=True), config)
+
+    assert state.locked3 is False
+    # Unlocking releases the hold (UNLOCK) and moves on rather than replaying (NEXT).
+    assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
+    assert "Unlocked landscape satellite" in caplog.text
+
+
+def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    state = cancel_lock(2, _make_state(locked2=True), config)
+
+    assert state.locked2 is False
+    # A locked side is repeat-one; cancelling it queues UNLOCK to restore advance.
+    assert _cmds(config, 2) == ["UNLOCK"]
+
+
+def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    state = cancel_lock(2, _make_state(locked2=False), config)
+
+    assert state.locked2 is False
+    # Nothing was locked, so there is no hold to release — no verb is queued.
+    assert _cmds(config, 2) == []
+
+
+def test_locking_a_known_video_opens_an_rfb_tab(tmp_path: Path):
+    config = _make_config(tmp_path)
+    from fun_time.media_actions import WEB_PROVIDERS
+
+    _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
+
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
+        _state, ops = _toggle_lock(2, _make_state(locked2=False), config)
+
+    assert any(op.op == "open_rfb_tab" for op in ops)
+
+
+def test_unlocking_opens_no_rfb_tab(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
+
+    _state, ops = _toggle_lock(2, _make_state(locked2=True), config)
+
+    assert not any(op.op == "open_rfb_tab" for op in ops)
+
+
+def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path: Path, caplog):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, "odd.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.remove_from_favs") as favs,
+        patch("fun_time.command_dispatch.move_to_weird") as weird,
+        caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
+    ):
+        state, ops = _discard(3, _make_state(locked3=True), config)
+
+    assert state.locked3 is False
+    # A locked discard drops the repeat-one hold (UNLOCK) then trashes the clip,
+    # which advances into the playlist (TRASH).
+    assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
+    assert favs.call_args[0][1] == "odd.mp4"
+    assert weird.call_args[0][1] == Path("odd.mp4")
+    assert "Discarding from player 3: odd.mp4" in caplog.text
+    assert [(op.op, op.key, op.source) for op in ops] == [
+        ("notice", "Marked weird", "landscape")
+    ]
+
+
+def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 3, "odd.mp4")
+
+    with (
+        patch("fun_time.command_dispatch.remove_from_favs"),
+        patch("fun_time.command_dispatch.move_to_weird"),
+    ):
+        state, _ops = _discard(3, _make_state(locked3=False), config)
+
+    assert state.locked3 is False
+    # Nothing to release, so discard is a bare TRASH (drop current, play next).
+    assert _cmds(config, 3) == ["TRASH"]
+
+
+def _favorite_clip(tmp_path: Path, config, name: str) -> Path:
+    """A real file on disk that is also a row in the favorites list."""
+    video = tmp_path / "clips" / name
+    video.parent.mkdir(parents=True, exist_ok=True)
+    video.write_bytes(b"video")
+    ensure_in_favs(config.favs_file, str(video))
+    return video
+
+
+def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path, caplog):
+    """Discarding a favorite demotes it instead of condemning it: the row leaves
+    the favs list, and nothing else about the clip changes."""
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "kept.mp4")
+    _set_current(config, 3, str(video))
+
+    with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
+        state, ops = _discard(3, _make_state(locked3=False), config)
+
+    assert state.locked3 is False
+    # NEXT, not TRASH: it moves on from the clip but leaves it in the playlist,
+    # so PREV comes straight back to it.
+    assert _cmds(config, 3) == ["NEXT"]
+    assert str(video) not in config.favs_file.read_text(encoding="utf-8")
+    assert video.exists()
+    assert list(config.weird_dir.iterdir()) == []
+    assert f"Removed from favorites on player 3: {video}" in caplog.text
+    # The demotion and the condemnation look the same on screen otherwise, so
+    # each says which one it was.
+    assert [(op.op, op.key, op.source) for op in ops] == [
+        ("notice", "Unfavorited", "landscape")
+    ]
+
+
+def test_demoting_a_favorite_the_player_already_left_does_not_drag_it_back(tmp_path: Path):
+    """Back-dating exists so a condemned clip is the one dropped.  A demotion
+    drops nothing, so a satellite that has moved on is left where it is."""
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "spoken_about.mp4")
+    _set_current(config, 3, str(tmp_path / "clips" / "advanced_to.mp4"))
+
+    _state, ops = _discard(3, _make_state(locked3=False), config, target_path=str(video))
+
+    assert _cmds(config, 3) == []
+    assert str(video) not in config.favs_file.read_text(encoding="utf-8")
+    assert [op.key for op in ops] == ["Unfavorited"]
+
+
+def test_discard_with_no_clip_on_screen_announces_nothing(tmp_path: Path):
+    """Nothing to unfavorite and nothing to condemn, so nothing is claimed."""
+    config = _make_config(tmp_path)
+    _set_current(config, 2, "")
+
+    _state, ops = _discard(2, _make_state(locked2=False), config)
+
+    assert ops == []
+
+
+def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
+    """The demotion is one step only — once a clip is out of the favorites, the
+    next discard is the full condemnation: dropped from the playlist (TRASH) and
+    moved out of the library."""
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "twice.mp4")
+    _set_current(config, 2, str(video))
+
+    _state, demote_ops = _discard(2, _make_state(locked2=False), config)
+    assert video.exists()
+
+    _state, condemn_ops = _discard(2, _make_state(locked2=False), config)
+
+    assert [op.key for op in demote_ops] == ["Unfavorited"]
+    assert [op.key for op in condemn_ops] == ["Marked weird"]
+    # And in different colors: undoing a favoriting is one of the things green
+    # is kept for, condemning a clip that was never a favorite is not.
+    assert [op.level for op in demote_ops] == [FAVORITE_NOTICE_LEVEL]
+    assert [op.level for op in condemn_ops] == [NOTICE]
+    assert _cmds(config, 2) == ["NEXT", "TRASH"]
+    assert not video.exists()
+    assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]

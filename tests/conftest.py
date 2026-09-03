@@ -30,6 +30,14 @@ from fun_time.branch_session import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 
 from fun_time import win32, windows_bridge_orchestrator
+from fun_time.config import DEFAULT_CONFIG_PATH
+
+# test_real_config_launchable is a check on THIS MACHINE's state — the
+# git-ignored real config — not on the code.  Off the machine (CI, public
+# checkouts) there is nothing to validate, and skipping put a permanent hole
+# in the zero-skips rule; so off the machine the file is not collected at all.
+if not DEFAULT_CONFIG_PATH.is_file():
+    collect_ignore = ["test_real_config_launchable.py"]
 
 
 @pytest.fixture(autouse=True, scope="session")
@@ -73,7 +81,7 @@ def _never_mutate_a_real_window(monkeypatch):
 def _never_hold_the_live_loopback_port(monkeypatch):
     """Keep the orchestrator tests off the port a live session serves on.
 
-    Every test that runs ``run_python_orchestrated_bridge`` reaches the real
+    Every test that runs ``run_session`` reaches the real
     ``serve_loopback``, and a bound port is a bound port: for the length of the
     run this pytest — not the user — would own 8770.  A Fun Time opened meanwhile
     finds it busy, logs the warning, and comes up with no loopback server at
@@ -119,6 +127,38 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 
 
+@pytest.fixture(autouse=True)
+def _fresh_group_index_cache():
+    """Start every test with an empty media-metadata group-index cache.
+
+    ``_INDEX_CACHE`` is process-global and survives between tests; before this
+    fixture, whether a test began clean depended on its author remembering a
+    ``reset_group_index_cache()`` prelude (ten call sites, seven provably
+    unnecessary), and a forgotten one made a failure depend on run order."""
+    from fun_time.media_metadata import reset_group_index_cache
+
+    reset_group_index_cache()
+
+
+@pytest.fixture(autouse=True)
+def _never_inherit_the_integration_flag(monkeypatch):
+    """Strip ``FUN_TIME_RUN_INTEGRATION`` from every unit test's environment.
+
+    The flag tells the production code it is running under the hidden-desktop
+    integration harness, and it flips real-window branches all over the tree
+    (skip the focus steal, suppress the unsuspend, no activation) — so a shell
+    that still exports it, a developer mid-integration-debugging, would flip
+    those branches under the whole unit suite.  Scrubbed once here rather than
+    as a delenv prelude in every test that noticed (27 of them, before this).
+
+    The tests that are ABOUT the integration branches ``monkeypatch.setenv``
+    the flag back, which runs after this fixture and wins.  The integration
+    suite overrides this fixture in its own conftest — there the flag is the
+    point.
+    """
+    monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+
+
 TMP_ROOT = Path(
     os.environ.get(
         "FUN_TIME_PYTEST_TMP_ROOT",
@@ -129,6 +169,16 @@ TMP_ROOT = Path(
 
 @pytest.fixture()
 def tmp_path() -> Path:
+    """Replace pytest's builtin ``tmp_path`` with a checkout-local scratch dir.
+
+    Each test gets ``.tmp-pytest-local/case_<uuid>``, removed in the finally —
+    including on failure, so unlike pytest's own fixture there is no
+    retained-last-3-runs debris to inspect afterwards.  Note the trade-offs:
+    the scratch tree lives inside the checkout (git-ignored, but on a synced
+    drive), and ``tmp_path_factory`` (and plugins built on it) still point at
+    the system temp dir, so the two are not interchangeable.  Set
+    ``FUN_TIME_PYTEST_TMP_ROOT`` to relocate it.
+    """
     TMP_ROOT.mkdir(parents=True, exist_ok=True)
     path = (TMP_ROOT / f"case_{uuid.uuid4().hex}").resolve()
     path.mkdir()

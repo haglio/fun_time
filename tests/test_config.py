@@ -155,7 +155,7 @@ class TestLoadConfig:
         with pytest.raises(ValueError, match="nau_library_dirs"):
             load_config(path)
 
-    def test_nau_library_dirs_not_a_list(self, tmp_path: Path, cfg_factory):
+    def test_nau_library_dirs_not_a_list(self, cfg_factory):
         path = cfg_factory({"paths": {"nau_library_dirs": "not-a-list"}})
         with pytest.raises(TypeError, match="nau_library_dirs"):
             load_config(path)
@@ -301,9 +301,12 @@ class TestRegenConfig:
         assert cfg.random_favs_browser.enabled is True
         assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
 
-    def test_nau_library_dir_property(self, cfg_path: Path, tmp_path: Path):
+    def test_a_singular_dir_key_is_read_as_a_one_folder_list(self, cfg_path: Path, tmp_path: Path):
+        """README offers `portrait_dir` beside `portrait_dirs` for the one-folder
+        case, and the test config is written the singular way."""
         cfg = load_config(cfg_path)
-        assert cfg.paths.nau_library_dir == (tmp_path / "videos" / "videos" / "nau_library").resolve()
+        assert cfg.paths.portrait_dirs == ((tmp_path / "videos" / "videos" / "portrait").resolve(),)
+        assert cfg.paths.landscape_dirs == ((tmp_path / "videos" / "videos" / "landscape").resolve(),)
 
     def test_multiple_nau_library_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
@@ -327,8 +330,8 @@ class TestRegenConfig:
         cfg = load_config(path)
         assert len(cfg.paths.portrait_dirs) == 2
         assert len(cfg.paths.landscape_dirs) == 2
-        assert cfg.paths.portrait_dir == (tmp_path / "portrait").resolve()
-        assert cfg.paths.landscape_dir == (tmp_path / "landscape").resolve()
+        assert cfg.paths.portrait_dirs[0] == (tmp_path / "portrait").resolve()
+        assert cfg.paths.landscape_dirs[0] == (tmp_path / "landscape").resolve()
 
 
 # ---------------------------------------------------------------------------
@@ -379,7 +382,7 @@ class TestVoiceControlConfig:
         cfg = load_config(path)
         assert cfg.voice_control.enabled is False
 
-    def test_loads_when_present(self, cfg_factory, tmp_path: Path):
+    def test_loads_when_present(self, cfg_factory):
         path = cfg_factory({
             "voice_control": {
                 "enabled": True,
@@ -473,3 +476,57 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_cmd_file == state / "origenerator_cmd.txt"
         assert cfg.origenerator_paused_file == state / "origenerator_paused.txt"
         assert cfg.origenerator_status_file == state / "origenerator_status.txt"
+
+
+class TestTheProjectsOwnPaths:
+    """Where this checkout is, computed once instead of at six call sites.
+
+    Each copy silently encoded that its module sits exactly one directory below
+    the root, so a module that moved a level took its icon path with it and
+    failed at run time rather than at import.
+    """
+
+    def test_the_icon_sits_at_the_root_of_this_checkout(self):
+        from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+
+        assert PROJECT_ICON == PROJECT_DIR / "icon.ico"
+        assert PROJECT_ICON.is_file()
+
+    def test_the_root_is_the_one_the_config_resolves_against(self):
+        """One root, so a relative path in the config and the icon on the
+        window's title bar cannot come from two different checkouts."""
+        from fun_time.config import PROJECT_DIR as CONFIG_ROOT
+        from fun_time.project_paths import PROJECT_DIR
+
+        assert CONFIG_ROOT is PROJECT_DIR
+
+    def test_every_module_that_wants_the_icon_asks_for_that_one(self):
+        """Five of the six copies; `satellite.app` keeps its own, and its
+        comment says why.  Read from the source, because three of the five are
+        uses rather than bindings and an alias would not show them."""
+        import ast
+
+        from fun_time.project_paths import PROJECT_DIR
+
+        wants = {
+            "fun_time/process_identity.py", "fun_time_vr/vr_session.py",
+            "fun_time/overlay_window.py", "fun_time/dashboard_app.py",
+        }
+        for name in sorted(wants):
+            source = (PROJECT_DIR / name).read_text(encoding="utf-8")
+            assert "PROJECT_ICON" in source, name
+            tree = ast.parse(source)
+            recomputed = [
+                n for n in ast.walk(tree)
+                if isinstance(n, ast.Constant) and n.value == "icon.ico"]
+            assert recomputed == [], f"{name} still spells the path itself"
+
+    def test_and_the_one_that_keeps_its_own_says_why(self):
+        """`satellite/` imports nothing from `fun_time`, and one constant is
+        not worth inverting that."""
+        from fun_time.project_paths import PROJECT_DIR
+        from satellite.app import ICON_PATH
+
+        assert ICON_PATH == PROJECT_DIR / "icon.ico"
+        source = (PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8")
+        assert "imports nothing from fun_time" in source

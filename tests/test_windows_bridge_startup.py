@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import configparser
 import json
 import os
@@ -12,11 +14,14 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
-from fun_time.command_dispatch import BridgeState
+from fun_time.shared_state import BridgeState
 from fun_time.modes import SatelliteLibraryContext
 from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
+from fun_time.players import Player
+from fun_time.modes import SatelliteBuild
+from fun_time.satellite_slot import SatelliteSlot
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
-from fun_time.win32 import APP_USER_MODEL_ID
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
     _build_satellite_launch_command,
@@ -97,7 +102,7 @@ def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
     )
 
 
-def test_launch_broker_tray_skips_launch_when_no_launcher(tmp_path: Path):
+def test_launch_broker_tray_skips_launch_when_no_launcher():
     with patch("fun_time.windows_bridge_startup.subprocess.Popen") as popen:
         launch_broker_tray(None)
 
@@ -196,6 +201,17 @@ def test_broker_source_mtime_is_the_newest_python_file_in_the_package(tmp_path: 
     os.utime(package / "osr2_broker.log", (9000.0, 9000.0))
 
     assert broker_source_mtime(launcher) == 3000.0
+
+
+def test_a_missing_tray_launcher_says_so_rather_than_going_quiet(tmp_path: Path, caplog):
+    """The one thing the second, deleted broker policy said that this one did
+    not: a session whose config names no tray launcher (or names a file that is
+    not there) gets no broker, and used to get no line about it either — which
+    is a silent OSR2 with nothing anywhere to explain it."""
+    with caplog.at_level(logging.WARNING, logger="fun_time.windows_bridge_startup"):
+        launch_broker_tray(tmp_path / "nowhere" / "launch_broker_tray.vbs")
+
+    assert any("broker" in record.getMessage().lower() for record in caplog.records)
 
 
 def test_ensure_broker_leaves_a_live_broker_alone(tmp_path: Path):
@@ -524,24 +540,31 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         nau_cmd_file=state_dir / "nau_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
+        portrait=SatelliteSlot(
+            side=Player.PORTRAIT,
+            sources=str(tmp_path / "portrait_a"),
+            cmd_file=state_dir / "portrait_cmd.txt",
+            paused_file=state_dir / "portrait_paused.txt",
+            status_file=state_dir / "portrait_status.txt",
+            log_file=state_dir / "portrait_satellite.log",
+            playlist_file=state_dir / "portrait_playlist.tsv",
+            rect=WindowRect(x=2560, y=0, width=1440, height=2500),
+        ),
+        landscape=SatelliteSlot(
+            side=Player.LANDSCAPE,
+            sources=str(tmp_path / "landscape_a"),
+            cmd_file=state_dir / "landscape_cmd.txt",
+            paused_file=state_dir / "landscape_paused.txt",
+            status_file=state_dir / "landscape_status.txt",
+            log_file=state_dir / "landscape_satellite.log",
+            playlist_file=state_dir / "landscape_playlist.tsv",
+            rect=WindowRect(x=1664, y=0, width=896, height=1392),
+        ),
         nau_status_file=state_dir / "nau_status.txt",
-        portrait_log_file=state_dir / "portrait_satellite.log",
-        landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=WindowRect(x=2560, y=0, width=1440, height=2500),
-        landscape_rect=WindowRect(x=1664, y=0, width=896, height=1392),
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
-        portrait_sources=str(tmp_path / "portrait_a"),
-        landscape_sources=str(tmp_path / "landscape_a"),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         result_file=tmp_path / "core_session.ini",
-        regen_media_root=tmp_path / "media",
         regen_metadata_root=tmp_path / "metadata",
     )
 
@@ -552,8 +575,6 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
     result_file = kwargs["result_file"]
-    portrait_rect = kwargs["portrait_rect"]
-    landscape_rect = kwargs["landscape_rect"]
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites") as reap, patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -594,8 +615,8 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # off, which is what a session with nothing to resume opens in.
     build.assert_called_once_with(
         main_sources=kwargs["main_sources"],
-        portrait_sources=kwargs["portrait_sources"],
-        landscape_sources=kwargs["landscape_sources"],
+        portrait=SatelliteBuild(sources=kwargs["portrait"].sources),
+        landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         library=SatelliteLibraryContext(
@@ -606,36 +627,22 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # The two native satellites are launched with OUR python (the player ships
     # from this repo), the satellite module, the builder's playlists, and each
     # side's file quartet.
+    # The whole launch bundle travels as the two slots — each side's file
+    # quartet, log, playlist, rect and HUD file in one value — plus the shared
+    # settings.  project_dirs names the sibling checkouts, because the
+    # satellites import player_core like Genau and Nau do.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait_playlist=state_dir / "portrait_playlist.tsv",
-        landscape_playlist=state_dir / "landscape_playlist.tsv",
-        portrait_cmd_file=state_dir / "portrait_cmd.txt",
-        portrait_paused_file=state_dir / "portrait_paused.txt",
-        portrait_status_file=state_dir / "portrait_status.txt",
-        landscape_cmd_file=state_dir / "landscape_cmd.txt",
-        landscape_paused_file=state_dir / "landscape_paused.txt",
-        landscape_status_file=state_dir / "landscape_status.txt",
-        # Each side's stdout+stderr go to its own log, so a satellite that dies of
-        # an unhandled exception leaves the traceback on disk.
-        portrait_log_file=state_dir / "portrait_satellite.log",
-        landscape_log_file=state_dir / "landscape_satellite.log",
-        portrait_rect=portrait_rect,
-        landscape_rect=landscape_rect,
+        portrait=kwargs["portrait"],
+        landscape=kwargs["landscape"],
         result_file=result_file,
-        # Each satellite also draws its own lock HUD, so it is told which panel
-        # file to render and where to post the clicks on it.
-        portrait_hud_file=None,
-        landscape_hud_file=None,
         dashboard_cmd_file=None,
-        # And which sibling checkouts to run out of — the satellites import
-        # player_core, so the named checkouts reach them like Genau and Nau.
         project_dirs=None,
     )
 
 
-def _seed_resumable_session(tmp_path: Path, kwargs: dict) -> dict[str, list[str]]:
+def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     """Last session's three playlist files and status files, on disk.
 
     Each player gets two clips drawn from the very dirs this session's source
@@ -645,8 +652,8 @@ def _seed_resumable_session(tmp_path: Path, kwargs: dict) -> dict[str, list[str]
     state_dir = kwargs["state_dir"]
     state_dir.mkdir(parents=True, exist_ok=True)
     sources = {
-        "portrait": kwargs["portrait_sources"],
-        "landscape": kwargs["landscape_sources"],
+        "portrait": kwargs["portrait"].sources,
+        "landscape": kwargs["landscape"].sources,
         "nau": kwargs["main_sources"].split("|")[0],
     }
     left_on = {}
@@ -671,7 +678,7 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     player published and no fresh shuffle is built over them."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -714,7 +721,7 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     The mode is also handed back to the caller, because the windows have to be
     parked to match it and only the sequencer holds their handles."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     write_shared_state(
         shared_state_path(kwargs["state_dir"]), BridgeState(main_mode="genau")
     )
@@ -736,7 +743,7 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     command file before Nau launches, over the video the resume put at the top
     of the main player's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "nau_status.txt").write_text(
         f"video={left_on['nau'][1]}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
@@ -754,7 +761,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     nothing to land on and some other video leads.  Sending the bounds anyway
     would loop three seconds of a video the user never marked."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "nau_status.txt").write_text(
         f"video={tmp_path / 'deleted.mp4'}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
@@ -782,7 +789,7 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     was off, and the next "F-mode" then reported it *enabled* to no visible
     effect.  What shaped the files on disk comes back with them."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
     write_shared_state(state_file, BridgeState(
         main_f_mode=True,
@@ -814,7 +821,7 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     companion as the audible level, and to Nau as the level plus the mute it
     draws over it."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     write_shared_state(
         shared_state_path(kwargs["state_dir"]), BridgeState(volume=40, muted=True)
     )
@@ -835,7 +842,7 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     launches, and drained on its first tick over the clip the resume put at the
     top of its playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    _seed_resumable_session(tmp_path, kwargs)
+    _seed_resumable_session(kwargs)
     write_shared_state(
         shared_state_path(kwargs["state_dir"]), BridgeState(locked2=True, locked3=False)
     )
@@ -844,8 +851,8 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.locked2, state.locked3) == (True, False)
-    assert kwargs["portrait_cmd_file"].read_text(encoding="utf-8").split() == ["LOCK"]
-    assert not kwargs["landscape_cmd_file"].exists()
+    assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK"]
+    assert not kwargs["landscape"].cmd_file.exists()
 
 
 def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):
@@ -868,7 +875,7 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     say F-mode.  The order it came back in rides along for the same reason: the
     state carried forward has to describe the file this writes."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
     state_dir = kwargs["state_dir"]
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
@@ -898,7 +905,7 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     same dirs, so their resume is still last session's and is kept."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_dir = kwargs["state_dir"]
-    left_on = _seed_resumable_session(tmp_path, kwargs)
+    left_on = _seed_resumable_session(kwargs)
     # The other app's addition: a video from a library this session never names.
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
@@ -938,8 +945,8 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     fresh session's satellites would read paused and never play (frozen at 0).
     start_core_session must reset both to "0" before the satellites launch."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    portrait_paused = kwargs["portrait_paused_file"]
-    landscape_paused = kwargs["landscape_paused_file"]
+    portrait_paused = kwargs["portrait"].paused_file
+    landscape_paused = kwargs["landscape"].paused_file
     portrait_paused.parent.mkdir(parents=True, exist_ok=True)
     portrait_paused.write_text("1", encoding="utf-8")  # stranded by a prior OmniPause
     landscape_paused.write_text("1", encoding="utf-8")
@@ -962,7 +969,7 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
     session that closed in it comes back with both players paused (and black,
     off the published mode) — exactly as the mode switch would have left them,
     rather than playing invisibly under the restored app."""
-    from fun_time.command_dispatch import BridgeState
+    from fun_time.shared_state import BridgeState
     from fun_time.shared_state import shared_state_path, write_shared_state
 
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -980,8 +987,8 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
     ):
         start_core_session(**kwargs)
 
-    assert kwargs["portrait_paused_file"].read_text(encoding="utf-8") == "1"
-    assert kwargs["landscape_paused_file"].read_text(encoding="utf-8") == "1"
+    assert kwargs["portrait"].paused_file.read_text(encoding="utf-8") == "1"
+    assert kwargs["landscape"].paused_file.read_text(encoding="utf-8") == "1"
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
@@ -1010,7 +1017,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
-def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
+def test_launch_genau_starts_process_and_returns_pid():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1036,7 +1043,7 @@ def test_launch_genau_starts_process_and_returns_pid(tmp_path: Path):
     assert "--clips-folder" in command
 
 
-def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
+def test_launch_genau_forwards_command_and_paused_files():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1073,7 +1080,7 @@ def test_launch_genau_forwards_command_and_paused_files(tmp_path: Path):
     assert command[idx + 1] == "state/genau_drive.txt"
 
 
-def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
+def test_launch_genau_opens_on_the_clip_it_was_left_showing():
     """Genau rescans its clips folder every launch and starts at the top of it,
     so the clip a session was left on comes back only by being named — on the
     command line, since it has to be in hand before the first clip decodes."""
@@ -1093,7 +1100,7 @@ def test_launch_genau_opens_on_the_clip_it_was_left_showing(tmp_path: Path):
     assert command[command.index("--start-clip") + 1] == "C:/clips/alpha.mp4"
 
 
-def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume(tmp_path: Path):
+def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
     """A first run, or a Genau that published nothing: the flag is left off
     rather than passed empty, so Genau opens where its own scan starts."""
     class FakeProc:
@@ -1177,7 +1184,7 @@ def test_launch_nau_makes_it_borderless(tmp_path: Path):
     assert "--borderless" in popen.call_args.args[0]
 
 
-def test_launch_genau_passes_fun_time_flag(tmp_path: Path):
+def test_launch_genau_passes_fun_time_flag():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1224,7 +1231,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             return None
         return command[command.index("--taskbar-identity") + 1]
 
-    def test_the_satellites_are_told_who_they_belong_to(self, tmp_path: Path):
+    def test_the_satellites_are_told_who_they_belong_to(self):
         command = _build_satellite_launch_command(
             "python.exe", "satellite", title="Portrait AI Player",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
@@ -1246,7 +1253,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
-    def test_genau_is_told_who_it_belongs_to(self, tmp_path: Path):
+    def test_genau_is_told_who_it_belongs_to(self):
         command = self._launched(
             launch_genau,
             python_exe="python.exe", genau_module="genau.app", config_path="cfg.json",
@@ -1335,7 +1342,7 @@ class TestGenauCheckout:
 
         assert self._path(popen)[:2] == [str(genau), str(core)]
 
-    def test_naming_none_leaves_them_to_their_venv(self, tmp_path: Path):
+    def test_naming_none_leaves_them_to_their_venv(self):
         """What every session did before this, and what an ordinary one still
         does: nothing said about the path, so the editable installs answer."""
         with self._popen() as popen, patch(
@@ -1541,18 +1548,26 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
-            portrait_playlist=portrait_playlist,
-            landscape_playlist=landscape_playlist,
-            portrait_cmd_file=state_dir / "portrait_cmd.txt",
-            portrait_paused_file=state_dir / "portrait_paused.txt",
-            portrait_status_file=state_dir / "portrait_status.txt",
-            landscape_cmd_file=state_dir / "landscape_cmd.txt",
-            landscape_paused_file=state_dir / "landscape_paused.txt",
-            landscape_status_file=state_dir / "landscape_status.txt",
-            portrait_log_file=state_dir / "portrait_satellite.log",
-            landscape_log_file=state_dir / "landscape_satellite.log",
-            portrait_rect=portrait_rect,
-            landscape_rect=landscape_rect,
+            portrait=SatelliteSlot(
+                side=Player.PORTRAIT,
+                sources=str(tmp_path / "portrait_a"),
+                cmd_file=state_dir / "portrait_cmd.txt",
+                paused_file=state_dir / "portrait_paused.txt",
+                status_file=state_dir / "portrait_status.txt",
+                log_file=state_dir / "portrait_satellite.log",
+                playlist_file=portrait_playlist,
+                rect=portrait_rect,
+            ),
+            landscape=SatelliteSlot(
+                side=Player.LANDSCAPE,
+                sources=str(tmp_path / "landscape_a"),
+                cmd_file=state_dir / "landscape_cmd.txt",
+                paused_file=state_dir / "landscape_paused.txt",
+                status_file=state_dir / "landscape_status.txt",
+                log_file=state_dir / "landscape_satellite.log",
+                playlist_file=landscape_playlist,
+                rect=landscape_rect,
+            ),
             result_file=result_file,
         )
 
@@ -1768,7 +1783,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
     Without this a stranded child is an anonymous ``pythonw.exe`` among the
     user's other Python apps, and the only way to end it is to guess.  Asserted
-    at each launch site rather than on ``identified_python_exe`` alone: the
+    at each launch site rather than on ``NAMER.named_exe`` alone: the
     module can be right while a launcher still passes the plain interpreter
     straight through, which is exactly how the audio companion came to be the
     one process nobody could name.
@@ -1926,6 +1941,8 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
             reap_orphaned_satellites("satellite", [tmp_path / "portrait_status.txt"])
 
         ps_command = run.call_args[0][0][-1]
+        # app_support's namer spells the prefix the way this repo's own sweep
+        # always did (item 49), so the sweep carries a bare FunTime-.
         assert "FunTime-" in ps_command
         assert "pythonw?" in ps_command
 

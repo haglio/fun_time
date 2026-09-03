@@ -13,17 +13,17 @@ def test_resolve_playlist_reads_videos_dropping_funscripts(tmp_path):
     assert resolve_playlist(args) == [Path("a.mp4"), Path("b.mp4")]
 
 
-def test_resolve_playlist_without_a_file_is_empty(tmp_path):
+def test_resolve_playlist_without_a_file_is_empty():
     args = build_parser().parse_args([])
     assert resolve_playlist(args) == []
 
 
-def test_audio_muted_from_the_flag(tmp_path):
+def test_audio_muted_from_the_flag():
     assert audio_muted(build_parser().parse_args(["--no-audio"])) is True
     assert audio_muted(build_parser().parse_args([])) is False
 
 
-def test_audio_muted_from_the_env_contract(tmp_path, monkeypatch):
+def test_audio_muted_from_the_env_contract(monkeypatch):
     monkeypatch.setenv("FUN_TIME_MUTE_AUDIO", "1")
     assert audio_muted(build_parser().parse_args([])) is True
 

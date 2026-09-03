@@ -28,7 +28,7 @@ from typing import Sequence
 from player_core.file_channel import append_command
 from player_core.playlist import read_playlist
 
-from .command_dispatch import BridgeState
+from .shared_state import BridgeState
 from .media_metadata import normalize_path_key
 from .modes import source_roots, write_playlist_entries
 from .runtime_flow import SET_LOOP_CMD

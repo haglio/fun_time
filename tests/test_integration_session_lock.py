@@ -20,6 +20,8 @@ import time
 import uuid
 from pathlib import Path
 
+from app_support.threading_utils import wait_until
+
 import pytest
 
 from tests.integration.session_lock import (
@@ -149,10 +151,12 @@ def test_hold_integration_lock_queues_until_free_then_releases():
 
     thread = threading.Thread(target=contender)
     thread.start()
-    time.sleep(0.35)
-    # Still blocked behind the held lock, and it reported that it is waiting.
+    # Wait for the SIGNAL that the contender is queuing — its notify callback —
+    # not for a fixed nap.  The old 0.35s sleep made this the one test that
+    # could fail for the runner's load rather than for the code.
+    wait_until(lambda: bool(notifications), timeout=10.0)
+    # Notified it is waiting, and still blocked behind the held lock.
     assert not entered.is_set()
-    assert notifications, "expected the context manager to report it was queuing"
 
     blocker.release()
     blocker.close()

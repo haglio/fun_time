@@ -40,6 +40,13 @@ Before modifying any Win32 API call (ctypes, keyboard/mouse input, window manage
 
 If you cannot complete these steps, stop and say so. Do not submit a speculative fix.
 
+## Standing rules a comment cannot enforce
+
+- **The omnipause exempt set is the owner's call, not a judgment call.** A paused room may be heard to do exactly three things: resume, quit, retract the OSR2. Widening `SUSPEND_EXEMPT_COMMANDS` needs his sign-off; `tests/test_command_reference.py` pins the whole frozenset, so it fails rather than drifts. (The reference popup was exempt once and was deliberately un-exempted.)
+- **Every launch entry point calls `apply_genau_dirs_to_sys_path()` before importing anything that reaches the dispatch loop.** `tests/test_launch_smoke.py` imports each the way its `.vbs` runs it and goes red for whichever one is missing it.
+- **No key inside a satellite or a VR player ends that player.** A satellite is one of a set the sequencer placed, and killing one leaves the session running around a hole; the session ends as a whole, through Ctrl+Alt+Q. Do not add a per-window quit handler back.
+- **The shells are not unit-tested, on purpose:** `satellite/app.py`, `fun_time_vr/player.py`, `fun_time_vr/render.py`, `fun_time_vr/vr_session.py` need the libmpv DLL, a GL context or a headset. Logic that can be tested lives outside them — `satellite.session`, `satellite.runtime`, `fun_time_vr.roles`, `player_core.satellite_hud*` — and is tested against fakes. Put new logic there, not in a shell.
+
 ## AHK bridge constraints
 
 `windows_bridge_hotkeys.ahk` runs under `#SingleInstance Force`. Startup checks, integration runs, and AHK launch validations must be executed sequentially — parallel launches can evict each other.
@@ -75,7 +82,7 @@ every repo, read at runtime through the git-ignored overlays — so this habit i
 the only remaining path for a real name to get committed, and the only thing
 stopping it is you following this rule.
 
-Do not lean on the sanitize guard to catch it. `tools/sanitize_guard.py` fails
+Do not lean on the sanitize guard to catch it. `app_support.sanitize` fails
 the suite when a **known** blocked term appears in the tracked tree, but a brand-
 new performer name it has never seen passes every check and lands. The guard is a
 backstop for names already known; it cannot see the next one.

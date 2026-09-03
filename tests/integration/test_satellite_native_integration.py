@@ -10,22 +10,33 @@ from __future__ import annotations
 
 import glob
 import os
-import random
 import subprocess
+import sys
 import time
 
 import pytest
 
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
-from fun_time.lock_hud import build_hud_panel
+from fun_time.lock_hud import SideInputs, build_hud_panel
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
 from fun_time.thumbnail_cache import thumbnail_for
-from fun_time.win32 import get_process_creation_time
+from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
 
-from .integration_support import checkout_project_dirs, real_config_path
+from .integration_support import (
+    checkout_project_dirs,
+    real_config_path,
+    sample_library_clips,
+)
+
+pytestmark = [
+    pytest.mark.skipif(sys.platform != "win32",
+                       reason="Fun Time integration tests require Windows"),
+    pytest.mark.skipif(os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",
+                       reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
+]
 
 
 def _wait(predicate, *, timeout, desc):
@@ -42,8 +53,9 @@ def _wait(predicate, *, timeout, desc):
 def _sample_videos(count: int) -> list[str]:
     cfg = load_config(real_config_path())
     portrait_dir = str(cfg.paths.portrait_dirs[0])
-    return random.sample(
-        glob.glob(os.path.join(portrait_dir, "**", "*.mp4"), recursive=True), count)
+    return sample_library_clips(
+        glob.glob(os.path.join(portrait_dir, "**", "*.mp4"), recursive=True),
+        count, desc="portrait clips")
 
 
 def test_native_satellite_plays_and_obeys_commands(tmp_path):
@@ -176,8 +188,11 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
 
     def publish(locked: bool) -> None:
         publisher.publish("portrait", build_hud_panel(
-            "portrait", locked=locked, current=videos[0], index=None,
-            filter_query="alpha" if locked else "",
+            SideInputs(
+                "portrait", locked=locked, current=str(videos[0]),
+                filter_query="alpha" if locked else "",
+            ),
+            index=None,
         ))
 
     publish(locked=False)

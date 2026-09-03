@@ -5,29 +5,29 @@ history is a catalog of the loader's traps — graphics requirements queried
 before session creation, typed event casting, waiting for READY before the
 frame loop, and gating on view validity (an unlocated view reports an
 all-zero FOV, which is a division by zero in the projection matrix).
-Consolidating the two copies into a shared sibling is part of the planned
-GenauVR-engine extraction.
 
 Differences from GenauVR's: no controller actions (FunTimeVR is driven by the
 orchestrator's hotkeys and voice), no per-eye depth buffers (the scene draws
 in painter's order), and the desktop window is titled/iconed as Fun Time's.
 
-Not unit-tested: it needs the OpenXR loader, a runtime, and a live GL context.
+The OpenXR/GL shell -- see CLAUDE.md, "Standing rules"; the two copies and
+what waits on merging them are in docs/known-issues.md.
 """
 from __future__ import annotations
 
 import ctypes
 import logging
 from dataclasses import dataclass, field
-from pathlib import Path
 
 import glfw
 import xr
 from OpenGL import GL
 
+from fun_time.project_paths import PROJECT_ICON
+
 logger = logging.getLogger(__name__)
 
-_ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
+_ICON_PATH = PROJECT_ICON
 
 
 @dataclass
@@ -118,7 +118,7 @@ class VRSession:
         """Fun Time's icon via Win32 WM_SETICON — GLFW's own icon API loses to
         the taskbar (GenauVR's commit 722df45 learned this the slow way)."""
         try:
-            import ctypes.wintypes  # noqa: PLC0415 — Windows-only, error path tolerant
+            import ctypes.wintypes  # Windows-only, error path tolerant
 
             hwnd = glfw.get_win32_window(self._window)
             image_icon, lr_loadfromfile, wm_seticon = 1, 0x10, 0x80
@@ -151,7 +151,7 @@ class VRSession:
         # The loader requires this call before create_session.
         xr.get_opengl_graphics_requirements_khr(self._instance, system_id)
 
-        from OpenGL import WGL  # noqa: PLC0415 — Windows-only binding
+        from OpenGL import WGL  # Windows-only binding
 
         graphics_binding = xr.GraphicsBindingOpenGLWin32KHR(
             h_dc=WGL.wglGetCurrentDC(),
@@ -231,10 +231,6 @@ class VRSession:
     # ------------------------------------------------------------------
     # Frame loop
     # ------------------------------------------------------------------
-
-    @property
-    def window(self):
-        return self._window
 
     def window_close_requested(self) -> bool:
         return bool(glfw.window_should_close(self._window))

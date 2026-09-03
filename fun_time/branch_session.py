@@ -55,7 +55,6 @@ import shlex
 import shutil
 import subprocess
 import sys
-from dataclasses import dataclass
 from pathlib import Path
 
 # PROJECT_DIR names whichever checkout imported the package, and this module is
@@ -129,72 +128,6 @@ def primary_checkout(start: Path | None = None) -> Path:
     start = start or config_module.PROJECT_DIR
     common = _git(["rev-parse", "--git-common-dir"], start).strip()
     return (start / common).resolve().parent
-
-
-@dataclass(frozen=True)
-class Worktree:
-    """A checkout of this repo other than the primary, and what it is holding."""
-
-    path: Path
-    branch: str
-    age: str
-    subject: str
-
-    @property
-    def label(self) -> str:
-        """One line naming the branch and its latest work, for ``--list``.
-
-        The age is relative ("2 hours ago") because that is what identifies a
-        branch to somebody who was awake for it; a date would not.
-        """
-        return f"{self.branch} — {self.subject} ({self.age})"
-
-
-def _parse_worktree_records(porcelain: str) -> list[tuple[Path, str]]:
-    """(path, branch) for each record of ``git worktree list --porcelain``.
-
-    A record is a ``worktree`` line and the lines under it; a checkout that is
-    not on a branch has ``detached`` there instead of ``branch``.
-    """
-    records: list[tuple[Path, str]] = []
-    path: Path | None = None
-    branch = DETACHED
-    for line in porcelain.splitlines():
-        if line.startswith("worktree "):
-            if path is not None:
-                records.append((path, branch))
-            path, branch = Path(line.removeprefix("worktree ")), DETACHED
-        elif line.startswith("branch "):
-            branch = line.removeprefix("branch ").removeprefix("refs/heads/")
-    if path is not None:
-        records.append((path, branch))
-    return records
-
-
-def _last_commit(worktree: Path) -> tuple[int, str, str]:
-    """(commit timestamp, how long ago in words, subject) of the tip commit."""
-    line = _git(["log", "-1", "--format=%ct%x09%cr%x09%s"], worktree).strip()
-    stamp, age, subject = line.split(FIELD_SEPARATOR, 2)
-    return int(stamp), age, subject.replace(FIELD_SEPARATOR, " ")
-
-
-def list_worktrees(primary: Path | None = None) -> list[Worktree]:
-    """Every other checkout of this repo, most recent commit first.
-
-    Git is the source of truth rather than a glob of ``.claude/worktrees``, so a
-    worktree made by hand somewhere else is found too.  A registered worktree
-    whose directory is gone (deleted but not pruned) is skipped: there is
-    nothing left there to run.
-    """
-    primary = (primary or primary_checkout()).resolve()
-    dated: list[tuple[int, Worktree]] = []
-    for path, branch in _parse_worktree_records(_git(["worktree", "list", "--porcelain"], primary)):
-        if not path.is_dir() or path.resolve() == primary:
-            continue
-        stamp, age, subject = _last_commit(path)
-        dated.append((stamp, Worktree(path=path.resolve(), branch=branch, age=age, subject=subject)))
-    dated.sort(key=lambda pair: pair[0], reverse=True)
-    return [worktree for _stamp, worktree in dated]
 
 
 def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]]:
@@ -416,7 +349,7 @@ def _seeded_state_names() -> tuple[str, ...]:
     resume point and the shared state stay the branch's own; sharing those is
     what the separate state dir exists to prevent.
     """
-    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415 — pulls in cv2
+    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # pulls in cv2
 
     return ("watch_stats.json", THUMBNAIL_CACHE_DIRNAME)
 
@@ -832,26 +765,17 @@ def build_parser() -> argparse.ArgumentParser:
         help="Take WORKTREE's launcher (default: this checkout's) back out of the primary "
              "once its work has landed, and exit.",
     )
-    ap.add_argument(
-        "--list",
-        action="store_true",
-        help="List the worktrees that could be verified, newest first, and exit.",
-    )
     return ap
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
-    # A commit subject — or a path — can carry characters the console codepage
-    # has no room for, and the launcher redirects this console to a log file.
-    # Mark those rather than let a print take the launch down.
+    # A path can carry characters the console codepage has no room for, and the
+    # launcher redirects this console to a log file.  Mark those rather than let
+    # a print take the launch down.
     if hasattr(sys.stdout, "reconfigure"):
         sys.stdout.reconfigure(errors="replace")
-    if args.list:
-        for worktree in list_worktrees():
-            print(f"{worktree.path}{FIELD_SEPARATOR}{worktree.label}")
-        return 0
     if args.shortcut:
         target = config_module.PROJECT_DIR if args.shortcut == "." else Path(args.shortcut)
         print(write_launch_shortcut(target))

@@ -15,6 +15,7 @@ has.  So the committed example alone must be enough to bring the graph up.
 """
 from __future__ import annotations
 
+import ast
 import json
 import subprocess
 import sys
@@ -25,16 +26,13 @@ import pytest
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 
-# The launch entrypoint, plus the two modules ``main()`` imports lazily (so
-# importing the entrypoint alone would miss them).  Importing the entrypoint
-# transitively pulls the rest of the launch graph — the manifest, the dispatch
-# loop, the players' wiring, and voice_control -> voice_commands -> filter_vocab
-# -> content, which is where the module-level overlay reads live.
+# The launch entrypoint.  Importing it transitively pulls the whole launch
+# graph — the single-instance guard, the manifest, the dispatch loop, the
+# players' wiring, and voice_control -> voice_commands -> filter_vocab ->
+# content, which is where the module-level overlay reads live.
 _STARTUP_MODULES = (
     "fun_time.orchestrator",     # python -m fun_time.orchestrator
     "fun_time.voice_commands",   # module-level load_content()["clip_jump_phrases"]
-    "fun_time.single_instance",  # imported inside main()
-    "fun_time.win32",            # imported inside stamp_shortcut_aumid()
 )
 
 # Overlay keys read at import time by the launch graph; each must be present in
@@ -87,3 +85,34 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
     result = _import_startup_graph(broken_overlay)
     assert result.returncode != 0
     assert required_key in result.stderr
+
+
+def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
+    """The one module-level side effect on the launch path, pinned in place.
+
+    ``apply_genau_dirs_to_sys_path()`` must run AFTER ``branch_session`` is
+    imported (it is what provides it) and BEFORE the bridge is, because this
+    process resolves ``player_core`` through the venv — the primary's — and a
+    branch leaning on an unlanded player_core change then imports code the
+    primary does not have.  That is a session that dies at launch, and it
+    reached him that way on 2026-08-13.  An import tidied above the call, or the
+    call slid below one, puts it back; this says so instead of a comment hoping
+    someone reads it.
+    """
+    tree = ast.parse((PROJECT_DIR / "fun_time" / "orchestrator.py").read_text(encoding="utf-8"))
+    provides = applies = uses = None
+    for node in tree.body:
+        if isinstance(node, ast.ImportFrom) and node.module == "branch_session":
+            provides = node.lineno
+        elif (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
+                and getattr(node.value.func, "id", "") == "apply_genau_dirs_to_sys_path"):
+            applies = node.lineno
+        elif (isinstance(node, ast.ImportFrom)
+                and node.module == "windows_bridge_orchestrator"):
+            uses = node.lineno
+
+    assert provides and applies and uses, "the launch path's import shape has moved"
+    assert provides < applies < uses, (
+        "the genau/player_core override has to be applied after branch_session "
+        "is imported and before the bridge is"
+    )

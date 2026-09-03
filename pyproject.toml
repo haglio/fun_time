@@ -5,7 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fun-time"
 version = "0.1.0"
-requires-python = ">=3.10"
+# 3.12, not 3.10: branch_session.py:592 is a PEP 701 f-string (a `"` and a
+# backslash inside the replacement field), which will not parse before it.
+requires-python = ">=3.12"
 # The shared siblings are NOT listed here — ../player_core (the satellite
 # players' engine, which brings python-mpv and the libmpv DLL), ../app_support
 # (logging, threading, CLI and subprocess scaffolding) and ../shared_ui. Each is
@@ -32,6 +34,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-timeout",
+    "ruff",
     "vulture",
 ]
 voice = [
@@ -45,3 +48,10 @@ voice = [
 # declare them explicitly.
 [tool.setuptools.packages.find]
 include = ["fun_time*", "satellite*", "fun_time_vr*"]
+
+# Only the syntax level, so a ruff run outside the suite reads the code the way
+# the venv and CI do.  The rules are not configured here on purpose: the
+# dead-code gate in tests/test_dead_code.py names the ones it enforces, so
+# a bare `ruff check` cannot quietly become the gate.
+[tool.ruff]
+target-version = "py312"

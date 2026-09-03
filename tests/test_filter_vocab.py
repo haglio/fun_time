@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from fun_time.filter_vocab import (
+    EXAMPLE_CONTENT,
     decode_filter_command,
     display_forms,
     filter_voice_commands,
@@ -26,6 +27,18 @@ def test_set_commands_round_trip_through_decode():
     for scope in ("both", "portrait", "landscape"):
         for query in ACTS:
             assert decode_filter_command(set_command(scope, query)) == (scope, query)
+
+
+def test_the_wire_format_is_the_filter_prefix_scope_and_slugged_query():
+    """The command string is real IPC surface, not a private encoding: the
+    voice controller writes it to the dashboard command file and
+    dispatch_command matches it by these exact spellings.  Encode and decode
+    staying inverse is not enough — a changed spelling would round-trip here
+    and go unmatched there."""
+    assert set_command("both", "beta gamma") == "filter_both_beta_gamma"
+    assert set_command("portrait", "alpha") == "filter_portrait_alpha"
+    assert set_command("landscape", "delta") == "filter_landscape_delta"
+    assert decode_filter_command("filter_both_beta_gamma") == ("both", "beta gamma")
 
 
 def test_decode_returns_none_for_non_filter_commands():
@@ -88,9 +101,13 @@ def test_display_forms_read_as_the_act_not_as_the_recognizer_hears_it():
     assert "beta gamma" in forms  # a multi-word query reads as itself
 
 
-def test_the_default_vocabulary_is_loaded_and_usable():
-    """Called with no acts, the API works off whatever overlay is present."""
-    voice = filter_voice_commands()
+def test_the_committed_example_vocabulary_is_loaded_and_usable(tmp_path: Path):
+    """A fresh or public checkout has only content.example.json, and the whole
+    grammar must be buildable from it alone.  Pinned against the example file
+    itself rather than whatever overlay this machine happens to carry, so the
+    test means the same thing on every checkout."""
+    acts = load_filter_acts(tmp_path / "no_local.json", EXAMPLE_CONTENT)
+    voice = filter_voice_commands(acts)
     assert voice  # non-empty
     assert all(decode_filter_command(cmd) is not None for cmd in voice.values())
 

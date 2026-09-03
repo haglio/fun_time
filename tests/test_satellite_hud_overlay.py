@@ -200,10 +200,15 @@ def test_hovering_a_button_redraws_with_its_tooltip(tmp_path: Path, panel: Path)
 
     overlay.motion(rect[0] + MARGIN + 2, rect[1] + MARGIN + 2)
 
-    assert player.overlays[overlay.overlay_id][2] is not plain
-    # Moving off the button clears it again.
+    hovered = player.overlays[overlay.overlay_id][2]
+    assert bytes(hovered) != bytes(plain)  # the tooltip is in the pixels
+
+    # Moving off the button clears it again: the redraw matches the pre-hover
+    # pixels, not merely "some new object" (the old identity check held even
+    # with the whole clear branch deleted).
     overlay.motion(MARGIN + 2, MARGIN + 2)
-    assert player.overlays[overlay.overlay_id][2] is not plain
+    cleared = player.overlays[overlay.overlay_id][2]
+    assert bytes(cleared) == bytes(plain)
 
 
 def test_pressing_the_lit_filter_button_lifts_the_filter(tmp_path: Path, panel: Path):

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fun_time.dashboard_runtime import GenauStatus
+from fun_time.player_status import GenauStatus
 from fun_time.nau_console import (
     OSR2_AUTO,
     OSR2_FUNSCRIPT,
