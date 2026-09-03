@@ -64,6 +64,10 @@ TILT_BINDINGS = (
 )
 
 
+def views_are_renderable(view_state_flags: int) -> bool:
+    return bool(view_state_flags & xr.ViewStateFlags.ORIENTATION_VALID_BIT)
+
+
 class VRSession:
     """The OpenXR instance, session, reference space, and per-eye swapchains."""
 
@@ -81,10 +85,11 @@ class VRSession:
         self._period_logged = False
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
-        self._action_set = None  # the tilt stick, absent unless _init_actions attached
+        self._action_set = None
         self._tilt_action = None
         self._actions_attached = False
         self.thumbstick_y: float = 0.0
+        self._views_located = True
 
         self._init_glfw(app_name)
         try:
@@ -392,20 +397,25 @@ class VRSession:
                     space=self._space,
                 ),
             )
-            # A view's pose and FOV mean nothing until the runtime says it has
-            # located them; for the first frames after the session turns
-            # visible the FOV comes back all zeroes — a zero-width frustum and
-            # a division by zero in the projection matrix.
-            valid = (
-                xr.ViewStateFlags.ORIENTATION_VALID_BIT
-                | xr.ViewStateFlags.POSITION_VALID_BIT
-            )
-            if view_state.view_state_flags & valid == valid:
+            if views_are_renderable(view_state.view_state_flags):
                 views = list(views_raw)
             else:
                 should_render = False
+            self._note_view_locatability(bool(views))
 
         return should_render, frame_state.predicted_display_time, views
+
+    def _note_view_locatability(self, located: bool) -> None:
+        if located == self._views_located:
+            return
+        self._views_located = located
+        if located:
+            logger.info("Views located again; drawing to the headset once more")
+        else:
+            logger.warning(
+                "The runtime cannot locate the views — submitting no layers, so the "
+                "headset is showing its own environment until tracking returns"
+            )
 
     def _bind_swapchain_framebuffer(self, info: SwapchainInfo) -> None:
         image_index = xr.acquire_swapchain_image(info.handle, xr.SwapchainImageAcquireInfo())
