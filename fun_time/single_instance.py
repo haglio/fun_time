@@ -10,7 +10,6 @@ from fun_time.win32_loader import load_dll
 # use_last_error=True makes ctypes save/restore the per-thread error code
 # around each call, preventing Python's runtime from clobbering it.
 _kernel32 = load_dll("kernel32", use_last_error=True)
-_user32 = load_dll("user32")
 
 ERROR_ALREADY_EXISTS = 183
 
@@ -47,11 +46,10 @@ def try_acquire_mutex(name: str) -> int | None:
     return handle
 
 
-MB_OK = 0x0
-MB_ICONINFORMATION = 0x40
-MB_SETFOREGROUND = 0x00010000
-
-
 def show_already_running_message(text: str, title: str = "Fun Time") -> None:
-    """Show a MessageBox informing the user another instance is running."""
-    _user32.MessageBoxW(None, text, title, MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND)
+    """Say another instance holds the mutex, in Fun Time's own colors."""
+    from shared_ui.alert import Level, show_alert
+
+    from fun_time.project_paths import PROJECT_ICON
+
+    show_alert(title, text, level=Level.INFO, icon=PROJECT_ICON)

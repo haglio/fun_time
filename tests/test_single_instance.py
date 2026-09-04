@@ -4,6 +4,10 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from shared_ui.alert import Level
+
+from fun_time import single_instance
+from fun_time.project_paths import PROJECT_ICON
 from fun_time.single_instance import (
     ERROR_ALREADY_EXISTS,
     MUTEX_ORCHESTRATOR,
@@ -55,23 +59,28 @@ class TestTryAcquireMutex:
 
 
 class TestShowAlreadyRunningMessage:
-    def test_calls_message_box_with_correct_flags(self):
-        MB_OK = 0
-        MB_ICONINFORMATION = 0x40
-        MB_SETFOREGROUND = 0x00010000
-        expected_flags = MB_OK | MB_ICONINFORMATION | MB_SETFOREGROUND
-
-        with patch("fun_time.single_instance._user32") as u32:
+    def test_it_is_the_familys_notice_under_fun_times_icon(self):
+        with patch("shared_ui.alert.show_alert") as show_alert:
             show_already_running_message("Test text", "Test Title")
 
-        u32.MessageBoxW.assert_called_once_with(None, "Test text", "Test Title", expected_flags)
+        show_alert.assert_called_once_with(
+            "Test Title", "Test text", level=Level.INFO, icon=PROJECT_ICON,
+        )
 
     def test_default_title(self):
-        with patch("fun_time.single_instance._user32") as u32:
+        with patch("shared_ui.alert.show_alert") as show_alert:
             show_already_running_message("Some message")
 
-        args = u32.MessageBoxW.call_args[0]
-        assert args[2] == "Fun Time"
+        assert show_alert.call_args.args[0] == "Fun Time"
+
+    def test_asking_whether_it_is_alone_does_not_drag_in_qt(self):
+        """The orchestrator asks this long before it has any use for Qt, and
+        on the answer it wants it never builds a window at all -- so the
+        dialog's imports live inside the call, not at the top of the module."""
+        source = Path(single_instance.__file__).read_text(encoding="utf-8")
+        header = source[:source.index("def show_already_running_message")]
+
+        assert "shared_ui" not in header
 
 
 class TestMutexNameForConfig:
