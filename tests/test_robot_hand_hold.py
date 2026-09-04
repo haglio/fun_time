@@ -1,9 +1,9 @@
 """The spoken holds on Genau's stroke, and the way back off one."""
 from __future__ import annotations
 
-from player_core.direct_control import (
+from player_core.robot_hand import (
     POSITION_MAX,
-    DirectControlState,
+    RobotHandState,
     phase_to_position,
     set_amplitude,
     set_center,
@@ -43,7 +43,7 @@ class TestHold:
         These are the two positions the broker's own PARK and RETRACT hold, which
         is what makes the two words the right ones."""
         for command, expected in (("robot_hand_park", 0), ("robot_hand_retract", POSITION_MAX)):
-            stroke = DirectControlState()
+            stroke = RobotHandState()
             set_amplitude(stroke, 0)
             set_center(stroke, HOLD_CENTERS[command])
 
@@ -75,7 +75,7 @@ class TestRelease:
     def test_a_release_reproduces_the_stroke_the_hold_took_away(self):
         """End to end on the arithmetic: run a stroke's dials through the hold and
         then the release, and the device is back where it was at every phase."""
-        before = DirectControlState()
+        before = RobotHandState()
         set_amplitude(before, 60)
         set_center(before, 45)
         set_speed(before, 35)
@@ -84,7 +84,7 @@ class TestRelease:
             for phase in range(8)
         }
 
-        after = DirectControlState()
+        after = RobotHandState()
         set_amplitude(after, 0)  # the hold
         set_center(after, HOLD_CENTERS["robot_hand_retract"])
         set_amplitude(after, before.amplitude)  # the release
