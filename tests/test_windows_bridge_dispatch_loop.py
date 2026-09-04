@@ -93,22 +93,6 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
     return BridgeConfig(**settings)
 
 
-def _make_video(tmp_path, name: str) -> Path:
-    """A real file on disk — record_watch_event prunes keys that don't exist."""
-    path = tmp_path / name
-    path.write_text("x", encoding="utf-8")
-    return path
-
-
-def _write_nau_status(path: Path, video, *, position_ms: int, duration_ms: int, paused: bool = False) -> None:
-    """Write a Nau status file the way nau/status.py does."""
-    path.write_text(
-        f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
-        f"state=normal\npaused={'1' if paused else '0'}\n",
-        encoding="utf-8",
-    )
-
-
 def _write_satellite_status(path: Path, video, *, fraction: float | None = None,
                             paused: bool = False, locked: bool = False) -> None:
     """Write a native satellite's status file the way its player publishes it.
