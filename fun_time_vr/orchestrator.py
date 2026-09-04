@@ -48,6 +48,7 @@ from fun_time.modes import (
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
     SatelliteLibraryContext,
+    SatelliteBuild,
     build_all_playlists,
     build_playlist_file_path,
     build_main_playlist,
@@ -221,6 +222,46 @@ def _wait_for_player(status_file: Path, player: subprocess.Popen) -> bool:
     return False
 
 
+def stock_the_playlists(
+    manifest,
+    *,
+    state_dir: Path,
+    metadata_root: Path,
+    vr_library_dirs,
+    resumed: bool,
+    main_f_mode: bool,
+    main_recent: bool,
+) -> None:
+    """Leave the three playlists a VR session opens on where its players read
+    them: built fresh when there was nothing to resume, and otherwise left
+    alone — except a primary carried over from a desktop session, which holds
+    no VR video and is rebuilt from the merged sources under the order and
+    F-mode the resume carried."""
+    nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
+    if not resumed:
+        build_all_playlists(
+            main_sources=manifest.media.nau_library_sources,
+            portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
+            landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
+            favs_file=Path(manifest.media.favs_file),
+            state_dir=state_dir,
+            library=SatelliteLibraryContext(
+                metadata_root=metadata_root,
+                watch_stats_file=watch_stats_path(state_dir),
+            ),
+        )
+        logger.info("Nothing to resume; built fresh playlists")
+        return
+    if not main_playlist_has_vr(nau_playlist, vr_library_dirs):
+        build_main_playlist(
+            nau_playlist, manifest.media.nau_library_sources,
+            f_mode=main_f_mode, recent=main_recent,
+        )
+        logger.info("Resumed playlists; rebuilt the main player's, which held no VR video")
+    else:
+        logger.info("Resumed last session's playlists")
+
+
 def run_vr_bridge(config) -> int:
     state_dir = config.paths.state_dir
     manifest_path = write_manifest_data(
@@ -275,31 +316,14 @@ def run_vr_bridge(config) -> int:
         (Path(commands.portrait_cmd_file), carried.locked2),
         (Path(commands.landscape_cmd_file), carried.locked3),
     ])
-    if not resumed:
-        build_all_playlists(
-            main_sources=manifest.media.nau_library_sources,
-            portrait_sources=manifest.media.portrait_dirs,
-            landscape_sources=manifest.media.landscape_dirs,
-            favs_file=Path(manifest.media.favs_file),
-            state_dir=state_dir,
-            library=SatelliteLibraryContext(
-                metadata_root=bridge_config.regen_metadata_root,
-                watch_stats_file=watch_stats_path(state_dir),
-            ),
-        )
-    elif not main_playlist_has_vr(nau_playlist, config.vr.library_dirs):
-        # Resumed from a desktop session, whose primary playlist is 2D only:
-        # keep the satellites where they were, but rebuild the primary from the
-        # VR-merged sources so a headset session actually gets VR videos.  Under
-        # the order it is coming back in, like its F-mode: the state carried
-        # forward has to describe the file this writes, not the one it replaced.
-        build_main_playlist(
-            nau_playlist, manifest.media.nau_library_sources,
-            f_mode=carried.main_f_mode, recent=carried.main_latest,
-        )
-        logger.info("Resumed playlists; rebuilt the main player's, which held no VR video")
-    logger.info(
-        "Resumed last session's playlists" if resumed else "Nothing to resume; built fresh playlists"
+    stock_the_playlists(
+        manifest,
+        state_dir=state_dir,
+        metadata_root=bridge_config.regen_metadata_root,
+        vr_library_dirs=config.vr.library_dirs,
+        resumed=resumed,
+        main_f_mode=carried.main_f_mode,
+        main_recent=carried.main_latest,
     )
 
     # --- The one child: the VR player ---
