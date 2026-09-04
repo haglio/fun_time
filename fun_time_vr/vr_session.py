@@ -57,7 +57,7 @@ class QuadLayer:
 # so destruction waits this many frame_end calls.
 _RETIRE_AFTER_FRAMES = 3
 
-_TILT_BINDINGS = (
+TILT_BINDINGS = (
     ("/interaction_profiles/oculus/touch_controller", "/user/hand/right/input/thumbstick/y"),
     ("/interaction_profiles/valve/index_controller", "/user/hand/right/input/thumbstick/y"),
     ("/interaction_profiles/htc/vive_controller", "/user/hand/right/input/trackpad/y"),
@@ -197,7 +197,7 @@ class VRSession:
                     localized_action_name="Tilt Screens",
                 ),
             )
-            for profile_path, axis_path in _TILT_BINDINGS:
+            for profile_path, axis_path in TILT_BINDINGS:
                 try:
                     xr.suggest_interaction_profile_bindings(
                         self._instance,

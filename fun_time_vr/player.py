@@ -439,6 +439,12 @@ def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePe
         stop.wait(max(0.0, period - (time.monotonic() - started)))
 
 
+def tilt_from_stick(axis: float, elapsed_s: float) -> float:
+    if abs(axis) <= CONTROLLER_DEADZONE:
+        return 0.0
+    return axis * elapsed_s * TILT_RATE_DEG_S
+
+
 def _update_quad_layer(
     session, renderer: SceneRenderer, index: int, unit: _VideoUnit,
     scene_yaw_deg: float, scene_pitch_deg: float,
@@ -610,10 +616,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
                 session.sync_controller()
-                if abs(session.thumbstick_y) > CONTROLLER_DEADZONE:
-                    primary.role.nudge_tilt(
-                        session.thumbstick_y * frame_dt * TILT_RATE_DEG_S
-                    )
+                primary.role.nudge_tilt(
+                    tilt_from_stick(session.thumbstick_y, frame_dt)
+                )
                 scene_pitch_deg = primary.role.tilt_deg
                 scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
                     math.radians(scene_pitch_deg)
