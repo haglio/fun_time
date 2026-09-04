@@ -19,6 +19,8 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image
+from player_core.timeline import TIMELINE_HEIGHT
+from player_core.volume import chip_xy
 
 from satellite.app import _run
 from satellite.cli import build_parser
@@ -57,12 +59,18 @@ class _FakePygame:
         self.quit_called = True
 
 
-def _loop_args(tmp_path: Path, playlist: list[Path], **extra: str):
+def _loop_args(tmp_path: Path, playlist: list[Path], *, no_audio: bool = False,
+               **extra: str):
+    """The loop's args, defaulting to how ``_build_satellite_launch_command``
+    launches one — which no longer passes ``--no-audio``, so the volume chip in
+    these runs is the live one a session gets."""
     argv = ["--playlist", str(tmp_path / "playlist.tsv"),
             "--command-file", str(tmp_path / "cmd.txt"),
             "--paused-file", str(tmp_path / "paused.txt"),
             "--status-file", str(tmp_path / "status.txt"),
-            "--title", "Portrait AI Player", "--no-audio"]
+            "--title", "Portrait AI Player"]
+    if no_audio:
+        argv.append("--no-audio")
     for flag, value in extra.items():
         argv += [f"--{flag.replace('_', '-')}", value]
     (tmp_path / "playlist.tsv").write_text(
@@ -141,6 +149,53 @@ def test_the_window_close_asks_the_session_not_this_player(tmp_path):
 
     assert code == 0
     gesture.assert_called_once_with(args.dashboard_cmd_file)
+
+
+def _press(pos, button=1):
+    return SimpleNamespace(type=_FakePygame.MOUSEBUTTONDOWN, button=button, pos=pos)
+
+
+def test_a_press_on_the_scrubber_seeks_the_clip(tmp_path):
+    """The bar is drawn full-window-width along the bottom, so a press halfway
+    across the 640-wide window's inset track lands halfway through the clip."""
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+    fake = _FakePygame(event_batches=[[_press((274, 476))]])
+
+    _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
+
+    assert player.seeks == [player.duration_ms / 2]
+
+
+def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path):
+    """The speaker at the left end of the chip, which is placed from the
+    window's bottom-right corner — a satellite opens muted and this is the way
+    to hear one."""
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+    vx, vy = chip_xy(win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
+    fake = _FakePygame(event_batches=[[_press((vx + 7, vy + 11))]])
+
+    _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
+
+    assert player.muted is False
+    assert player.seeks == []          # the chip took it, not the row behind it
+
+
+def test_no_audio_leaves_the_chip_a_read_only_indicator(tmp_path):
+    """What the hidden-desktop integration runs buy with FUN_TIME_MUTE_AUDIO:
+    silence no press can lift."""
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips, no_audio=True)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+    vx, vy = chip_xy(win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
+    fake = _FakePygame(event_batches=[[_press((vx + 7, vy + 11))]])
+
+    _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
+
+    assert player.muted is True
 
 
 def _suppressed_panel(tmp_path: Path) -> Path:

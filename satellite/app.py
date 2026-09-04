@@ -1,15 +1,16 @@
-"""Run loop for a native satellite player: a silent mpv window fun_time drives.
+"""Run loop for a native satellite player: an mpv window fun_time drives.
 
 The satellite half of Nau's app shell, stripped to essentials — no funscript,
 tcode, heatmap, record or version cycling.  mpv renders the video into a
 pygame/SDL window; fun_time positions that window by HWND after launch and drives
-playback through the command + paused files, reading back the status file.  The
-one thing drawn on top is the lock HUD, composited into the video from the panel
-fun_time publishes (see satellite.hud_overlay).
+playback through the command + paused files, reading back the status file.  Three
+things are composited on top: the lock HUD from the panel fun_time publishes, the
+scrubber and the volume chip — the last two taking this loop's own mouse events.
 
 A shell: the control logic it drives lives in satellite.session,
-satellite.runtime and player_core.satellite_hud*.  See CLAUDE.md, "Standing
-rules", for why nothing here is unit-tested.
+satellite.runtime, satellite.pointer, satellite.volume and
+player_core.satellite_hud*.  See CLAUDE.md, "Standing rules", for why nothing
+here is unit-tested.
 """
 from __future__ import annotations
 
@@ -26,38 +27,30 @@ from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
 from player_core.taskbar import set_app_user_model_id
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
-from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
+from player_core.volume import VolumeHudPainter, chip_xy
 
 from .cli import audio_muted, build_parser, resolve_playlist
 from .hud_overlay import HudOverlay
+from .pointer import Pointer
 from .runtime import apply_command
 from .session import SatelliteSession
 from .session_quit import quit_gesture
 from .status import status_fields
+from .volume import SatelliteVolume
 
 logger = logging.getLogger(__name__)
 
-# Overlay ids the satellite composites, distinct from the lock HUD's (10).
-# mpv draws overlays in ascending id order, so the blackout sits UNDER the HUD
-# (the mode row must stay visible over a blacked player — it is the way back)
-# while the scrubber and volume chip, higher, are simply not drawn while black.
+# Overlay ids, against the lock HUD's 10.  mpv draws them in ascending order, so
+# the blackout sits UNDER the HUD (whose mode row is the way back off a blacked
+# player) and the two above it are simply not drawn while black.
 _OV_BLACKOUT = 5
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 
-# A satellite carries no audio, so its volume control is a fixed indicator: a
-# muted speaker over an empty track, the same chip Nau draws so the players match.
-_MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
-
 # Fun Time's own icon, so a satellite's Alt-Tab entry and taskbar button say
 # which application it belongs to.  Without one, pygame supplies its own logo and
-# these windows read as some unrelated program.  (Nau loads its icon the same
-# way, in the genau repo.  The pair is not worth sharing through player_core:
-# that package deliberately knows nothing of pygame — MpvPlayer takes a bare
-# window handle — and an icon loader is not worth breaking that for.)
-# The one copy of this left in the tree: `fun_time.project_paths` holds it for
-# everything inside `fun_time/`, and this package imports nothing from fun_time
-# at all — a graph worth more than the line.
+# these windows read as some unrelated program.  Kept here rather than taken from
+# `fun_time.project_paths`: this package imports nothing from fun_time at all.
 ICON_PATH = Path(__file__).resolve().parent.parent / "icon.ico"
 
 
@@ -91,18 +84,13 @@ def main(argv: list[str] | None = None) -> int:
 
 def _run(args, playlist: list[Path]) -> int:
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
-    # click that focuses this window, so every press on the HUD had to be made
-    # twice — once to wake the player, once to hit the button.  The mechanism is
-    # written down in player_core.sdl_hints, which is where it moved once the main
-    # console turned out to have the same thing: this used to be a line of ours,
-    # and being a line of ours is why nobody else got it.
+    # click that focuses this window, so every press on a control had to be made
+    # twice.  The mechanism is written down in player_core.sdl_hints.
     deliver_the_focusing_click()
     # Also before the window: Windows reads a process's taskbar identity as each
     # window is created, and a satellite that claims none is filed under whatever
-    # the shared python interpreter's path is registered to — which is some
-    # unrelated program, wearing its icon and its letter.  Fun Time passes its
-    # own, because these windows are Fun Time's rather than an application of
-    # their own.  Cosmetic, so a refusal never costs the player its start.
+    # the shared interpreter's path is registered to — some unrelated program,
+    # wearing its icon.  Cosmetic, so a refusal never costs the player its start.
     if args.taskbar_identity:
         try:
             set_app_user_model_id(args.taskbar_identity)
@@ -111,23 +99,17 @@ def _run(args, playlist: list[Path]) -> int:
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
-    # Borderless: the satellites replace VLC, which filled its whole slot with no
-    # title bar, so the video has to fill the rect too.  mpv paints into this
-    # window via its HWND (we never blit the surface); the sequencer then sizes
-    # the window to the portrait/landscape rect, and with no chrome the client
-    # area IS the rect.
+    # Borderless, so the client area IS the slot: mpv paints into this window via
+    # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
+    # the portrait/landscape rect.
     icon = _load_icon_surface()
     if icon is not None:
         pygame.display.set_icon(icon)  # must precede set_mode to take effect
     pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
-    # fun_time passes a distinct --title per satellite ("Portrait AI Player" /
-    # "Landscape AI Player") so the sequencer can resolve each window to its slot
-    # by title when the pid lookup fails; a shared caption crosses the two.  It is
-    # also what the window calls itself in Alt-Tab.
+    # A distinct --title per satellite, so the sequencer can resolve each window
+    # to its slot by title when the pid lookup fails; also its Alt-Tab name.
     pygame.display.set_caption(args.title)
     clock = pygame.time.Clock()
-    # mpv renders the video directly into this window; the lock HUD is composited
-    # on top of it through mpv, so the pygame surface itself is never blitted.
     wid = pygame.display.get_wm_info()["window"]
 
     paused_file: Path | None = args.paused_file
@@ -137,11 +119,11 @@ def _run(args, playlist: list[Path]) -> int:
     # loop_file=False so end-of-file advances the playlist; the lock toggles it on.
     # prefetch=True so mpv opens the next clip before the current ends and the
     # auto-advance is seamless instead of a cold on-screen reload.
-    player = MpvPlayer(wid, muted=audio_muted(args), loop_file=False, prefetch=True)
+    # muted=True: a satellite is heard only once its chip is asked (satellite.volume).
+    player = MpvPlayer(wid, muted=True, loop_file=False, prefetch=True)
     session = SatelliteSession(playlist, player=player, start_paused=start_paused)
     status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
-    # The lock HUD is composited into this window's video, so it needs no window
-    # of its own and takes its clicks from this loop's own mouse events.
+    # Composited into this window's video, so it needs no window of its own.
     hud = (
         HudOverlay(
             hud_file=args.hud_file, command_file=args.dashboard_cmd_file, player=player,
@@ -149,12 +131,13 @@ def _run(args, playlist: list[Path]) -> int:
         if args.hud_file and args.dashboard_cmd_file
         else None
     )
-    # The scrubber and volume indicator, drawn like Nau's from the shared engine —
-    # a progress bar along the bottom and a muted volume chip at its right end.
-    # The satellite has no funscript heatmap, no seek and no sound, so the bar is a
-    # plain progress readout and the chip is a fixed muted indicator; both are here
-    # so a satellite reads like the main player rather than as a bare video.
+    # The scrubber and the volume chip, drawn from the shared engine and taking
+    # presses like Nau's: the bar seeks, the chip sets this player's own sound.
+    # Missing beside Nau's is only the funscript heatmap, which needs a script a
+    # satellite's clips do not carry.
+    volume = SatelliteVolume(player, live=not audio_muted(args))
     volume_painter = VolumeHudPainter()
+    pointer = Pointer(session=session, volume=volume, hud=hud)
     # The window size the blackout frame was last composited for, or None while
     # the video shows — the frame is re-made only when the size moves.
     blackout_size: tuple[int, int] | None = None
@@ -166,6 +149,9 @@ def _run(args, playlist: list[Path]) -> int:
             session.replace_playlist(reloaded)
 
     while not stop_event.is_set():
+        # Before the events, which have to be placed against the window they
+        # landed in; the sequencer can move this one between passes.
+        win_w, win_h = pygame.display.get_window_size()
         for ev in pygame.event.get():
             # No key here ends this player: the session ends as a whole,
             # through Ctrl+Alt+Q, which the bridge turns into the teardown that
@@ -178,10 +164,11 @@ def _run(args, playlist: list[Path]) -> int:
             if ev.type == pygame.QUIT:
                 if quit_gesture(args.dashboard_cmd_file):
                     stop_event.set()
-            elif hud is not None and ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                hud.press(*ev.pos)
-            elif hud is not None and ev.type == pygame.MOUSEMOTION:
-                hud.motion(*ev.pos)
+            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+                pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
+            elif ev.type == pygame.MOUSEMOTION:
+                pointer.motion(*ev.pos, held=bool(ev.buttons[0]),
+                               win_w=win_w, win_h=win_h)
 
         if paused_file is not None:
             session.set_paused(read_paused_state(paused_file, logger=logger))
@@ -198,10 +185,6 @@ def _run(args, playlist: list[Path]) -> int:
             # is decoding, the same way Nau names its file from its own session.
             hud.tick(video=session.current_video.stem)
 
-        # The scrubber (full window width, along the bottom) and the muted volume
-        # indicator at its right end.  get_window_size reflects the slot the
-        # sequencer moved this window into, so both track the real geometry.
-        win_w, win_h = pygame.display.get_window_size()
         if hud is not None and hud.display_suppressed:
             # Origenerator mode: the region is the hosted app's, so the player
             # goes black — an opaque frame over the video, under the HUD (whose
@@ -222,7 +205,7 @@ def _run(args, playlist: list[Path]) -> int:
                 session.position_ms, session.duration_ms, None, win_w)
             player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
             vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
-            player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(_MUTED_INDICATOR))
+            player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
 
         clock.tick(60)
 

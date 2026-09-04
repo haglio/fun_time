@@ -120,8 +120,8 @@ class WatchTracker:
 
     def observe(self, path: str, fraction: float) -> list[tuple[str, str]]:
         if path == self._path:
-            # A large backwards jump from ~the end is a repeat-one wrap
-            # (satellites have no seek control): one full watch completed.
+            # A large backwards jump from ~the end is a repeat-one wrap, or a
+            # scrub back over a clip watched through: one full watch either way.
             if path and self._max_fraction >= self.COMPLETE_FRACTION and fraction < self._max_fraction - 0.5:
                 self._max_fraction = max(0.0, fraction)
                 return [("completion", path)]
