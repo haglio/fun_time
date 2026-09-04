@@ -9,8 +9,8 @@ from player_core.file_channel import append_command
 
 logger = logging.getLogger(__name__)
 
-from .broker_control import RESUME_CMD, write_broker_command
-from .mode_plan import build_mode_switch_plan, genau_active
+from .broker_control import write_broker_command
+from .mode_plan import build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
@@ -28,6 +28,7 @@ from .modes import (
 from .omnipause import build_omnipause_plan
 from .players import Player
 from .satellite_control import write_satellite_command
+from .satellites_mode import VIDEO_MODE
 from .watch_stats import watch_stats_path
 
 # Both Nau and the native satellites re-read their playlist file on this verb.
@@ -103,46 +104,32 @@ def apply_mode_switch(
     current_mode: str,
     target_mode: str,
     omni_paused: bool,
-    genau_paused_file: str | Path,
-    audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
     nau_paused_file: str | Path,
     nau_cmd_file: str | Path,
-    broker_cmd_file: str | Path | None = None,
 ) -> ModeSwitchFlowResult:
+    """Switch the main slot between video and genau mode.
+
+    Genau's window is told what it is now — the display, or the HUD layer over
+    Nau's video — and RESUMEd either way: in genau mode the Robot Hand drives
+    from here, and in video mode the dispatch loop's arbiter takes it from
+    here, pausing the hand for the funscript's stretches on its next tick.
+    Nau is paused or played to match, and told whether it is on screen, the
+    mirror of the HUD verb Genau gets — a paused Nau still holds the frame it
+    stopped on, and the parked window keeps its taskbar button.  Queued, never
+    written whole: the files are queues shared with every other writer, and
+    replacing one here erased whatever they had appended since the last drain.
+    """
     plan = build_mode_switch_plan(
         current_mode=current_mode,
         target_mode=target_mode,
         omni_paused=omni_paused,
     )
     if plan.is_transition:
-        will_genau = genau_active(plan.target_mode)
-        write_flag_file(genau_paused_file, not will_genau)
-        write_flag_file(audio_paused_file, not will_genau)
-        if plan.nau_should_play is not None:
-            write_flag_file(nau_paused_file, not plan.nau_should_play)
-        cmds = [
-            cmd for cmd in (plan.genau_cmd, plan.hud_cmd, plan.genau_display_cmd)
-            if cmd is not None
-        ]
-        for cmd in cmds:
+        write_flag_file(nau_paused_file, not plan.nau_should_play)
+        for cmd in (plan.genau_cmd, plan.hud_cmd):
             append_command(Path(genau_cmd_file), cmd)
-        # Nau is told which mode the main slot is in on every switch: in
-        # hybrid, Genau's window is a transparent layer over Nau's and its own
-        # panel holds the top-left corner, so Nau starts its own furniture past
-        # it.  It is told whether it is on screen too, the mirror of the
-        # DISPLAY_ON/DISPLAY_OFF Genau gets.  Queued, never written whole: the
-        # file is a queue shared with every other writer, and replacing it here
-        # erased whatever they had appended since the last drain.
-        nau_cmds = [f"SET_HYBRID {int(plan.target_mode == 'hybrid')}"]
-        if plan.nau_display_cmd is not None:
-            nau_cmds.append(plan.nau_display_cmd)
-        if plan.reenable_nau_tcode:
-            nau_cmds.append("SET_TCODE_ENABLED 1")
-        for cmd in nau_cmds:
-            append_command(Path(nau_cmd_file), cmd)
-        if not will_genau and broker_cmd_file is not None:
-            write_broker_command(broker_cmd_file, RESUME_CMD)
+        append_command(Path(nau_cmd_file), plan.nau_display_cmd)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,
@@ -370,7 +357,7 @@ def apply_satellites_switch(
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
 ) -> SatellitesSwitchFlowResult:
-    """Switch the satellite side between player and origenerator mode.
+    """Switch the satellite side between video and origenerator mode.
 
     Like the main slot's switch, nothing is torn down.  Entering origenerator
     mode pauses both players: the regions belong to the hosted app now, and a
@@ -391,14 +378,14 @@ def apply_satellites_switch(
         return SatellitesSwitchFlowResult(
             next_mode=target_mode, is_transition=False,
             log_message=f"Satellites set to {target_mode} (omnipaused)")
-    if target_mode == "player":
+    if target_mode == VIDEO_MODE:
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), "CLOSE_SHOWS")
         write_flag_file(portrait_paused_file, False)
         write_flag_file(landscape_paused_file, False)
     else:
         # Both regions come up playing, the way both players are playing the
-        # moment player mode is entered: a mode that opened onto two empty
+        # moment video mode is entered: a mode that opened onto two empty
         # rectangles asked the user to go and start it before it was the mode
         # they had asked for.  The hosted app picks the sets — its whole
         # library, shuffled, one shape per region.
@@ -483,9 +470,8 @@ def apply_leave_omnipause(
         omni_paused=omni_paused,
         main_mode=main_mode,
     )
-    if plan.genau_branch:
-        write_flag_file(genau_paused_file, False)
-        write_flag_file(audio_paused_file, False)
+    write_flag_file(genau_paused_file, False)
+    write_flag_file(audio_paused_file, False)
     if plan.resume_genau_playback:
         append_command(Path(genau_cmd_file), "RESUME")
     if plan.resume_nau_playback:

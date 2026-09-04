@@ -43,10 +43,11 @@ class TestVoiceCommands:
             "pause": "pause",
             "play": "play",
             "go now": "genau_activate",
-            "now now": "nau_activate",
-            "now mode": "nau_activate",
-            "hybrid": "hybrid_activate",
-            "hybrid mode": "hybrid_activate",
+            "video mode": "video_activate",
+            "main video mode": "main_video_activate",
+            "satellite video mode": "satellites_video_activate",
+            "satellites video mode": "satellites_video_activate",
+            "generator mode": "origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next main": "main_next",
@@ -75,16 +76,16 @@ class TestVoiceCommands:
             "playback slow down": "nau_speed_down",
             "playback speed down": "nau_speed_down",
             "playback speed up": "nau_speed_up",
-            "amp down": "genau_amplitude_down",
-            "amp up": "genau_amplitude_up",
-            "center down": "genau_center_down",
-            "center up": "genau_center_up",
-            "next shape": "genau_cycle_shape",
-            "previous shape": "genau_cycle_shape_prev",
+            "amp down": "robot_hand_amplitude_down",
+            "amp up": "robot_hand_amplitude_up",
+            "center down": "robot_hand_center_down",
+            "center up": "robot_hand_center_up",
+            "next shape": "robot_hand_cycle_shape",
+            "previous shape": "robot_hand_cycle_shape_prev",
             "go now auto": "genau_toggle_auto",
-            "cruise control": "genau_toggle_cruise",
-            "cruise on": "genau_cruise_on",
-            "cruise off": "genau_cruise_off",
+            "cruise control": "robot_hand_toggle_cruise",
+            "cruise on": "robot_hand_cruise_on",
+            "cruise off": "robot_hand_cruise_off",
             "previous clip": "genau_prev_clip",
             "next clip": "genau_next_clip",
             "offset": "quarter_button",
@@ -155,13 +156,13 @@ class TestVoiceCommands:
         here: the word describes where the device goes, and once a command
         existed that only moves the device, that is what a speaker saying it
         means.  Relief keeps "stop" (and Shift+Esc)."""
-        assert VOICE_COMMANDS["park"] == "genau_park"
-        assert VOICE_COMMANDS["park it"] == "genau_park"
-        assert VOICE_COMMANDS["retract"] == "genau_retract"
+        assert VOICE_COMMANDS["park"] == "robot_hand_park"
+        assert VOICE_COMMANDS["park it"] == "robot_hand_park"
+        assert VOICE_COMMANDS["retract"] == "robot_hand_retract"
         assert VOICE_COMMANDS["stop"] == "relief_omnipause"
         for phrase in ("un park", "un retract", "o s r two resume",
                        "oh es are two resume"):
-            assert VOICE_COMMANDS[phrase] == "genau_release", phrase
+            assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
 
     def test_the_release_is_spelled_the_way_vosk_can_hear_it(self):
         """vosk has none of "unpark", "unretract" or "OSR2" in its lexicon, so a
@@ -203,12 +204,12 @@ class TestVoiceCommands:
         for phrase in ("enable genau", "disable genau"):
             assert phrase not in VOICE_COMMANDS
 
-    def test_video_activates_nau(self):
-        assert VOICE_COMMANDS["now now"] == "nau_activate"
-        assert "v l c" not in VOICE_COMMANDS
-
-    def test_hybrid_activates_hybrid(self):
-        assert VOICE_COMMANDS["hybrid"] == "hybrid_activate"
+    def test_video_mode_is_said_of_a_side_or_of_both(self):
+        assert VOICE_COMMANDS["main video mode"] == "main_video_activate"
+        assert VOICE_COMMANDS["satellite video mode"] == "satellites_video_activate"
+        assert VOICE_COMMANDS["video mode"] == "video_activate"
+        for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c"):
+            assert retired not in VOICE_COMMANDS, retired
 
     def test_nau_version_is_spoken_like_every_other_cycle_axis(self):
         """"version" is an axis like "action" and "seed": the bare word cycles
@@ -369,10 +370,9 @@ class TestVoiceCommands:
 
     def test_mode_named_navigation_both_orders(self):
         """A mode's name + next/previous (either order) navigates its player:
-        Nau/Hybrid drive the main slot, Genau its own clip.  vosk can't hear
-        "nau"/"genau", so the recognizer uses the "now mode"/"go now" sound-alikes."""
-        # Nau (recognizer "now mode") and Hybrid both drive the main slot.
-        for base in ("now mode", "hybrid"):
+        Video drives the main slot, Genau its own clip.  vosk can't hear
+        "genau", so the recognizer uses the "go now" sound-alike."""
+        for base in ("video",):
             assert VOICE_COMMANDS[f"{base} next"] == "main_next"
             assert VOICE_COMMANDS[f"next {base}"] == "main_next"
             assert VOICE_COMMANDS[f"{base} previous"] == "main_prev"
@@ -384,21 +384,21 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["previous go now"] == "genau_prev_clip"
 
     def test_contains_numeric_amp_phrases(self):
-        assert VOICE_COMMANDS["amp fifty"] == "genau_amp_50"
-        assert VOICE_COMMANDS["amp zero"] == "genau_amp_0"
-        assert VOICE_COMMANDS["amp one hundred"] == "genau_amp_100"
+        assert VOICE_COMMANDS["amp fifty"] == "robot_hand_amp_50"
+        assert VOICE_COMMANDS["amp zero"] == "robot_hand_amp_0"
+        assert VOICE_COMMANDS["amp one hundred"] == "robot_hand_amp_100"
 
     def test_contains_numeric_center_phrases(self):
-        assert VOICE_COMMANDS["center eighty"] == "genau_center_80"
+        assert VOICE_COMMANDS["center eighty"] == "robot_hand_center_80"
 
     def test_contains_numeric_speed_phrases(self):
-        assert VOICE_COMMANDS["speed thirty"] == "genau_speed_30"
+        assert VOICE_COMMANDS["speed thirty"] == "robot_hand_speed_30"
 
     def test_min_max_extreme_phrases(self):
-        assert VOICE_COMMANDS["min amp"] == "genau_amp_0"
-        assert VOICE_COMMANDS["max amp"] == "genau_amp_100"
-        assert VOICE_COMMANDS["min center"] == "genau_center_0"
-        assert VOICE_COMMANDS["max center"] == "genau_center_100"
+        assert VOICE_COMMANDS["min amp"] == "robot_hand_amp_0"
+        assert VOICE_COMMANDS["max amp"] == "robot_hand_amp_100"
+        assert VOICE_COMMANDS["min center"] == "robot_hand_center_0"
+        assert VOICE_COMMANDS["max center"] == "robot_hand_center_100"
         # Speed min/max route to the active engine (Nau video or Genau), not
         # Genau-only like the amp/center extremes.
         assert VOICE_COMMANDS["min speed"] == "speed_min"

@@ -231,13 +231,12 @@ class TestHudPublishing:
 
         nau.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
         genau.write_text("locked=1\n", encoding="utf-8")
-        assert published("nau") is False
-        assert published("hybrid") is False
+        assert published("video") is False
         assert published("genau") is True
 
         nau.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
         genau.write_text("locked=0\n", encoding="utf-8")
-        assert published("nau") is True
+        assert published("video") is True
         assert published("genau") is False
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):

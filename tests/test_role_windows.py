@@ -179,23 +179,24 @@ class TestTopmostBands:
 
         assert {h for h, on in calls if on is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
-    def test_restore_all_topmost_floats_nau_in_nau_mode(self):
-        """nau mode: Nau reclaims the topmost band, above the desktop."""
+    def test_restore_all_topmost_floats_nau_and_genaus_hud_in_video_mode(self):
+        """video mode: Nau reclaims the topmost band, above the desktop, and
+        Genau's HUD is promoted after it, so it lands above the video."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode="nau", satellites_mode="player")
+                                 main_mode="video", satellites_mode="video")
 
-        assert {h for h, on in calls if on is True} == TOPMOST_HWNDS | {NAU_HWND}
+        assert {h for h, on in calls if on is True} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
-    def test_hybrid_promotes_nau_before_genau_so_the_hud_lands_on_top(self):
-        """hybrid: Nau and Genau are BOTH topmost so the composite floats above
+    def test_video_mode_promotes_nau_before_genau_so_the_hud_lands_on_top(self):
+        """video mode: Nau and Genau are BOTH topmost so the composite floats above
         the desktop, and HWND_TOPMOST inserts at the TOP of the band — so Nau is
         promoted BEFORE Genau, which is what stacks the HUD over the video."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode="hybrid", satellites_mode="player")
+                                 main_mode="video", satellites_mode="video")
 
         promoted = [h for h, on in calls if on]
         assert {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
@@ -216,7 +217,7 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode="nau", satellites_mode="origenerator")
+                                 main_mode="video", satellites_mode="origenerator")
 
         promoted = [h for h, on in calls if on]
         assert RFB_HWND not in promoted, (
@@ -238,13 +239,13 @@ class TestOrigeneratorWindowConverger:
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=0), \
              patch("fun_time.role_windows.restore_window") as restore:
-            windows.converge_origenerator_window("nau", "origenerator")
+            windows.converge_origenerator_window("video", "origenerator")
         restore.assert_not_called()  # still booting — nothing to drive
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.role_windows.is_window_minimized", return_value=True), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top"):
-            windows.converge_origenerator_window("nau", "origenerator")
+            windows.converge_origenerator_window("video", "origenerator")
         restore.assert_called_once_with(4242, activate=False)
 
     def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self):
@@ -258,8 +259,8 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_minimized", return_value=True), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top"):
-            windows.converge_origenerator_window("nau", "origenerator")
-            windows.converge_origenerator_window("nau", "origenerator")
+            windows.converge_origenerator_window("video", "origenerator")
+            windows.converge_origenerator_window("video", "origenerator")
         assert restore.call_count == 2
 
     def test_a_shown_window_out_of_the_band_is_re_promoted(self):
@@ -271,20 +272,20 @@ class TestOrigeneratorWindowConverger:
              patch("fun_time.role_windows.is_window_topmost", return_value=False), \
              patch("fun_time.role_windows.restore_window") as restore, \
              patch("fun_time.role_windows.set_always_on_top") as promote:
-            windows.converge_origenerator_window("nau", "origenerator")
+            windows.converge_origenerator_window("video", "origenerator")
         restore.assert_not_called()
         promote.assert_any_call(4242, True)
 
-    def test_player_mode_parks_a_window_left_up(self):
+    def test_video_mode_parks_a_window_left_up(self):
         windows = make_windows(pids={"origenerator": HOSTED_PID})
         with patch.object(windows, "hwnd", return_value=4242), \
              patch("fun_time.role_windows.is_window_minimized", return_value=False), \
              patch("fun_time.role_windows.minimize_window") as minimize:
-            windows.converge_origenerator_window("nau", "player")
+            windows.converge_origenerator_window("video", "video")
         minimize.assert_called_once_with(4242, activate=False)
 
     def test_without_a_hosted_app_the_converger_is_inert(self):
         windows = make_windows()
         with patch.object(windows, "hwnd") as resolve:
-            windows.converge_origenerator_window("nau", "origenerator")
+            windows.converge_origenerator_window("video", "origenerator")
         resolve.assert_not_called()

@@ -200,7 +200,7 @@ def test_the_reference_and_the_handlers_agree():
     ghosts = reference - real
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
 
-    undocumented = _handler_ids() - reference - {"genau_speed_down", "genau_speed_up"}
+    undocumented = _handler_ids() - reference - {"robot_hand_speed_down", "robot_hand_speed_up"}
     assert not undocumented, f"handled commands the reference omits: {sorted(undocumented)}"
 
 

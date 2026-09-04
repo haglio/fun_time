@@ -10,11 +10,10 @@ Fun Time is a Windows desktop setup that launches and coordinates:
 
 It uses a serial broker for the OSR2 — the separate `../broker` project — that is intended to run continuously in the background.
 
-The main stack runs in one of three modes (startup mode is **nau**):
+The main stack runs in one of two modes (startup mode is **video**):
 
-- in **Nau mode**, Nau owns the main player and the OSR2: it plays the whole main library (videos without a funscript just play with no OSR2 output) and drives the OSR2 itself by sending funscript-derived T-Code over UDP to the broker
-- in **Genau mode** (OSR2 auto/free mode), Genau clips own both the main player and the OSR2
-- in **Hybrid mode**, Nau displays video under Genau's HUD while Genau drives the OSR2
+- in **Video mode**, Nau owns the main player and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (Nau sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own stroke generator, run from Genau's process — through the quiet stretches and for videos without a script
+- in **Genau mode** (OSR2 auto/free mode), Genau clips own the main player and the Robot Hand drives the OSR2 outright
 
 ## Folder layout
 
@@ -124,7 +123,7 @@ Serial / mode control:
 
 - the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
 - **Nau** — a funscript video player in the `../genau` project — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/nau_cmd.txt`, and publishes playback status to `state/nau_status.txt`.
-- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, shows itself only in Genau/Hybrid mode, and reads clip/offset commands from `state/genau_cmd.txt`.
+- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over Nau in video mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 
@@ -256,18 +255,15 @@ Every player says whether it is the one those bare words would reach: the **dot*
 
 ### Modes
 
-The main stack runs in one of three modes, each selected by its own hotkey (see the popup): **Nau**, **Genau**, and **Hybrid**. The `\` key is mode-dependent:
+The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's stroke by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-- in Nau mode, `\` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
-- in Genau and Hybrid modes, `\` offsets Genau playback by a quarter cycle.
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (in Genau mode the paused Nau still navigates in the background). The `'` clip-save key reads the current video/time from Nau's status file in video mode.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (in Genau mode the paused Nau still navigates in the background). The `'` clip-save key reads the current video/time from Nau's status file in Nau and Hybrid modes.
+Spoken, "video mode" puts both sides on their video players at once; "main video mode" and "satellite video mode" do one side, and "genau mode" (heard as "go now" — "genau" is not in the recognizer's vocabulary) or "origenerator mode" (heard as "generator mode") puts a side back.
 
-The Nau-mode voice trigger is spoken as "now now" (the reference displays it as "nau nau" — "nau" itself is not in the recognizer's vocabulary).
+The satellite side has a mode axis of its own, orthogonal to the two above: **video mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "generator mode" / "satellite video mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in video mode), and the slideshows and fullscreen views it opens land on the portrait or landscape satellite region by each subject's orientation — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both regions on the whole Origenerator library of their own shape, shuffled — the same base state each satellite player holds in video mode, and what a region's reset button goes back to. Both satellite players are paused and blacked out for the whole of the mode (the regions are the hosted app's throughout, and a player decoding under a show was decoding for nobody), so the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`) reach the hosted app for as long as the mode lasts. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
 
-The satellite side has a mode axis of its own, orthogonal to the three above: **player mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "generator mode" / "player mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in player mode), and the slideshows and fullscreen views it opens land on the portrait or landscape satellite region by each subject's orientation — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both regions on the whole Origenerator library of their own shape, shuffled — the same base state each satellite player holds in player mode, and what a region's reset button goes back to. Both satellite players are paused and blacked out for the whole of the mode (the regions are the hosted app's throughout, and a player decoding under a show was decoding for nobody), so the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`) reach the hosted app for as long as the mode lasts. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
-
-### The library browser (Nau mode)
+### The library browser
 
 The main library is filed by pipeline stage, several folders deep, and the
 same video sits in three of them at different trims and upscales
@@ -354,7 +350,7 @@ HUD maps paint from — and warmed in the background at startup, one per handle,
 taken off the *smallest* rendition: a 2.7 GB upscale and the original it came
 from make the same picture, and only one of them is cheap to open.
 
-### Loop recording (Nau mode)
+### Loop recording (video mode)
 
 Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows Nau's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
 
@@ -375,7 +371,7 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.
 
-For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize box — and this is the only affordance that parks one. The main console's button names the *slot*, so it reaches whichever player is showing there: Nau in nau mode, Genau in genau, and both in hybrid, never the hidden slot-mate (minimizing an already-parked window is what drags it back into view).
+For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize box — and this is the only affordance that parks one. The main console's button names the *slot*, so it reaches whichever player is showing there: Genau in genau mode, and both in video mode, never the hidden slot-mate (minimizing an already-parked window is what drags it back into view).
 
 The player keeps running behind it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
@@ -481,7 +477,7 @@ The audio companion and the Python dispatch loop both read this file as the auth
 
 ### `genau_cmd.txt`
 
-Written by `fun_time/command_dispatch.py` when Genau control commands are dispatched while Genau is active (Genau/Hybrid mode).
+Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
 
 Values:
 
@@ -527,7 +523,7 @@ Commands (the full set `nau/runtime.py` answers to):
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
 - `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. Nau alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`
-- `SET_HYBRID 0|1` / `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; all three drive what its HUD shows
+- `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; both drive what its HUD shows
 - `DISPLAY_ON` / `DISPLAY_OFF` — whether Nau owns the main player's rect, which is not whether it is playing: the idle main-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode Nau blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
 - `QUIT`
 
@@ -537,7 +533,7 @@ Flag file — Nau's pause channel. Mode switches and OmniPause write it; Nau pol
 
 ### `nau_status.txt`
 
-Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time outside Hybrid mode) and by the dashboard.
+Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time in video mode) and by the dashboard.
 
 ### `watch_stats.json`
 

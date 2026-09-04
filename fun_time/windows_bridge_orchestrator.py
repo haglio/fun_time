@@ -28,7 +28,6 @@ from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .lock_hud import prime_group_indexes
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import LaunchManifest
-from .mode_plan import genau_active
 from .modes import collect_video_files
 from .overlay_progress import (
     CANCEL_FILENAME,
@@ -474,12 +473,12 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
     is behind other windows on startup" was undiagnosable while only Nau's
     coverage was logged.
 
-    *expected_over* is the one window that belongs above the target in the
-    mode the session opened in — Genau's over Nau, which in hybrid is the
-    transparent HUD layer over Nau's video and in genau mode is the display
-    itself.  Warning on the session's own by-design layering toasted every
-    hybrid startup with a "covering" window that covers nothing you can see;
-    anything else over the player still warns.  *ignore* is the loading
+    *expected_over* is the one window that belongs above the target in every
+    mode — Genau's over Nau, which in video mode is the transparent HUD layer
+    over Nau's video and in genau mode is the display itself.  Warning on the
+    session's own by-design layering toasted every startup with a "covering"
+    window that covers nothing you can see; anything else over the player
+    still warns.  *ignore* is the loading
     overlay while this runs behind it, which covers everything by design.
     """
     if not hwnd:
@@ -598,13 +597,10 @@ def _fix_post_loading_windows(result: StartupResult, *,
     owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
     _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
     portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())
-    # In hybrid and genau modes Genau's window sits over Nau on purpose — the
-    # transparent HUD layer, or the display itself — so it is not a covering
-    # worth a warning there.
-    _log_window_obstruction(
-        "Nau", nau_hwnd,
-        expected_over=genau_hwnd if genau_active(result.main_mode) else 0,
-    )
+    # Genau's window sits over Nau on purpose in both modes — the transparent
+    # HUD layer, or the display itself — so it is not a covering worth a
+    # warning.
+    _log_window_obstruction("Nau", nau_hwnd, expected_over=genau_hwnd)
     _log_window_obstruction("Portrait satellite", portrait_owner, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_owner, ignore=overlay_hwnd)
     return role_hwnds
@@ -613,7 +609,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
 def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
     """A callable answering who owns each satellite rect in this session's mode.
 
-    The players in player mode.  In origenerator mode the hosted app's two
+    The players in video mode.  In origenerator mode the hosted app's two
     region shows: they cover the players on purpose, and the players are
     blacked and held for the whole mode, so "the player is covered" is the
     normal state there rather than a burial to undo.
@@ -643,7 +639,7 @@ def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
 def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
                         wait_s: float = SETTLE_WAIT_S) -> None:
     """Re-promote whoever owns each satellite rect until it is genuinely
-    frontmost over it — the players in player mode, the hosted app's region
+    frontmost over it — the players in video mode, the hosted app's region
     shows in origenerator mode, where the players are blacked underneath them.
 
     *owners* is called for each pass and answers ``[(name, hwnd), ...]``, so a

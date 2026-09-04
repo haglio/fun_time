@@ -508,7 +508,7 @@ class TestDispatchLoopRunner:
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: EVERY managed window leaves the
-        TOPMOST band — including Nau, which carries the topmost flag in nau mode
+        TOPMOST band — including Nau, which carries the topmost flag in video mode
         and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -527,13 +527,11 @@ class TestDispatchLoopRunner:
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path,
     ):
-        """Leaving omnipause in nau mode gives every managed window its TOPMOST
-        bit back — INCLUDING Nau, which floats above the desktop again — and
-        re-activates the window that owns the main player.
-
-        Genau is the exception, and the reason this is worth pinning: it shares
-        Nau's rect and is promoted last, so putting it back in the band puts it
-        ABOVE Nau's video.  Coming back from omnipause used to do exactly that.
+        """Leaving omnipause in video mode gives every managed window its TOPMOST
+        bit back — Nau, which floats above the desktop again, and Genau, which
+        shares Nau's rect and is promoted last, so putting it back in the band
+        puts its HUD ABOVE Nau's video — and re-activates the window on top of
+        the main player, which is Genau's.
         """
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=True)
@@ -551,9 +549,8 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is False
-        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {NAU_HWND}
-        assert GENAU_HWND not in {h for h, v in topmost_calls if v is True}
-        assert activated == [NAU_HWND]
+        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert activated == [GENAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -570,39 +567,12 @@ class TestDispatchLoopRunner:
         assert loaded is not None
         assert loaded.omni_paused is True
 
-    def test_backslash_key_dispatches_quarter_button_in_genau_mode(self, tmp_path):
-        runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="genau")
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("backslash_key", encoding="utf-8")
-
-        with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-            mock_dispatch.return_value = (runner.state, [])
-            runner.tick()
-
-        commands = [c[0][0] for c in mock_dispatch.call_args_list]
-        assert "quarter_button" in commands
-
-    def test_backslash_key_sends_quarter_button_press_in_genau_mode(self, tmp_path):
+    def test_browse_library_sends_its_press_and_browses_with_the_room_playing(self, tmp_path):
         with _press_channel(tmp_path) as recv_sock:
             runner = make_runner(tmp_path, dashboard_enabled=True)
-            runner.state = BridgeState(main_mode="genau")
+            runner.state = BridgeState(main_mode="video")
             cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("backslash_key", encoding="utf-8")
-
-            with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
-                mock_dispatch.return_value = (runner.state, [])
-                runner.tick()
-
-            messages = _presses_until(recv_sock, "quarter_button")
-        assert "quarter_button" in messages
-
-    def test_backslash_key_sends_browse_library_press_in_nau_mode(self, tmp_path):
-        with _press_channel(tmp_path) as recv_sock:
-            runner = make_runner(tmp_path, dashboard_enabled=True)
-            runner.state = BridgeState(main_mode="nau")
-            cmd_file = tmp_path / "dashboard_cmd.txt"
-            cmd_file.write_text("backslash_key", encoding="utf-8")
+            cmd_file.write_text("browse_library", encoding="utf-8")
 
             with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
                  patch("fun_time.role_windows.find_window_by_title", return_value=0), \
@@ -617,7 +587,7 @@ class TestDispatchLoopRunner:
         assert "browse_library" in messages
         # Browsing must NOT enter OmniPause: the old flow paused the whole
         # session for the browse and resumed only Nau, stranding the
-        # satellites + voice frozen.  Backslash browses with everything
+        # satellites + voice frozen.  The browser opens with everything
         # still playing.
         assert runner.state.omni_paused is False
 
@@ -733,8 +703,9 @@ class TestDispatchLoopRunner:
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
         """omniminimize minimizes the windows the current mode shows, without
-        stealing focus.  In nau mode the hidden slot-mate (Genau) is NOT
-        minimized — SW_MINIMIZE would drag a hidden window back into view."""
+        stealing focus — in video mode Genau's HUD among them.  (In genau mode
+        the hidden slot-mate, Nau, is NOT minimized: SW_MINIMIZE would drag a
+        hidden window back into view.)"""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
@@ -747,15 +718,15 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert {h for h, _ in minimized} == {
-            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND,
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND, GENAU_HWND,
         }
         # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
     def test_omniminimize_in_hybrid_includes_nau_and_genau(self, tmp_path):
-        """Hybrid shows Nau under Genau's HUD (Genau drives the OSR2)."""
+        """Video mode shows Nau under Genau's HUD (Genau drives the OSR2)."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(main_mode="hybrid")
+        runner.state = BridgeState(main_mode="video")
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -829,7 +800,7 @@ class TestDispatchLoopRunner:
         clock = FakeClock()
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND, clock=clock)
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("genau_activate\nnau_activate", encoding="utf-8")
+        cmd_file.write_text("genau_activate\nmain_video_activate", encoding="utf-8")
 
         minimized: list[int] = []
 
@@ -844,7 +815,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert NAU_HWND not in minimized, "Nau owns the display again"
-        assert minimized == [GENAU_HWND]
+        assert minimized == [], "and video mode parks nobody: both share the screen"
 
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
         """omnirestore un-minimizes the windows omniminimize minimized — no
@@ -920,10 +891,9 @@ class TestDispatchLoopRunner:
 
     def test_the_main_players_console_button_parks_the_window_holding_the_slot(self, tmp_path):
         """Nau and Genau share the main rect, so which window the console's button
-        reaches is the mode's business: Nau in nau mode, and in hybrid both, where
-        Genau's HUD sits over Nau's video."""
-        for mode, wanted in (("nau", [NAU_HWND]), ("genau", [GENAU_HWND]),
-                             ("hybrid", [NAU_HWND, GENAU_HWND])):
+        reaches is the mode's business: Genau in genau mode, and in video mode
+        both, where Genau's HUD sits over Nau's video."""
+        for mode, wanted in (("genau", [GENAU_HWND]), ("video", [NAU_HWND, GENAU_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
             # Through the shared state file, which every tick re-reads over
             # whatever the runner is holding.
@@ -1356,13 +1326,13 @@ class TestModeSwitchVisibility:
             runner.windows.flush_pending_hides()
 
         assert runner.state.main_mode == {
-            "genau_activate": "genau", "nau_activate": "nau", "hybrid_activate": "hybrid",
+            "genau_activate": "genau", "main_video_activate": "video",
         }[command]
         return calls
 
     def test_genau_activate_shows_genau_before_hiding_nau(self, tmp_path, monkeypatch):
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="nau", command="genau_activate",
+            tmp_path, monkeypatch, from_mode="video", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
@@ -1370,19 +1340,9 @@ class TestModeSwitchVisibility:
             ("hide", NAU_HWND),
         ]
 
-    def test_nau_activate_shows_nau_before_hiding_genau(self, tmp_path, monkeypatch):
+    def test_main_video_activate_shows_nau_under_genaus_hud(self, tmp_path, monkeypatch):
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="genau", command="nau_activate",
-        )
-        assert calls == [
-            ("show", NAU_HWND),
-            ("activate", NAU_HWND),
-            ("hide", GENAU_HWND),
-        ]
-
-    def test_hybrid_activate_shows_nau_and_genau(self, tmp_path, monkeypatch):
-        calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="nau", command="hybrid_activate",
+            tmp_path, monkeypatch, from_mode="genau", command="main_video_activate",
         )
         assert calls == [
             ("show", NAU_HWND),
@@ -1390,12 +1350,12 @@ class TestModeSwitchVisibility:
             ("activate", GENAU_HWND),
         ]
 
-    def test_hybrid_to_genau_hides_nau(self, tmp_path, monkeypatch):
-        """Hybrid and Genau differ only in Nau's visibility, so the transition
+    def test_video_to_genau_hides_nau(self, tmp_path, monkeypatch):
+        """Video mode and Genau differ only in Nau's visibility, so the transition
         must still swap windows.  Regression — a guard that compared
         genau_active() instead of the mode missed this pair."""
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="hybrid", command="genau_activate",
+            tmp_path, monkeypatch, from_mode="video", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
@@ -1407,7 +1367,7 @@ class TestModeSwitchVisibility:
         """FUN_TIME_RUN_INTEGRATION=1 keeps mode switches from stealing the
         real desktop's focus; show/hide still happen."""
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="nau", command="genau_activate",
+            tmp_path, monkeypatch, from_mode="video", command="genau_activate",
             integration_env=True,
         )
         assert calls == [
@@ -1440,7 +1400,7 @@ class TestResolveRole:
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
             assert runner.windows.hwnd("nau") == NAU_HWND
-            runner._dispatch("nau_activate")
+            runner._dispatch("main_video_activate")
 
         assert shown == [NAU_HWND]
 
@@ -1518,7 +1478,7 @@ class TestBrowseLibrary:
         )
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
-        """In nau mode (the default) a selected file becomes a Nau PLAY_FILE
+        """In video mode (the default) a selected file becomes a Nau PLAY_FILE
         command, paired with its mirrored funscript when one exists."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -1539,12 +1499,12 @@ class TestBrowseLibrary:
         command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
-    def test_sends_selected_file_to_nau_in_hybrid(self, tmp_path):
-        """Hybrid displays Nau, so a selected file becomes a Nau PLAY_FILE
+    def test_sends_selected_file_to_nau_in_video_mode(self, tmp_path):
+        """Video mode displays Nau, so a selected file becomes a Nau PLAY_FILE
         command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
-        runner.state = BridgeState(omni_paused=False, main_mode="hybrid")
+        runner.state = BridgeState(omni_paused=False, main_mode="video")
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
@@ -1570,7 +1530,8 @@ class TestBrowseLibrary:
 
     def test_restores_topmost_after_the_pick(self, tmp_path):
         """After the pick, every managed window gets its topmost band back —
-        Nau included in nau mode, so it floats above the desktop again."""
+        Nau and Genau's HUD over it included, so the video floats above the
+        desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
 
@@ -1584,7 +1545,7 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS | {NAU_HWND}
+        assert restored == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
 
     def test_never_restores_nau_topmost_even_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -2000,19 +1961,20 @@ class TestIdempotentVoiceCommands:
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="nau")
+        runner.state = BridgeState(main_mode="video")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
         mock_d.assert_called_once_with("genau_activate", None)
 
-    def test_genau_activate_dispatches_in_hybrid_mode(self, tmp_path):
-        """Hybrid mode is genau-active but is NOT genau mode: the Genau-mode
-        button must still switch to full Genau.  Regression — the old guard
-        used genau_active(), which is True for hybrid, so it swallowed this."""
+    def test_genau_activate_dispatches_in_video_mode(self, tmp_path):
+        """Video mode has the Robot Hand behind it but is NOT genau mode: the
+        Genau-mode button must still switch to full Genau.  Regression — an old
+        guard asked whether Genau was active, which video mode also was, so it
+        swallowed this."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="hybrid")
+        runner.state = BridgeState(main_mode="video")
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2319,36 +2281,38 @@ class TestWatchTracking:
 
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
-        """Startup parks the idle main-slot window (Genau) BEFORE the dispatch
-        loop ever resolves it; with the pid/title lookups mocked to fail, the
-        runner must answer from the hwnds the startup sequencer seeded while
-        everything was visible, or genau/hybrid could never bring windows back."""
+        """A genau session's startup parks the idle main-slot window (Nau)
+        BEFORE the dispatch loop ever resolves it; with the pid/title lookups
+        mocked to fail, the runner must answer from the hwnds the startup
+        sequencer seeded while everything was visible, or video mode could
+        never bring Nau back."""
         runner = make_runner(
             tmp_path,
             role_hwnds={"genau": 6001, "nau": 2001},
         )
+        runner.state = BridgeState(main_mode="genau")
         shown: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("genau") == 6001
             assert runner.windows.hwnd("nau") == 2001
-            runner._dispatch("hybrid_activate")
+            runner._dispatch("main_video_activate")
 
-        assert shown == [2001, 6001]  # hybrid shows Nau then the Genau HUD
+        assert shown == [2001, 6001]  # video mode shows Nau then the Genau HUD
 
 
-class TestHybridFunscriptHandoff:
-    """The arbitration itself is the driver's (see tests/test_hybrid_driver.py);
+class TestVideoModeFunscriptHandoff:
+    """The arbitration itself is the driver's (see tests/test_device_arbiter.py);
     what the runner owes is running it each tick against the current modes."""
 
     def test_the_tick_arbitrates_for_the_mode_the_session_is_in(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="hybrid", omni_paused=True)
+        runner.state = BridgeState(main_mode="video", omni_paused=True)
 
-        with patch.object(runner.hybrid, "sync") as sync:
+        with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
 
-        sync.assert_called_once_with("hybrid", paused=True)
+        sync.assert_called_once_with("video", paused=True)
 
 
 class TestExpandBothCommand:
@@ -2422,7 +2386,7 @@ class TestHudPublishing:
 
     def test_the_tick_feeds_the_huds_the_state_it_is_holding(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="hybrid", locked2=True)
+        runner.state = BridgeState(main_mode="video", locked2=True)
 
         with patch.object(runner.hud, "publish_due") as publish:
             runner.tick()
@@ -2508,13 +2472,13 @@ class TestOrigeneratorWindowConverger:
 
     def test_outside_omnipause_the_windows_object_is_asked_for_these_modes(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner.state = replace(runner.state, main_mode="hybrid",
+        runner.state = replace(runner.state, main_mode="video",
                                satellites_mode="origenerator")
 
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
             runner._converge_origenerator_window()
 
-        converge.assert_called_once_with("hybrid", "origenerator")
+        converge.assert_called_once_with("video", "origenerator")
 
 
 class TestOrigeneratorWatchGuard:

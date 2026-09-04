@@ -77,7 +77,7 @@ class HudOverlay:
         origenerator mode.  The regions are the hosted app's for the whole
         mode, so the player blacks its video out underneath (the run loop's
         job, keyed off this) — keeping the HUD itself up, whose mode row is
-        the way back to player mode when no show covers the region."""
+        the way back to video mode when no show covers the region."""
         return (self._model is not None
                 and self._model.satellites_mode == "origenerator")
 

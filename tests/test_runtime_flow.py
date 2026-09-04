@@ -66,176 +66,63 @@ def flow_files(tmp_path: Path) -> dict[str, Path]:
     }
 
 
-def _mode_switch(files, *, current, target, omni_paused=False, broker=False):
+def _mode_switch(files, *, current, target, omni_paused=False):
     return apply_mode_switch(
         current_mode=current,
         target_mode=target,
         omni_paused=omni_paused,
-        genau_paused_file=files["genau_paused_file"],
-        audio_paused_file=files["audio_paused_file"],
         genau_cmd_file=files["genau_cmd_file"],
         nau_paused_file=files["nau_paused_file"],
         nau_cmd_file=files["nau_cmd_file"],
-        broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
 
 
-def test_nau_to_genau_resumes_genau_and_pauses_nau(flow_files):
-    result = _mode_switch(flow_files, current="nau", target="genau")
-
-    assert result.next_mode == "genau"
-    assert result.is_transition is True
-    assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nDISPLAY_ON\n"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
-
-
-def test_genau_to_nau_pauses_genau_and_resumes_nau(flow_files):
-    result = _mode_switch(flow_files, current="genau", target="nau")
-
-    assert result.next_mode == "nau"
-    assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nDISPLAY_OFF\n"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
-
-
-def test_nau_to_hybrid_keeps_nau_playing(flow_files):
-    # Nau already owns the display in nau; hybrid keeps it playing (Genau just
-    # takes over the OSR2 and paints its HUD), so Nau's pause state is untouched.
-    result = _mode_switch(flow_files, current="nau", target="hybrid")
-
-    assert result.is_transition is True
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON\n"
-    assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
-
-
 def _nau_cmds(files) -> list[str]:
-    path = files["nau_cmd_file"]
-    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+    """What the switch queued for Nau, one verb per line as it drains them."""
+    return files["nau_cmd_file"].read_text(encoding="utf-8").split("\n")[:-1]
 
 
-def test_every_mode_switch_tells_nau_whether_it_is_hybrid(flow_files):
-    """Genau's window is a transparent layer over Nau's in hybrid and its own
-    panel holds the top-left corner, so Nau has to move its own aside — and only
-    this knows which mode the main slot is in."""
-    _mode_switch(flow_files, current="nau", target="hybrid")
-    assert "SET_HYBRID 1" in _nau_cmds(flow_files)
-
-    _mode_switch(flow_files, current="hybrid", target="nau")
-    assert "SET_HYBRID 0" in _nau_cmds(flow_files)
-
-    _mode_switch(flow_files, current="nau", target="genau")
-    assert "SET_HYBRID 0" in _nau_cmds(flow_files)
-
-
-def test_every_mode_switch_tells_nau_whether_it_is_on_screen(flow_files):
-    """Nau blanks in genau mode the way Genau blanks in nau mode: the idle
-    main-slot player is minimized rather than closed, so without this an
-    alt-tab back to it lands on the frame it was paused on."""
-    _mode_switch(flow_files, current="nau", target="genau")
-    assert "DISPLAY_OFF" in _nau_cmds(flow_files)
-
-    _mode_switch(flow_files, current="hybrid", target="genau")
-    assert "DISPLAY_OFF" in _nau_cmds(flow_files)
-
-    _mode_switch(flow_files, current="genau", target="nau")
-    assert "DISPLAY_ON" in _nau_cmds(flow_files)
-
-    _mode_switch(flow_files, current="genau", target="hybrid")
-    assert "DISPLAY_ON" in _nau_cmds(flow_files)
-
-
-def test_leaving_hybrid_keeps_every_nau_command(flow_files):
-    """The command file is overwritten, not appended, so the hybrid signal and
-    the display must ride along with the T-Code re-enable, not replace it."""
-    _mode_switch(flow_files, current="hybrid", target="nau")
-
-    assert _nau_cmds(flow_files) == ["SET_HYBRID 0", "DISPLAY_ON", "SET_TCODE_ENABLED 1"]
-
-
-def test_hybrid_to_nau_keeps_nau_playing(flow_files):
-    result = _mode_switch(flow_files, current="hybrid", target="nau")
-
-    assert result.next_mode == "nau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nHUD_OFF\nDISPLAY_OFF\n"
-    assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
-
-
-def test_hybrid_to_genau_resumes_genau(flow_files):
-    # Authoritative RESUME undoes any per-video pause the hybrid arbiter applied
-    # while a funscripted video was driving the OSR2.
-    result = _mode_switch(flow_files, current="hybrid", target="genau")
+def test_video_to_genau_resumes_genau_and_parks_nau(flow_files):
+    result = _mode_switch(flow_files, current="video", target="genau")
 
     assert result.next_mode == "genau"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\nDISPLAY_ON\n"
+    assert result.is_transition is True
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\n"
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
+    assert _nau_cmds(flow_files) == ["DISPLAY_OFF"]
 
 
-def test_leaving_hybrid_reenables_nau_tcode(flow_files):
-    # The arbiter mutes Nau's T-Code in funscript gaps; leaving hybrid restores
-    # it so a later nau mode drives its funscript again.
-    for target in ("nau", "genau"):
-        flow_files["nau_cmd_file"].unlink(missing_ok=True)
-        _mode_switch(flow_files, current="hybrid", target=target)
-        assert "SET_TCODE_ENABLED 1" in _nau_cmds(flow_files)
+def test_genau_to_video_starts_nau_under_genaus_hud(flow_files):
+    # RESUME either way: the dispatch loop's arbiter takes the hand from here,
+    # pausing it for the funscript's stretches on its next tick.
+    result = _mode_switch(flow_files, current="genau", target="video")
+
+    assert result.next_mode == "video"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\n"
+    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
+    assert _nau_cmds(flow_files) == ["DISPLAY_ON"]
 
 
-def test_entering_hybrid_does_not_reenable_nau_tcode(flow_files):
-    """The arbiter owns that lever inside hybrid; asserting it back on here would
-    fight it."""
-    _mode_switch(flow_files, current="nau", target="hybrid")
+def test_a_mode_switch_leaves_the_paused_flags_and_naus_tcode_alone(flow_files):
+    """Genau and its audio run in both modes (the paused flags are OmniPause's
+    and the startup hold's), and the arbiter owns Nau's T-Code lever inside
+    video mode — so the switch touches neither."""
+    for current, target in (("video", "genau"), ("genau", "video")):
+        _mode_switch(flow_files, current=current, target=target)
 
+    assert not flow_files["genau_paused_file"].exists()
+    assert not flow_files["audio_paused_file"].exists()
     assert "SET_TCODE_ENABLED 1" not in _nau_cmds(flow_files)
 
 
-def test_genau_to_hybrid_starts_nau(flow_files):
-    result = _mode_switch(flow_files, current="genau", target="hybrid")
-
-    assert result.next_mode == "hybrid"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\nDISPLAY_ON\n"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
-
-
-def test_mode_switch_tells_genau_whether_it_is_on_screen(flow_files):
-    # Switching away from a mode that shows Genau blanks its window, so an
-    # alt-tab doesn't land on the clip frame it was resting on; switching back
-    # restores it.  PAUSE alone never blanks — a paused hand still shows a clip.
-    _mode_switch(flow_files, current="genau", target="nau")
-    assert "DISPLAY_OFF" in flow_files["genau_cmd_file"].read_text(encoding="utf-8").split("\n")
-
-    _mode_switch(flow_files, current="nau", target="genau")
-    assert "DISPLAY_ON" in flow_files["genau_cmd_file"].read_text(encoding="utf-8").split("\n")
-
-
 def test_mode_switch_during_omnipause_no_side_effects(flow_files):
-    result = _mode_switch(flow_files, current="nau", target="genau", omni_paused=True)
+    result = _mode_switch(flow_files, current="video", target="genau", omni_paused=True)
 
     assert result.next_mode == "genau"
     assert result.is_transition is False
-    assert not flow_files["genau_paused_file"].exists(), "Omnipause must NOT write flag files"
-    assert not flow_files["nau_paused_file"].exists()
+    assert not flow_files["nau_paused_file"].exists(), "Omnipause must NOT write flag files"
     assert not flow_files["genau_cmd_file"].exists(), "Omnipause must NOT write cmd file"
-
-
-def test_genau_to_nau_writes_broker_resume(flow_files):
-    _mode_switch(flow_files, current="genau", target="nau", broker=True)
-
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
-
-
-def test_hybrid_to_nau_writes_broker_resume(flow_files):
-    """Leaving genau-active hybrid for nau must un-PARK the broker."""
-    _mode_switch(flow_files, current="hybrid", target="nau", broker=True)
-
-    assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
-
-
-def test_nau_to_genau_does_not_write_broker_cmd(flow_files):
-    _mode_switch(flow_files, current="nau", target="genau", broker=True)
-
-    assert not flow_files["broker_cmd_file"].exists(), "Activation must not write to broker"
+    assert not flow_files["nau_cmd_file"].exists()
 
 
 def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
@@ -740,7 +627,7 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     destination changes, from home to the far end of its stroke."""
     result = apply_enter_omnipause(
         omni_paused=False,
-        main_mode="hybrid",
+        main_mode="video",
         portrait_paused_file=flow_files["portrait_paused_file"],
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
@@ -775,16 +662,17 @@ def _leave_omnipause(files, *, main_mode, broker=True):
     )
 
 
-def test_apply_leave_omnipause_in_nau_mode_resumes_nau(flow_files):
+def test_apply_leave_omnipause_in_video_mode_resumes_nau_and_lifts_the_hand(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
 
-    result = _leave_omnipause(flow_files, main_mode="nau")
+    result = _leave_omnipause(flow_files, main_mode="video")
 
     assert result.next_omni_paused is False
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
-    # Genau stays paused when main_mode is nau
-    assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
+    # The hand's flag lifts with everyone's; which of it and the funscript
+    # drives is the arbiter's call on its next tick, so no RESUME is sent here.
+    assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
     # Broker is un-PARKed regardless of mode
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RESUME"
@@ -794,7 +682,7 @@ def test_apply_leave_omnipause_in_nau_mode_resumes_nau(flow_files):
 
 
 def test_apply_leave_omnipause_in_hybrid_leaves_genaus_stroke_to_the_arbiter(flow_files):
-    """Hybrid hands the OSR2 between the funscript and Genau per stretch, and the
+    """Video mode hands the OSR2 between the funscript and Genau per stretch, and the
     arbiter re-asserts that on its next tick.  Resuming Genau's stroke here too
     started it against a funscript that was still driving — both on the device at
     once, which the user felt as the OSR2 fighting itself."""
@@ -802,11 +690,11 @@ def test_apply_leave_omnipause_in_hybrid_leaves_genaus_stroke_to_the_arbiter(flo
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
 
-    _leave_omnipause(flow_files, main_mode="hybrid")
+    _leave_omnipause(flow_files, main_mode="video")
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
-    # Hybrid displays Nau, so Nau resumes too (Genau just drives the OSR2).
+    # Video mode displays Nau, so Nau resumes too (Genau just drives the OSR2).
     assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
@@ -822,6 +710,6 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
     assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
-    # Both satellites are unfrozen regardless of the main player mode.
+    # Both satellites are unfrozen regardless of the main video mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"

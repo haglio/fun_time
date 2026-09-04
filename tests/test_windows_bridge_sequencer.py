@@ -86,7 +86,7 @@ def _write_result(result_file, values):
 
 def _fake_core(**kwargs):
     _write_result(kwargs["result_file"], CORE_PIDS)
-    return "nau"
+    return "video"
 
 
 def _fake_core_in(mode: str):
@@ -311,7 +311,7 @@ class TestRunStartupSequence:
         assert genau_kwargs["paused_file"] == str(cfg.genau_paused_file)
         assert genau_kwargs["clips_folder"] == str(cfg.paths.clips_dir)
         # The drive readout is a channel between the two of them, so both are told
-        # the same path.  Each resolving it for itself is how Hybrid ended up with
+        # the same path.  Each resolving it for itself is how Video mode ended up with
         # no readout at all: Genau wrote it beside its own config, Nau read ours.
         assert genau_kwargs["drive_file"] == nau_kwargs["drive_file"]
         assert {key: genau_kwargs[key] for key in ("genau_x", "genau_y", "genau_width", "genau_height")} == {
@@ -398,12 +398,12 @@ class TestRunStartupSequence:
         moved_hwnds = {c[0] for c in move_calls}
         assert {3030, 4040} <= moved_hwnds
 
-        # nau startup mode: the windows that own a rect are promoted to topmost,
+        # video startup mode: the windows that own a rect are promoted to topmost,
         # Nau (2525) included so it floats above the desktop like the main player
-        # player always has.  Genau (6060) is the hidden slot-mate and stays out
-        # of the band — it is promoted last, so being in it puts it over Nau.
+        # always has, and Genau (6060) after it — promoted last, so being in the
+        # band puts its HUD over Nau's video.
         promoted = {h for h, on in topmost_calls if on}
-        assert promoted == {3030, 4040, 2525}
+        assert promoted == {3030, 4040, 2525, 6060}
 
     def test_non_hidden_path_unpauses_nau(self, cfg_factory, tmp_path):
         """The no-loading-screen path (integration / normal without the
@@ -440,7 +440,7 @@ class TestRunStartupSequence:
         assert launch.call_args.kwargs["start_clip"] == "C:\\clips\\alpha.mp4"
 
     def test_a_genau_session_parks_nau_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
-        """Reopening in genau mode: the session is still BUILT in nau — Nau loads
+        """Reopening in genau mode: the session is still BUILT in video mode — Nau loads
         the main player's playlist and the overlay waits on it — but what is revealed
         is Genau, so the pair swaps which one is parked and which one floats."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -472,11 +472,11 @@ class TestRunStartupSequence:
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_a_hybrid_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
-        """Hybrid runs both: Nau's video with Genau driving the OSR2 over it."""
+    def test_a_video_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
+        """Video mode runs both: Nau's video with Genau's HUD over it."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
-        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "hybrid")
+        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "video")
 
         assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
@@ -496,37 +496,37 @@ class TestRunStartupSequence:
 
         assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["RESUME"]
 
-    def test_a_hybrid_session_leaves_genau_to_the_arbiter_at_the_reveal(
+    def test_a_video_session_leaves_the_hand_to_the_arbiter_at_the_reveal(
         self, cfg_factory, tmp_path,
     ):
-        """No RESUME in hybrid: the dispatch loop's arbiter picks between Genau
-        and the funscript on its first tick, and starting Genau here would put it
-        on the device against a funscript about to take it."""
+        """No RESUME in video mode: the dispatch loop's arbiter picks between the
+        Robot Hand and the funscript on its first tick, and starting the hand
+        here would put it on the device against a funscript about to take it."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         _seed_paused_flags(manifest_path)
         genau_cmd = Path(cfg.genau_cmd_file)
         genau_cmd.parent.mkdir(parents=True, exist_ok=True)
         genau_cmd.write_text("", encoding="utf-8")
 
-        _run_revealing_sequence(manifest_path, tmp_path, "hybrid")
+        _run_revealing_sequence(manifest_path, tmp_path, "video")
 
         assert genau_cmd.read_text(encoding="utf-8") == ""
 
-    def test_a_nau_session_leaves_genau_parked_at_the_reveal(self, cfg_factory, tmp_path):
-        """Nau's own mode: Genau stays held, so nothing drives the OSR2 behind
-        the minimized window."""
+    def test_a_genau_session_leaves_nau_parked_at_the_reveal(self, cfg_factory, tmp_path):
+        """Genau's own mode: Nau stays held, so nothing plays into the minimized
+        window."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
-        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "nau")
+        _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "0"
-        assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "1"
-        assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
+        assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_hybrid_stacks_genau_over_nau_and_parks_neither(self, cfg_factory, tmp_path):
-        """Hybrid is the one mode where both share the rect: Genau's transparent
-        HUD sits over Nau's video, which the topmost band expresses as promoting
-        Nau first and Genau last."""
+    def test_video_mode_stacks_genau_over_nau_and_parks_neither(self, cfg_factory, tmp_path):
+        """Video mode is where both share the rect: Genau's transparent HUD sits
+        over Nau's video, which the topmost band expresses as promoting Nau
+        first and Genau last."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
             "Genau": 6060, "Nau": 2525,
@@ -535,7 +535,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("hybrid")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("video")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == []
@@ -908,8 +908,9 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
 class TestPhase4Reveal:
     """Phase 4 (hide_windows only): play satellites, unpause Nau."""
 
-    def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None):
-        title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060}
+    def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
+                    mode="video"):
+        title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060, "Nau": 2525}
         # Both players reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
         # anything into it), so a run with no status files would hold it up.
@@ -923,7 +924,7 @@ class TestPhase4Reveal:
         topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
         hide_calls = self._hide_calls = []
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker), minimize_window=dict(side_effect=lambda h, **kw: hide_calls.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(mode)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker), minimize_window=dict(side_effect=lambda h, **kw: hide_calls.append(h))):
             return run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -950,16 +951,16 @@ class TestPhase4Reveal:
 
     def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
         """And what the orchestrator calls once the cover is gone does start them:
-        Nau in nau mode, with Genau and its audio left parked."""
+        Nau in video mode, with Genau and its audio alongside."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         _pause_every_player(m)
 
-        release_the_players(m, "nau")
+        release_the_players(m, "video")
 
         assert Path(m.commands.nau_paused_file).read_text(encoding="utf-8").strip() == "0"
-        assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "1"
-        assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "1"
+        assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "0"
+        assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
 
     def test_nothing_is_promoted_topmost_while_the_loading_overlay_is_up(self, cfg_factory, tmp_path):
         """The whole point of the loading overlay is to hide the mess of starting
@@ -979,14 +980,24 @@ class TestPhase4Reveal:
 
     def test_the_idle_slot_mate_is_still_parked_behind_the_overlay(self, cfg_factory, tmp_path):
         """Visibility is settled behind the overlay even though the bands are not:
-        minimizing Genau moves no window into the topmost band, so it cannot flash."""
+        minimizing Nau (a genau session's idle slot-mate) moves no window into
+        the topmost band, so it cannot flash."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        self._run_hidden(manifest_path, tmp_path, mode="genau")
+
+        NAU_HWND, GENAU_HWND = 2525, 6060
+        assert set(self._hide_calls) == {NAU_HWND}
+        assert GENAU_HWND not in self._hide_calls
+
+    def test_a_video_session_parks_nobody_behind_the_overlay(self, cfg_factory, tmp_path):
+        """Both main-slot players are on screen in video mode, Genau's HUD over
+        Nau's video, so there is no idle slot-mate to park."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         self._run_hidden(manifest_path, tmp_path)
 
-        NAU_HWND, GENAU_HWND = 2525, 6060
-        assert set(self._hide_calls) == {GENAU_HWND}
-        assert NAU_HWND not in self._hide_calls
+        assert self._hide_calls == []
 
 class TestNauGatesTheReveal:
     """The overlay must not come down over Nau's own loading screen.
@@ -1441,11 +1452,11 @@ class TestOrigeneratorBehindTheOverlay:
 
         resolve.assert_not_called()   # the parked window is the mode's own state
         restore.assert_not_called()
-        assert result.satellites_mode == "player"
+        assert result.satellites_mode == "video"
         # And nothing asks it to fill the regions — including anything a prior
         # session left unread, which the launch clears for exactly this reason:
         # the app drains that file on its first tick, so a stranded OPEN_SHOWS
-        # would fill the regions of a session that opened in player mode.
+        # would fill the regions of a session that opened in video mode.
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
 
     def test_a_stranded_verb_is_cleared_before_the_hosted_app_can_read_it(

@@ -198,7 +198,7 @@ def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
 
 
 def test_read_nau_status_parses_has_funscript(tmp_path: Path):
-    # Nau publishes has_funscript per current video; the hybrid handoff arbiter
+    # Nau publishes has_funscript per current video; the device arbiter
     # reads it to decide whether the funscript or Genau drives the OSR2.
     status_file = tmp_path / "nau_status.txt"
     status_file.write_text(
@@ -220,7 +220,7 @@ def test_read_nau_status_defaults_has_funscript_to_false(tmp_path: Path):
 
 
 def test_read_nau_status_parses_funscript_resting(tmp_path: Path):
-    # Nau flags when the current spot is in a funscript gap so the hybrid arbiter
+    # Nau flags when the current spot is in a funscript gap so the device arbiter
     # can hand that stretch to Genau.
     status_file = tmp_path / "nau_status.txt"
     status_file.write_text(

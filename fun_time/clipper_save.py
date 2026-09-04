@@ -39,7 +39,7 @@ def _clipper_python() -> str:
 def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
     """The main player's current video path and playback time (seconds).
 
-    Nau owns the main player in every mode it appears (nau and hybrid) and
+    Nau owns the main player in video mode and
     publishes both in its status file; the path is empty when nothing is playing.
     """
     status = read_nau_status(config.nau_status_file)

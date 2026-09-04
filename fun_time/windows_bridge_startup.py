@@ -19,7 +19,7 @@ from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .child_log import open_child_log
 from .config import load_config
-from .mode_plan import STARTUP_MAIN_MODE, genau_active
+from .mode_plan import STARTUP_MAIN_MODE, hud_verb, nau_display_verb
 from .modes import (
     PLAYLIST_NAU,
     SatelliteBuild,
@@ -42,11 +42,13 @@ from .player_status import (
 )
 from .players import Player
 from .process_identity import NAMER
+from .project_paths import PROJECT_ICON
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
-from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch, write_flag_file
+from .runtime_flow import SET_F_MODE_CMD, write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot, for_side
+from .satellites_mode import VIDEO_MODE
 from .session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
@@ -318,58 +320,33 @@ def seed_startup_states(
     satellites' HUD model itself, which is why a resumed F-mode session showed
     F-Mode on every player except the one that had to be sent it.
 
-    *mode* is which player owns the big display, and it is seeded by REPLAYING
-    the switch that would have reached it: every session is built in
-    ``STARTUP_MAIN_MODE``, so coming back in genau or hybrid is a switch out
-    of nau, and running it through the same planner a live switch uses is what
-    stops the two from ever describing the mode differently.  Only the switch's
-    *verbs* are kept — the windows are parked to match by the sequencer, and its
-    pause flags are overwritten with a hold, since a live switch starts its
-    player immediately and startup must not.
+    *mode* is which player owns the big display, and it is seeded with the same
+    verbs a live switch into it says (see ``mode_plan``): Genau's window is told
+    whether it is the display or the HUD layer over Nau's video, and Nau
+    whether it is on screen at all — the mirror pair, so an alt-tab back to a
+    parked Nau lands on black rather than on the frame it stopped on.  Only
+    those verbs, never the switch's RESUME: a live switch starts its player
+    immediately and startup must not (the reveal is what hands Genau its
+    RESUME), and the windows are parked to match by the sequencer.
 
-    Genau's *display* is the one thing that has to be said even in nau mode.
-    Blanking keys off DISPLAY_ON/DISPLAY_OFF and Genau defaults to owning its
-    display (so a standalone run paints its clips), while the DISPLAY_OFF that
-    blanks it under an orchestrator only rides a switch — and a session opening
-    in nau mode has no switch to ride.  Left unsaid, Genau comes up painting its
-    clips in the main slot it shares with Nau.
-
-    The defaults are a fresh session's: full, unmuted, unnarrowed, on Nau.
+    The defaults are a fresh session's: full, unmuted, unnarrowed, in video mode.
     """
     Path(genau_cmd_file).parent.mkdir(parents=True, exist_ok=True)
     # Written whole ONCE, here, before any player is running: the fresh
     # session's reset, clearing whatever a crashed predecessor left queued.
     # Everything after it appends — the player drains the queue in order, so a
     # later verb of the same kind supersedes an earlier one and none is lost.
-    # The broker is left out on purpose — startup has already parked the OSR2, and
-    # a switch INTO a genau-active mode has nothing to say to it anyway.
-    Path(genau_cmd_file).write_text("PAUSE\nDISPLAY_OFF\n", encoding="utf-8")
-    apply_mode_switch(
-        current_mode=STARTUP_MAIN_MODE,
-        target_mode=mode,
-        omni_paused=False,
-        genau_paused_file=genau_paused_file,
-        audio_paused_file=audio_paused_file,
-        genau_cmd_file=genau_cmd_file,
-        nau_paused_file=nau_paused_file,
-        nau_cmd_file=nau_cmd_file,
-    )
-    # After the switch, whose pause flags are a live one's: it would have started
-    # Genau the moment it landed, and here that is twenty seconds of the OSR2
-    # moving behind a progress bar.  Every player waits for the reveal instead.
+    # The broker is left out on purpose — startup has already parked the OSR2.
+    Path(genau_cmd_file).write_text(f"PAUSE\n{hud_verb(mode)}\n", encoding="utf-8")
+    append_command(Path(nau_cmd_file), nau_display_verb(mode))
+    # Every player waits for the reveal: a live switch's flags would start its
+    # player the moment they landed, and here that is twenty seconds of the OSR2
+    # moving behind a progress bar.  The flag does not hold the Robot Hand,
+    # whose stroke follows the PAUSE/RESUME verbs on Genau's channel and never
+    # reads the paused flag at all — which is why the PAUSE above is written
+    # whole and no RESUME follows it.
     for path in (genau_paused_file, audio_paused_file, nau_paused_file):
         write_flag_file(path, True)
-    # The flag does not hold Genau, which is how that twenty seconds went on
-    # happening anyway.  Under Fun Time Genau runs in direct control, where its
-    # stroke follows the PAUSE/RESUME verbs on THIS channel and the paused flag
-    # above is never read at all — so the RESUME the switch just queued was still
-    # waiting when Genau finished loading, and every session resuming into genau
-    # or hybrid drove the OSR2 behind the loading screen.  Queued behind the
-    # switch's verbs rather than replacing them: the channel is drained in order,
-    # so the display and HUD it also asserted still land and only the play verb is
-    # taken back.  The reveal is what hands Genau its RESUME.
-    if genau_active(mode):
-        append_command(Path(genau_cmd_file), "PAUSE")
     publish_audio_level(
         nau_cmd_file=Path(nau_cmd_file),
         genau_cmd_file=Path(genau_cmd_file),
@@ -384,7 +361,7 @@ def reset_satellite_paused_states(
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
     *,
-    satellites_mode: str = "player",
+    satellites_mode: str = VIDEO_MODE,
 ) -> None:
     """Seed both satellite paused flags for the mode the session opens in.
 
@@ -392,7 +369,7 @@ def reset_satellite_paused_states(
     ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
     stranded by a prior session's OmniPause would make this session's satellites
     read paused and never play (frozen at position 0), so both are written
-    before they launch.  In player mode that write is ``"0"`` — a satellite
+    before they launch.  In video mode that write is ``"0"`` — a satellite
     comes up playing.  A session RESUMED into origenerator mode comes up with
     them ``"1"`` instead: the regions are the hosted app's for the whole mode,
     and the players are black and paused underneath exactly as the mode switch
@@ -478,7 +455,7 @@ def start_core_session(
         mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files; seed them
-    # for the mode this session opens in — playing in player mode (clearing any
+    # for the mode this session opens in — playing in video mode (clearing any
     # "1" a prior OmniPause stranded), paused when resumed into origenerator
     # mode, whose players are black and held for the whole mode.
     reset_satellite_paused_states(portrait.paused_file, landscape.paused_file,
@@ -613,18 +590,18 @@ def launch_genau(
         "--height",
         str(genau_height),
     ]
-    cmd.append("--fun-time")
+    cmd.extend(["--icon", str(PROJECT_ICON)])
     cmd.extend(TASKBAR_IDENTITY_ARGS)
     if command_file is not None:
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:
         cmd.extend(["--paused-file", str(paused_file)])
     # In genau mode Genau draws the main console — the same panel Nau draws in
-    # the other modes — so it reads the console Fun Time publishes and posts a
+    # video mode — so it reads the console Fun Time publishes and posts a
     # press back on the dashboard command file, exactly as Nau does.
     if console_file is not None:
         cmd.extend(["--console-file", str(console_file)])
-    # Where Genau publishes its drive readout for Nau to draw in Hybrid.  Named by
+    # Where Genau publishes its drive readout for Nau to draw in video mode.  Named by
     # us so both players name the same file; Genau resolving it from its own
     # config wrote it into the Genau repo, where Nau was never looking.
     if drive_file is not None:
@@ -804,11 +781,10 @@ def launch_nau(
         str(nau_width),
         "--height",
         str(nau_height),
-        # Fun Time owns the slot's geometry, so Nau drops its title bar here — the
-        # satellites and Genau do the same.  Run standalone it keeps its chrome.
-        "--borderless",
-        # And this window is one of ours, not an application of its own: see
-        # TASKBAR_IDENTITY_ARGS.
+        # This window is one of ours, not an application of its own: see
+        # TASKBAR_IDENTITY_ARGS — and it wears Fun Time's icon.
+        "--icon",
+        str(PROJECT_ICON),
         *TASKBAR_IDENTITY_ARGS,
     ]
     # Lets Nau group a video's versions from Evolver's metadata sidecars rather

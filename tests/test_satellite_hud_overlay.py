@@ -274,6 +274,6 @@ def test_display_suppressed_follows_the_published_satellites_mode(
 
     panel.write_text(panel.read_text(encoding="utf-8").replace(
         '"satellites_mode": "origenerator"',
-        '"satellites_mode": "player"'), encoding="utf-8")
+        '"satellites_mode": "video"'), encoding="utf-8")
     overlay.tick()
     assert overlay.display_suppressed is False

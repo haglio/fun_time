@@ -1338,18 +1338,19 @@ class TestPostLoadingWindowState:
                 project_dir=tmp_path,
             )
 
-        # nau startup mode: the inactive slot-mate (Genau) is minimized.
-        assert GENAU_HWND in hide_calls, f"Genau not minimized: {hide_calls}"
+        # video startup mode: both main-slot players stay up, Genau's HUD over
+        # Nau's video, so nobody is parked.
+        assert hide_calls == [], f"a main-slot player was parked: {hide_calls}"
 
-        # nau startup mode: the windows that own a rect are promoted to topmost,
-        # Nau (hwnd 2020) included — it floats above the desktop like the main player
-        # player always has.  Genau, the hidden slot-mate, is held out of the
-        # band: it is promoted last, so joining it would put it over Nau.
-        promoted = {h for h, v in topmost_calls if v}
-        assert {DASH_HWND, 2020, 3030, 4040, 55555} <= promoted, (
+        # video startup mode: the windows that own a rect are promoted to topmost,
+        # Nau (hwnd 2020) included — it floats above the desktop like the main
+        # player always has — and Genau after it, which is what stacks the HUD
+        # above the video.
+        promoted = [h for h, v in topmost_calls if v]
+        assert {DASH_HWND, 2020, 3030, 4040, 55555, GENAU_HWND} <= set(promoted), (
             f"Wrong promotions: {topmost_calls}"
         )
-        assert GENAU_HWND not in promoted, f"Genau promoted over Nau: {topmost_calls}"
+        assert promoted.index(GENAU_HWND) > promoted.index(2020)
 
 
 class TestNauObstructionLog:
@@ -1386,11 +1387,11 @@ class TestNauObstructionLog:
         assert "unresolved" in caplog.text
 
     def test_quiet_when_only_the_sessions_own_genau_layer_covers_nau(self, caplog):
-        """In hybrid, Genau's window is the transparent HUD layer over Nau's
-        video — over it on purpose.  Warning on that toasted every hybrid
+        """In video mode, Genau's window is the transparent HUD layer over Nau's
+        video — over it on purpose.  Warning on that toasted every video mode
         startup with a covering window that covers nothing visible."""
         stack = [
-            StackedWindow(hwnd=1010, title="Hybrid Nau+Genau", topmost=True,
+            StackedWindow(hwnd=1010, title="Video Nau+Genau", topmost=True,
                           rect=(2560, 2483, 1440, 930)),
             StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
@@ -1403,7 +1404,7 @@ class TestNauObstructionLog:
     def test_a_third_window_still_warns_past_the_expected_layer(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
-            StackedWindow(hwnd=1010, title="Hybrid Nau+Genau", topmost=True,
+            StackedWindow(hwnd=1010, title="Video Nau+Genau", topmost=True,
                           rect=(2560, 2483, 1440, 930)),
             StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
@@ -1412,7 +1413,7 @@ class TestNauObstructionLog:
             _log_window_obstruction("Nau", 2020, expected_over=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "Hybrid Nau+Genau" not in caplog.text
+        assert "Video Nau+Genau" not in caplog.text
 
 
 class TestVoiceControlIntegration:

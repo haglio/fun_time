@@ -15,6 +15,7 @@ from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
 from fun_time.modes import SatelliteBuild, SatelliteLibraryContext
 from fun_time.players import Player
+from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_slot import SatelliteSlot
 from fun_time.shared_state import (
     BridgeState,
@@ -375,17 +376,18 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     assert nau_file.read_text(encoding="utf-8") == "1"
 
 
-def test_seed_startup_states_blanks_genaus_display(tmp_path: Path):
-    """Genau blanks on DISPLAY_OFF and defaults to owning its display, so a
-    session that starts in nau mode — no mode switch, nothing to transition —
-    has to say so, or Genau comes up painting its clips over Nau's window."""
+def test_seed_startup_states_puts_genaus_hud_up_for_a_fresh_session(tmp_path: Path):
+    """A fresh session opens in video mode: Genau's window is the HUD layer over
+    Nau's video, and it is held (PAUSE, written whole as the channel's reset)
+    until the reveal.  Both players are told the mode, Nau by the mirror verb."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "DISPLAY_OFF", "SET_VOLUME 100 0",
+        "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
     ]
+    assert _nau_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def _nau_verbs(tmp_path: Path) -> list[str]:
@@ -394,25 +396,19 @@ def _nau_verbs(tmp_path: Path) -> list[str]:
 
 
 def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session(tmp_path: Path):
-    """A session left showing Genau has to come back showing Genau, and every
-    verb a live switch would have written has to be written here too — the
-    session is *built* in nau mode, so opening in another one IS that switch,
-    seeded before either player launches instead of sent to a running one."""
+    """A session left showing Genau has to come back showing Genau: its window
+    is the display rather than the HUD layer, and Nau blanks — the same verbs a
+    live switch says, seeded before either player launches instead of sent to
+    a running one, and without the switch's RESUME (the reveal hands that
+    over)."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="genau")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        # The nau-mode reset leads; the replayed switch's verbs queue behind it
-        # and the drain applies them in order, so the last of each kind wins —
-        # the switch's RESUME taken back by the hold that follows it (see
-        # test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal).
-        "PAUSE", "DISPLAY_OFF",
-        "RESUME", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
+        "PAUSE", "HUD_OFF", "SET_VOLUME 100 0",
     ]
-    assert _nau_verbs(tmp_path) == [
-        "SET_HYBRID 0", "DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0",
-    ]
+    assert _nau_verbs(tmp_path) == ["DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
@@ -420,7 +416,7 @@ def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
     gone.  The switch this replays would have started Genau outright — right for
     a live switch, wrong here, where it would drive the OSR2 for the twenty
     seconds the user spends watching a progress bar."""
-    for mode in ("nau", "genau", "hybrid"):
+    for mode in ("video", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
         assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "1", mode
@@ -442,25 +438,24 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
     channel as well.  Under Fun Time Genau runs in direct control, where the
     paused flag is never read and the stroke follows PAUSE/RESUME here — so the
     switch's RESUME was still queued when Genau finished loading, and a session
-    resuming into genau or hybrid drove the OSR2 behind the loading screen."""
-    for mode in ("nau", "genau", "hybrid"):
+    resuming into genau or video mode drove the OSR2 behind the loading screen."""
+    for mode in ("video", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
         assert _genau_play_verb(tmp_path) == "PAUSE", mode
 
 
-def test_seed_startup_states_puts_genaus_hud_up_for_a_hybrid_session(tmp_path: Path):
-    """Hybrid is both players at once: Genau's transparent HUD over Nau's video,
-    which each of them has to be told about."""
+def test_seed_startup_states_puts_genaus_hud_up_for_a_video_session(tmp_path: Path):
+    """Video mode is both players at once: Genau's transparent HUD over Nau's
+    video, which each of them has to be told about."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
-    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="hybrid")
+    _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd, mode="video")
 
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "DISPLAY_OFF",
-        "RESUME", "HUD_ON", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
+        "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
     ]
-    assert _nau_verbs(tmp_path)[:2] == ["SET_HYBRID 1", "DISPLAY_ON"]
+    assert _nau_verbs(tmp_path)[:1] == ["DISPLAY_ON"]
 
 
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
@@ -472,7 +467,7 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _nau_verbs(tmp_path) == ["SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _nau_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
@@ -484,7 +479,7 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
 
     assert read_volume(volume_file) == 40
-    assert _nau_verbs(tmp_path)[0] == "SET_VOLUME 40 0"
+    assert _nau_verbs(tmp_path)[1] == "SET_VOLUME 40 0"
 
 
 def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
@@ -509,7 +504,7 @@ def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Pat
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40, muted=True)
 
     assert read_volume(volume_file) == 0
-    assert _nau_verbs(tmp_path)[0] == "SET_VOLUME 40 1"
+    assert _nau_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
 
 
 def test_seed_startup_states_tells_nau_whether_f_mode_is_on(tmp_path: Path):
@@ -519,7 +514,7 @@ def test_seed_startup_states_tells_nau_whether_f_mode_is_on(tmp_path: Path):
     have to survive on a channel nothing has drained yet."""
     _seed_startup_states(tmp_path, f_mode=True)
 
-    assert _nau_verbs(tmp_path) == ["SET_VOLUME 100 0", "SET_F_MODE 1"]
+    assert _nau_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -610,7 +605,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         volume=MAX_VOLUME,
         muted=False,
         f_mode=False,
-        mode="nau",
+        mode="video",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
     # Every player's playlist, each built with its F-mode off — the flags default
@@ -730,11 +725,10 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
 
     assert _run_start_core_session(kwargs) == "genau"
 
-    # Genau is told to come back up painting; the reveal is what then lets it
-    # drive, so the switch's RESUME is taken back here and both players are held.
+    # Genau is told to come back up as the display; the reveal is what then
+    # lets it drive, so no RESUME is seeded and both players are held.
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
-        "PAUSE", "DISPLAY_OFF",
-        "RESUME", "DISPLAY_ON", "PAUSE", "SET_VOLUME 100 0",
+        "PAUSE", "HUD_OFF", "SET_VOLUME 100 0",
     ]
     assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
 
@@ -774,12 +768,12 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     assert "SET_LOOP" not in kwargs["nau_cmd_file"].read_text(encoding="utf-8")
 
 
-def test_start_core_session_opens_a_fresh_session_on_nau(tmp_path: Path):
+def test_start_core_session_opens_a_fresh_session_in_video_mode(tmp_path: Path):
     """Nothing to resume means no mode to come back to, and the main slot's
-    own default is Nau — the same one every session is built in."""
+    own default is video mode — the same one every session is built in."""
     kwargs = _start_core_session_kwargs(tmp_path)
 
-    assert _run_start_core_session(kwargs) == "nau"
+    assert _run_start_core_session(kwargs) == "video"
 
 
 def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built_in(
@@ -833,7 +827,7 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.volume, state.muted) == (40, True)
     assert read_volume(kwargs["audio_volume_file"]) == 0
-    assert kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()[0] == (
+    assert kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()[1] == (
         "SET_VOLUME 40 1"
     )
 
@@ -1074,7 +1068,7 @@ def test_launch_genau_forwards_command_and_paused_files():
     assert "--paused-file" in command
     idx = command.index("--paused-file")
     assert command[idx + 1] == "state/genau_paused.txt"
-    # Where Genau publishes the readout Nau draws in Hybrid.  Named by us, because
+    # Where Genau publishes the readout Nau draws in Video mode.  Named by us, because
     # Genau resolving it from its own config put it in a directory Nau never read.
     assert "--drive-file" in command
     idx = command.index("--drive-file")
@@ -1162,10 +1156,9 @@ def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
     assert "--metadata-dir" not in popen.call_args.args[0]
 
 
-def test_launch_nau_makes_it_borderless(tmp_path: Path):
-    """Under Fun Time Nau drops its title bar, like the satellites; standalone it
-    keeps its chrome, so the flag has to come from the launcher, not be Nau's
-    default."""
+def test_launch_nau_hands_it_fun_times_icon(tmp_path: Path):
+    """Nau's window is one of Fun Time's, so it wears Fun Time's icon — the
+    launcher's to say, since the icon is not Nau's own."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1182,10 +1175,11 @@ def test_launch_nau_makes_it_borderless(tmp_path: Path):
             nau_x=0, nau_y=0, nau_width=100, nau_height=100,
         )
 
-    assert "--borderless" in popen.call_args.args[0]
+    command = popen.call_args.args[0]
+    assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
 
 
-def test_launch_genau_passes_fun_time_flag():
+def test_launch_genau_hands_it_fun_times_icon():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1205,7 +1199,8 @@ def test_launch_genau_passes_fun_time_flag():
         )
 
     command = popen.call_args.args[0]
-    assert "--fun-time" in command
+    assert "--fun-time" not in command  # there is no other way for Genau to run
+    assert command[command.index("--icon") + 1] == str(PROJECT_ICON)
 
 
 class TestEveryPlayerWearsFunTimesTaskbarIdentity:
@@ -1450,7 +1445,8 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
         "300",
         "--height",
         "400",
-        "--borderless",
+        "--icon",
+        str(PROJECT_ICON),
         *TASKBAR_IDENTITY_ARGS,
     ]
 

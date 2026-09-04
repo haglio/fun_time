@@ -1,160 +1,70 @@
-from fun_time.mode_plan import build_mode_switch_plan, genau_active, nau_displays
+from fun_time.mode_plan import (
+    STARTUP_MAIN_MODE,
+    build_mode_switch_plan,
+    hud_verb,
+    nau_display_verb,
+    nau_displays,
+)
 
 
-def test_genau_active_covers_genau_and_hybrid():
-    assert genau_active("genau") is True
-    assert genau_active("hybrid") is True
-    assert genau_active("nau") is False
+def test_a_session_is_built_in_video_mode():
+    assert STARTUP_MAIN_MODE == "video"
 
 
-def test_nau_displays_covers_nau_and_hybrid():
-    # Nau owns the on-screen display in nau and hybrid; Genau owns it in genau.
-    assert nau_displays("nau") is True
-    assert nau_displays("hybrid") is True
+def test_nau_displays_in_video_mode_alone():
+    assert nau_displays("video") is True
     assert nau_displays("genau") is False
 
 
-def test_nau_to_genau():
-    plan = build_mode_switch_plan(current_mode="nau", target_mode="genau", omni_paused=False)
+def test_the_verbs_each_mode_says_to_the_two_players():
+    # Genau's window is the HUD layer over Nau's video in video mode and the
+    # display in genau mode; Nau paints in the one and blanks in the other.
+    assert (hud_verb("video"), nau_display_verb("video")) == ("HUD_ON", "DISPLAY_ON")
+    assert (hud_verb("genau"), nau_display_verb("genau")) == ("HUD_OFF", "DISPLAY_OFF")
+
+
+def test_video_to_genau_parks_nau_and_blanks_it():
+    plan = build_mode_switch_plan(current_mode="video", target_mode="genau", omni_paused=False)
     assert plan.target_mode == "genau"
     assert plan.is_transition is True
     assert plan.genau_cmd == "RESUME"
-    assert plan.hud_cmd is None
+    assert plan.hud_cmd == "HUD_OFF"
     assert plan.nau_should_play is False
+    assert plan.nau_display_cmd == "DISPLAY_OFF"
 
 
-def test_nau_to_hybrid_keeps_nau_playing():
-    # Nau already owns the display in nau; hybrid keeps Nau on-screen (Genau
-    # only drives the OSR2 and paints its HUD), so Nau playback is untouched.
-    plan = build_mode_switch_plan(current_mode="nau", target_mode="hybrid", omni_paused=False)
-    assert plan.is_transition is True
-    assert plan.genau_cmd == "RESUME"
-    assert plan.hud_cmd == "HUD_ON"
-    assert plan.nau_should_play is None
-
-
-def test_genau_to_nau():
-    plan = build_mode_switch_plan(current_mode="genau", target_mode="nau", omni_paused=False)
-    assert plan.is_transition is True
-    assert plan.genau_cmd == "PAUSE"
-    assert plan.hud_cmd is None
-    assert plan.nau_should_play is True
-
-
-def test_genau_to_hybrid_starts_nau():
-    # Leaving Genau's own display for hybrid brings Nau back on-screen.  Genau
-    # keeps driving as the hybrid baseline, so its RESUME is (re)asserted.
-    plan = build_mode_switch_plan(current_mode="genau", target_mode="hybrid", omni_paused=False)
+def test_genau_to_video_starts_nau_under_genaus_hud():
+    plan = build_mode_switch_plan(current_mode="genau", target_mode="video", omni_paused=False)
     assert plan.is_transition is True
     assert plan.genau_cmd == "RESUME"
     assert plan.hud_cmd == "HUD_ON"
     assert plan.nau_should_play is True
+    assert plan.nau_display_cmd == "DISPLAY_ON"
 
 
-def test_hybrid_to_nau_keeps_nau_playing():
-    plan = build_mode_switch_plan(current_mode="hybrid", target_mode="nau", omni_paused=False)
-    assert plan.is_transition is True
-    assert plan.genau_cmd == "PAUSE"
-    assert plan.hud_cmd == "HUD_OFF"
-    assert plan.nau_should_play is None
-
-
-def test_hybrid_to_genau_resumes_genau():
-    # The per-video hybrid arbiter may have paused Genau (a funscripted video
-    # was driving the OSR2).  Leaving hybrid for genau must authoritatively
-    # RESUME Genau so it drives again, regardless of that transient pause.
-    plan = build_mode_switch_plan(current_mode="hybrid", target_mode="genau", omni_paused=False)
-    assert plan.is_transition is True
-    assert plan.genau_cmd == "RESUME"
-    assert plan.hud_cmd == "HUD_OFF"
-    assert plan.nau_should_play is False
+def test_every_transition_resumes_genau():
+    # In genau mode the Robot Hand drives from here; in video mode the dispatch
+    # loop's arbiter takes it from here, and may have left Genau paused for a
+    # funscript's stretch — the switch is authoritative either way.
+    for current, target in (("video", "genau"), ("genau", "video")):
+        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
+        assert plan.genau_cmd == "RESUME", f"{current}->{target}"
 
 
 def test_same_mode_is_noop():
-    for mode in ("nau", "genau", "hybrid"):
+    for mode in ("video", "genau"):
         plan = build_mode_switch_plan(current_mode=mode, target_mode=mode, omni_paused=False)
         assert plan.is_transition is False
         assert plan.genau_cmd is None
         assert plan.hud_cmd is None
         assert plan.nau_should_play is None
+        assert plan.nau_display_cmd is None
 
 
 def test_omnipaused_skips_transition():
-    plan = build_mode_switch_plan(current_mode="nau", target_mode="genau", omni_paused=True)
+    plan = build_mode_switch_plan(current_mode="video", target_mode="genau", omni_paused=True)
     assert plan.target_mode == "genau"
     assert plan.is_transition is False
     assert plan.genau_cmd is None
     assert plan.nau_should_play is None
-
-
-def test_leaving_hybrid_reenables_nau_tcode():
-    # The per-video hybrid arbiter mutes Nau's T-Code during funscript gaps, so
-    # leaving hybrid must switch it back on or a later nau mode stays silent.
-    for target in ("nau", "genau"):
-        plan = build_mode_switch_plan(current_mode="hybrid", target_mode=target, omni_paused=False)
-        assert plan.reenable_nau_tcode is True
-
-
-def test_transitions_that_do_not_leave_hybrid_never_touch_nau_tcode():
-    for current, target in (("nau", "hybrid"), ("genau", "hybrid"), ("nau", "genau"), ("genau", "nau")):
-        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
-        assert plan.reenable_nau_tcode is False
-
-
-def test_genau_display_cmd_tracks_whether_genau_is_on_screen():
-    # Genau paints its clips only in the modes that show it; in nau mode it goes
-    # dark so an alt-tab never lands on a stray frame.  This is separate from
-    # genau_cmd: PAUSE stops the hand, DISPLAY_OFF blanks the window.
-    for current, target, expected in (
-        ("nau", "genau", "DISPLAY_ON"),
-        ("nau", "hybrid", "DISPLAY_ON"),
-        ("genau", "hybrid", "DISPLAY_ON"),
-        ("hybrid", "genau", "DISPLAY_ON"),
-        ("genau", "nau", "DISPLAY_OFF"),
-        ("hybrid", "nau", "DISPLAY_OFF"),
-    ):
-        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
-        assert plan.genau_display_cmd == expected, f"{current}->{target}"
-
-
-def test_nau_display_cmd_tracks_whether_nau_is_on_screen():
-    # The mirror image: Nau owns the display in nau and hybrid, and in genau mode
-    # it goes dark for the same reason Genau does in nau mode — the idle player is
-    # minimized, not closed, so an alt-tab would otherwise land on the frame it
-    # was paused on.  Separate from nau_should_play, which only moves when the
-    # display changes hands; this is asserted on every transition.
-    for current, target, expected in (
-        ("genau", "nau", "DISPLAY_ON"),
-        ("genau", "hybrid", "DISPLAY_ON"),
-        ("nau", "hybrid", "DISPLAY_ON"),
-        ("hybrid", "nau", "DISPLAY_ON"),
-        ("nau", "genau", "DISPLAY_OFF"),
-        ("hybrid", "genau", "DISPLAY_OFF"),
-    ):
-        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
-        assert plan.nau_display_cmd == expected, f"{current}->{target}"
-
-
-def test_no_display_cmd_without_a_transition():
-    for mode in ("nau", "genau", "hybrid"):
-        plan = build_mode_switch_plan(current_mode=mode, target_mode=mode, omni_paused=False)
-        assert plan.genau_display_cmd is None
-        assert plan.nau_display_cmd is None
-    omni = build_mode_switch_plan(current_mode="nau", target_mode="genau", omni_paused=True)
-    assert omni.genau_display_cmd is None
-    assert omni.nau_display_cmd is None
-
-
-def test_genau_cmd_is_authoritative_for_the_target_mode():
-    # Every transition asserts Genau's driving state for the target: RESUME when
-    # the target drives the OSR2 with Genau (genau/hybrid), PAUSE otherwise.
-    for current, target, expected in (
-        ("nau", "genau", "RESUME"),
-        ("nau", "hybrid", "RESUME"),
-        ("genau", "hybrid", "RESUME"),
-        ("hybrid", "genau", "RESUME"),
-        ("genau", "nau", "PAUSE"),
-        ("hybrid", "nau", "PAUSE"),
-    ):
-        plan = build_mode_switch_plan(current_mode=current, target_mode=target, omni_paused=False)
-        assert plan.genau_cmd == expected, f"{current}->{target}"
+    assert plan.nau_display_cmd is None

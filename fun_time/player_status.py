@@ -32,9 +32,9 @@ class NauStatus:
 
     Only the fields with consumers on this side are parsed.  ``position_ms``
     and ``duration_ms`` give the playback fraction watch tracking needs; the
-    hybrid handoff arbiter drives the OSR2 from the funscript while
-    ``has_funscript`` and not ``funscript_resting``, and hands off to Genau
-    otherwise — so Genau fills a funscript's quiet lead-in and interior gaps
+    device arbiter drives the OSR2 from the funscript while
+    ``has_funscript`` and not ``funscript_resting``, and hands off to the Robot
+    Hand otherwise — so the hand fills a funscript's quiet lead-in and interior gaps
     (where ``funscript_resting`` is set).
     """
 
@@ -65,8 +65,8 @@ class NauStatus:
     @property
     def funscript_driving(self) -> bool:
         """True when the funscript is actively driving the OSR2 — scripted and
-        not resting.  The moment-to-moment hybrid handoff signal: whoever this
-        points to (Nau's funscript, else Genau) also takes the unqualified speed
+        not resting.  The moment-to-moment handoff signal: whoever this points
+        to (Nau's funscript, else the Robot Hand) also takes the unqualified speed
         nudge, since that is the engine a nudge can actually move."""
         return self.has_funscript and not self.funscript_resting
 
@@ -110,9 +110,9 @@ def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStat
     """Nau's published status, or *fallback* (else a default) when the file is
     missing or torn mid-replace.
 
-    The fallback matters to the hybrid arbiter: a default snapshot reads
+    The fallback matters to the device arbiter: a default snapshot reads
     ``funscript_driving`` False, so one torn read mid-cluster flipped the
-    device to Genau and the next good read flipped it straight back — a
+    device to the hand and the next good read flipped it straight back — a
     spurious double handoff nobody asked for.  Handing back the last good
     snapshot makes a failed read a non-event.
     """
