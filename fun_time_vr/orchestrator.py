@@ -91,6 +91,7 @@ from fun_time.win32_process import get_process_creation_time
 from fun_time.runtime_flow import write_flag_file
 from player_core.playlist import read_playlist
 
+from . import vr_runtime
 from .projection import is_vr_video
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
@@ -327,6 +328,7 @@ def run_vr_bridge(config) -> int:
     )
 
     # --- The one child: the VR player ---
+    runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
     nau_status_file = Path(commands.nau_status_file)
     nau_status_file.unlink(missing_ok=True)
     player = launch_vr_player(
@@ -344,6 +346,7 @@ def run_vr_bridge(config) -> int:
 
     if not _wait_for_player(nau_status_file, player):
         kill_recorded_child(children["vr_player_pid"])
+        _release_vr_runtime(runtime_was_up)
         return 1
     # The reveal: playback starts the moment the player is up.
     write_flag_file(commands.nau_paused_file, False)
@@ -422,7 +425,15 @@ def run_vr_bridge(config) -> int:
         dispatch_runner.stop()
         dispatch_thread.join(timeout=2.0)
         kill_recorded_child(children["vr_player_pid"])
+        _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
     return exit_code
+
+
+def _release_vr_runtime(was_up: bool) -> None:
+    if was_up:
+        return
+    logger.info("Stopping the VR runtime this session started")
+    vr_runtime.stop_runtime()
 
 
 def main(argv: list[str] | None = None) -> int:

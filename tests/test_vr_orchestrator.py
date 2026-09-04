@@ -11,6 +11,7 @@ from fun_time.shared_state import read_shared_state, write_shared_state
 from fun_time_vr.player import VrSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
+    _release_vr_runtime,
     build_vr_manifest,
     stock_the_playlists,
     main_playlist_has_vr,
@@ -422,3 +423,21 @@ class TestStockingThePlaylists:
         written = sorted(p.name for p in state.glob("*playlist*.tsv"))
         assert len(written) == 3, written
 
+
+def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch):
+    """Started hidden, so nothing on screen would offer to quit it afterwards."""
+    calls = []
+    monkeypatch.setattr(
+        "fun_time_vr.orchestrator.vr_runtime.stop_runtime", lambda: calls.append("stop")
+    )
+    _release_vr_runtime(was_up=False)
+    assert calls == ["stop"]
+
+
+def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch):
+    calls = []
+    monkeypatch.setattr(
+        "fun_time_vr.orchestrator.vr_runtime.stop_runtime", lambda: calls.append("stop")
+    )
+    _release_vr_runtime(was_up=True)
+    assert calls == []
