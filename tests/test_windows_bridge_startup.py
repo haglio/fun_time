@@ -2042,3 +2042,44 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
 
     env = popen.call_args.kwargs["env"]
     assert env["ORIGENERATOR_BRANCH_SESSION"] == "1"
+
+
+class TestLaunchingTheAudioCompanionOnItsOwn:
+    """The VR session launches the companion without the dashboard beside it,
+    and sends its sound to the headset."""
+
+    def _launch(self, **over):
+        from fun_time.windows_bridge_startup import launch_audio_companion
+
+        with patch(
+            "fun_time.windows_bridge_startup.subprocess.Popen", return_value=_FakeProc(33),
+        ) as popen, patch(
+            "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
+        ):
+            proc = launch_audio_companion(
+                python_exe="C:/example/python.exe", audio_module="fun_time.audio_companion_app",
+                config_path="C:/example/fun_time_config.json", audio_folder="C:/example/audio",
+                **over,
+            )
+        return proc, popen.call_args.args[0], popen.call_args.kwargs
+
+    def test_the_command_is_the_one_the_desktop_session_uses(self):
+        proc, argv, kwargs = self._launch()
+
+        assert proc.pid == 33
+        assert argv[1:] == [
+            "-m", "fun_time.audio_companion_app",
+            "--config", "C:/example/fun_time_config.json",
+            "--audio-folder", "C:/example/audio",
+        ]
+        assert kwargs == {"creationflags": 1}
+
+    def test_a_named_output_rides_as_the_audio_device(self):
+        _proc, argv, _kwargs = self._launch(audio_device="Pimax")
+
+        assert argv[-2:] == ["--audio-device", "Pimax"]
+
+    def test_no_named_output_leaves_the_command_alone(self):
+        _proc, argv, _kwargs = self._launch(audio_device=None)
+
+        assert "--audio-device" not in argv

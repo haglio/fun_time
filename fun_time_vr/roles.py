@@ -1,20 +1,10 @@
 """The main player's role in the VR process: Nau's contract, in-process.
 
-fun_time drives its main player through the nau file quartet — a playlist
-with a funscript column, an overwrite command file, a paused flag, a status
-file the dispatch loop parses back.  In VR that player is not a separate
-window-owning process but one surface of the single OpenXR scene, so this role
-speaks the same contract from inside the VR player: the verb subset the
-orchestrator actually sends, funscript→T-Code exactly as Nau drives it (via
-the shared ``player_core`` driver), nau-shaped status fields, and the one
-verb that exists only here, ``CYCLE_PROJECTION``.
-
-The satellites need no such twin: their session/verb/status logic is already
-display-agnostic in this repo's ``satellite`` package, and the VR player
-composes those pieces directly (see fun_time_vr.player).
-
-Nau verbs outside this subset report unhandled, and the player logs each once
-rather than crashing; docs/known-issues.md names them.
+The nau file quartet — playlist, command file, paused flag, status file —
+spoken from inside the VR player: the verb subset the orchestrator sends,
+funscript→T-Code through the shared ``player_core`` driver, nau-shaped status
+fields, and the verbs only a headset has.  Nau verbs outside the subset
+report unhandled, logged once each; docs/known-issues.md names them.
 """
 from __future__ import annotations
 
@@ -68,18 +58,19 @@ class MainRole:
         self._projection = ""
         self._volume = 100
         self._muted = False
-        # Until the host says the sound is live, a SET_VOLUME records the level
-        # without unmuting the player: in VR the primary starts silent and the
-        # host hands it its sound once the headset is presenting (see
-        # fun_time_vr.player.route_audio), so an early command must not
-        # un-silence it before then.  Reported muted meanwhile, which is what
-        # the console draws and what unmuting returns to.
+        # Until the host says the sound is live (fun_time_vr.player.route_audio),
+        # a SET_VOLUME records the level without unmuting: the primary starts
+        # silent, and reports muted meanwhile.
         self.audio_live = False
-        # Level-set by RECENTER and drained by the host each frame: the role
-        # only carries the request, because re-zeroing the scene onto the
-        # current head pose is the host's to do — no player state moves.
+        # Set by RECENTER and drained by the host each frame: re-zeroing the
+        # scene onto the head pose is the host's to do.
         self._recenter_requested = False
         self._tilt_deg = 0.0  # state, not a request; both inputs write here
+        # Whether this player is what the headset shows.  DISPLAY_OFF rides
+        # every switch into genau mode, where the clip takes the scene and
+        # this player waits paused behind it, the way Nau is parked off
+        # screen on the desktop.
+        self.displayed = True
         self._load(0)
 
     # ------------------------------------------------------------------ state
@@ -170,12 +161,10 @@ class MainRole:
                 self._driver.reset()
             self._tcode_enabled = enabled
         elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
-            # Accepted so a mode switch is not "unhandled" — one of the pair
-            # rides every one.  The VR scene has no Genau panel to make room for or to
-            # hand the display to yet (that arrives with genau mode), so there is
-            # nothing to step aside from and nothing to go dark for: blanking
-            # here would leave the headset showing nothing at all.
-            pass
+            # One of the pair rides every mode switch: the mirror of the HUD
+            # verb Genau's role gets, so the two roles cannot both claim the
+            # scene or both step out of it.
+            self.displayed = keyword == "DISPLAY_ON"
         elif keyword == "QUIT":
             on_quit()
         else:
@@ -189,10 +178,8 @@ class MainRole:
         self._player.set_paused(paused)
 
     def tick(self, now: float) -> None:
-        """Drive the OSR2 for this instant: waypoints while scripted, parked
-        while unscripted, silent while paused or handed off (SET_TCODE_ENABLED
-        0 — in video mode the arbiter gives those stretches to the Robot Hand,
-        and two drivers must never feed the broker's one inlet)."""
+        """Drive the OSR2 for this instant: waypoints while scripted, parked while
+        unscripted, silent while paused or handed to the Robot Hand."""
         if self._paused or not self._tcode_enabled:
             return
         if self._funscript is not None:
@@ -212,8 +199,7 @@ class MainRole:
         return taken
 
     def status_fields(self) -> dict[str, str]:
-        """Nau's own status contract, so the dispatch loop's parser, the device
-        arbiter and watch tracking read this player exactly as they read Nau."""
+        """Nau's own status contract, read by the dispatch loop as it reads Nau."""
         return {
             "video": str(self.current_video),
             "position_ms": str(int(self._player.position_ms)),
@@ -281,9 +267,8 @@ class MainRole:
             self._player.set_muted(self._muted)
 
     def _apply_play_file(self, arg: str) -> None:
-        """Jump to the named video if queued, else splice it in after the
-        current one — the same jump-or-splice every player answers PLAY_FILE
-        with.  A TAB carries the funscript column, exactly as the playlist does."""
+        """Jump to the named video if queued, else splice it in after the current
+        one; a TAB carries the funscript column, as the playlist does."""
         video_raw, _, funscript_raw = arg.partition("\t")
         video = Path(video_raw.strip())
         funscript = Path(funscript_raw.strip()) if funscript_raw.strip() else None
@@ -295,8 +280,7 @@ class MainRole:
         self._load(self._index + 1)
 
     def _reload_playlist(self) -> None:
-        """Swap in the rebuilt playlist file, keeping the playing video playing
-        when it survived the rebuild (an F-mode toggle must not restart it)."""
+        """Swap in the rebuilt playlist, keeping a playing video that survived it."""
         entries = read_playlist(self._playlist_file)
         if not entries:
             logger.warning("Reload found an empty playlist; keeping the current one")

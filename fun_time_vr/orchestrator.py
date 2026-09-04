@@ -3,10 +3,12 @@
 Same config, same broker, same playlists, same dispatch loop / voice / AHK
 hotkeys — the difference is what gets launched: instead of Nau, Genau and two
 satellite windows, ONE VR player process (fun_time_vr.player) hosts all the
-visual roles, and the desktop-window management goes unused (the dispatch
-loop's window ops resolve no HWNDs and settle into no-ops).  Everything else
-the session does — omnipause, watch stats, the device arbiter's status files,
-F-mode rebuilds — runs on the same state files it always did.
+visual roles — the main player, Genau, both satellites — and the
+desktop-window management goes unused (the dispatch loop's window ops resolve
+no HWNDs and settle into no-ops).  The audio companion is launched as on the
+desktop, sent to the headset's output.  Everything else the session does —
+the two main-slot modes, omnipause, watch stats, the device arbiter's status
+files, F-mode rebuilds — runs on the same state files it always did.
 
 What a VR session does not launch, and what that waits on, is in
 docs/known-issues.md.
@@ -19,11 +21,11 @@ import subprocess
 import threading
 import time
 from collections.abc import Sequence
-from dataclasses import replace
 from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.win32 import set_shortcut_app_user_model_id
 
 from fun_time.branch_session import apply_genau_dirs_to_sys_path
 
@@ -38,13 +40,12 @@ from player_core.playlist import read_playlist
 
 from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_log import open_child_log
-from fun_time.config import load_config
+from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
     write_manifest_data,
 )
-from fun_time.mode_plan import STARTUP_MAIN_MODE
 from fun_time.modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
@@ -58,20 +59,21 @@ from fun_time.orchestrator import (
     ensure_runtime_files,
     require_dir,
     signal_startup_resolved,
+    taskbar_pin_dir,
     validate_config,
 )
 from fun_time.player_status import read_nau_status
 from fun_time.role_windows import ChildPids, WindowRoles
-from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_resume import (
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
 )
-from fun_time.shared_state import shared_state_path, write_shared_state
+from fun_time.shared_state import shared_state_path
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from fun_time.win32_process import get_process_creation_time
+from fun_time.win32_taskbar import VR_APP_USER_MODEL_ID
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -83,24 +85,24 @@ from fun_time.windows_bridge_orchestrator import (
     start_hud_priming,
     write_pids_file,
 )
+from fun_time.windows_bridge_sequencer import release_the_players
 from fun_time.windows_bridge_startup import (
     ensure_broker,
+    launch_audio_companion,
     reap_orphaned_satellites,
     reset_satellite_paused_states,
     seed_startup_states,
 )
 
 from . import vr_runtime
+from .genau_settings import GenauSettings
 from .projection import is_vr_video
 
 VR_STARTUP_MARKER_NAME = "vr_launcher.ready"
 VR_PLAYER_MODULE = "fun_time_vr.player"
 
-# How long startup waits for the VR player to publish its first status.  It
-# has real work behind it — a cold PimaxXR auto-start alone may take 45s, then
-# the OpenXR session and three mpv players come up — so the ceiling is wide.
-# The player writes status from its very first pump, well before the headset
-# turns visible, so a healthy launch answers in seconds.
+# How long startup waits for the VR player's first status: a cold PimaxXR
+# auto-start alone may take 45s, though a healthy launch answers in seconds.
 PLAYER_READY_TIMEOUT_S = 120.0
 
 # Named, not __name__: started with `-m`, where __name__ is "__main__".
@@ -115,46 +117,39 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def vr_main_sources(config) -> str:
-    """The main rotation's source spec: the VR library joined with the
-    desktop primary's own dirs — the user's "VR videos and non-VR videos"."""
+    """The main rotation's sources: the VR library, then the desktop primary's dirs."""
     dirs = [*config.vr.library_dirs, *config.paths.nau_library_dirs]
     return "|".join(str(path) for path in dirs)
 
 
 def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
-    """Whether the main player's playlist holds any VR-mastered video at all.
-
-    A desktop session's main playlist never does — it was built from the 2D
-    library alone — and resuming it into a VR session gives a headset nothing
-    but flat screens until something rebuilds.  That is exactly what the first
-    headset run got, so the VR session asks this before honoring a resume.  A
-    missing playlist reads as empty, and so as holding none.
-    """
+    """Whether the main playlist holds any VR-mastered video: a desktop session's
+    never does, and resumed into a headset it gives nothing but flat screens.
+    A missing playlist reads as holding none."""
     return any(
         is_vr_video(video, vr_dirs) for video, _funscript in read_playlist(playlist_file)
     )
 
 
-def resume_vr_state(state_file: Path, *, resumed: bool):
-    """The state a VR session comes back in: last session's, minus its mode.
+def is_vr_pin(stem: str) -> bool:
+    """"Fun Time VR" and its copies -- never the desktop's "Fun Time", another app."""
+    return stem.strip().lower().startswith("fun time vr")
 
-    One player hosts every role here and Genau is not launched at all, so there
-    is no main slot to hand over and nobody to hand it to — while the desktop
-    session, which shares this state dir, can perfectly well have been closed in
-    genau mode.  Carried across, that mode would put every VR HUD, and the
-    dispatch loop's whole idea of who owns the display, on a player that is not
-    running.  Everything else comes across untouched: both apps play the same
-    playlists with the same F-mode, filters, locks and sound.
 
-    Written back rather than merely corrected in hand, because the state file is
-    what the dispatch loop and the HUDs actually read.
-    """
-    carried = replace(
-        resume_shared_state(state_file, resumed=resumed),
-        main_mode=STARTUP_MAIN_MODE,
-    )
-    write_shared_state(state_file, carried)
-    return carried
+def stamp_vr_shortcut_aumid() -> None:
+    """Stamp the VR session's identity on its pin, so the VR player's window
+    lights that button; logged and never fatal when it cannot."""
+    pin_dir = taskbar_pin_dir()
+    if not pin_dir.is_dir():
+        return
+    for lnk in pin_dir.glob("*.lnk"):
+        if not is_vr_pin(lnk.stem):
+            continue
+        try:
+            set_shortcut_app_user_model_id(str(lnk), VR_APP_USER_MODEL_ID)
+            logger.info("Stamped AppUserModelID on %s", lnk)
+        except OSError as exc:
+            logger.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
 
 
 def build_vr_manifest(config) -> dict[str, dict[str, str]]:
@@ -173,6 +168,12 @@ def build_vr_manifest(config) -> dict[str, dict[str, str]]:
         "tcode_udp_port": str(config.vr.tcode_udp_port),
         "audio_device": config.vr.audio_device or "",
         "compositor_layers": "1" if config.vr.compositor_layers else "0",
+        # Genau's role: its folder (the desktop's when no VR one is named), its
+        # companion's address, and its engine's numbers off Genau's own config.
+        "clips_dir": str(config.vr.clips_dir or config.paths.clips_dir),
+        "notify_host": config.audio_companion.host,
+        "notify_port": str(config.audio_companion.port),
+        **GenauSettings.read(config.paths.genau_config_path).manifest_fields(),
     }
     return manifest
 
@@ -191,14 +192,9 @@ def launch_vr_player(
 
 
 def _wait_for_session_end(ahk_proc, player, *, poll_s: float = 0.5) -> str:
-    """Block until the AHK bridge or the VR player exits; name which went.
-
-    On the desktop the AHK bridge's exit is the session's one natural end.
-    In VR the player window's close button is a quit gesture too — it is the
-    only window the session has — and an orchestrator that kept waiting on
-    AHK after the player died held the single-instance mutex with nothing
-    left to orchestrate, so every relaunch bounced off "already running".
-    """
+    """Block until the AHK bridge or the VR player exits; name which went.  The
+    player's close button is a quit gesture too, and waiting on AHK past it
+    held the single-instance mutex with nothing left to orchestrate."""
     while True:
         if ahk_proc.poll() is not None:
             return "ahk"
@@ -232,11 +228,9 @@ def stock_the_playlists(
     main_f_mode: bool,
     main_recent: bool,
 ) -> None:
-    """Leave the three playlists a VR session opens on where its players read
-    them: built fresh when there was nothing to resume, and otherwise left
-    alone — except a primary carried over from a desktop session, which holds
-    no VR video and is rebuilt from the merged sources under the order and
-    F-mode the resume carried."""
+    """The three playlists a VR session opens on: built fresh with nothing to
+    resume, else left alone -- but a primary carried over from a desktop session
+    holds no VR video and is rebuilt from the merged sources."""
     nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
     if not resumed:
         build_all_playlists(
@@ -300,12 +294,14 @@ def run_vr_bridge(config) -> int:
     # file, so resuming the files without it leaves every HUD describing a
     # different session.  Read before the flags below are seeded, because two of
     # them are what those flags have to be seeded to.
-    carried = resume_vr_state(shared_state_path(state_dir), resumed=resumed)
+    carried = resume_shared_state(shared_state_path(state_dir), resumed=resumed)
+    # The mode comes across with the rest: the VR player hosts Genau too.
     seed_startup_states(
         commands.genau_paused_file, commands.audio_paused_file,
         commands.nau_paused_file, commands.audio_volume_file,
         commands.genau_cmd_file, nau_cmd_file=commands.nau_cmd_file,
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
+        mode=carried.main_mode,
     )
     # A lock lives in the player process, so it has to be re-sent; the roles read
     # the satellites' own command files, and the VR player is not up yet.
@@ -323,7 +319,22 @@ def run_vr_bridge(config) -> int:
         main_recent=carried.main_latest,
     )
 
-    # --- The one child: the VR player ---
+    # --- The children: the audio companion, then the VR player ---
+    # The companion first, as on the desktop, so it is listening when Genau's
+    # role says which clip is up; on the headset's output, like every sound here.
+    audio = launch_audio_companion(
+        python_exe=manifest.executables.python_exe,
+        audio_module=manifest.modules.audio_module,
+        config_path=manifest.runtime.config_path,
+        audio_folder=manifest.media.genau_audio,
+        audio_device=config.vr.audio_device,
+    )
+    logger.info("Audio companion launched (pid=%d)", audio.pid)
+    children = {
+        "audio_pid": ChildProcess(
+            pid=audio.pid, created_at=get_process_creation_time(audio.pid) or 0
+        ),
+    }
     runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
     nau_status_file = Path(commands.nau_status_file)
     nau_status_file.unlink(missing_ok=True)
@@ -333,19 +344,18 @@ def run_vr_bridge(config) -> int:
         log_file=state_dir / "vr_player.log",
     )
     logger.info("VR player launched (pid=%d)", player.pid)
-    children = {
-        "vr_player_pid": ChildProcess(
-            pid=player.pid, created_at=get_process_creation_time(player.pid) or 0
-        )
-    }
+    children["vr_player_pid"] = ChildProcess(
+        pid=player.pid, created_at=get_process_creation_time(player.pid) or 0
+    )
     write_pids_file(state_dir / "bridge_pids.ini", children)
 
     if not _wait_for_player(nau_status_file, player):
-        kill_recorded_child(children["vr_player_pid"])
+        for child in children.values():
+            kill_recorded_child(child)
         _release_vr_runtime(runtime_was_up)
         return 1
-    # The reveal: playback starts the moment the player is up.
-    write_flag_file(commands.nau_paused_file, False)
+    # The reveal: whatever the mode puts to work starts the moment the player is up.
+    release_the_players(manifest, carried.main_mode)
 
     # Command files only: the shared state file already holds this session's
     # opening state, written above with whatever the resumed playlists were
@@ -420,7 +430,8 @@ def run_vr_bridge(config) -> int:
             voice_thread.join(timeout=2.0)
         dispatch_runner.stop()
         dispatch_thread.join(timeout=2.0)
-        kill_recorded_child(children["vr_player_pid"])
+        for child in children.values():
+            kill_recorded_child(child)
         _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
     return exit_code
 
@@ -458,6 +469,9 @@ def main(argv: list[str] | None = None) -> int:
     ensure_runtime_files(config)
     validate_config(config)
     validate_vr_config(config)
+    # Only the session the pin launches relabels it -- the desktop's rule.
+    if config.config_path == DEFAULT_CONFIG_PATH:
+        stamp_vr_shortcut_aumid()
 
     if args.check:
         logger.info("Config validation succeeded")

@@ -795,6 +795,30 @@ def launch_nau(
     return proc.pid
 
 
+def launch_audio_companion(
+    *,
+    python_exe: str | Path,
+    audio_module: str,
+    config_path: str | Path,
+    audio_folder: str | Path,
+    audio_device: str | None = None,
+) -> subprocess.Popen:
+    """Start the audio companion; *audio_device* sends its sound to the output
+    whose name contains it (the headset, in VR) rather than the default."""
+    cmd = [
+        NAMER.named_exe(str(python_exe), "AudioCompanion"),
+        "-m",
+        audio_module,
+        "--config",
+        str(config_path),
+        "--audio-folder",
+        str(audio_folder),
+    ]
+    if audio_device:
+        cmd.extend(["--audio-device", audio_device])
+    return subprocess.Popen(cmd, **subprocess_window_kwargs())
+
+
 def launch_ui_companions(
     *,
     python_exe: str | Path,
@@ -859,17 +883,9 @@ def launch_ui_companions(
                 dashboard_cmd, **subprocess_window_kwargs())
         dashboard_pid = dashboard_proc.pid
 
-    audio_proc = subprocess.Popen(
-        [
-            NAMER.named_exe(python_exe, "AudioCompanion"),
-            "-m",
-            audio_module,
-            "--config",
-            config_path,
-            "--audio-folder",
-            audio_folder,
-        ],
-        **subprocess_window_kwargs(),
+    audio_proc = launch_audio_companion(
+        python_exe=python_exe, audio_module=audio_module,
+        config_path=config_path, audio_folder=audio_folder,
     )
 
     _write_result_file(

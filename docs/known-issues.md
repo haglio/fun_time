@@ -1,25 +1,25 @@
 # Known Issues
 
-## FunTimeVR: What a VR Session Does Not Launch, and the Engine Extraction
+## FunTimeVR: What a VR Session Does Not Launch
 
 - Status: Deferred
 - Scope:
   - Not launched in VR: the Qt dashboard and its log panel, the Random Favs Browser,
-    the audio companion, the loopback server, and Genau. A mode switch in a VR
-    session changes flags whose windows do not exist, harmlessly.
+    and the loopback server. The main slot's two modes, Genau's clips and the
+    Robot Hand's stretches, and the audio companion (on the headset's output)
+    all run in VR as of 2026-09-04, on the engine that moved to `player_core`
+    for it; GenauVR, the standalone headset app, is retired with that.
   - Nau verbs the VR main role does not implement: loop recording, version cycling,
     clip jumps, length modes, compilations. They report unhandled, and the player
     logs each once rather than crashing.
-  - `fun_time_vr/vr_session.py` and `fun_time_vr/vr_runtime.py` are each adapted
-    from a GenauVR original (`genau_vr.vr_session`, `genau_vr.vr_runtime`).
-    Consolidating each pair into a shared sibling is the planned GenauVR-engine
-    extraction, which is also what genau mode and the Robot Hand's stretches
-    in VR wait on.
+  - The console panel in the scene draws the Robot Hand's trace but not a
+    funscript's over it, which the desktop's video-mode console does; the
+    scene has no pointer either, so the panel is read-only and every press it
+    would take on the desktop is a hotkey or a spoken command here.
 - Notes:
-  - Recorded here rather than in five module docstrings (2026-08-30, audit item 25):
-    the same deferral was written out in `vr_session.py`, `vr_runtime.py`,
-    `orchestrator.py`, `roles.py` and a runtime log line, free to drift apart, and
-    invisible to anyone grepping for a TODO marker before starting work.
+  - Recorded here rather than in module docstrings (2026-08-30, audit item 25):
+    the same deferral was once written out in five places, free to drift apart,
+    and invisible to anyone grepping for a TODO marker before starting work.
 
 ## Genau Disable / Re-enable Reliability
 

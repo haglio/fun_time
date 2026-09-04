@@ -1,17 +1,13 @@
 """OpenXR session lifecycle and swapchain management for the VR player.
 
-Adapted from GenauVR's proven bring-up (genau_vr.vr_session), whose commit
-history is a catalog of the loader's traps — graphics requirements queried
+The loader's traps, each learned the slow way: graphics requirements queried
 before session creation, typed event casting, waiting for READY before the
 frame loop, and gating on view validity (an unlocated view reports an
-all-zero FOV, which is a division by zero in the projection matrix).
+all-zero FOV, a division by zero in the projection matrix).  No per-eye depth
+buffers (the scene draws in painter's order); the one controller action is
+the tilt thumbstick, every other verb arriving from hotkeys and voice.
 
-Differences from GenauVR's: no per-eye depth buffers (the scene draws in
-painter's order), the window wears the V, and its one controller action is
-GenauVR's tilt thumbstick — every other verb arrives from hotkeys and voice.
-
-The OpenXR/GL shell -- see CLAUDE.md, "Standing rules"; the two copies and
-what waits on merging them are in docs/known-issues.md.
+The OpenXR/GL shell -- see CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 

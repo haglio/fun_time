@@ -35,7 +35,7 @@ def test_stamps_pinned_shortcut(tmp_path):
     lnk = fake_pin_dir / "Fun Time.lnk"
     _create_lnk(lnk)
 
-    with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
+    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=fake_pin_dir):
         stamp_shortcut_aumid()
 
     assert read_shortcut_app_user_model_id(str(lnk)) == APP_USER_MODEL_ID
@@ -45,7 +45,7 @@ def test_no_crash_when_no_shortcuts(tmp_path):
     """No .lnk files at all — should not crash."""
     empty_dir = tmp_path / "no_pins"
     empty_dir.mkdir()
-    with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=empty_dir):
+    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=empty_dir):
         stamp_shortcut_aumid()
 
 
@@ -56,7 +56,7 @@ def test_skips_unrelated_shortcuts(tmp_path):
     unrelated = fake_pin_dir / "Chrome.lnk"
     _create_lnk(unrelated)
 
-    with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
+    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=fake_pin_dir):
         stamp_shortcut_aumid()
 
     # Unrelated shortcut should not have been stamped
@@ -77,7 +77,7 @@ def test_leaves_the_vr_pin_its_own_identity(tmp_path):
     _create_lnk(ours)
     _create_lnk(vr)
 
-    with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
+    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=fake_pin_dir):
         stamp_shortcut_aumid()
 
     assert read_shortcut_app_user_model_id(str(ours)) == APP_USER_MODEL_ID
