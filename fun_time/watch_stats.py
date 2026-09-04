@@ -1,10 +1,11 @@
-"""Per-video watch statistics driving playback frequency ("breeding").
+"""Fun Time's own record of how its players treated each video ("breeding").
 
 Videos the user watches to the end (or locks and loops) accumulate positive
-signals; videos skipped early accumulate negative ones.  The satellite
-playlist builders convert the counts into weights, so loved videos surface
-more often and chronically-skipped ones fade — a continuous companion to the
-hard mark-as-weird removal.
+signals; videos skipped early accumulate negative ones.  Evolver sums these
+with what the phone watched and stamps the playback weight on each video's
+sidecar (:func:`fun_time.media_metadata.watch_weight_of`), which is what the
+shuffled builds draw by — so loved videos surface more often and
+chronically-skipped ones fade, a continuous companion to mark-as-weird.
 
 Stats live in one JSON file under the state dir, keyed by normalized video
 path: ``{"completions": int, "skips": int, "locks": int}``.
@@ -38,26 +39,6 @@ def load_watch_stats(stats_file: str | Path) -> dict[str, dict[str, int]]:
     except (OSError, json.JSONDecodeError):
         return {}
     return data if isinstance(data, dict) else {}
-
-
-# score = completions + 3*locks - skips, softened by /3 and clamped so one
-# video can be at most 8x more (or 8x less) frequent than a fresh one.
-_LOCK_SCORE = 3.0
-_SCORE_SOFTENING = 3.0
-_MAX_DOUBLINGS = 3.0
-
-
-def weight_for(entry: dict[str, int] | None) -> float:
-    """Relative playback weight for one video's stats (1.0 when unknown)."""
-    if not entry:
-        return 1.0
-    score = (
-        entry.get("completions", 0)
-        + _LOCK_SCORE * entry.get("locks", 0)
-        - entry.get("skips", 0)
-    )
-    doublings = max(-_MAX_DOUBLINGS, min(_MAX_DOUBLINGS, score / _SCORE_SOFTENING))
-    return float(2.0 ** doublings)
 
 
 def weighted_shuffle(

@@ -50,7 +50,6 @@ from fun_time.modes import (
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
     SatelliteBuild,
-    SatelliteLibraryContext,
     build_all_playlists,
     build_main_playlist,
     build_playlist_file_path,
@@ -72,7 +71,6 @@ from fun_time.session_resume import (
 )
 from fun_time.shared_state import shared_state_path, write_shared_state
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
-from fun_time.watch_stats import watch_stats_path
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -247,10 +245,7 @@ def stock_the_playlists(
             landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
             favs_file=Path(manifest.media.favs_file),
             state_dir=state_dir,
-            library=SatelliteLibraryContext(
-                metadata_root=metadata_root,
-                watch_stats_file=watch_stats_path(state_dir),
-            ),
+            metadata_root=metadata_root,
         )
         logger.info("Nothing to resume; built fresh playlists")
         return

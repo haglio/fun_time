@@ -1,23 +1,25 @@
-"""Leaderboard over the watch stats — how the harem is evolving.
+"""Leaderboard over the watch blocks — how the harem is evolving.
 
 Run from the project root:
 
     ./.venv/Scripts/python.exe -m fun_time.breeding_report [--top N | --all]
 
-Each tracked clip is ranked by its playback weight (the same number the
-shuffled satellite builds use), with its generation identity — action, image
-seed, prompt — pulled from the metadata sidecars so the ranking reads as a
-harem leaderboard rather than a list of opaque filenames.
+Each stamped clip is ranked by the playback weight on its sidecar (the same
+number the shuffled satellite builds use — Evolver's sum of what every app
+watched), with its generation identity — action, image seed, prompt — pulled
+from the same sidecar so the ranking reads as a harem leaderboard rather than
+a list of opaque filenames.
 """
 from __future__ import annotations
 
 import argparse
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
 
 from .config import load_config
-from .media_metadata import load_metadata, metadata_path_for
-from .watch_stats import load_watch_stats, watch_stats_path, weight_for
+from .media_metadata import WATCH_BLOCK, load_metadata, metadata_path_for, watch_weight_of
+from .modes import collect_video_files
 
 
 @dataclass(frozen=True)
@@ -45,14 +47,8 @@ def _orientation_of(path: str) -> str:
     return "?"
 
 
-def _identity_of(
-    path: str, metadata_root: str | Path | None
-) -> tuple[str, str, str]:
+def _identity_of(metadata: dict) -> tuple[str, str, str]:
     """(action, seed, prompt) from the clip's sidecar, blanks when absent."""
-    sidecar = metadata_path_for(path, metadata_root)
-    if sidecar is None or not sidecar.is_file():
-        return "", "", ""
-    metadata = load_metadata(sidecar)
     video = metadata.get("video") or {}
     source = metadata.get("source_image") or {}
     action = _norm_text(video.get("action"))
@@ -61,20 +57,34 @@ def _identity_of(
     return action, _norm_text(video.get("seed")), _norm_text(video.get("prompt"))
 
 
+def _count(block: dict, field: str) -> int:
+    try:
+        return int(block.get(field, 0) or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def build_breeding_rows(
-    stats: dict[str, dict[str, int]],
+    video_paths: Iterable[str],
     metadata_root: str | Path | None,
 ) -> list[BreedingRow]:
-    """Every tracked clip as a row, heaviest (most loved) first."""
+    """Every stamped clip as a row, heaviest (most loved) first."""
     rows: list[BreedingRow] = []
-    for path, entry in stats.items():
-        action, seed, prompt = _identity_of(path, metadata_root)
+    for path in video_paths:
+        sidecar = metadata_path_for(path, metadata_root)
+        if sidecar is None or not sidecar.is_file():
+            continue
+        metadata = load_metadata(sidecar)
+        block = metadata.get(WATCH_BLOCK)
+        if not isinstance(block, dict):
+            continue
+        action, seed, prompt = _identity_of(metadata)
         rows.append(BreedingRow(
             path=path,
-            weight=weight_for(entry),
-            completions=entry.get("completions", 0),
-            skips=entry.get("skips", 0),
-            locks=entry.get("locks", 0),
+            weight=watch_weight_of(metadata),
+            completions=_count(block, "completions"),
+            skips=_count(block, "skips"),
+            locks=_count(block, "locks"),
             orientation=_orientation_of(path),
             action=action,
             seed=seed,
@@ -152,7 +162,7 @@ def render_breeding_report(rows: list[BreedingRow], *, top: int) -> str:
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         description=(
-            "Watch-stats leaderboard (breeding state). Columns: WEIGHT = the "
+            "Watch leaderboard (breeding state). Columns: WEIGHT = the "
             "shuffle-frequency multiplier, C = completions (full watches, one "
             "per repeat loop while locked), L = locks, S = skips, "
             "O = orientation (P portrait / L landscape)."
@@ -164,8 +174,12 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     config = load_config(args.config)
-    stats = load_watch_stats(watch_stats_path(config.paths.state_dir))
-    rows = build_breeding_rows(stats, config.regen.metadata_root)
+    paths = config.paths
+    sources = "|".join(
+        str(folder)
+        for folder in (*paths.portrait_dirs, *paths.landscape_dirs, *paths.nau_library_dirs)
+    )
+    rows = build_breeding_rows(collect_video_files(sources), config.regen.metadata_root)
     print(render_breeding_report(rows, top=len(rows) if args.all else args.top))
     return 0
 

@@ -13,7 +13,7 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
-from fun_time.modes import SatelliteBuild, SatelliteLibraryContext
+from fun_time.modes import SatelliteBuild
 from fun_time.players import Player
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_slot import SatelliteSlot
@@ -616,10 +616,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        library=SatelliteLibraryContext(
-            metadata_root=tmp_path / "metadata",
-            watch_stats_file=state_dir / "watch_stats.json",
-        ),
+        metadata_root=tmp_path / "metadata",
     )
     # The two native satellites are launched with OUR python (the player ships
     # from this repo), the satellite module, the builder's playlists, and each

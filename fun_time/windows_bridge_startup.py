@@ -23,7 +23,6 @@ from .mode_plan import STARTUP_MAIN_MODE, hud_verb, nau_display_verb
 from .modes import (
     PLAYLIST_NAU,
     SatelliteBuild,
-    SatelliteLibraryContext,
     build_all_playlists,
     build_main_playlist,
     build_playlist_file_path,
@@ -58,7 +57,6 @@ from .session_resume import (
     resume_shared_state,
 )
 from .shared_state import shared_state_path
-from .watch_stats import watch_stats_path
 from .win32_taskbar import APP_USER_MODEL_ID
 
 logger = logging.getLogger(__name__)
@@ -468,10 +466,7 @@ def start_core_session(
             landscape=SatelliteBuild(sources=landscape.sources),
             favs_file=Path(favs_file),
             state_dir=state_path,
-            library=SatelliteLibraryContext(
-                metadata_root=regen_metadata_root,
-                watch_stats_file=watch_stats_path(state_path),
-            ),
+            metadata_root=regen_metadata_root,
         )
     elif not playlist_fits_sources(nau_playlist, main_sources):
         # Resumed from FunTimeVR, whose main rotation merges the VR library

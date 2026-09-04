@@ -9,7 +9,6 @@ from fun_time.watch_stats import (
     load_watch_stats,
     passes_inclusion,
     record_watch_event,
-    weight_for,
     weighted_shuffle,
 )
 
@@ -39,28 +38,6 @@ def test_load_watch_stats_returns_empty_when_missing_or_corrupt(tmp_path: Path):
     bad = tmp_path / "bad.json"
     bad.write_text("{oops", encoding="utf-8")
     assert load_watch_stats(bad) == {}
-
-
-# --- weight_for ---
-
-
-def test_weight_for_scales_up_with_completions_and_down_with_skips():
-    neutral = weight_for(None)
-    watched = weight_for({"completions": 3, "skips": 0, "locks": 0})
-    skipped = weight_for({"completions": 0, "skips": 3, "locks": 0})
-
-    assert neutral == 1.0
-    assert watched == 2.0
-    assert skipped == 0.5
-    # Locks are the strongest positive signal: one lock outweighs one completion.
-    assert weight_for({"completions": 0, "skips": 0, "locks": 1}) > weight_for(
-        {"completions": 1, "skips": 0, "locks": 0}
-    )
-
-
-def test_weight_for_is_clamped_to_an_eighth_and_eightfold():
-    assert weight_for({"completions": 100, "skips": 0, "locks": 50}) == 8.0
-    assert weight_for({"completions": 0, "skips": 100, "locks": 0}) == 0.125
 
 
 def test_record_watch_event_prunes_entries_for_vanished_files(tmp_path: Path):

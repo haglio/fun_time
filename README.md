@@ -432,17 +432,17 @@ Unlike prev/next, cycling does **not** release an active lock: it means "show me
 
 Both groupings are only as good as the acts the sidecars record, so there is a way to say one is wrong: **"wrong action"** (sided or bare, like "weird") strikes `video.action` out of the current clip's sidecar and keeps what it said under `video.wrong_action`. This is the one edit Fun Time makes to a sidecar. A clip with no act reads as one still needing one, so it comes back around in Evolver's Backfill Metadata tool to be named again — and the `wrong_action` key is how that tool tells a clip you rejected from one nobody ever labeled, so it asks about the rejected ones first, whatever source they came from. Nothing about playback changes: the clip is not bad, only mislabeled.
 
-During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that member weighted by the watch stats below; Premiere (`P`, newest-first) instead keeps the group's newest member and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
+During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that member weighted by the watch weight below; Premiere (`P`, newest-first) instead keeps the group's newest member and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
 
-### Watch stats — videos "breed" by attention
+### Watch weight — videos "breed" by attention
 
-Fun Time watches how you treat each satellite video and adjusts how often it comes up (`fun_time/watch_stats.py`, persisted in `state/watch_stats.json`):
+Fun Time records how you treat each satellite video (`fun_time/watch_stats.py`, persisted in `state/watch_stats.json`):
 
 - playing a video through to ~the end counts a **completion**; while locked on repeat, every loop counts again
 - pressing next/prev (or cycling action/seed) early in a video counts a **skip**
 - **locking** a video is the strongest positive signal
 
-Counts become a playback weight — `2^((completions + 3·locks − skips)/3)`, clamped to between ⅛× and 8× — applied at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, and the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything.
+Warm Gun, on the phone, records the same three for what it plays. Evolver's Watch Weights stage sums the two onto every library video's metadata sidecar as a `watch` block — the counts and a playback weight, `2^((completions + 3·locks − skips)/3)` clamped to between ⅛× and 8× — and Fun Time reads that weight off the sidecar at every shuffled satellite build: weighted shuffle order (loved videos surface early), weighted pick inside collapsed action groups (the acts you finish win the slot), and probabilistic inclusion (a weight-⅛ video sits out ~7 of 8 builds). So what you skip on the phone fades here too, and the other way round. This is the continuous companion to mark-as-weird: hated videos fade away instead of leaving. Neutral videos are never excluded, the transitions the system causes itself (unlock's auto-advance, discards) never penalize anything, and a video Evolver has not stamped yet weighs 1. The same stage carries favorites both ways: a favorite made on the phone lands in `favs.csv`, and every row of `favs.csv` is flagged `favorite` on its sidecar for the phone.
 
 Check the current standings any time with the leaderboard (from the project root):
 
@@ -450,7 +450,7 @@ Check the current standings any time with the leaderboard (from the project root
 ./.venv/Scripts/python.exe -m fun_time.breeding_report
 ```
 
-It ranks every tracked clip by weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the metadata sidecars. Columns: **WEIGHT** is the shuffle-frequency multiplier; **C** = completions (full watches — one per repeat loop while locked), **L** = locks, **S** = skips, **O** = orientation (P portrait / L landscape). Options: `--top N` (rows per section, default 15), `--all`.
+It ranks every stamped clip in the configured library by that weight — "Rising" then "Fading" — with its action, image seed, and prompt pulled from the same sidecar. Columns: **WEIGHT** is the shuffle-frequency multiplier; **C** = completions (full watches — one per repeat loop while locked), **L** = locks, **S** = skips, **O** = orientation (P portrait / L landscape). Options: `--top N` (rows per section, default 15), `--all`.
 
 ## Favorites CSV behavior
 
@@ -545,7 +545,7 @@ Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscrip
 
 ### `watch_stats.json`
 
-Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized path — the input to the frequency weighting described under "Watch stats". Written by the dispatch loop's ~1 Hz satellite sampler and by lock commands; entries whose file vanished (e.g. marked weird) are pruned on the next write. Delete the file to reset all weights to neutral.
+Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized path — Fun Time's half of the weighting described under "Watch weight"; Evolver reads it, adds the phone's, and writes the result on each sidecar. Written by the dispatch loop's ~1 Hz satellite sampler and by lock commands; entries whose file vanished (e.g. marked weird) are pruned on the next write. Delete the file to drop Fun Time's counts from the next stamping.
 
 ### `library_browser_pick.txt`
 

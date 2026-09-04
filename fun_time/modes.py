@@ -6,21 +6,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
-from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle
+from .watch_stats import passes_inclusion, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_playlist"
 PLAYLIST_LANDSCAPE = "landscape_playlist"
 PLAYLIST_NAU = "nau_playlist"
-
-
-@dataclass(frozen=True)
-class SatelliteLibraryContext:
-    """What a satellite build needs beyond its source dirs: the metadata
-    root for action-group collapsing and the watch-stats file for
-    frequency weighting.  Any None simply disables that refinement."""
-
-    metadata_root: Path | None
-    watch_stats_file: Path | None
 
 
 def is_supported_video_path(path: str) -> bool:
@@ -186,43 +176,37 @@ def _collapse_groups(
 
 def _collapse_and_weigh(
     paths: list[str],
-    library: SatelliteLibraryContext,
+    metadata_root: Path | None,
     rng: random.Random | None,
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
-    """Shuffle *paths* with watch-stats weighting, one slot per group.
+    """Shuffle *paths* by the weights stamped on their sidecars, one slot per group.
 
     Chronically-skipped videos sit the build out proportionally to their
     weight; each group contributes a single member, drawn weighted so preferred
     clips surface more.  The final order is a weighted shuffle: loved videos
-    land early, and with no stats on record every step degenerates to today's
-    uniform shuffle.  See :func:`_collapse_axis` for which axis groups.
+    land early, and with nothing stamped every step degenerates to a uniform
+    shuffle.  See :func:`_collapse_axis` for which axis groups.
     """
     randomizer = rng or random.Random()
-    stats = (
-        load_watch_stats(library.watch_stats_file)
-        if library.watch_stats_file is not None
-        else {}
-    )
-
-    def weight(path: str) -> float:
-        return weight_for(stats.get(normalize_path_key(path)))
-
-    survivors = [path for path in paths if passes_inclusion(weight(path), randomizer)]
-    index = build_group_index(survivors, library.metadata_root)
+    index = build_group_index(paths, metadata_root)
+    survivors = [path for path in paths if passes_inclusion(index.weight_of(path), randomizer)]
+    surviving = {normalize_path_key(path) for path in survivors}
     group_key_of, members_of = _collapse_axis(index, by_seed_family)
 
     def pick(members: list[str]) -> str:
-        return randomizer.choices(members, weights=[weight(m) for m in members], k=1)[0]
+        candidates = [member for member in members if normalize_path_key(member) in surviving]
+        weights = [index.weight_of(member) for member in candidates]
+        return randomizer.choices(candidates, weights=weights, k=1)[0]
 
     collapsed = _collapse_groups(survivors, group_key_of, members_of, pick)
-    return weighted_shuffle(collapsed, weight, randomizer)
+    return weighted_shuffle(collapsed, index.weight_of, randomizer)
 
 
 def _collapse_recent(
     paths: list[str],
-    library: SatelliteLibraryContext,
+    metadata_root: Path | None,
     *,
     by_seed_family: bool = False,
 ) -> list[str]:
@@ -234,7 +218,7 @@ def _collapse_recent(
     a chronically-skipped clip still appears; recency alone ranks.
     """
     ordered = sort_paths_by_recency(paths)
-    index = build_group_index(ordered, library.metadata_root)
+    index = build_group_index(ordered, metadata_root)
     group_key_of, members_of = _collapse_axis(index, by_seed_family)
     return _collapse_groups(ordered, group_key_of, members_of, lambda members: max(members, key=_path_mtime))
 
@@ -247,7 +231,7 @@ def build_satellite_playlist_paths(
     filter_query: str = "",
     recent: bool = False,
     rng: random.Random | None = None,
-    library: SatelliteLibraryContext | None = None,
+    metadata_root: Path | None = None,
 ) -> list[str]:
     files = collect_video_files(source_spec)
     if f_mode:
@@ -256,25 +240,23 @@ def build_satellite_playlist_paths(
     # An act filter narrows to videos whose recorded act matches; it needs the
     # metadata root to reach each sidecar, so without it the filter is a no-op.
     # Applied before ordering, so it holds under both Latest and Shuffle.
-    filtered = bool(filter_query) and (
-        library is not None and library.metadata_root is not None
-    )
+    filtered = bool(filter_query) and metadata_root is not None
     if filtered:
         files = [
             full_path
             for full_path in files
-            if path_matches_query(full_path, library.metadata_root, filter_query)
+            if path_matches_query(full_path, metadata_root, filter_query)
         ]
-    # With a library, both orders collapse to one slot per group: Latest
+    # With a metadata root, both orders collapse to one slot per group: Latest
     # (recent) keeps newest-first, the shuffle build weighted-randomizes.  A
     # filtered view collapses seed families (one per param-set) rather than
-    # action groups.  With no library there is nothing to group by, so just
-    # order the raw files.
-    if library is None:
+    # action groups.  Without one there is nothing to group by, so just order
+    # the raw files.
+    if metadata_root is None:
         return order_paths(files, recent=recent, rng=rng)
     if recent:
-        return _collapse_recent(files, library, by_seed_family=filtered)
-    return _collapse_and_weigh(files, library, rng, by_seed_family=filtered)
+        return _collapse_recent(files, metadata_root, by_seed_family=filtered)
+    return _collapse_and_weigh(files, metadata_root, rng, by_seed_family=filtered)
 
 
 def build_playlist_file_path(state_dir: Path, name: str) -> Path:
@@ -330,11 +312,12 @@ def build_one_satellite_playlist(
     recent: bool,
     filter_query: str = "",
     rng: random.Random | None = None,
-    library: SatelliteLibraryContext | None = None,
+    metadata_root: Path | None = None,
 ) -> None:
     """Build and write the playlist file a single satellite plays from."""
     paths = build_satellite_playlist_paths(
-        sources, f_mode, favs_file, filter_query=filter_query, recent=recent, rng=rng, library=library
+        sources, f_mode, favs_file, filter_query=filter_query, recent=recent, rng=rng,
+        metadata_root=metadata_root,
     )
     write_playlist_file(build_playlist_file_path(state_dir, name), paths)
 
@@ -358,20 +341,20 @@ def build_satellite_playlists(
     favs_file: Path,
     state_dir: Path,
     rng: random.Random | None = None,
-    library: SatelliteLibraryContext | None = None,
+    metadata_root: Path | None = None,
 ) -> None:
     """Build and write both satellite playlists, each honoring its own
     :class:`SatelliteBuild` (action-group collapse and watch weighting apply
-    when *library* is given)."""
+    when *metadata_root* is given)."""
     build_one_satellite_playlist(
         sources=portrait.sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
         state_dir=state_dir, f_mode=portrait.f_mode, recent=portrait.recent,
-        filter_query=portrait.filter_query, rng=rng, library=library,
+        filter_query=portrait.filter_query, rng=rng, metadata_root=metadata_root,
     )
     build_one_satellite_playlist(
         sources=landscape.sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
         state_dir=state_dir, f_mode=landscape.f_mode, recent=landscape.recent,
-        filter_query=landscape.filter_query, rng=rng, library=library,
+        filter_query=landscape.filter_query, rng=rng, metadata_root=metadata_root,
     )
 
 
@@ -402,7 +385,7 @@ def build_all_playlists(
     main_f_mode: bool = False,
     main_recent: bool = False,
     rng: random.Random | None = None,
-    library: SatelliteLibraryContext | None = None,
+    metadata_root: Path | None = None,
 ) -> None:
     """Build and write all three playlists — both satellites' and Nau's.
 
@@ -417,7 +400,7 @@ def build_all_playlists(
         favs_file=favs_file,
         state_dir=state_dir,
         rng=rng,
-        library=library,
+        metadata_root=metadata_root,
     )
     write_nau_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_NAU),

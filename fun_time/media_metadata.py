@@ -74,18 +74,32 @@ def video_type_of(payload: dict) -> str:
     return EXCERPT if isinstance(payload.get("clip"), dict) else ""
 
 
-def only_the_video_type(payload: dict) -> bool:
-    """Whether *payload* holds a kind and nothing else.
+# What Evolver stamps on every library video's sidecar, generation or not:
+# the kind, the ``watch`` block summing every app's viewing with the playback
+# weight the shuffled builds use, and a favorite flag.  None of it says how the
+# clip was made, so anything reading a sidecar as evidence of a recorded
+# generation asks :func:`records_no_generation` first.
+WATCH_BLOCK = "watch"
+FAVORITE_FIELD = "favorite"
+_STAMPED_KEYS = frozenset({WATCH_BLOCK, FAVORITE_FIELD})
 
-    Evolver writes a sidecar for every library video now, so a clip whose
-    generation was never scraped has one too — holding its kind and nothing
-    besides.  Anything that used to read a sidecar's mere existence as evidence
-    of a recorded generation has to ask this first.
-    """
-    if set(payload) != {"video"}:
+
+def records_no_generation(payload: dict) -> bool:
+    if set(payload) - _STAMPED_KEYS != {"video"}:
         return False
     video = payload["video"]
     return isinstance(video, dict) and set(video) == {"type"}
+
+
+def watch_weight_of(payload: dict) -> float:
+    """The playback weight stamped on *payload*, 1.0 for a video nobody has watched."""
+    block = payload.get(WATCH_BLOCK)
+    if not isinstance(block, dict):
+        return 1.0
+    try:
+        return float(block.get("weight", 1.0))
+    except (TypeError, ValueError):
+        return 1.0
 
 
 def load_metadata(json_path: str | Path) -> dict:
@@ -303,9 +317,13 @@ class GroupIndex:
     # Which clips were animated from a generated image rather than from text
     # alone.  The two look nothing alike, so the widen ranks its own kind first.
     image_to_video_by_path: dict[str, bool] = field(default_factory=dict)
+    weight_by_path: dict[str, float] = field(default_factory=dict)
 
     def contains(self, path: str) -> bool:
         return normalize_path_key(path) in self.path_by_key
+
+    def weight_of(self, path: str) -> float:
+        return self.weight_by_path.get(normalize_path_key(path), 1.0)
 
 
 def action_group_members(index: GroupIndex, path: str) -> list[str]:
@@ -464,12 +482,14 @@ def build_group_index(
     path_by_key: dict[str, str] = {}
     scene_tags_by_path: dict[str, frozenset[str]] = {}
     image_to_video_by_path: dict[str, bool] = {}
+    weight_by_path: dict[str, float] = {}
     for path in video_paths:
         path_by_key[normalize_path_key(path)] = path
         sidecar = metadata_path_for(path, metadata_root)
         if sidecar is None or not sidecar.is_file():
             continue
         metadata = load_metadata(sidecar)
+        weight_by_path[normalize_path_key(path)] = watch_weight_of(metadata)
         action = str((metadata.get("video") or {}).get("action") or "").strip()
         if action:
             action_by_path[normalize_path_key(path)] = action
@@ -493,6 +513,7 @@ def build_group_index(
         path_by_key=path_by_key,
         scene_tags_by_path=scene_tags_by_path,
         image_to_video_by_path=image_to_video_by_path,
+        weight_by_path=weight_by_path,
     )
 
 
