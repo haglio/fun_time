@@ -956,9 +956,11 @@ def _build_satellite_launch_command(
 
     The satellite is our own mpv-backed process, driven through the
     command/paused/status file quartet exactly as Nau is.  It takes no
-    ``--config`` — the quartet plus geometry fully specify it — and stays silent
-    with ``--no-audio``.  ``--title`` gives it the distinct caption the sequencer
-    resolves its slot by.
+    ``--config`` — the quartet plus geometry fully specify it — and ``--title``
+    gives it the distinct caption the sequencer resolves its slot by.
+
+    No ``--no-audio``: a satellite opens muted anyway, and the flag is the
+    permanent silence, which here would only kill the volume chip.
 
     The lock HUD rides along as two more files: the panel this loop publishes for
     the player to composite into its own video, and the command file a click on
@@ -986,7 +988,6 @@ def _build_satellite_launch_command(
         str(width),
         "--height",
         str(height),
-        "--no-audio",
         # One of Fun Time's windows rather than an application of its own — see
         # TASKBAR_IDENTITY_ARGS.
         *TASKBAR_IDENTITY_ARGS,

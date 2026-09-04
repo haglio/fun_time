@@ -37,7 +37,9 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Window caption; fun_time gives each satellite a distinct one "
                         "so it can resolve each window to its portrait/landscape slot")
     p.add_argument("--no-audio", action="store_true", default=False,
-                   help="Never play audio (a satellite is silent)")
+                   help="Never play audio, and leave the volume chip a read-only "
+                        "indicator; without it a satellite still opens muted, but "
+                        "its chip can unmute it")
     p.add_argument("--taskbar-identity", default=None,
                    help="Group this window under the launching application's taskbar "
                         "button; the orchestrator passes its own AppUserModelID. "
@@ -59,10 +61,10 @@ def resolve_playlist(args) -> list[Path]:
 
 
 def audio_muted(args) -> bool:
-    """Whether the satellite stays silent — always, in practice.
+    """Whether the satellite is silent for good, its volume chip a fixed indicator.
 
-    Satellites carry no audio, but honor ``--no-audio`` and the
-    ``FUN_TIME_MUTE_AUDIO=1`` contract the rest of the stack uses so a run never
-    spends ffmpeg on audio it will not play.
+    Every satellite *opens* muted; this is the stronger thing the
+    ``FUN_TIME_MUTE_AUDIO=1`` contract buys, for hidden-desktop runs going on
+    unattended beside a live session.  A session's own launch passes neither.
     """
     return bool(args.no_audio) or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"

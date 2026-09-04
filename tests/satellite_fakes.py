@@ -24,6 +24,11 @@ class FakeSatellitePlayer:
         self.loop_file = False
         self.closed = False
         self.overlays: dict[int, tuple[int, int, object]] = {}
+        # mpv's two independent audio properties: a satellite opens muted, and
+        # the level under that mute is what unmuting comes back to.
+        self.volume = 100
+        self.muted = True
+        self.seeks: list[float] = []
 
     # --- the interface SatelliteSession drives -------------------------------
     def load(self, path: Path) -> None:
@@ -53,6 +58,16 @@ class FakeSatellitePlayer:
 
     def set_loop_file(self, loop: bool) -> None:
         self.loop_file = loop
+
+    def seek_ms(self, ms: float) -> None:
+        self.seeks.append(ms)
+        self.position_ms = max(0.0, min(self.duration_ms, ms))
+
+    def set_volume(self, volume: int) -> None:
+        self.volume = volume
+
+    def set_muted(self, muted: bool) -> None:
+        self.muted = muted
 
     def close(self) -> None:
         self.closed = True

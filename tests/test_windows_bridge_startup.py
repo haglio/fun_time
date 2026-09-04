@@ -1654,16 +1654,17 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
     assert cmd[cmd.index("--title") + 1] == "Landscape AI Player"
 
 
-def test_build_satellite_launch_command_always_disables_audio():
-    # A satellite must never be heard, so the clip's own audio track is dropped
-    # at launch rather than mixed down afterwards.
+def test_build_satellite_launch_command_leaves_the_audio_switchable():
+    # A satellite opens muted whatever it is launched with, so --no-audio would
+    # buy nothing here but a dead volume chip on its own window: the flag is the
+    # permanent silence the unattended hidden-desktop runs ask for by env var.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
         title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
         x=0, y=0, width=1, height=1,
     )
-    assert "--no-audio" in cmd
+    assert "--no-audio" not in cmd
 
 
 def test_build_satellite_launch_command_passes_no_config_flag():
@@ -1705,7 +1706,6 @@ def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
     assert pid == 51
     assert popen.call_args.kwargs["creationflags"] == 1
     assert popen.call_args.args[0][:3] == ["python.exe", "-m", "satellite"]
-    assert "--no-audio" in popen.call_args.args[0]
     argv = popen.call_args.args[0]
     assert argv[argv.index("--title") + 1] == "Portrait AI Player"
 

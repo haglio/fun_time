@@ -1,13 +1,13 @@
 """Playlist/navigation orchestration for a satellite player, decoupled from the
 window.
 
-A satellite is the simple half of Nau: an unscripted, silent looper of short
-clips.  It owns its playlist position and drives an mpv-backed *player*
-(:class:`player_core.mpv_player.MpvPlayer`) to load/pause/lock — but there is no
-funscript, no OSR2/T-Code, no loop recording and no audio, so this session is a
-fraction of Nau's own PlayerSession.  Navigation is fully in-process
-(a Python list + index), which is the whole point of leaving VLC behind: no HTTP
-playlist to resolve ids against, and pausing is a flag the player obeys.
+A satellite is the simple half of Nau: an unscripted looper of short clips, muted
+until its own chip is asked.  It owns its playlist position and drives an
+mpv-backed *player* (:class:`player_core.mpv_player.MpvPlayer`) to
+load/pause/lock/seek — but with no funscript, no OSR2/T-Code and no loop
+recording, it is a fraction of Nau's own PlayerSession.  Navigation is fully
+in-process (a Python list + index), which is the whole point of leaving VLC
+behind: no HTTP playlist to resolve ids against, and pausing is a flag.
 
 Auto-advance is the one thing mpv drives itself: the session hands mpv the *next*
 clip as a staged playlist entry (``stage_next``), and with prefetch on mpv opens
@@ -58,9 +58,8 @@ class SatelliteSession:
     def playlist(self) -> list[Path]:
         """A copy of the current playlist, so callers cannot mutate it in place.
 
-        A test seam, kept deliberately: nothing in the app reads it, and the
-        order of the whole list is what the discard, jump and reload tests are
-        about -- see CHANGELOG.md, item 25.
+        A test seam, kept deliberately: nothing in the app reads it, and the order
+        of the whole list is what the discard, jump and reload tests are about.
         """
         return list(self._playlist)
 
@@ -75,6 +74,10 @@ class SatelliteSession:
     def step(self, delta: int) -> None:
         """Navigate *delta* items (next = +1, prev = -1), wrapping the playlist."""
         self.load(self._index + delta)
+
+    def seek_to(self, ms: float) -> None:
+        """Jump to *ms* in the clip on screen; the playlist and its prefetch stand."""
+        self._player.seek_ms(ms)
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:

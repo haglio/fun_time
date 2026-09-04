@@ -367,6 +367,14 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 - `Esc` toggles OmniPause; `Space` enters it.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause) and `Ctrl+Alt+Q` (quit) stay active.
 
+### The satellites' scrubber and volume chip
+
+Each satellite draws the same two controls Nau does along the bottom of its video — the scrubber and the volume chip — and, like Nau's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
+
+A satellite **opens muted** whatever its clips carry — the room's sound is the main player's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that player's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
+
+A press on the video itself still does nothing: a satellite's paused state belongs to the flag file behind OmniPause, so a pause toggled in the window would be gone by the next frame. In Origenerator mode both controls come off the video with the rest of it, and the whole window belongs to the HUD.
+
 ### Getting a window out of the way
 
 Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), and restoring it brings back exactly those windows (`omnirestore`) — one gesture for the session as a whole.

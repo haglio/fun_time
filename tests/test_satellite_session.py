@@ -34,6 +34,26 @@ class TestNavigation:
         assert player.opened[-1] == tmp_path / "v1.mp4"  # wraps backward
 
 
+class TestSeeking:
+    def test_seek_to_reaches_the_player(self, tmp_path):
+        session, player = _make_session(tmp_path)
+
+        session.seek_to(1_500.0)
+
+        assert player.seeks == [1_500.0]
+
+    def test_a_seek_leaves_the_playlist_and_the_prefetch_where_they_are(self, tmp_path):
+        # A scrub is about where you are inside one clip: nothing about the queue
+        # moves, so the staged next is still the one mpv will roll onto.
+        session, player = _make_session(tmp_path, entries=3)
+
+        session.seek_to(2_000.0)
+
+        assert session.current_video == tmp_path / "v0.mp4"
+        assert player.staged_next == tmp_path / "v1.mp4"
+        assert player.opened == [tmp_path / "v0.mp4"]      # no cold reload
+
+
 class TestPause:
     def test_set_paused_drives_the_player(self, tmp_path):
         session, player = _make_session(tmp_path)
