@@ -349,13 +349,6 @@ class TestRunController:
         assert call_kwargs["project_dir"] == cfg.project_dir
 
 
-def subprocess_result(*, stdout: str, returncode: int):
-    mock = MagicMock()
-    mock.stdout = stdout
-    mock.returncode = returncode
-    return mock
-
-
 # --- main() --check flag ---
 
 
