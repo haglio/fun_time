@@ -34,6 +34,7 @@ from fun_time_vr.orchestrator import build_vr_manifest
 from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
+    readable_at_speed,
     sample_library_clips,
 )
 
@@ -74,7 +75,9 @@ def _sample_library_videos(dirs, count: int) -> list[str]:
         candidates.extend(
             glob.glob(os.path.join(str(root), "**", "*.mp4"), recursive=True)
         )
-    return sample_library_clips(candidates, count, desc=f"sample videos under {dirs}")
+    return sample_library_clips(
+        candidates, count, desc=f"sample videos under {dirs}", readable=readable_at_speed,
+    )
 
 
 def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
