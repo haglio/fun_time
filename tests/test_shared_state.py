@@ -114,7 +114,7 @@ class TestSharedState:
     def test_roundtrip_preserves_per_satellite_filters(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
-            main_mode="nau",
+            main_mode="video",
             portrait_filter="beta gamma",
             landscape_filter="alpha",
         )
@@ -273,3 +273,20 @@ class TestTheSideLens:
         write_shared_state(state_file, state)
 
         assert read_shared_state(state_file).side(3) == state.side(3)
+
+
+def test_a_state_saved_before_video_mode_comes_back_in_video_mode(tmp_path: Path):
+    """The main slot's nau and hybrid modes became the one video mode, and the
+    satellites' player mode was renamed to match — a session that last ran
+    under the old names has to come back in a mode the room still knows."""
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    for saved_main, saved_satellites in (("nau", "player"), ("hybrid", "player")):
+        write_shared_state(state_file, BridgeState())
+        text = state_file.read_text(encoding="utf-8")
+        text = text.replace("main_mode = video", f"main_mode = {saved_main}")
+        text = text.replace("satellites_mode = video", f"satellites_mode = {saved_satellites}")
+        state_file.write_text(text, encoding="utf-8")
+
+        resumed = read_shared_state(state_file)
+
+        assert (resumed.main_mode, resumed.satellites_mode) == ("video", "video"), saved_main

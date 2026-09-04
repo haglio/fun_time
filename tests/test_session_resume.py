@@ -195,7 +195,7 @@ class TestResumeSharedState:
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which player owns the big display is as much a thing you set as the
         sound level, so leaving the session showing Genau and reopening on Nau
-        is the same overnight reset.  Startup builds every session in nau mode
+        is the same overnight reset.  Startup builds every session in video mode
         and then puts the carried mode on over the top (see
         :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
         state_file = tmp_path / "shared_bridge_state.ini"

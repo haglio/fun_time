@@ -524,7 +524,7 @@ def apply_genau_dirs_to_sys_path() -> list[str]:
     """Put this checkout's genau_project_dirs override on ``sys.path``.
 
     The override reaches Genau and Nau as subprocess PYTHONPATH, but the
-    orchestrator's own process — and the hybrid arbiter inside it — resolves
+    orchestrator's own process — and the device arbiter inside it — resolves
     ``player_core`` through the venv, which is the primary checkout's.  A
     branch that leans on an unlanded player_core change therefore imports
     names the primary does not have yet, and the session dies at launch.

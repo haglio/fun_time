@@ -20,13 +20,12 @@ from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .dashboard_bridge import write_dashboard_snapshot
+from .device_arbiter import DeviceArbiter
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, notice
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
-from .hybrid_driver import HybridDriver
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
-from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
 from .player_status import is_broker_heartbeat_fresh
 from .role_windows import WindowRoles
@@ -233,9 +232,9 @@ class DispatchLoopRunner:
                                     3: config.landscape_status_file},
             stats_file=watch_stats_path(config.state_dir),
         )
-        # Genau and a funscript both feed the broker's one T-Code inlet, so in
-        # hybrid something has to hand the device between them.
-        self.hybrid = HybridDriver(
+        # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
+        # so in video mode something has to hand the device between them.
+        self.arbiter = DeviceArbiter(
             nau_status_file=config.nau_status_file,
             nau_cmd_file=config.nau_cmd_file,
             genau_cmd_file=config.genau_cmd_file,
@@ -250,12 +249,12 @@ class DispatchLoopRunner:
         if shared is not None:
             self.state = shared
 
-        # Hand the OSR2 to the current video's funscript (or back to Genau).
-        # Runs before the command loop so a mode switch that also writes
-        # genau_cmd (RESUME + HUD_ON on entering hybrid) is never clobbered by
-        # the handoff in the same tick — the handoff instead lands next tick,
-        # once that entry is on the current, now-hybrid mode.
-        self.hybrid.sync(self.state.main_mode, paused=self.state.omni_paused)
+        # Hand the OSR2 to the current video's funscript (or back to the Robot
+        # Hand).  Runs before the command loop so a mode switch that also writes
+        # genau_cmd (RESUME + HUD_ON on entering video mode) is never clobbered
+        # by the handoff in the same tick — the handoff instead lands next tick,
+        # once that entry is on the current, now-video mode.
+        self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused)
 
         # Dashboard commands (may be multiple if queued by rapid hotkey
         # presses).  Each raw line yields a command plus, for a spoken one, when
@@ -382,17 +381,6 @@ class DispatchLoopRunner:
                 daemon=True,
                 name="broker-toggle",
             ).start()
-        elif cmd == "backslash_key":
-            if genau_active(self.state.main_mode):
-                self._send_press("quarter_button")
-                self._dispatch("quarter_button", spoken_at)
-            else:
-                self._send_press("browse_library")
-                threading.Thread(
-                    target=self._handle_browse_library,
-                    daemon=True,
-                    name="library-browser",
-                ).start()
         # -- idempotent voice commands --
         elif cmd == "pause":
             if not self.state.omni_paused:
@@ -466,7 +454,7 @@ class DispatchLoopRunner:
 
         In origenerator mode the buffer holds instead of flushing: the RFB is
         under the hosted app's window, and opening a tab would force Chrome over
-        it.  The locks queue, and switching back to player mode flushes them.
+        it.  The locks queue, and switching back to video mode flushes them.
         """
         if origenerator_shows(self.state.satellites_mode):
             return

@@ -105,7 +105,7 @@ def test_fun_time_sided_fmode_flow(shared_integration_session: FunTimeIntegratio
 
 
 def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrationSession):
-    """Pressing 'g' (genau_activate) then 'n' (nau_activate) switches modes."""
+    """Pressing 'g' (genau_activate) then 'h' (main_video_activate) switches modes."""
     s = shared_integration_session
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
@@ -121,47 +121,46 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         description="Nau paused file to flip on (inactive)",
     )
 
-    s.write_dashboard_command("nau_activate")
-    s.wait_for_new_log("Switched to nau mode", timeout=12)
+    s.write_dashboard_command("main_video_activate")
+    s.wait_for_new_log("Switched to video mode", timeout=12)
 
-    s.wait_until(
-        lambda: s.config.genau_paused_file.read_text(encoding="utf-8") == "1",
-        timeout=12,
-        description="Genau paused file to flip back on (inactive)",
-    )
     s.wait_until(
         lambda: s.config.nau_paused_file.read_text(encoding="utf-8") == "0",
         timeout=12,
         description="Nau paused file to flip back off (active)",
     )
+    # Genau runs on in video mode — its HUD over the video, the Robot Hand
+    # behind it for the funscript's gaps — so its flag never flips back.
+    assert s.config.genau_paused_file.read_text(encoding="utf-8") == "0"
 
 
 def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
-    """The main-slot players share one screen rect, so a mode switch swaps
-    which is on screen: the active mode's player is restored, the idle one
-    minimized (never hidden — both keep a taskbar button all session, so both
-    stay findable by title; is_window_minimized tells them apart). Nau floats
-    topmost whenever it owns the display (nau and hybrid), so its video is above
-    the desktop; in hybrid Genau's HUD is topmost too, stacked above Nau."""
+    """The main-slot players share one screen rect, so a mode switch settles
+    which is on screen: in video mode both are restored — Nau's video with
+    Genau's HUD stacked above it, both topmost — and genau mode parks Nau
+    (minimized, never hidden — both keep a taskbar button all session, so both
+    stay findable by title; is_window_minimized tells them apart)."""
     s = shared_integration_session
 
-    # nau mode: Nau restored AND topmost (it owns the whole display), Genau
-    # minimized.  The lookup is exact because 'Nau' is a substring of 'Genau'.
+    # video mode: Nau restored AND topmost (its video above the desktop), and
+    # Genau restored and topmost too, promoted after Nau so the HUD lands above
+    # the video.  The lookup is exact because 'Nau' is a substring of 'Genau'.
     s.wait_until(
         lambda: find_window_by_title("Nau", exact=True) != 0,
         timeout=12,
-        description="Nau window to exist in nau mode",
+        description="Nau window to exist in video mode",
     )
     nau_hwnd = find_window_by_title("Nau", exact=True)
     s.wait_until(
         lambda: is_window_topmost(nau_hwnd) and not is_window_minimized(nau_hwnd),
         timeout=5,
-        description="Nau to be restored and topmost in nau mode",
+        description="Nau to be restored and topmost in video mode",
     )
     s.wait_until(
-        lambda: is_window_minimized(find_window_by_title("Genau")),
+        lambda: (not is_window_minimized(find_window_by_title("Genau"))
+                 and is_window_topmost(find_window_by_title("Genau"))),
         timeout=12,
-        description="Genau window to be minimized in nau mode",
+        description="Genau's HUD to be restored and topmost in video mode, above Nau",
     )
 
     s.write_dashboard_command("genau_activate")
@@ -175,52 +174,30 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Genau")),
         timeout=12,
-        description="Genau window to restore in genau mode",
+        description="Genau window to stay up as the display in genau mode",
     )
 
-    s.write_dashboard_command("nau_activate")
-    s.wait_for_new_log("Switched to nau mode", timeout=12)
+    # Back to video mode: Nau is restored and reclaims the topmost band, Genau
+    # stays up as the HUD above it — BOTH in the topmost band, leaving the
+    # session where it started.
+    s.write_dashboard_command("main_video_activate")
+    s.wait_for_new_log("Switched to video mode", timeout=12)
 
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
         timeout=12,
-        description="Nau window to restore in nau mode",
-    )
-    s.wait_until(
-        lambda: is_window_minimized(find_window_by_title("Genau")),
-        timeout=12,
-        description="Genau window to minimize again in nau mode",
-    )
-
-    # hybrid mode: Nau stays restored and topmost (video above the desktop) with
-    # Genau's HUD promoted above it — BOTH in the topmost band.  This is the case
-    # the nau-mode float must extend to, not break.
-    s.write_dashboard_command("hybrid_activate")
-    s.wait_for_new_log("Switched to hybrid mode", timeout=12)
-    s.wait_until(
-        lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
-        timeout=12,
-        description="Nau window to stay restored in hybrid mode",
+        description="Nau window to restore in video mode",
     )
     s.wait_until(
         lambda: is_window_topmost(find_window_by_title("Nau", exact=True)),
         timeout=5,
-        description="Nau to float topmost in hybrid (video above the desktop)",
+        description="Nau to float topmost in video mode (video above the desktop)",
     )
     s.wait_until(
-        lambda: is_window_topmost(find_window_by_title("Genau")),
+        lambda: (not is_window_minimized(find_window_by_title("Genau"))
+                 and is_window_topmost(find_window_by_title("Genau"))),
         timeout=5,
-        description="Genau's HUD to be topmost in hybrid, stacked above Nau",
-    )
-
-    # Back to nau mode: Nau reclaims the topmost band, leaving the session where
-    # it started.
-    s.write_dashboard_command("nau_activate")
-    s.wait_for_new_log("Switched to nau mode", timeout=12)
-    s.wait_until(
-        lambda: is_window_topmost(find_window_by_title("Nau", exact=True)),
-        timeout=5,
-        description="Nau to reclaim the topmost band back in nau mode",
+        description="Genau's HUD to be topmost in video mode, stacked above Nau",
     )
 
 
@@ -235,7 +212,7 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
     held back (MAIN_BLANK_SETTLE_S); this measures that it really is.
     """
     s = shared_integration_session
-    s.write_dashboard_command("nau_activate")
+    s.write_dashboard_command("main_video_activate")
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
         timeout=12,
@@ -258,8 +235,8 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
         f"Nau was minimized after {held:.3f}s, inside the "
         f"{MAIN_BLANK_SETTLE_S}s it is given to paint its black"
     )
-    s.write_dashboard_command("nau_activate")
-    s.wait_for_new_log("Switched to nau mode", timeout=12)
+    s.write_dashboard_command("main_video_activate")
+    s.wait_for_new_log("Switched to video mode", timeout=12)
 
 
 def test_fun_time_landscape_lock_unlock_flow(shared_integration_session: FunTimeIntegrationSession):
@@ -318,8 +295,8 @@ def test_fun_time_omnipause_while_genau_mode(shared_integration_session: FunTime
         description="Genau paused file to flip off",
     )
 
-    shared_integration_session.write_dashboard_command("nau_activate")
-    shared_integration_session.wait_for_new_log("Switched to nau mode", timeout=12)
+    shared_integration_session.write_dashboard_command("main_video_activate")
+    shared_integration_session.wait_for_new_log("Switched to video mode", timeout=12)
 
 
 def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunTimeIntegrationSession):
@@ -358,8 +335,8 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
 
     assert is_process_alive(rh_pid), "Genau should survive leaving omnipause"
 
-    s.write_dashboard_command("nau_activate")
-    s.wait_for_new_log("Switched to nau mode", timeout=12)
+    s.write_dashboard_command("main_video_activate")
+    s.wait_for_new_log("Switched to video mode", timeout=12)
 
 
 def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_session: FunTimeIntegrationSession):
@@ -367,9 +344,9 @@ def test_fun_time_omnipause_drops_satellites_from_topmost(shared_integration_ses
     satellites must leave the topmost band, not stay pinned on top of the
     windows the user reaches for while paused."""
     s = shared_integration_session
-    # Known starting point: nau mode, not omnipaused ("play" is an idempotent
+    # Known starting point: video mode, not omnipaused ("play" is an idempotent
     # leave-omnipause; a no-op when already live).
-    s.write_dashboard_command("nau_activate")
+    s.write_dashboard_command("main_video_activate")
     s.write_dashboard_command("play")
 
     # Resolve exactly as startup does: by each satellite's DISTINCT caption
@@ -419,8 +396,8 @@ def test_fun_time_omnipause_freezes_the_satellites(
     portrait_status = s.config.paths.state_dir / "portrait_status.txt"
     landscape_status = s.config.paths.state_dir / "landscape_status.txt"
 
-    # Known starting point (nau mode, live): the satellites are playing.
-    s.write_dashboard_command("nau_activate")
+    # Known starting point (video mode, live): the satellites are playing.
+    s.write_dashboard_command("main_video_activate")
     s.write_dashboard_command("play")  # idempotent leave-omnipause; a no-op if live
     s.wait_until(
         lambda: not read_satellite_status(portrait_status).paused,
@@ -452,15 +429,15 @@ def test_fun_time_omnipause_freezes_the_satellites(
 
 
 def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
-    """main_nudge_next/prev in nau mode drive Nau's seek via its command
+    """main_nudge_next/prev in video mode drive Nau's seek via its command
     file, observed through Nau's published status position."""
     s = shared_integration_session
 
     # Let the orchestrator finish processing commands from prior tests.
     time.sleep(2.0)
-    # Ensure we're in nau mode so Nau is the active display and its seek is
+    # Ensure we're in video mode so Nau is the active display and its seek is
     # observable in the published status.
-    s.write_dashboard_command("nau_activate")
+    s.write_dashboard_command("main_video_activate")
     # Wait for a *loaded* video: a non-zero duration means mpv knows the
     # length, so a seek target won't be clamped to 0 by an as-yet-unknown
     # duration (which would make the forward seek a no-op).
@@ -556,13 +533,13 @@ def test_fun_time_nau_record_loop_cancel_cycle(shared_integration_session: FunTi
     )
 
 
-def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: FunTimeIntegrationSession):
-    """Hybrid keeps Nau as the on-screen player while Genau drives the OSR2, so
-    the video Nau was playing simply continues — nothing is handed to another
-    player — and prev/next/nudge dispatch to Nau just as they do in nau mode.
+def test_fun_time_video_mode_comes_back_to_the_video_nau_was_showing(shared_integration_session: FunTimeIntegrationSession):
+    """A round trip through genau mode hands Nau nothing new: the video it was
+    parked on is the one it resumes, and prev/next/nudge dispatch to it again
+    just as before.
 
-    (The precise +10s Nau seek is covered by the nau-mode nudge test above,
-    which exercises the identical dispatch path.)
+    (The precise +10s Nau seek is covered by the nudge test above, which
+    exercises the identical dispatch path.)
 
     Must run before isolated-session tests (trash), whose teardown kills all
     recent player processes and would leave the shared session's players dead.
@@ -570,24 +547,23 @@ def test_fun_time_hybrid_keeps_nau_as_the_display(shared_integration_session: Fu
     s = shared_integration_session
 
     nau_video_before = s.read_nau_status().video
-    assert nau_video_before, "expected Nau to be playing before switching to hybrid"
+    assert nau_video_before, "expected Nau to be playing before switching to genau"
 
-    s.write_dashboard_command("hybrid_activate")
-    s.wait_for_new_log("Switched to hybrid mode", timeout=12)
+    s.write_dashboard_command("genau_activate")
+    s.wait_for_new_log("Switched to genau mode", timeout=12)
+    s.write_dashboard_command("main_video_activate")
+    s.wait_for_new_log("Switched to video mode", timeout=12)
 
-    # Nau stays the display and keeps playing its current video — no handoff.
+    # Nau is the display again and keeps playing its current video — no handoff.
     s.wait_until(
         lambda: s.read_nau_status().video == nau_video_before,
         timeout=12,
-        description="Nau to keep playing its current video in hybrid mode",
+        description="Nau to come back on the video it was showing",
     )
 
-    # A nudge in hybrid reaches the normal dispatch path.
+    # A nudge in video mode reaches the normal dispatch path.
     s.write_dashboard_command("main_nudge_next")
     s.wait_for_new_log("Dispatching command: main_nudge_next", timeout=10)
-
-    s.write_dashboard_command("nau_activate")
-    s.wait_for_new_log("Switched to nau mode", timeout=12)
 
 
 def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(

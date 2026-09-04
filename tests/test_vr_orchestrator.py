@@ -235,8 +235,8 @@ class TestResumeVrState:
 
         carried = resume_vr_state(state_file, resumed=True)
 
-        assert carried.main_mode == "nau"
-        assert read_shared_state(state_file).main_mode == "nau"
+        assert carried.main_mode == "video"
+        assert read_shared_state(state_file).main_mode == "video"
 
     def test_everything_else_the_desktop_session_left_still_comes_across(self, tmp_path):
         """Both apps run the same players for these, off the same playlists —

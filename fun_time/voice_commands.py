@@ -108,14 +108,14 @@ def build_voice_commands(
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
         # Stopping the device alone, at either end of its axis, and back off
-        # that hold onto the stroke it took away (see fun_time.genau_hold).
-        "park": "genau_park",
-        "park it": "genau_park",
-        "retract": "genau_retract",
-        "un park": "genau_release",
-        "un retract": "genau_release",
-        "o s r two resume": "genau_release",
-        "oh es are two resume": "genau_release",
+        # that hold onto the stroke it took away (see fun_time.robot_hand_hold).
+        "park": "robot_hand_park",
+        "park it": "robot_hand_park",
+        "retract": "robot_hand_retract",
+        "un park": "robot_hand_release",
+        "un retract": "robot_hand_release",
+        "o s r two resume": "robot_hand_release",
+        "oh es are two resume": "robot_hand_release",
         # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
@@ -123,18 +123,18 @@ def build_voice_commands(
         # Recognizer listens for "go now" (reliably recognized); the reference
         # displays this as "genau" via the row's voice_display override.
         "go now": "genau_activate",
-        # "nau" is not in the vosk vocabulary, so the recognizer listens for the
-        # sound-alikes "now now"/"now mode"; the reference displays "nau mode".
-        "now now": "nau_activate",
-        "now mode": "nau_activate",
-        "hybrid": "hybrid_activate",
-        "hybrid mode": "hybrid_activate",
-        # The satellite side's mode pair.  "origenerator" is not a vosk token, so
-        # the recognizer listens for "generator mode"; the reference displays
-        # "origenerator mode".  Spoken as the explicit pair rather than a toggle,
+        # Video mode, said of a side or of neither: the bare phrase puts the
+        # main slot AND the satellites on their players, each side's own phrase
+        # just that side.
+        "video mode": "video_activate",
+        "main video mode": "main_video_activate",
+        "satellite video mode": "satellites_video_activate",
+        "satellites video mode": "satellites_video_activate",
+        # The satellite side's other mode.  "origenerator" is not a vosk token,
+        # so the recognizer listens for "generator mode"; the reference displays
+        # "origenerator mode".  Spoken as explicit modes rather than a toggle,
         # so a phrase misheard twice cannot land on the opposite of what was asked.
         "generator mode": "origenerator_activate",
-        "player mode": "players_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         # "main next" / "next main" are generated with the satellite grid
@@ -198,18 +198,18 @@ def build_voice_commands(
         "playback slow down": "nau_speed_down",
         "playback speed down": "nau_speed_down",
         "playback speed up": "nau_speed_up",
-        "amp down": "genau_amplitude_down",
-        "amp up": "genau_amplitude_up",
-        "center down": "genau_center_down",
-        "center up": "genau_center_up",
-        "next shape": "genau_cycle_shape",
-        "previous shape": "genau_cycle_shape_prev",
+        "amp down": "robot_hand_amplitude_down",
+        "amp up": "robot_hand_amplitude_up",
+        "center down": "robot_hand_center_down",
+        "center up": "robot_hand_center_up",
+        "next shape": "robot_hand_cycle_shape",
+        "previous shape": "robot_hand_cycle_shape_prev",
         # vosk cannot hear "genau", so this reuses the "go now" sound-alike the mode
         # phrases already rely on; the reference shows it as "genau auto".
         "go now auto": "genau_toggle_auto",
-        "cruise control": "genau_toggle_cruise",
-        "cruise on": "genau_cruise_on",
-        "cruise off": "genau_cruise_off",
+        "cruise control": "robot_hand_toggle_cruise",
+        "cruise on": "robot_hand_cruise_on",
+        "cruise off": "robot_hand_cruise_off",
         "previous clip": "genau_prev_clip",
         "next clip": "genau_next_clip",
         # Bare "weird" already addresses the active satellite, so Genau's own clip
@@ -418,14 +418,13 @@ def build_voice_commands(
             commands[f"{_fmode_word} {_side}"] = _sided
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
-    # that mode's player.  Nau and Hybrid drive the main slot (Nau owns the main
-    # display in both modes); Genau steps its own clip.  vosk can't hear "nau" or
-    # "genau", so the recognizer reuses the mode-activation sound-alikes ("now mode",
-    # "go now") — the reference translates them back to the friendly mode names.
+    # that mode's player.  Video drives the main slot's video; Genau steps its own
+    # clip.  vosk can't hear "genau", so the recognizer reuses the mode-activation
+    # sound-alike ("go now") — the reference translates it back to the friendly
+    # mode name.
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
-        "now mode": ("main_next", "main_prev"),  # displayed "nau mode"
-        "hybrid": ("main_next", "main_prev"),
+        "video": ("main_next", "main_prev"),
         "go now": ("genau_next_clip", "genau_prev_clip"),  # displayed "genau"
     }
     for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
@@ -441,12 +440,12 @@ def build_voice_commands(
     }
 
     _NUMERIC_PREFIXES: dict[str, str] = {
-        "amp": "genau_amp",
-        "center": "genau_center",
-        "speed": "genau_speed",
+        "amp": "robot_hand_amp",
+        "center": "robot_hand_center",
+        "speed": "robot_hand_speed",
     }
 
-    # "amp fifty" -> genau_amp_50, etc.
+    # "amp fifty" -> robot_hand_amp_50, etc.
     for _word, _value in _NUMBER_WORDS.items():
         for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
             commands[f"{_prefix} {_word}"] = f"{_cmd_prefix}_{_value}"
@@ -486,7 +485,7 @@ def build_voice_commands(
     for _word, _value in _spoken_seconds().items():
         commands[f"clip seconds {_word}"] = f"genau_clip_seconds_{_value}"
 
-    # "min amp" -> genau_amp_0, "max speed" -> genau_speed_100, etc.
+    # "min amp" -> robot_hand_amp_0, "max speed" -> robot_hand_speed_100, etc.
     _EXTREMES: dict[str, int] = {"min": 0, "max": 100}
     for _label, _value in _EXTREMES.items():
         for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
@@ -599,7 +598,6 @@ SELF_REPORTING_COMMANDS = frozenset({
 # rewrite reaches the derived phrases the word sits inside ("next fun scripted").
 _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
-    ("now mode", "nau mode"),
     ("hot keys", "hotkeys"),
     ("un mute", "unmute"),
     ("un pause", "unpause"),

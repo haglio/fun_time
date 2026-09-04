@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .mode_plan import genau_active, nau_displays
+from .mode_plan import nau_displays
 from .player_status import GenauStatus
 
 NAU_CONSOLE_FILENAME = "nau_console.json"
@@ -20,13 +20,12 @@ NAU_CONSOLE_FILENAME = "nau_console.json"
 # What has the OSR2, as one compact word the console boxes.  Off and auto are the
 # device's own modes; otherwise it comes down to whether a funscript is actually
 # *driving* right now — not merely present, so a scripted video's quiet stretch,
-# where Genau fills in, reads as Genau rather than as its funscript, and not
-# merely loaded, so a Nau paused off screen in genau mode drives nothing.
+# where the Robot Hand fills in, reads as the hand rather than as its funscript,
+# and not merely loaded, so a Nau paused off screen in genau mode drives nothing.
 OSR2_OFF = "off"
 OSR2_AUTO = "auto"
 OSR2_FUNSCRIPT = "funscript"
-OSR2_GENAU = "genau"
-OSR2_IDLE = "idle"
+OSR2_ROBOT_HAND = "robot_hand"
 
 
 def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
@@ -37,10 +36,10 @@ def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
     not it is playing, and in genau mode Nau is paused off screen with the last
     scripted video it showed still in that file.  Asked without the mode, it
     answered "funscript" through a whole genau-mode session — and "funscript" is
-    the console's word for "something other than Genau has the device", which
-    dims every ± mark and every draggable band on the drive readout.  So Genau's
-    own controls went dead whenever the video Nau happened to be parked on had a
-    script, and a press on one of them posted nothing at all.
+    the console's word for "something other than the Robot Hand has the device",
+    which dims every ± mark and every draggable band on the drive readout.  So
+    the hand's own controls went dead whenever the video Nau happened to be
+    parked on had a script, and a press on one of them posted nothing at all.
     """
     if osr2_mode == "off":
         return OSR2_OFF
@@ -48,7 +47,7 @@ def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
         return OSR2_AUTO
     if funscript_driving and nau_displays(mode):
         return OSR2_FUNSCRIPT
-    return OSR2_GENAU if genau_active(mode) else OSR2_IDLE
+    return OSR2_ROBOT_HAND
 
 
 def console_payload(

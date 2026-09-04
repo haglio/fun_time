@@ -13,43 +13,39 @@ from fun_time.window_roles import (
 class TestRoleTopmost:
     """The windows with their own rect are always topmost.  The two that SHARE
     the main player's rect are each topmost only while they are showing something —
-    in hybrid that is both, with Genau's HUD stacked above Nau by promotion
+    in video mode that is both, with Genau's HUD stacked above Nau by promotion
     order, which is not this flag's job."""
 
     def test_nau_is_topmost_whenever_it_displays(self):
-        # Nau owns the display in nau and hybrid, so it floats topmost in both.
-        assert role_topmost("nau", "nau") is True
-        assert role_topmost("nau", "hybrid") is True
+        # Nau owns the display in video mode, so it floats topmost there.
+        assert role_topmost("nau", "video") is True
         # In genau mode Nau is hidden and stays out of the band.
         assert role_topmost("nau", "genau") is False
 
-    def test_genau_is_topmost_only_where_it_displays(self):
+    def test_genau_is_topmost_in_both_modes(self):
         """Genau is promoted last, so being in the band at all puts it ABOVE
-        Nau.  In nau mode it is the hidden slot-mate and must stay out — leaving
-        omnipause re-applies the bands with no hide op to mask it, and Genau came
-        back over Nau's video."""
+        Nau — the display in genau mode, the HUD layer over the video in video
+        mode."""
         assert role_topmost("genau", "genau") is True
-        assert role_topmost("genau", "hybrid") is True
-        assert role_topmost("genau", "nau") is False
+        assert role_topmost("genau", "video") is True
 
     def test_every_window_with_its_own_rect_is_always_topmost(self):
         for role in FIXED_TOPMOST_ROLES:
-            for mode in ("nau", "hybrid", "genau"):
+            for mode in ("video", "genau"):
                 assert role_topmost(role, mode) is True, (role, mode)
 
     def test_visible_main_slot_roles_names_the_players_on_that_rect(self):
         """What anything acting on "the main player's window" has to reach: the
-        mode's own player, both in hybrid where Genau's HUD sits over Nau's video,
-        and never the slot-mate the mode has parked — minimizing a hidden window
-        is what drags it back into view."""
-        assert visible_main_slot_roles("nau") == ("nau",)
+        mode's own player, both in video mode where Genau's HUD sits over Nau's
+        video, and never the slot-mate the mode has parked — minimizing a hidden
+        window is what drags it back into view."""
         assert visible_main_slot_roles("genau") == ("genau",)
-        assert visible_main_slot_roles("hybrid") == ("nau", "genau")
+        assert visible_main_slot_roles("video") == ("nau", "genau")
 
     def test_visible_main_slot_roles_agrees_with_the_band_policy(self):
         """Derived from role_topmost rather than listed again, so the two answers
         cannot drift: a main-slot player is in the band exactly when it shows."""
-        for mode in ("nau", "hybrid", "genau"):
+        for mode in ("video", "genau"):
             assert visible_main_slot_roles(mode) == tuple(
                 role for role in MAIN_SLOT_ROLES if role_topmost(role, mode)), mode
 
@@ -78,9 +74,9 @@ class TestOrigeneratorRoles:
 
     def test_origenerator_roles_follow_the_satellites_mode(self):
         for role in ORIGENERATOR_ROLES:
-            for main_mode in ("nau", "hybrid", "genau"):
+            for main_mode in ("video", "genau"):
                 assert role_topmost(role, main_mode, "origenerator") is True, role
-                assert role_topmost(role, main_mode, "player") is False, role
+                assert role_topmost(role, main_mode, "video") is False, role
 
     def test_the_browser_leaves_the_band_while_the_hosted_window_covers_it(self):
         """The RFB shares its rect with the hosted app's main window, so it is
@@ -88,13 +84,13 @@ class TestOrigeneratorRoles:
         that is completely covered only puts it briefly ABOVE its cover —
         HWND_TOPMOST inserts at the top of the band — so every re-band flashed
         the browser over Origenerator on its way past."""
-        assert role_topmost("rfb", "nau", "player") is True
-        assert role_topmost("rfb", "nau", "origenerator") is False
+        assert role_topmost("rfb", "video", "video") is True
+        assert role_topmost("rfb", "video", "origenerator") is False
 
     def test_the_roles_with_their_own_rects_ignore_the_satellites_mode(self):
-        for satellites_mode in ("player", "origenerator"):
-            assert role_topmost("portrait", "nau", satellites_mode) is True
-            assert role_topmost("dashboard", "nau", satellites_mode) is True
+        for satellites_mode in ("video", "origenerator"):
+            assert role_topmost("portrait", "video", satellites_mode) is True
+            assert role_topmost("dashboard", "video", satellites_mode) is True
             assert role_topmost("nau", "genau", satellites_mode) is False
 
     def test_origenerator_roles_are_promoted_after_the_windows_they_cover(self):

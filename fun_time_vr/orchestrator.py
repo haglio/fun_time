@@ -5,7 +5,7 @@ hotkeys — the difference is what gets launched: instead of Nau, Genau and two
 satellite windows, ONE VR player process (fun_time_vr.player) hosts all the
 visual roles, and the desktop-window management goes unused (the dispatch
 loop's window ops resolve no HWNDs and settle into no-ops).  Everything else
-the session does — omnipause, watch stats, the hybrid arbiter's status files,
+the session does — omnipause, watch stats, the device arbiter's status files,
 F-mode rebuilds — runs on the same state files it always did.
 
 What a VR session does not launch, and what that waits on, is in

@@ -13,7 +13,8 @@
   - `fun_time_vr/vr_session.py` and `fun_time_vr/vr_runtime.py` are each adapted
     from a GenauVR original (`genau_vr.vr_session`, `genau_vr.vr_runtime`).
     Consolidating each pair into a shared sibling is the planned GenauVR-engine
-    extraction, which is also what genau and hybrid-with-Genau in VR wait on.
+    extraction, which is also what genau mode and the Robot Hand's stretches
+    in VR wait on.
 - Notes:
   - Recorded here rather than in five module docstrings (2026-08-30, audit item 25):
     the same deferral was written out in `vr_session.py`, `vr_runtime.py`,

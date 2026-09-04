@@ -287,7 +287,7 @@ class WindowRoles:
     def remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
         the desktop).  Dropping unconditionally — not just the normally-topmost
-        roles — is what stops Nau from being stranded on top in nau mode, where
+        roles — is what stops Nau from being stranded on top in video mode, where
         it does carry the topmost flag."""
         for role in MANAGED_ROLES:
             hwnd = self.hwnd(role)
@@ -308,7 +308,7 @@ class WindowRoles:
 
         The hosted trio then goes up (:meth:`restack_satellites`), and the
         overlapping Nau/Genau pair last (:meth:`restack_main_slot`), so Genau's
-        HUD sits above Nau's video in hybrid.
+        HUD sits above Nau's video in video mode.
         """
         for role in FIXED_TOPMOST_ROLES:
             if not role_topmost(role, main_mode, satellites_mode):
@@ -325,7 +325,7 @@ class WindowRoles:
         Only in origenerator mode — its windows share the RFB's and the
         players' rects, and ``HWND_TOPMOST`` inserts at the top of the band, so
         promoting them after the fixed roles is what stacks them on top.  In
-        player mode they are parked and stay out of the band.
+        video mode they are parked and stay out of the band.
         """
         for role in ORIGENERATOR_ROLES:
             if not role_topmost(role, main_mode, satellites_mode):
@@ -337,13 +337,12 @@ class WindowRoles:
     def restack_main_slot(self, main_mode: str) -> None:
         """Re-establish the Nau/Genau z-order for this mode.
 
-        Nau and Genau share one screen rect — in hybrid Genau's transparent HUD
+        Nau and Genau share one screen rect — in video mode Genau's transparent HUD
         overlays Nau's video — so unlike every other window they OVERLAP and need
         explicit stacking.  Demote both, then promote bottom-to-top so the last
         promotion lands highest:
 
-          * nau mode   — promote Nau (Genau hidden).
-          * hybrid     — promote Nau, then Genau ABOVE it, so the HUD overlays
+          * video mode — promote Nau, then Genau ABOVE it, so the HUD overlays
                          the video and both float above the desktop.
           * genau mode — promote Genau (Nau hidden).
 

@@ -12,7 +12,7 @@ or console posts, and holds the result to one literal list.
 The act-filter ids (``filter_<scope>_<act>``) come from the content overlay,
 which differs per machine, so they are pinned by shape against
 :mod:`fun_time.filter_vocab` rather than by literal act names.  The numeric
-families (``genau_amp_50``, ``nau_speed_150``, ...) are pinned by regenerating
+families (``robot_hand_amp_50``, ``nau_speed_150``, ...) are pinned by regenerating
 them the way the vocabulary does.
 """
 from __future__ import annotations
@@ -31,11 +31,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # minimize buttons live on the HUDs (player_core / Nau's console); the speed
 # pair is Genau's console's own ± marks beside its drive readout.
 HUD_ONLY_COMMAND_IDS = (
-    "genau_speed_down",
-    "genau_speed_up",
     "landscape_minimize",
     "main_minimize",
     "portrait_minimize",
+    "robot_hand_speed_down",
+    "robot_hand_speed_up",
 )
 
 # The argument-carrying forms, matched by prefix rather than listed whole: the
@@ -75,7 +75,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "audio_unmute",
     "audio_volume_down",
     "audio_volume_up",
-    "backslash_key",
     "both_action_loop",
     "both_cycle_action",
     "both_cycle_seed",
@@ -106,27 +105,14 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "fmode_on",
     "fmode_toggle",
     "genau_activate",
-    "genau_amplitude_down",
-    "genau_amplitude_up",
-    "genau_center_down",
-    "genau_center_up",
     "genau_clip_seconds_down",
     "genau_clip_seconds_up",
-    "genau_cruise_off",
-    "genau_cruise_on",
-    "genau_cycle_shape",
-    "genau_cycle_shape_prev",
     "genau_next_clip",
-    "genau_park",
     "genau_prev_clip",
-    "genau_release",
-    "genau_retract",
     "genau_toggle_auto",
-    "genau_toggle_cruise",
     "genau_weird_clip",
     "help_reference",
     "help_reference_close",
-    "hybrid_activate",
     "landscape_action_loop",
     "landscape_cycle_action",
     "landscape_cycle_seed",
@@ -180,7 +166,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_prev",
     "main_reset",
     "main_shuffle",
-    "nau_activate",
+    "main_video_activate",
     "nau_clip_jump",
     "nau_compilation",
     "nau_cycle_version",
@@ -202,7 +188,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "origenerator_activate",
     "pause",
     "play",
-    "players_activate",
     "portrait_action_loop",
     "portrait_cycle_action",
     "portrait_cycle_seed",
@@ -248,7 +233,20 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "quit",
     "recenter_view",
     "relief_omnipause",
+    "robot_hand_amplitude_down",
+    "robot_hand_amplitude_up",
+    "robot_hand_center_down",
+    "robot_hand_center_up",
+    "robot_hand_cruise_off",
+    "robot_hand_cruise_on",
+    "robot_hand_cycle_shape",
+    "robot_hand_cycle_shape_prev",
+    "robot_hand_park",
+    "robot_hand_release",
+    "robot_hand_retract",
+    "robot_hand_toggle_cruise",
     "satellites_toggle",
+    "satellites_video_activate",
     "speed_down",
     "speed_max",
     "speed_min",
@@ -256,6 +254,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "tilt_down",
     "tilt_reset",
     "tilt_up",
+    "video_activate",
     "voice_off",
     "voice_toggle",
 )
@@ -264,7 +263,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
 def _expected_numeric_ids() -> set[str]:
     """The generated numeric families, rebuilt the way the vocabulary builds them."""
     ids = {
-        f"genau_{axis}_{value}"
+        f"robot_hand_{axis}_{value}"
         for axis in ("amp", "center", "speed")
         for value in range(0, 101, 10)
     }

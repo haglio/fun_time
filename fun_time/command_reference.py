@@ -117,18 +117,35 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("Shift+Esc",),
                 ("relief_omnipause",),
             ),
-            # The three modes are three rows, not a section of their own: each is
-            # one key and one word, like everything else here that reshapes the room.
-            _Row("Genau mode", ("G",), ("genau_activate",), voice_display=("genau",)),
-            _Row("Nau mode", ("N",), ("nau_activate",), voice_display=("nau mode",)),
-            _Row("Hybrid mode", ("H",), ("hybrid_activate",)),
+            # The modes are rows, not a section of their own: each is one key
+            # and one phrase, like everything else here that reshapes the room.
             _Row(
-                "Origenerator mode / player mode — the satellite side's own "
+                "Genau mode — Genau's clips on the main player, the Robot Hand "
+                "driving the OSR2",
+                ("G",),
+                ("genau_activate",),
+                voice_display=("genau",),
+            ),
+            _Row(
+                "Video mode on the main player — the video under Genau's HUD, "
+                "its funscript driving the OSR2 where it has action and the "
+                "Robot Hand the rest",
+                ("H",),
+                ("main_video_activate",),
+            ),
+            _Row(
+                "Origenerator mode / video mode — the satellite side's own "
                 "switch: Origenerator over the Random Favs Browser, its "
                 "slideshows over the players, and back",
                 ("X",),
-                ("satellites_toggle", "origenerator_activate", "players_activate"),
-                voice_display=("origenerator mode", "player mode"),
+                ("satellites_toggle", "origenerator_activate", "satellites_video_activate"),
+                voice_display=("origenerator mode", "satellite video mode"),
+            ),
+            _Row(
+                "Video mode on both sides at once — the main player's video "
+                "and the satellite players",
+                (),
+                ("video_activate",),
             ),
             # The hosted app's own vocabulary, said to one of its regions.  The
             # session owns the room's microphone, so these are heard here and
@@ -162,7 +179,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("fmode_toggle", "fmode_on", "fmode_off"),
             ),
             # The main player's sound, in whichever mode owns it — Nau's
-            # video in nau/hybrid, Genau's clip audio in genau.  Its volume steps
+            # video in video mode, Genau's clip audio in genau.  Its volume steps
             # sit with Nau's other playback controls.
             _Row("Mute / unmute the main player", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
@@ -175,15 +192,17 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
     ),
     _Section(
-        "Genau",
+        "Robot Hand",
         (
-            _Row("Amplitude up / down", ("9", "7"), ("genau_amplitude_up", "genau_amplitude_down")),
+            _Row("Amplitude up / down", ("9", "7"), ("robot_hand_amplitude_up", "robot_hand_amplitude_down")),
             _Row("Set amplitude", (), (), ("min amp", "max amp", "amp 0–100")),
-            _Row("Center up / down", ("O", "U"), ("genau_center_up", "genau_center_down")),
+            _Row("Center up / down", ("O", "U"), ("robot_hand_center_up", "robot_hand_center_down")),
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
-            # Neither the keys nor the words name an engine, so in hybrid they
-            # follow the OSR2's driver; the console's own ± marks, which sit on
-            # one readout or the other, stay with the engine they sit on.
+            # Neither the keys nor the words name an engine, so in video mode they
+            # follow the OSR2's driver — a held hand has no stroke to nudge, so
+            # under a park or retract they reach the video; the console's own ±
+            # marks, which sit on one readout or the other, stay with the engine
+            # they sit on.
             _Row(
                 "Speed up / down — the stroke's rate, or the video's playback "
                 "rate while a funscript is driving the OSR2 (the script scales "
@@ -192,8 +211,30 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("speed_up", "speed_down"),
             ),
             _Row("Set speed", (), (), ("speed 0–100",)),
-            _Row("Previous waveform shape", (), ("genau_cycle_shape_prev",)),
-            _Row("Next waveform shape", ("I",), ("genau_cycle_shape",)),
+            _Row("Previous waveform shape", (), ("robot_hand_cycle_shape_prev",)),
+            _Row("Next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
+            _Row("Enable / disable cruise control (varies the stroke)", ("C",), ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
+            _Row(
+                "Hold the stroke still — cruise off, no amplitude, and the "
+                "center at one end: park settles the OSR2 home, retract sends "
+                "it to the far end, away from you.  Unlike OmniPause the room "
+                "plays on",
+                (),
+                ("robot_hand_park", "robot_hand_retract"),
+            ),
+            _Row(
+                "Off the hold — put the stroke back to whatever it was doing "
+                "before the park or retract, cruise included.  Any of the three "
+                "words undoes either hold",
+                (),
+                ("robot_hand_release",),
+            ),
+            _Row("Offset the stroke ¼ cycle", ("\\",), ("quarter_button",)),
+        ),
+    ),
+    _Section(
+        "Genau",
+        (
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
@@ -201,22 +242,6 @@ _SECTIONS: tuple[_Section, ...] = (
             # both sinks, and which is audible is which mode owns the display.
             _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
             _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
-            _Row("Enable / disable cruise control (varies the stroke)", ("C",), ("genau_toggle_cruise", "genau_cruise_on", "genau_cruise_off")),
-            _Row(
-                "Hold the stroke still — cruise off, no amplitude, and the "
-                "center at one end: park settles the OSR2 home, retract sends "
-                "it to the far end, away from you.  Unlike OmniPause the room "
-                "plays on",
-                (),
-                ("genau_park", "genau_retract"),
-            ),
-            _Row(
-                "Off the hold — put the stroke back to whatever it was doing "
-                "before the park or retract, cruise included.  Any of the three "
-                "words undoes either hold",
-                (),
-                ("genau_release",),
-            ),
             _Row(
                 "Seconds a clip holds the screen before Genau moves on — only "
                 "while it is unlocked (the ' key in Nau holds it)",
@@ -224,7 +249,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("genau_clip_seconds_down", "genau_clip_seconds_up"),
                 ("clip seconds 1–60",),
             ),
-            _Row("Offset ¼ cycle", ("\\",), ("backslash_key", "quarter_button")),
         ),
     ),
     _Section(
@@ -262,8 +286,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("tilt_up", "tilt_down", "tilt_reset"),
             ),
             # Named for the playback, so it reaches the video whoever holds the
-            # OSR2 — the way to nudge the rate through a Genau-driven stretch in
-            # hybrid, where the bare "speed up" goes to the stroke instead.
+            # OSR2 — the way to nudge the rate through a Robot Hand stretch in
+            # video mode, where the bare "speed up" goes to the stroke instead.
             _Row(
                 "Nudge the video's playback rate up / down",
                 (),
@@ -325,7 +349,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("main_fmode", "main_fmode_on", "main_fmode_off"),
             ),
-            _Row("Open file browser", ("\\",), ("backslash_key", "browse_library")),
+            _Row("Open file browser", ("N",), ("browse_library",)),
             _Row("Save clip (Clipper)", (";",), ("clipper_save",)),
         ),
     ),

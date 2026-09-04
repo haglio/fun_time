@@ -7,7 +7,7 @@ checkouts.  The unit suite cannot see a break there: it runs with the sibling
 branches injected onto ``PYTHONPATH``, which is exactly the help the real launch
 does not get.  A branch that grew a dependency on an unlanded sibling change
 therefore went green everywhere and died on his double-click (2026-08-13: the
-hybrid arbiter importing player_core's new floor-touch rule).
+device arbiter importing player_core's new floor-touch rule).
 
 The modules are read out of the ``.vbs`` launchers rather than listed here, so
 this covers whatever the checkout can actually be started as.  Listing them by

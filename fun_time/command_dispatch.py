@@ -28,17 +28,9 @@ from .event_log import (
     SOURCE_SYSTEM,
 )
 from .filter_vocab import decode_filter_command
-from .genau_hold import (
-    HOLD_CENTERS,
-    StrokeDials,
-    dials_text,
-    hold_commands,
-    parse_dials,
-    release_commands,
-)
 from .lock import build_lock_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
-from .mode_plan import genau_active, nau_displays
+from .mode_plan import nau_displays
 from .modes import is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .player_status import (
@@ -50,6 +42,15 @@ from .player_status import (
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
+from .robot_hand_hold import (
+    HOLD_CENTERS,
+    StrokeDials,
+    dials_text,
+    held,
+    hold_commands,
+    parse_dials,
+    release_commands,
+)
 from .runtime_flow import (
     FMODE_PLAYERS,
     LANDSCAPE_PLAYER,
@@ -86,6 +87,7 @@ from .satellite_groups import (
 )
 from .satellites_mode import (
     ORIGENERATOR_MODE,
+    VIDEO_MODE,
     origenerator_shows,
     toggled_satellites_mode,
 )
@@ -98,17 +100,17 @@ logger = logging.getLogger(__name__)
 
 
 _GENAU_CMD_MAP = {
-    "genau_amplitude_down": "AMPLITUDE_DOWN",
-    "genau_amplitude_up": "AMPLITUDE_UP",
-    "genau_center_down": "CENTER_DOWN",
-    "genau_center_up": "CENTER_UP",
-    "genau_cycle_shape": "CYCLE_SHAPE",
-    "genau_cycle_shape_prev": "CYCLE_SHAPE_PREV",
+    "robot_hand_amplitude_down": "AMPLITUDE_DOWN",
+    "robot_hand_amplitude_up": "AMPLITUDE_UP",
+    "robot_hand_center_down": "CENTER_DOWN",
+    "robot_hand_center_up": "CENTER_UP",
+    "robot_hand_cycle_shape": "CYCLE_SHAPE",
+    "robot_hand_cycle_shape_prev": "CYCLE_SHAPE_PREV",
     # Cruise varies the stroke, never which clip plays — moving on from a clip is
     # what an unlocked Genau does by itself, at the pace below.
-    "genau_toggle_cruise": "TOGGLE_CRUISE",
-    "genau_cruise_on": "CRUISE_ON",
-    "genau_cruise_off": "CRUISE_OFF",
+    "robot_hand_toggle_cruise": "TOGGLE_CRUISE",
+    "robot_hand_cruise_on": "CRUISE_ON",
+    "robot_hand_cruise_off": "CRUISE_OFF",
     # How long an unlocked Genau leaves each clip on screen, a second at a
     # time; the padlock (_MAIN_LOCK_COMMANDS) is the switch, this is its pace.
     "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",
@@ -119,8 +121,8 @@ _GENAU_CMD_MAP = {
     "genau_next_clip": "NEXT",
     # The stroke's rate as the console's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
-    "genau_speed_down": "SPEED_DOWN",
-    "genau_speed_up": "SPEED_UP",
+    "robot_hand_speed_down": "SPEED_DOWN",
+    "robot_hand_speed_up": "SPEED_UP",
 }
 
 
@@ -162,19 +164,24 @@ def _parse_nau_speed(command: str) -> str | None:
 def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) -> str:
     """Which engine a speed command drives.
 
-    nau mode -> 'nau'; genau mode -> 'genau'.  Hybrid runs both, so an
-    engine-named command goes where its name says — the video's rate to Nau, the
-    one on screen — while the unqualified nudge follows the OSR2: Nau's funscript
-    while it is driving, else Genau.  Genau is paused for the whole of a scripted
-    stretch, so a nudge sent there then reaches an engine that cannot move.
+    genau mode -> 'genau'.  Video mode runs both, so an engine-named command
+    goes where its name says — the video's rate to Nau, the one on screen —
+    while the unqualified nudge follows the OSR2: Nau's funscript while it is
+    driving, else the Robot Hand.  The hand is paused for the whole of a
+    scripted stretch, so a nudge sent there then reaches an engine that cannot
+    move — and a hand held still (parked or retracted) has no stroke to speed
+    up either, so under a hold the nudge reaches the video as well.
     """
-    if not genau_active(state.main_mode):
-        return "nau"
     if not nau_displays(state.main_mode):
         return "genau"
     if not by_driver:
         return "nau"
-    return "nau" if read_nau_status(config.nau_status_file).funscript_driving else "genau"
+    if read_nau_status(config.nau_status_file).funscript_driving:
+        return "nau"
+    dials = _read_stroke_dials(config)
+    if dials is not None and held(dials):
+        return "nau"
+    return "genau"
 
 
 _NAU_CMD_MAP = {
@@ -200,18 +207,18 @@ _NAU_CMD_MAP = {
 }
 
 
-_GENAU_NUMERIC_PREFIXES = {
-    "genau_amp_": "AMP",
-    "genau_center_": "CENTER",
-    "genau_speed_": "SPEED",
+_NUMERIC_PREFIXES = {
+    "robot_hand_amp_": "AMP",
+    "robot_hand_center_": "CENTER",
+    "robot_hand_speed_": "SPEED",
     # Seconds a clip holds the screen, unlike the 0-100 axes above.
     "genau_clip_seconds_": "CLIP_SECONDS",
 }
 
 
-def _parse_genau_numeric_command(command: str) -> str | None:
-    """Parse 'genau_amp_50' -> 'AMP 50', etc."""
-    for prefix, keyword in _GENAU_NUMERIC_PREFIXES.items():
+def _parse_numeric_command(command: str) -> str | None:
+    """Parse 'robot_hand_amp_50' -> 'AMP 50', etc."""
+    for prefix, keyword in _NUMERIC_PREFIXES.items():
         if command.startswith(prefix):
             value_str = command[len(prefix):]
             try:
@@ -721,16 +728,17 @@ def _dispatch_leave_omnipause(
     # windows that are actually on screen.
     ops = [WindowOp(op="restore_parked"), WindowOp(op="restore_all_topmost"),
            WindowOp(op="unsuspend_hotkeys")]
-    ops.extend(_main_focus_ops(state.main_mode))
+    ops.extend(_main_focus_ops())
     if result.log_message:
         logger.info(result.log_message)
     return state, ops
 
 
-def _main_focus_ops(main_mode: str) -> list[WindowOp]:
-    """Re-activate the window that owns the main player (omnipause leave)."""
-    role = "genau" if genau_active(main_mode) else "nau"
-    return [WindowOp(op="activate_role", key=role)]
+def _main_focus_ops() -> list[WindowOp]:
+    """Re-activate the window on top of the main player (omnipause leave):
+    Genau's in both modes — the display in genau mode, the HUD layer over
+    Nau's video in video mode."""
+    return [WindowOp(op="activate_role", key="genau")]
 
 
 def _main_slot_ops(main_mode: str) -> list[WindowOp]:
@@ -740,7 +748,7 @@ def _main_slot_ops(main_mode: str) -> list[WindowOp]:
     player(s) are shown and the inactive slot-mate hidden.  The new window is
     shown and activated BEFORE the old one hides so focus never falls through
     to another application.  Finally the pair is re-stacked for the new mode
-    (``restack_main``): Nau topmost, with Genau's HUD above it in hybrid.
+    (``restack_main``): Nau topmost, with Genau's HUD above it in video mode.
     Nau and Genau overlap, so their z-order is explicit — unlike every other
     window, a plain topmost flag can't say "Genau above Nau, both on top."
     """
@@ -752,17 +760,10 @@ def _main_slot_ops(main_mode: str) -> list[WindowOp]:
             WindowOp(op="hide_role", key="nau"),
             restack,
         ]
-    if main_mode == "hybrid":
-        return [
-            WindowOp(op="show_role", key="nau"),
-            WindowOp(op="show_role", key="genau"),
-            WindowOp(op="activate_role", key="genau"),
-            restack,
-        ]
     return [
         WindowOp(op="show_role", key="nau"),
-        WindowOp(op="activate_role", key="nau"),
-        WindowOp(op="hide_role", key="genau"),
+        WindowOp(op="show_role", key="genau"),
+        WindowOp(op="activate_role", key="genau"),
         restack,
     ]
 
@@ -1201,7 +1202,7 @@ def _dispatch_satellites_switch(
             level=FAILED_NOTICE_LEVEL)]
     target = {
         "origenerator_activate": ORIGENERATOR_MODE,
-        "players_activate": "player",
+        "satellites_video_activate": VIDEO_MODE,
         "satellites_toggle": toggled_satellites_mode(state.satellites_mode),
     }[command]
     result = apply_satellites_switch(
@@ -1227,18 +1228,27 @@ def _dispatch_mode_switch(
         current_mode=state.main_mode,
         target_mode=target_mode,
         omni_paused=state.omni_paused,
-        genau_paused_file=config.genau_paused_file,
-        audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
         nau_paused_file=config.nau_paused_file,
         nau_cmd_file=config.nau_cmd_file,
-        broker_cmd_file=config.broker_cmd_file,
     )
     state = replace(state, main_mode=result.next_mode)
     if result.is_transition:
         ops.extend(_main_slot_ops(result.next_mode))
     if result.log_message:
         logger.info(result.log_message)
+    return state, ops
+
+
+def _video_activate(state: BridgeState, config: BridgeConfig,
+                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """"video mode", said of no side: the main slot's video AND the satellites'
+    players, each through its own switch — a session hosting no Origenerator
+    has only the main slot's to make."""
+    state, ops = _dispatch_mode_switch("video", state, config, [])
+    if config.origenerator_enabled:
+        state, ops = _dispatch_satellites_switch(
+            "satellites_video_activate", state, config, ops)
     return state, ops
 
 
@@ -1256,11 +1266,10 @@ _TRANSPORT_COMMANDS: dict[str, tuple[Player, str]] = {
     "landscape_next": (Player.LANDSCAPE, "NEXT"),
 }
 
-# The three main-slot mode switches, by their target mode.
+# The main slot's two mode switches, by their target mode.
 _MODE_SWITCH_COMMANDS: dict[str, str] = {
     "genau_activate": "genau",
-    "nau_activate": "nau",
-    "hybrid_activate": "hybrid",
+    "main_video_activate": "video",
 }
 
 
@@ -1279,7 +1288,7 @@ def _no_loop(which: Player, state: BridgeState, config: BridgeConfig,
 
 def _forward_to_nau(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Nau owns the main player in nau and hybrid; in genau mode the paused Nau
+    """Nau owns the main player in video mode; in genau mode the paused Nau
     still navigates in the background, and its SEEK commands apply to a live
     local clock, so rapid nudges stack naturally."""
     append_command(config.nau_cmd_file, verb)
@@ -1289,7 +1298,7 @@ def _forward_to_nau(verb: str, state: BridgeState, config: BridgeConfig,
 def _forward_to_nau_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Loop recording, versions and length only make sense while Nau owns the
-    main slot — nau and hybrid, not genau."""
+    main slot — video mode, not genau."""
     if nau_displays(state.main_mode):
         append_command(config.nau_cmd_file, verb)
     return state, []
@@ -1309,7 +1318,7 @@ def _forward_to_the_vr_main_player(verb: str, state: BridgeState, config: Bridge
 def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """To whichever player is showing, because the lock is about what is on
-    screen: Nau's video in nau and hybrid, Genau's clip in genau.  The same
+    screen: Nau's video in video mode, Genau's clip in genau.  The same
     split the speed controls make, and for the same reason."""
     target = (config.nau_cmd_file if nau_displays(state.main_mode)
               else config.genau_cmd_file)
@@ -1320,13 +1329,6 @@ def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
 def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     append_command(config.genau_cmd_file, verb)
-    return state, []
-
-
-def _forward_to_genau_when_active(verb: str, state: BridgeState, config: BridgeConfig,
-                                  _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if genau_active(state.main_mode):
-        append_command(config.genau_cmd_file, verb)
     return state, []
 
 
@@ -1344,37 +1346,33 @@ def _read_stroke_dials(config: BridgeConfig) -> StrokeDials | None:
 
 def _read_held_dials(config: BridgeConfig) -> StrokeDials | None:
     try:
-        return parse_dials(config.genau_hold_file.read_text(encoding="utf-8"))
+        return parse_dials(config.robot_hand_hold_file.read_text(encoding="utf-8"))
     except OSError:
         return None
 
 
-def _genau_hold(command: str, state: BridgeState, config: BridgeConfig,
+def _robot_hand_hold(command: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """park / retract: record the stroke (only if nothing is), then still it."""
-    if not genau_active(state.main_mode):
-        return state, []
     if _read_held_dials(config) is None:
         dials = _read_stroke_dials(config)
         if dials is not None:
-            config.genau_hold_file.parent.mkdir(parents=True, exist_ok=True)
-            config.genau_hold_file.write_text(dials_text(dials), encoding="utf-8")
+            config.robot_hand_hold_file.parent.mkdir(parents=True, exist_ok=True)
+            config.robot_hand_hold_file.write_text(dials_text(dials), encoding="utf-8")
     for verb in hold_commands(HOLD_CENTERS[command]):
         append_command(config.genau_cmd_file, verb)
     return state, []
 
 
-def _genau_release(state: BridgeState, config: BridgeConfig,
+def _robot_hand_release(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """unpark / unretract / OSR2 resume: replay the recording and spend it."""
-    if not genau_active(state.main_mode):
-        return state, []
     dials = _read_held_dials(config)
     if dials is None:
         return state, []
     for verb in release_commands(dials):
         append_command(config.genau_cmd_file, verb)
-    config.genau_hold_file.unlink(missing_ok=True)
+    config.robot_hand_hold_file.unlink(missing_ok=True)
     return state, []
 
 
@@ -1473,7 +1471,7 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
 
 def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
                                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """The hosted app's phrases arrive in player mode too (its vocabulary is
+    """The hosted app's phrases arrive in video mode too (its vocabulary is
     always in the grammar); there they reach nothing, a known dead end."""
     return state, []
 
@@ -1537,7 +1535,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_mode_switch, target)
                      for cmd, target in _MODE_SWITCH_COMMANDS.items()})
     handlers.update({cmd: partial(_satellites_switch, cmd)
-                     for cmd in ("origenerator_activate", "players_activate", "satellites_toggle")})
+                     for cmd in ("origenerator_activate", "satellites_video_activate", "satellites_toggle")})
+    handlers["video_activate"] = _video_activate
     handlers["genau_toggle_auto"] = _genau_toggle_auto
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})
@@ -1545,10 +1544,10 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, verb in _SPEED_NAU_RELATIVE.items()})
     handlers.update({cmd: partial(_speed, nau_cmd, genau_cmd, False)
                      for cmd, (nau_cmd, genau_cmd) in _SPEED_EXTREMES.items()})
-    handlers.update({cmd: partial(_forward_to_genau_when_active, verb)
+    handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
-    handlers.update({cmd: partial(_genau_hold, cmd) for cmd in HOLD_CENTERS})
-    handlers["genau_release"] = _genau_release
+    handlers.update({cmd: partial(_robot_hand_hold, cmd) for cmd in HOLD_CENTERS})
+    handlers["robot_hand_release"] = _robot_hand_release
     handlers["clipper_save"] = _save_clip
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
@@ -1621,12 +1620,12 @@ def _parsed_nau_speed(command: str, state: BridgeState, config: BridgeConfig,
     return _speed(nau_cmd, None, False, state, config, _target_path)
 
 
-def _parsed_genau_numeric(command: str, state: BridgeState, config: BridgeConfig,
+def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,
                           _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    genau_cmd = _parse_genau_numeric_command(command)
+    genau_cmd = _parse_numeric_command(command)
     if genau_cmd is None:
         return None
-    return _forward_to_genau_when_active(genau_cmd, state, config, _target_path)
+    return _forward_to_genau(genau_cmd, state, config, _target_path)
 
 
 def _parsed_unresolved_active(command: str, state: BridgeState, _config: BridgeConfig,
@@ -1646,6 +1645,6 @@ _PARSED_FORMS = (
     _parsed_set_volume,
     _parsed_filter,
     _parsed_nau_speed,
-    _parsed_genau_numeric,
+    _parsed_numeric,
     _parsed_unresolved_active,
 )

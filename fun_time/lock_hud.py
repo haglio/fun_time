@@ -103,10 +103,10 @@ class HudPanel:
     # is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
-    # The satellite side's mode axis ("player" / "origenerator"), or "" for a
+    # The satellite side's mode axis ("video" / "origenerator"), or "" for a
     # session hosting no Origenerator.  Global like ``active``, published per
     # side so each panel can draw the mode pair — the satellite counterpart of
-    # the main console's Nau/Hybrid/Genau row.
+    # the main console's Video/Genau row.
     satellites_mode: str = ""
 
 

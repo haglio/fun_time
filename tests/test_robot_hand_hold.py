@@ -10,7 +10,7 @@ from player_core.direct_control import (
     set_speed,
 )
 
-from fun_time.genau_hold import (
+from fun_time.robot_hand_hold import (
     HOLD_CENTERS,
     StrokeDials,
     dials_text,
@@ -42,7 +42,7 @@ class TestHold:
 
         These are the two positions the broker's own PARK and RETRACT hold, which
         is what makes the two words the right ones."""
-        for command, expected in (("genau_park", 0), ("genau_retract", POSITION_MAX)):
+        for command, expected in (("robot_hand_park", 0), ("robot_hand_retract", POSITION_MAX)):
             stroke = DirectControlState()
             set_amplitude(stroke, 0)
             set_center(stroke, HOLD_CENTERS[command])
@@ -86,7 +86,7 @@ class TestRelease:
 
         after = DirectControlState()
         set_amplitude(after, 0)  # the hold
-        set_center(after, HOLD_CENTERS["genau_retract"])
+        set_center(after, HOLD_CENTERS["robot_hand_retract"])
         set_amplitude(after, before.amplitude)  # the release
         set_center(after, before.center)
         set_speed(after, before.speed)

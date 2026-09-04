@@ -21,7 +21,7 @@ from player_core.file_channel import append_command
 
 from .config import LayoutConfig
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
-from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
+from .mode_plan import STARTUP_MAIN_MODE, nau_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
@@ -34,6 +34,7 @@ from .players import Player
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
+from .satellites_mode import VIDEO_MODE
 from .shared_state import read_shared_state, shared_state_path
 from .win32 import (
     disable_window_transitions,
@@ -97,7 +98,7 @@ class StartupResult:
     # opens in origenerator mode needs its hosted window restored behind the
     # overlay and banded by the post-overlay pass, not popped up after the
     # reveal the loading screen exists to conceal.
-    satellites_mode: str = 'player'
+    satellites_mode: str = VIDEO_MODE
     rfb_hwnd: int = 0
     # HWNDs resolved while every window was still visible; the dispatch
     # loop's role cache is seeded from this (hidden windows cannot be
@@ -169,14 +170,14 @@ def keep_the_cover_up(cover_hwnd: int) -> None:
 
 
 def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
-                        satellites_mode: str = "player", *, beneath: int = 0) -> None:
+                        satellites_mode: str = VIDEO_MODE, *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
     policy for *mode* — the same policy omnipause and mode switches honor, so
     they can never disagree.
 
     Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
     ``HWND_TOPMOST`` inserts at the *top* of the band: that order is what puts
-    Genau's transparent HUD above Nau's video in hybrid, and the policy says so
+    Genau's transparent HUD above Nau's video in video mode, and the policy says so
     outright ("Genau is promoted last").
 
     *beneath* is the loading overlay, when this runs behind it.  Each promotion
@@ -203,8 +204,8 @@ def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> No
     Nau and Genau share the main player's rect; the slot swaps by minimizing the idle
     one (which keeps its taskbar button) and restoring the active one.  Disable
     both windows' DWM transitions first so those minimize/restores are instant —
-    no visible animation.  Genau is the idle one in nau mode and Nau in genau
-    mode; in hybrid neither is, because Genau's HUD is drawn over Nau's video.
+    no visible animation.  Nau is the idle one in genau mode; in video mode
+    neither is, because Genau's HUD is drawn over Nau's video.
 
     Safe behind the loading overlay: minimizing moves no window into the topmost
     band, so nothing can flash over it.
@@ -212,13 +213,8 @@ def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> No
     for hwnd in (nau_hwnd, genau_hwnd):
         if hwnd:
             disable_window_transitions(hwnd)
-    idle = 0
-    if not genau_active(mode):
-        idle = genau_hwnd
-    elif not nau_displays(mode):
-        idle = nau_hwnd
-    if idle:
-        minimize_window(idle, activate=False)
+    if nau_hwnd and not nau_displays(mode):
+        minimize_window(nau_hwnd, activate=False)
 
 
 def apply_startup_window_state(
@@ -233,7 +229,7 @@ def apply_startup_window_state(
     origenerator_portrait_hwnd: int = 0,
     origenerator_landscape_hwnd: int = 0,
     mode: str = STARTUP_MAIN_MODE,
-    satellites_mode: str = "player",
+    satellites_mode: str = VIDEO_MODE,
     beneath: int = 0,
 ) -> dict[str, int]:
     """Set the full window state for the mode the session opens in: bands, then
@@ -277,10 +273,9 @@ def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     """Start the players the session's mode puts to work.
 
     Startup holds every one of them so nothing plays into a room that is still
-    being built; this releases exactly the ones the mode shows — Nau in nau and
-    hybrid, Genau (with its audio) in genau and hybrid, and the idle slot-mate
-    not at all, so nothing plays into a minimized window or drives the OSR2
-    unasked.
+    being built; this releases exactly the ones the mode shows — Genau (with
+    its audio) in both, Nau in video mode alone — so nothing plays into a
+    minimized window or drives the OSR2 unasked.
 
     Called by the sequencer on the path with no cover, and by the orchestrator on
     the path with one — there, only once the cover has actually left the screen.
@@ -290,14 +285,14 @@ def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     """
     write_flag_file(m.commands.nau_paused_file, not nau_displays(main_mode))
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
-        write_flag_file(flag_file, not genau_active(main_mode))
-    # Genau's stroke rides its command channel rather than that flag (see
+        write_flag_file(flag_file, False)
+    # The Robot Hand rides Genau's command channel rather than that flag (see
     # seed_startup_states, which holds it there), so the mode where it drives
-    # outright has to be told here or it never starts.  Only genau mode: in hybrid
-    # the dispatch loop's arbiter picks between Genau and the funscript on its
-    # first tick, and a RESUME here would start Genau against a funscript that is
-    # about to take the device — the same reason leaving OmniPause resumes Genau
-    # in genau mode alone.
+    # outright has to be told here or it never starts.  Only genau mode: in video
+    # mode the dispatch loop's arbiter picks between the hand and the funscript
+    # on its first tick, and a RESUME here would start the hand against a
+    # funscript that is about to take the device — the same reason leaving
+    # OmniPause resumes it in genau mode alone.
     if main_mode == "genau":
         append_command(Path(m.commands.genau_cmd_file), "RESUME")
 
@@ -495,11 +490,11 @@ def _launch_the_main_slot_players(
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
-    # Genau's drive readout, which Nau draws inside its console in Hybrid.  Named
+    # Genau's drive readout, which Nau draws inside its console in video mode.  Named
     # here and handed to BOTH players, because each resolving it for itself is how
     # it went wrong: Genau derived it from its own config's state dir and wrote it
     # into the Genau repo, while Nau was told to read it out of Fun Time's — so
-    # Hybrid showed a console with the Genau half missing.
+    # Video mode showed a console with the Genau half missing.
     genau_state = Path(m.commands.genau_cmd_file).parent
     genau_drive_file = genau_state / "genau_drive.txt"
     # Genau's own resume: it rescans its clips folder every launch and opens at
@@ -584,7 +579,7 @@ def _launch_the_hosted_origenerator(
         # And the command file, for the same reason and one more: the app drains
         # whatever is in it on its first tick, so a verb the last session left
         # unread would land on this one -- a stranded OPEN_SHOWS filling the
-        # regions of a session that opened in player mode.
+        # regions of a session that opened in video mode.
         origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
         origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         origenerator_cmd_file.write_text("", encoding="utf-8")
@@ -637,7 +632,7 @@ def _launch_core_media(
     # opens in origenerator mode needs its hosted window handled by the same
     # startup choreography as everyone else — not popped up after the reveal.
     _shared = read_shared_state(shared_state_path(state_dir))
-    satellites_mode = _shared.satellites_mode if _shared is not None else "player"
+    satellites_mode = _shared.satellites_mode if _shared is not None else VIDEO_MODE
 
     # A session that OPENS in origenerator mode gets the same OPEN_SHOWS the
     # switch into it sends: the mode means both regions playing the library of

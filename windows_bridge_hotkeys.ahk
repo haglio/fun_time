@@ -114,16 +114,17 @@ Space::QueueCommand("enter_omnipause")
 SC01A::QueueCommand("main_prev")
 ]::QueueCommand("main_next")
 SC01B::QueueCommand("main_next")
-; Mode activation hotkeys
+; Mode activation hotkeys: the main slot's two modes.
 g::QueueCommand("genau_activate")
-h::QueueCommand("hybrid_activate")
-n::QueueCommand("nau_activate")
-; The satellite side's own switch: player mode <-> Origenerator over the RFB.
+h::QueueCommand("main_video_activate")
+; The satellite side's own switch: video mode <-> Origenerator over the RFB.
 x::QueueCommand("satellites_toggle")
 $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
-\::QueueCommand("backslash_key")
+\::QueueCommand("quarter_button")
+; Nau's library browser, on the key the retired nau mode had.
+n::QueueCommand("browse_library")
 -::QueueCommand("main_nudge_prev")
 =::QueueCommand("main_nudge_next")
 Left::QueueCommand("portrait_prev")
@@ -202,13 +203,13 @@ PgUp::QueueCommand("tilt_up")
 PgDn::QueueCommand("tilt_down")
 +z::QueueCommand("tilt_reset")
 
-; Genau direct control hotkeys.  Each pair reads left-down / right-up: 7/9 sit
+; Robot Hand hotkeys.  Each pair reads left-down / right-up: 7/9 sit
 ; above u/o for amplitude, the way u/o and j/l already work for center and speed.
-7::QueueCommand("genau_amplitude_down")
-9::QueueCommand("genau_amplitude_up")
-u::QueueCommand("genau_center_down")
-i::QueueCommand("genau_cycle_shape")
-o::QueueCommand("genau_center_up")
+7::QueueCommand("robot_hand_amplitude_down")
+9::QueueCommand("robot_hand_amplitude_up")
+u::QueueCommand("robot_hand_center_down")
+i::QueueCommand("robot_hand_cycle_shape")
+o::QueueCommand("robot_hand_center_up")
 ; …and speed, which names no engine here the way the console's marks do, so it
 ; follows whichever holds the OSR2 — the video's rate under a driving funscript,
 ; Genau's stroke otherwise.
@@ -216,7 +217,7 @@ j::QueueCommand("speed_down")
 l::QueueCommand("speed_up")
 ; Cruise varies the stroke; moving on from a clip is what an unlocked Genau does
 ; by itself, so it is the apostrophe's lock rather than a switch of its own.
-c::QueueCommand("genau_toggle_cruise")
+c::QueueCommand("robot_hand_toggle_cruise")
 SC035::QueueCommand("genau_toggle_auto")
 
 ; Genau's clip cluster, laid out like the arrow keys are for the portrait side:

@@ -14,7 +14,7 @@ from fun_time.command_reference import (
 from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
-_NUMERIC_RE = re.compile(r"^genau_(amp|center|speed|clip_seconds)_\d+$")
+_NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_clip_seconds)_\d+$")
 _QUEUED_RE = re.compile(r'QueueCommand\("([^"]+)"\)')
 
 
@@ -263,12 +263,12 @@ def test_the_bare_phrases_read_as_the_say_column():
 
 
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
-    """The Nau/Genau nav rows surface the mode-named phrases under their friendly
-    names ("nau mode next", "genau next", "hybrid next") — never the raw vosk
-    sound-alikes ("now mode", "go now")."""
+    """The Video/Genau nav rows surface the mode-named phrases under their friendly
+    names ("video next", "genau next") — never the raw vosk sound-alike ("go
+    now")."""
     rows = _all_rows()
     main_next_row = next(r for r in rows if "main_next" in r.commands)
-    assert {"nau mode next", "next nau mode", "hybrid next", "next hybrid"} <= set(main_next_row.voice)
+    assert {"video next", "next video"} <= set(main_next_row.voice)
     genau_next_row = next(r for r in rows if "genau_next_clip" in r.commands)
     assert {"genau next", "next genau"} <= set(genau_next_row.voice)
     # The raw sound-alikes must never leak into any Say column.
@@ -438,35 +438,47 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in _keys(row))
 
 
-def test_section_titles_run_global_genau_nau_satellites():
-    """Four sections, in the order the room is built: what governs everything,
-    then the engine driving the OSR2, then the video it plays under, then the two
-    side players.  Genau leads Nau because it owns the primary display in its own
-    mode, and every satellite scope shares the last section."""
+def test_section_titles_run_global_robot_hand_genau_nau_satellites():
+    """Five sections, in the order the room is built: what governs everything,
+    then the engine driving the OSR2, then the clips it plays under, then the
+    video, then the two side players.  The hand leads because it drives in both
+    modes, Genau leads Nau because it owns the primary display in its own mode,
+    and every satellite scope shares the last section."""
     titles = [s.title for s in build_reference_sections()]
-    assert titles == ["Global", "Genau", "Nau", "Satellites"]
+    assert titles == ["Global", "Robot Hand", "Genau", "Nau", "Satellites"]
     for retired in ("Portrait", "Landscape", "Both", "Active side",
                     "Filters (satellites)", "Modes", "Genau control"):
         assert retired not in titles, f"{retired!r} should be folded in"
 
 
-def test_the_backslash_key_is_split_between_its_two_meanings():
+def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
+    """The backslash offsets the Robot Hand's stroke in either mode — it used to
+    open Nau's library browser in video mode, and that browser now has the key
+    the retired mode had."""
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
-    main_backslash = [r for r in by_title["Nau"].rows if "\\" in _keys(r)]
-    genau_backslash = [r for r in by_title["Genau"].rows if "\\" in _keys(r)]
-    assert len(main_backslash) == 1, "expected the file-dialog '\\' row in Nau"
-    assert "browse" in main_backslash[0].voice
-    assert len(genau_backslash) == 1, "expected a separate '\\' offset row in Genau"
+    hand_backslash = [r for r in by_title["Robot Hand"].rows if "\\" in _keys(r)]
+    assert [r.commands for r in hand_backslash] == [("quarter_button",)]
+    assert not [r for r in by_title["Nau"].rows if "\\" in _keys(r)]
+    browser = [r for r in by_title["Nau"].rows if "browse_library" in r.commands]
+    assert len(browser) == 1 and _keys(browser[0]) == ("N",)
+    assert "browse" in browser[0].voice
 
 
-def test_nau_mode_row_displays_nau_mode_but_recognizer_uses_sound_alikes():
-    # "nau" isn't in the vosk vocabulary, so the recognizer listens for the
-    # sound-alikes while the reference shows the friendly "nau mode".
-    assert VOICE_COMMANDS["now mode"] == "nau_activate"
-    assert "nau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
-    nau_rows = [r for r in _all_rows() if "nau_activate" in r.commands]
-    assert nau_rows and nau_rows[0].voice == ("nau mode",)
+def test_video_mode_is_spoken_as_written_of_either_side_or_of_both():
+    # Every word of these is in the vosk vocabulary, so they are heard as the
+    # reference shows them — unlike "genau", which rides the "go now" sound-alike.
+    assert VOICE_COMMANDS["video mode"] == "video_activate"
+    assert VOICE_COMMANDS["main video mode"] == "main_video_activate"
+    assert VOICE_COMMANDS["satellite video mode"] == "satellites_video_activate"
+    for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode"):
+        assert retired not in VOICE_COMMANDS, retired
+    main_rows = [r for r in _all_rows() if "main_video_activate" in r.commands]
+    assert main_rows and main_rows[0].voice == ("main video mode",)
+    both_rows = [r for r in _all_rows() if "video_activate" in r.commands]
+    assert both_rows and both_rows[0].voice == ("video mode",)
+    genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
+    assert genau_rows and genau_rows[0].voice == ("genau",)
 
 
 def test_loop_control_row_consolidates_record_and_cancel():
@@ -485,22 +497,22 @@ def test_loop_control_row_consolidates_record_and_cancel():
 
 def test_previous_shape_is_a_separate_keyless_line():
     rows = _all_rows()
-    next_rows = [r for r in rows if "genau_cycle_shape" in r.commands]
-    prev_rows = [r for r in rows if "genau_cycle_shape_prev" in r.commands]
+    next_rows = [r for r in rows if "robot_hand_cycle_shape" in r.commands]
+    prev_rows = [r for r in rows if "robot_hand_cycle_shape_prev" in r.commands]
     assert next_rows and _keys(next_rows[0]) == ("I",)
     # The "I" key does next only — it must not claim previous.
-    assert "genau_cycle_shape_prev" not in next_rows[0].commands
+    assert "robot_hand_cycle_shape_prev" not in next_rows[0].commands
     assert prev_rows and _keys(prev_rows[0]) == ()
     assert "previous shape" in prev_rows[0].voice
 
 
 def test_min_max_value_live_on_their_own_consecutive_set_lines():
     rows = _all_rows()
-    amp_updown = next(r for r in rows if "genau_amplitude_up" in r.commands)
+    amp_updown = next(r for r in rows if "robot_hand_amplitude_up" in r.commands)
     # The up/down line must NOT carry min/max/value phrases.
     assert not any(("min" in v or "max" in v or "0–100" in v) for v in amp_updown.voice)
 
-    genau_rows = {s.title: s for s in build_reference_sections()}["Genau"].rows
+    genau_rows = {s.title: s for s in build_reference_sections()}["Robot Hand"].rows
     descs = [r.description for r in genau_rows]
     for updown, setname in (
         ("Amplitude up / down", "Set amplitude"),
@@ -508,7 +520,7 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
         ("Speed up / down", "Set speed"),
     ):
         # Matched by prefix: a row may carry an explanation after its name (speed
-        # says which engine the nudge reaches in hybrid).
+        # says which engine the nudge reaches in video mode).
         at = next(i for i, d in enumerate(descs) if d.startswith(updown))
         assert descs.index(setname) == at + 1, "Set line must follow its up/down line"
     set_amp = next(r for r in genau_rows if r.description == "Set amplitude")
@@ -516,7 +528,7 @@ def test_min_max_value_live_on_their_own_consecutive_set_lines():
 
 
 def test_cruise_voice_lists_on_before_off():
-    cruise = next(r for r in _all_rows() if "genau_toggle_cruise" in r.commands)
+    cruise = next(r for r in _all_rows() if "robot_hand_toggle_cruise" in r.commands)
     assert cruise.voice == ("cruise control", "cruise on", "cruise off")
 
 
@@ -575,7 +587,7 @@ def test_relief_answers_to_one_word_as_well_as_its_full_name():
     obvious single word reaches it too.  "retract" was a second such word and is
     now the Genau hold of that name: relief is the one that stops the room."""
     assert VOICE_COMMANDS["stop"] == "relief_omnipause"
-    assert VOICE_COMMANDS["retract"] == "genau_retract"
+    assert VOICE_COMMANDS["retract"] == "robot_hand_retract"
 
 
 def test_relief_survives_the_omnipause_suspension_on_both_input_paths():

@@ -35,6 +35,7 @@ from fun_time.windows_bridge_startup import (
     origenerator_launch_command,
     origenerator_launch_kwargs,
 )
+from tests.integration.integration_support import checkout_project_dirs
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",
@@ -121,7 +122,10 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
         status_file=tmp_path / "origenerator_status.txt",
         dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
     )
-    kwargs = origenerator_launch_kwargs(origenerator_dir=checkout)
+    # The same siblings the session would hand it: a branch of player_core on
+    # its PYTHONPATH, exactly as launch_origenerator passes them along.
+    kwargs = origenerator_launch_kwargs(
+        origenerator_dir=checkout, project_dirs=checkout_project_dirs() or None)
     # Windowless whatever the app would otherwise do, and captured so a failure
     # arrives as its traceback rather than as an exit code to go hunting for.
     kwargs.pop("creationflags", None)

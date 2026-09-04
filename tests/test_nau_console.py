@@ -6,9 +6,8 @@ import json
 from fun_time.nau_console import (
     OSR2_AUTO,
     OSR2_FUNSCRIPT,
-    OSR2_GENAU,
-    OSR2_IDLE,
     OSR2_OFF,
+    OSR2_ROBOT_HAND,
     console_payload,
     osr2_state,
 )
@@ -16,7 +15,7 @@ from fun_time.player_status import GenauStatus
 
 
 def _payload(**overrides) -> dict:
-    base = dict(mode="nau", active=False, osr2_mode="controlled",
+    base = dict(mode="video", active=False, osr2_mode="controlled",
                 funscript_driving=False, broker=False, nau_locked=True,
                 genau=GenauStatus())
     base.update(overrides)
@@ -28,25 +27,24 @@ class TestOsr2State:
 
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
         for osr2_mode, expected in (("off", OSR2_OFF), ("auto", OSR2_AUTO)):
-            assert osr2_state(mode="hybrid", osr2_mode=osr2_mode,
+            assert osr2_state(mode="video", osr2_mode=osr2_mode,
                               funscript_driving=True) == expected
 
     def test_a_funscript_that_is_actually_driving_says_so(self):
-        assert osr2_state(mode="hybrid", osr2_mode="controlled",
+        assert osr2_state(mode="video", osr2_mode="controlled",
                           funscript_driving=True) == OSR2_FUNSCRIPT
 
-    def test_a_scripted_videos_quiet_stretch_reads_as_genau_not_funscript(self):
-        """The reported hole: on a rest gap of a scripted video Genau drives, but
+    def test_a_scripted_videos_quiet_stretch_reads_as_the_robot_hand_not_funscript(self):
+        """The reported hole: on a rest gap of a scripted video the Robot Hand drives, but
         it said funscript because a funscript merely *existed*.  It is the driving
         state that decides now, not the file's presence."""
-        assert osr2_state(mode="hybrid", osr2_mode="controlled",
-                          funscript_driving=False) == OSR2_GENAU
+        assert osr2_state(mode="video", osr2_mode="controlled",
+                          funscript_driving=False) == OSR2_ROBOT_HAND
 
-    def test_without_a_driver_it_is_idle_unless_genau_is_there(self):
-        assert osr2_state(mode="nau", osr2_mode="controlled",
-                          funscript_driving=False) == OSR2_IDLE
-        assert osr2_state(mode="genau", osr2_mode="controlled",
-                          funscript_driving=False) == OSR2_GENAU
+    def test_without_a_driver_the_robot_hand_has_the_device_in_either_mode(self):
+        for mode in ("video", "genau"):
+            assert osr2_state(mode=mode, osr2_mode="controlled",
+                              funscript_driving=False) == OSR2_ROBOT_HAND
 
     def test_a_nau_parked_off_screen_cannot_claim_the_device(self):
         """The reported hole: in genau mode Nau is paused off screen, but its
@@ -54,14 +52,14 @@ class TestOsr2State:
         so this said "funscript" while Genau had the device, which dims every
         control on the drive readout and refuses every press on it."""
         assert osr2_state(mode="genau", osr2_mode="controlled",
-                          funscript_driving=True) == OSR2_GENAU
+                          funscript_driving=True) == OSR2_ROBOT_HAND
 
 
 class TestPayload:
     def test_carries_the_room_the_player_cannot_see(self):
-        payload = _payload(mode="hybrid", active=True, broker=True, osr2_mode="auto")
+        payload = _payload(mode="video", active=True, broker=True, osr2_mode="auto")
 
-        assert payload["mode"] == "hybrid"
+        assert payload["mode"] == "video"
         assert payload["active"] is True
         assert payload["broker"] is True
         assert payload["osr2"] == OSR2_AUTO
@@ -83,13 +81,12 @@ class TestPayload:
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
         """One padlock on the console, so one flag: Nau's hold on its video where
         Nau is on screen, Genau's hold on its clip where Genau is.  Publishing
-        both is what left Hybrid drawing two locks that meant different things."""
+        both is what left video mode drawing two locks that meant different things."""
         held_clip = GenauStatus(locked=True)
         loose_clip = GenauStatus(locked=False)
 
-        for mode in ("nau", "hybrid"):
-            assert _payload(mode=mode, nau_locked=True, genau=loose_clip)["locked"] is True
-            assert _payload(mode=mode, nau_locked=False, genau=held_clip)["locked"] is False
+        assert _payload(mode="video", nau_locked=True, genau=loose_clip)["locked"] is True
+        assert _payload(mode="video", nau_locked=False, genau=held_clip)["locked"] is False
 
         assert _payload(mode="genau", nau_locked=False, genau=held_clip)["locked"] is True
         assert _payload(mode="genau", nau_locked=True, genau=loose_clip)["locked"] is False
@@ -117,9 +114,8 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     folder in where Genau is.  They are separate flags because a Genau reorder
     rewrites nothing of Nau's — reporting Nau's in genau mode said "Shuffle" at
     someone who had just asked Genau for the latest."""
-    for mode in ("nau", "hybrid"):
-        assert _payload(mode=mode, latest=True, genau_latest=False)["latest"] is True
-        assert _payload(mode=mode, latest=False, genau_latest=True)["latest"] is False
+    assert _payload(mode="video", latest=True, genau_latest=False)["latest"] is True
+    assert _payload(mode="video", latest=False, genau_latest=True)["latest"] is False
 
     assert _payload(mode="genau", latest=False, genau_latest=True)["latest"] is True
     assert _payload(mode="genau", latest=True, genau_latest=False)["latest"] is False
@@ -173,25 +169,25 @@ class TestTheReadoutTheWordLeaves:
             _payload(mode="genau", funscript_driving=True), tmp_path)
 
         marks = {b.action: r for r, b in painter.buttons
-                 if b.action.startswith(("genau_amplitude", "genau_center", "genau_speed"))}
+                 if b.action.startswith(("robot_hand_amplitude", "robot_hand_center", "robot_hand_speed"))}
         assert marks, "the readout drew no marks to press"
         for action, rect in marks.items():
             assert painter.press_at(*self._center(rect, origin)) == action
 
         for track in painter.tracks:
             posted = painter.press_at(*self._center(track.rect, origin))
-            assert posted.startswith(f"genau_{track.axis}_"), (
+            assert posted.startswith(f"robot_hand_{track.axis}_"), (
                 f"the {track.axis} band refused a press: {posted!r}")
 
     def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
-        """The other half of the rule, and the reason for it: in hybrid the two
+        """The other half of the rule, and the reason for it: in video mode the two
         drivers take turns on one device, and adjusting a stroke Genau is not
         sending is what put both of them on it at once."""
         painter, origin = self._readout(
-            _payload(mode="hybrid", funscript_driving=True), tmp_path)
+            _payload(mode="video", funscript_driving=True), tmp_path)
 
         for track in painter.tracks:
             assert painter.press_at(*self._center(track.rect, origin)) == ""
         for rect, button in painter.buttons:
-            if button.action.startswith(("genau_amplitude", "genau_center")):
+            if button.action.startswith(("genau_amplitude", "robot_hand_center")):
                 assert painter.press_at(*self._center(rect, origin)) == ""

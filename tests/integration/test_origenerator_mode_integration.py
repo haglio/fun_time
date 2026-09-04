@@ -163,7 +163,7 @@ def hosted_session():
     One session for the whole module: launching a session is the expensive
     half of these tests, and every extra launch is GPU and decode churn the
     suite's perf-gated tests downstream then pay for.  The tests leave the
-    session the way they found it (player mode, satellites banded).
+    session the way they found it (video mode, satellites banded).
     """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -208,7 +208,7 @@ def _wait(predicate, *, timeout: float, desc: str):
 def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_session):
     """The user-visible contract of the mode pair, on real windows: the hosted
     app boots parked; origenerator mode restores it over the RFB's rect and
-    into the topmost band; player mode parks it again.  Driven through an
+    into the topmost band; video mode parks it again.  Driven through an
     OmniPause cycle first, because that is the sequence the demo failed in —
     the pause demotes every managed window, and the switch afterwards has to
     promote this one back itself."""
@@ -227,8 +227,8 @@ def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_se
     _wait(lambda: is_window_topmost(hwnd),
           timeout=10, desc="the hosted window to join the topmost band")
 
-    session.write_dashboard_command("players_activate")
-    session.wait_for_log("Satellites switched to player mode")
+    session.write_dashboard_command("satellites_video_activate")
+    session.wait_for_log("Satellites switched to video mode")
     _wait(lambda: is_window_minimized(hwnd),
           timeout=10, desc="the hosted window to park again")
 
@@ -259,7 +259,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         dashboard_pid=0,
         genau_pid=pids["genau_pid"],
         audio_pid=0,
-        main_mode="nau",
+        main_mode="video",
     ))
 
     assert is_window_topmost(portrait)

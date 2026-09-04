@@ -119,8 +119,8 @@ class BridgeConfig:
         return self.state_dir / "genau_drive.txt"
 
     @property
-    def genau_hold_file(self) -> Path:
-        return self.state_dir / "genau_hold.txt"  # what a park/retract took away
+    def robot_hand_hold_file(self) -> Path:
+        return self.state_dir / "robot_hand_hold.txt"  # what a park/retract took away
 
     @property
     def osr2_serial_rx_file(self) -> Path:

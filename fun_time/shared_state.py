@@ -58,7 +58,7 @@ class BridgeState:
     locked3: bool = False
     main_mode: str = STARTUP_MAIN_MODE
     # The satellite side's own mode axis (see fun_time.satellites_mode):
-    # "player" is the session as ever, "origenerator" puts the hosted
+    # "video" is the session as ever, "origenerator" puts the hosted
     # Origenerator over the RFB and its shows over the players.
     satellites_mode: str = STARTUP_SATELLITES_MODE
     # Whether each player is in F-mode, held per player because it is set per
@@ -202,6 +202,22 @@ def _int_or(section, key: str, default: int) -> int:
         return default
 
 
+# The modes a session saved before the main slot's nau and hybrid modes became
+# the one video mode, and the satellites' video mode was renamed to match: a
+# state file from then comes back in the mode that is that one now, rather
+# than in a mode nothing recognizes.
+_RESUMED_MAIN_MODES = {"nau": "video", "hybrid": "video"}
+_RESUMED_SATELLITES_MODES = {"player": "video"}
+
+
+def _resumed_main_mode(saved: str) -> str:
+    return _RESUMED_MAIN_MODES.get(saved, saved)
+
+
+def _resumed_satellites_mode(saved: str) -> str:
+    return _RESUMED_SATELLITES_MODES.get(saved, saved)
+
+
 def read_shared_state(state_file: Path) -> BridgeState | None:
     """Read bridge state from the shared INI file."""
     if not state_file.exists():
@@ -215,8 +231,9 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
     return BridgeState(
         locked2=s.get("locked2", "0") == "1",
         locked3=s.get("locked3", "0") == "1",
-        main_mode=s.get("main_mode", STARTUP_MAIN_MODE),
-        satellites_mode=s.get("satellites_mode", STARTUP_SATELLITES_MODE),
+        main_mode=_resumed_main_mode(s.get("main_mode", STARTUP_MAIN_MODE)),
+        satellites_mode=_resumed_satellites_mode(
+            s.get("satellites_mode", STARTUP_SATELLITES_MODE)),
         main_f_mode=s.get("main_f_mode", "0") == "1",
         portrait_f_mode=s.get("portrait_f_mode", "0") == "1",
         landscape_f_mode=s.get("landscape_f_mode", "0") == "1",

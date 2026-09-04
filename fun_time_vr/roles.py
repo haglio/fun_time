@@ -169,9 +169,9 @@ class MainRole:
             if enabled and not self._tcode_enabled:
                 self._driver.reset()
             self._tcode_enabled = enabled
-        elif keyword in ("SET_HYBRID", "DISPLAY_ON", "DISPLAY_OFF"):
-            # Accepted so a mode switch is not "unhandled" — both verbs ride
-            # every one.  The VR scene has no Genau panel to make room for or to
+        elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
+            # Accepted so a mode switch is not "unhandled" — one of the pair
+            # rides every one.  The VR scene has no Genau panel to make room for or to
             # hand the display to yet (that arrives with genau mode), so there is
             # nothing to step aside from and nothing to go dark for: blanking
             # here would leave the headset showing nothing at all.
@@ -191,8 +191,8 @@ class MainRole:
     def tick(self, now: float) -> None:
         """Drive the OSR2 for this instant: waypoints while scripted, parked
         while unscripted, silent while paused or handed off (SET_TCODE_ENABLED
-        0 — in hybrid the arbiter gives those stretches to Genau, and two
-        drivers must never feed the broker's one inlet)."""
+        0 — in video mode the arbiter gives those stretches to the Robot Hand,
+        and two drivers must never feed the broker's one inlet)."""
         if self._paused or not self._tcode_enabled:
             return
         if self._funscript is not None:
@@ -212,7 +212,7 @@ class MainRole:
         return taken
 
     def status_fields(self) -> dict[str, str]:
-        """Nau's own status contract, so the dispatch loop's parser, the hybrid
+        """Nau's own status contract, so the dispatch loop's parser, the device
         arbiter and watch tracking read this player exactly as they read Nau."""
         return {
             "video": str(self.current_video),

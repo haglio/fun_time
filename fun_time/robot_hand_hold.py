@@ -1,20 +1,27 @@
-"""park / retract / release: the arithmetic of the spoken holds on Genau's
-stroke.  Why each ordering is what it is, is pinned in test_genau_hold.py."""
+"""park / retract / release: the arithmetic of the spoken holds on the Robot
+Hand's stroke.  Why each ordering is what it is, is pinned in
+test_robot_hand_hold.py."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 # The two ends the broker's own PARK and RETRACT hold, hence the two words.
-HOLD_CENTERS: dict[str, int] = {"genau_park": 0, "genau_retract": 100}
+HOLD_CENTERS: dict[str, int] = {"robot_hand_park": 0, "robot_hand_retract": 100}
 
 
 @dataclass(frozen=True)
 class StrokeDials:
-    """Genau's stroke as it stood, and as it can be asked for again."""
+    """The Robot Hand's stroke as it stood, and as it can be asked for again."""
     cruise: bool
     speed: int
     amplitude: int
     center: int
+
+
+def held(dials: StrokeDials) -> bool:
+    """Whether the stroke is stilled: a hold is an amplitude of zero, at
+    whichever end of the axis it rests."""
+    return dials.amplitude == 0
 
 
 def hold_commands(center: int) -> tuple[str, ...]:

@@ -4,7 +4,7 @@ The desktop session runs Nau and two satellite processes, each owning a
 window; an OpenXR runtime gives the headset to a single rendering process, so
 in VR all three are surfaces of this one process.  Each keeps its desktop
 sibling's whole contract — the playlist/command/paused/status file quartet —
-so the orchestrator, dispatch loop, voice control and hybrid arbiter drive
+so the orchestrator, dispatch loop, voice control and device arbiter drive
 them without knowing the display changed.  The satellites ARE the satellite
 package's own session/verb/status/HUD code, running against offscreen players;
 the main player is :class:`fun_time_vr.roles.MainRole`, Nau's contract

@@ -1,6 +1,6 @@
-"""Who has the OSR2 in hybrid, moment to moment.
+"""Who has the OSR2 in video mode, moment to moment.
 
-Genau and a funscript both feed the broker's one UDP T-Code inlet, so only one
+The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so only one
 may drive at a time.  This is the arbiter that hands the device between them —
 edge-triggered on Nau's published status, and asserted rather than
 fired-and-forgotten, because a verb queued on a file channel can still die.
@@ -14,6 +14,7 @@ from pathlib import Path
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
+from .mode_plan import nau_displays
 from .player_status import read_nau_status
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
@@ -22,8 +23,8 @@ from .player_status import read_nau_status
 REASSERT_S = 1.0
 
 
-class HybridDriver:
-    """The hybrid handoff between Nau's funscript and Genau."""
+class DeviceArbiter:
+    """The video-mode handoff between Nau's funscript and the Robot Hand."""
 
     def __init__(
         self,
@@ -37,39 +38,40 @@ class HybridDriver:
         self.nau_cmd_file = nau_cmd_file
         self.genau_cmd_file = genau_cmd_file
         self._clock = clock
-        # Whether the funscript is driving the OSR2 right now (so Genau is
-        # paused and Nau's T-Code is on) or Genau is (a funscript gap or an
-        # unscripted video).  None means "no decision applied yet" — set outside
-        # hybrid so re-entry re-asserts the correct driver.
+        # Whether the funscript is driving the OSR2 right now (so the hand is
+        # paused and Nau's T-Code is on) or the Robot Hand is (a funscript gap
+        # or an unscripted video).  None means "no decision applied yet" — set
+        # outside video mode so re-entry re-asserts the correct driver.
         self._funscript_driving: bool | None = None
         self._asserted_at: float = 0.0
         self._nau_status = None
-        # When the park-touch hold releases the pending Genau-to-script flip;
+        # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
 
     def sync(self, main_mode: str, *, paused: bool) -> None:
-        """In hybrid, route the OSR2 to the funscript or Genau, moment to moment.
+        """In video mode, route the OSR2 to the funscript or the Robot Hand,
+        moment to moment.
 
-        Genau and a funscript both feed the broker's one UDP T-Code inlet, so
+        The hand and a funscript both feed the broker's one UDP T-Code inlet, so
         only one may drive at a time.  The funscript drives while it is actively
-        scripting (``has_funscript`` and not ``funscript_resting``); Genau drives
-        the unscripted stretches — a video without a funscript, or a funscript's
-        quiet lead-in and interior gaps.  Each handoff sets both levers: Nau's
-        T-Code on + Genau paused for the funscript, or Nau's T-Code off (so its
-        gap drift can't fight) + Genau resumed for Genau.  It is edge-triggered,
-        so it fires once per handoff, not every tick.  Outside hybrid (or under
-        omnipause) the remembered state is cleared so re-entry re-asserts the
-        driver; leaving hybrid re-enables Nau's T-Code via the mode switch.
+        scripting (``has_funscript`` and not ``funscript_resting``); the hand
+        drives the unscripted stretches — a video without a funscript, or a
+        funscript's quiet lead-in and interior gaps.  Each handoff sets both
+        levers: Nau's T-Code on + the hand paused for the funscript, or Nau's
+        T-Code off (so its gap drift can't fight) + the hand resumed for the
+        hand.  It is edge-triggered, so it fires once per handoff, not every
+        tick.  Outside video mode (or under omnipause) the remembered state is
+        cleared so re-entry re-asserts the driver.
 
         The handoff itself is not smoothed here, and nothing waits for the
         stroke: whoever takes the device walks it from where it is to where it
-        needs to be (Nau's driver parks it over its handoff ramp; Genau climbs
-        back out of the park over the same one).  Waiting here for Genau's next
+        needs to be (Nau's driver parks it over its handoff ramp; the hand climbs
+        back out of the park over the same one).  Waiting here for the hand's next
         floor-touch made the moment depend on the live stroke, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
-        if main_mode != "hybrid" or paused:
+        if not nau_displays(main_mode) or paused:
             self._funscript_driving = None
             self._park_touch_deadline = None
             return
@@ -82,15 +84,15 @@ class HybridDriver:
                 and now - self._asserted_at < REASSERT_S):
             return
         if funscript_driving and self._funscript_driving is False:
-            # Taking the device FROM Genau: a stroke whose floor rests ON the
+            # Taking the device FROM the hand: a stroke whose floor rests ON the
             # park is set down exactly where the trace draws its blue ending —
             # on its next touch-down — so the flip holds for that one touch.
             # A raised floor takes the ramp instead and flips at once.  Only a
             # FLOWING boundary crossing holds: entered by a seek, there is no
             # drawn blue ending to honor — the trace shows the script's turn
-            # already running — and a hold there kept Genau swinging under a
+            # already running — and a hold there kept the hand swinging under a
             # pure green picture for its whole cap.  Nothing re-asserts during
-            # a hold; the standing pair still says Genau, which is the truth
+            # a hold; the standing pair still says the hand, which is the truth
             # of it.
             flowed = (previous is not None
                       and abs(status.position_ms - previous.position_ms) < 1_500)
@@ -102,7 +104,7 @@ class HybridDriver:
         # can still die — a writer replacing the file whole, a drain racing the
         # append, a locked file exhausting the retries — and an edge-triggered
         # arbiter that assumed delivery left the session split-brained for a
-        # whole cluster: Genau paused, the funscript never enabled, everything
+        # whole cluster: the hand paused, the funscript never enabled, everything
         # idle and grey.  So the edge is recorded only once both verbs actually
         # queued, and the standing pair is re-queued on a slow heartbeat — both
         # verbs are idempotent at their players — so any lost one converges
@@ -121,11 +123,11 @@ class HybridDriver:
             self._park_touch_deadline = None
 
     def _holding_for_park_touch(self, now: float, status) -> bool:
-        """Whether the Genau-to-script flip is still waiting for a touch-down.
+        """Whether the hand-to-script flip is still waiting for a touch-down.
 
         The touch is NAU'S CHOICE, published with its status: the trace picks
         one touch-down, draws the blue ending on it, and this side simply ends
-        Genau's turn when the playhead reaches it — one chooser, so the device
+        the hand's turn when the playhead reaches it — one chooser, so the device
         cannot stop at a different trough than the picture drew.  When each
         side chose from its own read of the wave, the arbiter could take an
         earlier touch, and the leftover drawn blue vanished the moment the dot

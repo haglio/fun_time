@@ -6,22 +6,21 @@ stranded on top after entering omnipause.
 
 The satellite / dashboard / RFB windows each own a screen rect and
 never overlap, so they are unconditionally topmost.  The main-slot players Nau and
-Genau are the exception: they SHARE one rect (in hybrid Genau's transparent HUD
-overlays Nau's video), so they both need to float above the desktop AND be
+Genau are the exception: they SHARE one rect (in video mode Genau's transparent
+HUD overlays Nau's video), so they both need to float above the desktop AND be
 stacked relative to each other:
 
-  * nau mode    — Nau owns the display and is topmost (Genau hidden).
-  * hybrid mode — Nau is topmost so the video floats up, and Genau is stacked
-                  just ABOVE it so the HUD overlays the video.  That ordering is
-                  enforced by promoting Nau before Genau (see
-                  ``role_windows.WindowRoles.restack_main_slot``), not by these
-                  flags.
-  * genau mode  — Genau owns the display and is topmost (Nau hidden).
+  * video mode — Nau is topmost so the video floats up, and Genau is stacked
+                 just ABOVE it so the HUD overlays the video.  That ordering is
+                 enforced by promoting Nau before Genau (see
+                 ``role_windows.WindowRoles.restack_main_slot``), not by these
+                 flags.
+  * genau mode — Genau owns the display and is topmost (Nau hidden).
 """
 from __future__ import annotations
 
-from .mode_plan import genau_active, nau_displays
-from .satellites_mode import origenerator_shows
+from .mode_plan import nau_displays
+from .satellites_mode import VIDEO_MODE, origenerator_shows
 
 # Windows with their own screen rect — always topmost; order among them is
 # irrelevant because they never overlap.  The log stream is a child widget of the
@@ -48,7 +47,7 @@ ORIGENERATOR_ROLE_TITLES: dict[str, str] = {
 }
 
 # The two players that share the main player's rect and therefore need
-# explicit stacking (Nau under Genau's HUD in hybrid).
+# explicit stacking (Nau under Genau's HUD in video mode).
 MAIN_SLOT_ROLES: tuple[str, ...] = ("nau", "genau")
 
 # Every window role the bridge manages, in promotion order.
@@ -57,24 +56,24 @@ MANAGED_ROLES: tuple[str, ...] = (
 )
 
 
-def role_topmost(role: str, main_mode: str, satellites_mode: str = "player") -> bool:
+def role_topmost(role: str, main_mode: str, satellites_mode: str = VIDEO_MODE) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band in these modes.
 
-    Both main-slot players are mode-dependent, because they share a rect —
-    and so is the Random Favs Browser, which shares its own with the hosted
-    app's main window:
-    each is topmost only in the modes where it shows something, and the hidden
-    slot-mate stays out of the band entirely.  Genau is promoted last, so being
-    in the band at all puts it ABOVE Nau — which is what hybrid wants and what
-    nau mode must not have.  The origenerator trio shares rects the same way —
-    with the RFB and the two players — so it rides *satellites_mode* exactly as
-    the pair rides *main_mode*.  Every other managed window owns its own rect,
-    overlaps nothing, and is unconditionally topmost.
+    Nau is mode-dependent, because it shares a rect with Genau — and so is the
+    Random Favs Browser, which shares its own with the hosted app's main
+    window: each is topmost only in the modes where it shows something, and
+    the hidden slot-mate stays out of the band entirely.  Genau is in the band
+    in both modes and promoted last, so it lands ABOVE Nau — the display in
+    genau mode, the HUD layer over the video in video mode.  The origenerator
+    trio shares rects the same way — with the RFB and the two players — so it
+    rides *satellites_mode* exactly as Nau rides *main_mode*.  Every other
+    managed window owns its own rect, overlaps nothing, and is unconditionally
+    topmost.
     """
     if role == "nau":
         return nau_displays(main_mode)
     if role == "genau":
-        return genau_active(main_mode)
+        return True
     if role in ORIGENERATOR_ROLES:
         return origenerator_shows(satellites_mode)
     if role == "rfb":
@@ -88,16 +87,15 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = "player") -> 
     return True
 
 
-def visible_roles(main_mode: str, satellites_mode: str = "player") -> list[str]:
+def visible_roles(main_mode: str, satellites_mode: str = VIDEO_MODE) -> list[str]:
     """Every managed role whose window these modes keep on screen."""
     origenerator = ORIGENERATOR_ROLES if origenerator_shows(satellites_mode) else ()
     return [*FIXED_TOPMOST_ROLES, *origenerator, *visible_main_slot_roles(main_mode)]
 
 
 def visible_main_slot_roles(main_mode: str) -> tuple[str, ...]:
-    """Which of the two main-slot players *main_mode* has on the screen: Nau in
-    nau, Genau in genau, and both in hybrid, where Genau's HUD sits over Nau's
-    video.
+    """Which of the two main-slot players *main_mode* has on the screen: Genau
+    in genau, and both in video mode, where Genau's HUD sits over Nau's video.
 
     Read by anything that acts on "the main player's window", because the pair
     shares one rect and the idle one is parked — minimizing a window the mode has
