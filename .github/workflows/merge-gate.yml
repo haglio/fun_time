@@ -1,34 +1,6 @@
+# The family's merge gate, published once in haglio/.github; this file says only what
+# differs about this repo. The check the merge queue requires is `full-suite / suite`.
 name: merge gate (full suite)
-
-# The merge queue's required check. The queue builds the candidate merge of a PR
-# onto current main, runs the suite on that candidate, and fast-forwards main only
-# when this is green -- so a red tree can never land. Also runs on PRs for early
-# feedback and on push to main as a visible post-merge backstop.
-#
-# Scope: the DEFAULT `pytest` runs the UNIT suite only. Fun Time's integration
-# tests live in tests/integration/ (pytest.ini keeps them out of default
-# collection) and CANNOT run here anyway -- they drive real windows on a Win32
-# hidden desktop, the AHK bridge, and a GPU video decoder. So this gate is the
-# unit suite, nothing more.
-#
-# Runs on windows-latest for what the tests ASSERT, not for what collection
-# needs: the suite is Win32 through and through -- ctypes user32 window
-# management, AUMID, the windows bridge -- and only a Windows runner can answer
-# those calls. Collection itself is platform-free (fun_time/win32_loader.py, and
-# tests/test_win32_loader.py holds it that way), so a developer off Windows can
-# collect and run the suite and see the platform-bound tests fail by name rather
-# than lose the whole run to an ImportError.
-#
-# fun_time leans on sibling packages that are never published to PyPI. Three are
-# imported directly -- app_support, player_core, shared_ui -- so they are cloned
-# onto the runner and editable-installed in compat mode (app_support first).
-# Compat mode is required: default editable mode would let a repo dir win as a
-# namespace shadow of the same-named package. The osr2_broker sibling is
-# referenced only as launch strings, never imported, so it is not installed.
-# player_core depends on python-mpv, whose `import mpv` loads libmpv at import
-# time; tests/test_satellite_identity.py imports the satellite app
-# (-> player_core.mpv_player -> mpv), so it fails to *collect* without the DLL --
-# hence the libmpv step.
 
 on:
   pull_request:
@@ -43,73 +15,31 @@ concurrency:
 
 jobs:
   full-suite:
-    runs-on: windows-latest
-    # A green job is ~135 s of checkout, three sibling clones, the libmpv fetch
-    # and install, plus one ~55 s suite leg, so ~190 s. Three times that would be
-    # 10 minutes, and this is 15: the libmpv step queries the GitHub API, then
-    # downloads and unpacks an archive from a release, so a slow fetch can cost
-    # minutes without anything being wrong. Without a budget at all, the queue's
-    # required check would sit on a hung run until GitHub's six-hour default and
-    # print nothing that named it.
-    timeout-minutes: 15
-    env:
-      QT_QPA_PLATFORM: offscreen   # render Qt headless -- no real windows
-      SDL_VIDEODRIVER: dummy       # pygame-ce: no display
-      SDL_AUDIODRIVER: dummy       # pygame-ce: no audio device
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Check out the sibling packages
-        shell: bash
-        run: |
-          set -euo pipefail
-          for repo in app_support player_core shared_ui; do
-            git clone --depth 1 "https://github.com/haglio/$repo.git" "$RUNNER_TEMP/$repo"
-          done
-
-      - name: Fetch libmpv (player_core's `import mpv` loads it at import time)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          get_url() {
-            gh api "repos/$1/releases?per_page=15" \
-              --jq '[.[].assets[]?.browser_download_url | select(test("mpv-dev-x86_64-[0-9].*\\.7z$"))][0] // empty'
-          }
-          url="$(get_url zhongfly/mpv-winbuild)"
-          [ -z "$url" ] && url="$(get_url shinchiro/mpv-winbuild-cmake)"
-          if [ -z "$url" ]; then echo "::error::could not resolve a libmpv dev build URL"; exit 1; fi
-          echo "libmpv dev build: $url"
-          curl -fL -o "$RUNNER_TEMP/mpv-dev.7z" "$url"
-          7z x "$RUNNER_TEMP/mpv-dev.7z" -o"$RUNNER_TEMP/mpv-dev" >/dev/null
-          dll="$(find "$RUNNER_TEMP/mpv-dev" -name 'libmpv-2.dll' | head -1)"
-          if [ -z "$dll" ]; then echo "::error::libmpv-2.dll not in the archive"; exit 1; fi
-          pydir="$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')"
-          # python-mpv resolves the DLL by bare name; the interpreter's own
-          # directory is always on the DLL search path, and it is on PATH too.
-          cp "$dll" "$pydir/mpv-2.dll"
-          echo "$pydir" >> "$GITHUB_PATH"
-
-      - name: Install (editable, compat mode), siblings first
-        shell: bash
-        run: |
-          set -euo pipefail
-          python -m pip install --upgrade pip
-          pip install pywin32   # win32com.client, imported lazily by the windows bridge
-          pip install -e "$RUNNER_TEMP/app_support" --config-settings editable_mode=compat
-          pip install -e "$RUNNER_TEMP/shared_ui"   --config-settings editable_mode=compat
-          pip install -e "$RUNNER_TEMP/player_core" --config-settings editable_mode=compat
-          pip install -e ".[dev]" --config-settings editable_mode=compat
-          # Smoke-check every import the suite needs at collection time, so a
-          # missing sibling / DLL fails here with a clear message rather than as a
-          # wall of collection errors.
-          python -c "import app_support, player_core, shared_ui, mpv; print('imports OK')"
-
-      - name: Run the unit suite
-        shell: bash
-        run: python -m pytest -q
+    uses: haglio/.github/.github/workflows/merge-gate.yml@main
+    with:
+      siblings: "app_support shared_ui player_core"
+      python-version: "3.12"
+      timeout-minutes: 15
+      qt-platform: offscreen
+      sdl-video: dummy
+      sdl-audio: dummy
+      pip-extra: pywin32
+      reverse: false
+      prepare: |
+        set -euo pipefail
+        get_url() {
+          gh api "repos/$1/releases?per_page=15" \
+            --jq '[.[].assets[]?.browser_download_url | select(test("mpv-dev-x86_64-[0-9].*\\.7z$"))][0] // empty'
+        }
+        url="$(get_url zhongfly/mpv-winbuild)"
+        [ -z "$url" ] && url="$(get_url shinchiro/mpv-winbuild-cmake)"
+        if [ -z "$url" ]; then echo "::error::could not resolve a libmpv dev build URL"; exit 1; fi
+        echo "libmpv dev build: $url"
+        curl -fL -o "$RUNNER_TEMP/mpv-dev.7z" "$url"
+        7z x "$RUNNER_TEMP/mpv-dev.7z" -o"$RUNNER_TEMP/mpv-dev" >/dev/null
+        dll="$(find "$RUNNER_TEMP/mpv-dev" -name 'libmpv-2.dll' | head -1)"
+        if [ -z "$dll" ]; then echo "::error::libmpv-2.dll not in the archive"; exit 1; fi
+        pydir="$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')"
+        cp "$dll" "$pydir/mpv-2.dll"
+        echo "$pydir" >> "$GITHUB_PATH"
+        python -c "import app_support, player_core, shared_ui, mpv; print('imports OK')"
