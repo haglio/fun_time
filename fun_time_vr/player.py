@@ -98,12 +98,7 @@ _OV_VOLUME = 12
 PRIMARY_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
 
-# The headset controller's own tilt: how fast a fully-pushed thumbstick swings
-# the arrangement, and how far off center the stick has to be before it counts.
-# GenauVR's rate, which is fast enough to cross the travel in a second and slow
-# enough to stop where you meant to.  Pushing the stick away from you raises
-# the screens, the direction TILT_UP moves them, so the two inputs never
-# disagree about which way "up" is.
+# GenauVR's rate and deadzone; stick away raises, as TILT_UP does.
 TILT_RATE_DEG_S = 85.0
 CONTROLLER_DEADZONE = 0.1
 
@@ -219,9 +214,7 @@ class _VideoUnit:
 
     def layer_placement(self, scene_yaw_deg: float = 0.0, scene_pitch_deg: float = 0.0):
         """Pose and size for this screen's compositor quad, at the aspect its
-        swapchain content was last copied at; the scene angles swing the whole
-        arrangement around the viewer (recentering) and tilt it (TILT_UP and
-        the controller's thumbstick)."""
+        swapchain last copied; the scene angles turn and tilt the arrangement."""
         width, height = self.layer_rect
         return quad_layer_placement(
             self._screen_azimuth, self._screen_width_deg,
@@ -482,8 +475,8 @@ def _draw_eyes(
 ) -> None:
     """Render the projection layer's two eyes: the immersive wrap, plus every
     screen when the compositor-layer path is off (*include_screens*).
-    *scene_rotation* is where the arrangement sits — the recentering yaw with
-    the tilt inside it, identity until the first RECENTER or tilt."""
+    *scene_rotation* is where the arrangement sits, identity until the first
+    RECENTER or tilt."""
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
@@ -565,11 +558,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     units: list[_VideoUnit] = [primary, *satellites]
     use_layers = vr.compositor_layers
     perf = FramePerf(logger=logger)
-    # Where the arrangement sits: the recentering yaw (RECENTER re-zeroes it
-    # onto the head's heading at that instant) with the tilt inside it, which
-    # the role owns because the verbs and the controller both write it.  Two
-    # consumers read the pair each frame — a model matrix for the eye pass and
-    # the same rotation as a quaternion for the quad-layer poses.
+    # The recentering yaw, with the role's tilt read in beside it each frame.
     scene_yaw = 0.0
     scene_rotation = np.eye(4, dtype=np.float32)
     last_frame_time = time.monotonic()

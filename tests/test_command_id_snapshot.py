@@ -253,6 +253,9 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "speed_max",
     "speed_min",
     "speed_up",
+    "tilt_down",
+    "tilt_reset",
+    "tilt_up",
     "voice_off",
     "voice_toggle",
 )

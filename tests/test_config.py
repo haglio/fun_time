@@ -508,17 +508,21 @@ class TestTheProjectsOwnPaths:
 
         from fun_time.project_paths import PROJECT_DIR
 
+        # FunTimeVR's window wears the V, so it asks for the other constant --
+        # still project_paths', still not a path it spells itself.
         wants = {
-            "fun_time/process_identity.py", "fun_time_vr/vr_session.py",
-            "fun_time/overlay_window.py", "fun_time/dashboard_app.py",
+            "fun_time/process_identity.py": "PROJECT_ICON",
+            "fun_time_vr/vr_session.py": "PROJECT_VR_ICON",
+            "fun_time/overlay_window.py": "PROJECT_ICON",
+            "fun_time/dashboard_app.py": "PROJECT_ICON",
         }
-        for name in sorted(wants):
+        for name, constant in sorted(wants.items()):
             source = (PROJECT_DIR / name).read_text(encoding="utf-8")
-            assert "PROJECT_ICON" in source, name
+            assert constant in source, name
             tree = ast.parse(source)
             recomputed = [
                 n for n in ast.walk(tree)
-                if isinstance(n, ast.Constant) and n.value == "icon.ico"]
+                if isinstance(n, ast.Constant) and n.value in ("icon.ico", "vr_icon.ico")]
             assert recomputed == [], f"{name} still spells the path itself"
 
     def test_and_the_one_that_keeps_its_own_says_why(self):
