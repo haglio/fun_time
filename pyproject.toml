@@ -34,7 +34,7 @@ dev = [
     "pytest",
     "pytest-cov",
     "pytest-timeout",
-    "ruff",
+    "ruff==0.16.6",
     "vulture",
 ]
 voice = [
@@ -53,5 +53,3 @@ include = ["fun_time*", "satellite*", "fun_time_vr*"]
 # the venv and CI do.  The rules are not configured here on purpose: the
 # dead-code gate in tests/test_dead_code.py names the ones it enforces, so
 # a bare `ruff check` cannot quietly become the gate.
-[tool.ruff]
-target-version = "py312"

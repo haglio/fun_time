@@ -1,0 +1,12 @@
+line-length = 100
+target-version = "py312"
+
+[lint]
+select = ["F", "E", "W", "I", "UP", "B", "C4", "SIM", "RUF", "PL", "PT", "DTZ", "PIE", "PERF", "FLY", "ISC", "RET", "FURB", "EXE"]
+ignore = ["E501", "BLE001", "S110",
+    # This repo's ratchet: what the family config found here, to be worked off rule by rule.
+    "PLC0415", "PLR2004", "RUF059", "C408", "E402", "PT018", "PLR0913", "PLW1510", "B018", "F821", "SIM105", "RUF001", "SIM117", "PLR0915", "PLR0912", "PT011", "ISC004", "PLR0917", "PT006", "C402", "RUF005", "B905", "E702", "PT022", "PLC3002", "RUF043", "SIM112", "PLW3301", "RUF002", "SIM102", "E731", "UP047", "DTZ005", "B904", "PLW2901", "E741", "PIE810", "FLY002", "PLW0603", "PERF401", "RUF003", "UP031", "B023", "SIM201", "RUF015", "RUF012", "B007"]
+external = ["ARG", "N", "S", "E501", "BLE001", "S110", "PLC0415", "PLR2004", "RUF059", "C408", "E402", "PT018", "PLR0913", "PLW1510", "B018", "F821", "SIM105", "RUF001", "SIM117", "PLR0915", "PLR0912", "PT011", "ISC004", "PLR0917", "PT006", "C402", "RUF005", "B905", "E702", "PT022", "PLC3002", "RUF043", "SIM112", "PLW3301", "RUF002", "SIM102", "E731", "UP047", "DTZ005", "B904", "PLW2901", "E741", "PIE810", "FLY002", "PLW0603", "PERF401", "RUF003", "UP031", "B023", "SIM201", "RUF015", "RUF012", "B007"]
+
+[format]
+quote-style = "double"
