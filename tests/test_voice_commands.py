@@ -13,6 +13,7 @@ from fun_time.voice_commands import (
     build_voice_commands,
     VOICE_COMMANDS,
     format_spoken_command,
+    friendly_voice,
     parse_command_line,
 )
 
@@ -140,6 +141,40 @@ class TestVoiceCommands:
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
+
+    def test_the_holds_stop_the_device_without_pausing_the_room(self):
+        """"stop" beside them is relief OmniPause — it freezes everything.  These
+        are the narrow gesture: the stroke stills at one end of its axis or the
+        other, the room plays on, and one release undoes either hold.
+
+        "retract" was a second single-word spelling of relief and is reassigned
+        here: the word describes where the device goes, and once a command
+        existed that only moves the device, that is what a speaker saying it
+        means.  Relief keeps "stop" (and Shift+Esc)."""
+        assert VOICE_COMMANDS["park"] == "genau_park"
+        assert VOICE_COMMANDS["park it"] == "genau_park"
+        assert VOICE_COMMANDS["retract"] == "genau_retract"
+        assert VOICE_COMMANDS["stop"] == "relief_omnipause"
+        for phrase in ("un park", "un retract", "o s r two resume",
+                       "oh es are two resume"):
+            assert VOICE_COMMANDS[phrase] == "genau_release", phrase
+
+    def test_the_release_is_spelled_the_way_vosk_can_hear_it(self):
+        """vosk has none of "unpark", "unretract" or "OSR2" in its lexicon, so a
+        phrase built from them could never be recognized.  It does have "un" (as
+        "un mute" already relies on) and it has the letters, in both renderings
+        the model produces for "oh-ess-arr-two" — so those are the recognizer
+        forms, and friendly_voice joins them back up for the reference.
+
+        None of them can collide with bare "resume" (leave OmniPause): the
+        grammar matches whole phrases, not prefixes."""
+        for joined in ("unpark", "unretract", "osr2", "o s r 2"):
+            assert joined not in VOICE_COMMANDS
+        assert friendly_voice("un park") == "unpark"
+        assert friendly_voice("un retract") == "unretract"
+        assert friendly_voice("o s r two resume") == "OSR2 resume"
+        assert friendly_voice("oh es are two resume") == "OSR2 resume"
+        assert VOICE_COMMANDS["resume"] == "play"
 
     def test_unmute_is_heard_as_two_words(self):
         """vosk has no "unmute" token but does have "un"; the recognizer listens

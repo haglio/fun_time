@@ -201,6 +201,21 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
             _Row("Enable / disable cruise control (varies the stroke)", ("C",), ("genau_toggle_cruise", "genau_cruise_on", "genau_cruise_off")),
             _Row(
+                "Hold the stroke still — cruise off, no amplitude, and the "
+                "center at one end: park settles the OSR2 home, retract sends "
+                "it to the far end, away from you.  Unlike OmniPause the room "
+                "plays on",
+                (),
+                ("genau_park", "genau_retract"),
+            ),
+            _Row(
+                "Off the hold — put the stroke back to whatever it was doing "
+                "before the park or retract, cruise included.  Any of the three "
+                "words undoes either hold",
+                (),
+                ("genau_release",),
+            ),
+            _Row(
                 "Seconds a clip holds the screen before Genau moves on — only "
                 "while it is unlocked (the ' key in Nau holds it)",
                 (),

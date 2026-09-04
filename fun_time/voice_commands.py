@@ -99,14 +99,22 @@ def build_voice_commands(
         # shows it as "unpause" via the row's friendly_voice override.
         "resume": "play",
         "un pause": "play",
-        # The sensation emergency: enter omnipause and send the OSR2 away
-        # instead of home.  vosk hears the split "omni pause" (no single
-        # token); three words is a lot to get out in the moment this is for,
-        # so the two obvious single words answer too — no other phrase is
-        # either of them ("stop broker" matches whole-phrase, so it stays).
+        # The sensation emergency: omnipause AND send the OSR2 away.  Three
+        # words is a lot to get out in the moment this is for, so the one
+        # obvious single word answers too ("stop broker" is a whole phrase, so
+        # it stays).  "retract" was a second such word and is now the hold
+        # below: relief is the one that stops the room with it.
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
-        "retract": "relief_omnipause",
+        # Stopping the device alone, at either end of its axis, and back off
+        # that hold onto the stroke it took away (see fun_time.genau_hold).
+        "park": "genau_park",
+        "park it": "genau_park",
+        "retract": "genau_retract",
+        "un park": "genau_release",
+        "un retract": "genau_release",
+        "o s r two resume": "genau_release",
+        "oh es are two resume": "genau_release",
         # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
@@ -580,30 +588,23 @@ SELF_REPORTING_COMMANDS = frozenset({
 })
 
 
-# vosk can't hear "nau"/"genau", so mode-named phrases use the mode-activation
-# sound-alikes as their recognizer form.  Show the friendly mode name in the
-# reference instead of the raw sound-alike (e.g. "nau mode next", not "now mode
-# next").  The sound-alikes only appear inside these derived nav phrases — the
-# mode-activation rows themselves render via voice_display — so a plain replace
-# is safe.
+# recognizer phrase -> what the reference and the toasts show, one pair per word
+# vosk cannot hear: a mode name, a joined-up word it only has the halves of, or
+# a device name it only has the letters of.  Applied in order as plain replaces,
+# so "un pause" precedes "omni pause" and cannot be re-split by it, and each
+# rewrite reaches the derived phrases the word sits inside ("next fun scripted").
 _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
     ("now mode", "nau mode"),
-    # vosk has no "hotkeys" token, so the recognizer listens for "hot keys";
-    # the reference shows the single-word "hotkeys".
     ("hot keys", "hotkeys"),
-    # Likewise no "unmute" token — but there is "un", so the recognizer hears
-    # the two-word "un mute" and the reference shows "unmute".
     ("un mute", "unmute"),
     ("un pause", "unpause"),
-    # …nor "funscript", though it has both halves, so the recognizer hears the
-    # split "fun script" and the reference shows the single word.  One rewrite
-    # covers "next fun scripted" too, since "fun script" sits inside it.
     ("fun script", "funscript"),
-    # …nor "omnipause", though it has both halves, so the recognizer hears the
-    # split "omni pause" and the reference shows the single word.  Listed after
-    # "un pause" so that rewrite has already run and cannot re-split this one.
     ("omni pause", "omnipause"),
+    ("un park", "unpark"),
+    ("un retract", "unretract"),
+    ("o s r two", "OSR2"),
+    ("oh es are two", "OSR2"),
 )
 
 

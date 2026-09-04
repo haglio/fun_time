@@ -17,12 +17,23 @@ from .bridge_records import (
     WindowOp,
 )
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
+from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 
 from .player_status import (
+    genau_status_path,
     read_genau_enabled,
+    read_genau_status,
     read_nau_status,
+)
+from .genau_hold import (
+    HOLD_CENTERS,
+    StrokeDials,
+    dials_text,
+    hold_commands,
+    parse_dials,
+    release_commands,
 )
 from .lock import build_lock_plan
 from .modes import is_favorite_path, read_favs_content
@@ -1317,6 +1328,54 @@ def _forward_to_genau_when_active(verb: str, state: BridgeState, config: BridgeC
     return state, []
 
 
+def _read_stroke_dials(config: BridgeConfig) -> StrokeDials | None:
+    drive = read_drive(config.genau_drive_file)  # whole, or None: never partial
+    if drive is None:
+        return None
+    return StrokeDials(
+        cruise=read_genau_status(genau_status_path(config.state_dir)).cruise_active,
+        speed=drive.speed,
+        amplitude=drive.amplitude,
+        center=drive.center,
+    )
+
+
+def _read_held_dials(config: BridgeConfig) -> StrokeDials | None:
+    try:
+        return parse_dials(config.genau_hold_file.read_text(encoding="utf-8"))
+    except OSError:
+        return None
+
+
+def _genau_hold(command: str, state: BridgeState, config: BridgeConfig,
+                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """park / retract: record the stroke (only if nothing is), then still it."""
+    if not genau_active(state.main_mode):
+        return state, []
+    if _read_held_dials(config) is None:
+        dials = _read_stroke_dials(config)
+        if dials is not None:
+            config.genau_hold_file.parent.mkdir(parents=True, exist_ok=True)
+            config.genau_hold_file.write_text(dials_text(dials), encoding="utf-8")
+    for verb in hold_commands(HOLD_CENTERS[command]):
+        append_command(config.genau_cmd_file, verb)
+    return state, []
+
+
+def _genau_release(state: BridgeState, config: BridgeConfig,
+                   _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    """unpark / unretract / OSR2 resume: replay the recording and spend it."""
+    if not genau_active(state.main_mode):
+        return state, []
+    dials = _read_held_dials(config)
+    if dials is None:
+        return state, []
+    for verb in release_commands(dials):
+        append_command(config.genau_cmd_file, verb)
+    config.genau_hold_file.unlink(missing_ok=True)
+    return state, []
+
+
 def _set_muted(muted: bool, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_audio(replace(state, muted=muted), config)
@@ -1483,6 +1542,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (nau_cmd, genau_cmd) in _SPEED_EXTREMES.items()})
     handlers.update({cmd: partial(_forward_to_genau_when_active, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
+    handlers.update({cmd: partial(_genau_hold, cmd) for cmd in HOLD_CENTERS})
+    handlers["genau_release"] = _genau_release
     handlers["clipper_save"] = _save_clip
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})

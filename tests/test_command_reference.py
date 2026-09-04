@@ -567,14 +567,15 @@ def test_relief_omnipause_row_shows_shift_esc_and_the_single_word_name():
     assert len(rows) == 1, "expected exactly one relief row"
     row = rows[0]
     assert _keys(row) == ("Shift+Esc",)
-    assert row.voice == ("relief omnipause", "retract", "stop")
+    assert row.voice == ("relief omnipause", "stop")
 
 
 def test_relief_answers_to_one_word_as_well_as_its_full_name():
     """Three words is a lot to get out in the moment the command is for, so the
-    two obvious single words reach it too."""
+    obvious single word reaches it too.  "retract" was a second such word and is
+    now the Genau hold of that name: relief is the one that stops the room."""
     assert VOICE_COMMANDS["stop"] == "relief_omnipause"
-    assert VOICE_COMMANDS["retract"] == "relief_omnipause"
+    assert VOICE_COMMANDS["retract"] == "genau_retract"
 
 
 def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
