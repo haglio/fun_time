@@ -7,12 +7,14 @@ import pytest
 
 from fun_time.config import load_config
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
+from fun_time_vr.genau_settings import GenauSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     _release_vr_runtime,
     build_vr_manifest,
+    is_vr_pin,
     main_playlist_has_vr,
-    resume_vr_state,
+    stamp_vr_shortcut_aumid,
     stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
@@ -133,8 +135,11 @@ class TestVrManifest:
         """
         written = set(build_vr_manifest(config)["vr"])
         read_back = {field.name for field in fields(VrSettings)}
+        # Genau's numbers ride flat and land together, in the one `genau` field.
+        genau_keys = set(GenauSettings().manifest_fields())
 
-        assert written - {"player_module"} == read_back
+        assert written - {"player_module"} - genau_keys == read_back - {"genau"}
+        assert genau_keys <= written
 
     def test_manifest_carries_a_layers_opt_in(self, config):
         import dataclasses  # noqa: PLC0415
@@ -222,33 +227,52 @@ class TestResumedMainPlaylist:
         assert main_playlist_has_vr(tmp_path / "absent.tsv", config.vr.library_dirs) is False
 
 
-class TestResumeVrState:
-    """The desktop session shares this state dir, and it can carry a main
-    mode a VR session has no player for."""
+class TestTheModeASessionComesBackIn:
+    """The desktop session shares this state dir, and the VR player hosts both
+    of the main slot's players now -- so the mode it was closed in comes across
+    with everything else, and the session is seeded and revealed in it."""
 
-    def test_a_genau_mode_left_by_the_desktop_session_does_not_come_across(self, tmp_path):
-        """Genau is not launched in VR, so a carried genau mode would leave every
-        HUD naming a player that is not running — and the state file is what all
-        of them read, so it has to be corrected on disk, not just in hand."""
+    @staticmethod
+    def _calls(function_name: str, spelling: str):
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(getattr(orchestrator, function_name)))
+        return [n for n in ast.walk(tree)
+                if isinstance(n, ast.Call) and ast.unparse(n.func) == spelling]
+
+    def test_the_state_is_no_longer_corrected_on_the_way_in(self, tmp_path):
+        """There used to be a resume_vr_state that struck the mode out; the state
+        the session opens on is fun_time's own resume, mode and all."""
+        from fun_time_vr import orchestrator
+
+        assert not hasattr(orchestrator, "resume_vr_state")
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_mode="genau", volume=40))
 
-        carried = resume_vr_state(state_file, resumed=True)
+        assert read_shared_state(state_file).main_mode == "genau"
 
-        assert carried.main_mode == "video"
-        assert read_shared_state(state_file).main_mode == "video"
+    def test_the_flags_are_seeded_in_the_carried_mode(self):
+        """Seeded in the default instead, Genau's role would open as the HUD layer
+        under a video the dispatch loop believes is parked."""
+        import ast
 
-    def test_everything_else_the_desktop_session_left_still_comes_across(self, tmp_path):
-        """Both apps run the same players for these, off the same playlists —
-        only the main slot's second seat is missing here."""
-        state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(
-            main_mode="genau", volume=40, portrait_f_mode=True, locked3=True,
-        ))
+        (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
+        given = {kw.arg: ast.unparse(kw.value) for kw in seed.keywords}
 
-        carried = resume_vr_state(state_file, resumed=True)
+        assert given["mode"] == "carried.main_mode"
 
-        assert (carried.volume, carried.portrait_f_mode, carried.locked3) == (40, True, True)
+    def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
+        """The desktop's own reveal: the video in video mode, Genau's hand and its
+        music in genau mode -- rather than unpausing the video whatever the mode."""
+        import ast
+
+        (release,) = self._calls("run_vr_bridge", "release_the_players")
+
+        assert [ast.unparse(arg) for arg in release.args] == ["manifest", "carried.main_mode"]
+        assert self._calls("run_vr_bridge", "write_flag_file") == []
 
 
 class TestLaunchVrPlayer:
@@ -440,3 +464,167 @@ def test_a_session_leaves_a_vr_runtime_that_was_already_the_users(monkeypatch):
     )
     _release_vr_runtime(was_up=True)
     assert calls == []
+
+
+class TestTheVrClipsFolder:
+    """Genau's engine browses a folder of VR180 masters in the headset, where
+    the desktop's clips folder holds flat ones."""
+
+    def test_it_is_read_from_the_vr_section(self, config, tmp_path):
+        import json
+
+        raw = json.loads((tmp_path / "fun_time_config.json").read_text(encoding="utf-8"))
+        raw["vr"]["clips_dir"] = str(tmp_path / "vr_clips").replace("\\", "/")
+        named = tmp_path / "named_config.json"
+        named.write_text(json.dumps(raw), encoding="utf-8")
+
+        assert load_config(named).vr.clips_dir == tmp_path / "vr_clips"
+
+    def test_unset_it_is_none_and_the_session_falls_back_to_the_desktop_folder(self, config):
+        assert config.vr.clips_dir is None
+
+
+class TestGenausRoleInTheManifest:
+    """What the VR player needs to run Genau's engine, carried in the one file
+    it reads: the folder, the companion's address, and the engine's numbers."""
+
+    def test_the_vr_clips_folder_rides_when_named(self, config, tmp_path):
+        from dataclasses import replace
+
+        named = replace(config, vr=replace(config.vr, clips_dir=tmp_path / "vr_clips"))
+
+        assert build_vr_manifest(named)["vr"]["clips_dir"] == str(tmp_path / "vr_clips")
+
+    def test_the_desktop_clips_folder_stands_in_when_none_is_named(self, config):
+        assert build_vr_manifest(config)["vr"]["clips_dir"] == str(config.paths.clips_dir)
+
+    def test_the_companions_address_is_fun_times_own(self, config):
+        vr = build_vr_manifest(config)["vr"]
+
+        assert (vr["notify_host"], vr["notify_port"]) == ("127.0.0.1", "50556")
+
+    def test_genaus_numbers_come_off_genaus_config(self, config, tmp_path):
+        import json
+        from dataclasses import replace
+
+        genau_config = tmp_path / "genau_config.json"
+        genau_config.write_text(json.dumps({"genau": {"beats_per_loop": 2.0, "udp_port": 50999}}),
+                                encoding="utf-8")
+        pointed = replace(config, paths=replace(config.paths, genau_config_path=genau_config))
+
+        vr = build_vr_manifest(pointed)["vr"]
+
+        assert vr["beats_per_loop"] == "2.0"
+        assert vr["beat_udp_port"] == "50999"
+        assert vr["bpm_smoothing"] == str(GenauSettings().bpm_smoothing)
+
+    def test_the_player_reads_all_of_it_back(self, config, tmp_path):
+        from fun_time.manifest import write_manifest_data
+
+        path = write_manifest_data(build_vr_manifest(config), tmp_path / "manifest.ini")
+
+        settings = VrSettings.read(path)
+
+        assert settings.clips_dir == config.paths.clips_dir
+        assert (settings.notify_host, settings.notify_port) == ("127.0.0.1", 50556)
+        assert settings.genau == GenauSettings()
+
+
+class TestTheVrPin:
+    """The VR session's pinned button is its own, lit by the VR player's window."""
+
+    @pytest.mark.parametrize("stem", ["Fun Time VR", "fun time vr", "Fun Time VR (2)"])
+    def test_the_vr_shortcut_and_its_copies_are_ours(self, stem):
+        assert is_vr_pin(stem) is True
+
+    @pytest.mark.parametrize("stem", ["Fun Time", "Fun Time (2)", "GenauVR", "Genau"])
+    def test_the_desktop_pin_and_every_other_are_not(self, stem):
+        assert is_vr_pin(stem) is False
+
+    def test_only_the_vr_pins_are_stamped_with_the_vr_identity(self, tmp_path):
+        from unittest.mock import patch
+
+        from fun_time.win32_taskbar import VR_APP_USER_MODEL_ID
+
+        for name in ("Fun Time.lnk", "Fun Time VR.lnk", "Fun Time VR (2).lnk", "Other.lnk"):
+            (tmp_path / name).write_bytes(b"")
+        with patch("fun_time_vr.orchestrator.taskbar_pin_dir", return_value=tmp_path), \
+             patch("fun_time_vr.orchestrator.set_shortcut_app_user_model_id") as stamp:
+            stamp_vr_shortcut_aumid()
+
+        assert sorted(call.args for call in stamp.call_args_list) == [
+            (str(tmp_path / "Fun Time VR (2).lnk"), VR_APP_USER_MODEL_ID),
+            (str(tmp_path / "Fun Time VR.lnk"), VR_APP_USER_MODEL_ID),
+        ]
+
+    def test_a_pin_that_will_not_take_the_stamp_is_logged_and_left(self, tmp_path):
+        from unittest.mock import MagicMock, patch
+
+        (tmp_path / "Fun Time VR.lnk").write_bytes(b"")
+        log = MagicMock()
+        with patch("fun_time_vr.orchestrator.taskbar_pin_dir", return_value=tmp_path), \
+             patch("fun_time_vr.orchestrator.set_shortcut_app_user_model_id",
+                   side_effect=OSError("locked")), \
+             patch("fun_time_vr.orchestrator.logger", log):
+            stamp_vr_shortcut_aumid()   # must not raise
+
+        assert "Could not stamp" in log.warning.call_args.args[0]
+
+    def test_a_session_on_another_config_leaves_the_pin_alone(self, config):
+        from unittest.mock import patch
+
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch.object(orchestrator, "stamp_vr_shortcut_aumid") as stamp:
+            orchestrator.main(["--check"])
+
+        stamp.assert_not_called()
+
+    def test_the_installed_app_stamps_its_own_pin(self, config):
+        from unittest.mock import patch
+
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch.object(orchestrator, "DEFAULT_CONFIG_PATH", config.config_path), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch.object(orchestrator, "stamp_vr_shortcut_aumid") as stamp:
+            orchestrator.main(["--check"])
+
+        stamp.assert_called_once_with()
+
+
+class TestTheAudioCompanionInVr:
+    """Launched as on the desktop, before the player so it is listening when
+    Genau's role says which clip is up, and sent to the headset's output."""
+
+    def test_it_is_launched_on_the_headsets_output(self):
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        (launch,) = [n for n in ast.walk(tree)
+                     if isinstance(n, ast.Call) and ast.unparse(n.func) == "launch_audio_companion"]
+        given = {kw.arg: ast.unparse(kw.value) for kw in launch.keywords}
+
+        assert given["audio_device"] == "config.vr.audio_device"
+        assert given["audio_folder"] == "manifest.media.genau_audio"
+
+    def test_it_is_launched_before_the_player_and_killed_with_it(self):
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        source = inspect.getsource(orchestrator.run_vr_bridge)
+        tree = ast.parse(source)
+        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+
+        assert calls["launch_audio_companion"] < calls["launch_vr_player"]
+        assert "for child in children.values():" in source

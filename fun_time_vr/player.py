@@ -1,14 +1,18 @@
-"""The VR player process: three players composited into one OpenXR scene.
+"""The VR player process: the session's four players composited into one
+OpenXR scene.
 
-The desktop session runs Nau and two satellite processes, each owning a
-window; an OpenXR runtime gives the headset to a single rendering process, so
-in VR all three are surfaces of this one process.  Each keeps its desktop
+The desktop session runs Nau, Genau and two satellite processes, each owning
+a window; an OpenXR runtime gives the headset to a single rendering process,
+so in VR all four are surfaces of this one process.  Each keeps its desktop
 sibling's whole contract — the playlist/command/paused/status file quartet —
 so the orchestrator, dispatch loop, voice control and device arbiter drive
 them without knowing the display changed.  The satellites ARE the satellite
 package's own session/verb/status/HUD code, running against offscreen players;
 the main player is :class:`fun_time_vr.roles.MainRole`, Nau's contract
-in-process.
+in-process; Genau is :class:`fun_time_vr.genau_role.GenauRole`, the clip
+player's engine on a thread of its own, taking the scene in genau mode and
+driving beneath the video in video mode.  The console hangs in the scene as
+a panel of its own (:mod:`fun_time_vr.console_panel`).
 
 Two threads.  A worker owns every file channel — pause flags, command drains,
 status writes, HUD polls, and the in-video furniture repaints — at its own
@@ -40,12 +44,15 @@ import logging
 import math
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
 from app_support.threading_utils import start_daemon_thread
+from app_support.win32 import set_app_user_model_id
+from player_core.console_hud import ConsolePainter
 from player_core.file_channel import consume_command_file, read_paused_state
+from player_core.genau_notifier import GenauNotifier
 from player_core.playlist import read_playlist
 from player_core.render_player import MpvRenderPlayer
 from player_core.status import StatusWriter
@@ -55,14 +62,25 @@ from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
 from fun_time.manifest import LaunchManifest
+from fun_time.player_status import genau_status_path, read_genau_status
 from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.win32_taskbar import VR_APP_USER_MODEL_ID
 from satellite.hud_overlay import HudOverlay
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
 from satellite.status import status_fields as satellite_status_fields
 
 from . import vr_runtime
+from .console_panel import (
+    PANEL_AZIMUTH_DEG,
+    PANEL_ELEVATION_DEG,
+    PANEL_WIDTH_DEG,
+    paint_panel,
+    panel_hud,
+)
 from .furniture import chip_state, scrubber_state
+from .genau_role import GenauRole, run_ticks
+from .genau_settings import GenauSettings
 from .matrices import (
     fov_to_projection_matrix,
     pitch_rotation_matrix,
@@ -71,7 +89,7 @@ from .matrices import (
     yaw_rotation_matrix,
 )
 from .perf import FramePerf
-from .render import RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
+from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import MainRole
 from .scene import (
     PRIMARY_WIDTH_DEG,
@@ -88,10 +106,8 @@ logger = logging.getLogger(__name__)
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 
-# Longest texture side each video gets.  The primary keeps near-native detail
-# (an 8K master renders at this cap); a satellite's screen is 28° of view, so
-# its cap sits well above what the headset can resolve there while costing a
-# fraction of full-size decode-to-texture renders.
+# Longest texture side each video gets: near-native for the primary, and for
+# a satellite's 28° of view well above what the headset resolves there.
 PRIMARY_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
 
@@ -99,9 +115,8 @@ SATELLITE_VIDEO_CAP_PX = 2048
 TILT_RATE_DEG_S = 85.0
 CONTROLLER_DEADZONE = 0.1
 
-# The file-channel worker's cadence: the desktop dispatch loop polls these
-# same files at ~20Hz, so 30Hz loses no responsiveness — and the render
-# thread never touches a file at all.
+# The file-channel worker's cadence: the dispatch loop polls these same files
+# at ~20Hz, so 30Hz loses no responsiveness.
 PUMP_HZ = 30.0
 
 # How long session bring-up tolerates a cold-started runtime whose graphics
@@ -141,6 +156,11 @@ class VrSettings:
     library_dirs: tuple[Path, ...]
     audio_device: str
     compositor_layers: bool
+    # Genau's role: its folder, its companion's address, its engine's numbers.
+    clips_dir: Path | None = None
+    notify_host: str = "127.0.0.1"
+    notify_port: int = 50556
+    genau: GenauSettings = field(default_factory=GenauSettings)
 
     @classmethod
     def read(cls, path: Path) -> VrSettings:
@@ -148,6 +168,7 @@ class VrSettings:
         parser.optionxform = str
         parser.read(str(path), encoding="utf-8")
         vr = parser["vr"]
+        clips_dir = vr.get("clips_dir", "").strip()
         return cls(
             tcode_udp_host=vr["tcode_udp_host"],
             tcode_udp_port=int(vr["tcode_udp_port"]),
@@ -156,6 +177,10 @@ class VrSettings:
             audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
                 "vr", "compositor_layers", fallback="0").strip() == "1",
+            clips_dir=Path(clips_dir) if clips_dir else None,
+            notify_host=vr.get("notify_host", "127.0.0.1"),
+            notify_port=int(vr.get("notify_port", "50556")),
+            genau=GenauSettings.from_manifest(vr),
         )
 
 
@@ -252,10 +277,8 @@ class _VideoUnit:
 
 class _MainUnit(_VideoUnit):
     def __init__(self, manifest: LaunchManifest, vr: VrSettings, get_proc_address) -> None:
-        # Muted at birth: the main player's sound belongs on the headset, and the
-        # headset's sink cannot be trusted until the compositor is presenting
-        # (see route_audio) — unmuted-on-default would blare the room speakers
-        # for the whole warm-up instead.
+        # Muted at birth: the headset's sink cannot be trusted until the
+        # compositor is presenting (see route_audio).
         super().__init__(
             MpvRenderPlayer(get_proc_address, muted=True, loop_file=True),
             PRIMARY_VIDEO_CAP_PX,
@@ -289,17 +312,11 @@ class _MainUnit(_VideoUnit):
     def route_audio(self) -> None:
         """Give the primary its sound on the first frame the headset is WORN.
 
-        On the first headset run this routing happened at construction, while
-        the compositor was still bringing the headset up — and the sink took
-        the stream without consuming it, so mpv's audio clock (which the video
-        clock follows) never ticked: every player alive, the primary frozen on
-        frame 1 for the whole session.  Presenting turned out not to be enough
-        either: a session goes VISIBLE with the headset on its stand, and
-        routing then hit the same parked endpoint and wedged the clock for the
-        whole session (the 23:32 log's mpv=0.0 windows).  So the caller waits
-        for FOCUSED — the state that means a human is wearing it, endpoints
-        draining.  audio-fallback-to-null (player_core) backstops a sink that
-        still refuses: silent playback rather than no playback.
+        Routed earlier — at construction, or on VISIBLE with the headset on its
+        stand — the parked endpoint takes the stream without consuming it, and
+        mpv's audio clock (which the video clock follows) never ticks: the
+        primary frozen on frame 1 for the session.  FOCUSED means a human is
+        wearing it, endpoints draining.
         """
         if self._audio_routed:
             return
@@ -337,10 +354,8 @@ class _MainUnit(_VideoUnit):
 
 class _SatelliteUnit(_VideoUnit):
     def __init__(self, side: str, manifest: LaunchManifest, get_proc_address) -> None:
-        # audio=False, not merely muted: a satellite is silent by design, and
-        # any audio chain in this process can wedge on the headset's parked
-        # endpoint and freeze that player's video clock with it (see
-        # route_audio).  No track, video-timed clock, immune.
+        # audio=False, not merely muted: any audio chain here can wedge on the
+        # headset's parked endpoint and freeze the video clock (see route_audio).
         super().__init__(
             MpvRenderPlayer(
                 get_proc_address, muted=True, loop_file=False, prefetch=True, audio=False,
@@ -399,11 +414,136 @@ class _SatelliteUnit(_VideoUnit):
         self._close_graphics()
 
 
+class _GenauUnit:
+    """Genau's surface: the frame its engine chose, on the primary's screen or
+    wrapped round the viewer by the clip's projection.  No mpv behind it and
+    no furniture on it; the engine ticks on a thread of its own."""
+
+    def __init__(self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event) -> None:
+        if vr.clips_dir is None:
+            raise RuntimeError("the launch manifest names no clips folder for Genau's role")
+        commands = manifest.commands
+        genau_state = Path(commands.genau_cmd_file).parent
+        self.role = GenauRole(
+            clips_dir=vr.clips_dir,
+            settings=vr.genau,
+            command_file=Path(commands.genau_cmd_file),
+            paused_file=Path(commands.genau_paused_file),
+            drive_file=genau_state / "genau_drive.txt",
+            console_file=Path(commands.nau_console_file),
+            notifier=GenauNotifier(vr.notify_host, vr.notify_port),
+            tcode_sink=UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port),
+            stop_event=stop,
+            # Genau's own resume: the clip it was left showing, off its last status.
+            start_clip=read_genau_status(genau_status_path(genau_state)).clip or None,
+        )
+        self.texture = FrameTexture()
+        self.mesh: ScreenMesh | None = None
+        self._mesh_aspect: float | None = None
+
+    def render_latest_frame(self) -> None:
+        frame = self.role.take_frame()
+        if frame is None:
+            return
+        self.texture.upload(frame)
+        if self.mesh is None or self._mesh_aspect != self.texture.aspect:
+            if self.mesh is None:
+                self.mesh = ScreenMesh()
+            self.mesh.upload(surface_vertices(0.0, PRIMARY_WIDTH_DEG, aspect=self.texture.aspect))
+            self._mesh_aspect = self.texture.aspect
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        """Nothing: the engine turns its channels on its own thread."""
+
+    def close(self) -> None:
+        self.role.close()
+        self.texture.close()
+        if self.mesh is not None:
+            self.mesh.close()
+
+
+class _PanelUnit:
+    """The console, hung in the scene: painted on the pump thread, uploaded on
+    the render thread when it changed."""
+
+    def __init__(self, primary: _MainUnit, genau: _GenauUnit) -> None:
+        self._primary = primary
+        self._genau = genau
+        self._painter = ConsolePainter()
+        self._chip_painter = VolumeHudPainter()
+        self._lock = threading.Lock()
+        self._image = None
+        self._key = None
+        self._width = 320
+        self._uploaded = None
+        self.texture = FrameTexture()
+        self.mesh: ScreenMesh | None = None
+        self._mesh_aspect: float | None = None
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        genau, main = self._genau.role, self._primary.role
+        clip = genau.current_clip
+        hud = panel_hud(
+            genau.console_hud,
+            video_title=main.current_video.stem,
+            clip_title=clip.stem if clip is not None else "",
+            loading=genau.loading,
+        )
+        if genau.showing:
+            scrubber = None
+            chip = VolumeHud(volume=genau.volume, muted=genau.muted)
+        else:
+            scrubber = (main.position_ms, main.duration_ms)
+            chip = VolumeHud(volume=main.volume, muted=main.muted)
+        # Repainted only when what it shows moves, as the furniture is.
+        key = (
+            hud,
+            scrubber_state(self._width, 1, *scrubber) if scrubber is not None else None,
+            chip,
+        )
+        if key == self._key:
+            return
+        image = paint_panel(
+            self._painter, hud, scrubber=scrubber, chip=chip, chip_painter=self._chip_painter,
+        )
+        with self._lock:
+            self._image = image
+        self._key = key
+        self._width = image.width
+
+    def render_latest_frame(self) -> None:
+        with self._lock:
+            image = self._image
+        if image is None or image is self._uploaded:
+            return
+        self.texture.upload(np.asarray(image))
+        self._uploaded = image
+        if self.mesh is None or self._mesh_aspect != self.texture.aspect:
+            if self.mesh is None:
+                self.mesh = ScreenMesh()
+            self.mesh.upload(surface_vertices(
+                PANEL_AZIMUTH_DEG, PANEL_WIDTH_DEG,
+                aspect=self.texture.aspect,
+                center_elevation_deg=PANEL_ELEVATION_DEG,
+            ))
+            self._mesh_aspect = self.texture.aspect
+
+    def close(self) -> None:
+        self.texture.close()
+        if self.mesh is not None:
+            self.mesh.close()
+
+
 def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = build_parser().parse_args(argv)
     manifest = LaunchManifest.read(args.manifest)
     vr = VrSettings.read(args.manifest)
+    # Before any window exists: the VR session is its own app on the taskbar.
+    try:
+        set_app_user_model_id(VR_APP_USER_MODEL_ID)
+    except OSError:
+        logger.debug("Could not claim the taskbar identity", exc_info=True)
 
     ready = vr_runtime.ensure_ready()
     if ready.readiness is not vr_runtime.Readiness.READY:
@@ -413,17 +553,11 @@ def main(argv: list[str] | None = None) -> int:
     return _run(manifest, vr)
 
 
-def _pump_channels(units: list[_VideoUnit], stop: threading.Event, perf: FramePerf) -> None:
-    """The file-channel worker: every unit's pause flag, command drain, status
-    write, HUD poll and furniture repaint, at its own cadence.
-
-    This work is all file I/O and bitmap painting — none of it GL — and any of
-    it can stall (the state directory lives under a sync client), so it must
-    never share a thread with the frame loop.  Every mpv call it makes
-    (commands, property reads, overlay_add) is thread-safe against the render
-    thread's use of the render contexts; that split — client API on one
-    thread, render API on another — is libmpv's designed usage.
-    """
+def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:
+    """The file-channel worker: every unit's flags, drains, status writes and
+    repaints.  File I/O that can stall under a sync client, so never the frame
+    loop's thread; libmpv's client API on one thread and its render API on
+    another is its designed usage."""
     period = 1.0 / PUMP_HZ
     while not stop.is_set():
         started = time.monotonic()
@@ -467,17 +601,21 @@ def _draw_eyes(
     session,
     renderer: SceneRenderer,
     primary: _MainUnit,
+    genau: _GenauUnit,
     satellites: list[_SatelliteUnit],
+    panel: _PanelUnit,
     views,
     mode: int | None,
     scene_rotation: np.ndarray,
     *,
     include_screens: bool,
 ) -> None:
-    """Render the projection layer's two eyes: the immersive wrap, plus every
-    screen when the compositor-layer path is off (*include_screens*).
-    *scene_rotation* is where the arrangement sits, identity until the first
-    RECENTER or tilt."""
+    """Render the projection layer's two eyes: whichever main-slot player has
+    the scene, as an immersive wrap or a screen; every other screen when the
+    compositor-layer path is off (*include_screens*); the console panel over
+    all of it.  *scene_rotation* is where the arrangement sits."""
+    clip_showing = genau.role.showing
+    clip_mode = immersive_mode(genau.role.projection) if clip_showing else None
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
         renderer.begin_eye()
@@ -495,7 +633,13 @@ def _draw_eyes(
         )
         view_proj = projection_matrix @ view_matrix @ scene_rotation
         view_proj32 = np.ascontiguousarray(view_proj, dtype=np.float32)
-        if primary.target.ready:
+        if clip_showing and genau.texture.ready:
+            if clip_mode is not None:
+                inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
+                renderer.draw_immersive(clip_mode, genau.texture.texture, inv32, eye_index)
+            elif genau.mesh is not None and genau.mesh.ready:
+                renderer.draw_screen(genau.mesh, genau.texture.texture, view_proj32)
+        elif not clip_showing and primary.target.ready and primary.role.displayed:
             if mode is not None:
                 inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
                 renderer.draw_immersive(mode, primary.target.texture, inv32, eye_index)
@@ -505,6 +649,8 @@ def _draw_eyes(
             for satellite in satellites:
                 if satellite.target.ready and satellite.mesh is not None and satellite.mesh.ready:
                     renderer.draw_screen(satellite.mesh, satellite.target.texture, view_proj32)
+        if panel.texture.ready and panel.mesh is not None and panel.mesh.ready:
+            renderer.draw_screen(panel.mesh, panel.texture.texture, view_proj32, blend=True)
         session.release_eye_framebuffer(eye_index)
 
 
@@ -520,14 +666,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             session = VRSession()
             break
         except xr.exception.GraphicsDeviceInvalidError as exc:
-            # A cold-started runtime answers the readiness probe (instance +
-            # system) before its compositor's graphics device is up, and
-            # create_session landing in that window fails with
-            # GRAPHICS_DEVICE_INVALID.  The state is transient — the same
-            # call on an identically-made context succeeds once the runtime
-            # settles — so bring-up waits it out instead of dying on the
-            # popup.  (Observed with PimaxXR auto-started by ensure_ready:
-            # one cold launch raced through, the next crashed here.)
+            # A cold-started runtime answers the readiness probe before its
+            # compositor's graphics device is up, and create_session in that
+            # window fails with GRAPHICS_DEVICE_INVALID -- transient, so bring-up
+            # waits it out instead of dying on the popup.
             if time.monotonic() >= bringup_deadline:
                 logger.error("VR session bring-up failed: %s", exc)
                 _show_error_popup(
@@ -551,24 +693,31 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     def get_proc_address(name: str):
         return glfw.get_proc_address(name)
 
+    stop = threading.Event()
     primary = _MainUnit(manifest, vr, get_proc_address)
+    genau = _GenauUnit(manifest, vr, stop)
     satellites = [
         _SatelliteUnit("portrait", manifest, get_proc_address),
         _SatelliteUnit("landscape", manifest, get_proc_address),
     ]
-    units: list[_VideoUnit] = [primary, *satellites]
+    panel = _PanelUnit(primary, genau)
+    units = [primary, genau, *satellites, panel]
     use_layers = vr.compositor_layers
     perf = FramePerf(logger=logger)
     # The recentering yaw, with the role's tilt read in beside it each frame.
     scene_yaw = 0.0
     scene_rotation = np.eye(4, dtype=np.float32)
     last_frame_time = time.monotonic()
-    stop = threading.Event()
     pump_thread = start_daemon_thread(
         target=_pump_channels, args=(units, stop, perf), name="file-channels",
     )
+    # Genau's engine on its own thread: file I/O every turn, at the desktop
+    # window's rate rather than the pump's.
+    genau_thread = start_daemon_thread(
+        target=run_ticks, args=(genau.role, stop), name="genau-tick",
+    )
     logger.info(
-        "Entering the VR loop (three players up, compositor layers %s)",
+        "Entering the VR loop (four players up, compositor layers %s)",
         "on" if use_layers else "off",
     )
 
@@ -620,8 +769,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 )
                 mode = immersive_mode(primary.role.projection)
                 if use_layers:
-                    for index, unit in enumerate(units):
-                        if unit is primary and mode is not None:
+                    # The mpv-backed screens as quads; the primary stays in the
+                    # projection layer while it wraps the view or the clip has the scene.
+                    for index, unit in enumerate([primary, *satellites]):
+                        if unit is primary and (mode is not None or genau.role.showing):
                             continue
                         quad = _update_quad_layer(
                             session, renderer, index, unit,
@@ -629,16 +780,13 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         )
                         if quad is not None:
                             quads.append(quad)
-                    project = mode is not None and primary.target.ready
-                else:
-                    project = True
+                project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
-                if project:
-                    _draw_eyes(
-                        session, renderer, primary, satellites, views, mode,
-                        scene_rotation,
-                        include_screens=not use_layers,
-                    )
+                _draw_eyes(
+                    session, renderer, primary, genau, satellites, panel, views, mode,
+                    scene_rotation,
+                    include_screens=not use_layers,
+                )
             t4 = time.perf_counter()
             session.frame_end(display_time, views, project=project, quads=quads)
             t5 = time.perf_counter()
@@ -654,6 +802,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     finally:
         stop.set()
         pump_thread.join(timeout=2.0)
+        genau_thread.join(timeout=2.0)
         for unit in units:
             unit.close()
         renderer.close()

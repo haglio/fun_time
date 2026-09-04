@@ -220,6 +220,53 @@ class RenderTarget:
         GL.glDeleteTextures(1, [self.texture])
 
 
+class FrameTexture:
+    """A picture handed over as pixels (a Genau frame, the console panel) as a
+    texture: RGB or RGBA rows, top row first, uploaded the way up GL reads them."""
+
+    def __init__(self) -> None:
+        self.width = 0
+        self.height = 0
+        self.texture = int(GL.glGenTextures(1))
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MIN_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_MAG_FILTER, GL.GL_LINEAR)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_S, GL.GL_CLAMP_TO_EDGE)
+        GL.glTexParameteri(GL.GL_TEXTURE_2D, GL.GL_TEXTURE_WRAP_T, GL.GL_CLAMP_TO_EDGE)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+
+    def upload(self, pixels: np.ndarray) -> None:
+        height, width, channels = pixels.shape
+        if width <= 0 or height <= 0:
+            return
+        rows = np.ascontiguousarray(pixels[::-1])
+        source = GL.GL_RGBA if channels == 4 else GL.GL_RGB
+        GL.glPixelStorei(GL.GL_UNPACK_ALIGNMENT, 1)
+        GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
+        if (width, height) != (self.width, self.height):
+            self.width, self.height = width, height
+            GL.glTexImage2D(
+                GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0,
+                source, GL.GL_UNSIGNED_BYTE, rows,
+            )
+        else:
+            GL.glTexSubImage2D(
+                GL.GL_TEXTURE_2D, 0, 0, 0, width, height, source, GL.GL_UNSIGNED_BYTE, rows,
+            )
+        GL.glBindTexture(GL.GL_TEXTURE_2D, 0)
+
+    @property
+    def ready(self) -> bool:
+        return self.width > 0
+
+    @property
+    def aspect(self) -> float:
+        return self.width / self.height if self.height else 16 / 9
+
+    def close(self) -> None:
+        GL.glDeleteTextures(1, [self.texture])
+
+
 class ScreenMesh:
     """One screen's triangle strip in a static VBO.
 
@@ -307,14 +354,22 @@ class SceneRenderer:
         GL.glBindVertexArray(0)
         GL.glUseProgram(0)
 
-    def draw_screen(self, mesh: ScreenMesh, texture: int, view_proj: np.ndarray) -> None:
-        """*view_proj* must already be float32, like :meth:`draw_immersive`'s."""
+    def draw_screen(
+        self, mesh: ScreenMesh, texture: int, view_proj: np.ndarray, *, blend: bool = False,
+    ) -> None:
+        """*view_proj* must already be float32, like :meth:`draw_immersive`'s;
+        *blend* composites by alpha, for the panel floating over the scene."""
         GL.glUseProgram(self._quad_program)
         GL.glUniform1i(self._quad_tex, 0)
         GL.glUniformMatrix4fv(self._quad_view_proj, 1, GL.GL_TRUE, view_proj)
         GL.glActiveTexture(GL.GL_TEXTURE0)
         GL.glBindTexture(GL.GL_TEXTURE_2D, texture)
+        if blend:
+            GL.glEnable(GL.GL_BLEND)
+            GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
         mesh.draw()
+        if blend:
+            GL.glDisable(GL.GL_BLEND)
         GL.glUseProgram(0)
 
     def copy_texture(self, texture: int) -> None:

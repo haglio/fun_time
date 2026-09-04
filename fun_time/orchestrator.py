@@ -96,7 +96,7 @@ def run_windows_bridge(config, logger) -> int:
     return exit_code
 
 
-def _taskbar_pin_dir() -> Path:
+def taskbar_pin_dir() -> Path:
     """Return the Windows taskbar pinned-shortcuts folder."""
     appdata = os.environ.get("APPDATA", "")
     return Path(appdata) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
@@ -118,7 +118,7 @@ def stamp_shortcut_aumid() -> None:
     """
     _log = logging.getLogger(__name__)
 
-    pin_dir = _taskbar_pin_dir()
+    pin_dir = taskbar_pin_dir()
     if not pin_dir.is_dir():
         return
 

@@ -10,3 +10,5 @@ from __future__ import annotations
 
 # Must match the value stamped on the pinned taskbar shortcut.
 APP_USER_MODEL_ID = "FunTime.App"
+# The VR session's: a second app to the person clicking, so a second button.
+VR_APP_USER_MODEL_ID = "FunTimeVR.App"

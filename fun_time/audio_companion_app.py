@@ -32,7 +32,34 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--mode-file", default=str(config.genau_mode_file))
     ap.add_argument("--paused-file", default=str(config.audio_paused_file))
     ap.add_argument("--volume-file", default=str(config.audio_volume_file))
+    ap.add_argument("--audio-device", default=None,
+                    help="Play on the output whose name contains this (a headset), "
+                         "rather than the default device")
     return ap
+
+
+def pick_audio_device(names, wanted: str | None) -> str | None:
+    """The first output whose name contains *wanted*, else None for the default
+    -- an unmatched name too, rather than a companion that will not start."""
+    if not wanted:
+        return None
+    needle = wanted.strip().lower()
+    for name in names:
+        if needle in str(name).lower():
+            return str(name)
+    return None
+
+
+def init_mixer(wanted: str | None) -> str | None:
+    """Open the mixer on the output *wanted* names -- the headset, in VR -- else
+    the default, and say which."""
+    device = None
+    if wanted:
+        from pygame._sdl2.audio import get_audio_device_names
+
+        device = pick_audio_device(get_audio_device_names(False), wanted)
+    pygame.mixer.init(devicename=device)
+    return device
 
 
 def force_muted() -> bool:
@@ -239,7 +266,9 @@ def main(argv: list[str] | None = None) -> None:
     paused_file = Path(args.paused_file)
     volume_file = Path(args.volume_file)
 
-    pygame.mixer.init()
+    device = init_mixer(args.audio_device)
+    if args.audio_device:
+        logger.info("Audio device %r -> %s", args.audio_device, device or "no match; default")
     muted = force_muted()
     if muted:
         pygame.mixer.music.set_volume(0)

@@ -1,4 +1,4 @@
-"""Vulture whitelist — false positives that are not dead code.
+"""Vulture whitelist â€” false positives that are not dead code.
 
 Each entry tells vulture the name is used, suppressing the report.  Vulture
 matches by bare name, so an entry that suppresses nothing keeps covering
@@ -29,3 +29,4 @@ get_process_image_name  # the integration reap, to tell a leftover app from pyte
 _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
+VR_APP_USER_MODEL_ID  # win32_taskbar; read by fun_time_vr, a scan of its own

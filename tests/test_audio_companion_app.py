@@ -390,3 +390,55 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
             assert measure(tmp_path / "broken.mp3") is None
 
         assert "broken.mp3" in str(logger.warning.call_args)
+
+
+class TestTheOutputItPlaysOn:
+    """In VR the clip music belongs on the headset with everything else the
+    session plays; the default device is the room's speakers."""
+
+    NAMES = ["Speakers (Realtek)", "Headphones (Pimax 8K)", "Digital Output"]
+
+    def test_the_first_output_whose_name_contains_the_wanted_word_is_picked(self):
+        from fun_time.audio_companion_app import pick_audio_device
+
+        assert pick_audio_device(self.NAMES, "pimax") == "Headphones (Pimax 8K)"
+
+    def test_the_match_ignores_case_and_surrounding_space(self):
+        from fun_time.audio_companion_app import pick_audio_device
+
+        assert pick_audio_device(self.NAMES, "  PIMAX ") == "Headphones (Pimax 8K)"
+
+    def test_no_wanted_device_means_the_default(self):
+        from fun_time.audio_companion_app import pick_audio_device
+
+        assert pick_audio_device(self.NAMES, None) is None
+        assert pick_audio_device(self.NAMES, "") is None
+
+    def test_a_name_nothing_matches_means_the_default_too(self):
+        """Rather than a companion that will not start: the session still plays,
+        through the room."""
+        from fun_time.audio_companion_app import pick_audio_device
+
+        assert pick_audio_device(self.NAMES, "Quest") is None
+
+    def test_the_mixer_opens_on_the_picked_device(self):
+        from fun_time.audio_companion_app import init_mixer
+
+        with patch("pygame._sdl2.audio.get_audio_device_names", return_value=self.NAMES), \
+             patch.object(audio_companion_app.pygame.mixer, "init") as init:
+            picked = init_mixer("pimax")
+
+        assert picked == "Headphones (Pimax 8K)"
+        init.assert_called_once_with(devicename="Headphones (Pimax 8K)")
+
+    def test_with_nothing_wanted_the_devices_are_not_even_listed(self):
+        """The desktop session: the default output, no SDL device enumeration."""
+        from fun_time.audio_companion_app import init_mixer
+
+        with patch("pygame._sdl2.audio.get_audio_device_names") as listed, \
+             patch.object(audio_companion_app.pygame.mixer, "init") as init:
+            picked = init_mixer(None)
+
+        assert picked is None
+        listed.assert_not_called()
+        init.assert_called_once_with(devicename=None)
