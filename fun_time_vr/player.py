@@ -36,7 +36,6 @@ from __future__ import annotations
 
 import argparse
 import configparser
-import ctypes
 import logging
 import math
 import threading
@@ -56,6 +55,7 @@ from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
 from fun_time.manifest import LaunchManifest
+from fun_time.project_paths import PROJECT_VR_ICON
 from satellite.hud_overlay import HudOverlay
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
@@ -114,13 +114,11 @@ _MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
 
 
 def _show_error_popup(message: str) -> None:
-    """A foreground Win32 error box — a hidden-launched process that just
-    exits is indistinguishable from a crash."""
-    mb_ok, mb_iconerror = 0x0, 0x10
-    mb_setforeground, mb_topmost = 0x00010000, 0x00040000
-    ctypes.windll.user32.MessageBoxW(
-        None, message, "FunTimeVR", mb_ok | mb_iconerror | mb_setforeground | mb_topmost,
-    )
+    """Say why the headset never lit up -- a hidden launch that just exits
+    is indistinguishable from a crash."""
+    from shared_ui.alert import show_alert
+
+    show_alert("FunTimeVR", message, icon=PROJECT_VR_ICON)
 
 
 def build_parser() -> argparse.ArgumentParser:
