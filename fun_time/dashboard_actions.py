@@ -7,7 +7,6 @@ loop matches on the string either way.
 """
 from __future__ import annotations
 
-
 QUIT_BUTTON = "quit"
 OMNIMINIMIZE = "omniminimize"
 OMNIRESTORE = "omnirestore"

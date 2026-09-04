@@ -4,17 +4,16 @@ from __future__ import annotations
 from dataclasses import fields
 from pathlib import Path
 
-from fun_time.shared_state import BridgeState
 from fun_time.session_resume import (
     RESUMED_FIELDS,
     playlist_fits_sources,
     playlist_opens_on,
-    resume_playlists,
     resume_main_loop,
+    resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
 )
-from fun_time.shared_state import read_shared_state, write_shared_state
+from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 
 
 def _clips(tmp_path: Path, *names: str) -> list[str]:

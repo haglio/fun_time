@@ -22,49 +22,30 @@ from pathlib import Path
 
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
-from .overlay_progress import (
-    CANCEL_FILENAME,
-    NullProgress,
-    PROGRESS_FILENAME,
-    SHUTDOWN_PHASES,
-    SHUTDOWN_PROGRESS_FILENAME,
-    PhaseProgress,
-    ProgressReporter,
-    StartupCancelled,
-    ready_file_for,
-)
 from .hud_transport import HUD_FILENAME, HudPublisher
 from .library_handles import build_library_handles
+from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .lock_hud import prime_group_indexes
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import LaunchManifest
 from .mode_plan import genau_active
 from .modes import collect_video_files
+from .overlay_progress import (
+    CANCEL_FILENAME,
+    PROGRESS_FILENAME,
+    SHUTDOWN_PHASES,
+    SHUTDOWN_PROGRESS_FILENAME,
+    NullProgress,
+    PhaseProgress,
+    ProgressReporter,
+    StartupCancelled,
+    ready_file_for,
+)
 from .process_identity import NAMER
-from .shared_state import shared_state_path
 from .role_windows import ChildPids, WindowRoles
-from .window_roles import ORIGENERATOR_ROLE_TITLES
+from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
-from .windows_bridge_random_favs_browser import ChromeShortcut
-from .windows_bridge_dispatch_loop import (
-    DispatchLoopRunner,
-    build_bridge_config_from_manifest,
-)
-from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
-from .windows_bridge_sequencer import (
-    keep_the_cover_up,
-    release_the_players,
-    StartupResult,
-    apply_startup_window_state,
-    apply_topmost_bands,
-    resolve_shortcut,
-    run_startup_sequence,
-)
-from .windows_bridge_startup import (
-    SATELLITE_LANDSCAPE_TITLE,
-    SATELLITE_PORTRAIT_TITLE,
-)
 from .win32 import (
     close_window,
     find_window_by_pid,
@@ -75,6 +56,25 @@ from .win32 import (
     windows_obscuring,
 )
 from .win32_process import get_process_creation_time
+from .window_roles import ORIGENERATOR_ROLE_TITLES
+from .windows_bridge_dispatch_loop import (
+    DispatchLoopRunner,
+    build_bridge_config_from_manifest,
+)
+from .windows_bridge_random_favs_browser import ChromeShortcut
+from .windows_bridge_sequencer import (
+    StartupResult,
+    apply_startup_window_state,
+    apply_topmost_bands,
+    keep_the_cover_up,
+    release_the_players,
+    resolve_shortcut,
+    run_startup_sequence,
+)
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+)
 
 logger = logging.getLogger(__name__)
 

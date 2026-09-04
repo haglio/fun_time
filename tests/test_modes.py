@@ -1,17 +1,17 @@
 from __future__ import annotations
 
+import json
 import os
 import random
 from pathlib import Path
 
-import json
-
+from fun_time.media_metadata import metadata_path_for
 from fun_time.modes import (
     SatelliteBuild,
     SatelliteLibraryContext,
     build_all_playlists,
-    build_mirrored_funscript_path,
     build_main_playlist_paths,
+    build_mirrored_funscript_path,
     build_satellite_playlist_paths,
     build_satellite_playlists,
     collect_video_files,
@@ -22,7 +22,6 @@ from fun_time.modes import (
     shuffle_paths,
     sort_paths_by_recency,
 )
-from fun_time.media_metadata import metadata_path_for
 
 
 def _lines(playlist: Path) -> list[str]:

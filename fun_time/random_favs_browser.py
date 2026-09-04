@@ -4,12 +4,11 @@ import csv
 import json
 import random
 from dataclasses import dataclass
-
-from .favs_csv import hyperlink_parts
 from pathlib import Path
 from typing import TypeVar
 
-from .config import RegenConfig, ProjectConfig
+from .config import ProjectConfig, RegenConfig
+from .favs_csv import hyperlink_parts
 from .media_renditions import original_rendition
 from .regen import regen_url_for_video
 from .rfb_tab_page import TabTarget

@@ -6,7 +6,6 @@ import re
 import sys
 from pathlib import Path
 
-
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # Every top-level package ships from this repo, so all must be covered: the
 # satellite player pulls in numpy and Pillow that the orchestrator alone would

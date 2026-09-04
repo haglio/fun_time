@@ -1,15 +1,15 @@
 """The main library browser — folder tiles you walk, then the videos inside."""
 from __future__ import annotations
 
-import pytest
-
 from pathlib import Path
 
+import pytest
 from PIL import Image
 from PyQt6.QtCore import QEvent, Qt
 from PyQt6.QtGui import QKeyEvent
 from PyQt6.QtWidgets import QListWidget
 
+from fun_time import load_config
 from fun_time.library_browser import (
     ICON_HEIGHT,
     ICON_WIDTH,
@@ -27,7 +27,6 @@ from fun_time.library_handles import LibraryHandle
 from fun_time.library_tree import SubFolder
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
-from fun_time import load_config
 
 
 def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
@@ -46,7 +45,7 @@ def _backspace() -> QKeyEvent:
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def browser():
     """Build LibraryBrowserWindow(s) that always close with the test.
 

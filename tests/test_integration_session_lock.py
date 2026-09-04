@@ -20,9 +20,8 @@ import time
 import uuid
 from pathlib import Path
 
-from app_support.threading_utils import wait_until
-
 import pytest
+from app_support.threading_utils import wait_until
 
 from tests.integration.session_lock import (
     SingleInstanceLock,

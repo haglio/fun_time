@@ -7,6 +7,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from fun_time import orchestrator
+from fun_time.config import load_config
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     build_windows_bridge_manifest,
@@ -22,9 +24,6 @@ from fun_time.orchestrator import (
     startup_marker_path,
     validate_config,
 )
-from fun_time import orchestrator
-from fun_time.config import load_config
-
 
 # ---------------------------------------------------------------------------
 # build_parser

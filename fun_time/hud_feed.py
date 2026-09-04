@@ -10,8 +10,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from .bridge_records import BridgeConfig
-from .players import Player
-from .shared_state import BridgeState
+from .hud_transport import HudPublisher
+from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
+from .modes import is_favorite_path, read_favs_content
+from .nau_console import console_payload
 from .player_status import (
     genau_status_path,
     is_broker_heartbeat_fresh,
@@ -19,13 +21,11 @@ from .player_status import (
     read_genau_status,
     read_nau_status,
 )
-from .hud_transport import HudPublisher
-from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
-from .modes import is_favorite_path, read_favs_content
-from .nau_console import console_payload
+from .players import Player
 from .runtime_flow import read_flag_file
 from .satellite_control import read_satellite_status
 from .satellites_mode import origenerator_shows
+from .shared_state import BridgeState
 
 # The satellites play ~5 s clips, so the HUD map has to track the current clip
 # almost the instant it changes — but not at the loop's own 20 Hz.  Building a

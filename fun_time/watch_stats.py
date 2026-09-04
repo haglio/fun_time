@@ -15,8 +15,8 @@ import json
 import math
 import random
 import time
+from collections.abc import Callable, Iterable
 from pathlib import Path
-from typing import Callable, Iterable
 
 from .media_metadata import normalize_path_key
 

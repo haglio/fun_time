@@ -34,24 +34,26 @@ from fun_time.branch_session import apply_genau_dirs_to_sys_path
 # rules".)
 apply_genau_dirs_to_sys_path()
 
+from player_core.playlist import read_playlist
+
 from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_log import open_child_log
 from fun_time.config import load_config
-from fun_time.player_status import read_nau_status
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
     write_manifest_data,
 )
+from fun_time.mode_plan import STARTUP_MAIN_MODE
 from fun_time.modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
-    SatelliteLibraryContext,
     SatelliteBuild,
+    SatelliteLibraryContext,
     build_all_playlists,
-    build_playlist_file_path,
     build_main_playlist,
+    build_playlist_file_path,
 )
 from fun_time.orchestrator import (
     ensure_runtime_files,
@@ -59,8 +61,9 @@ from fun_time.orchestrator import (
     signal_startup_resolved,
     validate_config,
 )
-from fun_time.mode_plan import STARTUP_MAIN_MODE
+from fun_time.player_status import read_nau_status
 from fun_time.role_windows import ChildPids, WindowRoles
+from fun_time.runtime_flow import write_flag_file
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_resume import (
     resume_playlists,
@@ -70,15 +73,16 @@ from fun_time.session_resume import (
 from fun_time.shared_state import shared_state_path, write_shared_state
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from fun_time.watch_stats import watch_stats_path
+from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
 )
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
+    kill_recorded_child,
     open_event_log,
     start_hud_priming,
-    kill_recorded_child,
     write_pids_file,
 )
 from fun_time.windows_bridge_startup import (
@@ -87,9 +91,6 @@ from fun_time.windows_bridge_startup import (
     reset_satellite_paused_states,
     seed_startup_states,
 )
-from fun_time.win32_process import get_process_creation_time
-from fun_time.runtime_flow import write_flag_file
-from player_core.playlist import read_playlist
 
 from . import vr_runtime
 from .projection import is_vr_video

@@ -25,15 +25,14 @@ import configparser
 import queue
 import subprocess
 import threading
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import QAbstractItemView, QHBoxLayout, QListWidget, QListWidgetItem, QWidget
-
 from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, SIZE_SMALL, make_font
 

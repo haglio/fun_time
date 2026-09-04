@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 
 from player_core.file_channel import append_command
-
 from player_core.satellite_hud import (
     MARGIN,
     HudClicks,

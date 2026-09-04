@@ -4,10 +4,9 @@ import ast
 import io
 import re
 import subprocess
-import tokenize
 import sys
+import tokenize
 from pathlib import Path
-
 
 ROOT = Path(__file__).resolve().parent.parent
 WHITELIST = ROOT / "vulture_whitelist.py"

@@ -1,9 +1,8 @@
 """Tests for fun_time.single_instance."""
 from __future__ import annotations
 
-from unittest.mock import patch
-
 from pathlib import Path
+from unittest.mock import patch
 
 from fun_time.single_instance import (
     ERROR_ALREADY_EXISTS,
@@ -12,7 +11,6 @@ from fun_time.single_instance import (
     show_already_running_message,
     try_acquire_mutex,
 )
-
 
 
 class TestTryAcquireMutex:

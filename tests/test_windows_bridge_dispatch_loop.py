@@ -10,30 +10,28 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
-
 from app_support.threading_utils import wait_until
+
 from fun_time.bridge_records import BridgeConfig, WindowOp
-from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
-from fun_time.shared_state import BridgeState
 from fun_time.media_metadata import normalize_path_key
-from fun_time.voice_commands import parse_command_line
-from fun_time.shared_state import read_shared_state, write_shared_state
-from fun_time.watch_stats import load_watch_stats
-from fun_time.windows_bridge_dispatch_loop import (
-    poll_dashboard_commands,
-    expand_both_command,
-    resolve_active_side_command,
-    detect_sleep_gap,
-    DispatchLoopRunner,
-)
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
     WindowRoles,
 )
+from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
+from fun_time.voice_commands import parse_command_line
+from fun_time.watch_stats import load_watch_stats
+from fun_time.windows_bridge_dispatch_loop import (
+    DispatchLoopRunner,
+    detect_sleep_gap,
+    expand_both_command,
+    poll_dashboard_commands,
+    resolve_active_side_command,
+)
+from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
-    FakeClock,
     DASHBOARD_PID,
     GENAU_HWND,
     LANDSCAPE_HWND,
@@ -44,6 +42,7 @@ from tests.role_window_fakes import (
     PORTRAIT_PID,
     RFB_HWND,
     TOPMOST_HWNDS,
+    FakeClock,
     lookup_pid,
     lookup_title,
 )
@@ -1712,7 +1711,6 @@ class TestBrowseLibrary:
             browses.append("open")
             first_browse_open.set()
             let_the_browse_close.wait(timeout=10.0)
-            return None
 
         with patch("fun_time.windows_bridge_dispatch_loop.browse_library",
                    side_effect=a_browser_the_user_is_sitting_in):
@@ -2123,7 +2121,7 @@ class TestIdempotentVoiceCommands:
         from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, _OP_HANDLERS
 
         assert set(_OP_HANDLERS) == set(Op)
-        assert _AHK_PASSTHROUGH_OPS == {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS}
+        assert {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS} == _AHK_PASSTHROUGH_OPS
 
     # -- clipper save --
 
@@ -2142,7 +2140,7 @@ class TestIdempotentVoiceCommands:
             runner.tick()
             wait_until(lambda: mock_save.call_count >= 1, timeout=10.0)
             wait_until(
-                lambda: any("Clipper: fabricated-session" == r.message for r in caplog.records),
+                lambda: any(r.message == "Clipper: fabricated-session" for r in caplog.records),
                 timeout=10.0,
             )
         mock_save.assert_called_once_with(runner.config)

@@ -22,18 +22,16 @@ session, and a crash or a power cut too, where a shutdown hook would not.
 """
 from __future__ import annotations
 
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 from player_core.file_channel import append_command
 from player_core.playlist import read_playlist
 
-from .shared_state import BridgeState
 from .media_metadata import normalize_path_key
 from .modes import source_roots, write_playlist_entries
 from .runtime_flow import SET_LOOP_CMD
-from .shared_state import read_shared_state, write_shared_state
-
+from .shared_state import BridgeState, read_shared_state, write_shared_state
 
 PlaylistEntries = list[tuple[Path, Path | None]]
 

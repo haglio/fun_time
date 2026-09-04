@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import logging
-
 import configparser
 import json
+import logging
 import os
 import shutil
 import sys
@@ -14,25 +13,28 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
-from fun_time.shared_state import BridgeState
-from fun_time.modes import SatelliteLibraryContext
-from fun_time.shared_state import read_shared_state, shared_state_path, write_shared_state
+from fun_time.modes import SatelliteBuild, SatelliteLibraryContext
 from fun_time.players import Player
-from fun_time.modes import SatelliteBuild
 from fun_time.satellite_slot import SatelliteSlot
-from fun_time.window_layout import WindowLayoutPlan, WindowRect
+from fun_time.shared_state import (
+    BridgeState,
+    read_shared_state,
+    shared_state_path,
+    write_shared_state,
+)
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
+from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
     _build_satellite_launch_command,
     broker_source_mtime,
-    launch_satellite,
     ensure_broker,
+    launch_broker_tray,
     launch_core_apps,
     launch_genau,
     launch_nau,
     launch_origenerator,
-    launch_broker_tray,
+    launch_satellite,
     launch_ui_companions,
     prepare_random_favs_browser_manifest,
     reap_orphaned_satellites,
@@ -969,8 +971,7 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
     session that closed in it comes back with both players paused (and black,
     off the published mode) — exactly as the mode switch would have left them,
     rather than playing invisibly under the restored app."""
-    from fun_time.shared_state import BridgeState
-    from fun_time.shared_state import shared_state_path, write_shared_state
+    from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 
     kwargs = _start_core_session_kwargs(tmp_path)
     write_shared_state(shared_state_path(kwargs["state_dir"]),

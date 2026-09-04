@@ -58,4 +58,4 @@ def test_every_spoken_wrong_action_is_self_reporting():
 
 
 def test_every_self_reporting_command_is_a_real_voice_command():
-    assert SELF_REPORTING_COMMANDS <= set(VOICE_COMMANDS.values())
+    assert set(VOICE_COMMANDS.values()) >= SELF_REPORTING_COMMANDS

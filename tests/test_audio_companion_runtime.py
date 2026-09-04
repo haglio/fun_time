@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import socket
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -9,7 +8,7 @@ from fun_time.audio_companion_runtime import AudioCompanionRuntime
 
 def test_process_iteration_applies_pause_command_on_socket_timeout(tmp_path: Path):
     sock = Mock()
-    sock.recvfrom.side_effect = socket.timeout()
+    sock.recvfrom.side_effect = TimeoutError()
     controller = Mock()
     read_mode_active = Mock(return_value=False)
     read_paused_state = Mock(return_value=True)
@@ -59,7 +58,7 @@ def test_process_iteration_applies_the_published_volume(tmp_path: Path):
     """The bridge owns the sound level and publishes it to a file; the companion
     polls it beside the pause flag so a restarted companion re-reads it."""
     sock = Mock()
-    sock.recvfrom.side_effect = socket.timeout()
+    sock.recvfrom.side_effect = TimeoutError()
     controller = Mock()
     runtime = AudioCompanionRuntime(
         sock=sock,

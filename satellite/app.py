@@ -20,7 +20,6 @@ from pathlib import Path
 
 import numpy as np
 import pygame
-
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click

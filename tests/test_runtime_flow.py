@@ -1,17 +1,16 @@
 from __future__ import annotations
 
+import json
 import os
 from pathlib import Path
 
 import pytest
 
-import json
-
 from fun_time.players import Player
 from fun_time.runtime_flow import (
-    SatelliteFmodeInputs,
     FMODE_PLAYERS,
     PORTRAIT_PLAYER,
+    SatelliteFmodeInputs,
     apply_enter_omnipause,
     apply_fmode,
     apply_leave_omnipause,

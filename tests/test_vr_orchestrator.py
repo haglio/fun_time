@@ -5,20 +5,19 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.shared_state import BridgeState
 from fun_time.config import load_config
-from fun_time.shared_state import read_shared_state, write_shared_state
-from fun_time_vr.player import VrSettings
+from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     _release_vr_runtime,
     build_vr_manifest,
-    stock_the_playlists,
     main_playlist_has_vr,
     resume_vr_state,
+    stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
 )
+from fun_time_vr.player import VrSettings
 
 
 @pytest.fixture

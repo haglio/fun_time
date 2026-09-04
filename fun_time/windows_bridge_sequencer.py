@@ -20,29 +20,21 @@ from pathlib import Path
 from player_core.file_channel import append_command
 
 from .config import LayoutConfig
+from .manifest import LaunchManifest, RandomFavsBrowserSettings
+from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
+from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
+from .monitors import enumerate_monitors, get_logical_monitor_rects
+from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .player_status import (
     genau_status_path,
     read_genau_status,
     read_nau_status,
 )
-from .satellite_control import read_satellite_status
-from .shared_state import read_shared_state, shared_state_path
-from .mode_plan import STARTUP_MAIN_MODE, genau_active, nau_displays
-from .manifest import LaunchManifest, RandomFavsBrowserSettings
-from .monitors import enumerate_monitors, get_logical_monitor_rects
-from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
-from .windows_bridge_random_favs_browser import ChromeShortcut, launch_random_favs_browser
+from .players import Player
 from .runtime_flow import write_flag_file
-from .windows_bridge_startup import (
-    SATELLITE_LANDSCAPE_TITLE,
-    SATELLITE_PORTRAIT_TITLE,
-    launch_genau,
-    launch_nau,
-    launch_origenerator,
-    launch_ui_companions,
-    start_core_session,
-)
-from .window_roles import MANAGED_ROLES, ORIGENERATOR_ROLE_TITLES, role_topmost
+from .satellite_control import read_satellite_status
+from .satellite_slot import SatelliteSlot
+from .shared_state import read_shared_state, shared_state_path
 from .win32 import (
     disable_window_transitions,
     find_window_for_process,
@@ -52,15 +44,23 @@ from .win32 import (
     set_always_on_top,
     wait_for_window_by_title,
 )
-from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
-from .players import Player
-from .satellite_slot import SatelliteSlot
 from .window_layout import (
     MonitorRect,
     WindowLayoutPlan,
     WindowRect,
     compute_main_media_rect,
     compute_window_layout,
+)
+from .window_roles import MANAGED_ROLES, ORIGENERATOR_ROLE_TITLES, role_topmost
+from .windows_bridge_random_favs_browser import ChromeShortcut, launch_random_favs_browser
+from .windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+    launch_genau,
+    launch_nau,
+    launch_origenerator,
+    launch_ui_companions,
+    start_core_session,
 )
 
 logger = logging.getLogger(__name__)

@@ -4,8 +4,8 @@ import json
 from pathlib import Path
 
 from fun_time.lock_hud import (
-    build_hud_panel,
     SideInputs,
+    build_hud_panel,
     build_panels,
     cell_path,
     hud_map_cells,
@@ -17,6 +17,8 @@ from fun_time.lock_hud import (
 from fun_time.media_metadata import (
     GroupIndex,
     metadata_path_for,
+)
+from fun_time.media_metadata import (
     normalize_path_key as K,
 )
 
@@ -833,7 +835,7 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
 
     # Served from the primed cache: a lazy build here (empty supplier) would be
     # empty, so a non-empty index proves prime populated it from the real tree.
-    index = cached_group_index(sources, paths_supplier=lambda: [], metadata_root=metadata_root, must_contain=None)
+    index = cached_group_index(sources, paths_supplier=list, metadata_root=metadata_root, must_contain=None)
     assert index.path_by_key
 
 

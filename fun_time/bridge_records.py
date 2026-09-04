@@ -85,7 +85,7 @@ class BridgeConfig:
     regen_generate_video_url: str = RegenConfig.generate_video_url
     regen_generate_image_url: str = RegenConfig.generate_image_url
 
-    def side(self, which: int) -> "SideChannel":
+    def side(self, which: int) -> SideChannel:
         """Satellite *which*'s (2=portrait, 3=landscape) file quartet and sources."""
         if which == 2:
             return SideChannel(

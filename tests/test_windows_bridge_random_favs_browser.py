@@ -14,7 +14,6 @@ from fun_time.windows_bridge_random_favs_browser import (
     read_random_favs_browser_manifest,
 )
 
-
 # --- Open RFB tab ---
 
 

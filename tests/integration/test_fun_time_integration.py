@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import re
 import shutil
 import sys
@@ -10,23 +9,21 @@ from pathlib import Path
 import pytest
 
 from fun_time.media_actions import remove_from_favs
-from fun_time.satellite_control import read_satellite_status
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
-from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
+from fun_time.satellite_control import read_satellite_status
 from fun_time.win32 import (
-    find_window_by_pid,
     find_window_by_title,
     is_window_minimized,
     is_window_topmost,
 )
 from fun_time.win32_process import is_process_alive
+from fun_time.windows_bridge_sequencer import _resolve_satellite_hwnds
 
 from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
 )
-
 
 pytestmark = pytest.mark.skipif(
     sys.platform != "win32",

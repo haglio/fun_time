@@ -42,7 +42,7 @@ def thumbnail_path(video_path: str | Path, cache_dir: str | Path) -> Path:
         mtime = int(resolved.stat().st_mtime)
     except OSError:
         mtime = 0
-    digest = hashlib.sha1(f"{resolved}|{mtime}".encode("utf-8")).hexdigest()[:16]
+    digest = hashlib.sha1(f"{resolved}|{mtime}".encode()).hexdigest()[:16]
     return Path(cache_dir) / f"{digest}.jpg"
 
 

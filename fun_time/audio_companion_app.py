@@ -12,14 +12,13 @@ from pathlib import Path
 from typing import Any
 
 import pygame
+from app_support.cli import preparse_config_path
+from app_support.logging_utils import configure_logging, install_exception_logging
+from player_core.file_channel import read_paused_state
 
 from .audio_companion_runtime import AudioCompanionRuntime
 from .audio_volume import MAX_VOLUME, read_volume
 from .config import load_config
-from player_core.file_channel import read_paused_state
-
-from app_support.cli import preparse_config_path
-from app_support.logging_utils import configure_logging, install_exception_logging
 
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
 
@@ -161,12 +160,11 @@ class AudioPlaybackController:
                     self.paused = False
             else:
                 self.play_current_clip_from_saved_position()
-        else:
-            if self.music.get_busy() and not self.paused:
-                self.save_active_clip_position()
-                self.music.pause()
-                self.playback_running = False
-                self.paused = True
+        elif self.music.get_busy() and not self.paused:
+            self.save_active_clip_position()
+            self.music.pause()
+            self.playback_running = False
+            self.paused = True
 
     def switch_clip(self, path: Path | None) -> None:
         if self.current_path is not None:

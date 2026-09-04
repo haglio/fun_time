@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fun_time.rfb_tab_page import TabTarget, render_tab_page, tabs_dir, write_tab_pages
 from fun_time.loopback_server import omnipause_url
+from fun_time.rfb_tab_page import TabTarget, render_tab_page, tabs_dir, write_tab_pages
 
 REGEN_URL = "https://example.com/create#ft=%7B%22kind%22%3A%22image%22%7D"
 

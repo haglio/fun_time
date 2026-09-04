@@ -19,9 +19,8 @@ import pytest
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import SideInputs, build_hud_panel
-from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
-from fun_time.thumbnail_cache import thumbnail_for
+from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
 

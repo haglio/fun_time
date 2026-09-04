@@ -5,8 +5,8 @@ import json
 from pathlib import Path
 
 import pytest
-
 from player_core.satellite_hud import MARGIN
+
 from satellite.hud_overlay import HudOverlay
 from tests.satellite_fakes import FakeSatellitePlayer
 

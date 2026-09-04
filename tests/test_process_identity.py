@@ -14,8 +14,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.process_identity import NAMER, prepare_orchestrator_launcher
-from fun_time.windows_bridge_startup import reap_orphaned_satellites
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+from fun_time.windows_bridge_startup import reap_orphaned_satellites
 
 # Every role this repo launches a child under, gathered from the launch sites in
 # windows_bridge_startup, windows_bridge_orchestrator and library_browser, plus

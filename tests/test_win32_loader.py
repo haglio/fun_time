@@ -61,7 +61,7 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
     )
 
 
-@pytest.fixture()
+@pytest.fixture
 def unavailable(monkeypatch):
     """Answer as an interpreter whose ctypes carries no Windows half would."""
     monkeypatch.setattr(win32_loader, "WIN32_AVAILABLE", False)

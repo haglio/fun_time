@@ -1,32 +1,32 @@
 from __future__ import annotations
 
 import logging
-
-from player_core.file_channel import append_command
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 logger = logging.getLogger(__name__)
 
+from .broker_control import RESUME_CMD, write_broker_command
+from .mode_plan import build_mode_switch_plan, genau_active
 from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
     SatelliteLibraryContext,
+    build_main_playlist_paths,
     build_one_satellite_playlist,
     build_playlist_file_path,
-    build_main_playlist_paths,
     build_satellite_playlist_paths,
     matching_funscript,
     playlist_entry_line,
     write_nau_playlist_file,
     write_playlist_file,
 )
-from .broker_control import RESUME_CMD, write_broker_command
 from .omnipause import build_omnipause_plan
 from .players import Player
-from .mode_plan import build_mode_switch_plan, genau_active
 from .satellite_control import write_satellite_command
 from .watch_stats import watch_stats_path
 

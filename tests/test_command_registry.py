@@ -16,11 +16,9 @@ any of them fails by name.
 from __future__ import annotations
 
 import ast
-import re
 from pathlib import Path
 
-import fun_time.command_dispatch as command_dispatch
-import fun_time.dashboard_actions as dashboard_actions
+from fun_time import command_dispatch, dashboard_actions
 from fun_time.command_reference import build_reference_sections
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
@@ -28,7 +26,6 @@ from fun_time.windows_bridge_dispatch_loop import (
     expand_both_command,
     resolve_active_side_command,
 )
-
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
     _ahk_ids,

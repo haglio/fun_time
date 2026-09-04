@@ -12,9 +12,9 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fun_time.bridge_records import BridgeConfig
-from fun_time.shared_state import BridgeState
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
+from fun_time.shared_state import BridgeState
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:

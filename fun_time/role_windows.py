@@ -14,13 +14,6 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 
 from .satellites_mode import origenerator_shows
-from .window_roles import (
-    FIXED_TOPMOST_ROLES,
-    MANAGED_ROLES,
-    ORIGENERATOR_ROLES,
-    ORIGENERATOR_ROLE_TITLES,
-    role_topmost,
-)
 from .win32 import (
     activate_window,
     find_window_by_pid,
@@ -32,6 +25,13 @@ from .win32 import (
     restore_window,
     set_always_on_top,
     window_exists,
+)
+from .window_roles import (
+    FIXED_TOPMOST_ROLES,
+    MANAGED_ROLES,
+    ORIGENERATOR_ROLE_TITLES,
+    ORIGENERATOR_ROLES,
+    role_topmost,
 )
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
