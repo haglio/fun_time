@@ -409,7 +409,6 @@ def no_loop(
         recent=side.latest,
         sources=config.side(which).sources,
         favs_file=config.favs_file,
-        state_dir=config.state_dir,
         regen_metadata_root=config.regen_metadata_root,
     )
     # A non-empty filter that now matches nothing would blank the queue, so the

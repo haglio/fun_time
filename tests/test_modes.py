@@ -5,10 +5,9 @@ import os
 import random
 from pathlib import Path
 
-from fun_time.media_metadata import metadata_path_for
+from fun_time.media_metadata import load_metadata, metadata_path_for
 from fun_time.modes import (
     SatelliteBuild,
-    SatelliteLibraryContext,
     build_all_playlists,
     build_main_playlist_paths,
     build_mirrored_funscript_path,
@@ -46,7 +45,15 @@ def _i2v_meta(image_seed: str, action: str) -> dict:
     }
 
 
-def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, SatelliteLibraryContext, dict[str, str]]:
+def _stamp_weight(metadata_root: Path, video: str, weight: float) -> None:
+    """The weight Evolver would have summed onto the clip's sidecar."""
+    sidecar = metadata_path_for(video, metadata_root)
+    payload = load_metadata(sidecar)
+    payload["watch"] = {"weight": weight}
+    sidecar.write_text(json.dumps(payload), encoding="utf-8")
+
+
+def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Path, Path, dict[str, str]]:
     """A satellite source dir whose videos (optionally) carry sidecars."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
@@ -61,11 +68,7 @@ def _grouped_library(tmp_path: Path, videos: dict[str, dict | None]) -> tuple[Pa
             sidecar = metadata_path_for(video, metadata_root)
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(meta), encoding="utf-8")
-    library = SatelliteLibraryContext(
-        metadata_root=metadata_root,
-        watch_stats_file=tmp_path / "state" / "watch_stats.json",
-    )
-    return source_dir, library, paths
+    return source_dir, metadata_root, paths
 
 
 def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
@@ -400,7 +403,7 @@ def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(t
 
 def test_shuffled_satellite_build_plays_one_member_per_action_group(tmp_path: Path):
     """Same subject+situation in several actions = one playlist slot, one random member."""
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
         "subject1_epsilon": _i2v_meta("111", "Pov Epsilon"),
@@ -413,7 +416,7 @@ def test_shuffled_satellite_build_plays_one_member_per_action_group(tmp_path: Pa
     for round_no in range(30):
         built = build_satellite_playlist_paths(
             str(source_dir), False, tmp_path / "favs.csv",
-            rng=random.Random(round_no), library=library,
+            rng=random.Random(round_no), metadata_root=metadata_root,
         )
         chosen = group.intersection(built)
         assert len(chosen) == 1, "exactly one action of the group per build"
@@ -424,21 +427,18 @@ def test_shuffled_satellite_build_plays_one_member_per_action_group(tmp_path: Pa
     assert seen == group, "every action should get picked across builds"
 
 
-def test_group_member_choice_follows_watch_weights(tmp_path: Path):
-    from fun_time.watch_stats import record_watch_event
-
-    source_dir, library, paths = _grouped_library(tmp_path, {
+def test_group_member_choice_follows_the_weights_stamped_on_the_sidecars(tmp_path: Path):
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "loved": _i2v_meta("111", "Zeta Massage"),
         "skipped": _i2v_meta("111", "Alpha"),
     })
-    for _ in range(9):
-        record_watch_event(library.watch_stats_file, paths["loved"], "completion")
-        record_watch_event(library.watch_stats_file, paths["skipped"], "skip")
+    _stamp_weight(metadata_root, paths["loved"], 8.0)
+    _stamp_weight(metadata_root, paths["skipped"], 0.125)
 
     loved_picks = sum(
         paths["loved"] in build_satellite_playlist_paths(
             str(source_dir), False, tmp_path / "favs.csv",
-            rng=random.Random(round_no), library=library,
+            rng=random.Random(round_no), metadata_root=metadata_root,
         )
         for round_no in range(40)
     )
@@ -447,19 +447,16 @@ def test_group_member_choice_follows_watch_weights(tmp_path: Path):
 
 
 def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Path):
-    from fun_time.watch_stats import record_watch_event
-
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "disliked": _i2v_meta("111", "Alpha"),
         "neutral": _i2v_meta("222", "Dancing"),
     })
-    for _ in range(9):
-        record_watch_event(library.watch_stats_file, paths["disliked"], "skip")
+    _stamp_weight(metadata_root, paths["disliked"], 0.125)
 
     appearances = sum(
         paths["disliked"] in build_satellite_playlist_paths(
             str(source_dir), False, tmp_path / "favs.csv",
-            rng=random.Random(round_no), library=library,
+            rng=random.Random(round_no), metadata_root=metadata_root,
         )
         for round_no in range(40)
     )
@@ -471,7 +468,7 @@ def test_latest_build_collapses_groups_to_newest_member(tmp_path: Path):
     """Latest shows one entry per action group even while reviewing arrivals:
     the group's newest member represents it, ungrouped clips pass through, and
     the whole list stays newest-first."""
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_old": _i2v_meta("111", "Alpha"),
         "subject1_new": _i2v_meta("111", "Zeta Massage"),
         "subject2_solo": _i2v_meta("222", "Dancing"),
@@ -482,7 +479,7 @@ def test_latest_build_collapses_groups_to_newest_member(tmp_path: Path):
 
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        recent=True, rng=random.Random(1), library=library,
+        recent=True, rng=random.Random(1), metadata_root=metadata_root,
     )
 
     # subject1's two actions collapse to the newer one; order stays newest-first.
@@ -490,7 +487,7 @@ def test_latest_build_collapses_groups_to_newest_member(tmp_path: Path):
 
 
 def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path: Path):
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
     })
@@ -502,7 +499,7 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
         rng=random.Random(5),
-        library=library,
+        metadata_root=metadata_root,
     )
 
     for name in ("portrait_playlist.tsv", "landscape_playlist.tsv"):
@@ -512,7 +509,7 @@ def test_build_satellite_playlists_forwards_library_to_both_satellites(tmp_path:
 
 
 def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
-    source_dir, library, _ = _grouped_library(tmp_path, {
+    source_dir, metadata_root, _ = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
     })
@@ -527,7 +524,7 @@ def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         rng=random.Random(5),
-        library=library,
+        metadata_root=metadata_root,
     )
 
     listed = _lines(tmp_path / "state" / "portrait_playlist.tsv")
@@ -537,26 +534,26 @@ def test_build_all_playlists_forwards_library_to_satellites(tmp_path: Path):
 # --- metadata attribute filtering ------------------------------------------
 
 def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip": _i2v_meta("1", "Alpha"),
         "prone": _i2v_meta("2", "Beta Gamma"),
         "kiss": _i2v_meta("3", "Kissing"),
     })
     got = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="beta gamma", rng=random.Random(1), library=library,
+        filter_query="beta gamma", rng=random.Random(1), metadata_root=metadata_root,
     )
     assert got == [paths["prone"]]
 
 
 def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip": _i2v_meta("1", "Alpha"),
         "nometa": None,
     })
     got = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="alpha", rng=random.Random(1), library=library,
+        filter_query="alpha", rng=random.Random(1), metadata_root=metadata_root,
     )
     assert got == [paths["clip"]]
 
@@ -564,7 +561,7 @@ def test_satellite_filter_drops_videos_without_a_sidecar(tmp_path: Path):
 def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     # Distinct prompts put the two Alphas in distinct seed families, so the
     # filtered build keeps both and the Latest newest-first ordering is visible.
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "old": _t2v_meta("Alpha", "1", prompt="scene one"),
         "new": _t2v_meta("Alpha", "2", prompt="scene two"),
         "other": _t2v_meta("Kissing", "3", prompt="scene three"),
@@ -573,7 +570,7 @@ def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     os.utime(paths["new"], (2000, 2000))
     got = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="alpha", recent=True, library=library,
+        filter_query="alpha", recent=True, metadata_root=metadata_root,
     )
     assert got == [paths["new"], paths["old"]]  # filtered, newest-first
 
@@ -610,16 +607,12 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
 
     p_cum, p_kiss = make(portrait_dir, "pc", "Alpha"), make(portrait_dir, "pk", "Kissing")
     l_cum, l_kiss = make(landscape_dir, "lc", "Alpha"), make(landscape_dir, "lk", "Kissing")
-    library = SatelliteLibraryContext(
-        metadata_root=metadata_root, watch_stats_file=tmp_path / "ws.json"
-    )
-
     build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(portrait_dir), recent=True, filter_query="alpha"),
         landscape=SatelliteBuild(sources=str(landscape_dir), recent=True, filter_query="kissing"),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        library=library,
+        metadata_root=metadata_root,
     )
 
     portrait_written = _lines(tmp_path / "state" / "portrait_playlist.tsv")
@@ -649,7 +642,7 @@ def _t2v_meta(action: str, seed: str, prompt: str = "same scene") -> dict:
 def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
     """A filtered view has already pinned the act, so same-params-different-seed
     clips are one seed family and collapse to a single entry."""
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Alpha", "1"),
         "clip_b": _t2v_meta("Alpha", "2"),
     })
@@ -658,7 +651,7 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
 
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="alpha", recent=True, library=library,
+        filter_query="alpha", recent=True, metadata_root=metadata_root,
     )
 
     assert built == [paths["clip_b"]]  # one per param-set, represented by its newest
@@ -667,7 +660,7 @@ def test_filtered_build_collapses_same_params_different_seed(tmp_path: Path):
 def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
     """Unfiltered browsing keeps today's one-clip-per-subject (action group),
     so two different-seed subjects both appear."""
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Alpha", "1"),
         "clip_b": _t2v_meta("Alpha", "2"),
     })
@@ -675,7 +668,7 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
     os.utime(paths["clip_b"], (2000, 2000))
 
     built = build_satellite_playlist_paths(
-        str(source_dir), False, tmp_path / "favs.csv", recent=True, library=library,
+        str(source_dir), False, tmp_path / "favs.csv", recent=True, metadata_root=metadata_root,
     )
 
     assert sorted(built) == sorted([paths["clip_a"], paths["clip_b"]])
@@ -684,7 +677,7 @@ def test_unfiltered_build_still_collapses_by_subject(tmp_path: Path):
 def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     """Seed-family collapse must not merge different acts: the t2v family pins
     the action, so a Theta clip stays its own family."""
-    source_dir, library, paths = _grouped_library(tmp_path, {
+    source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip_a": _t2v_meta("Pov Alpha", "1"),
         "clip_b": _t2v_meta("Pov Alpha", "2"),
         "theta": _t2v_meta("Pov Theta", "1"),
@@ -695,7 +688,7 @@ def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     # survives.
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="pov", recent=True, library=library,
+        filter_query="pov", recent=True, metadata_root=metadata_root,
     )
 
     assert len(built) == 2

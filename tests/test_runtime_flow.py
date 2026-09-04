@@ -589,7 +589,6 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
         recent=True,
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
-        state_dir=tmp_path / "state",
         regen_metadata_root=metadata_root,
     )
 

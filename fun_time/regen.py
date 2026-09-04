@@ -15,7 +15,7 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from .media_metadata import load_metadata, metadata_path_for, only_the_video_type
+from .media_metadata import load_metadata, metadata_path_for, records_no_generation
 
 # (label, metadata key) in display order for the floating note / auto-fill.
 _IMAGE_SETTINGS = [
@@ -93,6 +93,6 @@ def regen_url_for_video(
     if meta_path is None or not meta_path.is_file():
         return ""
     metadata = load_metadata(meta_path)
-    if not metadata.get("video") or only_the_video_type(metadata):
+    if not metadata.get("video") or records_no_generation(metadata):
         return ""
     return build_regen_url(metadata, video_url=video_url, image_url=image_url)

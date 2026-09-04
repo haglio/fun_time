@@ -15,7 +15,6 @@ from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
-    SatelliteLibraryContext,
     build_main_playlist_paths,
     build_one_satellite_playlist,
     build_playlist_file_path,
@@ -29,7 +28,6 @@ from .omnipause import build_omnipause_plan
 from .players import Player
 from .satellite_control import write_satellite_command
 from .satellites_mode import VIDEO_MODE
-from .watch_stats import watch_stats_path
 
 # Both Nau and the native satellites re-read their playlist file on this verb.
 RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
@@ -44,17 +42,6 @@ SET_F_MODE_CMD = "SET_F_MODE"
 # loop is a range inside one video, so it dies with the player process while
 # everything else rides in on the playlist or a seeded flag.
 SET_LOOP_CMD = "SET_LOOP"
-
-
-def _satellite_library(
-    state_dir: str | Path,
-    metadata_root: Path | None,
-) -> SatelliteLibraryContext:
-    """The library context satellite builds need: metadata root + watch stats."""
-    return SatelliteLibraryContext(
-        metadata_root=metadata_root,
-        watch_stats_file=watch_stats_path(state_dir),
-    )
 
 
 def read_flag_file(path: str | Path, default: bool) -> bool:
@@ -197,7 +184,7 @@ def apply_satellite_fmode(
         f_mode=enabled,
         recent=recent,
         filter_query=filter_query,
-        library=_satellite_library(state_dir, regen_metadata_root),
+        metadata_root=regen_metadata_root,
     )
     write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
 
@@ -271,7 +258,6 @@ def satellite_browse_paths(
     recent: bool,
     sources: str,
     favs_file: str | Path,
-    state_dir: str | Path,
     regen_metadata_root: Path | None = None,
 ) -> list[str]:
     """The paths a satellite's default browse holds under *query* and the current
@@ -280,10 +266,9 @@ def satellite_browse_paths(
     This is the list a filter rebuild loads into the satellite, and equally the
     target "no loop" reshapes the queue back to when a group loop ends.
     """
-    library = _satellite_library(state_dir, regen_metadata_root)
     return build_satellite_playlist_paths(
         sources, f_mode_enabled, Path(favs_file),
-        filter_query=query, recent=recent, library=library,
+        filter_query=query, recent=recent, metadata_root=regen_metadata_root,
     )
 
 
@@ -327,8 +312,7 @@ def apply_satellite_filter(
     name = PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, f_mode_enabled=f_mode_enabled, recent=recent,
-        sources=sources, favs_file=favs_file, state_dir=state_dir,
-        regen_metadata_root=regen_metadata_root,
+        sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,
     )
     if query and not paths:
         return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")

@@ -15,9 +15,11 @@ from fun_time.media_metadata import (
     metadata_path_for,
     normalize_path_key,
     path_matches_query,
+    records_no_generation,
     reject_action,
     seed_family_members,
     seed_group_key,
+    watch_weight_of,
     widened_seed_members,
 )
 
@@ -225,6 +227,42 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
     assert normalize_path_key(paths["no_metadata"]) not in index.action_key_by_path
     assert index.contains(paths["no_metadata"])
     assert not index.contains(str(tmp_path / "media" / "new_arrival.mp4"))
+
+
+def test_build_group_index_carries_each_clips_watch_weight(tmp_path: Path):
+    """Evolver sums what every app watched into a weight on the sidecar; the
+    shuffled builds read it off the index they already build, and a clip
+    nobody has stamped weighs one."""
+    media_root, metadata_root, paths = _library(tmp_path, {
+        "loved": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
+        "plain": _i2v_meta(action="Alpha", video_seed="2"),
+        "no_metadata": None,
+    })
+
+    index = build_group_index(paths.values(), metadata_root)
+
+    assert index.weight_of(paths["loved"]) == 4.0
+    assert index.weight_of(paths["plain"]) == 1.0
+    assert index.weight_of(paths["no_metadata"]) == 1.0
+
+
+def test_watch_weight_of_reads_the_stamped_weight_and_defaults_to_one():
+    assert watch_weight_of({"watch": {"completions": 3, "skips": 0, "locks": 0, "weight": 2.0}}) == 2.0
+    assert watch_weight_of({"video": {"type": "short"}}) == 1.0
+    assert watch_weight_of({"watch": "eight"}) == 1.0
+    assert watch_weight_of({"watch": {"weight": "heavy"}}) == 1.0
+
+
+def test_records_no_generation_looks_past_the_kind_and_the_watching():
+    assert records_no_generation({"video": {"type": "short"}})
+    assert records_no_generation({
+        "video": {"type": "short"},
+        "watch": {"completions": 1, "skips": 0, "locks": 0, "weight": 1.26},
+        "favorite": True,
+    })
+    assert not records_no_generation({"video": {"type": "short", "prompt": "a prompt"}})
+    assert not records_no_generation({"video": {"type": "short"}, "source_image": {"seed": "1"}})
+    assert not records_no_generation({})
 
 
 def test_build_group_index_reads_each_clips_scene_tags(tmp_path: Path):
