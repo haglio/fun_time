@@ -78,14 +78,7 @@ def yaw_rotation_matrix(yaw: float) -> np.ndarray:
 
 
 def pitch_rotation_matrix(pitch: float) -> np.ndarray:
-    """A model matrix tilting the scene *pitch* radians about +X, nose-up
-    positive (row-major, like everything here).
-
-    Applied inside the recentering yaw -- yaw_rotation_matrix(yaw) @
-    pitch_rotation_matrix(pitch) -- so the arrangement tilts about its own
-    horizontal axis rather than about the world's.  The other order rolls the
-    scene whenever the two are both non-zero.
-    """
+    """Tilt *pitch* radians about +X, nose-up; composed inside the yaw."""
     sin, cos = math.sin(pitch), math.cos(pitch)
     mat = np.eye(4, dtype=np.float32)
     mat[1, 1] = cos

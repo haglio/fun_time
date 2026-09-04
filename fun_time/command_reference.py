@@ -256,9 +256,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("recenter_view",),
             ),
             _Row(
-                "Tilt the VR screens up / down for watching lying back, and "
-                "level them again — the headset's right thumbstick does the "
-                "same, continuously (FunTimeVR)",
+                "Tilt the VR screens up / down and level them again — the "
+                "right thumbstick does the same, continuously (FunTimeVR)",
                 ("PgUp", "PgDn", "Shift+Z"),
                 ("tilt_up", "tilt_down", "tilt_reset"),
             ),

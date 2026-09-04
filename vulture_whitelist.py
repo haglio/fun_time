@@ -28,3 +28,6 @@ is_process_alive  # tests and the integration reap
 get_process_image_name  # the integration reap, to tell a leftover app from pytest
 _read_shortcut_app_user_model_id  # tests only
 _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
+
+# Read by fun_time_vr, which vulture is not pointed at.
+project_paths.PROJECT_VR_ICON

@@ -7,10 +7,8 @@ frame loop, and gating on view validity (an unlocated view reports an
 all-zero FOV, which is a division by zero in the projection matrix).
 
 Differences from GenauVR's: no per-eye depth buffers (the scene draws in
-painter's order), and the desktop window is titled/iconed as Fun Time's.  The
-one controller action is GenauVR's — a thumbstick that tilts the arrangement,
-the one control a viewer needs with the keyboard out of sight; everything else
-still arrives from the orchestrator's hotkeys and voice.
+painter's order), the window wears the V, and its one controller action is
+GenauVR's tilt thumbstick — every other verb arrives from hotkeys and voice.
 
 The OpenXR/GL shell -- see CLAUDE.md, "Standing rules"; the two copies and
 what waits on merging them are in docs/known-issues.md.
@@ -59,8 +57,6 @@ class QuadLayer:
 # so destruction waits this many frame_end calls.
 _RETIRE_AFTER_FRAMES = 3
 
-# Where the tilt axis lives on each controller this suite meets.  Vive's wands
-# have no stick, so its trackpad's Y stands in.
 _TILT_BINDINGS = (
     ("/interaction_profiles/oculus/touch_controller", "/user/hand/right/input/thumbstick/y"),
     ("/interaction_profiles/valve/index_controller", "/user/hand/right/input/thumbstick/y"),
@@ -85,10 +81,7 @@ class VRSession:
         self._period_logged = False
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
-        # The tilt thumbstick.  Absent unless _init_actions got as far as
-        # attaching, which it may not on a runtime with no controllers bound —
-        # sync_controller then leaves the axis at rest and the verbs still work.
-        self._action_set = None
+        self._action_set = None  # the tilt stick, absent unless _init_actions attached
         self._tilt_action = None
         self._actions_attached = False
         self.thumbstick_y: float = 0.0
@@ -187,18 +180,6 @@ class VRSession:
         self._space = self._make_local_space()
 
     def _init_actions(self) -> None:
-        """Bind the right thumbstick's Y axis to the scene tilt.
-
-        Adapted from GenauVR's, profile list included: a runtime only honours
-        bindings for interaction profiles it knows, and suggesting one it does
-        not raises rather than being ignored — so each profile is suggested on
-        its own and a refusal costs only that controller.
-
-        Input is a convenience here, never a requirement.  A runtime with no
-        controller support at all, or an action set the runtime declines to
-        attach, leaves the session without a stick and with every tilt verb
-        still working, so the whole of this is warned about and swallowed.
-        """
         try:
             self._action_set = xr.create_action_set(
                 self._instance,
@@ -262,9 +243,7 @@ class VRSession:
             )
             self.thumbstick_y = state.current_state if state.is_active else 0.0
         except xr.ResultException:
-            # A runtime that drops actions mid-session (the headset put down,
-            # a controller asleep) must not take the frame loop with it.
-            self.thumbstick_y = 0.0
+            self.thumbstick_y = 0.0  # a sleeping controller is not a dead frame loop
 
     def _make_local_space(self):
         return xr.create_reference_space(
