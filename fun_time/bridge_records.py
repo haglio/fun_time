@@ -114,6 +114,15 @@ class BridgeConfig:
         return genau_enabled_path(self.broker_state)
 
     @property
+    def genau_drive_file(self) -> Path:
+        """Genau's live dials, as it publishes them for the drive readout."""
+        return self.state_dir / "genau_drive.txt"
+
+    @property
+    def genau_hold_file(self) -> Path:
+        return self.state_dir / "genau_hold.txt"  # what a park/retract took away
+
+    @property
     def osr2_serial_rx_file(self) -> Path:
         """When the OSR2 last spoke, as the broker last stamped it."""
         return self.broker_state / "osr2_serial_rx.txt"
