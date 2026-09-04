@@ -670,3 +670,31 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
 
     assert matches_query({"video": {"action": "Gamma"}}, "") is True
     assert label_is_filtered("Gamma", "") is False
+
+
+def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):
+    """Resolving a path opens it, and on a drive that is busy syncing that can block for
+    minutes: the VR pipeline test sat 240 s in ``Path.resolve`` on a library clip while
+    the suites beside it churned the synced tree. A clip spelled under the library root
+    needs no such trip; only one reached some other way (a junction) does."""
+    def never(self, strict=False):
+        raise AssertionError(f"resolved {self}")
+
+    monkeypatch.setattr(Path, "resolve", never)
+    root = tmp_path / "videos"
+    assert metadata_path_for(root / "videos" / "2D" / "clip.mp4", root / "metadata") == (
+        root / "metadata" / "2D" / "clip.json")
+
+
+def test_a_video_reached_through_a_junction_is_still_placed_under_the_library(tmp_path):
+    import _winapi
+
+    root = tmp_path / "videos"
+    (root / "videos" / "2D").mkdir(parents=True)
+    (root / "metadata").mkdir()
+    (root / "videos" / "2D" / "clip.mp4").write_bytes(b"")
+    link = tmp_path / "shortcut"
+    _winapi.CreateJunction(str(root / "videos"), str(link))
+
+    assert metadata_path_for(link / "2D" / "clip.mp4", root / "metadata") == (
+        root / "metadata" / "2D" / "clip.json")

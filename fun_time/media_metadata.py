@@ -12,6 +12,7 @@ it).
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -21,7 +22,15 @@ def normalize_path_key(path: str) -> str:
     return path.strip().lower()
 
 
-def _norm(path: str | Path) -> Path:
+def _as_spelled(path: str | Path) -> Path:
+    """The path made absolute without asking the disk anything."""
+    return Path(os.path.abspath(path))
+
+
+def _as_the_disk_has_it(path: str | Path) -> Path:
+    """The path with every junction and symlink followed: a trip to the disk, which on
+    a drive busy syncing can block for minutes, so only taken when the spelling alone
+    did not place the clip under the library."""
     try:
         return Path(path).resolve()
     except OSError:
@@ -44,11 +53,13 @@ def metadata_path_for(
         return None
     metadata_root = Path(metadata_root)
     library_root = metadata_root.parent / "videos"
-    try:
-        rel = _norm(video_path).relative_to(_norm(library_root))
-    except ValueError:
-        return None
-    return metadata_root / rel.with_suffix(".json")
+    for place in (_as_spelled, _as_the_disk_has_it):
+        try:
+            rel = place(video_path).relative_to(place(library_root))
+        except ValueError:
+            continue
+        return metadata_root / rel.with_suffix(".json")
+    return None
 
 
 # Evolver records what kind every library video is on its sidecar, as
