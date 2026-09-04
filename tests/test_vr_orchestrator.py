@@ -12,6 +12,7 @@ from fun_time_vr.player import VrSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     build_vr_manifest,
+    stock_the_playlists,
     main_playlist_has_vr,
     resume_vr_state,
     validate_vr_config,
@@ -385,3 +386,39 @@ class TestTheCheckRun:
         assert isinstance(call.args[0], ast.Attribute)
         assert call.args[0].attr == "name"
         assert call.args[0].value.id == "logger"
+
+
+class TestStockingThePlaylists:
+    """The three playlists a VR session opens on, built through the real
+    fun_time.modes builder — so a change to its signature is caught here rather
+    than by a launch that writes vr_launcher.ready and then dies (2026-09-03:
+    build_all_playlists grew SatelliteBuild arguments, the desktop caller moved
+    with it, this one did not, and FunTimeVR could not start at all)."""
+
+    def _manifest(self, config, tmp_path):
+        from fun_time.manifest import LaunchManifest, write_manifest_data
+
+        return LaunchManifest.read(
+            write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
+        )
+
+    def test_a_fresh_session_gets_all_three(self, config, tmp_path):
+        library = tmp_path / "library"
+        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
+        (library / "2D" / "scene two.mp4").write_bytes(b"")
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+
+        stock_the_playlists(
+            self._manifest(config, tmp_path),
+            state_dir=state,
+            metadata_root=tmp_path / "metadata",
+            vr_library_dirs=config.vr.library_dirs,
+            resumed=False,
+            main_f_mode=False,
+            main_recent=False,
+        )
+
+        written = sorted(p.name for p in state.glob("*playlist*.tsv"))
+        assert len(written) == 3, written
+
