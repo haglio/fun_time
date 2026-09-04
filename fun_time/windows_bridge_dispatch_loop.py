@@ -19,27 +19,27 @@ from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
 from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
+from .dashboard_bridge import write_dashboard_snapshot
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, notice
 from .hud_feed import HudFeed
-from .hybrid_driver import HybridDriver
 from .hud_transport import HudPublisher
+from .hybrid_driver import HybridDriver
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .mode_plan import genau_active
 from .modes import build_mirrored_funscript_path
+from .player_status import is_broker_heartbeat_fresh
+from .role_windows import WindowRoles
 from .satellites_mode import origenerator_shows
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .voice_commands import parse_command_line
+from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
-from .windows_bridge_random_favs_browser import ChromeShortcut, open_rfb_tab
-from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
-from .dashboard_bridge import write_dashboard_snapshot
-from .player_status import is_broker_heartbeat_fresh
-from .role_windows import WindowRoles
-from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
-from .window_roles import visible_roles
 from .win32 import force_foreground_window, window_exists, window_rect
+from .window_roles import visible_roles
+from .windows_bridge_random_favs_browser import ChromeShortcut, open_rfb_tab
+from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 
 logger = logging.getLogger(__name__)
 
@@ -747,15 +747,15 @@ class DispatchLoopRunner:
 _AHK_PASSTHROUGH_OPS = {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS}
 
 
-def _run_show_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_show_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.windows.show(op.key)
 
 
-def _run_hide_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_hide_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner.windows.hide_after_settle(op.key)
 
 
-def _run_minimize_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_minimize_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
     # A player's own HUD minimize button, parking that one window — straight
     # away, unlike the settled main-slot hide: the window goes down still
     # showing its video, which is what was pressed for, and its frozen
@@ -763,41 +763,41 @@ def _run_minimize_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
     runner.windows.park(op.key)
 
 
-def _run_restore_parked(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+def _run_restore_parked(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restore_parked()
 
 
-def _run_activate_role(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
         runner.windows.activate(op.key)
 
 
-def _run_restack_main(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+def _run_restack_main(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # Re-stack the overlapping Nau/Genau pair for the current mode.  Not
     # integration-guarded: SetWindowPos(HWND_TOPMOST) uses SWP_NOACTIVATE, so
     # it changes only the z-band, never focus.
     runner.windows.restack_main_slot(runner.state.main_mode)
 
 
-def _run_restack_satellites(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+def _run_restack_satellites(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restack_satellites(
         runner.state.main_mode, runner.state.satellites_mode)
 
 
-def _run_disable_all_topmost(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+def _run_disable_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.remove_all_topmost()
 
 
-def _run_restore_all_topmost(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+def _run_restore_all_topmost(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restore_all_topmost(
         runner.state.main_mode, runner.state.satellites_mode)
 
 
-def _run_open_rfb_tab(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_open_rfb_tab(runner: DispatchLoopRunner, op: WindowOp) -> None:
     runner._pending_rfb_urls.append(op.key)
 
 
-def _run_save_clip(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
+def _run_save_clip(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     # Slow work runs beside the loop, like the browse and the broker toggles;
     # the thread flashes the result when the save lands.
     threading.Thread(
@@ -807,11 +807,11 @@ def _run_save_clip(runner: "DispatchLoopRunner", _op: WindowOp) -> None:
     ).start()
 
 
-def _run_notice(_runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_notice(_runner: DispatchLoopRunner, op: WindowOp) -> None:
     notice(logger, op.key, source=op.source, level=op.level)
 
 
-def _run_ahk_passthrough(runner: "DispatchLoopRunner", op: WindowOp) -> None:
+def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if (op.op == Op.UNSUSPEND_HOTKEYS
             and os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"):
         return

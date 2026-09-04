@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
-import time
 
-from PyQt6.QtGui import QColor, QFont
 from player_core.file_channel import append_command
-
+from PyQt6.QtGui import QColor, QFont
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -21,29 +20,22 @@ from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
+from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
 from fun_time.cover_palette import WORDMARK_PINK
-from fun_time.project_paths import PROJECT_ICON
-from fun_time.loading_reveal import LoadingReveal
-from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.press_channel import PressChannel
-from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
     OMNIMINIMIZE,
-    OMNIRESTORE,
     OMNIPAUSE_TOGGLE,
+    OMNIRESTORE,
     QUIT_BUTTON,
     VOICE_TOGGLE,
 )
-from fun_time.command_reference import render_reference_html
-from fun_time.event_log import event_log_path
-from fun_time.log_panel import LogPanelWidget, prefs_path
-from fun_time.notice_feed import NoticeFeed
-from fun_time.notice_overlay import NoticeOverlay
 from fun_time.dashboard_layout import (
     PAD as BAR_PAD,
+)
+from fun_time.dashboard_layout import (
     DashboardBarLayout,
     Rect,
     add_rect_arguments,
@@ -52,6 +44,15 @@ from fun_time.dashboard_layout import (
     rect_from_arguments,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
+from fun_time.event_log import event_log_path
+from fun_time.loading_reveal import LoadingReveal
+from fun_time.log_panel import LogPanelWidget, prefs_path
+from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
+from fun_time.notice_feed import NoticeFeed
+from fun_time.notice_overlay import NoticeOverlay
+from fun_time.press_channel import PressChannel
+from fun_time.project_paths import PROJECT_ICON
+from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 
 COLOR_BG = BG_PRIMARY
 # The family's own resting button ground -- the one Origenerator's toolbar
@@ -280,9 +281,9 @@ def build_dashboard_scene(
 # ---------------------------------------------------------------------------
 # PyQt6 rendering widget
 # ---------------------------------------------------------------------------
-from PyQt6.QtCore import Qt, QEvent, QRectF, pyqtSignal
-from PyQt6.QtWidgets import QWidget, QToolTip, QDialog, QHBoxLayout, QVBoxLayout, QTextBrowser
-from PyQt6.QtGui import QPainter, QPen, QBrush, QPixmap
+from PyQt6.QtCore import QEvent, QRectF, Qt, pyqtSignal
+from PyQt6.QtGui import QBrush, QPainter, QPen, QPixmap
+from PyQt6.QtWidgets import QDialog, QHBoxLayout, QTextBrowser, QToolTip, QVBoxLayout, QWidget
 
 
 class DashboardWidget(QWidget):
@@ -530,7 +531,7 @@ PRESS_FLASH_S = 0.2
 
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
-from PyQt6.QtWidgets import QMainWindow, QApplication
+from PyQt6.QtWidgets import QApplication, QMainWindow
 
 
 class DashboardWindow(QMainWindow):

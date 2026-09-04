@@ -8,10 +8,15 @@ from unittest.mock import patch
 
 import pytest
 from PyQt6.QtGui import QColor
-
 from shared_ui.colors import BLUE
 
-from fun_time.manifest import write_windows_bridge_manifest
+from fun_time import load_config
+from fun_time.dashboard_actions import (
+    HELP_REFERENCE,
+    OMNIPAUSE_TOGGLE,
+    QUIT_BUTTON,
+    VOICE_TOGGLE,
+)
 from fun_time.dashboard_app import (
     COLOR_APP_TITLE,
     COLOR_PANEL,
@@ -24,19 +29,14 @@ from fun_time.dashboard_app import (
     load_dashboard_app_config,
     write_dashboard_command,
 )
-from fun_time.dashboard_actions import (
-    HELP_REFERENCE,
-    OMNIPAUSE_TOGGLE,
-    QUIT_BUTTON,
-    VOICE_TOGGLE,
-)
-from fun_time.dashboard_runtime import DashboardSnapshot, DashboardWindowSnapshot
 from fun_time.dashboard_layout import (
     Rect,
     compute_dashboard_bar_layout,
     dashboard_window_height,
 )
-from fun_time import load_config
+from fun_time.dashboard_runtime import DashboardSnapshot, DashboardWindowSnapshot
+from fun_time.manifest import write_windows_bridge_manifest
+
 
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
@@ -53,7 +53,7 @@ def _snapshot(**overrides) -> DashboardSnapshot:
     return DashboardSnapshot(**base)
 
 
-@pytest.fixture()
+@pytest.fixture
 def dashboard_app_config(cfg_path):
     """The dashboard's own config, loaded back off a written manifest exactly
     the way the real dashboard process loads it."""
@@ -62,7 +62,7 @@ def dashboard_app_config(cfg_path):
     return load_dashboard_app_config(manifest_path)
 
 
-@pytest.fixture()
+@pytest.fixture
 def dashboard_window(dashboard_app_config):
     """A built dashboard window that closes however the test ends.
 
@@ -869,7 +869,9 @@ def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
     fills the RFB rect: it is placed at the rect, then its client insets by the
     window's chrome margins so the decoration no longer overhangs the top."""
     from unittest.mock import MagicMock
+
     from PyQt6.QtCore import QRect
+
     from fun_time.dashboard_layout import Rect
 
     config = load_config(cfg_path)
@@ -951,6 +953,7 @@ def test_reference_dialog_window_title_is_the_content_title():
 def test_reference_dialog_renders_hotkeys_and_voice():
     """The real dialog must render the reference content via QTextBrowser."""
     from PyQt6.QtWidgets import QTextBrowser
+
     from fun_time.dashboard_app import ReferenceDialog
 
     dialog = ReferenceDialog()
@@ -980,6 +983,7 @@ def test_lighten_color_caps_at_255():
 def test_dashboard_widget_emits_action_on_click():
     """Clicking inside an action rect should emit action_triggered with the action ID."""
     from PyQt6.QtCore import QPoint
+
     from fun_time.dashboard_app import DashboardWidget
 
     layout = compute_dashboard_bar_layout()
@@ -1012,6 +1016,7 @@ def test_dashboard_widget_emits_action_on_click():
 def test_dashboard_widget_ignores_click_outside_actions():
     """Clicking outside any action rect should not emit."""
     from PyQt6.QtCore import QPoint
+
     from fun_time.dashboard_app import DashboardWidget
 
     layout = compute_dashboard_bar_layout()

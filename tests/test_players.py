@@ -42,6 +42,6 @@ def test_the_event_log_sources_are_exactly_the_player_labels():
     the event_log constants and the labels are the same strings."""
     from fun_time.event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 
-    assert SOURCE_MAIN == Player.MAIN.label
-    assert SOURCE_PORTRAIT == Player.PORTRAIT.label
-    assert SOURCE_LANDSCAPE == Player.LANDSCAPE.label
+    assert Player.MAIN.label == SOURCE_MAIN
+    assert Player.PORTRAIT.label == SOURCE_PORTRAIT
+    assert Player.LANDSCAPE.label == SOURCE_LANDSCAPE

@@ -19,9 +19,10 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
-from .players import Player
 from .mode_plan import STARTUP_MAIN_MODE
+from .players import Player
 from .satellites_mode import STARTUP_SATELLITES_MODE
+
 
 @dataclass(frozen=True)
 class SideState:
@@ -136,7 +137,7 @@ class BridgeState:
             for field in fields(SideState)
         })
 
-    def with_side(self, which: int, **changes) -> "BridgeState":
+    def with_side(self, which: int, **changes) -> BridgeState:
         """This state with side *which*'s named :class:`SideState` values replaced."""
         side_fields = {field.name for field in fields(SideState)}
         unknown = set(changes) - side_fields

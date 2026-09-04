@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import json
 
-from fun_time.player_status import GenauStatus
 from fun_time.nau_console import (
     OSR2_AUTO,
     OSR2_FUNSCRIPT,
@@ -13,6 +12,7 @@ from fun_time.nau_console import (
     console_payload,
     osr2_state,
 )
+from fun_time.player_status import GenauStatus
 
 
 def _payload(**overrides) -> dict:

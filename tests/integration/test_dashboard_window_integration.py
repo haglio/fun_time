@@ -13,7 +13,6 @@ import ctypes
 import os
 import sys
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 from PyQt6.QtGui import QCloseEvent
@@ -34,7 +33,6 @@ from fun_time.event_log import NOTICE, event_log_path, notice
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.win32 import find_window_by_title, is_window_topmost
 from fun_time.window_layout import MonitorRect, compute_window_layout
-
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="reads native Win32 window styles"),

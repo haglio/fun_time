@@ -32,7 +32,7 @@ def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def load_content(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,

@@ -1,39 +1,17 @@
 from __future__ import annotations
 
 import configparser
+import threading
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
-
-import threading
 
 import pytest
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
-from fun_time.manifest import write_windows_bridge_manifest, WINDOWS_BRIDGE_MANIFEST_FILENAME
-from fun_time.windows_bridge_orchestrator import (
-    HUD_PRIME_TIMEOUT_S,
-    POST_LOADING_RESOLVE_TIMEOUT_S,
-    SETTLE_PASSES,
-    SETTLE_WAIT_S,
-    _close_origenerator_gracefully,
-    ChildProcess,
-    _CHILD_PID_KEYS,
-    _fix_post_loading_windows,
-    _log_window_obstruction,
-    open_event_log,
-    _shutdown_children,
-    identify_children,
-    kill_process_tree,
-    kill_recorded_child,
-    write_pids_file,
-    run_session,
-)
-from fun_time.win32 import StackedWindow
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.shared_state import BridgeState
-from fun_time.windows_bridge_sequencer import StartupResult
+from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, write_windows_bridge_manifest
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -43,6 +21,27 @@ from fun_time.overlay_progress import (
     cancel_file_for,
     ready_file_for,
 )
+from fun_time.shared_state import BridgeState
+from fun_time.win32 import StackedWindow
+from fun_time.windows_bridge_orchestrator import (
+    _CHILD_PID_KEYS,
+    HUD_PRIME_TIMEOUT_S,
+    POST_LOADING_RESOLVE_TIMEOUT_S,
+    SETTLE_PASSES,
+    SETTLE_WAIT_S,
+    ChildProcess,
+    _close_origenerator_gracefully,
+    _fix_post_loading_windows,
+    _log_window_obstruction,
+    _shutdown_children,
+    identify_children,
+    kill_process_tree,
+    kill_recorded_child,
+    open_event_log,
+    run_session,
+    write_pids_file,
+)
+from fun_time.windows_bridge_sequencer import StartupResult
 
 
 def _fake_startup_result() -> StartupResult:

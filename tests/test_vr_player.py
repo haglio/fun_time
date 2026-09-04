@@ -7,13 +7,12 @@ volume chip every video unit paints.
 """
 from __future__ import annotations
 
-from pathlib import Path
 import threading
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import DEFAULT, patch
 
 import pytest
-
 from player_core.volume import VolumeHud, VolumeHudPainter
 
 from fun_time.manifest import (
@@ -109,7 +108,7 @@ def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
     return LaunchManifest.read(path)
 
 
-@pytest.fixture()
+@pytest.fixture
 def faked_collaborators():
     """Every unit collaborator recorded rather than built."""
     with patch.multiple(

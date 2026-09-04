@@ -2,13 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from fun_time import load_config
 from fun_time.dashboard_layout import dashboard_window_height
 from fun_time.window_layout import (
     MonitorRect,
     compute_main_media_rect,
     compute_window_layout,
 )
-from fun_time import load_config
 
 
 def test_compute_window_layout_uses_secondary_monitor_for_portrait(cfg_path: Path):

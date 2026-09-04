@@ -15,34 +15,34 @@ from unittest.mock import call, patch
 import pytest
 
 from fun_time import win32, win32_process
+from fun_time.win32 import (
+    GWL_EXSTYLE,
+    HWND_NOTOPMOST,
+    HWND_TOPMOST,
+    SW_MINIMIZE,
+    SW_RESTORE,
+    SW_SHOWMINNOACTIVE,
+    SWP_NOACTIVATE,
+    SWP_NOZORDER,
+    WS_EX_TOPMOST,
+    StackedWindow,
+    activate_window,
+    close_window,
+    find_window_by_pid,
+    force_foreground_window,
+    is_window_topmost,
+    minimize_window,
+    move_window,
+    restore_window,
+    set_always_on_top,
+    window_exists,
+    window_rect,
+    windows_obscuring,
+)
 from fun_time.win32_process import (
     get_process_creation_time,
     get_process_image_name,
     is_process_alive,
-)
-from fun_time.win32 import (
-    StackedWindow,
-    windows_obscuring,
-    close_window,
-    move_window,
-    set_always_on_top,
-    is_window_topmost,
-    activate_window,
-    find_window_by_pid,
-    force_foreground_window,
-    minimize_window,
-    restore_window,
-    window_exists,
-    window_rect,
-    HWND_TOPMOST,
-    HWND_NOTOPMOST,
-    GWL_EXSTYLE,
-    WS_EX_TOPMOST,
-    SW_MINIMIZE,
-    SW_SHOWMINNOACTIVE,
-    SW_RESTORE,
-    SWP_NOZORDER,
-    SWP_NOACTIVATE,
 )
 
 

@@ -23,6 +23,12 @@ from pathlib import Path
 import pytest
 
 from fun_time.event_log import event_log_path
+from fun_time.shared_state import (
+    BridgeState,
+    read_shared_state,
+    shared_state_path,
+    write_shared_state,
+)
 from fun_time.win32 import (
     find_window_for_process,
     is_window_minimized,
@@ -32,12 +38,6 @@ from fun_time.win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
-from fun_time.shared_state import (
-    read_shared_state,
-    shared_state_path,
-    write_shared_state,
-)
-from fun_time.shared_state import BridgeState
 from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows
 from fun_time.windows_bridge_sequencer import StartupResult
 

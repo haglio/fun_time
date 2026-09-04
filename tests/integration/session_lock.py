@@ -102,7 +102,7 @@ class SingleInstanceLock:
             _kernel32.CloseHandle(self._handle)
             self._handle = None
 
-    def __enter__(self) -> "SingleInstanceLock":
+    def __enter__(self) -> SingleInstanceLock:
         self.acquire()
         return self
 

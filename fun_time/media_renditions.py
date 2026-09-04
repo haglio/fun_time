@@ -40,8 +40,7 @@ def original_rendition(video_path: str | Path, media_root: str | Path | None) ->
     orientation, source = parts[len(_UPSCALED_ROOT)], parts[len(_UPSCALED_ROOT) + 1]
 
     stem = video.stem
-    if stem.endswith(_UPSCALE_SUFFIX):
-        stem = stem[: -len(_UPSCALE_SUFFIX)]
+    stem = stem.removesuffix(_UPSCALE_SUFFIX)
     # The upscale tree nests orientation/source; the sorted tree nests the other way.
     original = Path(media_root) / _ORIGINAL_ROOT / source / orientation / (stem + video.suffix)
     return str(original) if original.is_file() else ""

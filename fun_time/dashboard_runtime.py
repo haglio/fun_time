@@ -11,7 +11,6 @@ from pathlib import Path
 from .dashboard_bridge import decode_snapshot
 from .dashboard_layout import Rect
 
-
 DashboardWindowSnapshot = Rect
 
 

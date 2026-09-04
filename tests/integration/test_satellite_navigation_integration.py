@@ -25,13 +25,13 @@ import pytest
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
-from fun_time.shared_state import BridgeState
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import HudPanel
 from fun_time.modes import write_playlist_file
-from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
+from fun_time.shared_state import BridgeState
+from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.windows_bridge_startup import launch_satellite
 
 from .integration_support import (
@@ -150,7 +150,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
 
 
-@pytest.fixture()
+@pytest.fixture
 def satellite(tmp_path):
     """Launch a native satellite on a random real portrait playlist, playing."""
     with launched(tmp_path, library_videos("portrait", 4), width=800, height=600) as sat:

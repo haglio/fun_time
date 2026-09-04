@@ -167,7 +167,7 @@ TMP_ROOT = Path(
 ).resolve()
 
 
-@pytest.fixture()
+@pytest.fixture
 def tmp_path() -> Path:
     """Replace pytest's builtin ``tmp_path`` with a checkout-local scratch dir.
 
@@ -251,13 +251,13 @@ def _deep_merge(base: dict, override: dict) -> None:
             base[key] = val
 
 
-@pytest.fixture()
+@pytest.fixture
 def cfg_path(tmp_path: Path) -> Path:
     """Return path to a written minimal valid config file."""
     return _write_config(tmp_path)
 
 
-@pytest.fixture()
+@pytest.fixture
 def cfg_factory(tmp_path: Path):
     """Return a factory that writes a config with optional overrides."""
     def factory(overrides: dict | None = None) -> Path:

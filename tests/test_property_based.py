@@ -6,12 +6,11 @@ formatting functions never crash on arbitrary input.
 from __future__ import annotations
 
 import pytest
-
-from hypothesis import given, assume
+from hypothesis import assume, given
 from hypothesis import strategies as st
 
 from fun_time.content import WebProvider
-from fun_time.media_actions import csv_escape, to_file_uri, make_web_url_from_path
+from fun_time.media_actions import csv_escape, make_web_url_from_path, to_file_uri
 
 # Explicit providers keep these independent of the ambient content overlay
 # (the real content.local.json is absent on a public checkout).

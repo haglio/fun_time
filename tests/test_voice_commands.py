@@ -10,8 +10,8 @@ from __future__ import annotations
 import pytest
 
 from fun_time.voice_commands import (
-    build_voice_commands,
     VOICE_COMMANDS,
+    build_voice_commands,
     format_spoken_command,
     friendly_voice,
     parse_command_line,

@@ -1,17 +1,16 @@
 from __future__ import annotations
 
 import configparser
+import contextlib
 import logging
 from pathlib import Path
-import contextlib
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
-from fun_time.config import load_config
-from fun_time.player_status import (
-    genau_status_path,
-    read_nau_status,
-)
+import pytest
+
+from fun_time import windows_bridge_sequencer
+from fun_time.config import LayoutConfig, load_config
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -19,29 +18,28 @@ from fun_time.manifest import (
     RandomFavsBrowserSettings,
     write_windows_bridge_manifest,
 )
-from fun_time.nau_console import nau_console_path
-from fun_time import windows_bridge_sequencer
-from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
-from fun_time.windows_bridge_sequencer import (
-    release_the_players,
-    _wait_for_players_drawing,
-    NAU_LOAD_TIMEOUT_S,
-    WINDOW_RESOLVE_TIMEOUT_S,
-    run_startup_sequence,
-    _maybe_launch_random_favs_browser,
-    _resolve_satellite_hwnds,
-    _wait_for_nau_loaded,
-)
 from fun_time.monitors import MonitorInfo
+from fun_time.nau_console import nau_console_path
+from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
+from fun_time.player_status import (
+    genau_status_path,
+    read_nau_status,
+)
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
 )
-from fun_time.config import LayoutConfig
-from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
-
-import pytest
-
+from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
+from fun_time.windows_bridge_sequencer import (
+    NAU_LOAD_TIMEOUT_S,
+    WINDOW_RESOLVE_TIMEOUT_S,
+    _maybe_launch_random_favs_browser,
+    _resolve_satellite_hwnds,
+    _wait_for_nau_loaded,
+    _wait_for_players_drawing,
+    release_the_players,
+    run_startup_sequence,
+)
 
 FAKE_MONITORS = [
     MonitorInfo(x=0, y=0, width=2560, height=1392),
@@ -1396,8 +1394,7 @@ class TestOrigeneratorBehindTheOverlay:
         opening in origenerator mode now holds the overlay for that window,
         restores it behind the curtain, and carries the mode out so the
         post-overlay pass bands it over the RFB."""
-        from fun_time.shared_state import BridgeState
-        from fun_time.shared_state import shared_state_path, write_shared_state
+        from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),

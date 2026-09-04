@@ -13,7 +13,6 @@ import os
 
 from .window_layout import MonitorRect
 
-
 MonitorInfo = MonitorRect
 
 
@@ -127,11 +126,10 @@ def get_logical_monitor_rects(
     elif not main_is_landscape and not secondary_is_portrait:
         # Swapped: secondary is actually landscape, main is portrait
         main, secondary = configured_secondary, configured_main
+    # Same orientation — leftmost is main
+    elif configured_main.x <= configured_secondary.x:
+        main, secondary = configured_main, configured_secondary
     else:
-        # Same orientation — leftmost is main
-        if configured_main.x <= configured_secondary.x:
-            main, secondary = configured_main, configured_secondary
-        else:
-            main, secondary = configured_secondary, configured_main
+        main, secondary = configured_secondary, configured_main
 
     return main, secondary

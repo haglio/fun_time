@@ -27,8 +27,8 @@ from .media_metadata import (
     widened_seed_members,
 )
 from .modes import collect_video_files, write_playlist_file
-from .runtime_flow import satellite_browse_paths
 from .players import Player
+from .runtime_flow import satellite_browse_paths
 from .satellite_control import read_satellite_status, write_satellite_command
 from .shared_state import BridgeState
 

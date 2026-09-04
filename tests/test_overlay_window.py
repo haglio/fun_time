@@ -4,8 +4,8 @@ import os
 import sys
 import time
 import tkinter as tk
-from unittest.mock import MagicMock, call, patch
 from pathlib import Path
+from unittest.mock import MagicMock, call, patch
 
 from fun_time.overlay_progress import Progress, parse_progress
 from fun_time.overlay_window import (
@@ -180,7 +180,7 @@ def test_the_two_wordmarks_are_one_pink():
     from fun_time.cover_palette import WORDMARK_PINK
     from fun_time.dashboard_app import COLOR_APP_TITLE
 
-    assert COLOR_APP_TITLE == QColor(WORDMARK_PINK)
+    assert QColor(WORDMARK_PINK) == COLOR_APP_TITLE
 
 
 def test_a_cover_process_loads_no_qt():

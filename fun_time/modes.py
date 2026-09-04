@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import random
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Sequence
 
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
 from .watch_stats import load_watch_stats, passes_inclusion, weight_for, weighted_shuffle

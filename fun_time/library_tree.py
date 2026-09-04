@@ -15,11 +15,10 @@ under it at once, however many stage folders they are spread across on disk.
 from __future__ import annotations
 
 import random
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import Sequence
 
 from .library_handles import LibraryHandle
-
 
 # How many videos a folder tile is pictured with.  Four says what kind of thing
 # is inside where one said almost nothing about a folder of hundreds, and still

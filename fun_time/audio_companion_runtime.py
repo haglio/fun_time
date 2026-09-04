@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-import socket
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
 
 @dataclass
@@ -20,7 +20,7 @@ class AudioCompanionRuntime:
     def receive_udp_line(self) -> str:
         try:
             data, _addr = self.sock.recvfrom(4096)
-        except socket.timeout:
+        except TimeoutError:
             return ""
         return data.decode("utf-8", errors="replace").strip()
 

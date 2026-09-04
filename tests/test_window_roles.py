@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from fun_time.window_roles import (
     FIXED_TOPMOST_ROLES,
+    MAIN_SLOT_ROLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLES,
-    MAIN_SLOT_ROLES,
     role_topmost,
     visible_main_slot_roles,
 )

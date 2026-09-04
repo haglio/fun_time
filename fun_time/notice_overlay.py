@@ -67,7 +67,6 @@ def top_center_position(target: Rect, size: Size, *, margin: int) -> tuple[int, 
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import Qt, QTimer
 from PyQt6.QtWidgets import QLabel
-
 from shared_ui.colors import BG_SECONDARY
 from shared_ui.fonts import FONT_UI, SIZE_HEADING, make_font
 

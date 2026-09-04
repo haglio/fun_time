@@ -3,12 +3,17 @@ from __future__ import annotations
 
 import subprocess
 import sys
-
 from dataclasses import fields, replace
 from pathlib import Path
 
-from fun_time.shared_state import BridgeState, SideState
-from fun_time.shared_state import SHARED_STATE_FILENAME, read_shared_state, shared_state_path, write_shared_state
+from fun_time.shared_state import (
+    SHARED_STATE_FILENAME,
+    BridgeState,
+    SideState,
+    read_shared_state,
+    shared_state_path,
+    write_shared_state,
+)
 
 
 def test_the_state_file_is_named_off_the_state_dir(tmp_path: Path):

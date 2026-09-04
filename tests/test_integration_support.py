@@ -26,7 +26,6 @@ from tests.integration.integration_support import (
     isolate_shared_resources,
 )
 
-
 BROKER_TCODE_PORT = 50557
 GENAU_INBOUND_PORT = 50555
 AUDIO_COMPANION_PORT = 50556
@@ -233,9 +232,8 @@ def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolat
     _config, genau_config = isolated_ports
     port = genau_config["genau"]["tcode_udp_port"]
 
-    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rival:
-        with pytest.raises(OSError):
-            rival.bind(("127.0.0.1", port))
+    with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as rival, pytest.raises(OSError):
+        rival.bind(("127.0.0.1", port))
 
 
 def test_a_run_serves_its_loopback_surface_somewhere_of_its_own(isolated_ports):

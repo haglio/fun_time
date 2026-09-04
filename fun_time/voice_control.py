@@ -13,22 +13,22 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 from fun_time.command_dispatch import command_side
-from fun_time.voice_commands import friendly_voice
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
-    SOURCE_PORTRAIT,
     SOURCE_MAIN,
+    SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
     notice,
 )
 from fun_time.mic_selection import resolve_input_device
-from player_core.file_channel import append_command
-
 from fun_time.voice_commands import (
     SELF_REPORTING_COMMANDS,
     VOICE_COMMANDS,
     format_spoken_command,
+    friendly_voice,
 )
 
 logger = logging.getLogger(__name__)
@@ -176,8 +176,8 @@ def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float
 
 _VOICE_IMPORT_ERROR: str = ""
 try:
-    import vosk
     import sounddevice as sd
+    import vosk
 # Absent (ImportError), present but without PortAudio (OSError), or broken --
 # sounddevice dies in ctypes.util where ctypes has no Win32 half, which
 # tests/test_win32_loader.py stages: unavailable either way, message kept.

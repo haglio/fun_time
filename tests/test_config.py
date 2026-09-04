@@ -6,8 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.loopback_server import LOOPBACK_PORT
-import fun_time.config as config
+from fun_time import config
 from fun_time.config import (
     ProjectConfig,
     _require_dict,
@@ -15,7 +14,7 @@ from fun_time.config import (
     _resolve_path,
     load_config,
 )
-
+from fun_time.loopback_server import LOOPBACK_PORT
 
 # ---------------------------------------------------------------------------
 # _resolve_path

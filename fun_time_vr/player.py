@@ -45,11 +45,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
-
 from app_support.threading_utils import start_daemon_thread
-
-from fun_time.manifest import LaunchManifest
-
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.playlist import read_playlist
 from player_core.render_player import MpvRenderPlayer
@@ -59,6 +55,7 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
+from fun_time.manifest import LaunchManifest
 from satellite.hud_overlay import HudOverlay
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession

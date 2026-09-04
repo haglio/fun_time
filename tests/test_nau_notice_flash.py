@@ -10,8 +10,8 @@ from fun_time.bridge_records import (
 )
 from fun_time.event_log import NOTICE
 from fun_time.role_windows import ChildPids, WindowRoles
-from tests.role_window_fakes import NAU_PID
 from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner, read_nau_notice
+from tests.role_window_fakes import NAU_PID
 
 
 def _runner(tmp_path: Path) -> DispatchLoopRunner:

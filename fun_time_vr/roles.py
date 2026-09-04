@@ -19,8 +19,8 @@ rather than crashing; docs/known-issues.md names them.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from pathlib import Path
-from typing import Callable, Sequence
 
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript

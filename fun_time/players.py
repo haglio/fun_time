@@ -29,7 +29,7 @@ class Player(IntEnum):
             return ""
 
     @classmethod
-    def for_scope(cls, scope: str) -> tuple["Player", ...]:
+    def for_scope(cls, scope: str) -> tuple[Player, ...]:
         """The players a both/portrait/landscape scope word names."""
         if scope == "both":
             return cls.SATELLITES

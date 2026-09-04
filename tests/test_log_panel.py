@@ -134,7 +134,7 @@ def _event_line(message: str) -> str:
     return json.dumps({"ts": 0.0, "level": NOTICE, "source": "system", "msg": message}) + "\n"
 
 
-@pytest.fixture()
+@pytest.fixture
 def panel_factory(tmp_path: Path):
     """Build a live LogPanelWidget over an event log already holding *messages*.
 
@@ -211,6 +211,7 @@ class TestHoverCopyButton:
         """
         from shared_ui.colors import TEXT_PRIMARY
         from shared_ui.icons import glyph_pixmap
+
         from fun_time.log_panel import _COPY_ICON_SIZE
 
         panel = panel_factory(["Clip saved"])
@@ -317,7 +318,6 @@ def test_the_source_toggles_are_left_to_the_style(panel_factory):
     """
     from PyQt6.QtCore import Qt
     from PyQt6.QtWidgets import QApplication
-
     from shared_ui.colors import BG_BUTTON, TEXT_PRIMARY
 
     panel = panel_factory(["Clip saved"])

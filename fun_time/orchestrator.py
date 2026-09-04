@@ -12,8 +12,8 @@ import logging
 import os
 from pathlib import Path
 
-from .config import DEFAULT_CONFIG_PATH, load_config
 from .branch_session import apply_genau_dirs_to_sys_path, apply_origenerator_dir_override
+from .config import DEFAULT_CONFIG_PATH, load_config
 
 # Before the bridge imports: a worktree's genau_project_dirs override reaches
 # Genau and Nau as subprocess PYTHONPATH, but THIS process — and the dispatch
@@ -24,7 +24,10 @@ from .branch_session import apply_genau_dirs_to_sys_path, apply_origenerator_dir
 # ordinary session, where no override file exists.
 apply_genau_dirs_to_sys_path()
 
+from app_support.logging_utils import configure_logging, install_exception_logging
+
 from .manifest import write_windows_bridge_manifest
+from .process_identity import prepare_orchestrator_launcher
 from .single_instance import (
     MUTEX_ORCHESTRATOR,
     mutex_name_for_config,
@@ -32,9 +35,7 @@ from .single_instance import (
     try_acquire_mutex,
 )
 from .win32_taskbar import APP_USER_MODEL_ID, set_shortcut_app_user_model_id
-from .process_identity import prepare_orchestrator_launcher
 from .windows_bridge_orchestrator import run_session
-from app_support.logging_utils import configure_logging, install_exception_logging
 
 
 def build_parser() -> argparse.ArgumentParser:

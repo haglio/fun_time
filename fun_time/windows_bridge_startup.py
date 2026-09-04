@@ -17,22 +17,36 @@ from player_core.file_channel import append_command
 
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
+from .child_log import open_child_log
 from .config import load_config
+from .mode_plan import STARTUP_MAIN_MODE, genau_active
+from .modes import (
+    PLAYLIST_NAU,
+    SatelliteBuild,
+    SatelliteLibraryContext,
+    build_all_playlists,
+    build_main_playlist,
+    build_playlist_file_path,
+)
+from .orchestrator_broker import (
+    BROKER_IMAGE_PATTERN,
+    BROKER_LAUNCHER_PATTERN,
+    BROKER_PROCESS_PATTERN,
+    BROKER_TRAY_PATTERN,
+    broker_launch_kwargs,
+    subprocess_window_kwargs,
+)
 from .player_status import (
     is_broker_heartbeat_fresh,
     read_nau_status,
 )
-from .modes import (
-    SatelliteBuild,
-    PLAYLIST_NAU,
-    SatelliteLibraryContext,
-    build_all_playlists,
-    build_playlist_file_path,
-    build_main_playlist,
-)
-from .mode_plan import STARTUP_MAIN_MODE, genau_active
+from .players import Player
+from .process_identity import NAMER
+from .random_favs_browser import build_manifest, write_manifest
+from .rfb_tab_page import tabs_dir, write_tab_pages
 from .runtime_flow import SET_F_MODE_CMD, apply_mode_switch, write_flag_file
 from .satellite_control import read_satellite_status
+from .satellite_slot import SatelliteSlot, for_side
 from .session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
@@ -43,21 +57,7 @@ from .session_resume import (
 )
 from .shared_state import shared_state_path
 from .watch_stats import watch_stats_path
-from .orchestrator_broker import (
-    BROKER_IMAGE_PATTERN,
-    BROKER_LAUNCHER_PATTERN,
-    BROKER_PROCESS_PATTERN,
-    BROKER_TRAY_PATTERN,
-    broker_launch_kwargs,
-    subprocess_window_kwargs,
-)
-from .process_identity import NAMER
-from .random_favs_browser import build_manifest, write_manifest
-from .child_log import open_child_log
-from .rfb_tab_page import tabs_dir, write_tab_pages
 from .win32_taskbar import APP_USER_MODEL_ID
-from .players import Player
-from .satellite_slot import SatelliteSlot, for_side
 
 logger = logging.getLogger(__name__)
 

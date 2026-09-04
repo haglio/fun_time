@@ -9,6 +9,10 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
+from player_core.drive_readout import read_drive
+from player_core.file_channel import append_command
+from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
+
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import (
     FAILED_NOTICE_LEVEL,
@@ -16,17 +20,14 @@ from .bridge_records import (
     BridgeConfig,
     WindowOp,
 )
-from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
-from player_core.drive_readout import read_drive
-from player_core.file_channel import append_command
-from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
-
-from .player_status import (
-    genau_status_path,
-    read_genau_enabled,
-    read_genau_status,
-    read_nau_status,
+from .event_log import (
+    NOTICE,
+    SOURCE_LANDSCAPE,
+    SOURCE_MAIN,
+    SOURCE_PORTRAIT,
+    SOURCE_SYSTEM,
 )
+from .filter_vocab import decode_filter_command
 from .genau_hold import (
     HOLD_CENTERS,
     StrokeDials,
@@ -36,11 +37,35 @@ from .genau_hold import (
     release_commands,
 )
 from .lock import build_lock_plan
+from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
+from .mode_plan import genau_active, nau_displays
 from .modes import is_favorite_path, read_favs_content
+from .omnipause import build_omnipause_plan
+from .player_status import (
+    genau_status_path,
+    read_genau_enabled,
+    read_genau_status,
+    read_nau_status,
+)
+from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
-from .mode_plan import genau_active, nau_displays
-from .players import Player
+from .runtime_flow import (
+    FMODE_PLAYERS,
+    LANDSCAPE_PLAYER,
+    MAIN_PLAYER,
+    PORTRAIT_PLAYER,
+    SatelliteFilterFlowResult,
+    SatelliteFmodeInputs,
+    apply_enter_omnipause,
+    apply_fmode,
+    apply_leave_omnipause,
+    apply_main_fmode,
+    apply_mode_switch,
+    apply_satellite_filter,
+    apply_satellites_switch,
+)
+from .satellite_control import write_satellite_command
 from .satellite_groups import (
     cancel_lock,
     clear_side_grouping,
@@ -59,40 +84,15 @@ from .satellite_groups import (
     video_action_label,
     wrong_action,
 )
-from .shared_state import BridgeState, SideState
 from .satellites_mode import (
     ORIGENERATOR_MODE,
     origenerator_shows,
     toggled_satellites_mode,
 )
-from .filter_vocab import decode_filter_command
-from .omnipause import build_omnipause_plan
-from .runtime_flow import (
-    FMODE_PLAYERS,
-    LANDSCAPE_PLAYER,
-    PORTRAIT_PLAYER,
-    MAIN_PLAYER,
-    SatelliteFilterFlowResult,
-    SatelliteFmodeInputs,
-    apply_enter_omnipause,
-    apply_fmode,
-    apply_leave_omnipause,
-    apply_main_fmode,
-    apply_mode_switch,
-    apply_satellite_filter,
-    apply_satellites_switch,
-)
-from .satellite_control import write_satellite_command
+from .shared_state import BridgeState, SideState
 from .voice_commands import ORIGENERATOR_PHRASES
-from .window_roles import visible_main_slot_roles
 from .watch_stats import record_watch_event, watch_stats_path
-from .event_log import (
-    NOTICE,
-    SOURCE_LANDSCAPE,
-    SOURCE_PORTRAIT,
-    SOURCE_MAIN,
-    SOURCE_SYSTEM,
-)
+from .window_roles import visible_main_slot_roles
 
 logger = logging.getLogger(__name__)
 

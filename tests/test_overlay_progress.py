@@ -20,7 +20,6 @@ from fun_time.overlay_progress import (
     startup_still_building,
 )
 
-
 TWO_PHASES = (
     Phase("quick", "Quick...", 1.0),
     Phase("slow", "Slow...", 9.0),

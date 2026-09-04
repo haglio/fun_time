@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import json
+import logging
 from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
-
-import logging
 
 import pytest
 
@@ -17,19 +16,18 @@ from fun_time.bridge_records import (
     BridgeConfig,
     WindowOp,
 )
-from fun_time.players import Player
 from fun_time.command_dispatch import (
-    routes_to_origenerator,
     _discard,
     _toggle_lock,
     dispatch_command,
+    routes_to_origenerator,
 )
-from fun_time.satellite_groups import cancel_lock
-from fun_time.players import Player
-from fun_time.shared_state import BridgeState
-from fun_time.media_actions import ensure_in_favs
 from fun_time.event_log import NOTICE
+from fun_time.media_actions import ensure_in_favs
 from fun_time.media_metadata import normalize_path_key
+from fun_time.players import Player
+from fun_time.satellite_groups import cancel_lock
+from fun_time.shared_state import BridgeState
 
 
 def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfig:
@@ -3618,7 +3616,7 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
 def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
     """No worse than it was: where git cannot answer, the checkout that is
     running is the only guess available."""
-    import fun_time.clipper_save as clipper_save
+    from fun_time import clipper_save
 
     clipper_save._clipper_project_dir.cache_clear()
     try:
