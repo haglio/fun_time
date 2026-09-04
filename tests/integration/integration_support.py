@@ -9,6 +9,7 @@ import socket
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from pathlib import Path
 
@@ -757,7 +758,7 @@ def build_integration_temp_root() -> Path:
     return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
 
 
-def sample_library_clips(candidates, count: int, *, desc: str) -> list:
+def sample_library_clips(candidates, count: int, *, desc: str, readable=None) -> list:
     """*count* clips drawn at random from *candidates*, reproducibly.
 
     A fresh draw each run — the same clips every run masks bugs that only one
@@ -768,17 +769,62 @@ def sample_library_clips(candidates, count: int, *, desc: str) -> list:
     sorted first so the draw depends only on the seed, not on glob order, and
     a library smaller than *count* fails saying so instead of raising
     ``Sample larger than population`` from inside a test.
+
+    With *readable* (see :func:`readable_at_speed`), a drawn clip the machine
+    cannot serve right now is skipped, named, and replaced by the next draw.
     """
     candidates = sorted(candidates, key=str)
     assert len(candidates) >= count, (
         f"need {count} {desc}, found {len(candidates)}"
     )
     seed = os.environ.get("FUN_TIME_INTEGRATION_SEED") or str(random.randrange(10 ** 8))
-    chosen = random.Random(seed).sample(candidates, count)
+    rng = random.Random(seed)
     print(f"[integration] sample seed {seed} for {desc}:")
+    if readable is None:
+        chosen = rng.sample(candidates, count)
+    else:
+        chosen = []
+        for clip in rng.sample(candidates, len(candidates)):
+            if len(chosen) == count:
+                break
+            if readable(clip):
+                chosen.append(clip)
+            else:
+                print(f"[integration]   skipped, not readable at speed: {clip}")
+        assert len(chosen) == count, (
+            f"need {count} {desc} that read at speed, found {len(chosen)}"
+        )
     for clip in chosen:
         print(f"[integration]   {clip}")
     return chosen
+
+
+def readable_at_speed(path, *, budget_s: float = 2.0, size: int = 16 << 20, read=None) -> bool:
+    """Whether the first *size* bytes of *path* arrive within *budget_s*.
+
+    The VR masters sit on the pCloud drive, which fetches a file from the
+    internet the first time anything on this machine opens it, and a cold one
+    can take minutes: a player fed one stalls on the fetch, not on the code
+    under test.  The read runs on a thread it may never return from, so a
+    cold file costs the budget and nothing more.
+    """
+    read = _read_head if read is None else read
+    arrived = threading.Event()
+
+    def attempt() -> None:
+        try:
+            read(path, size)
+        except OSError:
+            return
+        arrived.set()
+
+    threading.Thread(target=attempt, daemon=True).start()
+    return arrived.wait(budget_s)
+
+
+def _read_head(path, size: int) -> None:
+    with open(path, "rb") as fh:
+        fh.read(size)
 
 
 def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:

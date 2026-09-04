@@ -11,6 +11,7 @@ PID Windows has since recycled is recognized rather than shot.
 from __future__ import annotations
 
 import socket
+import time
 from unittest.mock import patch
 
 import pytest
@@ -24,6 +25,8 @@ from tests.integration.integration_support import (
     FunTimeIntegrationSession,
     close_udp_sinks,
     isolate_shared_resources,
+    readable_at_speed,
+    sample_library_clips,
 )
 
 BROKER_TCODE_PORT = 50557
@@ -387,3 +390,38 @@ def test_a_checkout_with_no_override_names_no_siblings(tmp_path, monkeypatch):
 
     assert config == {}
     assert integration_support.checkout_project_dirs() == ""
+
+
+def test_a_clip_reads_at_speed_only_when_its_first_bytes_arrive_in_time():
+    """The VR masters sit on the pCloud drive, which fetches a file from the
+    internet the first time anything here opens it; a player fed one stalls
+    on the fetch, not on the code under test."""
+    def instant(path, size):
+        return None
+
+    def cold(path, size):
+        time.sleep(0.5)
+
+    def gone(path, size):
+        raise OSError("no such file")
+
+    assert readable_at_speed("warm.mp4", budget_s=0.2, read=instant)
+    assert not readable_at_speed("cold.mp4", budget_s=0.05, read=cold)
+    assert not readable_at_speed("gone.mp4", budget_s=0.2, read=gone)
+
+
+def test_a_sample_skips_the_clips_the_drive_cannot_serve_at_speed(monkeypatch, capsys):
+    monkeypatch.setenv("FUN_TIME_INTEGRATION_SEED", "7")
+
+    chosen = sample_library_clips(
+        ["a.mp4", "b.mp4", "c.mp4", "d.mp4"], 2, desc="clips",
+        readable=lambda clip: clip != "b.mp4",
+    )
+
+    assert len(chosen) == 2 and "b.mp4" not in chosen
+    assert "skipped, not readable at speed: b.mp4" in capsys.readouterr().out
+
+
+def test_a_sample_fails_saying_so_when_too_few_clips_read_at_speed():
+    with pytest.raises(AssertionError, match="read at speed"):
+        sample_library_clips(["a.mp4", "b.mp4"], 2, desc="clips", readable=lambda clip: False)
