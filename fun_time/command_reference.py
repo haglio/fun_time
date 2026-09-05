@@ -24,6 +24,17 @@ import html
 from collections.abc import Callable
 from dataclasses import dataclass
 
+from shared_ui.palette import (
+    BG_KEYCAP,
+    BG_PRIMARY,
+    BG_SECONDARY,
+    BLUE,
+    BORDER_SUBTLE,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    as_hex,
+)
+
 from fun_time.filter_vocab import display_forms, set_commands_for_scope
 from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS, friendly_voice
 
@@ -513,15 +524,16 @@ def build_reference_sections() -> tuple[ReferenceSection, ...]:
 
 
 # --- HTML rendering ---------------------------------------------------------
-# Colors mirror the shared_ui dark palette (kept as literals so this module
-# stays Qt-free and unit-testable without a QApplication).
-_BG = "#181818"
-_HEADER_BG = "#282828"
-_TEXT = "#f0f0f0"
-_MUTED = "#787878"
-_ACCENT = "#3080e0"
-_KEYCAP_BG = "#484848"
-_BORDER = "#5f5f5f"
+# The family's palette, read without Qt: shared_ui.palette imports nothing, so
+# this module stays unit-testable without a QApplication.  These were seven
+# hex literals mirroring it, one of which had drifted three points.
+_BG = as_hex(BG_PRIMARY)
+_HEADER_BG = as_hex(BG_SECONDARY)
+_TEXT = as_hex(TEXT_PRIMARY)
+_MUTED = as_hex(TEXT_MUTED)
+_ACCENT = as_hex(BLUE)
+_KEYCAP_BG = as_hex(BG_KEYCAP)
+_BORDER = as_hex(BORDER_SUBTLE)
 
 
 def _keycap(label: str) -> str:
