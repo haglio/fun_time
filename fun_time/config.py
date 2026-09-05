@@ -312,13 +312,23 @@ def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -
 def _load_random_favs_browser_config(
     browser_raw: dict[str, Any] | None, project_dir: Path
 ) -> RandomFavsBrowserConfig:
+    """The browser section, with a missing profile name disabling the feature.
+
+    The shortcut and the profile used to default to one machine's own, so a
+    section that said ``enabled`` and nothing else launched Chrome into
+    somebody's profile by guess.  A profile nobody named is nobody's to guess,
+    so the feature stays off; a shortcut nobody named is a file the launch
+    validation refuses by name.  Neither placeholder names anyone.
+    """
     default_user_data_dir = Path(os.environ.get("LOCALAPPDATA", "")) / "Google" / "Chrome" / "User Data"
     browser_values = browser_raw or {}
+    shortcut = browser_values.get("shortcut_path")
+    profile = browser_values.get("profile_name")
     return RandomFavsBrowserConfig(
-        enabled=bool(browser_values.get("enabled", False)),
-        shortcut_path=resolve_path(project_dir, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
+        enabled=bool(browser_values.get("enabled", False)) and bool(profile),
+        shortcut_path=resolve_path(project_dir, str(shortcut or "random_favs_browser.lnk")),
         user_data_dir=resolve_path(project_dir, str(browser_values.get("user_data_dir", default_user_data_dir))),
-        profile_name=str(browser_values.get("profile_name", "Blair")),
+        profile_name=str(profile or ""),
         open_count=int(browser_values.get("open_count", 10)),
         lazy_load=bool(browser_values.get("lazy_load", False)),
     )
