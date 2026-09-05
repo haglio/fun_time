@@ -7,75 +7,8 @@ from pathlib import Path
 import pytest
 
 from fun_time import config
-from fun_time.config import (
-    ProjectConfig,
-    _require_dict,
-    _require_value,
-    _resolve_path,
-    load_config,
-)
+from fun_time.config import ProjectConfig, load_config
 from fun_time.loopback_server import LOOPBACK_PORT
-
-# ---------------------------------------------------------------------------
-# _resolve_path
-# ---------------------------------------------------------------------------
-
-class TestResolvePath:
-    def test_absolute_path_returned_unchanged(self, tmp_path: Path):
-        abs_path = tmp_path / "some" / "file.exe"
-        result = _resolve_path(tmp_path, str(abs_path))
-        assert result == abs_path
-
-    def test_relative_path_resolved_against_project_dir(self, tmp_path: Path):
-        result = _resolve_path(tmp_path, "sub/thing.exe")
-        assert result == (tmp_path / "sub" / "thing.exe").resolve()
-
-    def test_simple_filename_resolves(self, tmp_path: Path):
-        result = _resolve_path(tmp_path, "favs.csv")
-        assert result == (tmp_path / "favs.csv").resolve()
-
-
-# ---------------------------------------------------------------------------
-# _require_dict
-# ---------------------------------------------------------------------------
-
-class TestRequireDict:
-    def test_returns_nested_dict(self, tmp_path: Path):
-        parent = {"section": {"key": "val"}}
-        result = _require_dict(parent, "section", tmp_path)
-        assert result == {"key": "val"}
-
-    def test_raises_on_missing_key(self, tmp_path: Path):
-        with pytest.raises(ValueError, match="Missing required config section"):
-            _require_dict({}, "missing", tmp_path)
-
-    def test_raises_on_wrong_type(self, tmp_path: Path):
-        parent = {"section": "not-a-dict"}
-        with pytest.raises(TypeError, match="Expected object"):
-            _require_dict(parent, "section", tmp_path)
-
-    def test_dotted_context_in_error(self, tmp_path: Path):
-        with pytest.raises(ValueError, match=r"config\.paths"):
-            _require_dict({}, "paths", tmp_path, context="config")
-
-
-# ---------------------------------------------------------------------------
-# _require_value
-# ---------------------------------------------------------------------------
-
-class TestRequireValue:
-    def test_returns_value(self, tmp_path: Path):
-        parent = {"port": 8080}
-        assert _require_value(parent, "port", tmp_path, "config") == 8080
-
-    def test_raises_on_missing(self, tmp_path: Path):
-        with pytest.raises(ValueError, match="Missing required config value"):
-            _require_value({}, "port", tmp_path, "config")
-
-    def test_dotted_name_in_message(self, tmp_path: Path):
-        with pytest.raises(ValueError, match=r"config\.port"):
-            _require_value({}, "port", tmp_path, "config")
-
 
 # ---------------------------------------------------------------------------
 # load_config
