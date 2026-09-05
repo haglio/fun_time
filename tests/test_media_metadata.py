@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from fun_time.media_metadata import (
     action_group_key,
     action_group_members,
@@ -638,6 +640,29 @@ def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):
     assert "action" not in payload["video"]
     assert payload["video"]["wrong_action"] == "Alpha"
     assert payload["video"]["prompt"], "the rest of the sidecar survives"
+
+
+def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
+    """Evolver's pipeline and a live session both read this file; written in
+    place it was empty for the length of the write, and a reader landing there
+    took the blank for the sidecar (bug 8, the torn-file half).  It is written
+    beside and renamed over, so a write that cannot land leaves the old file
+    intact -- and nothing beside it once it has landed."""
+    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
+    sidecar = metadata_path_for(paths["clip"], metadata_root)
+    before = sidecar.read_text(encoding="utf-8")
+
+    def refuse(_src, _dst):
+        raise OSError("the rename was refused")
+
+    monkeypatch.setattr("fun_time.media_metadata.os.replace", refuse)
+    with pytest.raises(OSError):
+        reject_action(paths["clip"], metadata_root)
+    assert sidecar.read_text(encoding="utf-8") == before
+
+    monkeypatch.undo()
+    assert reject_action(paths["clip"], metadata_root) == "Alpha"
+    assert [p.name for p in sidecar.parent.iterdir()] == [sidecar.name]
 
 
 def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):

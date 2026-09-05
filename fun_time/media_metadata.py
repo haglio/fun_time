@@ -158,8 +158,25 @@ def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> s
     if not action:
         return ""
     video[WRONG_ACTION_FIELD] = action
-    json_path.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    _write_sidecar(json_path, payload)
     return action
+
+
+def _write_sidecar(json_path: Path, payload: dict) -> None:
+    """Replace the sidecar whole: written beside it and renamed over it.
+
+    Evolver's pipeline and a live session both read this file, and a write in
+    place left it empty for the length of the write -- a reader landing there
+    took the blank for the sidecar.  A rename within a directory is atomic; a
+    write is not.
+    """
+    tmp = json_path.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+    try:
+        os.replace(tmp, json_path)
+    except OSError:
+        tmp.unlink(missing_ok=True)
+        raise
 
 
 def _norm_text(value: object) -> str:
