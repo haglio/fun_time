@@ -121,6 +121,11 @@ class WatchTracker:
         return events
 
 
+def _still_wanted(video: Path) -> bool:
+    """Whether *video*'s row stays: the file is there, or nothing around it is."""
+    return video.exists() or not video.parent.exists()
+
+
 def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> None:
     """Add one *event* ("completion" | "skip" | "lock") for *video_path*."""
     field = _EVENT_FIELDS[event]
@@ -129,8 +134,12 @@ def record_watch_event(stats_file: str | Path, video_path: str, event: str) -> N
         normalize_path_key(video_path), {"completions": 0, "skips": 0, "locks": 0}
     )
     entry[field] = entry.get(field, 0) + 1
-    # Videos moved away (marked weird, re-staged) must not leave orphan rows.
-    stats = {key: value for key, value in stats.items() if Path(key).exists()}
+    # Videos moved away (marked weird, re-staged) must not leave orphan rows --
+    # and only a video that left a tree still there has moved away.  A row
+    # whose whole tree is out of reach is kept: a volume not mounted when an
+    # event lands is not a library of deleted videos, and pruning then took
+    # every row for it, with no way back.
+    stats = {key: value for key, value in stats.items() if _still_wanted(Path(key))}
     target = Path(stats_file)
     target.parent.mkdir(parents=True, exist_ok=True)
     tmp = target.with_suffix(".tmp")
