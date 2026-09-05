@@ -8,37 +8,20 @@ from pathlib import Path
 from typing import Any
 
 from app_support import state_files
+from app_support.config_reader import (
+    optional_section,
+    require_path,
+    require_section,
+    require_typed,
+    require_value,
+    resolve_path,
+)
 
 from .loopback_server import LOOPBACK_PORT
 from .project_paths import PROJECT_DIR
 
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
 EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
-
-
-def _resolve_path(project_dir: Path, raw_path: str) -> Path:
-    path = Path(raw_path)
-    if path.is_absolute():
-        return path
-    return (project_dir / path).resolve()
-
-
-def _require_dict(parent: dict[str, Any], key: str, source_path: Path, context: str = "config") -> dict[str, Any]:
-    value = parent.get(key)
-    dotted = f"{context}.{key}" if context else key
-    if value is None:
-        raise ValueError(f"Missing required config section: {dotted} (in {source_path})")
-    if not isinstance(value, dict):
-        raise TypeError(f"Expected object for config section: {dotted} (in {source_path})")
-    return value
-
-
-def _require_value(parent: dict[str, Any], key: str, source_path: Path, context: str) -> Any:
-    value = parent.get(key)
-    dotted = f"{context}.{key}"
-    if value is None:
-        raise ValueError(f"Missing required config value: {dotted} (in {source_path})")
-    return value
 
 
 @dataclass(frozen=True)
@@ -273,59 +256,34 @@ def _resolve_config_path(config_path: str | Path | None, project_dir: Path) -> P
     return path
 
 
-def _require_optional_dict(parent: dict[str, Any], key: str, source_path: Path) -> dict[str, Any] | None:
-    value = parent.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, dict):
-        raise TypeError(f"Expected object for config section: {key} (in {source_path})")
-    return value
-
-
-def _require_path_value(
-    parent: dict[str, Any], key: str, source_path: Path, context: str, project_dir: Path
-) -> Path:
-    return _resolve_path(project_dir, _require_value(parent, key, source_path, context))
-
-
-def _require_typed_value(
-    parent: dict[str, Any],
-    key: str,
-    source_path: Path,
-    context: str,
-    cast: type,
-):
-    return cast(_require_value(parent, key, source_path, context))
-
-
 def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir: Path) -> PathsConfig:
-    nau_library_dirs_raw = _require_value(paths_raw, "nau_library_dirs", source_path, "config.paths")
+    nau_library_dirs_raw = require_value(paths_raw, "nau_library_dirs", source_path, context="config.paths")
     if not isinstance(nau_library_dirs_raw, list):
         raise TypeError("paths.nau_library_dirs must be a list of folder paths")
     if not nau_library_dirs_raw:
         raise ValueError("paths.nau_library_dirs must include at least one folder path")
 
-    state_dir = _require_path_value(paths_raw, "state_dir", source_path, "config.paths", project_dir)
+    state_dir = require_path(paths_raw, "state_dir", source_path, base=project_dir, context="config.paths")
     return PathsConfig(
-        ahk_exe=_require_path_value(paths_raw, "ahk_exe", source_path, "config.paths", project_dir),
-        python_exe=_require_path_value(paths_raw, "python_exe", source_path, "config.paths", project_dir),
-        nau_library_dirs=tuple(_resolve_path(project_dir, str(value)) for value in nau_library_dirs_raw),
+        ahk_exe=require_path(paths_raw, "ahk_exe", source_path, base=project_dir, context="config.paths"),
+        python_exe=require_path(paths_raw, "python_exe", source_path, base=project_dir, context="config.paths"),
+        nau_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in nau_library_dirs_raw),
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
-        weird_dir=_require_path_value(paths_raw, "weird_dir", source_path, "config.paths", project_dir),
-        clips_dir=_require_path_value(paths_raw, "clips_dir", source_path, "config.paths", project_dir),
-        audio_dir=_require_path_value(paths_raw, "audio_dir", source_path, "config.paths", project_dir),
-        favs_file=_require_path_value(paths_raw, "favs_file", source_path, "config.paths", project_dir),
+        weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),
+        clips_dir=require_path(paths_raw, "clips_dir", source_path, base=project_dir, context="config.paths"),
+        audio_dir=require_path(paths_raw, "audio_dir", source_path, base=project_dir, context="config.paths"),
+        favs_file=require_path(paths_raw, "favs_file", source_path, base=project_dir, context="config.paths"),
         state_dir=state_dir,
-        broker_state_dir=_resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
-        genau_python_exe=_resolve_path(project_dir, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
-        genau_config_path=_resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
+        broker_state_dir=resolve_path(project_dir, paths_raw["broker_state_dir"]) if paths_raw.get("broker_state_dir") else state_dir,
+        genau_python_exe=resolve_path(project_dir, paths_raw["genau_python_exe"]) if paths_raw.get("genau_python_exe") else None,
+        genau_config_path=resolve_path(project_dir, paths_raw["genau_config_path"]) if paths_raw.get("genau_config_path") else None,
         genau_project_dirs=tuple(
-            _resolve_path(project_dir, str(value))
+            resolve_path(project_dir, str(value))
             for value in paths_raw.get("genau_project_dirs", [])),
-        broker_tray_launcher=_resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
-        origenerator_dir=_resolve_path(project_dir, paths_raw["origenerator_dir"]) if paths_raw.get("origenerator_dir") else None,
-        origenerator_python_exe=_resolve_path(project_dir, paths_raw["origenerator_python_exe"]) if paths_raw.get("origenerator_python_exe") else None,
+        broker_tray_launcher=resolve_path(project_dir, paths_raw["broker_tray_launcher"]) if paths_raw.get("broker_tray_launcher") else None,
+        origenerator_dir=resolve_path(project_dir, paths_raw["origenerator_dir"]) if paths_raw.get("origenerator_dir") else None,
+        origenerator_python_exe=resolve_path(project_dir, paths_raw["origenerator_python_exe"]) if paths_raw.get("origenerator_python_exe") else None,
     )
 
 
@@ -339,15 +297,15 @@ def _load_layout_config(layout_raw: dict[str, Any], source_path: Path) -> Layout
     return LayoutConfig(
         primary_monitor=int(primary_monitor),
         secondary_monitor=int(secondary_monitor),
-        main_top_ratio=_require_typed_value(layout_raw, "main_top_ratio", source_path, "config.layout", float),
-        landscape_width_ratio=_require_typed_value(layout_raw, "landscape_width_ratio", source_path, "config.layout", float),
+        main_top_ratio=require_typed(layout_raw, "main_top_ratio", source_path, cast=float, context="config.layout"),
+        landscape_width_ratio=require_typed(layout_raw, "landscape_width_ratio", source_path, cast=float, context="config.layout"),
     )
 
 
 def _load_audio_companion_config(audio_raw: dict[str, Any], source_path: Path) -> AudioCompanionConfig:
     return AudioCompanionConfig(
-        host=_require_typed_value(audio_raw, "host", source_path, "config.audio_companion", str),
-        port=_require_typed_value(audio_raw, "port", source_path, "config.audio_companion", int),
+        host=require_typed(audio_raw, "host", source_path, cast=str, context="config.audio_companion"),
+        port=require_typed(audio_raw, "port", source_path, cast=int, context="config.audio_companion"),
     )
 
 
@@ -358,8 +316,8 @@ def _load_random_favs_browser_config(
     browser_values = browser_raw or {}
     return RandomFavsBrowserConfig(
         enabled=bool(browser_values.get("enabled", False)),
-        shortcut_path=_resolve_path(project_dir, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
-        user_data_dir=_resolve_path(project_dir, str(browser_values.get("user_data_dir", default_user_data_dir))),
+        shortcut_path=resolve_path(project_dir, str(browser_values.get("shortcut_path", "Blair Chrome.lnk"))),
+        user_data_dir=resolve_path(project_dir, str(browser_values.get("user_data_dir", default_user_data_dir))),
         profile_name=str(browser_values.get("profile_name", "Blair")),
         open_count=int(browser_values.get("open_count", 10)),
         lazy_load=bool(browser_values.get("lazy_load", False)),
@@ -373,8 +331,8 @@ def _load_regen_config(raw: dict[str, Any] | None, project_dir: Path) -> RegenCo
     return RegenConfig(
         generate_video_url=str(values.get("generate_video_url", "https://example.com/video")),
         generate_image_url=str(values.get("generate_image_url", "https://example.com/create")),
-        media_root=_resolve_path(project_dir, str(media_root)) if media_root else None,
-        metadata_root=_resolve_path(project_dir, str(metadata_root)) if metadata_root else None,
+        media_root=resolve_path(project_dir, str(media_root)) if media_root else None,
+        metadata_root=resolve_path(project_dir, str(metadata_root)) if metadata_root else None,
     )
 
 
@@ -396,7 +354,7 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
         raise TypeError("vr.library_dirs must be a list of folder paths")
     audio_device = values.get("audio_device")
     return VrConfig(
-        library_dirs=tuple(_resolve_path(project_dir, str(value)) for value in library_dirs_raw),
+        library_dirs=tuple(resolve_path(project_dir, str(value)) for value in library_dirs_raw),
         audio_device=str(audio_device) if audio_device else None,
         tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
         tcode_udp_port=int(values.get("tcode_udp_port", 50557)),
@@ -446,15 +404,15 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     with path.open("r", encoding="utf-8") as fp:
         raw: dict[str, Any] = json.load(fp)
 
-    paths_raw = _require_dict(raw, "paths", path)
-    layout_raw = _require_dict(raw, "layout", path)
-    audio_raw = _require_dict(raw, "audio_companion", path)
-    browser_raw = _require_optional_dict(raw, "random_favs_browser", path)
+    paths_raw = require_section(raw, "paths", path)
+    layout_raw = require_section(raw, "layout", path)
+    audio_raw = require_section(raw, "audio_companion", path)
+    browser_raw = optional_section(raw, "random_favs_browser", path)
     if browser_raw is None:
-        browser_raw = _require_optional_dict(raw, "chrome_overlay", path)
-    voice_raw = _require_optional_dict(raw, "voice_control", path)
-    regen_raw = _require_optional_dict(raw, "regen", path)
-    vr_raw = _require_optional_dict(raw, "vr", path)
+        browser_raw = optional_section(raw, "chrome_overlay", path)
+    voice_raw = optional_section(raw, "voice_control", path)
+    regen_raw = optional_section(raw, "regen", path)
+    vr_raw = optional_section(raw, "vr", path)
 
     return ProjectConfig(
         project_dir=project_dir,
@@ -476,9 +434,9 @@ def _load_dir_list(
 ) -> tuple[Path, ...]:
     values = paths_raw.get(list_key)
     if values is None:
-        return (_resolve_path(project_dir, str(_require_value(paths_raw, single_key, source_path, "config.paths"))),)
+        return (resolve_path(project_dir, str(require_value(paths_raw, single_key, source_path, context="config.paths"))),)
     if not isinstance(values, list):
         raise TypeError(f"paths.{list_key} must be a list of folder paths")
     if not values:
         raise ValueError(f"paths.{list_key} must include at least one folder path")
-    return tuple(_resolve_path(project_dir, str(value)) for value in values)
+    return tuple(resolve_path(project_dir, str(value)) for value in values)
