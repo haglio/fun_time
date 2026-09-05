@@ -9,9 +9,10 @@ actually launches, and the one copy it makes a session in advance.
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 from unittest.mock import patch
+
+from app_support.process_identity_check import assert_the_app_names_its_process
 
 from fun_time.process_identity import NAMER, prepare_orchestrator_launcher
 from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
@@ -105,16 +106,16 @@ class TestTheRolesThisRepoLaunches:
 
 
 class TestPrepareOrchestratorLauncher:
-    def test_names_a_copy_of_the_console_interpreter_beside_the_running_one(self):
+    def test_names_a_copy_of_the_console_interpreter_beside_the_running_one(self, tmp_path: Path):
         # The console one by name: launch.vbs runs python.exe, and reading
         # sys.executable would name a copy after a copy on every launch after
         # the first -- FunTime-Orchestrator.exe copied to itself, once per run.
-        with patch.object(NAMER, "named_exe") as named_exe:
-            prepare_orchestrator_launcher()
-
-        source, role = named_exe.call_args[0]
-        assert Path(source) == Path(sys.executable).with_name("python.exe")
-        assert role == "Orchestrator"
+        # Run against a throwaway venv, which reads the copy back: which
+        # launcher it was made from, what its row says, whose mark it carries,
+        # and that nothing to copy from costs the name and nothing else.
+        assert_the_app_names_its_process(
+            prepare_orchestrator_launcher, tmp_path, app_name="Fun Time", role="Orchestrator",
+            interpreter="python.exe", row="Fun Time – Orchestrator", icon=PROJECT_ICON)
 
 
 def test_the_copies_carry_fun_time_s_own_mark():
