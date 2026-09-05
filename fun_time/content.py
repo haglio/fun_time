@@ -15,6 +15,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app_support.overlay import backfilled
+
 _PROJECT_DIR = Path(__file__).resolve().parent.parent
 LOCAL_CONTENT = _PROJECT_DIR / "content.local.json"
 EXAMPLE_CONTENT = _PROJECT_DIR / "content.example.json"
@@ -50,12 +52,7 @@ def load_content(
     example = _read_json(example_path)
     if not local_path.exists():
         return example
-    data = _read_json(local_path)
-    for key, example_value in example.items():
-        if key.startswith("_") or key in data:
-            continue
-        data[key] = _EMPTY_WHEN_ABSENT.get(key, example_value)
-    return data
+    return backfilled(_read_json(local_path), example, empty_when_absent=_EMPTY_WHEN_ABSENT)
 
 
 @dataclass(frozen=True)
