@@ -23,6 +23,7 @@ from fun_time.command_dispatch import (
     routes_to_origenerator,
 )
 from fun_time.event_log import NOTICE
+from fun_time.loopback_server import omnipause_url
 from fun_time.media_actions import ensure_in_favs
 from fun_time.media_metadata import normalize_path_key
 from fun_time.players import Player
@@ -210,6 +211,22 @@ def test_portrait_unlock_records_no_watch_event(tmp_path: Path):
 
     assert _cmds(config, 2) == ["UNLOCK", "NEXT"]
     assert not (config.state_dir / "watch_stats.json").exists()
+
+
+def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: Path):
+    """The page is written off the bridge config, which now carries the port
+    the manifest names (bug 22)."""
+    config = replace(_make_config(tmp_path), loopback_port=8771)
+    state = _make_state(locked2=False)
+
+    from fun_time.media_actions import WEB_PROVIDERS
+
+    _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
+    with patch("fun_time.command_dispatch.ensure_in_favs"):
+        _new_state, ops = dispatch_command("portrait_lock", state, config)
+
+    [rfb_op] = [op for op in ops if op.op == "open_rfb_tab"]
+    assert omnipause_url(8771) in _tab_page(rfb_op.key)
 
 
 def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):

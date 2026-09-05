@@ -270,7 +270,8 @@ def _toggle_lock(
             config.regen,
         )
         if target.url:
-            uri = write_lock_tab_page(tabs_dir(config.state_dir), target)
+            uri = write_lock_tab_page(
+                tabs_dir(config.state_dir), target, loopback_port=config.loopback_port)
             lock_ops.append(WindowOp(op="open_rfb_tab", key=uri))
     # A lock does not end a group loop: it holds one clip (mpv ``loop_file``) and
     # leaves the loop's queue exactly as it was, so unlocking drops the side straight

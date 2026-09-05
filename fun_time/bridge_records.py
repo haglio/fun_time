@@ -11,6 +11,7 @@ from app_support import state_files
 
 from .config import RegenConfig
 from .event_log import FAVORITE, NOTICE, SOURCE_SYSTEM
+from .loopback_server import LOOPBACK_PORT
 from .player_status import genau_enabled_path
 
 # A notice that reports a command had no effect ("No other seeds") is logged at
@@ -55,6 +56,9 @@ class BridgeConfig:
     nau_paused_file: Path
     nau_status_file: Path
     dashboard_state_file: Path
+    # Where this session answers whether it is in OmniPause -- baked into the
+    # landing page a lock opens, which polls it.
+    loopback_port: int = LOOPBACK_PORT
     # Where Nau publishes its one-shot notices (a clip jump with nowhere to go).
     nau_notice_file: Path | None = None
     # Which main player this session launched.  The nau file quartet is the

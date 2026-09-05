@@ -12,7 +12,9 @@ from unittest.mock import Mock, patch
 import pytest
 from app_support.threading_utils import wait_until
 
+from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, WindowOp
+from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.media_metadata import normalize_path_key
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
@@ -24,6 +26,7 @@ from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
+    build_bridge_config_from_manifest,
     detect_sleep_gap,
     expand_both_command,
     poll_dashboard_commands,
@@ -146,6 +149,15 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     # test that is ABOUT the sync moves _last_sync back into the past itself.
     runner._last_sync = float("inf")
     return runner
+
+
+def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, tmp_path):
+    """The lock's landing page is written off this config, and it has to poll
+    the port the manifest names, not the module's default (bug 22)."""
+    config = load_config(cfg_factory({"loopback_port": 8771}))
+    manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
+
+    assert build_bridge_config_from_manifest(manifest).loopback_port == 8771
 
 
 def _wait_for_the_browse(mock_browse) -> None:
