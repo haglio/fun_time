@@ -164,13 +164,28 @@ class TestInterpretRecognition:
         assert interp == Recognition(command="landscape_next", phrase="landscape next")
 
     def test_a_caption_scored_exactly_at_the_threshold_surfaces(self):
-        # Two words, not three: the gate compares the MEAN word confidence,
-        # and averaging three copies of 0.7 lands a hair under 0.7 in float,
-        # which would test arithmetic noise rather than the inclusive bar.
+        # Two words; the three-word case, where the mean used to land a hair
+        # under the bar in float, is pinned by the two tests below.
         interp = interpret_recognition(
             json.dumps({"text": "[unk]"}), _scored("skip it", 0.7), threshold=0.7,
         )
         assert interp == Recognition(unrecognized_text="skip it")
+
+    def test_a_three_word_command_at_the_threshold_fires(self):
+        """Three words each scoring exactly the threshold: their float mean
+        is a hair under it, so a command spoken at the bar was refused
+        wherever the word count was not a power of two (bug 86).  The gate
+        compares the sum against the bar times the count, which is exact."""
+        interp = interpret_recognition(
+            _scored("main video mode", 0.7), _scored("main video mode", 0.7), threshold=0.7,
+        )
+        assert interp == Recognition(command="main_video_activate", phrase="main video mode")
+
+    def test_a_three_word_caption_at_the_threshold_surfaces(self):
+        interp = interpret_recognition(
+            json.dumps({"text": "[unk]"}), _scored("skip it now", 0.7), threshold=0.7,
+        )
+        assert interp == Recognition(unrecognized_text="skip it now")
 
     def test_a_grammar_match_below_threshold_falls_back_to_the_caption(self):
         interp = interpret_recognition(

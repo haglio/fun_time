@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import logging
+import math
 import threading
 import time
 from dataclasses import dataclass
@@ -129,14 +130,22 @@ class UtteranceOnset:
         return fallback if started_at is None else started_at
 
 
-def _text_and_confidence(raw_json: str) -> tuple[str, float | None]:
-    """The recognized text and its mean per-word confidence (None if unscored)."""
+def _text_and_confidences(raw_json: str) -> tuple[str, list[float]]:
+    """The recognized text and its per-word confidences (empty if unscored)."""
     data = json.loads(raw_json)
     text = data.get("text", "").strip()
-    words = data.get("result")
-    if not words:
-        return text, None
-    return text, sum(w.get("conf", 0) for w in words) / len(words)
+    return text, [w.get("conf", 0) for w in data.get("result") or []]
+
+
+def _clears(confidences: list[float], threshold: float) -> bool:
+    """Whether the words' mean confidence reaches *threshold* -- inclusive, and
+    decided as a sum against the bar times the count rather than as a quotient.
+    Dividing rounds: three words each scoring exactly the bar averaged a hair
+    under it, and the phrase was refused.  ``fsum`` is the exactly rounded sum,
+    which is what the product on the other side is too, so a phrase at the bar
+    clears it whatever its word count.  Unscored words are no evidence at all.
+    """
+    return bool(confidences) and math.fsum(confidences) >= threshold * len(confidences)
 
 
 @dataclass(frozen=True)
@@ -163,13 +172,13 @@ def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float
     only to caption what was said when the grammar matched nothing confident, so
     an out-of-grammar phrase surfaces as text instead of vanishing into "[unk]".
     """
-    text, conf = _text_and_confidence(grammar_json)
+    text, confidences = _text_and_confidences(grammar_json)
     if text and text != "[unk]":
         command = VOICE_COMMANDS.get(text)
-        if command is not None and conf is not None and conf >= threshold:
+        if command is not None and _clears(confidences, threshold):
             return Recognition(command=command, phrase=text)
-    heard, heard_conf = _text_and_confidence(free_json)
-    if heard and heard != "[unk]" and heard_conf is not None and heard_conf >= threshold:
+    heard, heard_confidences = _text_and_confidences(free_json)
+    if heard and heard != "[unk]" and _clears(heard_confidences, threshold):
         return Recognition(unrecognized_text=heard)
     return Recognition()
 
