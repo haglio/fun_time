@@ -2483,3 +2483,14 @@ class TestOrigeneratorWatchGuard:
         with patch.object(runner.watch, "note_command") as note:
             runner._dispatch("portrait_next")
         note.assert_called_once_with("portrait_next")
+
+
+def test_stop_closes_the_press_socket(tmp_path):
+    """The socket the loop hints the dashboard's presses through is the loop's
+    for its lifetime, and nothing closed it -- a session's end left it to the
+    interpreter's exit to reap (bug 87)."""
+    runner = make_runner(tmp_path)
+
+    runner.stop()
+
+    assert runner._press_socket.fileno() == -1

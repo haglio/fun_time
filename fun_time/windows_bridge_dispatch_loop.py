@@ -715,6 +715,10 @@ class DispatchLoopRunner:
         browsing = self._browser_process
         if browsing is not None:
             browsing.terminate()
+        # The press hints went out through a socket of the loop's own.  A hint
+        # racing this close is dropped the way one to a dashboard that has not
+        # published its port is.
+        self._press_socket.close()
 
 
 # --- the window-op interpreter ----------------------------------------------
