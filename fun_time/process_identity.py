@@ -18,9 +18,6 @@ the one copy the launcher itself needs made a session in advance.
 """
 from __future__ import annotations
 
-import sys
-from pathlib import Path
-
 from app_support.process_identity import ProcessNamer
 
 from fun_time.project_paths import PROJECT_ICON
@@ -34,18 +31,10 @@ NAMER = ProcessNamer("Fun Time", icon=PROJECT_ICON)
 def prepare_orchestrator_launcher() -> None:
     """Make the copy ``launch.vbs`` runs the orchestrator through next time.
 
-    The orchestrator is the one process that cannot be named on the way in:
-    naming it means writing a file with Python, and the process that would do
-    the writing is the one being named.  So the launcher prefers the copy when
-    it is there and falls back to plain ``python.exe`` when it is not, and the
-    session makes it for the session after -- which costs one launch, once, and
-    then heals itself for good.
-
-    Derived from the interpreter's own directory rather than the project's, so a
-    session running out of somewhere else names its launcher in the venv it is
-    actually on.  The console interpreter by name -- not the windowed one
-    ``prepare_launcher`` would pick by itself -- because that is the one
-    ``launch.vbs`` runs: reading ``sys.executable`` would name a copy after a
-    copy on every launch after the first.
+    The console interpreter by name -- not the windowed one the namer would pick
+    by itself -- because that is the one ``launch.vbs`` runs.  Why it is one
+    launch behind, why it is derived beside the running interpreter rather than
+    from it, and why it can never cost the launch:
+    :meth:`ProcessNamer.name_this_process`.
     """
-    NAMER.prepare_launcher("Orchestrator", Path(sys.executable).with_name("python.exe"))
+    NAMER.name_this_process("Orchestrator", interpreter="python.exe")
