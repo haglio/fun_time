@@ -27,7 +27,7 @@ def test_resolve_profile_directory_finds_named_profile(tmp_path: Path):
                 "profile": {
                     "info_cache": {
                         "Default": {"name": "Alex"},
-                        "Profile 2": {"name": "Blair"},
+                        "Profile 2": {"name": "Jane Doe"},
                     }
                 }
             }
@@ -35,7 +35,7 @@ def test_resolve_profile_directory_finds_named_profile(tmp_path: Path):
         encoding="utf-8",
     )
 
-    assert resolve_profile_directory(user_data_dir, "Blair") == "Profile 2"
+    assert resolve_profile_directory(user_data_dir, "Jane Doe") == "Profile 2"
 
 
 
@@ -51,7 +51,7 @@ def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path)
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     (user_data_dir / "Local State").write_text(
-        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
+        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Jane Doe"}}}}),
         encoding="utf-8",
     )
     favs = tmp_path / "favs.csv"
@@ -66,6 +66,7 @@ def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path)
             "paths": {"favs_file": str(favs)},
             "random_favs_browser": {
                 "enabled": True,
+                "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
                 "open_count": 10,
             },
@@ -81,7 +82,7 @@ def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path)
 
 
 def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=True,
-                    profile_name="Blair", urls=("https://example.com/1",)):
+                    profile_name="Jane Doe", urls=("https://example.com/1",)):
     """A config exercising one way the browser declines to launch."""
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
@@ -98,6 +99,7 @@ def _decline_config(cfg_factory, tmp_path: Path, *, enabled=True, local_state=Tr
             "paths": {"favs_file": str(favs)},
             "random_favs_browser": {
                 "enabled": enabled,
+                "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
                 "open_count": 10,
             },
@@ -152,7 +154,7 @@ def _regen_cfg(cfg_factory, tmp_path: Path, favs_rows: str) -> Path:
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     (user_data_dir / "Local State").write_text(
-        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
+        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Jane Doe"}}}}),
         encoding="utf-8",
     )
     favs = tmp_path / "favs.csv"
@@ -162,6 +164,7 @@ def _regen_cfg(cfg_factory, tmp_path: Path, favs_rows: str) -> Path:
             "paths": {"favs_file": str(favs)},
             "random_favs_browser": {
                 "enabled": True,
+                "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
                 "open_count": 10,
             },

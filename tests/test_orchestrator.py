@@ -217,7 +217,7 @@ class TestControllerManifest:
             assert dead_key not in result["modules"]
 
     def test_random_favs_browser_paths_included(self, cfg_factory):
-        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
+        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True, "profile_name": "Jane Doe"}}))
         result = build_windows_bridge_manifest(cfg)
         assert result["random_favs_browser"]["enabled"] == "1"
         assert result["random_favs_browser"]["shortcut_path"] == str(cfg.random_favs_browser.shortcut_path)
@@ -242,7 +242,7 @@ class TestControllerManifest:
         assert result["regen"]["metadata_root"] == ""
 
     def test_write_windows_bridge_manifest_writes_expected_ini(self, cfg_factory, tmp_path: Path):
-        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True}}))
+        cfg = load_config(cfg_factory({"random_favs_browser": {"enabled": True, "profile_name": "Jane Doe"}}))
         manifest_path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
         parser = configparser.ConfigParser()
@@ -299,6 +299,7 @@ class TestValidateConfig:
                 {
                     "random_favs_browser": {
                         "enabled": True,
+                        "profile_name": "Jane Doe",
                         "shortcut_path": "missing_chrome.lnk",
                     }
                 }

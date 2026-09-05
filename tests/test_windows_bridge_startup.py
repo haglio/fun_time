@@ -293,7 +293,7 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     (user_data_dir / "Local State").write_text(
-        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Blair"}}}}),
+        json.dumps({"profile": {"info_cache": {"Profile 2": {"name": "Jane Doe"}}}}),
         encoding="utf-8",
     )
     favs = tmp_path / "favs.csv"
@@ -307,6 +307,7 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
             "paths": {"favs_file": str(favs)},
             "random_favs_browser": {
                 "enabled": True,
+                "profile_name": "Jane Doe",
                 "user_data_dir": str(user_data_dir),
                 "open_count": 10,
                 "lazy_load": lazy_load,
