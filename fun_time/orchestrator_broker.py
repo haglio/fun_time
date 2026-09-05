@@ -7,8 +7,8 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 
 # The broker and its tray are both `python -m osr2_broker.<module>`; only the
 # tray's launcher runs under a script host, and it exits as soon as the tray
-# is up. They are kept apart because is_broker_running() asks after the broker
-# alone — a live tray is not a live broker.
+# is up. They are kept apart because broker_process_started_at() asks after the
+# broker alone — a live tray is not a live broker.
 BROKER_PROCESS_PATTERN = "osr2_broker\\.app"
 BROKER_TRAY_PATTERN = "osr2_broker\\.tray"
 BROKER_LAUNCHER_PATTERN = "launch_broker_tray\\.vbs"

@@ -207,13 +207,14 @@ def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
 def broker_process_started_at() -> float | None:
     """When the running broker started, in Unix seconds — None if none is up.
 
-    Matched on the command line like every other process lookup here: the broker
-    runs under a bare ``pythonw``, so its image name says nothing.  The oldest is
-    the one reported, because that is the one at risk of being stale.
+    Matched by image name and command line the way :func:`stop_broker_processes`
+    sweeps: the broker names its own processes, and one that could not be named
+    runs under the bare interpreter.  The oldest is the one reported, because
+    that is the one at risk of being stale.
     """
     ps_command = (
         "Get-CimInstance Win32_Process | Where-Object { "
-        "($_.Name -match '^pythonw?\\.exe$|^py\\.exe$') -and $_.CommandLine -match '"
+        "($_.Name -match '" + BROKER_IMAGE_PATTERN + "') -and $_.CommandLine -match '"
         + BROKER_PROCESS_PATTERN
         + "' } | ForEach-Object { "
         "[int64]($_.CreationDate.ToUniversalTime() - [datetime]'1970-01-01').TotalSeconds "

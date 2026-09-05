@@ -18,7 +18,7 @@ from unittest.mock import patch
 from app_support.process_identity import ProcessNamer
 
 from fun_time.orchestrator_broker import BROKER_IMAGE_PATTERN
-from fun_time.windows_bridge_startup import stop_broker_processes
+from fun_time.windows_bridge_startup import broker_process_started_at, stop_broker_processes
 
 BROKER = ProcessNamer("Broker")
 
@@ -53,4 +53,19 @@ def test_the_sweep_actually_uses_it():
     ps_command = run.call_args[0][0][-1]
     assert BROKER_IMAGE_PATTERN in ps_command
     # Still bounded by what the process is running, not by its name alone.
+    assert "osr2_broker" in ps_command
+
+
+def test_the_startup_probe_actually_uses_it():
+    """``ensure_broker`` asks when the running broker started, to restart one
+    older than its own code.  Matching the bare interpreters alone, the probe
+    answered None for a named broker, so the restart could never fire and a
+    stale broker went on dropping every verb newer than itself (bug 10)."""
+    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        broker_process_started_at()
+
+    ps_command = run.call_args[0][0][-1]
+    assert BROKER_IMAGE_PATTERN in ps_command
     assert "osr2_broker" in ps_command
