@@ -1,6 +1,7 @@
 """Tests for fun_time.single_instance."""
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 from unittest.mock import patch
 
@@ -77,10 +78,16 @@ class TestShowAlreadyRunningMessage:
         """The orchestrator asks this long before it has any use for Qt, and
         on the answer it wants it never builds a window at all -- so the
         dialog's imports live inside the call, not at the top of the module."""
-        source = Path(single_instance.__file__).read_text(encoding="utf-8")
-        header = source[:source.index("def show_already_running_message")]
+        module = ast.parse(Path(single_instance.__file__).read_text(encoding="utf-8"))
+        at_the_top = [
+            name
+            for node in module.body
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for name in ([node.module] if isinstance(node, ast.ImportFrom)
+                         else [alias.name for alias in node.names])
+        ]
 
-        assert "shared_ui" not in header
+        assert not [name for name in at_the_top if name and name.startswith("shared_ui")]
 
 
 class TestMutexNameForConfig:
