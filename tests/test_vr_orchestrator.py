@@ -336,7 +336,7 @@ class TestTheCheckRun:
         from fun_time_vr import orchestrator
 
         with patch.object(orchestrator, "load_config", return_value=config), \
-             patch("fun_time.single_instance.try_acquire_mutex", return_value=object()), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch.object(orchestrator, "install_exception_logging"):
             assert orchestrator.main(["--check"]) == 0
 
@@ -352,7 +352,7 @@ class TestTheCheckRun:
 
         configured: list[logging.Logger] = []
         with patch.object(orchestrator, "load_config", return_value=config), \
-             patch("fun_time.single_instance.try_acquire_mutex", return_value=object()), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch.object(orchestrator, "install_exception_logging"), \
              patch.object(orchestrator, "configure_logging",
                           side_effect=lambda name, *_a, **_k: (

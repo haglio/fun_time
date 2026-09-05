@@ -26,7 +26,6 @@ compositor_layers  # fun_time_vr/orchestrator.py
 # --- Read from outside vulture's scan ---
 is_process_alive  # tests and the integration reap
 get_process_image_name  # the integration reap, to tell a leftover app from pytest
-_read_shortcut_app_user_model_id  # tests only
 _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own

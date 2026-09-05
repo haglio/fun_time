@@ -6,8 +6,10 @@ import subprocess
 from pathlib import Path
 from unittest.mock import patch
 
+from app_support.win32 import read_shortcut_app_user_model_id
+
 from fun_time.orchestrator import stamp_shortcut_aumid
-from fun_time.win32_taskbar import APP_USER_MODEL_ID, _read_shortcut_app_user_model_id
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
 
 
 def _create_lnk(path: Path) -> None:
@@ -36,7 +38,7 @@ def test_stamps_pinned_shortcut(tmp_path):
     with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
         stamp_shortcut_aumid()
 
-    assert _read_shortcut_app_user_model_id(str(lnk)) == APP_USER_MODEL_ID
+    assert read_shortcut_app_user_model_id(str(lnk)) == APP_USER_MODEL_ID
 
 
 def test_no_crash_when_no_shortcuts(tmp_path):
@@ -58,7 +60,7 @@ def test_skips_unrelated_shortcuts(tmp_path):
         stamp_shortcut_aumid()
 
     # Unrelated shortcut should not have been stamped
-    assert _read_shortcut_app_user_model_id(str(unrelated)) is None
+    assert read_shortcut_app_user_model_id(str(unrelated)) is None
 
 
 def test_leaves_the_vr_pin_its_own_identity(tmp_path):
@@ -78,5 +80,5 @@ def test_leaves_the_vr_pin_its_own_identity(tmp_path):
     with patch("fun_time.orchestrator._taskbar_pin_dir", return_value=fake_pin_dir):
         stamp_shortcut_aumid()
 
-    assert _read_shortcut_app_user_model_id(str(ours)) == APP_USER_MODEL_ID
-    assert _read_shortcut_app_user_model_id(str(vr)) is None
+    assert read_shortcut_app_user_model_id(str(ours)) == APP_USER_MODEL_ID
+    assert read_shortcut_app_user_model_id(str(vr)) is None
