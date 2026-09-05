@@ -1168,7 +1168,7 @@ def _resized(rect, side: int):
 
 
 def _press_port_file(app_config) -> Path:
-    return app_config.dashboard_state_file.parent / "dashboard_press_port.txt"
+    return app_config.state_dir / "dashboard_press_port.txt"
 
 
 def _send_press(port: int, payload: bytes) -> None:
@@ -1329,7 +1329,7 @@ def _write_event(app_config, message: str, *, level: int) -> None:
 
     from fun_time.event_log import EVENT_LOG_FILENAME, SOURCE_DASH
 
-    path = app_config.dashboard_state_file.parent / EVENT_LOG_FILENAME
+    path = app_config.state_dir / EVENT_LOG_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
         handle.write(json.dumps(
@@ -1444,3 +1444,24 @@ def test_the_two_collaborators_that_claim_to_be_qt_free_are():
 
     assert not loads_qt("fun_time.press_channel")
     assert not loads_qt("fun_time.loading_reveal")
+
+
+def test_the_dashboards_config_names_the_one_directory_its_files_live_in(tmp_path: Path):
+    """The state directory is the manifest's own.  It used to be re-derived from
+    two fields, and a manifest naming a command file by bare name fell back to
+    a relative path, so half the dashboard's file IPC went to the process's
+    working directory while the other half went to the state dir (bug 23)."""
+    manifest_path = tmp_path / "state" / "windows_bridge_manifest.ini"
+    manifest_path.parent.mkdir()
+    manifest_path.write_text(
+        "[layout]\nprimary_monitor=0\nsecondary_monitor=1\n"
+        "main_top_ratio=0.5\nlandscape_width_ratio=0.5\n"
+        "[commands]\ndashboard_state_file=dashboard_state.ini\n",
+        encoding="utf-8",
+    )
+
+    app_config = load_dashboard_app_config(manifest_path)
+
+    assert app_config.state_dir == manifest_path.parent
+    assert app_config.dashboard_state_file == manifest_path.parent / "dashboard_state.ini"
+    assert app_config.dashboard_cmd_file == manifest_path.parent / "dashboard_cmd.txt"
