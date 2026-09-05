@@ -25,6 +25,7 @@ from app_support.win32 import set_app_user_model_id
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click
+from player_core.session_quit import quit_gesture
 from player_core.status import StatusWriter
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHudPainter, chip_xy
@@ -34,7 +35,6 @@ from .hud_overlay import HudOverlay
 from .pointer import Pointer
 from .runtime import apply_command
 from .session import SatelliteSession
-from .session_quit import quit_gesture
 from .status import status_fields
 from .volume import SatelliteVolume
 

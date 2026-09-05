@@ -10,8 +10,9 @@ session instead of answered here.
 The close is the one that bit.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4, so
 it took out Nau, then the portrait satellite, then the landscape one, a press at
 a time, while the dashboard, Genau and the audio companion carried on and the
-session had to be ended by voice.  Genau's players say the same thing in
-``genau.session_quit``.
+session had to be ended by voice.  The gesture itself is
+``player_core.session_quit``'s, and tested there; what is here is that this
+loop routes the close to it, and that the verb it posts is the dashboard's.
 
 The scans read ``satellite/app.py`` off the source rather than running it: it
 needs a real window and the libmpv DLL, the same reason
@@ -22,7 +23,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from satellite.session_quit import SESSION_QUIT, quit_gesture
+from player_core.session_quit import SESSION_QUIT
 
 SOURCE = Path(__file__).resolve().parents[1] / "satellite" / "app.py"
 
@@ -32,36 +33,13 @@ SOURCE = Path(__file__).resolve().parents[1] / "satellite" / "app.py"
 ALLOWED_EVENTS = {"QUIT", "MOUSEBUTTONDOWN", "MOUSEMOTION"}
 
 
-class TestQuitGesture:
-    def test_in_a_session_it_asks_and_this_player_stays(self, tmp_path: Path):
-        cmd_file = tmp_path / "dashboard_cmd.txt"
+def test_the_ask_is_the_dashboards_own_quit_verb():
+    """What the Quit button posts and the dispatch loop turns into "exit" for
+    the bridge.  Rename it and a closed satellite asks for something nothing
+    answers, so the gesture goes quiet rather than wrong."""
+    from fun_time.dashboard_actions import QUIT_BUTTON
 
-        assert quit_gesture(cmd_file) is False
-        assert cmd_file.read_text(encoding="utf-8").split() == [SESSION_QUIT]
-
-    def test_the_ask_is_the_dashboards_own_quit_verb(self):
-        """What the Quit button posts and the dispatch loop turns into "exit" for
-        the bridge.  Rename it and a closed satellite asks for something nothing
-        answers, so the gesture goes quiet rather than wrong."""
-        from fun_time.dashboard_actions import QUIT_BUTTON
-
-        assert SESSION_QUIT == QUIT_BUTTON
-
-    def test_it_joins_the_queue_rather_than_replacing_it(self, tmp_path: Path):
-        """That channel carries every writer at once and is drained a tick at a
-        time, so an ask that wrote the file whole would drop what was waiting."""
-        cmd_file = tmp_path / "dashboard_cmd.txt"
-        cmd_file.write_text("landscape_next\n", encoding="utf-8")
-
-        quit_gesture(cmd_file)
-
-        assert cmd_file.read_text(encoding="utf-8").split() == [
-            "landscape_next", SESSION_QUIT,
-        ]
-
-    def test_with_no_session_to_ask_the_close_ends_this_player(self):
-        """A satellite run by hand, or by a test, still closes on its close."""
-        assert quit_gesture(None) is True
+    assert SESSION_QUIT == QUIT_BUTTON
 
 
 def _tree() -> ast.Module:
