@@ -124,6 +124,26 @@ def _families() -> frozenset[str]:
     return frozenset(_expected_numeric_ids()) | frozenset(_expected_filter_ids())
 
 
+def test_every_verb_the_shared_console_posts_lands_on_a_handler():
+    """The sixth surface: the console player_core draws for the main slot posts
+    its buttons' verbs into this dispatcher, and it publishes them as data for
+    exactly this check.  Nothing held the two together before, which is how the
+    clip-seconds pair came to post a verb this table had renamed away -- both
+    buttons inert in genau mode, and no test to say so (bug 19)."""
+    from player_core.console import CONSOLE_VERBS
+
+    # Minimize is answered before the handler map, by name; browse and the
+    # broker panel are the loop's own branches.
+    answered = _handler_ids() | _loop_branch_ids() | {command_dispatch.MAIN_MINIMIZE}
+    # The console shows its enhanced-filter button only when a host puts that
+    # state on the model, which no Fun Time session does -- and nothing here
+    # would answer the verb if one did (bug 90).  Named rather than answered,
+    # so the button's first real appearance fails here by name.
+    dormant = {"genau_filter_enhanced"}
+    assert answered >= CONSOLE_VERBS - dormant, sorted(CONSOLE_VERBS - dormant - answered)
+    assert not (dormant & answered), "a dormant verb has an answer now: take it out of dormant"
+
+
 def test_every_spoken_phrase_lands_on_a_handler():
     """Surface 1 → 5: a phrase mapped to an id nothing handles is a dead phrase."""
     targets, _ = _voice_resolutions()
