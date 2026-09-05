@@ -516,20 +516,30 @@ class TestTheProjectsOwnPaths:
             "fun_time/dashboard_app.py": "PROJECT_ICON",
         }
         for name, constant in sorted(wants.items()):
-            source = (PROJECT_DIR / name).read_text(encoding="utf-8")
-            assert constant in source, name
-            tree = ast.parse(source)
+            tree = ast.parse((PROJECT_DIR / name).read_text(encoding="utf-8"))
+            named = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} \
+                | {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)}
+            assert constant in named, name
             recomputed = [
                 n for n in ast.walk(tree)
                 if isinstance(n, ast.Constant) and n.value in ("icon.ico", "vr_icon.ico")]
             assert recomputed == [], f"{name} still spells the path itself"
 
-    def test_and_the_one_that_keeps_its_own_says_why(self):
+    def test_and_the_one_that_keeps_its_own_really_imports_nothing_from_fun_time(self):
         """`satellite/` imports nothing from `fun_time`, and one constant is
         not worth inverting that."""
+        import ast
+
         from fun_time.project_paths import PROJECT_DIR
         from satellite.app import ICON_PATH
 
         assert ICON_PATH == PROJECT_DIR / "icon.ico"
-        source = (PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8")
-        assert "imports nothing from fun_time" in source
+        tree = ast.parse((PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8"))
+        imported = [
+            name
+            for node in ast.walk(tree)
+            if isinstance(node, (ast.Import, ast.ImportFrom))
+            for name in ([node.module] if isinstance(node, ast.ImportFrom)
+                         else [alias.name for alias in node.names])
+        ]
+        assert not [name for name in imported if name and name.split(".")[0] == "fun_time"]
