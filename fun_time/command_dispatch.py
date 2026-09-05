@@ -9,6 +9,7 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
+from app_support.file_channel import write_flag
 from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
@@ -231,8 +232,7 @@ def _parse_numeric_command(command: str) -> str | None:
 
 def _toggle_genau_enabled(path: Path) -> None:
     """Flip the persisted allow/suppress flag; the broker syncs it each tick."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text("0" if read_genau_enabled(path) else "1", encoding="utf-8")
+    write_flag(path, not read_genau_enabled(path))
 
 
 def _toggle_lock(

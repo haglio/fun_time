@@ -301,10 +301,11 @@ class TestPollDashboardCommands:
         cmd_file.write_text("second_command\n", encoding="utf-8")
         assert cmd_file.exists()
 
-    def test_stale_processing_file_does_not_block_commands(self, tmp_path):
-        """A leftover .processing file from a crash must not block future polls."""
+    def test_a_stale_claim_file_does_not_block_commands(self, tmp_path):
+        """A claim left behind by a crash mid-drain must not block future polls:
+        the next claim replaces it."""
         cmd_file = tmp_path / "dashboard_cmd.txt"
-        stale = cmd_file.with_suffix(".processing")
+        stale = cmd_file.with_suffix(cmd_file.suffix + ".consuming")
         stale.write_text("old_command\n", encoding="utf-8")
         cmd_file.write_text("new_command\n", encoding="utf-8")
 

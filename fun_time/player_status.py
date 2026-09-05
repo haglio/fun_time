@@ -6,24 +6,21 @@ it lived in `dashboard_runtime`, whose other six importers wanted only these.
 """
 from __future__ import annotations
 
-import time
 from dataclasses import dataclass
 from pathlib import Path
+
+from app_support import state_files
+from app_support.file_channel import read_flag, read_key_values, stamp_age
 
 
 def genau_enabled_path(state_dir: Path) -> Path:
     """Path to the broker-shared flag for whether Genau may take over OSR2 auto mode."""
-    return state_dir / "genau_enabled.txt"
+    return state_dir / state_files.GENAU_ENABLED
 
 
 def read_genau_enabled(path: Path) -> bool:
-    """True (takeover allowed) unless the flag file holds '0' — mirrors the broker."""
-    try:
-        if not path.exists():
-            return True
-        return path.read_text(encoding="utf-8-sig").strip() != "0"
-    except OSError:
-        return True
+    """True (takeover allowed) unless the flag file holds '0': the broker's own read."""
+    return read_flag(path, default=True)
 
 
 @dataclass(frozen=True)
@@ -86,24 +83,8 @@ class NauStatus:
         return (self.loop_in_ms, self.loop_out_ms)
 
 
-def read_key_values(path: Path) -> dict[str, str]:
-    """One ``key=value`` status file as a dict; raises what the file raises."""
-    return dict(
-        line.split("=", 1)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if "=" in line
-    )
-
-
-def _seconds_since(path: Path, now: float | None) -> float | None:
-    """How long ago the stamp in *path* was written, or None if unreadable."""
-    if not path.exists():
-        return None
-    try:
-        stamped = float(path.read_text(encoding="utf-8").strip())
-    except (OSError, ValueError):
-        return None
-    return (time.time() if now is None else now) - stamped
+# The status record's reader is app_support's; re-exported for the callers here.
+__all__ = ["read_key_values"]
 
 
 def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStatus:
@@ -144,7 +125,7 @@ def _status_touch(values: dict) -> int | None:
     return int(raw) if raw.isdigit() else None
 
 
-GENAU_STATUS_FILENAME = "genau_status.txt"
+GENAU_STATUS_FILENAME = state_files.GENAU_STATUS
 
 
 def genau_status_path(state_dir: Path) -> Path:
@@ -193,10 +174,10 @@ def read_genau_status(path: Path) -> GenauStatus:
 
 
 def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
-    age = _seconds_since(path, now)
+    age = stamp_age(path, now)
     return age is not None and age < max_age_seconds
 
 
 def is_broker_heartbeat_fresh(path: Path, *, max_age_seconds: float = 3.0, now: float | None = None) -> bool:
-    age = _seconds_since(path, now)
+    age = stamp_age(path, now)
     return age is not None and age <= max_age_seconds

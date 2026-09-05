@@ -17,6 +17,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app_support import state_files
 from player_core.file_channel import append_command
 
 from .config import LayoutConfig
@@ -496,7 +497,7 @@ def _launch_the_main_slot_players(
     # into the Genau repo, while Nau was told to read it out of Fun Time's — so
     # Video mode showed a console with the Genau half missing.
     genau_state = Path(m.commands.genau_cmd_file).parent
-    genau_drive_file = genau_state / "genau_drive.txt"
+    genau_drive_file = genau_state / state_files.GENAU_DRIVE
     # Genau's own resume: it rescans its clips folder every launch and opens at
     # the top of it, so the clip the last session was left showing survives only
     # in the status file it published — read here, before this session's Genau

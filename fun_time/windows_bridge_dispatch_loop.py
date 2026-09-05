@@ -13,6 +13,7 @@ import threading
 import time
 from pathlib import Path
 
+from app_support.file_channel import consume_command_file
 from player_core.file_channel import append_command
 
 from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
@@ -69,22 +70,11 @@ def read_nau_notice(path) -> tuple[float, str, str]:
 
 
 def poll_dashboard_commands(cmd_file: Path) -> list[str]:
-    """Read and delete the dashboard command file, returning all queued commands."""
-    if not cmd_file.exists():
-        return []
-    try:
-        # Atomically move then read — any concurrent writes create a new file.
-        # replace() is used instead of rename() because on Windows rename()
-        # fails if the target already exists (e.g. stale .processing from a crash).
-        tmp = cmd_file.with_suffix(".processing")
-        cmd_file.replace(tmp)
-        text = tmp.read_text(encoding="utf-8-sig").strip()
-        tmp.unlink()
-    except OSError:
-        return []
-    if not text:
-        return []
-    return [line.strip() for line in text.splitlines() if line.strip()]
+    """Claim the dashboard command file and return every queued command, as spelled.
+
+    The family's consumer, with case kept: a dashboard verb can carry a path.
+    """
+    return consume_command_file(cmd_file, uppercase=False)
 
 
 # The side-agnostic actions the main player (Nau) answers, and what it answers with.

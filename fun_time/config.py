@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from app_support import state_files
+
 from .loopback_server import LOOPBACK_PORT
 from .project_paths import PROJECT_DIR
 
@@ -180,35 +182,35 @@ class ProjectConfig:
     @property
     def genau_mode_file(self) -> Path:
         """The broker's "Genau has the OSR2" flag — written by it, read by us."""
-        return self.paths.broker_state_dir / "genau_mode.txt"
+        return self.paths.broker_state_dir / state_files.GENAU_MODE
 
     @property
     def genau_enabled_file(self) -> Path:
         """Whether the broker may hand the OSR2 to Genau at all — our switch, its read."""
-        return self.paths.broker_state_dir / "genau_enabled.txt"
+        return self.paths.broker_state_dir / state_files.GENAU_ENABLED
 
     @property
     def broker_cmd_file(self) -> Path:
         """The one verb the broker consumes per tick (park, retract, resume)."""
-        return self.paths.broker_state_dir / "broker_cmd.txt"
+        return self.paths.broker_state_dir / state_files.BROKER_CMD
 
     @property
     def broker_heartbeat_file(self) -> Path:
         """Stamped every half second while the broker holds the serial port."""
-        return self.paths.broker_state_dir / "broker_heartbeat.txt"
+        return self.paths.broker_state_dir / state_files.BROKER_HEARTBEAT
 
     @property
     def osr2_serial_rx_file(self) -> Path:
         """Stamped when the OSR2 last spoke — which is how we know it is powered on."""
-        return self.paths.broker_state_dir / "osr2_serial_rx.txt"
+        return self.paths.broker_state_dir / state_files.OSR2_SERIAL_RX
 
     @property
     def genau_cmd_file(self) -> Path:
-        return self.paths.state_dir / "genau_cmd.txt"
+        return self.paths.state_dir / state_files.GENAU_CMD
 
     @property
     def genau_paused_file(self) -> Path:
-        return self.paths.state_dir / "genau_paused.txt"
+        return self.paths.state_dir / state_files.GENAU_PAUSED
 
     @property
     def nau_cmd_file(self) -> Path:
