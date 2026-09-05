@@ -97,6 +97,21 @@ def test_metadata_path_returns_none_when_roots_missing(tmp_path: Path):
 # --- load_metadata ---
 
 
+def test_metadata_path_places_a_lowercased_key_under_a_root_with_a_capital(tmp_path: Path):
+    """The stats file keys a clip by its lowercased path, and a library root
+    with a capital in it is the same place on the disks the library lives on
+    -- but not to a case-sensitive ``relative_to``, which is what left the
+    breeding report empty under a checkout path with a capital (bug 53)."""
+    library = tmp_path / "Library"
+    metadata_root = library / "metadata"
+    clip = library / "videos" / "2D" / "clip.mp4"
+
+    sidecar = metadata_path_for(str(clip).lower(), metadata_root)
+
+    assert sidecar is not None
+    assert str(sidecar).lower() == str(metadata_root / "2D" / "clip.json").lower()
+
+
 def test_load_metadata_reads_dict(tmp_path: Path):
     p = tmp_path / "m.json"
     p.write_text(json.dumps(VIDEO_ONLY_META), encoding="utf-8")
