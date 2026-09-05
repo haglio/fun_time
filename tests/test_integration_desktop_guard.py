@@ -7,7 +7,9 @@ it.  Documentation is not a guard; this is.
 """
 from __future__ import annotations
 
+import ast
 import os
+from pathlib import Path
 
 import pytest
 
@@ -50,3 +52,27 @@ def test_the_unit_suite_never_inherits_the_integration_flag():
     this one only observes the scrub.  Tests that are ABOUT the integration
     branches set the flag back with ``monkeypatch.setenv``, which wins."""
     assert os.environ.get("FUN_TIME_RUN_INTEGRATION") is None
+
+
+def test_every_integration_module_stays_off_a_machine_that_is_not_windows():
+    """Off Windows the session-start refusal returns early, so a module's own
+    platform mark is all that keeps ``pytest tests/integration/`` from starting
+    the satellite and VR players there.  Two of the fourteen once carried none
+    (bug 35); this walks them all so a fifteenth cannot arrive without one."""
+    integration = Path(__file__).resolve().parent / "integration"
+    unguarded = [
+        module.name
+        for module in sorted(integration.glob("test_*.py"))
+        if not _skips_off_windows(module.read_text(encoding="utf-8"))
+    ]
+
+    assert unguarded == []
+
+
+def _skips_off_windows(source: str) -> bool:
+    for node in ast.parse(source).body:
+        if isinstance(node, ast.Assign) and any(
+            isinstance(target, ast.Name) and target.id == "pytestmark" for target in node.targets
+        ):
+            return "sys.platform != 'win32'" in ast.unparse(node.value)
+    return False
