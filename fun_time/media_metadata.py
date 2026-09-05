@@ -27,6 +27,15 @@ def _as_spelled(path: str | Path) -> Path:
     return Path(os.path.abspath(path))
 
 
+def _as_folded(path: str | Path) -> Path:
+    """The spelling with its case folded.  The stats file keys a clip by its
+    lowercased path (:func:`normalize_path_key`), and a library root with a
+    capital in it is the same place on the case-insensitive disks the library
+    lives on -- though not to ``relative_to`` on a platform whose paths compare
+    case-sensitively, which left the breeding report empty there."""
+    return Path(str(_as_spelled(path)).lower())
+
+
 def _as_the_disk_has_it(path: str | Path) -> Path:
     """The path with every junction and symlink followed: a trip to the disk, which on
     a drive busy syncing can block for minutes, so only taken when the spelling alone
@@ -53,7 +62,7 @@ def metadata_path_for(
         return None
     metadata_root = Path(metadata_root)
     library_root = metadata_root.parent / "videos"
-    for place in (_as_spelled, _as_the_disk_has_it):
+    for place in (_as_spelled, _as_folded, _as_the_disk_has_it):
         try:
             rel = place(video_path).relative_to(place(library_root))
         except ValueError:
