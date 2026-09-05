@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import random
+import shutil
 from pathlib import Path
 
 from fun_time.media_metadata import normalize_path_key
@@ -54,6 +55,24 @@ def test_record_watch_event_prunes_entries_for_vanished_files(tmp_path: Path):
     stats = load_watch_stats(stats_file)
     assert normalize_path_key(goner) not in stats
     assert stats[normalize_path_key(keeper)]["completions"] == 2
+
+
+def test_record_watch_event_keeps_rows_whose_tree_is_out_of_reach(tmp_path: Path):
+    """A volume not mounted when an event lands is not a library of deleted
+    videos.  Every row for it used to go with that one event, with no way
+    back (bug 4): the prune is for a video that left a tree still there."""
+    stats_file = tmp_path / "watch_stats.json"
+    volume = tmp_path / "volume"
+    volume.mkdir()
+    unmounted = _touch(volume, "clip.mp4")
+    keeper = _touch(tmp_path, "keeper.mp4")
+    record_watch_event(stats_file, unmounted, "completion")
+
+    shutil.rmtree(volume)
+    record_watch_event(stats_file, keeper, "completion")
+
+    stats = load_watch_stats(stats_file)
+    assert normalize_path_key(unmounted) in stats
 
 
 # --- weighted ordering primitives ---
