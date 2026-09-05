@@ -5,6 +5,7 @@ from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.file_channel import write_flag
 from player_core.file_channel import append_command
 
 logger = logging.getLogger(__name__)
@@ -55,9 +56,7 @@ def read_flag_file(path: str | Path, default: bool) -> bool:
 
 
 def write_flag_file(path: str | Path, value: bool) -> None:
-    target = Path(path)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    target.write_text("1" if value else "0", encoding="utf-8")
+    write_flag(Path(path), value)
 
 
 @dataclass(frozen=True)

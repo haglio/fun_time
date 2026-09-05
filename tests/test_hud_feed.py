@@ -344,7 +344,7 @@ class TestOsr2Mode:
         rx_file = tmp_path / "osr2_serial_rx.txt"
         rx_file.write_text("100.0", encoding="utf-8")
 
-        with patch("fun_time.player_status.time") as mock_time:
+        with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 200.0  # 100s stale
             assert feed.osr2_mode() == "off"
 
@@ -353,7 +353,7 @@ class TestOsr2Mode:
         rx_file = tmp_path / "osr2_serial_rx.txt"
         rx_file.write_text("100.0", encoding="utf-8")
 
-        with patch("fun_time.player_status.time") as mock_time:
+        with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 110.0  # 10s ago — fresh
             assert feed.osr2_mode() == "controlled"
 
@@ -363,6 +363,6 @@ class TestOsr2Mode:
         rx_file.write_text("100.0", encoding="utf-8")
         (tmp_path / "rh_mode.txt").write_text("1", encoding="utf-8")
 
-        with patch("fun_time.player_status.time") as mock_time:
+        with patch("app_support.file_channel.time") as mock_time:
             mock_time.time.return_value = 110.0
             assert feed.osr2_mode() == "auto"

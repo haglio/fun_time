@@ -7,6 +7,8 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 
+from app_support import state_files
+
 from .config import RegenConfig
 from .event_log import FAVORITE, NOTICE, SOURCE_SYSTEM
 from .player_status import genau_enabled_path
@@ -116,7 +118,7 @@ class BridgeConfig:
     @property
     def genau_drive_file(self) -> Path:
         """Genau's live dials, as it publishes them for the drive readout."""
-        return self.state_dir / "genau_drive.txt"
+        return self.state_dir / state_files.GENAU_DRIVE
 
     @property
     def robot_hand_hold_file(self) -> Path:
@@ -125,7 +127,7 @@ class BridgeConfig:
     @property
     def osr2_serial_rx_file(self) -> Path:
         """When the OSR2 last spoke, as the broker last stamped it."""
-        return self.broker_state / "osr2_serial_rx.txt"
+        return self.broker_state / state_files.OSR2_SERIAL_RX
 
     @property
     def osr2_serial_tx_file(self) -> Path:
@@ -133,7 +135,7 @@ class BridgeConfig:
         traffic, so through a quiet stretch (an OmniPause, a handoff buffer) the
         RX stamp alone goes stale on a device that is on and in use — this one
         says somebody is still driving it."""
-        return self.broker_state / "osr2_serial_tx.txt"
+        return self.broker_state / state_files.OSR2_SERIAL_TX
 
     @property
     def regen(self) -> RegenConfig:
