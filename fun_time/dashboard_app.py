@@ -8,6 +8,7 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 from PyQt6.QtGui import QColor, QFont
+from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
@@ -843,6 +844,9 @@ def main(argv: list[str] | None = None) -> int:
         pass  # Non-fatal — taskbar grouping just won't work
 
     app = QApplication.instance() or QApplication([])
+    # The family's chrome, on the application: a tooltip is a top-level popup,
+    # and only a sheet set here reaches it.
+    app.setStyleSheet(family_stylesheet())
 
     app_config = load_dashboard_app_config(Path(args.manifest_path))
     record_source_checkout(app_config.dashboard_state_file.parent)
