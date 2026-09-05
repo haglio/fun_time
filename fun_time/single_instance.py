@@ -1,49 +1,18 @@
-"""Single-instance guards using Win32 named mutexes."""
+"""Which mutex says a session is running, and what a second launch is told.
+
+The mutex itself -- claiming it, holding the handle that is the claim, asking
+whether someone else holds it -- is ``app_support.win32``'s.  What is Fun Time's
+is the name, and the notice.
+"""
 from __future__ import annotations
 
-import hashlib
-from pathlib import Path
-
-from fun_time.win32_loader import get_last_error as _get_last_error
-from fun_time.win32_loader import load_dll
-
-# use_last_error=True makes ctypes save/restore the per-thread error code
-# around each call, preventing Python's runtime from clobbering it.
-_kernel32 = load_dll("kernel32", use_last_error=True)
-
-ERROR_ALREADY_EXISTS = 183
-
+# The base of the orchestrator's mutex name; ``app_support.win32.mutex_name``
+# adds the session's identity, so one config blocks its own duplicates while a
+# session on another config runs beside it.  A branch-verification session
+# borrows the live session's identity on purpose, and is refused while that one
+# is up, in either order.  The name cannot change without letting a second
+# session start beside one already running.
 MUTEX_ORCHESTRATOR = "Global\\FunTime.Orchestrator"
-
-
-def mutex_name_for_config(base: str, instance_id: str | Path) -> str:
-    """Derive a mutex name from a base prefix and a session identity.
-
-    The identity is ``ProjectConfig.instance_id`` — the config path, unless the
-    config names another session's.  The same identity always produces the same
-    mutex, so the real app (single config) blocks duplicates while integration
-    tests (unique tmp configs) run without conflict, and a branch-verification
-    session — which borrows the live session's identity on purpose — is refused
-    while that one is up, in either order.
-    """
-    suffix = hashlib.md5(str(instance_id).encode()).hexdigest()[:12]
-    return f"{base}.{suffix}"
-
-
-def try_acquire_mutex(name: str) -> int | None:
-    """Try to create a named mutex.
-
-    Returns the handle if this is the first instance, or ``None`` if
-    another instance already holds it.  The caller must keep the
-    returned handle alive for the process lifetime.
-    """
-    handle = _kernel32.CreateMutexW(None, False, name)
-    if not handle:
-        return None
-    if _get_last_error() == ERROR_ALREADY_EXISTS:
-        _kernel32.CloseHandle(handle)
-        return None
-    return handle
 
 
 def show_already_running_message(text: str, title: str = "Fun Time") -> None:

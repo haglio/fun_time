@@ -438,16 +438,14 @@ def main(argv: list[str] | None = None) -> int:
     configure_logging(logger.name, config.log_file("vr_orchestrator"), console=True)
     install_exception_logging(logger)
 
-    from fun_time.single_instance import (  # mirrors fun_time.orchestrator.main
-        MUTEX_ORCHESTRATOR,
-        mutex_name_for_config,
-        show_already_running_message,
-        try_acquire_mutex,
-    )
+    # Mirrors fun_time.orchestrator.main.
+    from app_support.win32 import mutex_name, try_acquire_mutex
+
+    from fun_time.single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
 
     # The SAME mutex as the desktop session: both drive the same state files
     # and the same players' channels, so they must never run together.
-    _mutex_handle = try_acquire_mutex(mutex_name_for_config(MUTEX_ORCHESTRATOR, config.instance_id))
+    _mutex_handle = try_acquire_mutex(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger.warning("Another Fun Time session (desktop or VR) is already running; exiting")
         signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)

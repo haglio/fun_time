@@ -21,11 +21,11 @@ from pathlib import Path
 
 import numpy as np
 import pygame
+from app_support.win32 import set_app_user_model_id
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.status import StatusWriter
-from player_core.taskbar import set_app_user_model_id
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHudPainter, chip_xy
 

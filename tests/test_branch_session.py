@@ -21,10 +21,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from app_support.win32 import mutex_name
 
 from fun_time import branch_session
 from fun_time.config import ProjectConfig, load_config
-from fun_time.single_instance import MUTEX_ORCHESTRATOR, mutex_name_for_config
+from fun_time.single_instance import MUTEX_ORCHESTRATOR
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -224,7 +225,7 @@ def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
     live, branch = _live_and_branch(checkouts)
 
     assert branch.instance_id == live.instance_id
-    assert mutex_name_for_config(MUTEX_ORCHESTRATOR, branch.instance_id) == mutex_name_for_config(
+    assert mutex_name(MUTEX_ORCHESTRATOR, branch.instance_id) == mutex_name(
         MUTEX_ORCHESTRATOR, live.instance_id
     )
 

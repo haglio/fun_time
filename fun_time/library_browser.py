@@ -675,7 +675,9 @@ def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     # Claim Fun Time's identity before any window exists, so the browse is never
     # mistaken for an unrelated app's window (see the Tool flag above).
-    from .win32_taskbar import APP_USER_MODEL_ID, set_app_user_model_id
+    from app_support.win32 import set_app_user_model_id
+
+    from .win32_taskbar import APP_USER_MODEL_ID
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:

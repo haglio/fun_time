@@ -1,4 +1,5 @@
-"""Tests for fun_time.single_instance."""
+"""Tests for fun_time.single_instance: the name Fun Time claims and the notice
+it shows.  The mutex itself is app_support.win32's, and tested there."""
 from __future__ import annotations
 
 import ast
@@ -9,54 +10,14 @@ from shared_ui.alert import Level
 
 from fun_time import single_instance
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.single_instance import (
-    ERROR_ALREADY_EXISTS,
-    MUTEX_ORCHESTRATOR,
-    mutex_name_for_config,
-    show_already_running_message,
-    try_acquire_mutex,
-)
+from fun_time.single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
 
 
-class TestTryAcquireMutex:
-    def test_returns_handle_when_first_instance(self):
-        with patch("fun_time.single_instance._kernel32") as k32, \
-             patch("fun_time.single_instance._get_last_error", return_value=0):
-            k32.CreateMutexW.return_value = 12345
-            result = try_acquire_mutex("Global\\Test")
-
-        assert result == 12345
-        k32.CloseHandle.assert_not_called()
-
-    def test_returns_none_when_already_running(self):
-        with patch("fun_time.single_instance._kernel32") as k32, \
-             patch("fun_time.single_instance._get_last_error", return_value=ERROR_ALREADY_EXISTS):
-            k32.CreateMutexW.return_value = 99
-            result = try_acquire_mutex("Global\\Test")
-
-        assert result is None
-        k32.CloseHandle.assert_called_once_with(99)
-
-    def test_returns_none_when_create_mutex_fails(self):
-        with patch("fun_time.single_instance._kernel32") as k32:
-            k32.CreateMutexW.return_value = 0
-            result = try_acquire_mutex("Global\\Test")
-
-        assert result is None
-
-    def test_uses_ctypes_get_last_error_not_kernel32(self):
-        """Regression: _kernel32.GetLastError() can return stale data
-        because Python resets the per-thread error between ctypes calls.
-        Must use ctypes.get_last_error() with use_last_error=True."""
-        with patch("fun_time.single_instance._kernel32") as k32, \
-             patch("fun_time.single_instance._get_last_error", return_value=ERROR_ALREADY_EXISTS):
-            k32.CreateMutexW.return_value = 99
-            # Simulate stale GetLastError (the bug scenario)
-            k32.GetLastError.return_value = 0
-            result = try_acquire_mutex("Global\\Test")
-
-        assert result is None
-        k32.CloseHandle.assert_called_once_with(99)
+def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
+    # Spelled out rather than derived: a session started before a change to
+    # this string is not refused by a session started after it, and the two
+    # then drive the same players' channels together.
+    assert MUTEX_ORCHESTRATOR == "Global\\FunTime.Orchestrator"
 
 
 class TestShowAlreadyRunningMessage:
@@ -88,19 +49,3 @@ class TestShowAlreadyRunningMessage:
         ]
 
         assert not [name for name in at_the_top if name and name.startswith("shared_ui")]
-
-
-class TestMutexNameForConfig:
-    def test_same_path_gives_same_name(self):
-        a = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
-        b = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
-        assert a == b
-
-    def test_different_paths_give_different_names(self):
-        a = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
-        b = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/bar/config.json"))
-        assert a != b
-
-    def test_includes_base_prefix(self):
-        name = mutex_name_for_config(MUTEX_ORCHESTRATOR, Path("C:/foo/config.json"))
-        assert name.startswith(MUTEX_ORCHESTRATOR)
