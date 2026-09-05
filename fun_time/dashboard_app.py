@@ -77,6 +77,11 @@ def lighten_color(color: QColor, amount: int = 50) -> QColor:
 class DashboardAppConfig:
     layout: LayoutConfig
     manifest_path: Path
+    # The session's state directory -- the manifest's own, and where every
+    # file the dashboard reads or writes lives.  Named once here: derived
+    # at each use from two different fields, one of which could fall back
+    # relative, half the file IPC once went to the working directory.
+    state_dir: Path
     dashboard_state_file: Path
     dashboard_cmd_file: Path
 
@@ -128,11 +133,16 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
         main_top_ratio=parser.getfloat("layout", "main_top_ratio"),
         landscape_width_ratio=parser.getfloat("layout", "landscape_width_ratio"),
     )
+    state_dir = manifest_path.parent
     return DashboardAppConfig(
         layout=layout,
         manifest_path=manifest_path,
-        dashboard_state_file=Path(parser.get("commands", "dashboard_state_file", fallback="dashboard_state.ini")),
-        dashboard_cmd_file=Path(parser.get("commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt")),
+        state_dir=state_dir,
+        # The manifest writes both absolute; a bare name lands in the state dir.
+        dashboard_state_file=state_dir / parser.get(
+            "commands", "dashboard_state_file", fallback="dashboard_state.ini"),
+        dashboard_cmd_file=state_dir / parser.get(
+            "commands", "dashboard_cmd_file", fallback="dashboard_cmd.txt"),
     )
 
 
@@ -555,7 +565,7 @@ class DashboardWindow(QMainWindow):
         # The reference popup opens over the Random Favs Browser's screen rect.
         self._reference = ReferencePopup(self, rfb_rect)
         # Read once; the notice feed below is seeded from this same answer.
-        self._reveal = LoadingReveal(app_config.manifest_path.parent)
+        self._reveal = LoadingReveal(app_config.state_dir)
 
         self._pressed: dict[str, float] = {}
         self._last_snapshot: DashboardSnapshot | None = None
@@ -578,8 +588,8 @@ class DashboardWindow(QMainWindow):
         # lets it ride the dashboard's topmost band, minimize/restore and close.
         self._widget = DashboardWidget()
         self._widget.action_triggered.connect(self._on_action)
-        state_dir = app_config.manifest_path.parent
-        self._log_widget = LogPanelWidget(event_log_path(state_dir), prefs_path(state_dir))
+        self._log_widget = LogPanelWidget(
+            event_log_path(app_config.state_dir), prefs_path(app_config.state_dir))
         # The bar's buttons and the log's filters share one row, so the Dash is
         # a row shorter and the Random Favs Browser below it that much taller.
         top_row = QWidget(self)
@@ -617,17 +627,16 @@ class DashboardWindow(QMainWindow):
         self._reveal.attach(_hwnd, self)
         set_taskbar_window_styles(_hwnd)
 
-        self._ahk_cmd_file = app_config.manifest_path.parent / "ahk_cmd.txt"
+        self._ahk_cmd_file = app_config.state_dir / "ahk_cmd.txt"
 
         # Connected first: the channel's listener emits as soon as it exists.
         self._press_received.connect(self._handle_press_event)
-        self._press_channel = PressChannel(
-            app_config.dashboard_state_file.parent, self._press_received.emit)
+        self._press_channel = PressChannel(app_config.state_dir, self._press_received.emit)
 
         self._notices = NoticeFeed(
             layout=app_config.layout,
-            event_log_dir=app_config.dashboard_state_file.parent,
-            cover_dir=app_config.manifest_path.parent,
+            event_log_dir=app_config.state_dir,
+            cover_dir=app_config.state_dir,
             make_overlay=NoticeOverlay,
             held=self._reveal.deferred,
         )
@@ -849,7 +858,7 @@ def main(argv: list[str] | None = None) -> int:
     app.setStyleSheet(family_stylesheet())
 
     app_config = load_dashboard_app_config(Path(args.manifest_path))
-    record_source_checkout(app_config.dashboard_state_file.parent)
+    record_source_checkout(app_config.state_dir)
     launch_geometry = rect_from_arguments(args)
     rfb_rect = rect_from_arguments(args, prefix="rfb_")
     _window = build_dashboard_window(
