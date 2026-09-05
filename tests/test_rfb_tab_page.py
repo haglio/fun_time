@@ -3,7 +3,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from fun_time.loopback_server import omnipause_url
-from fun_time.rfb_tab_page import TabTarget, render_tab_page, tabs_dir, write_tab_pages
+from fun_time.rfb_tab_page import (
+    TabTarget,
+    render_tab_page,
+    tabs_dir,
+    write_lock_tab_page,
+    write_tab_pages,
+)
 
 REGEN_URL = "https://example.com/create#ft=%7B%22kind%22%3A%22image%22%7D"
 
@@ -65,6 +71,27 @@ def test_render_tab_page_asks_this_session_whether_it_is_omnipaused(tmp_path: Pa
     html = render_tab_page(TabTarget(REGEN_URL, "l", video_path=str(_video(tmp_path))))
 
     assert f'"{omnipause_url()}"' in html
+
+
+def test_render_tab_page_asks_at_the_port_this_session_serves_on():
+    """The port is the session's, not the module's: a session serving anywhere
+    but the default left every page polling 8770, where nothing answered, and
+    the freeze the pages exist for silently never came (bug 22)."""
+    html = render_tab_page(TabTarget(REGEN_URL, "l"), loopback_port=8771)
+
+    assert f'"{omnipause_url(8771)}"' in html
+    assert omnipause_url() not in html
+
+
+def test_the_written_pages_carry_the_port_they_were_handed(tmp_path: Path):
+    pages = tmp_path / "rfb_tabs"
+
+    write_tab_pages(pages, [TabTarget(REGEN_URL, "a")], loopback_port=8771)
+    write_lock_tab_page(pages, TabTarget("https://b", "b"), loopback_port=8771)
+
+    assert omnipause_url(8771) in (pages / "tab_01.html").read_text(encoding="utf-8")
+    [lock_page] = pages.glob("lock_*.html")
+    assert omnipause_url(8771) in lock_page.read_text(encoding="utf-8")
 
 
 # --- writing pages ---

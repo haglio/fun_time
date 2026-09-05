@@ -844,6 +844,7 @@ def build_bridge_config_from_manifest(
         favs_file=Path(manifest.media.favs_file),
         weird_dir=Path(manifest.media.weird_dir),
         state_dir=Path(commands.dashboard_state_file).parent,
+        loopback_port=manifest.loopback_port,
         main_sources=manifest.media.nau_library_sources,
         python_exe=manifest.executables.python_exe,
         portrait_sources=manifest.media.portrait_dirs,

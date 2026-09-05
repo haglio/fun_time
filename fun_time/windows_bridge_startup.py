@@ -280,7 +280,8 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     config = load_config(config_path)
     profile_directory, targets = build_manifest(config)
     urls = (
-        write_tab_pages(tabs_dir(config.paths.state_dir), targets)
+        write_tab_pages(
+            tabs_dir(config.paths.state_dir), targets, loopback_port=config.loopback_port)
         if config.random_favs_browser.lazy_load
         else [target.url for target in targets]
     )

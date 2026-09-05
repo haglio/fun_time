@@ -13,6 +13,7 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
+from fun_time.loopback_server import omnipause_url
 from fun_time.modes import SatelliteBuild
 from fun_time.players import Player
 from fun_time.project_paths import PROJECT_ICON
@@ -330,6 +331,23 @@ def test_prepare_random_favs_browser_manifest_defers_each_tab_behind_a_local_pag
     assert tab_uri.startswith("file:///")
     page = Path(url2pathname(urlparse(tab_uri).path)).read_text(encoding="utf-8")
     assert "https://example.com/image/abc" in page
+
+
+def test_prepare_random_favs_browser_manifest_pages_poll_the_port_this_session_serves_on(
+    cfg_factory, tmp_path: Path
+):
+    """Every page polled the default port whatever the config served on (bug 22)."""
+    cfg_path = _rfb_config(cfg_factory, tmp_path, lazy_load=True)
+    raw = json.loads(cfg_path.read_text(encoding="utf-8"))
+    raw["loopback_port"] = 8771
+    cfg_path.write_text(json.dumps(raw), encoding="utf-8")
+    output_path = tmp_path / "browser_manifest.txt"
+
+    prepare_random_favs_browser_manifest(cfg_path, output_path)
+
+    _profile, tab_uri = output_path.read_text(encoding="utf-8").splitlines()
+    page = Path(url2pathname(urlparse(tab_uri).path)).read_text(encoding="utf-8")
+    assert omnipause_url(8771) in page
 
 
 def test_prepare_random_favs_browser_manifest_lists_urls_directly_without_lazy_load(
