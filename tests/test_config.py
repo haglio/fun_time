@@ -176,7 +176,20 @@ class TestRegenConfig:
         cfg = load_config(path)
         assert cfg.regen.media_root == tmp_path / "media"
         assert cfg.regen.metadata_root == tmp_path / "meta"
-        assert cfg.random_favs_browser.profile_name == "Blair"
+        assert cfg.random_favs_browser.profile_name == ""
+        assert cfg.random_favs_browser.enabled is False
+
+    def test_a_browser_section_that_names_no_profile_stays_off(self, cfg_factory):
+        """The defaults used to be one machine's own shortcut and profile, so a
+        section saying only ``enabled`` launched Chrome into somebody's profile
+        by guess.  Nobody's to guess: off until the section says whose, and the
+        shortcut placeholder is a file the launch validation refuses by name."""
+        path = cfg_factory({"random_favs_browser": {"enabled": True, "open_count": 3}})
+        cfg = load_config(path)
+        assert cfg.random_favs_browser.enabled is False
+        assert cfg.random_favs_browser.profile_name == ""
+        assert cfg.random_favs_browser.shortcut_path.name == "random_favs_browser.lnk"
+        assert cfg.random_favs_browser.open_count == 3
 
     def test_loads_random_favs_browser_settings(self, cfg_factory):
         path = cfg_factory(
@@ -185,7 +198,7 @@ class TestRegenConfig:
                     "enabled": True,
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
-                    "profile_name": "Blair",
+                    "profile_name": "Jane Doe",
 
                     "open_count": 7,
                 }
@@ -206,7 +219,7 @@ class TestRegenConfig:
                     "enabled": True,
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
-                    "profile_name": "Blair",
+                    "profile_name": "Jane Doe",
 
                     "open_count": 7,
                     "lazy_load": True,
@@ -223,7 +236,7 @@ class TestRegenConfig:
                     "enabled": True,
                     "shortcut_path": "chrome.exe",
                     "user_data_dir": "chrome_data",
-                    "profile_name": "Blair",
+                    "profile_name": "Jane Doe",
 
                     "open_count": 7,
                 }
