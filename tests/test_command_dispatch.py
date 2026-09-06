@@ -1874,7 +1874,7 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
 
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
-    """Same beach scene as its kin, but a render knob (image quality) set — so
+    """Same beach scene as its kin, but a render dial (image quality) set — so
     two such metas are near-matches yet split into separate seed families."""
     return {
         "video": {"prompt": "beach", "action": "Alpha", "seed": "5"},

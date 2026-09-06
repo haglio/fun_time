@@ -944,12 +944,12 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
     widened and frozen on the anchor — not collapse with no loop shown."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     # a and a2 share the exact seed family (identical config, seed varied); b is the
-    # same scene re-rendered with a render knob freed (a different model), so it joins
+    # same scene re-rendered with a render dial freed (a different model), so it joins
     # a's loose family but is its own exact family.
     a = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1", image_seed="100"))
     a2 = _clip(media_root, metadata_root, "a2", _i2v("Alpha", "2", image_seed="101"))
     b_meta = _i2v("Alpha", "3", image_seed="200")
-    b_meta["source_image"]["model"] = "Y Sweet"  # a render knob freed → a loose sibling
+    b_meta["source_image"]["model"] = "Y Sweet"  # a render dial freed → a loose sibling
     b = _clip(media_root, metadata_root, "b", b_meta)
     sources = str(media_root / "portrait")
 
