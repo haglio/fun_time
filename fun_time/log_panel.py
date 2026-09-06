@@ -270,7 +270,7 @@ class LogPanelWidget(QWidget):
         # widget, so the dashboard can lift it up into the top bar beside the
         # app's own buttons rather than spend a row of the strip on it.  The
         # toggles are compact checkable buttons with short labels (the full name
-        # is the tooltip) rather than word-labeled checkboxes.
+        # is the tooltip) rather than word-labeled tick controls.
         self.controls = QWidget()
         controls = QHBoxLayout(self.controls)
         controls.setContentsMargins(0, 0, 0, 0)
@@ -287,7 +287,7 @@ class LogPanelWidget(QWidget):
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
         controls.addWidget(self._verbosity)
 
-        self._source_boxes: dict[str, QToolButton] = {}
+        self._source_buttons: dict[str, QToolButton] = {}
         for source in SOURCES:
             button = QToolButton(self)
             button.setText(_SOURCE_LABELS[source])
@@ -319,7 +319,7 @@ class LogPanelWidget(QWidget):
             button.setAutoRaise(True)
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
-            self._source_boxes[source] = button
+            self._source_buttons[source] = button
         # No trailing stretch: `self.controls` is placed by the dashboard, up in
         # the top bar and right-justified there, so it must be exactly as wide as
         # its own row — not added to this widget's own layout, which now holds
@@ -451,7 +451,7 @@ class LogPanelWidget(QWidget):
     def _on_sources_changed(self) -> None:
         self._filter = LogFilter(
             verbosity=self._filter.verbosity,
-            sources=frozenset(s for s, button in self._source_boxes.items() if button.isChecked()),
+            sources=frozenset(s for s, button in self._source_buttons.items() if button.isChecked()),
         )
         self._save_prefs()
         self._rebuild_list()

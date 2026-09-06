@@ -3,7 +3,7 @@
 The player on the main slot knows what it is playing.  It does not know which
 mode the slot is in, what has the OSR2, whether Genau may take it over, whether
 the broker is up, or which player a bare command would reach — all of that is the
-orchestrator's.  The dashboard used to draw it as a box per player; the console
+orchestrator's.  The dashboard used to draw it as a panel per player; the console
 draws it now, so this is what has to reach the player for that console to be
 drawable: a small JSON panel, published the way each satellite's map is (see
 :mod:`fun_time.hud_transport`), and read back by ``nau.console``.
@@ -17,7 +17,7 @@ from .player_status import GenauStatus
 
 NAU_CONSOLE_FILENAME = "nau_console.json"
 
-# What has the OSR2, as one compact word the console boxes.  Off and auto are the
+# What has the OSR2, as one compact word the console badges.  Off and auto are the
 # device's own modes; otherwise it comes down to whether a funscript is actually
 # *driving* right now — not merely present, so a scripted video's quiet stretch,
 # where the Robot Hand fills in, reads as the hand rather than as its funscript,
@@ -29,7 +29,7 @@ OSR2_ROBOT_HAND = "robot_hand"
 
 
 def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
-    """Which of the OSR2 states has the device, for the console to box.
+    """Which of the OSR2 states has the device, for the console to badge.
 
     Only a Nau that is *on screen* can be driving: ``funscript_driving`` is read
     off Nau's status file, which describes the video Nau is parked on whether or

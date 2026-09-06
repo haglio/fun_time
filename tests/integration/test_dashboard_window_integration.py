@@ -149,7 +149,7 @@ def test_log_controls_fit_one_row_beside_the_bar_and_lines_word_wrap(cfg_path: P
         controls_width = panel.controls.width()
         # The last source toggle's right edge stays inside the controls' own
         # width: nothing is pushed off it, so it is genuinely one row that fits.
-        last = panel._source_boxes["system"]
+        last = panel._source_buttons["system"]
         assert last.x() + last.width() <= controls_width
         assert panel.controls.minimumSizeHint().width() <= controls_width
         # Long lines wrap rather than elide.

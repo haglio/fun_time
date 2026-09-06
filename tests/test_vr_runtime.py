@@ -258,7 +258,7 @@ def _a_loader_that_will_not_load(exc):
     """Fail the import itself, the way a loader that cannot load does.
 
     Not an ``ImportError``: pyopenxr raises ``NotImplementedError`` off Windows,
-    and ``LoadLibrary`` raises ``OSError`` on a Windows box whose loader DLL is
+    and ``LoadLibrary`` raises ``OSError`` on a Windows machine whose loader DLL is
     unusable.  Neither ever happens on the machine the gate runs on, which is
     why this has to be staged rather than waited for.
     """
