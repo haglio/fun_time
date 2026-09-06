@@ -35,7 +35,7 @@ class TestOsr2State:
                           funscript_driving=True) == OSR2_FUNSCRIPT
 
     def test_a_scripted_videos_quiet_stretch_reads_as_the_robot_hand_not_funscript(self):
-        """The reported hole: on a rest gap of a scripted video the Robot Hand drives, but
+        """The reported bug: on a rest gap of a scripted video the Robot Hand drives, but
         it said funscript because a funscript merely *existed*.  It is the driving
         state that decides now, not the file's presence."""
         assert osr2_state(mode="video", osr2_mode="controlled",
@@ -47,7 +47,7 @@ class TestOsr2State:
                               funscript_driving=False) == OSR2_ROBOT_HAND
 
     def test_a_nau_parked_off_screen_cannot_claim_the_device(self):
-        """The reported hole: in genau mode Nau is paused off screen, but its
+        """The reported bug: in genau mode Nau is paused off screen, but its
         status file still describes the scripted video it was last showing —
         so this said "funscript" while Genau had the device, which dims every
         control on the drive readout and refuses every press on it."""

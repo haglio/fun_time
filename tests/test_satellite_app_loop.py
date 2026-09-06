@@ -138,7 +138,7 @@ def test_the_paused_flag_reaches_the_player_each_pass(tmp_path):
 
 def test_the_window_close_asks_the_session_not_this_player(tmp_path):
     """Alt+F4 on one satellite must not leave the session running around a
-    hole: the QUIT event posts the session-quit gesture, and only the
+    gap: the QUIT event posts the session-quit gesture, and only the
     gesture's answer ends this loop."""
     clips = _clips(tmp_path, "v0")
     args = _loop_args(tmp_path, clips)

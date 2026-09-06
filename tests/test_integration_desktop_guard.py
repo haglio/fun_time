@@ -59,7 +59,7 @@ def test_the_predicate_and_the_refusal_agree():
 
 
 def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
-    """The hole this suite was written for, and did not cover.
+    """The gap this suite was written for, and did not cover.
 
     ``pytest_sessionstart`` can only refuse when tests/integration/ is named on
     the command line — that is what makes its conftest an *initial* conftest,
