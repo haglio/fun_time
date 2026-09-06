@@ -12,7 +12,8 @@ the main player is :class:`fun_time_vr.roles.MainRole`, Nau's contract
 in-process; Genau is :class:`fun_time_vr.genau_role.GenauRole`, the clip
 player's engine on a thread of its own, taking the scene in genau mode and
 driving beneath the video in video mode.  The console hangs in the scene as
-a panel of its own (:mod:`fun_time_vr.console_panel`).
+a panel of its own (:mod:`fun_time_vr.console_panel`), and the controllers
+point at it and at the satellites (:mod:`fun_time_vr.pointer`).
 
 Two threads.  A worker owns every file channel — pause flags, command drains,
 status writes, HUD polls, and the in-video furniture repaints — at its own
@@ -32,9 +33,9 @@ draws in-scene inside the projection layer instead, which every runtime
 composites.
 
 The GL/OpenXR/mpv shell.  Everything it wires — roles, scene geometry,
-matrices, projections, furniture throttling — is tested pure, and the whole
-pipeline minus OpenXR runs against the real DLLs in the hidden-desktop
-integration suite.  See CLAUDE.md, "Standing rules".
+matrices, projections, furniture throttling, the pointer — is tested pure,
+and the whole pipeline minus OpenXR runs against the real DLLs in the
+hidden-desktop integration suite.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 
@@ -42,8 +43,10 @@ import argparse
 import configparser
 import logging
 import math
+import queue
 import threading
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -51,7 +54,7 @@ import numpy as np
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
-from player_core.file_channel import consume_command_file, read_paused_state
+from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.genau_notifier import GenauNotifier
 from player_core.playlist import read_playlist
 from player_core.render_player import MpvRenderPlayer
@@ -71,18 +74,11 @@ from satellite.session import SatelliteSession
 from satellite.status import status_fields as satellite_status_fields
 
 from . import vr_runtime
-from .console_panel import (
-    PANEL_AZIMUTH_DEG,
-    PANEL_ELEVATION_DEG,
-    PANEL_WIDTH_DEG,
-    PANEL_WIDTH_PX,
-    paint_panel,
-    panel_hud,
-    panel_painter,
-)
+from .console_panel import PANEL_WIDTH_PX, PanelPointer, paint_panel, panel_hud, panel_painter
 from .furniture import chip_state, scrubber_state
 from .genau_role import GenauRole, run_ticks
 from .genau_settings import GenauSettings
+from .layout import LANDSCAPE, LAYOUT_FILENAME, PANEL, PORTRAIT, read_layout, write_layout
 from .matrices import (
     fov_to_projection_matrix,
     pitch_rotation_matrix,
@@ -91,16 +87,23 @@ from .matrices import (
     yaw_rotation_matrix,
 )
 from .perf import FramePerf
+from .pointer import (
+    DRAG,
+    PRESS,
+    RELEASE,
+    SURFACE,
+    Frame,
+    PanelEvent,
+    Pointer,
+    Screen,
+    cursor_vertices,
+    handle_vertices,
+    head_position,
+    laser_vertices,
+)
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import MainRole
-from .scene import (
-    PRIMARY_WIDTH_DEG,
-    SATELLITE_ELEVATION_DEG,
-    SATELLITE_WIDTH_DEG,
-    quad_layer_placement,
-    satellite_center_azimuth,
-    surface_vertices,
-)
+from .scene import PRIMARY_PLACEMENT, Placement, quad_layer_placement, surface_vertices
 
 logger = logging.getLogger(__name__)
 
@@ -128,6 +131,12 @@ SESSION_BRINGUP_TIMEOUT_S = 60.0
 SESSION_BRINGUP_RETRY_S = 2.0
 
 _MUTED_INDICATOR = VolumeHud(volume=0, muted=True)
+
+LASER_REACH_M = 3.0  # when the laser meets no screen
+HANDLE_COLOR = (0.85, 0.85, 0.9, 0.35)
+HOT_HANDLE_COLOR = (0.3, 0.6, 1.0, 0.85)
+LASER_COLOR = (1.0, 1.0, 1.0, 0.55)
+CURSOR_COLOR = (1.0, 1.0, 1.0, 0.9)
 
 
 def _show_error_popup(message: str) -> None:
@@ -190,18 +199,38 @@ class VrSettings:
         )
 
 
-class _VideoUnit:
-    """What every on-scene player shares: an offscreen mpv, a texture target,
-    and the screen geometry rebuilt whenever the video's aspect changes."""
+class _HungScreen:
+    def __init__(self, placement: Placement) -> None:
+        self.placement = placement
+        self.mesh: ScreenMesh | None = None
+        self._hung: tuple[Placement, float] | None = None
 
-    def __init__(self, player, target_cap_px: int) -> None:
+    @property
+    def ready(self) -> bool:
+        return self.mesh is not None and self.mesh.ready
+
+    def rehang(self, aspect: float) -> None:
+        hung = (self.placement, aspect)
+        if hung == self._hung:
+            return
+        if self.mesh is None:
+            self.mesh = ScreenMesh()
+        self.mesh.upload(surface_vertices(self.placement, aspect=aspect))
+        self._hung = hung
+
+    def close(self) -> None:
+        if self.mesh is not None:
+            self.mesh.close()
+
+
+class _VideoUnit:
+    """What every mpv-backed player shares: an offscreen mpv and a texture target."""
+
+    def __init__(self, player, target_cap_px: int, placement: Placement = PRIMARY_PLACEMENT) -> None:
         self.player = player
         self.target = RenderTarget()
-        self.mesh: ScreenMesh | None = None
+        self.screen = _HungScreen(placement)
         self._target_cap_px = target_cap_px
-        self._screen_azimuth = 0.0
-        self._screen_width_deg = PRIMARY_WIDTH_DEG
-        self._screen_elevation_deg = 0.0
         # Compositor-layer bookkeeping, render-thread-owned: whether the
         # target holds pixels its quad swapchain hasn't copied yet, and the
         # size the swapchain's content was copied at (None until the first
@@ -212,11 +241,6 @@ class _VideoUnit:
         self._scrubber_shown: tuple | None = None
         self._chip_shown: tuple | None = None
 
-    def _set_screen(self, azimuth_deg: float, width_deg: float, elevation_deg: float = 0.0) -> None:
-        self._screen_azimuth = azimuth_deg
-        self._screen_width_deg = width_deg
-        self._screen_elevation_deg = elevation_deg
-
     def render_latest_frame(self) -> None:
         width, height = self.player.video_dims
         if width and height:
@@ -224,14 +248,9 @@ class _VideoUnit:
             sized = (max(1, round(width * scale)), max(1, round(height * scale)))
             if sized != (self.target.width, self.target.height):
                 self.target.ensure(*sized)
-                if self.mesh is None:
-                    self.mesh = ScreenMesh()
-                self.mesh.upload(surface_vertices(
-                    self._screen_azimuth, self._screen_width_deg,
-                    aspect=self.target.aspect,
-                    center_elevation_deg=self._screen_elevation_deg,
-                ))
                 self.layer_rect = None
+        if self.target.ready:
+            self.screen.rehang(self.target.aspect)
         if self.target.ready and self.player.has_new_frame:
             # flip_y: mpv renders top-left-origin; the scene samples GL
             # bottom-left convention (verified against a top-half-white clip).
@@ -243,11 +262,8 @@ class _VideoUnit:
         swapchain last copied; the scene angles turn and tilt the arrangement."""
         width, height = self.layer_rect
         return quad_layer_placement(
-            self._screen_azimuth, self._screen_width_deg,
-            aspect=width / height,
-            center_elevation_deg=self._screen_elevation_deg,
-            scene_yaw_deg=scene_yaw_deg,
-            scene_pitch_deg=scene_pitch_deg,
+            self.screen.placement, aspect=width / height,
+            scene_yaw_deg=scene_yaw_deg, scene_pitch_deg=scene_pitch_deg,
         )
 
     def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
@@ -277,8 +293,7 @@ class _VideoUnit:
 
     def _close_graphics(self) -> None:
         self.target.close()
-        if self.mesh is not None:
-            self.mesh.close()
+        self.screen.close()
 
 
 class _MainUnit(_VideoUnit):
@@ -289,7 +304,6 @@ class _MainUnit(_VideoUnit):
             MpvRenderPlayer(get_proc_address, muted=True, loop_file=True),
             PRIMARY_VIDEO_CAP_PX,
         )
-        self._set_screen(0.0, PRIMARY_WIDTH_DEG)
         commands = manifest.commands
         self.cmd_file = Path(commands.nau_cmd_file)
         self.paused_file = Path(commands.nau_paused_file)
@@ -362,7 +376,9 @@ class _MainUnit(_VideoUnit):
 
 
 class _SatelliteUnit(_VideoUnit):
-    def __init__(self, side: str, manifest: LaunchManifest, get_proc_address) -> None:
+    def __init__(
+        self, side: str, manifest: LaunchManifest, get_proc_address, *, placement: Placement,
+    ) -> None:
         # audio=False, not merely muted: any audio chain here can wedge on the
         # headset's parked endpoint and freeze the video clock (see route_audio).
         super().__init__(
@@ -370,9 +386,7 @@ class _SatelliteUnit(_VideoUnit):
                 get_proc_address, muted=True, loop_file=False, prefetch=True, audio=False,
             ),
             SATELLITE_VIDEO_CAP_PX,
-        )
-        self._set_screen(
-            satellite_center_azimuth(side), SATELLITE_WIDTH_DEG, SATELLITE_ELEVATION_DEG
+            placement,
         )
         commands = manifest.commands
         self.side = side
@@ -388,7 +402,7 @@ class _SatelliteUnit(_VideoUnit):
             Path(commands.side_file(side, "status")), satellite_status_fields
         )
         # The lock HUD panel fun_time publishes, composited into the video by
-        # mpv — no mouse reaches it in VR, but the map itself carries over.
+        # mpv — no pointer reaches it in VR, but the map itself carries over.
         self.hud = HudOverlay(
             hud_file=Path(commands.side_file(side, "hud")),
             command_file=Path(commands.dashboard_cmd_file),
@@ -448,19 +462,14 @@ class _GenauUnit:
             start_clip=read_genau_status(genau_status_path(genau_state)).clip or None,
         )
         self.texture = FrameTexture()
-        self.mesh: ScreenMesh | None = None
-        self._mesh_aspect: float | None = None
+        self.screen = _HungScreen(PRIMARY_PLACEMENT)
 
     def render_latest_frame(self) -> None:
         frame = self.role.take_frame()
         if frame is None:
             return
         self.texture.upload(frame)
-        if self.mesh is None or self._mesh_aspect != self.texture.aspect:
-            if self.mesh is None:
-                self.mesh = ScreenMesh()
-            self.mesh.upload(surface_vertices(0.0, PRIMARY_WIDTH_DEG, aspect=self.texture.aspect))
-            self._mesh_aspect = self.texture.aspect
+        self.screen.rehang(self.texture.aspect)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """Nothing: the engine turns its channels on its own thread."""
@@ -468,29 +477,56 @@ class _GenauUnit:
     def close(self) -> None:
         self.role.close()
         self.texture.close()
-        if self.mesh is not None:
-            self.mesh.close()
+        self.screen.close()
 
 
 class _PanelUnit:
-    """The console, hung in the scene: painted on the pump thread, uploaded on
-    the render thread when it changed."""
+    """The console, hung in the scene: painted and pressed on the pump thread,
+    uploaded on the render thread when it changed."""
 
-    def __init__(self, primary: _MainUnit, genau: _GenauUnit) -> None:
+    def __init__(
+        self, primary: _MainUnit, genau: _GenauUnit, *, placement: Placement,
+        dashboard_cmd_file: Path,
+    ) -> None:
         self._primary = primary
         self._genau = genau
         self._painter = panel_painter()
         self._chip_painter = VolumeHudPainter()
+        self._pointer = PanelPointer(
+            self._painter,
+            post=lambda command: append_command(dashboard_cmd_file, command),
+            seek=primary.role.seek_to,
+        )
+        self._events: queue.SimpleQueue[PanelEvent] = queue.SimpleQueue()
+        self._hover: tuple[float, float] | None = None
         self._lock = threading.Lock()
         self._image = None
         self._key = None
         self._width = PANEL_WIDTH_PX
         self._uploaded = None
         self.texture = FrameTexture()
-        self.mesh: ScreenMesh | None = None
-        self._mesh_aspect: float | None = None
+        self.screen = _HungScreen(placement)
+
+    def point(self, events: Iterable[PanelEvent], *, hover: tuple[float, float] | None) -> None:
+        for event in events:
+            self._events.put(event)
+        self._hover = hover
+
+    def _take_presses(self) -> None:
+        while True:
+            try:
+                event = self._events.get_nowait()
+            except queue.Empty:
+                return
+            if event.kind == PRESS:
+                self._pointer.press(event.u, event.v)
+            elif event.kind == DRAG:
+                self._pointer.drag(event.u, event.v)
+            elif event.kind == RELEASE:
+                self._pointer.release()
 
     def pump(self, stop: threading.Event, now: float) -> None:
+        self._take_presses()
         genau, main = self._genau.role, self._primary.role
         clip = genau.current_clip
         hud = panel_hud(
@@ -506,17 +542,21 @@ class _PanelUnit:
         else:
             scrubber = (main.position_ms, main.duration_ms)
             chip = VolumeHud(volume=main.volume, muted=main.muted)
+        hover = self._pointer.tooltip_anchor(self._hover)
         # Repainted only when what it shows moves, as the furniture is.
         key = (
             hud,
             scrubber_state(self._width, 1, *scrubber) if scrubber is not None else None,
             chip,
+            hover,
         )
         if key == self._key:
             return
         image = paint_panel(
             self._painter, hud, scrubber=scrubber, chip=chip, chip_painter=self._chip_painter,
+            hover=hover,
         )
+        self._pointer.painted(image.size, scrubber=scrubber, chip=chip)
         with self._lock:
             self._image = image
         self._key = key
@@ -529,20 +569,81 @@ class _PanelUnit:
             return
         self.texture.upload(np.asarray(image))
         self._uploaded = image
-        if self.mesh is None or self._mesh_aspect != self.texture.aspect:
-            if self.mesh is None:
-                self.mesh = ScreenMesh()
-            self.mesh.upload(surface_vertices(
-                PANEL_AZIMUTH_DEG, PANEL_WIDTH_DEG,
-                aspect=self.texture.aspect,
-                center_elevation_deg=PANEL_ELEVATION_DEG,
-            ))
-            self._mesh_aspect = self.texture.aspect
+        self.screen.rehang(self.texture.aspect)
 
     def close(self) -> None:
         self.texture.close()
-        if self.mesh is not None:
-            self.mesh.close()
+        self.screen.close()
+
+
+class _LayoutKeeper:
+    def __init__(self, path: Path, layout: dict[str, Placement]) -> None:
+        self._path = path
+        self._layout = layout
+        self._lock = threading.Lock()
+        self._unsaved = False
+        self._settled = False
+
+    def place(self, name: str, placement: Placement) -> None:
+        with self._lock:
+            self._layout[name] = placement
+            self._unsaved = True
+
+    def settle(self) -> None:
+        with self._lock:
+            self._settled = True
+
+    def _write(self, *, settled_only: bool) -> None:
+        with self._lock:
+            if not (self._settled or (self._unsaved and not settled_only)):
+                return
+            snapshot = dict(self._layout)
+            self._settled = self._unsaved = False
+        write_layout(self._path, snapshot)
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        self._write(settled_only=True)
+
+    def close(self) -> None:
+        self._write(settled_only=False)
+
+
+class _PointerDrawing:
+    def __init__(self) -> None:
+        self._laser = ScreenMesh()
+        self._cursor = ScreenMesh()
+        self._handles = [ScreenMesh() for _ in range(3)]
+        self._visible: list[tuple[ScreenMesh, tuple[float, float, float, float]]] = []
+
+    def update(self, frame: Frame, screens: Sequence[Screen]) -> None:
+        self._visible = []
+        if frame.hover is not None:
+            screen = next((s for s in screens if s.name == frame.hover.screen), None)
+            if screen is not None and screen.movable:
+                strips = handle_vertices(
+                    screen.placement, aspect=screen.aspect, resizable=screen.resizable)
+                meshes = iter(self._handles)
+                for kind, kind_strips in strips.items():
+                    color = HOT_HANDLE_COLOR if frame.hover.handle == kind else HANDLE_COLOR
+                    for strip in kind_strips:
+                        mesh = next(meshes)
+                        mesh.upload(strip)
+                        self._visible.append((mesh, color))
+        if frame.ray is not None:
+            reach = frame.point.distance if frame.point is not None else LASER_REACH_M
+            self._laser.upload(laser_vertices(frame.ray, length=reach))
+            self._visible.append((self._laser, LASER_COLOR))
+        if frame.point is not None and frame.hover is not None:
+            self._cursor.upload(cursor_vertices(frame.point))
+            self._visible.append((self._cursor, CURSOR_COLOR))
+
+    def draw(self, renderer: SceneRenderer, view_proj: np.ndarray) -> None:
+        for mesh, color in self._visible:
+            renderer.draw_solid(mesh, view_proj, color)
+
+    def close(self) -> None:
+        for mesh in (self._laser, self._cursor, *self._handles):
+            mesh.close()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -608,6 +709,17 @@ def _update_quad_layer(
     )
 
 
+def _pointable_screens(satellites: Sequence[_SatelliteUnit], panel: _PanelUnit) -> list[Screen]:
+    screens = [
+        Screen(unit.side, unit.screen.placement, unit.target.aspect, movable=True, resizable=True)
+        for unit in satellites if unit.target.ready
+    ]
+    if panel.texture.ready:
+        screens.append(Screen(
+            PANEL, panel.screen.placement, panel.texture.aspect, movable=True, pressable=True))
+    return screens
+
+
 def _draw_eyes(
     session,
     renderer: SceneRenderer,
@@ -615,6 +727,7 @@ def _draw_eyes(
     genau: _GenauUnit,
     satellites: list[_SatelliteUnit],
     panel: _PanelUnit,
+    pointing: _PointerDrawing,
     views,
     mode: int | None,
     scene_rotation: np.ndarray,
@@ -623,8 +736,9 @@ def _draw_eyes(
 ) -> None:
     """Render the projection layer's two eyes: whichever main-slot player has
     the scene, as an immersive wrap or a screen; every other screen when the
-    compositor-layer path is off (*include_screens*); the console panel over
-    all of it.  *scene_rotation* is where the arrangement sits."""
+    compositor-layer path is off (*include_screens*); the console panel and
+    the pointer's chrome over all of it.  *scene_rotation* is where the
+    arrangement sits."""
     clip_showing = genau.role.showing
     clip_mode = immersive_mode(genau.role.projection) if clip_showing else None
     for eye_index, view in enumerate(views):
@@ -648,20 +762,22 @@ def _draw_eyes(
             if clip_mode is not None:
                 inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
                 renderer.draw_immersive(clip_mode, genau.texture.texture, inv32, eye_index)
-            elif genau.mesh is not None and genau.mesh.ready:
-                renderer.draw_screen(genau.mesh, genau.texture.texture, view_proj32)
+            elif genau.screen.ready:
+                renderer.draw_screen(genau.screen.mesh, genau.texture.texture, view_proj32)
         elif not clip_showing and primary.target.ready and primary.role.displayed:
             if mode is not None:
                 inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
                 renderer.draw_immersive(mode, primary.target.texture, inv32, eye_index)
-            elif include_screens and primary.mesh is not None and primary.mesh.ready:
-                renderer.draw_screen(primary.mesh, primary.target.texture, view_proj32)
+            elif include_screens and primary.screen.ready:
+                renderer.draw_screen(primary.screen.mesh, primary.target.texture, view_proj32)
         if include_screens:
             for satellite in satellites:
-                if satellite.target.ready and satellite.mesh is not None and satellite.mesh.ready:
-                    renderer.draw_screen(satellite.mesh, satellite.target.texture, view_proj32)
-        if panel.texture.ready and panel.mesh is not None and panel.mesh.ready:
-            renderer.draw_screen(panel.mesh, panel.texture.texture, view_proj32, blend=True)
+                if satellite.target.ready and satellite.screen.ready:
+                    renderer.draw_screen(
+                        satellite.screen.mesh, satellite.target.texture, view_proj32)
+        if panel.texture.ready and panel.screen.ready:
+            renderer.draw_screen(panel.screen.mesh, panel.texture.texture, view_proj32, blend=True)
+        pointing.draw(renderer, view_proj32)
         session.release_eye_framebuffer(eye_index)
 
 
@@ -705,14 +821,25 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         return glfw.get_proc_address(name)
 
     stop = threading.Event()
+    commands = manifest.commands
+    layout_path = Path(commands.dashboard_cmd_file).parent / LAYOUT_FILENAME
+    layout = read_layout(layout_path)
     primary = _MainUnit(manifest, vr, get_proc_address)
     genau = _GenauUnit(manifest, vr, stop)
     satellites = [
-        _SatelliteUnit("portrait", manifest, get_proc_address),
-        _SatelliteUnit("landscape", manifest, get_proc_address),
+        _SatelliteUnit(side, manifest, get_proc_address, placement=layout[side])
+        for side in (PORTRAIT, LANDSCAPE)
     ]
-    panel = _PanelUnit(primary, genau)
+    panel = _PanelUnit(
+        primary, genau, placement=layout[PANEL],
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+    )
+    keeper = _LayoutKeeper(layout_path, layout)
     units = [primary, genau, *satellites, panel]
+    pumped = [*units, keeper]
+    hung = {unit.side: unit.screen for unit in satellites} | {PANEL: panel.screen}
+    pointer = Pointer()
+    pointing = _PointerDrawing()
     use_layers = vr.compositor_layers
     perf = FramePerf(logger=logger)
     # The recentering yaw, with the role's tilt read in beside it each frame.
@@ -720,7 +847,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     scene_rotation = np.eye(4, dtype=np.float32)
     last_frame_time = time.monotonic()
     pump_thread = start_daemon_thread(
-        target=_pump_channels, args=(units, stop, perf), name="file-channels",
+        target=_pump_channels, args=(pumped, stop, perf), name="file-channels",
     )
     # Genau's engine on its own thread: file I/O every turn, at the desktop
     # window's rate rather than the pump's.
@@ -770,7 +897,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     logger.info(
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
-                session.sync_controller()
+                session.sync_controller(display_time)
                 primary.role.nudge_tilt(
                     tilt_from_stick(session.thumbstick_y, frame_dt)
                 )
@@ -778,6 +905,29 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
                     math.radians(scene_pitch_deg)
                 )
+                screens = _pointable_screens(satellites, panel)
+                frame = pointer.frame(
+                    session.hands,
+                    head=head_position([
+                        (view.pose.position.x, view.pose.position.y, view.pose.position.z)
+                        for view in views
+                    ]),
+                    scene_rotation=scene_rotation,
+                    screens=screens,
+                )
+                for name, placement in frame.moved.items():
+                    hung[name].placement = placement
+                    keeper.place(name, placement)
+                if frame.settled:
+                    keeper.settle()
+                hover = frame.hover
+                panel.point(
+                    frame.events,
+                    hover=(hover.u, hover.v)
+                    if hover is not None and hover.screen == PANEL and hover.handle == SURFACE
+                    else None,
+                )
+                pointing.update(frame, screens)
                 mode = immersive_mode(primary.role.projection)
                 if use_layers:
                     # The mpv-backed screens as quads; the primary stays in the
@@ -794,7 +944,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(
-                    session, renderer, primary, genau, satellites, panel, views, mode,
+                    session, renderer, primary, genau, satellites, panel, pointing, views, mode,
                     scene_rotation,
                     include_screens=not use_layers,
                 )
@@ -814,8 +964,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         stop.set()
         pump_thread.join(timeout=2.0)
         genau_thread.join(timeout=2.0)
-        for unit in units:
+        for unit in pumped:
             unit.close()
+        pointing.close()
         renderer.close()
         session.close()
         logger.info("Shutdown complete")

@@ -4,8 +4,7 @@ The loader's traps, each learned the slow way: graphics requirements queried
 before session creation, typed event casting, waiting for READY before the
 frame loop, and gating on view validity (an unlocated view reports an
 all-zero FOV, a division by zero in the projection matrix).  No per-eye depth
-buffers (the scene draws in painter's order); the one controller action is
-the tilt thumbstick, every other verb arriving from hotkeys and voice.
+buffers (the scene draws in painter's order).
 
 The OpenXR/GL shell -- see CLAUDE.md, "Standing rules".
 """
@@ -20,6 +19,8 @@ import xr
 from OpenGL import GL
 
 from fun_time.project_paths import PROJECT_VR_ICON
+
+from .pointer import LEFT, RIGHT, HandInput
 
 logger = logging.getLogger(__name__)
 
@@ -53,11 +54,46 @@ class QuadLayer:
 # so destruction waits this many frame_end calls.
 _RETIRE_AFTER_FRAMES = 3
 
-TILT_BINDINGS = (
-    ("/interaction_profiles/oculus/touch_controller", "/user/hand/right/input/thumbstick/y"),
-    ("/interaction_profiles/valve/index_controller", "/user/hand/right/input/thumbstick/y"),
-    ("/interaction_profiles/htc/vive_controller", "/user/hand/right/input/trackpad/y"),
-)
+TILT = "tilt_screens"
+AIM = "aim"
+TRIGGER = "trigger"
+
+_HAND_PATHS = {LEFT: "/user/hand/left", RIGHT: "/user/hand/right"}
+
+
+def _either_hand(input_path: str) -> tuple[str, ...]:
+    return tuple(f"{hand}/input/{input_path}" for hand in _HAND_PATHS.values())
+
+
+CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
+    "/interaction_profiles/oculus/touch_controller": {
+        TILT: ("/user/hand/right/input/thumbstick/y",),
+        AIM: _either_hand("aim/pose"),
+        TRIGGER: _either_hand("trigger/value"),
+    },
+    "/interaction_profiles/valve/index_controller": {
+        TILT: ("/user/hand/right/input/thumbstick/y",),
+        AIM: _either_hand("aim/pose"),
+        TRIGGER: _either_hand("trigger/value"),
+    },
+    "/interaction_profiles/htc/vive_controller": {
+        TILT: ("/user/hand/right/input/trackpad/y",),
+        AIM: _either_hand("aim/pose"),
+        TRIGGER: _either_hand("trigger/value"),
+    },
+    "/interaction_profiles/khr/simple_controller": {
+        AIM: _either_hand("aim/pose"),
+        TRIGGER: _either_hand("select/click"),
+    },
+}
+
+_ACTION_TYPES = {
+    TILT: xr.ActionType.FLOAT_INPUT,
+    AIM: xr.ActionType.POSE_INPUT,
+    TRIGGER: xr.ActionType.FLOAT_INPUT,
+}
+_LOCATED = xr.SpaceLocationFlags.ORIENTATION_VALID_BIT | xr.SpaceLocationFlags.POSITION_VALID_BIT
+_NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
 
 
 def views_are_renderable(view_state_flags: int) -> bool:
@@ -82,9 +118,12 @@ class VRSession:
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
         self._action_set = None
-        self._tilt_action = None
+        self._actions: dict[str, xr.Action] = {}
+        self._hand_paths: dict[str, xr.Path] = {}
+        self._aim_spaces: dict[str, xr.Space] = {}
         self._actions_attached = False
         self.thumbstick_y: float = 0.0
+        self.hands: dict[str, HandInput] = _NO_HANDS
         self._views_located = True
 
         self._init_glfw(app_name)
@@ -190,15 +229,23 @@ class VRSession:
                     priority=0,
                 ),
             )
-            self._tilt_action = xr.create_action(
-                self._action_set,
-                xr.ActionCreateInfo(
-                    action_name="tilt_screens",
-                    action_type=xr.ActionType.FLOAT_INPUT,
-                    localized_action_name="Tilt Screens",
-                ),
-            )
-            for profile_path, axis_path in TILT_BINDINGS:
+            self._hand_paths = {
+                hand: xr.string_to_path(self._instance, path) for hand, path in _HAND_PATHS.items()
+            }
+            hand_paths = list(self._hand_paths.values())
+            self._actions = {
+                name: xr.create_action(
+                    self._action_set,
+                    xr.ActionCreateInfo(
+                        action_name=name,
+                        action_type=action_type,
+                        subaction_paths=hand_paths if name != TILT else None,
+                        localized_action_name=name.replace("_", " ").title(),
+                    ),
+                )
+                for name, action_type in _ACTION_TYPES.items()
+            }
+            for profile_path, bindings in CONTROLLER_BINDINGS.items():
                 try:
                     xr.suggest_interaction_profile_bindings(
                         self._instance,
@@ -206,27 +253,36 @@ class VRSession:
                             interaction_profile=xr.string_to_path(self._instance, profile_path),
                             suggested_bindings=[
                                 xr.ActionSuggestedBinding(
-                                    action=self._tilt_action,
-                                    binding=xr.string_to_path(self._instance, axis_path),
-                                ),
+                                    action=self._actions[name],
+                                    binding=xr.string_to_path(self._instance, input_path),
+                                )
+                                for name, input_paths in bindings.items()
+                                for input_path in input_paths
                             ],
                         ),
                     )
                 except xr.ResultException as exc:
                     logger.debug("Runtime does not take %s: %s", profile_path, exc)
+            self._aim_spaces = {
+                hand: xr.create_action_space(
+                    self._session,
+                    xr.ActionSpaceCreateInfo(action=self._actions[AIM], subaction_path=path),
+                )
+                for hand, path in self._hand_paths.items()
+            }
             xr.attach_session_action_sets(
                 self._session,
                 xr.SessionActionSetsAttachInfo(action_sets=[self._action_set]),
             )
             self._actions_attached = True
-            logger.info("Controller tilt bound to the right thumbstick")
+            logger.info("Controllers bound: the right stick tilts, either hand points and squeezes")
         except Exception:
             logger.warning(
-                "No controller tilt: the verbs still tilt the scene", exc_info=True
+                "No controller input: the verbs still tilt the scene", exc_info=True
             )
 
-    def sync_controller(self) -> None:
-        """Read the tilt axis for this frame, resting at 0.0 when it is absent."""
+    def sync_controller(self, display_time: int) -> None:
+        """This frame's tilt axis and each hand's aim and trigger, at rest when absent."""
         if not self._actions_attached:
             return
         try:
@@ -238,13 +294,38 @@ class VRSession:
                     ],
                 ),
             )
-            state = xr.get_action_state_float(
+            tilt = xr.get_action_state_float(
                 self._session,
-                xr.ActionStateGetInfo(action=self._tilt_action, subaction_path=0),
+                xr.ActionStateGetInfo(action=self._actions[TILT], subaction_path=0),
             )
-            self.thumbstick_y = state.current_state if state.is_active else 0.0
+            self.thumbstick_y = tilt.current_state if tilt.is_active else 0.0
+            self.hands = {
+                hand: self._hand_input(hand, path, display_time)
+                for hand, path in self._hand_paths.items()
+            }
         except xr.ResultException:
             self.thumbstick_y = 0.0  # a sleeping controller is not a dead frame loop
+            self.hands = _NO_HANDS
+
+    def _hand_input(self, hand: str, path: xr.Path, display_time: int) -> HandInput:
+        aim = None
+        pose = xr.get_action_state_pose(
+            self._session,
+            xr.ActionStateGetInfo(action=self._actions[AIM], subaction_path=path),
+        )
+        if pose.is_active:
+            location = xr.locate_space(self._aim_spaces[hand], self._space, display_time)
+            if location.location_flags & _LOCATED == _LOCATED:
+                position, orientation = location.pose.position, location.pose.orientation
+                aim = (
+                    (position.x, position.y, position.z),
+                    (orientation.x, orientation.y, orientation.z, orientation.w),
+                )
+        trigger = xr.get_action_state_float(
+            self._session,
+            xr.ActionStateGetInfo(action=self._actions[TRIGGER], subaction_path=path),
+        )
+        return HandInput(aim=aim, trigger=trigger.current_state if trigger.is_active else 0.0)
 
     def _make_local_space(self):
         return xr.create_reference_space(
@@ -548,6 +629,8 @@ class VRSession:
                 xr.destroy_swapchain(info.handle)
             for _frames_left, handle in self._retiring:
                 xr.destroy_swapchain(handle)
+            for space in self._aim_spaces.values():
+                xr.destroy_space(space)
             if self._space is not None:
                 xr.destroy_space(self._space)
             xr.destroy_session(self._session)

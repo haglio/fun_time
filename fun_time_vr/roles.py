@@ -197,6 +197,9 @@ class MainRole:
         else:
             self._driver.park(now=now)
 
+    def seek_to(self, position_ms: float) -> None:
+        self._player.seek_ms(max(0.0, min(self._player.duration_ms, position_ms)))
+
     def nudge_tilt(self, degrees: float) -> None:
         self._tilt_deg = max(-TILT_LIMIT_DEG, min(TILT_LIMIT_DEG, self._tilt_deg + degrees))
 

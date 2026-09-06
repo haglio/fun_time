@@ -3,8 +3,9 @@ from __future__ import annotations
 import pytest
 
 from fun_time_vr.player import CONTROLLER_DEADZONE, TILT_RATE_DEG_S, tilt_from_stick
+from fun_time_vr.pointer import LEFT, RIGHT
 from fun_time_vr.roles import TILT_STEP_DEG
-from fun_time_vr.vr_session import TILT_BINDINGS
+from fun_time_vr.vr_session import AIM, CONTROLLER_BINDINGS, TILT, TRIGGER
 
 
 class TestTiltFromStick:
@@ -39,20 +40,25 @@ class TestTiltFromStick:
         assert tilt_from_stick(1.0, 1.0) < 0
 
 
-class TestTiltBindings:
-    def test_every_profile_binds_the_right_hand_axis(self):
-        assert TILT_BINDINGS, "no controller would tilt anything"
-        for profile, path in TILT_BINDINGS:
-            assert profile.startswith("/interaction_profiles/")
+class TestControllerBindings:
+    def test_every_profile_that_tilts_does_so_on_the_right_hands_y_axis(self):
+        tilting = [bindings[TILT] for bindings in CONTROLLER_BINDINGS.values() if TILT in bindings]
+        assert tilting, "no controller would tilt anything"
+        for paths in tilting:
+            (path,) = paths
             assert path.startswith("/user/hand/right/input/")
             assert path.endswith("/y")
 
+    def test_every_profile_points_and_squeezes_with_either_hand(self):
+        for profile, bindings in CONTROLLER_BINDINGS.items():
+            assert profile.startswith("/interaction_profiles/")
+            for action in (AIM, TRIGGER):
+                hands = {path.split("/")[3] for path in bindings[action]}
+                assert hands == {LEFT, RIGHT}, f"{profile} binds {action} for {hands}"
+            assert all(path.endswith("/aim/pose") for path in bindings[AIM])
+
     def test_the_suite_covers_the_headsets_this_family_meets(self):
-        profiles = {profile for profile, _ in TILT_BINDINGS}
+        profiles = set(CONTROLLER_BINDINGS)
         assert any("oculus" in p for p in profiles)
         assert any("valve/index" in p for p in profiles)
         assert any("htc/vive" in p for p in profiles)
-
-    def test_no_profile_is_bound_twice(self):
-        profiles = [profile for profile, _ in TILT_BINDINGS]
-        assert len(profiles) == len(set(profiles))

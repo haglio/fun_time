@@ -471,3 +471,16 @@ class TestWhetherItIsTheDisplay:
         role.apply_command("DISPLAY_ON", on_quit=_never_quits)
 
         assert role.displayed is True
+
+
+class TestSeekTo:
+    def test_the_panels_scrubber_seeks_the_video_to_a_time(self, role_parts):
+        role_parts.role.seek_to(12_345.0)
+
+        assert role_parts.player.seeks[-1] == 12_345.0
+
+    def test_a_seek_is_held_within_the_video(self, role_parts):
+        role_parts.role.seek_to(-5.0)
+        role_parts.role.seek_to(role_parts.player.duration_ms + 5.0)
+
+        assert role_parts.player.seeks[-2:] == [0.0, role_parts.player.duration_ms]
