@@ -12,17 +12,27 @@ from __future__ import annotations
 import ctypes
 import os
 import sys
+import threading
 from pathlib import Path
 
 import pytest
 from PIL import Image, ImageDraw
 from PyQt6.QtCore import QEvent, QPointF, Qt, QTimer
 from PyQt6.QtGui import QFontDatabase, QMouseEvent
-from PyQt6.QtWidgets import QApplication
+from PyQt6.QtWidgets import QApplication, QWidget
 
-from fun_time.library_browser import LibraryBrowserWindow
+from fun_time.config import load_config
+from fun_time.library_browser import WINDOW_TITLE, LibraryBrowserWindow, browse_library
 from fun_time.library_handles import CLIPS_SUFFIX, LibraryHandle
+from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
+from fun_time.win32 import (
+    close_window,
+    iter_zorder,
+    set_always_on_top,
+    wait_for_window_by_title,
+    windows_obscuring,
+)
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -186,3 +196,73 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
         assert window.windowTitle().endswith(SECTIONS[0])
     finally:
         window.close()
+
+
+# A title no real window carries, so the stand-in below is found by nothing else.
+STAND_IN_TITLE = "FUNTIMEMARK-MAIN-PLAYER"
+
+# A whole interpreter, Qt, and a walk of the library stand between the launch
+# and the window.  Generous rather than tuned: a cold run is the slow one, and
+# the wait ends the moment the window is there.
+_BROWSE_WINDOW_TIMEOUT_S = 90.0
+
+
+def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, cfg_factory):
+    """A real browse, launched the way the bridge launches it, ends up on top.
+
+    The browse opens over the main player's own rect, and it used to come up
+    BEHIND it: Windows refuses ``SetForegroundWindow`` to a process that
+    neither owns the foreground nor took the last input, and the browse is a
+    child the bridge starts while the player holds both — so Qt's own
+    ``activateWindow`` did nothing, silently.
+
+    What this covers is the opening path itself, which nothing covered before:
+    the production launch, a real child process, a real window, and that window
+    landing above one already sitting over the same rect.
+
+    It does NOT catch the bug above, and was checked against a build without
+    the fix to be sure of that: a hidden desktop has no foreground window,
+    which is one of the cases the rule allows, so the activation is granted
+    here either way.  Only a real display can show the refusal.
+    """
+    config = load_config(cfg_factory())
+    library = config.paths.nau_library_dirs[0] / "batch_one"
+    library.mkdir(parents=True, exist_ok=True)
+    for name in ("alpha.mp4", "beta.mp4"):
+        (library / name).write_bytes(b"\0" * 2048)
+    # The manifest the session's own writer produces, so the browse reads its
+    # library exactly as it does in a real session.  The interpreter is the
+    # only input a test must supply: the fixture config names a stub .exe, and
+    # this launch has to really run.
+    manifest = write_windows_bridge_manifest(config)
+
+    stand_in = QWidget(None)
+    stand_in.setWindowTitle(STAND_IN_TITLE)
+    stand_in.setGeometry(100, 100, 900, 700)
+    stand_in.show()
+    QApplication.instance().processEvents()
+    stand_in_hwnd = int(stand_in.winId())
+    # The shape the session is in when a browse starts: the player runs in the
+    # topmost band and the bridge drops it out for the browse's duration.
+    set_always_on_top(stand_in_hwnd, True)
+    set_always_on_top(stand_in_hwnd, False)
+
+    browsing = threading.Thread(
+        target=lambda: browse_library(manifest, sys.executable, over=(100, 100, 900, 700)),
+        daemon=True,
+    )
+    browsing.start()
+    browse_hwnd = 0
+    try:
+        browse_hwnd = wait_for_window_by_title(WINDOW_TITLE, _BROWSE_WINDOW_TIMEOUT_S)
+        assert browse_hwnd, "the browse never opened a window"
+
+        stack = iter_zorder()
+        assert windows_obscuring(browse_hwnd, stack) == [], "something covers the browse"
+        covering = [w.hwnd for w in windows_obscuring(stand_in_hwnd, stack)]
+        assert browse_hwnd in covering, "the browse did not come up in front"
+    finally:
+        if browse_hwnd:
+            close_window(browse_hwnd)
+        browsing.join(timeout=30)
+        stand_in.close()
