@@ -697,7 +697,7 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         )
         # Then freeze the session before closing it. Some of the main player library
         # is seconds long, and a Nau that auto-advanced while the shutdown ran
-        # would leave behind a different video than the one read here.
+        # would leave a different video than the one read here.
         first.write_dashboard_command("omnipause_toggle")
         first.wait_until(
             lambda: first.read_nau_status().paused,

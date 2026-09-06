@@ -271,7 +271,7 @@ def _drained(satellite: _Satellite) -> None:
     No file at all is the drained state, and the usual one: the player claims the
     queue by renaming it aside and deletes what it read
     (``player_core.file_channel.consume_command_file``), so a fully drained queue
-    leaves nothing behind.  Reading it outright raised FileNotFoundError from
+    leaves nothing.  Reading it outright raised FileNotFoundError from
     inside the wait — a drain looked like a hang.
 
     A read caught DURING that rename is denied outright by Windows, which is

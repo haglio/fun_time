@@ -133,7 +133,7 @@ class VRSession:
             self._create_swapchains()
             self._fbo = GL.glGenFramebuffers(1)
         except Exception:
-            # A failed bring-up must leave nothing behind: the caller retries
+            # A failed bring-up must leave nothing: the caller retries
             # construction when the runtime's graphics side is still warming
             # up (see the player's bring-up loop), and every attempt makes a
             # fresh window, instance and context.  close() is None-guarded

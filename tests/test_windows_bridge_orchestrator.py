@@ -966,7 +966,7 @@ class TestClosingScreenLifecycle:
         assert events.index("advance:browser") < events.index("close_browser")
         assert events.index("advance:players") < events.index("kill:300")
         assert events.index("advance:companions") < events.index("kill:500")
-        # Nothing of the shutdown channel is left behind for the next session.
+        # Nothing of the shutdown channel is left for the next session.
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 

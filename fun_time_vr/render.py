@@ -343,7 +343,7 @@ class SceneRenderer:
         self._fullscreen_vao = GL.glGenVertexArrays(1)
 
     def begin_eye(self) -> None:
-        """Reset the state the mpv render contexts may have left behind."""
+        """Reset the state the mpv render contexts may have left."""
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glDisable(GL.GL_BLEND)
         GL.glDisable(GL.GL_SCISSOR_TEST)

@@ -276,7 +276,7 @@ def test_a_folder_that_was_never_split_keeps_its_own_name(tmp_path: Path):
 def test_a_straggler_left_unfiled_does_not_rename_its_band(tmp_path: Path):
     """One clip still sitting in the old tree must not drag the band's name back.
 
-    A move of hundreds of files can leave one behind — held open by the running
+    A move of hundreds of files can strand one — held open by the running
     session — and the band is still, in every sense that matters, the folder the
     rest of it is in.
     """

@@ -114,7 +114,7 @@ class BridgeState:
     landscape_map_anchor: str = ""
     # The clip each satellite's seed row has been widened around ("more seeds").
     # While it equals the clip on screen the HUD shows the near-matches ranked in
-    # alongside the family; navigating to another clip leaves it behind, so the
+    # alongside the family; navigating to another clip leaves it, so the
     # widen auto-resets without any explicit clear.
     portrait_widen_clip: str = ""
     landscape_widen_clip: str = ""

@@ -553,7 +553,7 @@ def dispatch_command(
 
     ``target_path`` names the video a spoken command was aimed at — the one on
     screen when the utterance began, which an auto-advancing satellite may have
-    left behind by the time the phrase was recognized.  Every satellite action
+    moved on from by the time the phrase was recognized.  Every satellite action
     that is *about a particular video* honors it: lock, weird, wrong-action,
     cycle, the group loops and lock-action.  Navigation is relative rather than
     video-scoped, and the rest of the vocabulary names no video at all, so both

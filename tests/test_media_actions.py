@@ -99,7 +99,7 @@ def test_remove_from_favs_drops_blank_lines_and_leaves_a_missing_file_alone(tmp_
     assert not missing.exists()
 
 
-def test_move_to_weird_leaves_nothing_behind_for_a_missing_source(tmp_path: Path):
+def test_move_to_weird_leaves_nothing_for_a_missing_source(tmp_path: Path):
     """A clip already gone (trashed twice, or moved by hand) is not an error:
     the move reports where it WOULD have landed and writes nothing."""
     weird_dir = tmp_path / "weird"

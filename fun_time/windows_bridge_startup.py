@@ -847,7 +847,7 @@ def launch_ui_companions(
     dashboard_pid = 0
     if dashboard_enabled:
         # Its output goes to a log for the reason every other child's does: a
-        # companion that dies on import leaves nothing behind otherwise, and
+        # companion that dies on import leaves nothing otherwise, and
         # "the dashboard never appeared" then looks like a window-choreography
         # fault rather than the crash it is.
         dashboard_cmd = [

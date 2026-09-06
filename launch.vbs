@@ -36,7 +36,7 @@ If fso.FileExists(namedExe) Then pythonExe = namedExe
 
 ' Everything the orchestrator writes to its console goes here. The launcher runs
 ' it in a hidden window, and a failure during import happens before any log file
-' exists, so without this a crashed launch leaves nothing behind at all.
+' exists, so without this a crashed launch leaves nothing at all.
 ' Overwritten each launch: it holds this launch's crash, not a history.
 stateDir = fso.BuildPath(scriptDir, "state")
 If Not fso.FolderExists(stateDir) Then fso.CreateFolder stateDir

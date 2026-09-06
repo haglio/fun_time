@@ -98,7 +98,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
                 # a window-choreography failure, and the sequencer's own
                 # account of what it resolved and moved is the diagnosis.
                 # Copied only on the way to a failure — a green run leaves
-                # nothing behind in the checkout.
+                # nothing in the checkout.
                 _preserve_session_logs(session)
             assert not covering, (
                 f"{title} (hwnd={hwnd}) is covered after startup by: "

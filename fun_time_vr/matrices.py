@@ -2,7 +2,7 @@
 
 Adapted from GenauVR's proven bring-up (genau_vr.projection): the same
 row-major layout, uploaded with transpose=GL_TRUE.  The dead 360°-UV helpers
-that repo carries were deliberately left behind; the real UV mapping lives in
+that repo carries were deliberately left out; the real UV mapping lives in
 this app's shaders.
 """
 from __future__ import annotations

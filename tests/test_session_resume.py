@@ -277,7 +277,7 @@ class TestResumeSatelliteLocks:
         assert written.portrait_f_mode is True
         assert written.omni_paused is False
 
-    def test_a_first_run_leaves_a_state_file_behind(self, tmp_path: Path):
+    def test_a_first_run_leaves_a_state_file(self, tmp_path: Path):
         """There is nothing to read on a wiped state dir, and the session still
         has to open on a state — a written default, not a missing file."""
         state_file = tmp_path / "shared_bridge_state.ini"
@@ -353,7 +353,7 @@ class TestPlaylistOpensOn:
 
 
 class TestPlaylistFitsSources:
-    """Telling a playlist this session built from one another app left behind.
+    """Telling a playlist this session built from one another app stranded.
 
     FunTimeVR shares this state dir and writes the main player's playlist to the
     same file, built from the VR library merged with the desktop's — so the

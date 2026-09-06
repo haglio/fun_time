@@ -659,7 +659,7 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     """Last session's three playlist files and status files, on disk.
 
     Each player gets two clips drawn from the very dirs this session's source
-    spec names — the shape a real build leaves behind — and its status file
+    spec names — the shape a real build leaves — and its status file
     names the second, so a resume rotates that one to the front.
     """
     state_dir = kwargs["state_dir"]
