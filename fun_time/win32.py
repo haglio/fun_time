@@ -324,7 +324,7 @@ def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -
     """Whether two (x, y, w, h) rectangles share VISIBLE interior area.
 
     A shared edge (touching but not crossing) is not overlap — the portrait
-    satellite's bottom edge meets Nau's top edge, and that abutment must not
+    satellite's lower edge meets Nau's top edge, and that abutment must not
     read as coverage.  Nor is an intersection thinner than a window's
     invisible resize frame (see ``_FRAME_GHOST_PX``): those slivers had the
     startup log warning that a maximized Chrome on one monitor "covered" the

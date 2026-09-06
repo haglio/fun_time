@@ -167,7 +167,7 @@ class LibraryGrid(BrowseList):
 
         Centered rather than merely made visible: a jump out of the sidebar
         lands on a name the user cannot see yet, and one that arrives clinging
-        to the bottom edge of the grid reads as not having moved.
+        to the lower edge of the grid reads as not having moved.
         """
         item = self.item(row)
         if item is None:

@@ -122,7 +122,7 @@ class TestCopyButtonPosition:
 
         assert y == 2
 
-    def test_a_row_running_past_the_bottom_keeps_its_button_inside_the_viewport(self):
+    def test_a_row_running_past_the_lower_edge_keeps_its_button_inside_the_viewport(self):
         _, y = copy_button_position(
             row_top=195, viewport_width=300, viewport_height=200, button_size=16, margin=2
         )

@@ -339,7 +339,7 @@ class WindowRoles:
 
         Nau and Genau share one screen rect — in video mode Genau's transparent HUD
         overlays Nau's video — so unlike every other window they OVERLAP and need
-        explicit stacking.  Demote both, then promote bottom-to-top so the last
+        explicit stacking.  Demote both, then promote low-to-high so the last
         promotion lands highest:
 
           * video mode — promote Nau, then Genau ABOVE it, so the HUD overlays
