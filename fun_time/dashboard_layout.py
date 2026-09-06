@@ -38,7 +38,7 @@ def rect_from_arguments(args, *, prefix: str = "") -> Rect | None:
 
 
 def client_rect_filling_frame(
-    rect: Rect, *, left: int, top: int, right: int, bottom: int
+    rect: Rect, *, left: int, upper: int, right: int, lower: int
 ) -> tuple[int, int, int, int]:
     """Client ``(x, y, w, h)`` so a decorated window's whole FRAME fills *rect*.
 
@@ -51,9 +51,9 @@ def client_rect_filling_frame(
     """
     return (
         rect.x + left,
-        rect.y + top,
+        rect.y + upper,
         max(0, rect.width - left - right),
-        max(0, rect.height - top - bottom),
+        max(0, rect.height - upper - lower),
     )
 
 

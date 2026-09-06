@@ -72,9 +72,9 @@ def test_client_rect_filling_frame_insets_by_the_chrome():
     fill a rect has to be inset by the chrome or its title bar overhangs."""
     rect = Rect(100, 200, 400, 300)
 
-    assert client_rect_filling_frame(rect, left=8, top=31, right=8, bottom=8) == (
+    assert client_rect_filling_frame(rect, left=8, upper=31, right=8, lower=8) == (
         108, 231, 384, 261)
-    assert client_rect_filling_frame(rect, left=0, top=0, right=0, bottom=0) == (
+    assert client_rect_filling_frame(rect, left=0, upper=0, right=0, lower=0) == (
         100, 200, 400, 300)
 
 
