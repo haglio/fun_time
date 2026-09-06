@@ -537,7 +537,7 @@ def test_satellite_filter_narrows_to_the_matching_action(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "clip": _i2v_meta("1", "Alpha"),
         "prone": _i2v_meta("2", "Beta Gamma"),
-        "kiss": _i2v_meta("3", "Kissing"),
+        "twirl": _i2v_meta("3", "Twirling"),
     })
     got = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
@@ -564,7 +564,7 @@ def test_satellite_filter_composes_with_latest_ordering(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "old": _t2v_meta("Alpha", "1", prompt="scene one"),
         "new": _t2v_meta("Alpha", "2", prompt="scene two"),
-        "other": _t2v_meta("Kissing", "3", prompt="scene three"),
+        "other": _t2v_meta("Twirling", "3", prompt="scene three"),
     })
     os.utime(paths["old"], (1000, 1000))
     os.utime(paths["new"], (2000, 2000))
@@ -605,11 +605,11 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
         )
         return str(video)
 
-    p_cum, p_kiss = make(portrait_dir, "pc", "Alpha"), make(portrait_dir, "pk", "Kissing")
-    l_cum, l_kiss = make(landscape_dir, "lc", "Alpha"), make(landscape_dir, "lk", "Kissing")
+    p_cum, p_twirl = make(portrait_dir, "pc", "Alpha"), make(portrait_dir, "pt", "Twirling")
+    l_cum, l_twirl = make(landscape_dir, "lc", "Alpha"), make(landscape_dir, "lt", "Twirling")
     build_satellite_playlists(
         portrait=SatelliteBuild(sources=str(portrait_dir), recent=True, filter_query="alpha"),
-        landscape=SatelliteBuild(sources=str(landscape_dir), recent=True, filter_query="kissing"),
+        landscape=SatelliteBuild(sources=str(landscape_dir), recent=True, filter_query="twirling"),
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
         metadata_root=metadata_root,
@@ -617,8 +617,8 @@ def test_build_satellite_playlists_applies_independent_per_satellite_filters(tmp
 
     portrait_written = _lines(tmp_path / "state" / "portrait_playlist.tsv")
     landscape_written = _lines(tmp_path / "state" / "landscape_playlist.tsv")
-    assert p_cum in portrait_written and p_kiss not in portrait_written
-    assert l_kiss in landscape_written and l_cum not in landscape_written
+    assert p_cum in portrait_written and p_twirl not in portrait_written
+    assert l_twirl in landscape_written and l_cum not in landscape_written
 
 
 # --- collapse axis: filtered views group by seed family (params) -------------

@@ -159,10 +159,10 @@ def _t2v_meta(*, action: str, seed: str, prompt: str = "a subject on a beach") -
 def test_action_group_key_for_text_to_video_frees_only_the_action():
     """No source image: the subject is pinned by the video prompt + seed instead."""
     dancing = _t2v_meta(action="Dancing", seed="42")
-    kissing = _t2v_meta(action="Kissing", seed="42")
+    twirling = _t2v_meta(action="Twirling", seed="42")
     other_subject = _t2v_meta(action="Dancing", seed="43")
 
-    assert action_group_key(dancing) == action_group_key(kissing)
+    assert action_group_key(dancing) == action_group_key(twirling)
     assert action_group_key(dancing) != action_group_key(other_subject)
     assert action_group_key(dancing) != action_group_key(_i2v_meta(action="Dancing", video_seed="42"))
 
@@ -195,7 +195,7 @@ def test_seed_group_key_for_text_to_video_keeps_action_in_the_family():
     """T2V configuration includes the action dropdown; only the seed is free."""
     subject_a = _t2v_meta(action="Dancing", seed="42")
     subject_b = _t2v_meta(action="Dancing", seed="43")
-    different_action = _t2v_meta(action="Kissing", seed="44")
+    different_action = _t2v_meta(action="Twirling", seed="44")
 
     assert seed_group_key(subject_a)[0] == seed_group_key(subject_b)[0]
     assert seed_group_key(subject_a)[0] != seed_group_key(different_action)[0]
@@ -473,7 +473,7 @@ def test_action_group_members_are_the_subjects_other_actions(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
         # Same prompt+seed => same subject; the action varies within the group.
         "clip": _t2v("Alpha", "1"),
-        "kiss": _t2v("Kissing", "1"),
+        "twirl": _t2v("Twirling", "1"),
         # A different seed is a different subject.
         "other": _t2v("Alpha", "2"),
     })
@@ -481,7 +481,7 @@ def test_action_group_members_are_the_subjects_other_actions(tmp_path: Path):
 
     members = action_group_members(index, paths["clip"])
 
-    assert sorted(members) == sorted([paths["clip"], paths["kiss"]])
+    assert sorted(members) == sorted([paths["clip"], paths["twirl"]])
     assert index.action_by_path[normalize_path_key(paths["clip"])] == "Alpha"
 
 
@@ -491,14 +491,14 @@ def test_seed_family_members_are_the_same_act_under_other_seeds(tmp_path: Path):
         "clip_a": _t2v("Alpha", "1"),
         "clip_b": _t2v("Alpha", "2"),
         # Same subject, different act => not in the alpha seed family.
-        "kiss": _t2v("Kissing", "1"),
+        "twirl": _t2v("Twirling", "1"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
     members = seed_family_members(index, paths["clip_a"])
 
     assert sorted(members) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["kiss"] not in members
+    assert paths["twirl"] not in members
 
 
 def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
@@ -513,14 +513,14 @@ def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip_a": i2v("Alpha", "1"),
         "clip_b": i2v("Alpha", "2"),
-        "kiss_b": i2v("Kissing", "2"),
+        "twirl_b": i2v("Twirling", "2"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
     members = seed_family_members(index, paths["clip_a"])
 
     assert sorted(members) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["kiss_b"] not in members  # same family, wrong act
+    assert paths["twirl_b"] not in members  # same family, wrong act
 
 
 def test_widened_seed_members_add_the_most_similar_clips_capped(tmp_path: Path):
@@ -617,7 +617,7 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
         "clip_one": _t2v("Alpha", "1"),
         "clip_two": _t2v("Alpha", "1"),
-        "kiss": _t2v("Kissing", "1"),
+        "twirl": _t2v("Twirling", "1"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
@@ -625,7 +625,7 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
     assert sorted(action_group_members(index, paths["clip_one"])) == sorted(paths.values())
     labels = {action_label(index, paths[name]) for name in ("clip_one", "clip_two")}
     assert labels == {"Alpha 1", "Alpha 2"}
-    assert action_label(index, paths["kiss"]) == "Kissing"  # sole Kissing, unnumbered
+    assert action_label(index, paths["twirl"]) == "Twirling"  # sole Twirling, unnumbered
 
 
 def test_reject_action_strikes_the_act_and_remembers_it(tmp_path: Path):

@@ -1429,26 +1429,26 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
     its own (``filter_portrait_clear``) that did exactly this; two ways in for one
     action is how the two drift, so the phrases joined the grid instead."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
+    state = _make_state(portrait_filter="alpha", landscape_filter="twirling")
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
     assert new_state.portrait_filter == ""
-    assert new_state.landscape_filter == "kissing"  # untouched
+    assert new_state.landscape_filter == "twirling"  # untouched
     assert mock_filter.call_args.kwargs["query"] == ""
 
 
 def test_fmode_passes_active_filters(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
+    state = _make_state(portrait_filter="alpha", landscape_filter="twirling")
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
     satellites = mock_fmode.call_args.kwargs["satellites"]
     assert satellites[Player.PORTRAIT].filter_query == "alpha"
-    assert satellites[Player.LANDSCAPE].filter_query == "kissing"
+    assert satellites[Player.LANDSCAPE].filter_query == "twirling"
 
 
 def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
@@ -1457,7 +1457,7 @@ def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
         regen_media_root=tmp_path / "media",
         regen_metadata_root=tmp_path / "metadata",
     )
-    state = _make_state(portrait_filter="alpha", landscape_filter="kissing")
+    state = _make_state(portrait_filter="alpha", landscape_filter="twirling")
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
@@ -3029,7 +3029,7 @@ def _loop_config(tmp_path: Path, *, axis: str, side: int = 2) -> tuple[BridgeCon
     grouped by the real index over real sidecars."""
     if axis == "action":
         # Same subject (one source image), different acts.
-        videos = {"a": _subject_meta(action="Alpha"), "b": _subject_meta(action="Kissing")}
+        videos = {"a": _subject_meta(action="Alpha"), "b": _subject_meta(action="Twirling")}
     else:
         # Same act + params, different image seeds.
         videos = {"a": _subject_meta(image_seed="1"), "b": _subject_meta(image_seed="2")}
