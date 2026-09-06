@@ -421,12 +421,12 @@ AI videos under the regen media root carry metadata sidecars (see `regen.media_r
 
 - an **action group** is every video generated from the *same source image* — the same subject(s) and setting across different actions (for text-to-video, the same prompt+seed with a different action)
 - a **seed family** is every video whose generation config differs *only by seed* — the same scenario rendered from a different seed
-- a **loose seed family** is the same scene held only by its prompts and cast/action, with the render knobs (model, resolution, aspect ratio, quality, creativity) freed as well as the seed — a wider net for "the same scene, however it was rendered"
+- a **loose seed family** is the same scene held only by its prompts and cast/action, with the render dials (model, resolution, aspect ratio, quality, creativity) freed as well as the seed — a wider net for "the same scene, however it was rendered"
 
 Two command pairs ride on those groups, spoken rather than key-bound ("portrait action", "portrait seed", "landscape action", "landscape seed"):
 
 - **Cycle action** switches the current video to the next action of its group, in a fixed order so repeating it tours every act. The log panel names the action that came up. If the sibling is not in the playlist (grouped builds keep one slot per group — see below), it is swapped in place of the current entry.
-- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render knobs freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the player and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across clips and wait for a "Similar clip").
+- **Cycle seed** jumps to a same-config-different-seed sister, touring the family in seed order — preferring the sisters' existing playlist entries. When no exact sister exists, it widens the net to the loose seed family (same scene, render dials freed) so a config that differs only in a render setting still surfaces instead of dead-ending on "No other seeds". Every hit narrates itself over the player and in the log panel — **"Next seed"** for an exact same-config sister, **"Similar clip"** for a widened near-match — so you can see at a glance which one fired (and thus watch the widening happen: say "seed" across clips and wait for a "Similar clip").
 
 Unlike prev/next, cycling does **not** release an active lock: it means "show me this differently", so the lock's repeat-one simply carries over to the sibling.
 
