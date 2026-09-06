@@ -635,7 +635,7 @@ def test_the_browse_takes_the_foreground_for_its_own_window(browser, tmp_path: P
 
 
 def test_opening_the_browser_brings_it_in_front_of_the_players(tmp_path: Path):
-    """The regression: the browse used to come up behind the main player, with
+    """The regression: the browse used to come up under the main player, with
     the arrows and Enter still going to the player, because the entry point
     asked Qt to activate a window Windows would not let this process activate.
     """

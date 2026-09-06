@@ -213,7 +213,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     """A real browse, launched the way the bridge launches it, ends up on top.
 
     The browse opens over the main player's own rect, and it used to come up
-    BEHIND it: Windows refuses ``SetForegroundWindow`` to a process that
+    UNDER it: Windows refuses ``SetForegroundWindow`` to a process that
     neither owns the foreground nor took the last input, and the browse is a
     child the bridge starts while the player holds both — so Qt's own
     ``activateWindow`` did nothing, silently.
