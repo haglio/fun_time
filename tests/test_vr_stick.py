@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from fun_time_vr.player import CONTROLLER_DEADZONE, TILT_RATE_DEG_S, tilt_from_stick
+from fun_time_vr.roles import TILT_STEP_DEG
 from fun_time_vr.vr_session import TILT_BINDINGS
 
 
@@ -15,21 +16,27 @@ class TestTiltFromStick:
         assert tilt_from_stick(-CONTROLLER_DEADZONE, 1.0) == 0.0
 
     def test_just_past_the_deadzone_moves(self):
-        assert tilt_from_stick(CONTROLLER_DEADZONE + 0.01, 1.0) > 0.0
+        assert tilt_from_stick(CONTROLLER_DEADZONE + 0.01, 1.0) < 0.0
 
     def test_a_full_push_covers_the_rate_in_a_second(self):
-        assert tilt_from_stick(1.0, 1.0) == pytest.approx(TILT_RATE_DEG_S)
+        assert tilt_from_stick(1.0, 1.0) == pytest.approx(-TILT_RATE_DEG_S)
 
     def test_the_swing_is_per_second_not_per_frame(self):
         one_frame = tilt_from_stick(1.0, 1 / 72)
-        assert one_frame == pytest.approx(TILT_RATE_DEG_S / 72)
+        assert one_frame == pytest.approx(-TILT_RATE_DEG_S / 72)
         assert sum(tilt_from_stick(1.0, 1 / 72) for _ in range(72)) == pytest.approx(
-            TILT_RATE_DEG_S
+            -TILT_RATE_DEG_S
         )
 
-    def test_pushing_away_raises_and_pulling_back_lowers(self):
-        assert tilt_from_stick(0.8, 0.5) > 0
+    def test_pushing_away_lowers_and_pulling_back_raises(self):
+        assert tilt_from_stick(0.8, 0.5) < 0
         assert tilt_from_stick(-0.8, 0.5) == pytest.approx(-tilt_from_stick(0.8, 0.5))
+
+    def test_the_stick_runs_opposite_to_the_verbs(self):
+        # Both inputs write the same tilt, and the inversion is only the
+        # stick's: PgUp still raises, so the stick pushed away must lower.
+        assert TILT_STEP_DEG > 0
+        assert tilt_from_stick(1.0, 1.0) < 0
 
 
 class TestTiltBindings:

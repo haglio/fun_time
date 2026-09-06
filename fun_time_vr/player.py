@@ -113,7 +113,7 @@ _OV_VOLUME = 12
 PRIMARY_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
 
-# GenauVR's rate and deadzone; stick away raises, as TILT_UP does.
+# GenauVR's rate and deadzone, but not its sign: our stick away lowers.
 TILT_RATE_DEG_S = 85.0
 CONTROLLER_DEADZONE = 0.1
 
@@ -582,7 +582,7 @@ def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:
 def tilt_from_stick(axis: float, elapsed_s: float) -> float:
     if abs(axis) <= CONTROLLER_DEADZONE:
         return 0.0
-    return axis * elapsed_s * TILT_RATE_DEG_S
+    return -axis * elapsed_s * TILT_RATE_DEG_S  # inverted: stick away lowers
 
 
 def _update_quad_layer(
