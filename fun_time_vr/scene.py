@@ -115,14 +115,13 @@ def attached_below(
     placement: Placement,
     *,
     aspect: float,
-    width_fraction: float,
+    width_deg: float,
     hung_aspect: float,
     gap_deg: float = 0.0,
     radius: float = RADIUS,
 ) -> Placement:
     bottom = (radius * math.tan(math.radians(placement.elevation_deg))
               - radius * math.radians(placement.width_deg) / aspect / 2)
-    width_deg = placement.width_deg * width_fraction
     half_height = radius * math.radians(width_deg) / hung_aspect / 2
     center = bottom - radius * math.radians(gap_deg) - half_height
     return Placement(placement.azimuth_deg, math.degrees(math.atan2(center, radius)), width_deg)

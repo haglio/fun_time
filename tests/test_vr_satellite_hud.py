@@ -2,19 +2,25 @@
 and what a press or a hover on either screen does."""
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 from player_core.satellite_hud import MARGIN
 from player_core.timeline import TIMELINE_HEIGHT
 
+from fun_time_vr.console_panel import PANEL_WIDTH_PX
+from fun_time_vr.layout import DEFAULT_LAYOUT, PANEL
 from fun_time_vr.satellite_hud import (
     HUD,
+    HUD_DEG_PER_PX,
     PICTURE,
     HudSurface,
     SatellitePointer,
     hud_screen_name,
     screen_kind,
 )
+from satellite.hud_overlay import HudOverlay
 from satellite.pointer import time_at
 
 
@@ -113,3 +119,63 @@ class TestAPressOnASatellite:
         pointer.hover(PICTURE, (0.5, 0.5), size=_PICTURE_SIZE)
 
         assert hud.motions == [(-1, -1), (-1, -1)]
+
+
+_A_PANEL = {
+    "side": "portrait", "locked": False, "lock_label": "Shuffle", "active": True,
+    "satellites_mode": "video", "is_favorite": False, "f_mode": False, "filter_query": "",
+    "seed_count": 0, "action_count": 0, "active_loop": "", "current_action": "",
+    "playing": ["corner", 0], "corner": None, "seeds": [], "actions": [],
+}
+
+
+class TestThePressReachesTheDesktopsOwnMap:
+    """The whole chain a squeeze on the hung HUD travels: the overlay paints
+    into the surface, the pointer turns the screen's (u, v) into the pixel
+    under it, and the desktop's own click map posts the command."""
+
+    def _hud(self, tmp_path):
+        hud_file, command_file = tmp_path / "portrait_hud.json", tmp_path / "dashboard_cmd.txt"
+        hud_file.write_text(json.dumps(_A_PANEL), encoding="utf-8")
+        surface = HudSurface()
+        hud = HudOverlay(hud_file=hud_file, command_file=command_file, player=surface)
+        hud.tick(video="scene one")
+        pointer = SatellitePointer(hud=hud, seek=lambda _ms: None, duration_ms=lambda: 1.0)
+        return hud, surface, pointer, command_file
+
+    @staticmethod
+    def _uv_of(rect, size):
+        x, y, w, h = rect
+        width, height = size
+        return (x + w / 2) / width, 1 - (y + h / 2) / height
+
+    def test_a_squeeze_on_the_lock_posts_the_lock(self, tmp_path):
+        hud, surface, pointer, command_file = self._hud(tmp_path)
+        (rect, control) = next(target for target in hud.targets.control if target[1] == "lock")
+
+        pointer.press(HUD, *self._uv_of(rect, surface.size), size=surface.size)
+
+        assert command_file.read_text(encoding="utf-8").split() == ["portrait_lock"]
+
+    def test_a_squeeze_on_a_mode_button_posts_that_mode(self, tmp_path):
+        hud, surface, pointer, command_file = self._hud(tmp_path)
+        (rect, command) = hud.targets.modes[-1]
+
+        pointer.press(HUD, *self._uv_of(rect, surface.size), size=surface.size)
+
+        assert command_file.read_text(encoding="utf-8").split() == [command]
+
+    def test_a_squeeze_beside_the_buttons_posts_nothing(self, tmp_path):
+        _hud, surface, pointer, command_file = self._hud(tmp_path)
+
+        pointer.press(HUD, 0.999, 0.001, size=surface.size)
+
+        assert not command_file.exists()
+
+
+def test_the_hud_hangs_at_the_consoles_own_pixel_scale():
+    """A HUD pixel subtends what a console pixel does, so the two read at one
+    size whatever the video's resolution -- scaled to the picture's pixels a
+    HUD under a 1080p satellite was a few degrees wide and unpressable."""
+    assert pytest.approx(DEFAULT_LAYOUT[PANEL].width_deg / PANEL_WIDTH_PX) == HUD_DEG_PER_PX
+    assert 300 * HUD_DEG_PER_PX > 20.0
