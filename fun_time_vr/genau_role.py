@@ -125,7 +125,7 @@ class GenauRole:
             condemn_clip=self._selection.condemn_current,
             robot_hand=self.robot_hand,
             cruise_control_state=cruise,
-            set_stroke_phase=self._driver.set_stroke_phase,
+            set_motion_phase=self._driver.set_motion_phase,
             clip_advance_state=ClipAdvanceState(),
             stop_event=stop_event,
             hud=self._hud,
