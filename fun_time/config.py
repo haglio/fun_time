@@ -111,9 +111,8 @@ class VrConfig:
 
     ``library_dirs`` joins the main rotation alongside ``nau_library_dirs``
     (the VR-mastered videos live in their own branch of the library);
-    ``clips_dir`` is the folder Genau's engine browses in the headset -- VR180
-    masters, where the desktop's ``paths.clips_dir`` holds flat ones -- and falls
-    back to that desktop folder when unset; ``audio_device`` routes the main
+    ``clips_dir`` is the VR180 clips genau mode browses in the headset, together
+    with the desktop's flat ``paths.clips_dir`` (alone, when unset); ``audio_device`` routes the main
     player's sound to the headset by substring match; the T-Code endpoint is
     the broker's UDP inlet, the same one Nau and Genau send to.  ``compositor_layers`` hands flat screens to the runtime's
     compositor as quad layers; off by default because the bundled "Pimax

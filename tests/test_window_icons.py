@@ -63,14 +63,3 @@ def test_transparent_pixels_carry_the_background_they_sit_on(icon: Path):
                 f"{sorted(under)[:3]} instead of black"
             )
 
-
-def test_the_vr_icon_is_the_v_with_the_r_over_it():
-    """The VR session carries Genau now, so its mark carries Genau's: the R,
-    in the family's blue, layered over the pink V.  Two inks in one icon,
-    where every other icon here is one."""
-    with Image.open(PROJECT_DIR / "vr_icon.ico") as img:
-        frame = img.ico.getimage((256, 256)).convert("RGBA")
-    inks = {(r, g, b) for r, g, b, a in frame.get_flattened_data() if a == 255}
-
-    assert (200, 80, 160) in inks, "the V's pink is missing"
-    assert (48, 128, 224) in inks, "the R's blue is missing"

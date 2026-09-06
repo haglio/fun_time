@@ -122,6 +122,12 @@ def vr_main_sources(config) -> str:
     return "|".join(str(path) for path in dirs)
 
 
+def genau_clip_folders(config) -> tuple[Path, ...]:
+    """Genau mode's folders in the headset: the VR clips, then the desktop's flat ones."""
+    vr = (config.vr.clips_dir,) if config.vr.clips_dir else ()
+    return (*vr, config.paths.clips_dir)
+
+
 def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
     """Whether the main playlist holds any VR-mastered video: a desktop session's
     never does, and resumed into a headset it gives nothing but flat screens.
@@ -168,9 +174,10 @@ def build_vr_manifest(config) -> dict[str, dict[str, str]]:
         "tcode_udp_port": str(config.vr.tcode_udp_port),
         "audio_device": config.vr.audio_device or "",
         "compositor_layers": "1" if config.vr.compositor_layers else "0",
-        # Genau's role: its folder (the desktop's when no VR one is named), its
+        # Genau's role: its folders and which of them hold VR masters, its
         # companion's address, and its engine's numbers off Genau's own config.
-        "clips_dir": str(config.vr.clips_dir or config.paths.clips_dir),
+        "clips_dirs": "|".join(str(folder) for folder in genau_clip_folders(config)),
+        "vr_clip_dirs": str(config.vr.clips_dir or ""),
         "notify_host": config.audio_companion.host,
         "notify_port": str(config.audio_companion.port),
         **GenauSettings.read(config.paths.genau_config_path).manifest_fields(),

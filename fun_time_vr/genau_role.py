@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
@@ -51,8 +51,9 @@ class GenauRole:
     def __init__(
         self,
         *,
-        clips_dir: Path,
+        clips_dirs: Sequence[Path],
         settings: GenauSettings,
+        vr_dirs: Sequence[Path] = (),
         command_file: Path,
         paused_file: Path,
         drive_file: Path,
@@ -67,7 +68,8 @@ class GenauRole:
         clock: Callable[[], float] = time.monotonic,
         log: logging.Logger = logger,
     ) -> None:
-        self._clips_dir = Path(clips_dir)
+        self._clips_dirs = tuple(Path(folder) for folder in clips_dirs)
+        self._vr_dirs = tuple(Path(folder) for folder in vr_dirs)
         self._settings = settings
         self._log = log
         self._lock = threading.Lock()
@@ -79,11 +81,10 @@ class GenauRole:
         self._muted = False
         self._projection_of: tuple[Path | None, str] = (None, "")
 
-        clips = scan_clips(self._clips_dir, shuffle_on_load=settings.shuffle_on_load)
+        clips = scan_clips(self._clips_dirs, shuffle_on_load=settings.shuffle_on_load)
         self._sequence = ClipSequenceController(clips, start_at=start_clip)
-        cache_dir = cache_dir_for_clips_folder(self._clips_dir)
-        weird_dir = weird_dir_for_clips_folder(self._clips_dir)
-        decode = decode or (lambda path: load_clip_frames(path, cache_dir))
+        decode = decode or (
+            lambda path: load_clip_frames(path, cache_dir_for_clips_folder(path.parent)))
 
         clip_store = ClipCacheStore(limit=settings.clip_cache_size)
         self._renderer = ClipRenderController(clip_store=clip_store, blit_frame=self._take_from_engine)
@@ -103,7 +104,7 @@ class GenauRole:
             loader=loader,
             renderer=self._renderer,
             notifier=notifier,
-            condemn_clip=lambda path: self._condemn(path, weird_dir),
+            condemn_clip=lambda path: self._condemn(path, weird_dir_for_clips_folder(path.parent)),
         )
 
         # The same hand, cruise stack, clip advance and driver the desktop builds.
@@ -169,13 +170,13 @@ class GenauRole:
 
     @property
     def projection(self) -> str:
-        """How the clip on screen is watched: by its name, else the folder's convention."""
+        """How the clip on screen is watched: by its name, else by whether it lives in a VR folder."""
         clip = self.current_clip
         cached_for, projection = self._projection_of
         if clip is None:
             return ""
         if cached_for != clip:
-            projection = default_projection(str(clip), (self._clips_dir,))
+            projection = default_projection(str(clip), self._vr_dirs)
             self._projection_of = (clip, projection)
         return projection
 
@@ -233,10 +234,10 @@ class GenauRole:
         """LATEST and SHUFFLE: rescan the folder in that order and browse it from the top."""
         try:
             clips = scan_clips(
-                self._clips_dir, shuffle_on_load=self._settings.shuffle_on_load, recent=recent,
+                self._clips_dirs, shuffle_on_load=self._settings.shuffle_on_load, recent=recent,
             )
         except (OSError, RuntimeError):
-            self._log.warning("Could not rescan %s; keeping the sequence", self._clips_dir,
+            self._log.warning("Could not rescan %s; keeping the sequence", self._clips_dirs,
                               exc_info=True)
             return
         self._selection.reorder(clips)
