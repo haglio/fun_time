@@ -138,7 +138,7 @@ class TestFixPostLoadingWindows:
         promote.assert_called_once_with(222, True)  # only the buried one, once
 
     def test_the_curtain_goes_back_on_top_after_the_bands_are_applied(self):
-        """Behind the overlay is where this pass belongs — the bands are what
+        """Under the overlay is where this pass belongs — the bands are what
         decides what the reveal looks like — and every promotion it makes
         inserts ABOVE the overlay (HWND_TOPMOST inserts at the top of the
         band).  So the overlay is put back on top after the pass, or the room
@@ -702,7 +702,7 @@ class TestRunPythonOrchestratedBridge:
 
         It goes down inside the closing screen, with the other stops, because
         ``shutdown()`` blocks until ``serve_forever`` returns and that pause
-        must happen behind the cover.
+        must happen under the cover.
         """
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
@@ -867,7 +867,7 @@ class TestLoadingScreenLifecycle:
 
 
 class TestClosingScreenLifecycle:
-    """The session's windows go out behind a cover, the way they came in behind
+    """The session's windows go out under a cover, the way they came in under
     one: raised before the first kill, dropped after the last."""
 
     def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True):
@@ -1632,9 +1632,9 @@ class TestOrigeneratorGracefulClose:
         close.assert_not_called()
 
 
-class TestTheFinishingPassFitsBehindTheCover:
+class TestTheFinishingPassFitsUnderTheCover:
     def test_it_cannot_outlast_the_covers_staleness_guard(self):
-        """The room is banded and settled behind the cover, and the cover comes
+        """The room is banded and settled under the cover, and the cover comes
         down on the DONE written at the end of that.  Nothing writes the progress
         file in between, so the cover's staleness guard — its protection against
         an orchestrator that died holding the screen — is running the whole time.
@@ -1653,13 +1653,13 @@ class TestTheFinishingPassFitsBehindTheCover:
 
 
 class TestThePlayersStartWhenTheCoverIsGone:
-    """Nau's video and Genau's audio must not run behind the cover.
+    """Nau's video and Genau's audio must not run under the cover.
 
     The phase walk used to release them as its last act, which was also the
     moment the cover came down {D} so they lined up.  Now the cover is held
     through the finishing pass, and releasing with the phases would mean the
     video (and the audio, which he can hear through nothing) running for seconds
-    behind a scrim, its opening spent before he can see it.  So the release is
+    under a scrim, its opening spent before he can see it.  So the release is
     the orchestrator's, and it comes after the cover's process is gone.
     """
 

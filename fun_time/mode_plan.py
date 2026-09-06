@@ -9,7 +9,7 @@ from dataclasses import dataclass
 # say the same things to the players, from the same verbs below.
 STARTUP_MAIN_MODE = "video"
 
-# The main slot's two modes.  In both the Robot Hand is behind the screen: in
+# The main slot's two modes.  In both the Robot Hand is at work: in
 # genau mode it drives the OSR2 outright under Genau's clips, and in video mode
 # the arbiter hands the device between it and the video's funscript while
 # Genau's window is the see-through HUD layer over Nau's video.

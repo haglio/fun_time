@@ -234,7 +234,7 @@ def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_se
 
 
 def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):
-    """The demo's 'landscape player behind other windows': the post-overlay
+    """The demo's 'landscape player under other windows': the post-overlay
     pass resolved the satellites by pid, python_exe is the venv's pythonw
     shim, and both lookups found nothing — so the pass silently skipped the
     only banding the satellites get on a loading-screen startup.  Reproduced

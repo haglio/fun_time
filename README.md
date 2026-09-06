@@ -288,7 +288,7 @@ AppUserModelID before its window exists, so it can never be filed under some
 unrelated app. Being a Tool window is also why it has to end its own process:
 Qt does not count one towards the last-window quit, so closing the window is
 wired to quitting the app — without that a picked video sat in the result file
-with the bridge blocked behind a process that had nothing left to do. And it
+with the bridge blocked by a process that had nothing left to do. And it
 belongs to the session — quitting Fun Time closes a browse still on screen,
 since the dispatch loop that launched it holds it until it ends.
 
@@ -373,7 +373,7 @@ Each satellite draws the same two controls Nau does along the lower edge of its 
 
 A satellite **opens muted** whatever its clips carry — the room's sound is the main player's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that player's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
 
-A press on the video itself still does nothing: a satellite's paused state belongs to the flag file behind OmniPause, so a pause toggled in the window would be gone by the next frame. In Origenerator mode both controls come off the video with the rest of it, and the whole window belongs to the HUD.
+A press on the video itself still does nothing: a satellite's paused state belongs to the flag file under OmniPause, so a pause toggled in the window would be gone by the next frame. In Origenerator mode both controls come off the video with the rest of it, and the whole window belongs to the HUD.
 
 ### Getting a window out of the way
 
@@ -381,11 +381,11 @@ Minimizing the **dashboard** minimizes the whole room with it (`omniminimize`), 
 
 For one player on its own, every player's HUD carries a **minimize bar**: last in each satellite's control band, and beside the mode buttons on the main console (the row that is the same in every mode, so it does not move as you flip). Every one of these windows is borderless — the video fills its slot, so none has a title bar to carry a minimize button — and this is the only affordance that parks one. The main console's button names the *slot*, so it reaches whichever player is showing there: Genau in genau mode, and both in video mode, never the hidden slot-mate (minimizing an already-parked window is what drags it back into view).
 
-The player keeps running behind it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
+The player keeps running under it — its lock, loop and playlist are untouched, and the press does not even move the active side, since a player you have just put away should not be the one a bare "lock" reaches. Three things bring it back: its own **taskbar button** (the panel went down with the window, so there is nothing left to press), a dashboard minimize + restore, and **leaving OmniPause** — resuming is the room coming back, so every window a minimize button parked returns to its slot, in its band, before the re-stack and the focus land.
 
 ### Closing one window closes the session
 
-There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, behind the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit". Ctrl+Q on the main player goes the same way.
+There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, under the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit". Ctrl+Q on the main player goes the same way.
 
 The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Run standalone, outside a session, each player still closes on its own close, because then that is the whole application. See `satellite/session_quit.py` and `genau/session_quit.py`.
 

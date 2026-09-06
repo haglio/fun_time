@@ -3,7 +3,7 @@
 ``pyproject.toml`` is the tested source of truth for dependencies (see
 ``test_dependency_completeness.py``); ``requirements.txt`` is a convenience
 installer that must mirror it.  This guards the drift that previously let
-``requirements.txt`` fall behind — e.g. omitting PyQt6 and the voice deps so
+``requirements.txt`` fall out of date — e.g. omitting PyQt6 and the voice deps so
 ``pip install -r requirements.txt`` could not bring up the dashboard or voice.
 """
 from __future__ import annotations

@@ -462,7 +462,7 @@ class TestRunStartupSequence:
 
     def test_a_genau_session_is_revealed_by_starting_genau_not_nau(self, cfg_factory, tmp_path):
         """The reveal starts whichever player owns the display, and only that
-        one: unpausing Nau regardless would put a video up behind the parked
+        one: unpausing Nau regardless would put a video up under the parked
         window and hand the OSR2 two drivers at once."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
@@ -656,7 +656,7 @@ class TestTheOrderInsideTheStartupPhases:
             self, cfg_factory, tmp_path):
         """Startup holds every player so nothing plays into a room that is
         still being built; the release is therefore the last thing the phases
-        do on the path with no cover to hide behind."""
+        do on the path with no cover to hide under."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order[-1] == "release"
@@ -665,7 +665,7 @@ class TestTheOrderInsideTheStartupPhases:
     def test_a_covered_startup_releases_nothing_at_all(self, cfg_factory, tmp_path):
         """With a loading screen the release belongs to the orchestrator, once
         the cover is off the screen: released here, a video (and Genau's audio)
-        runs behind the cover and its first seconds are gone unseen."""
+        runs under the cover and its first seconds are gone unseen."""
         order = self._sequence(cfg_factory, tmp_path, hide_windows=True,
                                extra_stubs=dict(restore_window=dict()))
 
@@ -778,7 +778,7 @@ class TestProgressReporting:
 class TestLoadingScreenStartup:
     """When hide_windows=True, positioning is deferred until after UI companions launch."""
 
-    def test_defers_positioning_behind_the_overlay(self, cfg_factory, tmp_path):
+    def test_defers_positioning_under_the_overlay(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {"Portrait AI Player": 3030, "Landscape AI Player": 4040}
@@ -934,7 +934,7 @@ class TestPhase4Reveal:
     def test_every_player_is_still_held_when_the_phases_end(self, cfg_factory, tmp_path):
         """The path with a cover does not start playing when its phases end.
 
-        The finishing pass — the bands, the settle — runs after this and behind
+        The finishing pass — the bands, the settle — runs after this and under
         the cover, so a player released here plays for seconds he can neither see
         nor hear, and the opening of the video is gone by the time the cover
         lifts.  The orchestrator calls ``release_the_players`` itself, once the
@@ -978,8 +978,8 @@ class TestPhase4Reveal:
 
         assert topmost_calls == []
 
-    def test_the_idle_slot_mate_is_still_parked_behind_the_overlay(self, cfg_factory, tmp_path):
-        """Visibility is settled behind the overlay even though the bands are not:
+    def test_the_idle_slot_mate_is_still_parked_under_the_overlay(self, cfg_factory, tmp_path):
+        """Visibility is settled under the overlay even though the bands are not:
         minimizing Nau (a genau session's idle slot-mate) moves no window into
         the topmost band, so it cannot flash."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -990,7 +990,7 @@ class TestPhase4Reveal:
         assert set(self._hide_calls) == {NAU_HWND}
         assert GENAU_HWND not in self._hide_calls
 
-    def test_a_video_session_parks_nobody_behind_the_overlay(self, cfg_factory, tmp_path):
+    def test_a_video_session_parks_nobody_under_the_overlay(self, cfg_factory, tmp_path):
         """Both main-slot players are on screen in video mode, Genau's HUD over
         Nau's video, so there is no idle slot-mate to park."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -1091,7 +1091,7 @@ MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
 
 
 class TestResolveShortcut:
-    """The .lnk resolver behind the Random Favs Browser launch.
+    """The .lnk resolver under the Random Favs Browser launch.
 
     It swallows every exception twice and hands back empty strings, which the
     caller turns into one 'skipped' log line — a failure mode nothing louder
@@ -1144,7 +1144,7 @@ class TestResolveShortcut:
     def test_each_link_that_fails_says_so_before_the_next_one_is_tried(
             self, monkeypatch, caplog):
         """"Random Favs Browser skipped: could not resolve shortcut" was the
-        whole account of a failure with two resolvers behind it, so the one
+        whole account of a failure with two resolvers under it, so the one
         question worth asking — which link broke, and how — had no answer
         anywhere.  Each fall-through now says which resolver it was and what it
         raised, at debug, so the working case stays silent."""
@@ -1301,7 +1301,7 @@ class TestWaitForNauLoaded:
     """Nau's window is not the signal that Nau is ready.
 
     Nau opens its window within half a second of launch and reads its library
-    behind it — one ffprobe per unprobed video on a cold cache, tens of seconds —
+    under it — one ffprobe per unprobed video on a cold cache, tens of seconds —
     painting its OWN loading screen into it meanwhile.  So a caption lookup
     returns while Nau is still loading.  Its status file does not: Nau writes
     that from its playback loop, once a video is up.
@@ -1332,7 +1332,7 @@ class TestWaitForNauLoaded:
             ) is False
 
     def test_a_nau_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
-        """A crashed Nau must not wedge startup behind an overlay forever: the
+        """A crashed Nau must not wedge startup under an overlay forever: the
         wait is bounded, and past its budget the session is revealed without it.
         """
         with patch("fun_time.windows_bridge_sequencer.time.sleep"):
@@ -1396,14 +1396,14 @@ class TestOrigeneratorLaunch:
         assert result.origenerator_pid == 0
 
 
-class TestOrigeneratorBehindTheOverlay:
+class TestOrigeneratorUnderTheOverlay:
     def test_a_resumed_origenerator_session_restores_the_window_before_the_reveal(
         self, cfg_factory, tmp_path
     ):
         """The loading screen exists so the room is set up before it is seen —
         the hosted window used to pop up seconds after the reveal.  A session
         opening in origenerator mode now holds the overlay for that window,
-        restores it behind the curtain, and carries the mode out so the
+        restores it under the curtain, and carries the mode out so the
         post-overlay pass bands it over the RFB."""
         from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 

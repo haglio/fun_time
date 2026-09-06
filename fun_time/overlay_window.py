@@ -1,7 +1,7 @@
 """The cover Fun Time puts over every monitor while its windows are changing.
 
 A session's windows arrive one at a time and leave the same way, so both ends
-of one raise a cover and do the work behind it.  The window is borderless and
+of one raise a cover and do the work under it.  The window is borderless and
 always on top; it reads how far the work has got from a progress file the
 orchestrator writes, and closes itself when that file says DONE — and ONLY
 then, never on a full bar, which comes seconds earlier while the room is still
@@ -317,7 +317,7 @@ class OverlayWindow:
 
             # Staleness check: if the file hasn't changed in stale_timeout_s,
             # the orchestrator died holding the cover up.  Close rather than
-            # leave the whole desktop behind a panel that will never move.
+            # leave the whole desktop under a panel that will never move.
             if self._last_modified > 0:
                 age = time.time() - self._last_modified
                 if age > self._stale_timeout_s:

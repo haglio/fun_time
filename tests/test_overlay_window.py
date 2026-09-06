@@ -121,7 +121,7 @@ def _cancel_option(**overrides):
 
 class TestTheCoverComesDown:
     """The full-screen cover has exactly two ways down, and a regression in
-    either leaves the user's whole desktop behind an opaque window with no
+    either leaves the user's whole desktop under an opaque window with no
     way to dismiss it."""
 
     def test_the_done_marker_takes_the_cover_down(self, tmp_path: Path):

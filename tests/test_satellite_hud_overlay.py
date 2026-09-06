@@ -72,7 +72,7 @@ def test_tick_redraws_only_when_the_published_panel_changes(tmp_path: Path, pane
 
 def test_tick_redraws_when_the_clip_on_screen_changes(tmp_path: Path, panel: Path):
     """The HUD names the file the player has open, and a satellite left alone walks
-    its playlist by itself — fun_time republishes the panel only when the map behind
+    its playlist by itself — fun_time republishes the panel only when the map under
     it moves, so the name has to redraw off the player's own answer or it would sit
     on a clip that had already rolled past."""
     player = FakeSatellitePlayer()

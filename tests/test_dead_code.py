@@ -4,7 +4,7 @@ The dead-code checks are `app_support.dead_code` and `app_support.unread`, the
 family's one shape; the packages are scanned one at a time, since scanned
 together they hide each other's corpses. Below them, what only this repo asks:
 that no module reaches into another's privates, that prose does not outgrow the
-code it explains, and that nothing new binds Win32 behind the layer that exists
+code it explains, and that nothing new binds Win32 under the layer that exists
 to."""
 from __future__ import annotations
 
@@ -210,7 +210,7 @@ _WIN32_REACHES = {
     # A fourth enumeration walk with its own hoisted handle and its own
     # prototype; folding it into win32._first_window is its own change.
     "fun_time/windows_bridge_sequencer.py": 9,
-    # An icon handed to a window: belongs behind a named call the way the
+    # An icon handed to a window: belongs under a named call the way the
     # dashboard's chrome now is.  The error popup beside it is gone --
     # FunTimeVR says it through shared_ui.alert.
     "fun_time_vr/vr_session.py": 4,
@@ -283,7 +283,7 @@ def _win32_reaches(tree) -> int:
     return reaches
 
 
-def test_nothing_new_binds_win32_behind_the_layer_that_exists_to():
+def test_nothing_new_binds_win32_under_the_layer_that_exists_to():
     """A ceiling on coupling, not on size, held per file and as an equality.
 
     ``fun_time/win32.py`` wraps every cross-process window call in a guard

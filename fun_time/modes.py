@@ -137,7 +137,7 @@ def _collapse_axis(
     the playlist shows variety and "cycle action" explores a subject's other
     acts.  A filtered view has already pinned the act, so it collapses **seed
     families** instead — one clip per parameter set — and the
-    same-params-different-seed siblings hide behind "cycle seed" rather than
+    same-params-different-seed siblings are reached through "cycle seed" rather than
     repeating back-to-back in the playlist.
     """
     if by_seed_family:

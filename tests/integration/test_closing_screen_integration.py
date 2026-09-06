@@ -1,4 +1,4 @@
-"""Real-window checks for the cover a session goes out behind.
+"""Real-window checks for the cover a session goes out under.
 
 The unit suite can only fake the tkinter overlay — building the real one puts a
 window over every monitor.  Here it is built for real on the hidden desktop,

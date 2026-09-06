@@ -500,7 +500,7 @@ class _SatelliteUnit(_VideoUnit):
 
 class _GenauUnit:
     """Genau's surface: the frame its engine chose, on the primary's screen or
-    wrapped round the viewer by the clip's projection.  No mpv behind it and
+    wrapped round the viewer by the clip's projection.  No mpv under it and
     no furniture on it; the engine ticks on a thread of its own."""
 
     def __init__(self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event) -> None:

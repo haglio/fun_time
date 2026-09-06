@@ -321,7 +321,7 @@ def test_reference_popup_row_shows_toggle_and_close_names():
     voice = set(row.voice)
     assert {"help", "hotkeys", "reference", "voice commands"} <= voice
     assert {"close help", "close hotkeys", "close reference", "close voice commands"} <= voice
-    assert "hot keys" not in voice  # the OOV recognizer form is hidden behind "hotkeys"
+    assert "hot keys" not in voice  # the OOV recognizer form is hidden under "hotkeys"
 
 
 def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():

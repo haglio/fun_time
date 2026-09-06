@@ -444,7 +444,7 @@ class VRSession:
     def focused(self) -> bool:
         """Whether the headset is worn with this app in the foreground.
 
-        FOCUSED is the one state that proves a human is behind the lenses;
+        FOCUSED is the one state that proves a human is at the lenses;
         VISIBLE also holds while the headset sits on a stand presenting to
         nobody — with its audio endpoint parked (see route_audio's caller).
         """

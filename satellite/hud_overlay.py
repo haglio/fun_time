@@ -88,7 +88,7 @@ class HudOverlay:
         *video* is the name of the file the player has open, which the HUD carries
         under its status line.  It is a redraw trigger in its own right: a satellite
         left to play walks its playlist by itself, and fun_time republishes the panel
-        only when the map behind it changes — so a name taken off the published panel
+        only when the map under it changes — so a name taken off the published panel
         alone would sit on a clip that had already rolled past.
         """
         text = self._read()

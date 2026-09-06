@@ -1,9 +1,9 @@
 """The production startup path, curtain included, on real windows.
 
 Every other integration session skips the loading screen (integration mode's
-default), so the exact path a real session takes — launch hidden behind the
+default), so the exact path a real session takes — launch hidden under the
 overlay, reveal, then the post-overlay z-order pass — ran only on the user's
-own desktop, where "the landscape player is behind other windows on startup"
+own desktop, where "the landscape player is under other windows on startup"
 was reported and could not be reproduced by any test.  This session forces
 the overlay path (``FUN_TIME_INTEGRATION_OVERLAYS=1``) and then asks the one
 question that bug is about: once startup settles, is each satellite frontmost

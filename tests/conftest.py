@@ -51,7 +51,7 @@ def _qapp():
 # the same machine runs the user's live Fun Time.  So an unmocked window call in a
 # unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
 # resolves the live "Nau"/"Genau" window by title and forces it on top — the test
-# bleed behind "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
+# bleed under "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
 # bug for months because it WAS our code, run by a concurrent agent's test process).
 _MUTATING_USER32_CALLS = (
     "SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW", "BringWindowToTop",
@@ -110,7 +110,7 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
 
     The two timeouts are set here rather than edited in the module because both
     are pinned as production numbers:
-    ``TestTheFinishingPassFitsBehindTheCover`` adds the resolve budget up
+    ``TestTheFinishingPassFitsUnderTheCover`` adds the resolve budget up
     against the cover's staleness guard, and ``TestWaitForClosingScreen`` walks
     every way out of the closing-screen hold.  A test that is ABOUT the waiting
     marks itself ``real_startup_waits`` and gets the real function and the real

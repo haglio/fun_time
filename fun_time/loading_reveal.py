@@ -1,4 +1,4 @@
-"""The panel's wait behind the loading cover, and how it comes out of it.
+"""The panel's wait under the loading cover, and how it comes out of it.
 
 The panel is topmost, so one that simply came up would flash above the cover.
 It is realized without ever being shown, and reveals itself UNDER the cover

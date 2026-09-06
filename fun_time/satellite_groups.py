@@ -268,7 +268,7 @@ def _loop_items(
 
     Fewer than two items means the group holds only this clip, so there is no loop
     to be had on that axis — which is what turns the loop into a lock below and what
-    makes the loop key step past the axis.  The group index behind this is cached,
+    makes the loop key step past the axis.  The group index under this is cached,
     so asking a second time before dispatching costs nothing.
     """
     index = _satellite_group_index(which, config, current)

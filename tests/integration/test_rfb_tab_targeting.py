@@ -8,7 +8,7 @@ the running browser (the singleton is keyed on the user data directory), which
 resolves the profile from ``--profile-directory`` and asks ``FindTabbedBrowser``
 for a window: it walks its browsers most-recently-active first and takes the
 first one whose profile matches.  So a personal window he touched a moment ago
-beats the RFB, and the tab lands there — behind the players, unseen until later.
+beats the RFB, and the tab lands there — under the players, unseen until later.
 
 Only a real Chrome can show that, which is why this is an integration test: it
 opens two windows of one profile in a **throwaway user data directory** (nothing

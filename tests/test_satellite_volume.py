@@ -83,7 +83,7 @@ class TestPresses:
 
     def test_a_silent_chip_swallows_its_press_without_acting_on_it(self):
         # It is drawn over the scrubber's row, so a press on it must not seek
-        # the video behind it — even where there is no sound to set.
+        # the video under it — even where there is no sound to set.
         volume, player = _volume(live=False)
 
         assert _press(volume, SPEAKER)

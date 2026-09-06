@@ -154,7 +154,7 @@ def test_hold_integration_lock_queues_until_free_then_releases():
     # not for a fixed nap.  The old 0.35s sleep made this the one test that
     # could fail for the runner's load rather than for the code.
     wait_until(lambda: bool(notifications), timeout=10.0)
-    # Notified it is waiting, and still blocked behind the held lock.
+    # Notified it is waiting, and still blocked by the held lock.
     assert not entered.is_set()
 
     blocker.release()

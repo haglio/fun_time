@@ -24,7 +24,7 @@ WINDOW_TITLE = "Fun Time Closing"
 # Teardown is over in a couple of seconds, so a progress file that has not moved
 # for this long means the orchestrator died holding the cover up.  Far shorter
 # than startup's, because what this timeout ends is a panel over the whole
-# desktop with nothing left behind it to wait for.
+# desktop with nothing left under it to wait for.
 STALE_TIMEOUT_S = 20.0
 
 
