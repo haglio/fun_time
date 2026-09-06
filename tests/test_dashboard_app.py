@@ -383,7 +383,7 @@ def test_the_first_restore_after_the_reveal_rearms_the_routing(dashboard_app_con
 
 def test_do_render_leaves_a_window_still_hidden_for_loading_alone(dashboard_app_config):
     """The deferred half of the geometry guard: while the window is hidden
-    behind the loading cover, a render must not touch its geometry — the
+    under the loading cover, a render must not touch its geometry — the
     reveal owns the first placement.  (The minimized half has its own test
     below.)"""
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)

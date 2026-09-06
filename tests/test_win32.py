@@ -48,7 +48,7 @@ from fun_time.win32_process import (
 
 class TestFindWindowByPid:
     """The EnumWindows visibility filter, and the include_hidden override the
-    startup sequencer needs to resolve the dashboard while it is hidden behind
+    startup sequencer needs to resolve the dashboard while it is hidden under
     the loading overlay (a hidden window has WS_VISIBLE cleared)."""
 
     @staticmethod
@@ -398,7 +398,7 @@ class TestIsProcessAlive:
 
 
 class TestWindowsObscuring:
-    """The pure z-order analysis behind the startup 'what's covering Nau' log.
+    """The pure z-order analysis under the startup 'what's covering Nau' log.
 
     Given the visible windows front-to-back and a target hwnd, report which
     windows sit ABOVE the target AND overlap its rect — the ones actually
@@ -567,7 +567,7 @@ class TestFindWindowByTitle:
     def test_exact_refuses_the_window_that_merely_contains_the_name(self):
         """The session opens three windows whose titles start "Fun Time" — the
         dashboard, the loading cover and the library browser — so only the whole
-        caption tells the dashboard from the cover it hides behind."""
+        caption tells the dashboard from the cover it hides under."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time Loading"), (12, "Fun Time")])
             assert win32.find_window_by_title("Fun Time", exact=True) == 12
@@ -580,7 +580,7 @@ class TestFindWindowByTitle:
             assert win32.find_window_by_title("Fun Time") == 11
 
     def test_a_hidden_window_is_skipped_unless_it_is_asked_for(self):
-        """The dashboard is SW_HIDE behind the loading cover when startup has
+        """The dashboard is SW_HIDE under the loading cover when startup has
         to resolve it."""
         with patch("fun_time.win32._user32") as mock:
             self._enumerating(mock, [(11, "Fun Time")], visible=False)

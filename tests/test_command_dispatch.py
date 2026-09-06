@@ -2252,7 +2252,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
 
 def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
-    """The hand is behind the screen in both modes — driving outright in genau
+    """The hand is at work in both modes — driving outright in genau
     mode, filling the funscript's gaps in video mode — so its own rate keys
     never land on Nau's video rate."""
     for mode in ("video", "genau"):
@@ -3001,7 +3001,7 @@ def test_a_say_command_outside_origenerator_mode_does_nothing_quietly(tmp_path: 
 def test_clipper_save_raises_a_save_clip_op_and_runs_nothing_inline(tmp_path: Path):
     """The save is a 10-second cross-repo subprocess; the dispatcher only asks
     for it (the loop runs it on a worker thread), so the 20 Hz tick never
-    stalls behind a booting interpreter."""
+    stalls on a booting interpreter."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 

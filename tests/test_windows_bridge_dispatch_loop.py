@@ -1966,7 +1966,7 @@ class TestIdempotentVoiceCommands:
         mock_d.assert_called_once_with("genau_activate", None)
 
     def test_genau_activate_dispatches_in_video_mode(self, tmp_path):
-        """Video mode has the Robot Hand behind it but is NOT genau mode: the
+        """Video mode has the Robot Hand under it but is NOT genau mode: the
         Genau-mode button must still switch to full Genau.  Regression — an old
         guard asked whether Genau was active, which video mode also was, so it
         swallowed this."""

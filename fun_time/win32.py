@@ -112,7 +112,7 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     This avoids grabbing internal surfaces like Direct3D rendering windows.
 
     Set *include_hidden* to also match windows with WS_VISIBLE cleared — needed
-    for the dashboard, which is hidden (SW_HIDE) behind the loading overlay when
+    for the dashboard, which is hidden (SW_HIDE) under the loading overlay when
     the startup sequencer resolves its handle.  The non-empty-title filter still
     applies, so this does not match untitled internal surfaces.
     """
@@ -471,7 +471,7 @@ def find_window_by_title(title: str, *, exact: bool = False, include_hidden: boo
 
     Four of this session's windows are called "Fun Time" and "Fun Time
     <something>", so the panel needs *exact*.  *include_hidden* also matches a
-    window with WS_VISIBLE cleared, which the dashboard is behind the cover.
+    window with WS_VISIBLE cleared, which the dashboard is under the cover.
     """
     buf = ctypes.create_unicode_buffer(256)  # one for the whole walk
 

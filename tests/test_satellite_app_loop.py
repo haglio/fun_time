@@ -181,7 +181,7 @@ def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path):
     _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
 
     assert player.muted is False
-    assert player.seeks == []          # the chip took it, not the row behind it
+    assert player.seeks == []          # the chip took it, not the row under it
 
 
 def test_no_audio_leaves_the_chip_a_read_only_indicator(tmp_path):

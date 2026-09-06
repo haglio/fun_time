@@ -1,4 +1,4 @@
-"""The live windows behind the managed roles.
+"""The live windows under the managed roles.
 
 These pin :class:`fun_time.role_windows.WindowRoles` directly, which is the
 point of it having been lifted out of the dispatch loop: the object needs the

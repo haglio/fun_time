@@ -6,8 +6,8 @@ until its own chip is asked.  It owns its playlist position and drives an
 mpv-backed *player* (:class:`player_core.mpv_player.MpvPlayer`) to
 load/pause/lock/seek — but with no funscript, no OSR2/T-Code and no loop
 recording, it is a fraction of Nau's own PlayerSession.  Navigation is fully
-in-process (a Python list + index), which is the whole point of leaving VLC
-behind: no HTTP playlist to resolve ids against, and pausing is a flag.
+in-process (a Python list + index), which is the whole point of dropping VLC:
+no HTTP playlist to resolve ids against, and pausing is a flag.
 
 Auto-advance is the one thing mpv drives itself: the session hands mpv the *next*
 clip as a staged playlist entry (``stage_next``), and with prefetch on mpv opens

@@ -36,7 +36,7 @@ def test_a_unit_test_never_waits_out_a_window_no_test_opened():
 
 
 def test_a_unit_test_never_waits_out_a_startup_timeout():
-    """The numbers behind those waits, zeroed alongside the lookup itself.
+    """The numbers under those waits, zeroed alongside the lookup itself.
 
     The hold for the closing cover to report itself painted is timed by the
     orchestrator rather than through the lookup at all; and the per-role budget

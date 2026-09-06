@@ -108,7 +108,7 @@ class TestWhoseReadoutItDraws:
         assert _hud(engine).drive is engine.drive
 
     def test_in_genau_mode_the_gate_is_told_nothing_was_published(self):
-        """The video waits paused behind the clip while Genau's wave moves on,
+        """The video waits paused under the clip while Genau's wave moves on,
         so every forecast the gate held for it is void by the time the video
         is watched again."""
         gate = FakeGate()

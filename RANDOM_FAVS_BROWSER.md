@@ -18,7 +18,7 @@ A favorite's gallery link is usually dead — the generation provider does not k
 
 ### Which window the tab lands in
 
-The RFB is a window of **your own** Chrome — same user data directory, same profile — so any window of that profile you already had open is a candidate for a lock's tab too, and nothing about handing Chrome a URL says which window is meant. A second `chrome.exe` finds the first one's singleton (keyed on the user data directory) and forwards its command line; the running browser resolves the profile from `--profile-directory` and asks `FindTabbedBrowser` for a window, which walks its browsers most-recently-active first and takes the first one whose profile matches. Whichever window of that profile you touched last therefore wins — and a personal window you were reading a moment ago beats the RFB, putting the tab there, behind the players, unseen until you go looking.
+The RFB is a window of **your own** Chrome — same user data directory, same profile — so any window of that profile you already had open is a candidate for a lock's tab too, and nothing about handing Chrome a URL says which window is meant. A second `chrome.exe` finds the first one's singleton (keyed on the user data directory) and forwards its command line; the running browser resolves the profile from `--profile-directory` and asks `FindTabbedBrowser` for a window, which walks its browsers most-recently-active first and takes the first one whose profile matches. Whichever window of that profile you touched last therefore wins — and a personal window you were reading a moment ago beats the RFB, putting the tab there, under the players, unseen until you go looking.
 
 So the dispatch loop **activates the RFB window first** (`win32.force_foreground_window`), which puts it at the head of Chrome's own activation order. Chrome shows whatever window it opens into either way, so this costs no raise that was not already coming — it only decides which window rises. Windows refuses `SetForegroundWindow` from a process that neither owns the foreground window nor received the last input, which is exactly the bridge's position when a lock hotkey lands, so the call goes through an `AttachThreadInput` handshake; a refusal would be silent (a flashing taskbar button and no `WM_ACTIVATE`). If the RFB window is gone, the handoff is skipped rather than sent — with no window of its own to open into, every URL would land in one of yours. `tests/integration/test_rfb_tab_targeting.py` drives a real Chrome in a throwaway user data directory and checks both halves: that a plain handoff really does go to the other window, and that the activation takes it back.
 
@@ -54,7 +54,7 @@ The script **auto-updates over localhost**. It carries `@updateURL` / `@download
 
 Environment facts (learned the hard way):
 
-- Chrome's **"Allow user scripts"** toggle must be **ON** (recent Chrome versions gate userscripts behind it). If the script stops running *entirely* — no floating note appears at all on a locked video — re-check this first at `chrome://extensions`.
+- Chrome's **"Allow user scripts"** toggle must be **ON** (recent Chrome versions gate userscripts on it). If the script stops running *entirely* — no floating note appears at all on a locked video — re-check this first at `chrome://extensions`.
 - **Do not** open the `.user.js` via a `file://` URL to install/update it — Chrome blocks that ("can't open scripts that way"). Auto-update goes through the localhost **http** server precisely because `file://` is blocked.
 
 To pull a change (normal path):

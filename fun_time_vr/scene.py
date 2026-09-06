@@ -8,7 +8,7 @@ triangle-strip vertices for the renderer to draw.  Immersive projections
 shader — so this module is the whole of the "windowed" layout.
 
 The satellites draw after (so over) the primary, which is what keeps them
-visible when a VR video wraps the entire hemisphere behind them — and is also
+visible when a VR video wraps the entire hemisphere at their back — and is also
 why they may overlap the main player's edges.
 """
 from __future__ import annotations

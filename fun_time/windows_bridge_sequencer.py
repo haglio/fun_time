@@ -96,7 +96,7 @@ class StartupResult:
     # orchestrator and has to re-assert the same policy these phases applied.
     main_mode: str = STARTUP_MAIN_MODE
     # The satellite side's resumed mode, for the same reason: a session that
-    # opens in origenerator mode needs its hosted window restored behind the
+    # opens in origenerator mode needs its hosted window restored under the
     # overlay and banded by the post-overlay pass, not popped up after the
     # reveal the loading screen exists to conceal.
     satellites_mode: str = VIDEO_MODE
@@ -181,7 +181,7 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
     Genau's transparent HUD above Nau's video in video mode, and the policy says so
     outright ("Genau is promoted last").
 
-    *beneath* is the loading overlay, when this runs behind it.  Each promotion
+    *beneath* is the loading overlay, when this runs under it.  Each promotion
     inserts at the top of the band and so lands OVER that overlay; left there
     until the overlay's own 200ms poll re-asserted itself, every window in this
     walk flashed through the cover on its way past.  Putting the cover back after
@@ -208,7 +208,7 @@ def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> No
     no visible animation.  Nau is the idle one in genau mode; in video mode
     neither is, because Genau's HUD is drawn over Nau's video.
 
-    Safe behind the loading overlay: minimizing moves no window into the topmost
+    Safe under the loading overlay: minimizing moves no window into the topmost
     band, so nothing can flash over it.
     """
     for hwnd in (nau_hwnd, genau_hwnd):
@@ -236,10 +236,10 @@ def apply_startup_window_state(
     """Set the full window state for the mode the session opens in: bands, then
     visibility.
 
-    *beneath* is the loading overlay when this runs behind one, and is what keeps
+    *beneath* is the loading overlay when this runs under one, and is what keeps
     the cover on top across the walk — see :func:`apply_topmost_bands`.  Zero
     when there is no cover: the integration path, which has nothing to hide
-    behind, and the re-band after the cover has gone.
+    under, and the re-band after the cover has gone.
     """
     role_hwnds = _startup_role_hwnds(
         portrait_hwnd=portrait_hwnd,
@@ -282,7 +282,7 @@ def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     the path with one — there, only once the cover has actually left the screen.
     That is the whole reason it is a function of its own: released with the
     phases, playback starts while the cover is still hiding it, and the first
-    seconds of the video are spent behind it.
+    seconds of the video are spent under it.
     """
     write_flag_file(m.commands.nau_paused_file, not nau_displays(main_mode))
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
@@ -308,7 +308,7 @@ def run_startup_sequence(
 ) -> StartupResult:
     """Run the full startup sequence, returning all PIDs and the layout plan.
 
-    When *hide_windows* is True, the satellite windows launch behind the loading
+    When *hide_windows* is True, the satellite windows launch under the loading
     overlay and all positioning is deferred to the end so everything appears at
     once.  The window handles are returned in ``StartupResult.role_hwnds``.
     *cover_hwnd* is that overlay's own window, so the raises this makes can put
@@ -565,7 +565,7 @@ def _launch_the_hosted_origenerator(
     with none.
 
     Launched with the players so its own boot (ComfyUI, the library maintenance
-    passes) runs behind the rest of startup.  Nothing here waits on it — it
+    passes) runs under the rest of startup.  Nothing here waits on it — it
     comes up parked by design, and the dispatch loop adopts its window whenever
     it appears, restoring it only if the session is in origenerator mode.
     """
@@ -613,7 +613,7 @@ def _launch_core_media(
 
     Nothing here waits for a window.  Everything is started as early as it can
     be so each child's own boot — pygame, a media scan, first frames, ComfyUI —
-    runs behind the rest of startup.
+    runs under the rest of startup.
     """
     # Read before the first launch that needs it: every child below takes the
     # named checkouts, the satellites and the hosted app included, because they
@@ -765,7 +765,7 @@ def _wait_for_the_room_to_be_drawing(
 
 
 def _restore_the_hosted_window(origenerator_pid: int, cover_hwnd: int) -> int:
-    """Bring the hosted app's window back behind the curtain, and its hwnd.
+    """Bring the hosted app's window back under the curtain, and its hwnd.
 
     A session opening in origenerator mode holds the overlay for this window
     too — the whole point of the loading screen is that the room is set up
@@ -788,7 +788,7 @@ def _restore_the_hosted_window(origenerator_pid: int, cover_hwnd: int) -> int:
     return hwnd
 
 
-def _place_and_park_behind_the_cover(
+def _place_and_park_under_the_cover(
     *,
     plan: WindowLayoutPlan,
     main_mode: str,
@@ -810,7 +810,7 @@ def _place_and_park_behind_the_cover(
     and ``HWND_TOPMOST`` inserts above it, so each promotion would flash its
     window over the overlay.  ``_fix_post_loading_windows`` applies them once the
     overlay process has exited.  This is still the last moment the dashboard is
-    resolvable, and it is hidden (SW_HIDE) behind the overlay, so its lookup
+    resolvable, and it is hidden (SW_HIDE) under the overlay, so its lookup
     must include hidden windows.
     """
     _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
@@ -840,7 +840,7 @@ def _place_and_park_behind_the_cover(
     return role_hwnds
 
 
-def _settle_the_room_behind_the_cover(
+def _settle_the_room_under_the_cover(
     m: LaunchManifest,
     *,
     core: _CoreSession,
@@ -856,7 +856,7 @@ def _settle_the_room_behind_the_cover(
     progress.advance("players")
     # The satellites launched playing (their paused flag is unset) and own their
     # playlists, so there is nothing to start here — just resolve and position
-    # each behind the loading overlay.
+    # each under the loading overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_room_to_be_drawing(
         m, nau_status_file=core.nau_status_file, progress=progress)
@@ -866,7 +866,7 @@ def _settle_the_room_behind_the_cover(
         origenerator_hwnd = _restore_the_hosted_window(core.origenerator_pid, cover_hwnd)
 
     progress.advance("windows")
-    role_hwnds = _place_and_park_behind_the_cover(
+    role_hwnds = _place_and_park_under_the_cover(
         plan=plan,
         main_mode=core.main_mode,
         portrait_hwnd=portrait_hwnd,
@@ -917,15 +917,15 @@ def _run_startup_phases(
 
     # --- Phase 4 (loading screen only): batch-position everything at once ---
     if hide_windows:
-        role_hwnds = _settle_the_room_behind_the_cover(
+        role_hwnds = _settle_the_room_under_the_cover(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
             dashboard_pid=ui_pids["dashboard_pid"], cover_hwnd=cover_hwnd,
             progress=progress)
 
-    # A session with nothing to hide behind starts playing as soon as it is
+    # A session with nothing to hide under starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this itself once
     # the cover is off the screen, because a player released while the cover is
-    # still up is a video (and Genau's audio) running behind it, and the first
+    # still up is a video (and Genau's audio) running under it, and the first
     # seconds of it are gone by the time he can see or hear them.
     if not hide_windows:
         release_the_players(m, core.main_mode)

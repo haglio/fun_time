@@ -439,7 +439,7 @@ class DispatchLoopRunner:
         The RFB runs in the user's own Chrome profile, so his personal windows
         are candidates for the tab too: Chrome's ``FindTabbedBrowser`` walks
         that profile's windows most-recently-active first, so the window he
-        touched last would win and the lock's tab would land behind the
+        touched last would win and the lock's tab would land under the
         players.  Activating the RFB window first is what settles it — it goes
         to the head of Chrome's own activation order, and Chrome shows the
         window it opens into either way, so this only decides which one rises.

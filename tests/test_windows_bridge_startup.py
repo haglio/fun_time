@@ -457,7 +457,7 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
     channel as well.  Under Fun Time Genau runs in direct control, where the
     paused flag is never read and the motion follows PAUSE/RESUME here — so the
     switch's RESUME was still queued when Genau finished loading, and a session
-    resuming into genau or video mode drove the OSR2 behind the loading screen."""
+    resuming into genau or video mode drove the OSR2 under the loading screen."""
     for mode in ("video", "genau"):
         _seed_startup_states(tmp_path, mode=mode)
 
@@ -1010,7 +1010,7 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     device is where it would sit for all of it.  So the park is queued at the
     very top, ahead of the launches that make the wait.  The broker reads its
     command file on a tick and nothing clears it at broker startup, so the verb
-    keeps whether the broker is already up or is still coming up behind
+    keeps whether the broker is already up or is still coming up under
     ``ensure_broker``.
     """
     kwargs = _start_core_session_kwargs(tmp_path)

@@ -130,7 +130,7 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         description="Nau paused file to flip back off (active)",
     )
     # Genau runs on in video mode — its HUD over the video, the Robot Hand
-    # behind it for the funscript's gaps — so its flag never flips back.
+    # under it for the funscript's gaps — so its flag never flips back.
     assert s.config.genau_paused_file.read_text(encoding="utf-8") == "0"
 
 
@@ -305,7 +305,7 @@ def test_fun_time_omnipause_does_not_kill_genau(shared_integration_session: FunT
     The old AHK HandleOmniPauseToggle never removed Genau's topmost
     flag.  When omnipause was ported to Python, an explicit
     set_topmost(Genau, False) was added by mistake, causing the
-    window to fall behind other windows (appearing "closed").  Verify the
+    window to fall under other windows (appearing "closed").  Verify the
     Genau process survives an omnipause round-trip while in genau
     mode.
     """

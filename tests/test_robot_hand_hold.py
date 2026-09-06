@@ -107,7 +107,7 @@ class TestSnapshotFileFormat:
 
     def test_a_snapshot_that_is_not_whole_reads_as_nothing_to_put_back(self):
         """None and an absent file mean the same thing, so a release with no hold
-        behind it is one no-op rather than two kinds of one."""
+        to undo is one no-op rather than two kinds of one."""
         assert parse_dials("") is None
         assert parse_dials("cruise=1\nspeed=25\n") is None  # no amplitude/center
         assert parse_dials("cruise=1\nspeed=x\namplitude=80\ncenter=30\n") is None

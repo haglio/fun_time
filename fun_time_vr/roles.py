@@ -68,7 +68,7 @@ class MainRole:
         self._tilt_deg = 0.0  # state, not a request; both inputs write here
         # Whether this player is what the headset shows.  DISPLAY_OFF rides
         # every switch into genau mode, where the clip takes the scene and
-        # this player waits paused behind it, the way Nau is parked off
+        # this player waits paused under it, the way Nau is parked off
         # screen on the desktop.
         self.displayed = True
         self._load(0)

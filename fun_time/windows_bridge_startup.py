@@ -310,7 +310,7 @@ def seed_startup_states(
     neither reads a level from a file it already has, so seeding is the only way
     a resumed session comes up as loud as you left it — and both sinks are told,
     through the one publisher the live volume commands use, which is what keeps a
-    resumed mute explicable rather than a silence with nothing on screen behind
+    resumed mute explicable rather than a silence with nothing on screen backing
     it (Nau draws the level and the mute it is given).
 
     *f_mode* is the main player's own — this whole function is the main slot's
@@ -341,7 +341,7 @@ def seed_startup_states(
     append_command(Path(nau_cmd_file), nau_display_verb(mode))
     # Every player waits for the reveal: a live switch's flags would start its
     # player the moment they landed, and here that is twenty seconds of the OSR2
-    # moving behind a progress bar.  The flag does not hold the Robot Hand,
+    # moving under a progress bar.  The flag does not hold the Robot Hand,
     # whose motion follows the PAUSE/RESUME verbs on Genau's channel and never
     # reads the paused flag at all — which is why the PAUSE above is written
     # whole and no RESUME follows it.

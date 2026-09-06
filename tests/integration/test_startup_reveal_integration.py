@@ -8,10 +8,10 @@ the complaint is about — the first poll on which the loading overlay's window 
 gone — and reports what was still missing then.
 
 Two things have to be true at that instant.  Every window the session shows must
-be ON SCREEN: the dashboard hides itself behind the cover and shows itself again
+be ON SCREEN: the dashboard hides itself under the cover and shows itself again
 on a cue, and taking that cue from the cover's own departure meant the control
 panel arrived seconds after the room it controls.  And the pass that puts the
-room in z-order must ALREADY HAVE RUN: it is written to run behind the cover, and
+room in z-order must ALREADY HAVE RUN: it is written to run under the cover, and
 a cover that leaves first turns it into a room sorting itself out in front of him.
 
 Whether anything is COVERING those windows is a separate question, and one
@@ -93,7 +93,7 @@ class _AtTheReveal(threading.Thread):
         }
         # And the same lookup counting hidden windows, so a failure says which
         # kind of missing it was: a window that never launched, or one that is
-        # up but still SW_HIDE behind the cover it was meant to be revealed
+        # up but still SW_HIDE under the cover it was meant to be revealed
         # under.  The two want opposite fixes.
         self.hidden_hwnds = {
             title: find_window_by_title(title, exact=True, include_hidden=True)

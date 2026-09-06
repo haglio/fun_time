@@ -124,7 +124,7 @@ void main() {{
         // Equirect 360, mono: the full sphere across the whole texture.
         uv = vec2(theta / (2.0 * PI) + 0.5, phi / PI + 0.5);
     }} else if (mode == {_PROJECTION_MODES[EQUIRECT_180_SBS]}) {{
-        // Equirect 180, side-by-side stereo: black behind the viewer.
+        // Equirect 180, side-by-side stereo: black outside the front hemisphere.
         if (abs(theta) > PI * 0.5) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
         float u = theta / PI + 0.5;
         uv = vec2(u * 0.5 + float(eye) * 0.5, phi / PI + 0.5);

@@ -109,7 +109,7 @@ def startup_still_building(state_dir: Path) -> bool:
     up — and that is the point: a companion that waits for the cover to come
     down shows itself AFTER the reveal, which is the user watching a window
     arrive late on a room that was supposed to be finished.  Told here instead,
-    it puts itself on screen behind the cover and is already in place when the
+    it puts itself on screen under the cover and is already in place when the
     cover lifts.
 
     A missing file answers False too: no startup is running, so nothing is
@@ -144,7 +144,7 @@ class Phase:
 # three phases) and off a timed satellite launch (0.47s to its window).  They set
 # the SHAPE of the bar, so being a few tenths stale costs a little smoothness and
 # nothing else.  The last phase is weightless so the bar reads full while it runs:
-# it is the one the room is banded and settled in, behind the cover, and the cover
+# it is the one the room is banded and settled in, under the cover, and the cover
 # comes down on DONE at the end of it (see ``startup_still_building``, which reads
 # that full bar as the companions' cue to show themselves while they still can).
 STARTUP_PHASES: tuple[Phase, ...] = (
@@ -208,7 +208,7 @@ class PhaseProgress:
             raise StartupCancelled()
         entered = self._phase_index(phase)
         # Hundredths of a unit: the overlay reads two integers.  The position is
-        # the work ALREADY behind us, so only a weightless final phase can put it
+        # the work ALREADY done, so only a weightless final phase can put it
         # on the total — and the total is what tells the screen to close, so
         # reporting a phase's own weight as it starts would shut the cover early.
         done = round(sum(p.weight for p in self._phases[:entered]) * 100)

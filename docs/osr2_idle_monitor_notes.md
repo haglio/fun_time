@@ -81,4 +81,4 @@ A separate `osr2_monitor` project read this file and used a state machine (OFF /
 
 5. **The user finds the OSR2's built-in free mode important for testing.** Any solution that only works for MFP content may be unsatisfying if it can't also handle free mode. Understand this constraint before proposing a design.
 
-6. **`MB_SETFOREGROUND` (0x00010000)** flag on `MessageBoxW` brings the dialog to the front. Without it, the alert can appear behind other windows.
+6. **`MB_SETFOREGROUND` (0x00010000)** flag on `MessageBoxW` brings the dialog to the front. Without it, the alert can appear under other windows.

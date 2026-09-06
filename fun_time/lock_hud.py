@@ -461,7 +461,7 @@ def _side_panel(
 
 
 def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) -> None:
-    """Build both satellites' group indexes up front — behind the loading screen,
+    """Build both satellites' group indexes up front — under the loading screen,
     before the first clip is drawn — so the map is instant on the first refresh
     and no later refresh pays for a rebuild.  The library is fixed for the run,
     so one build is enough (a Latest reload is what would extend it)."""

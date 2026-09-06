@@ -2,7 +2,7 @@
 
 Runs the startup phases, launches the AHK hotkey script, starts the dispatch
 loop, holds the session open until the hotkeys exit, then shuts every child
-down.  Both ends of that happen behind a cover over every monitor, so the
+down.  Both ends of that happen under a cover over every monitor, so the
 session's windows are never watched arriving or leaving one at a time.
 """
 from __future__ import annotations
@@ -373,7 +373,7 @@ def _cancel_startup(
     for pid in pids:
         kill_process_tree(pid)
     close_window(rfb_hwnd)
-    # Only now that the windows behind it are gone: drop the overlay.
+    # Only now that the windows under it are gone: drop the overlay.
     progress.finish()
     if loading_proc is not None:
         try:
@@ -449,7 +449,7 @@ def open_event_log(state_dir: Path) -> None:
     logging.getLogger("fun_time").setLevel(logging.DEBUG)
 
 
-# What the finishing pass may spend, all of it behind the cover.  The cover comes
+# What the finishing pass may spend, all of it under the cover.  The cover comes
 # down on DONE, which is written at the end of it, so these bound how long the
 # progress file can sit unchanged while it runs — and the cover takes ITSELF
 # down if that goes past ``loading_screen.STALE_TIMEOUT_S``, which would put the
@@ -470,7 +470,7 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
     promotion-order slip).  ``is_window_topmost`` cannot see that; only the
     real z-order can, so this walks it and names the covering window instead
     of guessing.  Run for the satellites as well as Nau: "the landscape player
-    is behind other windows on startup" was undiagnosable while only Nau's
+    is under other windows on startup" was undiagnosable while only Nau's
     coverage was logged.
 
     *expected_over* is the one window that belongs above the target in every
@@ -479,7 +479,7 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
     session's own by-design layering toasted every startup with a "covering"
     window that covers nothing you can see; anything else over the player
     still warns.  *ignore* is the loading
-    overlay while this runs behind it, which covers everything by design.
+    overlay while this runs under it, which covers everything by design.
     """
     if not hwnd:
         logger.warning("%s window unresolved after loading; cannot check z-order", name)
@@ -506,7 +506,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
     session this pass would otherwise promote Nau over Genau and un-park it, one
     pass after the sequencer parked it.
 
-    ``overlay_hwnd`` is the loading screen's own window when this runs BEHIND
+    ``overlay_hwnd`` is the loading screen's own window when this runs UNDER
     the curtain, which is where it belongs: the bands are the last thing that
     decides what the reveal looks like, so applying them afterwards is watching
     the room sort itself out — the players arriving under whatever was already
@@ -548,7 +548,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         SATELLITE_LANDSCAPE_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
     # A session opening in origenerator mode has its hosted window restored
-    # behind the overlay already (the sequencer held the reveal for it); this
+    # under the overlay already (the sequencer held the reveal for it); this
     # pass is where it joins the topmost band, over the RFB it covers.  Its two
     # REGION shows join with it, over the players they cover: they are managed
     # roles promoted after the players precisely so they end up on top, and
@@ -702,12 +702,12 @@ def start_hud_priming(
 ) -> tuple[HudPublisher | None, threading.Event]:
     """Build the HUD publisher and warm what it needs, off the startup thread.
 
-    Two costs sit behind the first map: indexing each library's seed families and
+    Two costs sit under the first map: indexing each library's seed families and
     action groups, and extracting a still frame per clip.  Both used to run in the
     separate HUD process; with the model here they run on this daemon thread, so
     startup keeps going while they finish.  The returned event fires once the
     indexes are ready — startup waits on it before revealing Fun Time, so the maps
-    are never blank on screen.  The far longer thumbnail warm continues behind it;
+    are never blank on screen.  The far longer thumbnail warm continues under it;
     those fill in as they land.
     """
     primed = threading.Event()
@@ -813,7 +813,7 @@ def _reveal_the_room(
     hud_publisher,
     hud_primed,
 ) -> None:
-    """Take the curtain down on a session that is finished behind it.
+    """Take the curtain down on a session that is finished under it.
 
     The sequencer already positioned every window in phase 4; what is left is
     the sorting phase 4 deliberately left off, then the cover, then the players.
@@ -824,7 +824,7 @@ def _reveal_the_room(
     if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
         logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
                        HUD_PRIME_TIMEOUT_S)
-    # Band the room and settle its z-order BEHIND the curtain.  Phase 4
+    # Band the room and settle its z-order UNDER the curtain.  Phase 4
     # deliberately left the bands off (each promotion inserts above the
     # overlay), so at this moment nothing of the session is topmost at all:
     # revealing here is revealing players sitting under whatever was on
@@ -846,7 +846,7 @@ def _reveal_the_room(
     # The cover is off the screen: NOW the players may run.  The phase walk
     # deliberately leaves this to us (see ``release_the_players``) — released
     # with the phases, Nau's video and Genau's audio would have been running
-    # for the whole finishing pass, behind a cover he cannot see or hear
+    # for the whole finishing pass, under a cover he cannot see or hear
     # through, and the opening seconds of the video would be gone by the time
     # it lifted.
     release_the_players(manifest, result.main_mode)
@@ -856,7 +856,7 @@ def _reveal_the_room(
     # room — cheap, since every window is already resolved and in place.
     owners = satellite_rect_owners(
         result, role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0))
-    # A show that came up after the pass behind the curtain has a handle
+    # A show that came up after the pass under the curtain has a handle
     # now, and this band is what puts it back above the player it covers:
     # the role order promotes it last for exactly that reason, and with a
     # zero in the map it was simply skipped.
@@ -1007,7 +1007,7 @@ def _run_until_the_hotkeys_exit(
             dispatch_thread.join(timeout=2.0)
             if loopback_server is not None:
                 # shutdown() blocks until serve_forever returns, so it belongs
-                # here behind the cover rather than out in the open — and the
+                # here under the cover rather than out in the open — and the
                 # port is machine-wide, so a server left listening is a port the
                 # next session cannot have.
                 loopback_server.shutdown()
@@ -1028,7 +1028,7 @@ def run_session(
 ) -> int:
     """Open a session, hold it, and close it.
 
-    1. Cover every monitor and put the hotkey script up behind it
+    1. Cover every monitor and put the hotkey script up under it
     2. Run startup sequencer (core session + window positioning + UI companions)
     3. Write the PIDs file, which is also what tells AHK the session is up
     4. Wait for AHK to exit
@@ -1048,7 +1048,7 @@ def run_session(
     # the full production path (hide, load, reveal, and the post-overlay
     # z-order pass) so the hidden desktop can test the exact startup a real
     # session takes; without a test exercising it, "the landscape player is
-    # behind other windows on startup" could only ever be reproduced live.
+    # under other windows on startup" could only ever be reproduced live.
     show_overlays = (not integration_mode
                      or os.environ.get("FUN_TIME_INTEGRATION_OVERLAYS") == "1")
 

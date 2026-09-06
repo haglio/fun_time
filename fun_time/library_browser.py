@@ -141,7 +141,7 @@ class LibraryGrid(BrowseList):
 
         # Rows whose still is not cached yet are extracted off the event loop and
         # collected here; the timer below hands them to the grid.  A cold cache
-        # would otherwise block the browse behind hundreds of HEVC decodes.
+        # would otherwise block the browse on hundreds of HEVC decodes.
         self._extracted: queue.Queue[int] = queue.Queue()
         self._extractor: threading.Thread | None = None
         self._collect_timer = QTimer(self)

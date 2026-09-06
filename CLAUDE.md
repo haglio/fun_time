@@ -37,7 +37,7 @@ Before modifying any Win32 API call (ctypes, keyboard/mouse input, window manage
 
 1. **State the mechanism.** Explain WHY the approach works, citing the specific Win32 behavior it depends on.
 2. **Verify the claim.** If not certain, say so explicitly rather than guessing.
-3. **Check interactions.** Identify what other components touch the same subsystem (AHK hooks, the Qt event loop behind the dashboard and overlays, the players' own windows, thread input queues) and explain why the change won't break them.
+3. **Check interactions.** Identify what other components touch the same subsystem (AHK hooks, the Qt event loop under the dashboard and overlays, the players' own windows, thread input queues) and explain why the change won't break them.
 4. **Map from symptoms.** Trace the execution path that produces the bug and confirm the fix addresses that specific path.
 
 If you cannot complete these steps, stop and say so. Do not submit a speculative fix.

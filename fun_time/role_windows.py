@@ -1,4 +1,4 @@
-"""The live windows behind the managed roles.
+"""The live windows under the managed roles.
 
 :mod:`fun_time.window_roles` says which band a role belongs in — pure policy,
 no window in sight.  This module holds the other half: the HWNDs the session's
@@ -115,7 +115,7 @@ class WindowRoles:
             # up first (its splash), and caching that leaves every later
             # restore aimed at a dead handle — the switch that visibly did
             # nothing.  Only this role heals its cache: the other windows live
-            # as long as the session, and their hidden phases (SW_HIDE behind
+            # as long as the session, and their hidden phases (SW_HIDE under
             # the overlay) are exactly when a re-resolve would come up empty.
             self._role_hwnds.pop(role, None)
             hwnd = 0

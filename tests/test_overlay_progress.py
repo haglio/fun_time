@@ -55,7 +55,7 @@ class TestPhaseProgress:
     def test_only_the_final_phase_puts_the_bar_on_the_total(self, tmp_path: Path):
         """A full bar means "the last phase has begun", nothing sooner.
 
-        So each phase reports the wait BEHIND it, never its own: crediting a
+        So each phase reports the wait BEFORE it, never its own: crediting a
         phase's time as it began would read as finished one phase early, and the
         companions take that reading as their cue to show themselves.
         """
@@ -103,7 +103,7 @@ class TestShutdownPhases:
     def test_no_phase_lands_the_bar_on_the_total(self, tmp_path: Path):
         """Teardown's bar never reads full before teardown is finished.
 
-        Every shutdown phase has real work behind it, so a full bar during one of
+        Every shutdown phase has real work to do, so a full bar during one of
         them would say the room was clear with children still being killed — and
         windows going out one by one is the whole thing the cover is there for.
         """
@@ -215,7 +215,7 @@ class TestStartupStillBuilding:
         assert startup_still_building(self._state_dir(tmp_path, "DONE")) is False
 
     def test_the_companions_are_told_before_the_cover_is(self, tmp_path: Path):
-        """The whole ordering, walked: every companion is on screen behind the
+        """The whole ordering, walked: every companion is on screen under the
         cover before anything asks the cover to leave.
 
         The cover closes on the DONE flag alone (``OverlayWindow._poll``), and
