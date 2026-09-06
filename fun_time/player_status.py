@@ -139,7 +139,7 @@ class GenauStatus:
     # Whether Genau is holding the clip on screen rather than letting its interval
     # carry it on — the same lock Nau has, and on for the same reason: a clip
     # repeating is where Genau opens.  Cruise is a separate thing entirely; it
-    # varies the stroke, never which clip plays.
+    # varies the motion, never which clip plays.
     locked: bool = True
     shape: str = "sine"
     # The clip on screen, as Genau published it — "" before the first one is up,

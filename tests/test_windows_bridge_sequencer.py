@@ -482,7 +482,7 @@ class TestRunStartupSequence:
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_genau_session_hands_genau_the_osr2_at_the_reveal(self, cfg_factory, tmp_path):
-        """Genau's stroke rides its command channel, not the paused flag, so the
+        """Genau's motion rides its command channel, not the paused flag, so the
         mode where it drives outright is started here — and only here, because
         startup held it on that channel so it could not drive the device while the
         loading screen was still up."""

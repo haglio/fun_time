@@ -924,7 +924,7 @@ def _start_the_dispatch_loop(
 
     Genau startup detection rides the loop's first sync tick: if the broker has
     already written genau_mode.txt = "1" (it infers auto mode within ~4 s from
-    BPM and stroke), the sync sees the entering transition and hands the main
+    BPM and motion), the sync sees the entering transition and hands the main
     player over to Genau naturally.
     """
     rfb_target, rfb_work_dir, rfb_args = "", "", ""

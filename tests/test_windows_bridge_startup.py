@@ -455,7 +455,7 @@ def _genau_play_verb(tmp_path: Path) -> str | None:
 def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: Path):
     """The flags above do not reach Genau, so the hold has to be said on its own
     channel as well.  Under Fun Time Genau runs in direct control, where the
-    paused flag is never read and the stroke follows PAUSE/RESUME here — so the
+    paused flag is never read and the motion follows PAUSE/RESUME here — so the
     switch's RESUME was still queued when Genau finished loading, and a session
     resuming into genau or video mode drove the OSR2 behind the loading screen."""
     for mode in ("video", "genau"):

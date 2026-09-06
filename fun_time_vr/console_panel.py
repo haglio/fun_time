@@ -46,7 +46,7 @@ def panel_hud(
     the funscript folded into the readout by *drive_gate*
     (:class:`player_core.drive_gate.DriveGate`) under a video, as the desktop's
     video-mode console draws it; the clip's name (or the one still decoding)
-    over Genau's own stroke in genau mode, where the gate is told nothing was
+    over Genau's own motion in genau mode, where the gate is told nothing was
     published, the video waiting paused while the wave moves on.  With no
     engine console (the broker has the room) the panel still names what plays."""
     hud = engine_hud if engine_hud is not None else ConsoleHud()

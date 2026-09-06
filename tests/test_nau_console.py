@@ -136,7 +136,7 @@ class TestTheReadoutTheWordLeaves:
     @staticmethod
     def _readout(payload: dict, tmp_path):
         """The painter, fed *payload* the way the player is fed it, with a live
-        stroke on the readout; plus where the panel sits in the window."""
+        motion on the readout; plus where the panel sits in the window."""
         from player_core.console import read_console
         from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
         from player_core.drive_readout import DriveHud
@@ -181,7 +181,7 @@ class TestTheReadoutTheWordLeaves:
 
     def test_a_funscripts_own_turn_still_refuses_the_readout(self, tmp_path):
         """The other half of the rule, and the reason for it: in video mode the two
-        drivers take turns on one device, and adjusting a stroke Genau is not
+        drivers take turns on one device, and adjusting a motion Genau is not
         sending is what put both of them on it at once."""
         painter, origin = self._readout(
             _payload(mode="video", funscript_driving=True), tmp_path)

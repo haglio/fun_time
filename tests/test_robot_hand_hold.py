@@ -1,4 +1,4 @@
-"""The spoken holds on Genau's stroke, and the way back off one."""
+"""The spoken holds on Genau's motion, and the way back off one."""
 from __future__ import annotations
 
 from player_core.robot_hand import (
@@ -12,7 +12,7 @@ from player_core.robot_hand import (
 
 from fun_time.robot_hand_hold import (
     HOLD_CENTERS,
-    StrokeDials,
+    MotionDials,
     dials_text,
     hold_commands,
     parse_dials,
@@ -24,8 +24,8 @@ class TestHold:
     def test_cruise_goes_first_and_the_travel_closes_before_the_center_moves(self):
         """Cruise rewrites all three dials every tick, so numbers set under it are
         overwritten within the frame; and closing the travel first means the
-        stroke stills where it is and travels to the end from there rather than
-        stroking its way across."""
+        motion stills where it is and travels to the end from there rather than
+        oscillating its way across."""
         assert hold_commands(0) == ("CRUISE_OFF", "AMP 0", "CENTER 0", "SPEED 0")
         assert hold_commands(100) == ("CRUISE_OFF", "AMP 0", "CENTER 100", "SPEED 0")
 
@@ -43,13 +43,13 @@ class TestHold:
         These are the two positions the broker's own PARK and RETRACT hold, which
         is what makes the two words the right ones."""
         for command, expected in (("robot_hand_park", 0), ("robot_hand_retract", POSITION_MAX)):
-            stroke = RobotHandState()
-            set_amplitude(stroke, 0)
-            set_center(stroke, HOLD_CENTERS[command])
+            motion = RobotHandState()
+            set_amplitude(motion, 0)
+            set_center(motion, HOLD_CENTERS[command])
 
             at_every_phase = {
                 phase_to_position(
-                    phase / 8, amplitude=stroke.amplitude, center=stroke.center
+                    phase / 8, amplitude=motion.amplitude, center=motion.center
                 )
                 for phase in range(8)
             }
@@ -59,21 +59,21 @@ class TestHold:
 class TestRelease:
     def test_the_dials_go_back_before_cruise_is_re_armed(self):
         """Cruise draws its waves from whatever the dials say on its first tick,
-        so armed first it would take over the parked stroke and wander away from
+        so armed first it would take over the parked motion and wander away from
         there instead of from what the speaker had."""
         assert release_commands(
-            StrokeDials(cruise=True, speed=40, amplitude=70, center=55)
+            MotionDials(cruise=True, speed=40, amplitude=70, center=55)
         ) == ("AMP 70", "CENTER 55", "SPEED 40", "CRUISE_ON")
 
     def test_cruise_is_asserted_off_as_well_as_on(self):
         """A speaker who reached for cruise while parked meant it for the parked
-        stroke, not for the one coming back."""
+        motion, not for the one coming back."""
         assert release_commands(
-            StrokeDials(cruise=False, speed=50, amplitude=100, center=50)
+            MotionDials(cruise=False, speed=50, amplitude=100, center=50)
         )[-1] == "CRUISE_OFF"
 
-    def test_a_release_reproduces_the_stroke_the_hold_took_away(self):
-        """End to end on the arithmetic: run a stroke's dials through the hold and
+    def test_a_release_reproduces_the_motion_the_hold_took_away(self):
+        """End to end on the arithmetic: run a motion's dials through the hold and
         then the release, and the device is back where it was at every phase."""
         before = RobotHandState()
         set_amplitude(before, 60)
@@ -102,7 +102,7 @@ class TestRelease:
 
 class TestSnapshotFileFormat:
     def test_dials_survive_the_round_trip(self):
-        dials = StrokeDials(cruise=True, speed=25, amplitude=80, center=30)
+        dials = MotionDials(cruise=True, speed=25, amplitude=80, center=30)
         assert parse_dials(dials_text(dials)) == dials
 
     def test_a_snapshot_that_is_not_whole_reads_as_nothing_to_put_back(self):

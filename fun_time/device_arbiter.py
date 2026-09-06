@@ -65,10 +65,10 @@ class DeviceArbiter:
         cleared so re-entry re-asserts the driver.
 
         The handoff itself is not smoothed here, and nothing waits for the
-        stroke: whoever takes the device walks it from where it is to where it
+        motion: whoever takes the device walks it from where it is to where it
         needs to be (Nau's driver parks it over its handoff ramp; the hand climbs
         back out of the park over the same one).  Waiting here for the hand's next
-        floor-touch made the moment depend on the live stroke, and the trace —
+        floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
         if not nau_displays(main_mode) or paused:
@@ -84,7 +84,7 @@ class DeviceArbiter:
                 and now - self._asserted_at < REASSERT_S):
             return
         if funscript_driving and self._funscript_driving is False:
-            # Taking the device FROM the hand: a stroke whose floor rests ON the
+            # Taking the device FROM the hand: a motion whose floor rests ON the
             # park is set down exactly where the trace draws its blue ending —
             # on its next touch-down — so the flip holds for that one touch.
             # A raised floor takes the ramp instead and flips at once.  Only a

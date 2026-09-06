@@ -27,7 +27,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str) -> O
 
     ``toggle`` resolves against the current state; ``enter`` and ``leave`` are
     that decision already made.  ``relief`` is an enter that sends the OSR2 to
-    the far end of its stroke rather than home — the sensation emergency, where
+    the far end of its travel rather than home — the sensation emergency, where
     the device has to be off the user rather than merely still.
     """
     if action == "toggle":

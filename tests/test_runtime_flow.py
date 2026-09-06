@@ -623,7 +623,7 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
 
 def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow_files):
     """Relief freezes the session exactly as a plain enter does — only the OSR2's
-    destination changes, from home to the far end of its stroke."""
+    destination changes, from home to the far end of its travel."""
     result = apply_enter_omnipause(
         omni_paused=False,
         main_mode="video",
@@ -680,9 +680,9 @@ def test_apply_leave_omnipause_in_video_mode_resumes_nau_and_lifts_the_hand(flow
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_hybrid_leaves_genaus_stroke_to_the_arbiter(flow_files):
+def test_apply_leave_omnipause_in_hybrid_leaves_genaus_motion_to_the_arbiter(flow_files):
     """Video mode hands the OSR2 between the funscript and Genau per stretch, and the
-    arbiter re-asserts that on its next tick.  Resuming Genau's stroke here too
+    arbiter re-asserts that on its next tick.  Resuming Genau's motion here too
     started it against a funscript that was still driving — both on the device at
     once, which the user felt as the OSR2 fighting itself."""
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")

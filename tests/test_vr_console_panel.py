@@ -102,7 +102,7 @@ class TestWhoseReadoutItDraws:
         assert gate.asked == [None]
         assert hud.drive == _drive(speed=99)
 
-    def test_in_genau_mode_the_readout_is_genaus_own_stroke(self):
+    def test_in_genau_mode_the_readout_is_genaus_own_motion(self):
         engine = _engine_console("genau")
 
         assert _hud(engine).drive is engine.drive

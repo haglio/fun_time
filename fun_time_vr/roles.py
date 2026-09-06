@@ -162,7 +162,7 @@ class MainRole:
             self._tilt_deg = 0.0
         elif keyword == "SET_TCODE_ENABLED" and arg:
             enabled = arg.strip() != "0"
-            # Re-enabling is a takeover — the device is wherever Genau's stroke
+            # Re-enabling is a takeover — the device is wherever Genau's motion
             # left it — so reset the driver the way every takeover resets it:
             # the next tick re-sends a waypoint at once, with the handoff glide.
             if enabled and not self._tcode_enabled:

@@ -12,7 +12,7 @@ It uses a serial broker for the OSR2 — the separate `../broker` project — th
 
 The main stack runs in one of two modes (startup mode is **video**):
 
-- in **Video mode**, Nau owns the main player and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (Nau sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own stroke generator, run from Genau's process — through the quiet stretches and for videos without a script
+- in **Video mode**, Nau owns the main player and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (Nau sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
 - in **Genau mode** (OSR2 auto/free mode), Genau clips own the main player and the Robot Hand drives the OSR2 outright
 
 ## Folder layout
@@ -255,7 +255,7 @@ Every player says whether it is the one those bare words would reach: the **dot*
 
 ### Modes
 
-The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's stroke by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
 The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (in Genau mode the paused Nau still navigates in the background). The `'` clip-save key reads the current video/time from Nau's status file in video mode.
 
@@ -499,7 +499,7 @@ Values:
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
-Cruise control and the clip interval are separate: cruise wanders the stroke's
+Cruise control and the clip interval are separate: cruise wanders the motion's
 amplitude, center, speed and waveform, while the interval is how long a clip
 holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS
 <seconds>` names a pace. It is spelled for what the number is rather than for

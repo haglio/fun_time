@@ -212,10 +212,10 @@ i::QueueCommand("robot_hand_cycle_shape")
 o::QueueCommand("robot_hand_center_up")
 ; …and speed, which names no engine here the way the console's marks do, so it
 ; follows whichever holds the OSR2 — the video's rate under a driving funscript,
-; Genau's stroke otherwise.
+; Genau's motion otherwise.
 j::QueueCommand("speed_down")
 l::QueueCommand("speed_up")
-; Cruise varies the stroke; moving on from a clip is what an unlocked Genau does
+; Cruise varies the motion; moving on from a clip is what an unlocked Genau does
 ; by itself, so it is the apostrophe's lock rather than a switch of its own.
 c::QueueCommand("robot_hand_toggle_cruise")
 SC035::QueueCommand("genau_toggle_auto")
