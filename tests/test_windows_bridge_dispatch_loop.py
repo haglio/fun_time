@@ -50,6 +50,10 @@ from tests.role_window_fakes import (
     lookup_title,
 )
 
+# A browse's process and window, fabricated: nothing of this machine's.
+BROWSE_PID = 424242
+BROWSE_HWND = 909090
+
 
 @pytest.fixture(autouse=True)
 def _neutralise_topmost_reads():
@@ -1494,6 +1498,39 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         assert mock_browse.call_args.kwargs["playing"] == "C:/videos/big_batch/beta.mp4"
+
+    def test_leaving_omnipause_puts_an_open_browse_back_on_top(self, tmp_path):
+        """The state he could not get out of: leaving OmniPause restacks the
+        players, HWND_TOPMOST inserts at the TOP of the band, and the browse was
+        left underneath the main player it opens over — with the key that opens
+        one refused while one is already open."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+        runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": None})
+
+        with patch.object(runner.windows, "restore_parked"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid",
+                   return_value=BROWSE_HWND), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
+            runner._dispatch("omnipause_toggle")
+
+        assert on_top.call_args_list == [((BROWSE_HWND, True), {})]
+
+    def test_nothing_is_promoted_when_no_browse_is_open(self, tmp_path):
+        """Including one that has already exited — its window is another
+        process's by now, and this must never reach for it."""
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=True)
+
+        with patch.object(runner.windows, "restore_parked"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
+            runner._dispatch("omnipause_toggle")
+            runner._browser_process = Mock(pid=BROWSE_PID, **{"poll.return_value": 0})
+            runner._dispatch("omnipause_toggle")
+
+        assert on_top.call_args_list == []
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
         """In video mode (the default) a selected file becomes a Nau PLAY_FILE

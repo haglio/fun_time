@@ -71,11 +71,7 @@ class LibraryHandle:
 
 
 def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | None:
-    """Which handle *video* is a rendition of, or None for a file not in the library.
-
-    Every version is matched, not only the one a pick plays, and case-folded —
-    the player publishes a path, not the library's own spelling of one.
-    """
+    """Which handle *video* is a rendition of, or None for a file not in the library."""
     key = normalize_path_key(video)
     if not key:
         return None
