@@ -29,7 +29,7 @@ from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import build_mirrored_funscript_path
-from .player_status import is_broker_heartbeat_fresh
+from .player_status import is_broker_heartbeat_fresh, read_nau_status
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .shared_state import BridgeState, read_shared_state, write_shared_state
@@ -664,6 +664,9 @@ class DispatchLoopRunner:
                 self.manifest_path,
                 self.config.python_exe,
                 over=window_rect(nau_hwnd) if nau_hwnd else None,
+                # Opened on the folder the main player is already in — what a
+                # browse is for is usually next to what is up.
+                playing=read_nau_status(self.config.nau_status_file).video,
                 runner=self._run_browser,
             )
             if selected:

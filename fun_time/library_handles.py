@@ -15,10 +15,17 @@ stands alone as its own handle.
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from .media_metadata import EXCERPT, load_metadata, metadata_path_for, video_type_of
+from .media_metadata import (
+    EXCERPT,
+    load_metadata,
+    metadata_path_for,
+    normalize_path_key,
+    video_type_of,
+)
 from .modes import collect_video_files
 
 
@@ -61,6 +68,28 @@ class LibraryHandle:
         to decode a frame out of, for the same picture.
         """
         return self.versions[-1]
+
+
+def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | None:
+    """Which handle *video* is a rendition of, or None for a file not in the library.
+
+    Every version is matched, not only the one a pick plays: the session is as
+    likely to be on a small original as on the upscale that stands for its
+    family, and to a browse those are the same video.  Paths are compared the way
+    the rest of the app compares a playing file to a library one — case-folded,
+    the library sitting on a disk that does not distinguish them.
+    """
+    key = normalize_path_key(video)
+    if not key:
+        return None
+    return next(
+        (
+            handle
+            for handle in handles
+            if any(normalize_path_key(version) == key for version in handle.versions)
+        ),
+        None,
+    )
 
 
 def _recorded_group(video: str, metadata_root: Path | None) -> str | None:
