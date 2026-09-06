@@ -497,9 +497,9 @@ class ReferencePopup:
         x, y, w, h = client_rect_filling_frame(
             rect,
             left=client.left() - frame.left(),
-            top=client.top() - frame.top(),
+            upper=client.top() - frame.top(),
             right=frame.right() - client.right(),
-            bottom=frame.bottom() - client.bottom(),
+            lower=frame.bottomLeft().y() - client.bottomLeft().y(),
         )
         dialog.setGeometry(x, y, w, h)
 
