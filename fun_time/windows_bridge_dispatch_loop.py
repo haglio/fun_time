@@ -38,7 +38,7 @@ from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import (
-    find_window_by_pid,
+    find_window_for_process,
     force_foreground_window,
     set_always_on_top,
     window_exists,
@@ -74,6 +74,25 @@ def read_nau_notice(path) -> tuple[float, str, str]:
         return float(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
     except (OSError, ValueError):
         return 0, "", ""
+
+
+def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
+    """Put an open browse back above whatever was just promoted; its window, or 0.
+
+    Every promotion this session makes is an ``HWND_TOPMOST`` insert, landing at
+    the TOP of the band, so leaving OmniPause restacked the players over a browse
+    still up and nothing could lift it again.  Asserted after those, it is the
+    last insert; ``SWP_NOACTIVATE`` means only the band moves.
+
+    Across the process TREE: a venv's ``python.exe`` spawns the interpreter that
+    owns the window, so the started pid alone finds none.
+    """
+    if browsing is None or browsing.poll() is not None:
+        return 0
+    hwnd = find_window_for_process(browsing.pid)
+    if hwnd:
+        set_always_on_top(hwnd, True)
+    return hwnd
 
 
 def poll_dashboard_commands(cmd_file: Path) -> list[str]:
@@ -431,7 +450,7 @@ class DispatchLoopRunner:
                 logger.error("unhandled window op %r", op.op)
                 continue
             handler(self, op)
-        self._keep_an_open_browse_on_top()
+        keep_a_browse_on_top(self._browser_process)
         write_shared_state(self.shared_state_file, self.state)
         # Outside a poll batch (e.g. a lone lock) there is nothing to coalesce
         # with, so open immediately; within a batch the tick flushes once.
@@ -439,21 +458,6 @@ class DispatchLoopRunner:
             self._flush_rfb_tabs()
         if self.dashboard_enabled:
             self._update_dashboard()
-
-    def _keep_an_open_browse_on_top(self) -> None:
-        """Put an open browse back above whatever a command just promoted.
-
-        Every promotion here is an ``HWND_TOPMOST`` insert, which lands at the
-        TOP of the band, so leaving OmniPause restacked the players over a
-        browse still up and nothing could bring it back.  Re-asserted last, and
-        with ``SWP_NOACTIVATE``, so only the band moves.
-        """
-        browsing = self._browser_process
-        if browsing is None or browsing.poll() is not None:
-            return
-        hwnd = find_window_by_pid(browsing.pid)
-        if hwnd:
-            set_always_on_top(hwnd, True)
 
     def _flush_rfb_tabs(self) -> None:
         """Open every buffered RFB URL as tabs in the session's own Chrome window.
