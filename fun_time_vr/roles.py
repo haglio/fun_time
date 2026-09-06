@@ -92,6 +92,14 @@ class MainRole:
         return self._funscript is not None
 
     @property
+    def current_funscript(self) -> Funscript | None:
+        return self._funscript
+
+    @property
+    def speed(self) -> float:
+        return self._speed
+
+    @property
     def position_ms(self) -> float:
         return self._player.position_ms
 
@@ -198,8 +206,10 @@ class MainRole:
         self._recenter_requested = False
         return taken
 
-    def status_fields(self) -> dict[str, str]:
-        """Nau's own status contract, read by the dispatch loop as it reads Nau."""
+    def status_fields(self, handoff_touch_ms: int | None) -> dict[str, str]:
+        """Nau's own status contract, read by the dispatch loop as it reads Nau.
+        *handoff_touch_ms* is where the console panel drew Genau's turn ending
+        (None for none, published empty: zero is a real media time)."""
         return {
             "video": str(self.current_video),
             "position_ms": str(int(self._player.position_ms)),
@@ -208,6 +218,7 @@ class MainRole:
             "funscript_resting": "1" if self._funscript_resting() else "0",
             "state": "normal",
             "paused": "1" if self._paused else "0",
+            "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
         }
 
     def close(self) -> None:

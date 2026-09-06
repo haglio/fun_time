@@ -43,6 +43,7 @@ class TestVoiceCommands:
             "pause": "pause",
             "play": "play",
             "go now": "genau_activate",
+            "go now mode": "genau_activate",
             "video mode": "video_activate",
             "main video mode": "main_video_activate",
             "satellite video mode": "satellites_video_activate",
@@ -199,6 +200,9 @@ class TestVoiceCommands:
     def test_go_now_activates_genau(self):
         # Recognizer phrase stays "go now"; the reference displays it as "genau".
         assert VOICE_COMMANDS["go now"] == "genau_activate"
+        # Said as a mode too, the way "video mode" is: "genau mode" is heard as
+        # "go now mode".
+        assert VOICE_COMMANDS["go now mode"] == "genau_activate"
 
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):

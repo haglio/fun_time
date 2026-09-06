@@ -135,7 +135,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "driving the OSR2",
                 ("G",),
                 ("genau_activate",),
-                voice_display=("genau",),
+                voice_display=("genau", "genau mode"),
             ),
             _Row(
                 "Video mode on the main player — the video under Genau's HUD, "

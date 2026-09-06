@@ -12,10 +12,8 @@
   - Nau verbs the VR main role does not implement: loop recording, version cycling,
     clip jumps, length modes, compilations. They report unhandled, and the player
     logs each once rather than crashing.
-  - The console panel in the scene draws the Robot Hand's trace but not a
-    funscript's over it, which the desktop's video-mode console does; the
-    scene has no pointer either, so the panel is read-only and every press it
-    would take on the desktop is a hotkey or a spoken command here.
+  - The scene has no pointer, so the console panel is read-only: every press
+    it would take on the desktop is a hotkey or a spoken command here.
 - Notes:
   - Recorded here rather than in module docstrings (2026-08-30, audit item 25):
     the same deferral was once written out in five places, free to drift apart,

@@ -123,6 +123,8 @@ def build_voice_commands(
         # Recognizer listens for "go now" (reliably recognized); the reference
         # displays this as "genau" via the row's voice_display override.
         "go now": "genau_activate",
+        # ...and said as a mode, the way video mode is; shown as "genau mode".
+        "go now mode": "genau_activate",
         # Video mode, said of a side or of neither: the bare phrase puts the
         # main slot AND the satellites on their players, each side's own phrase
         # just that side.
