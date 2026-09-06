@@ -140,7 +140,7 @@ def surface_vertices(
     azimuth; its height is the arc length over *aspect* (pixel width/height),
     so the video fills it edge to edge without letterboxing, and its center
     rides at the placement's elevation above the horizon.  Columns run left to
-    right, two vertices each (top v=1, then bottom v=0), ready for
+    right, two vertices each (upper v=1, then lower v=0), ready for
     GL_TRIANGLE_STRIP.
     """
     if aspect <= 0:

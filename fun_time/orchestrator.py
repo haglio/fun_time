@@ -1,6 +1,6 @@
 """Fun Time's process entry point: arguments, config, and the single instance.
 
-The bottom of four layers, each of which knows only the one below it — this one
+The lowest of four layers, each of which knows only the one below it — this one
 validates and hands off; :mod:`fun_time.windows_bridge_orchestrator` runs a
 session's lifecycle; :mod:`fun_time.windows_bridge_sequencer` runs its startup
 phases in order; :mod:`fun_time.windows_bridge_startup` launches the children.

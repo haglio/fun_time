@@ -470,7 +470,7 @@ class LogPanelWidget(QWidget):
         self._rebuild_list()
 
     def _rebuild_list(self) -> None:
-        at_bottom = (
+        at_lower = (
             self._list.verticalScrollBar().value()
             >= self._list.verticalScrollBar().maximum() - 4
         )
@@ -479,7 +479,7 @@ class LogPanelWidget(QWidget):
             item = QListWidgetItem(format_record(record))
             item.setForeground(level_color(record.level))
             self._list.addItem(item)
-        if at_bottom:
+        if at_lower:
             self._list.scrollToBottom()
         self._sync_copy_button()
 

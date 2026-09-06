@@ -3150,7 +3150,7 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
 
     Anchoring the map on some other item (the group's lowest-keyed one) drew the
     clip on screen somewhere in the middle of the row the instant the loop began,
-    and made the action column light up bottom-to-top as the group played.
+    and made the action column light up upward as the group played.
     """
     config, a, b = _loop_config(tmp_path, axis="seed")
 

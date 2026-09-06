@@ -251,7 +251,7 @@ def test_a_clip_down_the_column_keeps_the_corners_column():
 
 def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action():
     """The action column runs down from the clip the loop started on, in the queue's
-    own order — so the lit row walks top-to-bottom as the group plays, not upwards
+    own order — so the lit row walks downward as the group plays, not upwards
     from wherever the group's lowest-keyed item happened to sit."""
     index = _index(current=CUR, action_sibs=[A1])
 

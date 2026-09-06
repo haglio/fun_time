@@ -369,7 +369,7 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 ### The satellites' scrubber and volume chip
 
-Each satellite draws the same two controls Nau does along the bottom of its video — the scrubber and the volume chip — and, like Nau's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
+Each satellite draws the same two controls Nau does along the lower edge of its video — the scrubber and the volume chip — and, like Nau's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
 
 A satellite **opens muted** whatever its clips carry — the room's sound is the main player's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that player's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
 

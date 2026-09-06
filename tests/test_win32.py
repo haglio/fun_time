@@ -465,12 +465,12 @@ class TestWindowsObscuring:
         of the tolerance deletable with the class green."""
         # A maximized window above, its invisible frame hanging ~8px down
         # onto the window below it: a sliver, not coverage.
-        upper = self._w(9, (0, -8, 1440, 2516))       # bottom edge at y=2508
+        upper = self._w(9, (0, -8, 1440, 2516))       # lower edge at y=2508
         lower = self._w(1, (0, 2500, 1440, 940))      # the player beneath
         assert windows_obscuring(1, [upper, lower]) == []
 
         # Past the frame it is real coverage again.
-        deeper = self._w(9, (0, -8, 1440, 2560))      # bottom edge at y=2552
+        deeper = self._w(9, (0, -8, 1440, 2560))      # lower edge at y=2552
         assert windows_obscuring(1, [deeper, lower]) == [deeper]
 
 

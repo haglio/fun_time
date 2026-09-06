@@ -1,7 +1,7 @@
 """Where a press on a satellite's window lands.
 
 The three controls overlap in principle — the chip sits inside the scrubber's
-row, and a tall HUD can reach the bottom of a short window — so what these pin is
+row, and a tall HUD can reach the lower edge of a short window — so what these pin is
 the ORDER, against the real geometry of all three: the chip's placement, the
 scrubber's inset track, and the row's height, each read from the module that
 draws it rather than restated here.

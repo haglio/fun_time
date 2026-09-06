@@ -83,11 +83,11 @@ def test_rfb_fills_the_rectangle_below_the_dashboard(cfg_path: Path):
     )
 
     assert plan.random_favs_browser.x == 0
-    # The RFB starts exactly at the dashboard's bottom (no gap) ...
+    # The RFB starts exactly at the dashboard's lower edge (no gap) ...
     assert plan.random_favs_browser.y == plan.dashboard.y + plan.dashboard.height
     # ... spans the full left-column width ...
     assert plan.random_favs_browser.width + plan.landscape.width == 2560
-    # ... and reaches down to the monitor's bottom edge.
+    # ... and reaches down to the monitor's lower edge.
     assert (
         plan.random_favs_browser.y + plan.random_favs_browser.height == 1392
     )
@@ -112,7 +112,7 @@ def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_pa
     """The main player fills the secondary monitor below the portrait's slice
     — the rect startup launches Nau/Genau into and the notice overlay flashes
     main-player notices over.  It abuts the portrait window with no gap and no
-    overlap, and reaches the monitor's bottom."""
+    overlap, and reaches the monitor's lower edge."""
     config = load_config(cfg_path)
     secondary = MonitorRect(2560, 0, 1440, 3440)
 
@@ -125,7 +125,7 @@ def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_pa
 
     assert main.x == secondary.x
     assert main.width == secondary.width
-    # Starts exactly where the portrait satellite ends, and runs to the bottom.
+    # Starts exactly where the portrait satellite ends, and runs to the lower edge.
     assert main.y == plan.portrait.y + plan.portrait.height
     assert main.y + main.height == secondary.y + secondary.height
 

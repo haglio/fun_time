@@ -144,10 +144,10 @@ class TestHowItIsComposed:
         top = np.asarray(with_row)[:console_h]
         assert np.array_equal(top, np.frombuffer(console_rgba, dtype=np.uint8).reshape(console_h, console_w, 4))
 
-    def test_a_video_gets_its_scrubber_along_the_bottom(self):
-        bottom = np.asarray(_paint())[-TIMELINE_HEIGHT:]
+    def test_a_video_gets_its_scrubber_along_the_lower_edge(self):
+        lower = np.asarray(_paint())[-TIMELINE_HEIGHT:]
 
-        assert bottom[:, :, 3].max() > 0
+        assert lower[:, :, 3].max() > 0
 
     def test_a_clip_gets_no_scrubber(self):
         """It loops; there is nothing to seek.  The row stays, empty but for

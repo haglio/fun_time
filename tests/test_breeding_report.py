@@ -52,15 +52,15 @@ def test_build_breeding_rows_ranks_by_the_stamped_weight_with_metadata_identity(
 
     assert [row.weight for row in rows] == sorted((row.weight for row in rows), reverse=True)
     assert [row.path for row in rows] == [paths["loved"], paths["wide_meh"], paths["hated_bare"]]
-    top = rows[0]
-    assert top.completions == 6 and top.locks == 1 and top.skips == 0
-    assert top.orientation == "P"
-    assert top.action == "Alpha"
-    assert top.seed == "111"
-    assert top.prompt == "two cute dolls, rainbow bedroom"
+    first_row = rows[0]
+    assert first_row.completions == 6 and first_row.locks == 1 and first_row.skips == 0
+    assert first_row.orientation == "P"
+    assert first_row.action == "Alpha"
+    assert first_row.seed == "111"
+    assert first_row.prompt == "two cute dolls, rainbow bedroom"
     assert rows[1].orientation == "L"
-    bottom = rows[-1]
-    assert bottom.action == "" and bottom.seed == "" and bottom.prompt == ""
+    last_row = rows[-1]
+    assert last_row.action == "" and last_row.seed == "" and last_row.prompt == ""
 
 
 def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path):

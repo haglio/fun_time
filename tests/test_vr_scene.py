@@ -51,14 +51,14 @@ class TestSurfaceVertices:
         assert azimuths[0] == pytest.approx(36.0, abs=1e-4)
         assert azimuths[-1] == pytest.approx(72.0, abs=1e-4)
 
-    def test_u_runs_left_to_right_and_v_bottom_to_top(self):
+    def test_u_runs_left_to_right_and_v_low_to_high(self):
         verts = surface_vertices(Placement(0.0, 0.0, 72.0), aspect=16 / 9, segments=4)
         assert verts[0, 3] == pytest.approx(0.0)   # leftmost column u
         assert verts[-1, 3] == pytest.approx(1.0)  # rightmost column u
-        top, bottom = verts[0], verts[1]
-        assert top[1] > bottom[1]
-        assert top[4] == pytest.approx(1.0)
-        assert bottom[4] == pytest.approx(0.0)
+        upper, lower = verts[0], verts[1]
+        assert upper[1] > lower[1]
+        assert upper[4] == pytest.approx(1.0)
+        assert lower[4] == pytest.approx(0.0)
 
     def test_height_follows_the_aspect_ratio(self):
         # The screen's height is its arc length over the pixel aspect, so a

@@ -156,7 +156,7 @@ def _press(pos, button=1):
 
 
 def test_a_press_on_the_scrubber_seeks_the_clip(tmp_path):
-    """The bar is drawn full-window-width along the bottom, so a press halfway
+    """The bar is drawn full-window-width along the lower edge, so a press halfway
     across the 640-wide window's inset track lands halfway through the clip."""
     clips = _clips(tmp_path, "v0")
     args = _loop_args(tmp_path, clips)
@@ -170,7 +170,7 @@ def test_a_press_on_the_scrubber_seeks_the_clip(tmp_path):
 
 def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path):
     """The speaker at the left end of the chip, which is placed from the
-    window's bottom-right corner — a satellite opens muted and this is the way
+    window's lower-right corner — a satellite opens muted and this is the way
     to hear one."""
     clips = _clips(tmp_path, "v0")
     args = _loop_args(tmp_path, clips)

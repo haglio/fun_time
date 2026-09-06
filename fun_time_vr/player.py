@@ -269,7 +269,7 @@ class _VideoUnit:
             self.screen.rehang(self.target.aspect)
         if self.target.ready and self.player.has_new_frame:
             # flip_y: mpv renders top-left-origin; the scene samples GL
-            # bottom-left convention (verified against a top-half-white clip).
+            # lower-left convention (verified against a top-half-white clip).
             self.player.render(self.target.fbo, self.target.width, self.target.height, flip_y=True)
             self.layer_dirty = True
 
@@ -283,7 +283,7 @@ class _VideoUnit:
         )
 
     def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
-        """The scrubber along the bottom and the volume chip at its right end,
+        """The scrubber along the lower edge and the volume chip at its right end,
         exactly the furniture the desktop players draw — repainted only when
         what they show moves (see :mod:`fun_time_vr.furniture`)."""
         if not self.target.ready:
