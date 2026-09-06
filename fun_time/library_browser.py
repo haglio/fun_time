@@ -268,11 +268,10 @@ class FolderIndex(BrowseList):
     stills.  So the same folder goes up again here as text alone, sorted by
     name, with the letter each group files under standing over it.
 
-    Choosing a name moves the grid to it, and so does clicking the letter over
-    a group — the headings are this list's table of contents.  The grid moves
-    this back only when a browse opens (see :meth:`reveal`): an index that
-    re-scrolled itself every time the grid's selection changed would slide out
-    from under the walk down it that caused the change.
+    Choosing a name moves the grid to it, and so does clicking the letter over a
+    group.  The grid moves this back only when a browse opens (:meth:`reveal`):
+    an index that re-scrolled on every change of the grid's selection would
+    slide out from under the walk that caused it.
     """
 
     def __init__(
@@ -337,13 +336,8 @@ class FolderIndex(BrowseList):
             self.item(row).setSizeHint(QSize(1, self.sizeHintForRow(row)))
 
     def _heading_item(self, letter: str) -> QListWidgetItem:
-        """A letter standing over its names — and never landed on.
-
-        Flagless, so it is neither selectable nor enabled: Qt's own arrow
-        navigation and type-ahead both step over a disabled row, which is what
-        keeps a walk down the index a walk down its names.  Being the only
-        disabled rows here is also what the stylesheet mutes them by.
-        """
+        # Flagless: the arrows and the type-ahead skip a disabled row, and the
+        # stylesheet mutes the only ones here.
         item = QListWidgetItem(letter)
         item.setFlags(Qt.ItemFlag.NoItemFlags)
         item.setFont(make_font(FONT_UI, SIZE_SMALL, bold=True))
@@ -357,7 +351,6 @@ class FolderIndex(BrowseList):
         return item
 
     def reveal(self, grid_row: int) -> None:
-        """Stand on the name for *grid_row*, scrolled into view."""
         row = next((r for r, g in enumerate(self.grid_rows) if g == grid_row), None)
         if row is None:
             return
@@ -365,14 +358,7 @@ class FolderIndex(BrowseList):
         self.scrollToItem(self.item(row), QAbstractItemView.ScrollHint.PositionAtCenter)
 
     def mousePressEvent(self, event) -> None:  # Qt override
-        """Clicking a letter selects the first name filed under it.
-
-        A heading is a disabled row — which keeps the arrows and the type-ahead
-        on the names (see :meth:`_heading_item`) — and Qt gives a disabled row no
-        click signal, so the press is answered here.  By selecting rather than
-        scrolling: the index then stands where the walk carries on, and the grid
-        follows it the way it follows any name.
-        """
+        # A disabled row gets no click signal, so a heading answers one here.
         item = self.itemAt(event.position().toPoint())
         row = self.row(item) if item is not None else -1
         if not (0 <= row < len(self.grid_rows)) or self.grid_rows[row] is not None:
@@ -381,8 +367,7 @@ class FolderIndex(BrowseList):
         first = self._first_name_under(row)
         if first is not None:
             self.setCurrentRow(first)
-            # Again by hand: setCurrentRow is silent when it is already current.
-            self._reveal(self.item(first))
+            self._reveal(self.item(first))  # silent when it is already current
 
     def _first_name_under(self, heading_row: int) -> int | None:
         return next(
@@ -472,11 +457,6 @@ class LibraryBrowserWindow(QWidget):
         self.grid.setFocus()
 
     def open_on(self, video: str | None) -> None:
-        """Open where *video* is, with its own tile picked out — or at the top.
-
-        A browse is nearly always for something near what is playing, and the
-        root spent every one of them walking back down to where the session was.
-        """
         handle = handle_for(self._handles, video) if video else None
         if handle is None:
             self.open_folder(())
@@ -664,8 +644,6 @@ def browse_library(
 ) -> str | None:
     """Browse the library and return the video picked, or None if none was.
 
-    *playing* is what the main player has up; see :meth:`LibraryBrowserWindow.open_on`.
-
     Blocks for the length of the browse, as the file dialog before it did — the
     caller is a dispatch-loop thread, and the browser is a window of its own
     because the bridge process has no Qt event loop to host one in.
@@ -731,15 +709,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def bring_the_browse_forward(window: QWidget) -> bool:
-    """Put the browse in front of the players, with the keyboard on it.
-
-    Qt's ``activateWindow`` cannot: Windows refuses ``SetForegroundWindow`` to a
-    process that neither owns the foreground nor took the last input, and this
-    one is a child the bridge started while the player held both.  Silently, so
-    the browse came up behind the player, with the arrows still going there.
-    ``force_foreground_window`` attaches the input queues, one of the cases the
-    rule accepts — the same answer a lock's tab uses for Fun Time's Chrome.
-    """
+    # activateWindow is refused for this process; force_foreground_window says why.
     return force_foreground_window(int(window.winId()))
 
 

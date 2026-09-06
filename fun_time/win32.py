@@ -135,8 +135,7 @@ def find_window_for_process(pid: int, title: str | None = None) -> int:
     Pid AND title, because a process can own several titled windows (the
     hosted Origenerator: a main window plus a show per satellite region) and a
     title alone can land on another process's window (a standalone
-    Origenerator carries the same captions).  Without a *title*, any titled
-    window in the tree answers.  The children matter because a
+    Origenerator carries the same captions).  The children matter because a
     recorded pid can be a launcher's: a venv's ``Scripts\\python.exe`` spawns
     the interpreter that actually owns the windows as a child and exits the
     lookup empty-handed.  One generation is the launcher pattern; nothing

@@ -71,7 +71,6 @@ class LibraryHandle:
 
 
 def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | None:
-    """Which handle *video* is a rendition of, or None for a file not in the library."""
     key = normalize_path_key(video)
     if not key:
         return None

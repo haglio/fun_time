@@ -119,12 +119,13 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
-# 6923 since 2026-09-06, when the VR pointer landed with less prose than it
-# found.  6925 since 2026-09-03: the commits main took between the last ratchet and the
+# 6922 since 2026-09-06, when the library browser's own additions went in as
+# names and tests rather than docstrings.  6923 earlier the same day, when the
+# VR pointer landed with less prose than it found.  6925 since 2026-09-03: the commits main took between the last ratchet and the
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 6923
+MAX_PROSE_LINES = 6922
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
