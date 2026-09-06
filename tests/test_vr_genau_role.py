@@ -17,7 +17,7 @@ import pytest
 
 from fun_time_vr.genau_role import GenauRole, run_ticks
 from fun_time_vr.genau_settings import GenauSettings
-from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS
+from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 
 
 class FakeSink:
@@ -69,14 +69,19 @@ def _run_now(*, target, args=(), name=""):
 
 
 class Genau:
-    """A role wired the way the VR player wires it, over a fabricated folder."""
+    """A role wired the way the VR player wires it, over two fabricated folders:
+    the VR clips, and the desktop's flat ones deeper down."""
 
     def __init__(self, tmp_path: Path, *, clips=("alpha_180.mp4", "beta_180.mp4", "gamma.mp4"),
-                 decode=None, start_clip=None, settings=None, console_file=None):
+                 flat_clips=(), decode=None, start_clip=None, settings=None, console_file=None):
         self.clips_dir = tmp_path / "vr_clips"
         self.clips_dir.mkdir()
         for name in clips:
             (self.clips_dir / name).write_bytes(b"clip")
+        self.flat_dir = tmp_path / "desktop" / "clips"
+        self.flat_dir.mkdir(parents=True)
+        for name in flat_clips:
+            (self.flat_dir / name).write_bytes(b"clip")
         self.state = tmp_path / "state"
         self.state.mkdir()
         self.command_file = self.state / "genau_cmd.txt"
@@ -86,7 +91,8 @@ class Genau:
         self.stop = threading.Event()
         self.clock = Clock()
         self.role = GenauRole(
-            clips_dir=self.clips_dir,
+            clips_dirs=(self.clips_dir, self.flat_dir),
+            vr_dirs=(self.clips_dir,),
             settings=settings or GenauSettings(shuffle_on_load=False),
             command_file=self.command_file,
             paused_file=self.paused_file,
@@ -335,3 +341,33 @@ class TestAFolderWithNothingToShow:
     def test_is_refused_at_once(self, tmp_path):
         with pytest.raises(RuntimeError, match="No video clips"):
             Genau(tmp_path, clips=())
+
+
+class TestTheDesktopsClipsAreBrowsedToo:
+    """The headset browses its VR clips and the desktop's flat ones as one
+    sequence, the way the main rotation joins the VR library to the desktop's."""
+
+    def _both(self, tmp_path):
+        return Genau(tmp_path, clips=("alpha_180.mp4",), flat_clips=("scene one.mp4",))
+
+    def test_the_desktops_clips_follow_the_vr_ones(self, tmp_path):
+        genau = self._both(tmp_path)
+
+        genau.send("NEXT")
+
+        assert genau.role.current_clip == genau.flat_dir / "scene one.mp4"
+
+    def test_a_desktop_clip_is_watched_flat(self, tmp_path):
+        genau = self._both(tmp_path)
+        genau.send("NEXT")
+
+        assert genau.role.projection == FLAT
+
+    def test_weird_moves_a_desktop_clip_to_the_pile_beside_its_own_folder(self, tmp_path):
+        genau = self._both(tmp_path)
+        genau.send("NEXT")
+
+        genau.send("WEIRD")
+
+        assert (tmp_path / "desktop" / "weird" / "scene one.mp4").is_file()
+        assert not (tmp_path / "weird" / "scene one.mp4").exists()

@@ -143,6 +143,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def _folders(spec: str) -> tuple[Path, ...]:
+    return tuple(Path(part) for part in spec.split("|") if part.strip())
+
+
 @dataclass(frozen=True)
 class VrSettings:
     """The ``[vr]`` section the VR orchestrator adds to the launch manifest.
@@ -157,7 +161,8 @@ class VrSettings:
     audio_device: str
     compositor_layers: bool
     # Genau's role: its folder, its companion's address, its engine's numbers.
-    clips_dir: Path | None = None
+    clips_dirs: tuple[Path, ...] = ()
+    vr_clip_dirs: tuple[Path, ...] = ()
     notify_host: str = "127.0.0.1"
     notify_port: int = 50556
     genau: GenauSettings = field(default_factory=GenauSettings)
@@ -168,16 +173,15 @@ class VrSettings:
         parser.optionxform = str
         parser.read(str(path), encoding="utf-8")
         vr = parser["vr"]
-        clips_dir = vr.get("clips_dir", "").strip()
         return cls(
             tcode_udp_host=vr["tcode_udp_host"],
             tcode_udp_port=int(vr["tcode_udp_port"]),
-            library_dirs=tuple(Path(part) for part in vr["library_dirs"].split("|")
-                               if part.strip()),
+            library_dirs=_folders(vr["library_dirs"]),
             audio_device=parser.get("vr", "audio_device", fallback=""),
             compositor_layers=parser.get(
                 "vr", "compositor_layers", fallback="0").strip() == "1",
-            clips_dir=Path(clips_dir) if clips_dir else None,
+            clips_dirs=_folders(vr.get("clips_dirs", "")),
+            vr_clip_dirs=_folders(vr.get("vr_clip_dirs", "")),
             notify_host=vr.get("notify_host", "127.0.0.1"),
             notify_port=int(vr.get("notify_port", "50556")),
             genau=GenauSettings.from_manifest(vr),
@@ -420,12 +424,13 @@ class _GenauUnit:
     no furniture on it; the engine ticks on a thread of its own."""
 
     def __init__(self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event) -> None:
-        if vr.clips_dir is None:
+        if not vr.clips_dirs:
             raise RuntimeError("the launch manifest names no clips folder for Genau's role")
         commands = manifest.commands
         genau_state = Path(commands.genau_cmd_file).parent
         self.role = GenauRole(
-            clips_dir=vr.clips_dir,
+            clips_dirs=vr.clips_dirs,
+            vr_dirs=vr.vr_clip_dirs,
             settings=vr.genau,
             command_file=Path(commands.genau_cmd_file),
             paused_file=Path(commands.genau_paused_file),

@@ -480,7 +480,7 @@ class TestTheVrClipsFolder:
 
         assert load_config(named).vr.clips_dir == tmp_path / "vr_clips"
 
-    def test_unset_it_is_none_and_the_session_falls_back_to_the_desktop_folder(self, config):
+    def test_unset_it_is_none_and_the_desktops_clips_are_browsed_alone(self, config):
         assert config.vr.clips_dir is None
 
 
@@ -493,10 +493,15 @@ class TestGenausRoleInTheManifest:
 
         named = replace(config, vr=replace(config.vr, clips_dir=tmp_path / "vr_clips"))
 
-        assert build_vr_manifest(named)["vr"]["clips_dir"] == str(tmp_path / "vr_clips")
+        vr = build_vr_manifest(named)["vr"]
+        assert vr["clips_dirs"] == f"{tmp_path / 'vr_clips'}|{config.paths.clips_dir}"
+        assert vr["vr_clip_dirs"] == str(tmp_path / "vr_clips")
 
-    def test_the_desktop_clips_folder_stands_in_when_none_is_named(self, config):
-        assert build_vr_manifest(config)["vr"]["clips_dir"] == str(config.paths.clips_dir)
+    def test_the_desktop_clips_are_browsed_alone_when_no_vr_folder_is_named(self, config):
+        vr = build_vr_manifest(config)["vr"]
+
+        assert vr["clips_dirs"] == str(config.paths.clips_dir)
+        assert vr["vr_clip_dirs"] == ""
 
     def test_the_companions_address_is_fun_times_own(self, config):
         vr = build_vr_manifest(config)["vr"]
@@ -525,7 +530,8 @@ class TestGenausRoleInTheManifest:
 
         settings = VrSettings.read(path)
 
-        assert settings.clips_dir == config.paths.clips_dir
+        assert settings.clips_dirs == (config.paths.clips_dir,)
+        assert settings.vr_clip_dirs == ()
         assert (settings.notify_host, settings.notify_port) == ("127.0.0.1", 50556)
         assert settings.genau == GenauSettings()
 

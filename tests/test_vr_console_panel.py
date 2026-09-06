@@ -74,12 +74,13 @@ class TestWhatThePanelNames:
 
 
 class TestWhereItHangs:
-    def test_it_hangs_below_the_primarys_bottom_edge(self):
+    def test_it_hangs_above_the_primarys_top_edge(self):
         """A 16:9 primary spanning PRIMARY_WIDTH_DEG is this tall; the panel's
-        center sits under its edge, so it never covers the picture."""
+        center sits above its edge, so it covers neither the picture nor the
+        action, which sits low in an immersive one."""
         primary_half_height_deg = PRIMARY_WIDTH_DEG / (16 / 9) / 2
 
-        assert -primary_half_height_deg > PANEL_ELEVATION_DEG
+        assert primary_half_height_deg < PANEL_ELEVATION_DEG
 
     def test_it_is_narrower_than_the_primary(self):
         assert PANEL_WIDTH_DEG < PRIMARY_WIDTH_DEG / 2

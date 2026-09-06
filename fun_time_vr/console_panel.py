@@ -2,7 +2,7 @@
 
 The desktop paints it onto the main player's window, scrubber and volume chip
 under the video.  Baked into an immersive video it would warp with it, down
-at the nadir, so here it is a small screen of its own, low in the forward
+at the nadir, so here it is a small screen of its own, high in the forward
 band -- and read-only, the scene having no pointer.
 """
 from __future__ import annotations
@@ -17,11 +17,11 @@ from player_core.volume import VolumeHud, chip_xy
 
 from fun_time.mode_plan import nau_displays
 
-# Straight ahead, under the primary's bottom edge (a 16:9 primary spanning 72°
-# is about 40° tall), narrow enough to read as furniture rather than a screen.
+# Straight ahead, above the primary's top edge (a 16:9 primary spanning 72° is
+# about 40° tall): out of the action, which sits low in an immersive picture.
 PANEL_AZIMUTH_DEG = 0.0
 PANEL_WIDTH_DEG = 24.0
-PANEL_ELEVATION_DEG = -31.0
+PANEL_ELEVATION_DEG = 32.0
 
 _ROW_GAP = 6
 
