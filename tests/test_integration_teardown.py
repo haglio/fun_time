@@ -15,7 +15,7 @@ from tests.integration.hidden_desktop import HIDDEN_DESKTOP_NAME
 
 def test_reap_on_hidden_desktop_kills_the_app_windows_but_never_a_pytest():
     """pytest runs as python.exe and owns real Qt windows on this desktop — both
-    this run's and any run queued behind it.  Killing one leaves a suite dead
+    this run's and any run queued after it.  Killing one leaves a suite dead
     with no output, so the reap targets the images the apps run as — plus, by
     COMMAND LINE rather than image, a leftover hosted Origenerator, which runs
     on a plain python.exe of its own and once survived every reap to leave its

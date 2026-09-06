@@ -4,7 +4,7 @@ The broker (``../osr2_broker``) polls a single command file on each tick and
 consumes whatever verb it finds.  Unlike a satellite's queue, that file holds
 exactly one verb: the broker reads the whole file, strips it, and blanks it, so
 a second verb written before the next tick replaces the first rather than
-queueing behind it.  Writes here overwrite to match.
+queueing after it.  Writes here overwrite to match.
 
 Nothing clears the file when the broker starts, so a verb written while no
 broker is up survives to its first tick.

@@ -187,7 +187,7 @@ def test_clips_carved_from_a_compilation_get_their_own_section(tmp_path: Path):
 
     Evolver marks a video carved out of a compilation with a ``clip`` record, so
     those split off into a section of their own rather than sitting between the
-    full videos they were cut from — and behind them, since a folder's whole
+    full videos they were cut from — and after them, since a folder's whole
     videos are what it is *for*, however many cuts came out of them.
     """
     videos, metadata = _library(tmp_path)
