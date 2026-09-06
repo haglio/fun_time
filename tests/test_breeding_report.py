@@ -67,7 +67,7 @@ def test_render_breeding_report_shows_rising_and_fading_sections(tmp_path: Path)
     media_root, metadata_root, paths = _library(tmp_path, {
         "loved": _watched(_meta("Alpha", "111", prompt="p" * 100), 6, 0, 1, 8.0),
         "meh": _watched(_meta("Dancing", "222"), 1, 1, 0, 1.0),
-        "hated": _watched(_meta("Twerk", "333"), 0, 9, 0, 0.125),
+        "hated": _watched(_meta("Spinning", "333"), 0, 9, 0, 0.125),
     })
     rows = build_breeding_rows(paths.values(), metadata_root)
 
