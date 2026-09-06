@@ -167,7 +167,7 @@ def test_windows_launcher_runs_the_orchestrator_under_a_name_that_says_fun_time(
 
 
 def test_windows_launcher_still_launches_before_any_session_has_named_it():
-    """The naming runs one launch behind, so a checkout that has never run has
+    """The naming runs one launch late, so a checkout that has never run has
     no copy to find.  That must cost the name and nothing else: the launcher
     falls through to the venv interpreter it always used."""
     text = _text("launch.vbs")

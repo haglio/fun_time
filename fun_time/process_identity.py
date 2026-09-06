@@ -33,7 +33,7 @@ def prepare_orchestrator_launcher() -> None:
 
     The console interpreter by name -- not the windowed one the namer would pick
     by itself -- because that is the one ``launch.vbs`` runs.  Why it is one
-    launch behind, why it is derived beside the running interpreter rather than
+    launch late, why it is derived beside the running interpreter rather than
     from it, and why it can never cost the launch:
     :meth:`ProcessNamer.name_this_process`.
     """
