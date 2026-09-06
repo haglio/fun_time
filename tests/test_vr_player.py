@@ -12,7 +12,11 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import DEFAULT, patch
 
+import numpy as np
 import pytest
+from player_core.console import ConsoleModel
+from player_core.console_hud import ConsoleHud
+from player_core.drive_readout import DriveHud
 from player_core.volume import VolumeHud, VolumeHudPainter
 
 from fun_time.manifest import (
@@ -20,13 +24,19 @@ from fun_time.manifest import (
     LaunchManifest,
     write_manifest_data,
 )
+from fun_time_vr.layout import DEFAULT_LAYOUT, LANDSCAPE, PANEL, PORTRAIT, read_layout
 from fun_time_vr.player import (
     VrSettings,
+    _HungScreen,
+    _LayoutKeeper,
     _MainUnit,
+    _PanelUnit,
     _SatelliteUnit,
     _VideoUnit,
     build_parser,
 )
+from fun_time_vr.pointer import PRESS, RELEASE, PanelEvent
+from fun_time_vr.scene import Placement
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -152,7 +162,7 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     out — and the sixth, the dashboard's command file, shared with the desktop."""
     manifest = _manifest_for_a_vr_session(tmp_path)
 
-    unit = _SatelliteUnit(side, manifest, lambda _name: 0)
+    unit = _SatelliteUnit(side, manifest, lambda _name: 0, placement=DEFAULT_LAYOUT[side])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.side_file(side, "cmd"))
@@ -243,3 +253,124 @@ class TestWhatEveryVideoUnitOwes:
         assert unit_class.close is not _VideoUnit.close
         assert list(inspect.signature(unit_class.pump).parameters) == [
             "self", "stop", "now"]
+
+
+# --- The screens the controllers can move ---------------------------------
+
+
+class _FakeMesh:
+    def __init__(self):
+        self.uploads = []
+
+    def upload(self, vertices):
+        self.uploads.append(vertices)
+
+
+def test_a_screen_is_rehung_when_its_placement_moves_and_only_then():
+    screen = _HungScreen(DEFAULT_LAYOUT[LANDSCAPE])
+    screen.mesh = _FakeMesh()
+
+    screen.rehang(4 / 3)
+    screen.rehang(4 / 3)
+    assert len(screen.mesh.uploads) == 1
+
+    screen.placement = Placement(azimuth_deg=50.0, elevation_deg=0.0, width_deg=40.0)
+    screen.rehang(4 / 3)
+    screen.rehang(4 / 3)
+
+    assert len(screen.mesh.uploads) == 2
+    assert not np.array_equal(screen.mesh.uploads[0], screen.mesh.uploads[1])
+
+
+def test_a_satellite_hangs_where_the_layout_says(tmp_path, faked_collaborators):
+    manifest = _manifest_for_a_vr_session(tmp_path)
+    moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
+
+    unit = _SatelliteUnit("portrait", manifest, lambda _name: 0, placement=moved)
+
+    assert unit.screen.placement == moved
+
+
+class TestTheLayoutKeeper:
+    def test_what_the_controllers_settled_is_written_once_on_the_worker(self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, dict(DEFAULT_LAYOUT))
+        moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
+
+        keeper.pump(threading.Event(), 0.0)
+        assert not path.exists()
+
+        keeper.place(PORTRAIT, moved)
+        assert not path.exists()  # a screen mid-drag is not worth a file yet
+
+        keeper.settle()
+        keeper.pump(threading.Event(), 0.0)
+        assert read_layout(path)[PORTRAIT] == moved
+
+        written = path.stat().st_mtime_ns
+        keeper.pump(threading.Event(), 0.0)
+        assert path.stat().st_mtime_ns == written
+
+    def test_a_session_ending_mid_drag_still_keeps_the_screen_where_it_was_left(self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, dict(DEFAULT_LAYOUT))
+        moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
+
+        keeper.place(PORTRAIT, moved)
+        keeper.close()
+
+        assert read_layout(path)[PORTRAIT] == moved
+
+
+class TestThePanelUnderThePointer:
+    def _unit(self, tmp_path):
+        seeks: list[float] = []
+        primary = SimpleNamespace(
+            role=SimpleNamespace(
+                current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=10_000.0,
+                volume=70, muted=False, seek_to=seeks.append,
+            ),
+            drive_gate=SimpleNamespace(readout=lambda published: published),
+        )
+        genau = SimpleNamespace(role=SimpleNamespace(
+            console_hud=ConsoleHud(
+                console=ConsoleModel(mode="video", broker=True, locked=False),
+                drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine", position=1000,
+                               advance_interval=10, waveform=tuple([0.5] * 80),
+                               trace_seconds=12.0),
+            ),
+            current_clip=None, loading=None, showing=False, volume=100, muted=False,
+        ))
+        command_file = tmp_path / "dashboard_cmd.txt"
+        with patch("fun_time_vr.player.FrameTexture"):
+            unit = _PanelUnit(primary, genau, placement=DEFAULT_LAYOUT[PANEL],
+                              dashboard_cmd_file=command_file)
+        return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks)
+
+    def _uv_of(self, unit, action: str) -> tuple[float, float]:
+        width, height = unit._image.size
+        (x, y, w, h), _button = next(
+            (rect, button) for rect, button in unit._painter.buttons if button.action == action)
+        return (x + w // 2 + 0.5) / width, 1 - (y + h // 2 + 0.5) / height
+
+    def test_a_press_the_render_thread_hands_over_posts_on_the_worker(self, tmp_path):
+        p = self._unit(tmp_path)
+        p.unit.pump(threading.Event(), 0.0)  # painted: the buttons now have places
+
+        p.unit.point([PanelEvent(PRESS, *self._uv_of(p.unit, "main_lock")), PanelEvent(RELEASE)],
+                     hover=None)
+        assert not p.command_file.exists()
+
+        p.unit.pump(threading.Event(), 0.0)
+
+        assert p.command_file.read_text(encoding="utf-8").split() == ["main_lock"]
+
+    def test_hovering_a_button_names_it_on_the_panel(self, tmp_path):
+        p = self._unit(tmp_path)
+        p.unit.pump(threading.Event(), 0.0)
+        plain = np.asarray(p.unit._image).copy()
+
+        p.unit.point([], hover=self._uv_of(p.unit, "main_lock"))
+        p.unit.pump(threading.Event(), 0.0)
+
+        assert not np.array_equal(np.asarray(p.unit._image), plain)

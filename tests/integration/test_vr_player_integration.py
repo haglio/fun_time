@@ -29,6 +29,7 @@ from fun_time.config import load_config
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.player_status import read_nau_status
 from fun_time.satellite_control import read_satellite_status
+from fun_time_vr.layout import LANDSCAPE, LAYOUT_FILENAME, PORTRAIT, read_layout
 from fun_time_vr.orchestrator import build_vr_manifest
 
 from .integration_support import (
@@ -132,10 +133,11 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     from fun_time_vr.render import SceneRenderer, immersive_mode  # noqa: PLC0415
 
     renderer = SceneRenderer()
+    layout = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
     main = vrp._MainUnit(manifest, vr, glfw.get_proc_address)
     satellites = [
-        vrp._SatelliteUnit("portrait", manifest, glfw.get_proc_address),
-        vrp._SatelliteUnit("landscape", manifest, glfw.get_proc_address),
+        vrp._SatelliteUnit(side, manifest, glfw.get_proc_address, placement=layout[side])
+        for side in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
     stop = threading.Event()

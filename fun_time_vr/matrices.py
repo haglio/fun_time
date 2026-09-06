@@ -40,7 +40,8 @@ def fov_to_projection_matrix(
     return mat
 
 
-def _quat_to_rotation_matrix(x: float, y: float, z: float, w: float) -> np.ndarray:
+def quat_to_rotation_matrix(x: float, y: float, z: float, w: float) -> np.ndarray:
+    """The 3x3 rotation an (x, y, z, w) orientation applies, row-major."""
     xx, yy, zz = x * x, y * y, z * z
     xy, xz, yz = x * y, x * z, y * z
     wx, wy, wz = w * x, w * y, w * z
@@ -97,7 +98,7 @@ def pose_to_view_matrix(
     Callers pass position (0,0,0) for the rotation-only view the video sphere
     needs — a head that translates must not parallax a projected sphere.
     """
-    rot = _quat_to_rotation_matrix(*orientation)
+    rot = quat_to_rotation_matrix(*orientation)
     pos = np.array(position, dtype=np.float32)
 
     mat = np.eye(4, dtype=np.float32)

@@ -12,8 +12,11 @@
   - Nau verbs the VR main role does not implement: loop recording, version cycling,
     clip jumps, length modes, compilations. They report unhandled, and the player
     logs each once rather than crashing.
-  - The scene has no pointer, so the console panel is read-only: every press
-    it would take on the desktop is a hotkey or a spoken command here.
+  - With `vr.compositor_layers` on, the controllers' laser, the handles and the
+    spot the laser lands on draw in the projection layer, which the runtime
+    composites beneath the satellites' quads; the pointer still works there,
+    unseen. Off (the default, and the only mode the bundled runtime shows
+    screens in) everything draws in one layer and the chrome sits on top.
 - Notes:
   - Recorded here rather than in module docstrings (2026-08-30, audit item 25):
     the same deferral was once written out in five places, free to drift apart,

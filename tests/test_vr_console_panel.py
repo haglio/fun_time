@@ -1,22 +1,25 @@
 """The console hung in the headset: what goes on it, and how it is composed."""
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import numpy as np
+import pytest
 from player_core.console import ConsoleModel
-from player_core.console_hud import ConsoleHud, ConsolePainter, ModeHud
+from player_core.console_hud import OSR2_ROBOT_HAND, ConsoleHud, ConsolePainter, ModeHud
+from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
-from player_core.timeline import TIMELINE_HEIGHT
-from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
+from player_core.volume import CHIP_H, CHIP_W, PAD, SPEAKER_W, VolumeHud, VolumeHudPainter, chip_xy
 
 from fun_time_vr.console_panel import (
-    PANEL_ELEVATION_DEG,
-    PANEL_WIDTH_DEG,
     PANEL_WIDTH_PX,
+    PanelPointer,
     paint_panel,
     panel_hud,
     panel_painter,
 )
-from fun_time_vr.scene import PRIMARY_WIDTH_DEG
+from satellite.pointer import time_at
 
 
 def _drive(**over) -> DriveHud:
@@ -115,19 +118,6 @@ class TestWhoseReadoutItDraws:
         assert gate.asked == [None]
 
 
-class TestWhereItHangs:
-    def test_it_hangs_above_the_primarys_top_edge(self):
-        """A 16:9 primary spanning PRIMARY_WIDTH_DEG is this tall; the panel's
-        center sits above its edge, so it covers neither the picture nor the
-        action, which sits low in an immersive one."""
-        primary_half_height_deg = PRIMARY_WIDTH_DEG / (16 / 9) / 2
-
-        assert primary_half_height_deg < PANEL_ELEVATION_DEG
-
-    def test_it_is_narrower_than_the_primary(self):
-        assert PANEL_WIDTH_DEG < PRIMARY_WIDTH_DEG / 2
-
-
 _A_LEVEL = VolumeHud(volume=70, muted=False)
 _A_SCRUBBER = (1_000.0, 10_000.0)
 
@@ -201,3 +191,127 @@ class TestItKeepsItsSize:
         two modes would differ again; the constant has to clear both."""
         for mode in ("video", "genau"):
             assert ConsolePainter().rgba(_hud(_engine_console(mode)))[1][0] <= PANEL_WIDTH_PX
+
+
+def _live_console() -> ConsoleHud:
+    """Video mode with the Robot Hand on the device, so the readout's bars take a press."""
+    return ConsoleHud(
+        modes=ModeHud(video="scene one"),
+        console=ConsoleModel(mode="video", broker=True, locked=False, osr2=OSR2_ROBOT_HAND),
+        drive=_drive(),
+    )
+
+
+class TestAPressOnThePanel:
+    """The pointer's (u, v) on the hung panel, turned into what the desktop's
+    console does under a mouse: buttons post, bars are held and dragged, the
+    chip sets the level, the scrubber seeks."""
+
+    _SCRUBBER = (1_000.0, 10_000.0)
+    _CHIP = VolumeHud(volume=70, muted=False)
+
+    def _pointer(self, *, chip=_CHIP, scrubber=_SCRUBBER):
+        painter = panel_painter()
+        hud = _hud(_live_console(), clip_title="")
+        panel = paint_panel(painter, hud, scrubber=scrubber, chip=chip,
+                            chip_painter=VolumeHudPainter())
+        posted: list[str] = []
+        seeks: list[float] = []
+        pointer = PanelPointer(painter, post=posted.append, seek=seeks.append)
+        pointer.painted(panel.size, scrubber=scrubber, chip=chip)
+        return SimpleNamespace(pointer=pointer, painter=painter, posted=posted, seeks=seeks,
+                               size=panel.size)
+
+    @staticmethod
+    def _uv(size, px: float, py: float) -> tuple[float, float]:
+        width, height = size
+        return (px + 0.5) / width, 1 - (py + 0.5) / height
+
+    def _button_uv(self, p, action: str) -> tuple[float, float]:
+        (x, y, w, h), _button = next(
+            (rect, button) for rect, button in p.painter.buttons if button.action == action)
+        return self._uv(p.size, x + w // 2, y + h // 2)
+
+    def test_a_button_posts_its_command(self):
+        p = self._pointer()
+
+        p.pointer.press(*self._button_uv(p, "main_lock"))
+        p.pointer.release()
+
+        assert p.posted == ["main_lock"]
+        assert p.seeks == []
+
+    def test_a_press_on_the_chips_speaker_toggles_the_mute(self):
+        p = self._pointer()
+        x, y = chip_xy(win_w=p.size[0], win_h=p.size[1], timeline_h=TIMELINE_HEIGHT)
+
+        p.pointer.press(*self._uv(p.size, x + 5, y + CHIP_H // 2))
+
+        assert p.posted == ["audio_mute"]
+
+        muted = self._pointer(chip=VolumeHud(volume=70, muted=True))
+        muted.pointer.press(*self._uv(muted.size, x + 5, y + CHIP_H // 2))
+
+        assert muted.posted == ["audio_unmute"]
+
+    def test_a_press_on_the_chips_track_sets_the_level_and_a_drag_along_it_follows(self):
+        p = self._pointer()
+        x, y = chip_xy(win_w=p.size[0], win_h=p.size[1], timeline_h=TIMELINE_HEIGHT)
+        track_x0, track_x1 = SPEAKER_W, CHIP_W - PAD
+        halfway = x + (track_x0 + track_x1) / 2
+
+        p.pointer.press(*self._uv(p.size, halfway, y + CHIP_H // 2))
+        p.pointer.drag(*self._uv(p.size, halfway, y + CHIP_H // 2))
+        p.pointer.drag(*self._uv(p.size, x + track_x1 + 40, y + CHIP_H // 2))
+        p.pointer.release()
+        p.pointer.drag(*self._uv(p.size, halfway, y + CHIP_H // 2))
+
+        assert p.posted == ["audio_set_volume|50", "audio_set_volume|100"]
+
+    def test_a_press_on_the_scrubber_seeks_the_video(self):
+        p = self._pointer()
+        width, height = p.size
+        x0, x1 = bar_track_x(width)
+        px = (x0 + x1) / 2
+
+        p.pointer.press(*self._uv(p.size, px, height - TIMELINE_HEIGHT // 2))
+
+        assert p.seeks == [pytest.approx(time_at(px, win_w=width, duration_ms=10_000.0))]
+        assert 4_000 < p.seeks[0] < 6_000
+        assert p.posted == []
+
+    def test_a_clip_has_no_scrubber_to_seek(self):
+        p = self._pointer(scrubber=None)
+        width, height = p.size
+
+        p.pointer.press(*self._uv(p.size, width // 2, height - 2))
+
+        assert p.seeks == []
+
+    def test_a_readouts_bar_is_held_and_dragged(self):
+        p = self._pointer()
+        speed = next(track for track in p.painter.tracks if track.axis == SPEED)
+        x, y, w, h = speed.rect
+
+        p.pointer.press(*self._uv(p.size, x + w * 0.25, y + h / 2))
+        p.pointer.drag(*self._uv(p.size, x + w * 0.25, y + h / 2))
+        p.pointer.drag(*self._uv(p.size, x + w * 0.75, y + h / 2))
+        p.pointer.release()
+        p.pointer.drag(*self._uv(p.size, x + w * 0.5, y + h / 2))
+
+        assert len(p.posted) == 2
+        assert all(command.startswith("robot_hand_speed_") for command in p.posted)
+        assert p.posted[0] != p.posted[1]
+
+    def test_the_tooltip_stays_put_while_the_pointer_wanders_over_one_button(self):
+        p = self._pointer()
+        u, v = self._button_uv(p, "main_lock")
+        nudge = 2 / p.size[0]
+
+        anchor = p.pointer.tooltip_anchor((u, v))
+
+        assert anchor is not None
+        assert p.pointer.tooltip_anchor((u + nudge, v)) == anchor
+        assert p.pointer.tooltip_anchor(self._button_uv(p, "main_next")) != anchor
+        assert p.pointer.tooltip_anchor((0.5, -0.5)) is None
+        assert p.pointer.tooltip_anchor(None) is None

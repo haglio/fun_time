@@ -1,7 +1,6 @@
-"""Where each player's picture hangs in the VR scene — pure geometry.
+"""The geometry of one screen in the VR scene: where a picture hangs, and the
+curved patch that carries it.
 
-One forward band of view: the main player spans the middle, and each
-satellite floats beside it, portrait on the left and landscape on the right.
 Every screen is a gently curved patch of one cylinder around the viewer (a
 flat 2D video reads better with a slight wrap at this scale), built here as
 triangle-strip vertices for the renderer to draw.  Immersive projections
@@ -15,6 +14,7 @@ why they may overlap the main player's edges.
 from __future__ import annotations
 
 import math
+from dataclasses import dataclass
 
 import numpy as np
 
@@ -24,26 +24,18 @@ RADIUS = 2.0
 
 PRIMARY_WIDTH_DEG = 72.0
 
-# Tuned on the first headset run: satellites flush beside the primary
-# (36° wide, centers at ±54°) landed in the peripheral vision on a wide-FOV
-# headset — the user had to turn to see either one.  So they shrink a little,
-# tuck inward over the main player's edges, and ride slightly above center.
-SATELLITE_WIDTH_DEG = 28.0
-SATELLITE_AZIMUTH_DEG = 38.0
-SATELLITE_ELEVATION_DEG = 10.0
-
-_SATELLITE_AZIMUTH_BY_SIDE = {
-    "portrait": -SATELLITE_AZIMUTH_DEG,
-    "landscape": SATELLITE_AZIMUTH_DEG,
-}
-
 # Enough columns that the curve reads smooth; the patch is cheap either way.
 CURVE_SEGMENTS = 16
 
 
-def satellite_center_azimuth(side: str) -> float:
-    """Degrees off straight-ahead for a satellite's screen center (left < 0)."""
-    return _SATELLITE_AZIMUTH_BY_SIDE[side]
+@dataclass(frozen=True)
+class Placement:
+    azimuth_deg: float
+    elevation_deg: float
+    width_deg: float
+
+
+PRIMARY_PLACEMENT = Placement(0.0, 0.0, PRIMARY_WIDTH_DEG)
 
 
 def _quat_multiply(
@@ -82,11 +74,9 @@ def scene_placement_quaternion(
 
 
 def quad_layer_placement(
-    center_azimuth_deg: float,
-    width_deg: float,
+    placement: Placement,
     *,
     aspect: float,
-    center_elevation_deg: float = 0.0,
     scene_yaw_deg: float = 0.0,
     scene_pitch_deg: float = 0.0,
     radius: float = RADIUS,
@@ -97,18 +87,18 @@ def quad_layer_placement(
     gently-curved patch flattens to its tangent plane: same center point on
     the cylinder, yaw-only orientation facing the viewer (matching the
     untilted columns of :func:`surface_vertices`), and a width chosen so the
-    flat quad subtends exactly *width_deg* from the origin — the sagitta of a
-    curve this gentle is centimeters, so the swap reads identical in the
-    headset.  Returns ``(position, orientation_xyzw, (width, height))`` in the
-    reference space's meters, height from *aspect* as ever.
+    flat quad subtends exactly the placement's width from the origin — the
+    sagitta of a curve this gentle is centimeters, so the swap reads identical
+    in the headset.  Returns ``(position, orientation_xyzw, (width, height))``
+    in the reference space's meters, height from *aspect* as ever.
 
     """
     if aspect <= 0:
         raise ValueError(f"aspect must be positive, got {aspect}")
-    theta = math.radians(center_azimuth_deg)
+    theta = math.radians(placement.azimuth_deg)
     position = (
         radius * math.sin(theta),
-        radius * math.tan(math.radians(center_elevation_deg)),
+        radius * math.tan(math.radians(placement.elevation_deg)),
         -radius * math.cos(theta),
     )
     # A rotation about +Y by -theta points the quad's +Z (its front face,
@@ -117,34 +107,32 @@ def quad_layer_placement(
     scene = scene_placement_quaternion(scene_yaw_deg, scene_pitch_deg)
     position = _quat_rotate(scene, position)
     orientation = _quat_multiply(scene, orientation)
-    width = 2.0 * radius * math.tan(math.radians(width_deg) / 2.0)
+    width = 2.0 * radius * math.tan(math.radians(placement.width_deg) / 2.0)
     return position, orientation, (width, width / aspect)
 
 
 def surface_vertices(
-    center_azimuth_deg: float,
-    width_deg: float,
+    placement: Placement,
     *,
     aspect: float,
-    center_elevation_deg: float = 0.0,
     radius: float = RADIUS,
     segments: int = CURVE_SEGMENTS,
 ) -> np.ndarray:
     """Triangle-strip vertices for one curved screen: (x, y, z, u, v) rows.
 
-    The screen subtends *width_deg* of the cylinder centered on
-    *center_azimuth_deg* (degrees right of forward); its height is the arc
-    length over *aspect* (pixel width/height), so the video fills it edge to
-    edge without letterboxing, and its center rides at *center_elevation_deg*
-    above the horizon.  Columns run left to right, two vertices each (top v=1,
-    then bottom v=0), ready for GL_TRIANGLE_STRIP.
+    The screen subtends the placement's width of the cylinder centered on its
+    azimuth; its height is the arc length over *aspect* (pixel width/height),
+    so the video fills it edge to edge without letterboxing, and its center
+    rides at the placement's elevation above the horizon.  Columns run left to
+    right, two vertices each (top v=1, then bottom v=0), ready for
+    GL_TRIANGLE_STRIP.
     """
     if aspect <= 0:
         raise ValueError(f"aspect must be positive, got {aspect}")
-    width_rad = math.radians(width_deg)
+    width_rad = math.radians(placement.width_deg)
     half_height = (radius * width_rad / aspect) / 2
-    lift = radius * math.tan(math.radians(center_elevation_deg))
-    start = math.radians(center_azimuth_deg) - width_rad / 2
+    lift = radius * math.tan(math.radians(placement.elevation_deg))
+    start = math.radians(placement.azimuth_deg) - width_rad / 2
 
     rows: list[tuple[float, float, float, float, float]] = []
     for column in range(segments + 1):

@@ -51,6 +51,15 @@ void main() {
 }
 """
 
+_SOLID_FRAGMENT_SHADER = """
+#version 330 core
+out vec4 frag_color;
+uniform vec4 color;
+void main() {
+    frag_color = color;
+}
+"""
+
 _FULLSCREEN_VERTEX_SHADER = """
 #version 330 core
 out vec2 screen_pos;
@@ -327,6 +336,9 @@ class SceneRenderer:
         self._imm_tex = GL.glGetUniformLocation(self._immersive_program, "video_tex")
         self._copy_program = _compile_program(_FULLSCREEN_VERTEX_SHADER, _COPY_FRAGMENT_SHADER)
         self._copy_tex = GL.glGetUniformLocation(self._copy_program, "video_tex")
+        self._solid_program = _compile_program(_QUAD_VERTEX_SHADER, _SOLID_FRAGMENT_SHADER)
+        self._solid_view_proj = GL.glGetUniformLocation(self._solid_program, "view_proj")
+        self._solid_color = GL.glGetUniformLocation(self._solid_program, "color")
 
         self._fullscreen_vao = GL.glGenVertexArrays(1)
 
@@ -372,6 +384,19 @@ class SceneRenderer:
             GL.glDisable(GL.GL_BLEND)
         GL.glUseProgram(0)
 
+    def draw_solid(
+        self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
+    ) -> None:
+        """A strip in one flat color, blended over the scene: the pointer's chrome."""
+        GL.glUseProgram(self._solid_program)
+        GL.glUniformMatrix4fv(self._solid_view_proj, 1, GL.GL_TRUE, view_proj)
+        GL.glUniform4f(self._solid_color, *color)
+        GL.glEnable(GL.GL_BLEND)
+        GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+        mesh.draw()
+        GL.glDisable(GL.GL_BLEND)
+        GL.glUseProgram(0)
+
     def copy_texture(self, texture: int) -> None:
         """Fill the bound framebuffer's viewport with *texture*, byte-for-byte.
 
@@ -398,4 +423,5 @@ class SceneRenderer:
         GL.glDeleteProgram(self._quad_program)
         GL.glDeleteProgram(self._immersive_program)
         GL.glDeleteProgram(self._copy_program)
+        GL.glDeleteProgram(self._solid_program)
         GL.glDeleteVertexArrays(1, [self._fullscreen_vao])
