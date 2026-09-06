@@ -127,11 +127,12 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   the path. **A branch that changes FunTimeVR gets `--shortcut --vr`**, which
   leaves `Verify <branch> in VR.lnk` and starts the VR orchestrator instead —
   the desktop launcher can only show him a desktop session, so a VR branch
-  handed over without it is a change he cannot see. Then hand him that `.lnk` as a **markdown link to the file itself**,
-  `file:///` prefixed and spaces percent-encoded —
-  `run [Verify my-branch.lnk](file:///C:/Users/<you>/workspace/haglio/fun_time/Verify%20my-branch.lnk)`
-  (the `--shortcut` run prints the real path — paste that, not this shape)
-  — so one click launches it. Linking the folder and naming the file instead
+  handed over without it is a change he cannot see. Then hand him that `.lnk` as a **claunch launch link**
+  (the global CLAUDE.md's launcher law), the path percent-encoded —
+  `[▶ Launch Verify my-branch](http://127.0.0.1:41777/launch?t=a780245a4cdcfcb2a2e3b365&p=C%3A%5CUsers%5C<you>%5Cworkspace%5Chaglio%5Cfun_time%5CVerify%20my-branch.lnk)`
+  (the `--shortcut` run prints the real path — encode that, not this shape)
+  — so one click launches it. A `file:///` link only previews the file in the
+  app's viewer, so it launches nothing (2026-09-06); linking the folder and naming the file
   spends a window, a scroll and a second click of his on nothing; he had to
   correct two agents in a row for it (2026-07-29). **Never hand him a branch to
   choose or a command to run** — picking is your job, not his. Double-clicking it runs a real session on
