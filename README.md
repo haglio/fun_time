@@ -387,7 +387,7 @@ The player keeps running behind it — its lock, loop and playlist are untouched
 
 There is no window of a session you can close on its own. Every player answers the close the dashboard's own window has always answered — by asking Fun Time to quit — so Alt+F4, the taskbar's Close and the system menu all end the session as a whole, behind the closing cover, exactly like the dashboard's Quit button, `Ctrl+Alt+Q` or a spoken "quit". Ctrl+Q on the main player goes the same way.
 
-The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a hole nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Run standalone, outside a session, each player still closes on its own close, because then that is the whole application. See `satellite/session_quit.py` and `genau/session_quit.py`.
+The alternative was worse than it sounds: a player that closed itself left the sequencer's layout with a gap nothing refills, and it was reachable by accident — a Mac keyboard's Cmd+Q arrives as Alt+F4, which took the players out one press at a time while the dashboard and the audio companion carried on. Run standalone, outside a session, each player still closes on its own close, because then that is the whole application. See `satellite/session_quit.py` and `genau/session_quit.py`.
 
 ### F-Mode
 

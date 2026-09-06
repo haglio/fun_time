@@ -1,7 +1,7 @@
 """Nothing ends a satellite on its own — not a key, and not the window's close.
 
 A satellite is one of a set the sequencer placed, so ending one alone leaves the
-session running around a hole nothing refills.  Two roads lead there and both are
+session running around a gap nothing refills.  Two roads lead there and both are
 shut: the loop answers no keyboard event at all (``satellite/app.py`` used to
 have a Ctrl+Q handler and its comment says not to put it back), and the close
 every Windows window has — Alt+F4, the taskbar, the system menu — is asked of the
@@ -67,7 +67,7 @@ def test_the_loop_answers_no_keyboard_event():
     """KEYDOWN or KEYUP here is the handler that was taken out, coming back."""
     assert not _pygame_event_names() & {"KEYDOWN", "KEYUP", "TEXTINPUT"}, (
         "satellite/app.py answers a key again — a key that ends one satellite "
-        "leaves the session running around a hole nothing refills"
+        "leaves the session running around a gap nothing refills"
     )
 
 

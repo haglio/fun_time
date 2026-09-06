@@ -34,7 +34,7 @@ from fun_time.config import DEFAULT_CONFIG_PATH
 
 # test_real_config_launchable is a check on THIS MACHINE's state — the
 # git-ignored real config — not on the code.  Off the machine (CI, public
-# checkouts) there is nothing to validate, and skipping put a permanent hole
+# checkouts) there is nothing to validate, and skipping put a permanent gap
 # in the zero-skips rule; so off the machine the file is not collected at all.
 if not DEFAULT_CONFIG_PATH.is_file():
     collect_ignore = ["test_real_config_launchable.py"]
