@@ -73,11 +73,8 @@ class LibraryHandle:
 def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | None:
     """Which handle *video* is a rendition of, or None for a file not in the library.
 
-    Every version is matched, not only the one a pick plays: the session is as
-    likely to be on a small original as on the upscale that stands for its
-    family, and to a browse those are the same video.  Paths are compared the way
-    the rest of the app compares a playing file to a library one — case-folded,
-    the library sitting on a disk that does not distinguish them.
+    Every version is matched, not only the one a pick plays, and case-folded —
+    the player publishes a path, not the library's own spelling of one.
     """
     key = normalize_path_key(video)
     if not key:

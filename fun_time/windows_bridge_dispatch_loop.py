@@ -664,8 +664,6 @@ class DispatchLoopRunner:
                 self.manifest_path,
                 self.config.python_exe,
                 over=window_rect(nau_hwnd) if nau_hwnd else None,
-                # Opened on the folder the main player is already in — what a
-                # browse is for is usually next to what is up.
                 playing=read_nau_status(self.config.nau_status_file).video,
                 runner=self._run_browser,
             )

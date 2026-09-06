@@ -10,7 +10,6 @@ answers one.
 # --- Called by a framework, not by us ---
 _.do_GET  # http.server dispatches by getattr
 _.paintEvent  # Qt event override
-_.mousePressEvent  # Qt event override
 _.mouseMoveEvent  # Qt event override
 _.optionxform  # ConfigParser hook, set to keep key case
 
