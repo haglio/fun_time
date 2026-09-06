@@ -129,13 +129,14 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return _first_window(matches)
 
 
-def find_window_for_process(pid: int, title: str) -> int:
+def find_window_for_process(pid: int, title: str | None = None) -> int:
     """*pid*'s — or its direct children's — window titled exactly *title*, or 0.
 
     Pid AND title, because a process can own several titled windows (the
     hosted Origenerator: a main window plus a show per satellite region) and a
     title alone can land on another process's window (a standalone
-    Origenerator carries the same captions).  The children matter because a
+    Origenerator carries the same captions).  Without a *title*, any titled
+    window in the tree answers.  The children matter because a
     recorded pid can be a launcher's: a venv's ``Scripts\\python.exe`` spawns
     the interpreter that actually owns the windows as a child and exits the
     lookup empty-handed.  One generation is the launcher pattern; nothing
@@ -154,6 +155,8 @@ def find_window_for_process(pid: int, title: str) -> int:
         length = _user32.GetWindowTextLengthW(hwnd)
         if length <= 0:
             return False
+        if title is None:
+            return True
         # Per window, at its own length; by-title shares one 256.
         buffer = ctypes.create_unicode_buffer(length + 1)
         _user32.GetWindowTextW(hwnd, buffer, length + 1)

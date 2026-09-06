@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import ctypes
 import os
+import subprocess
 import sys
 import threading
 from pathlib import Path
@@ -33,6 +34,7 @@ from fun_time.win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
+from fun_time.windows_bridge_dispatch_loop import keep_a_browse_on_top
 
 pytestmark = [
     pytest.mark.skipif(sys.platform != "win32", reason="paints a real Qt window"),
@@ -262,6 +264,72 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
         covering = [w.hwnd for w in windows_obscuring(stand_in_hwnd, stack)]
         assert browse_hwnd in covering, "the browse did not come up in front"
     finally:
+        if browse_hwnd:
+            close_window(browse_hwnd)
+        browsing.join(timeout=30)
+        stand_in.close()
+
+
+def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
+    tmp_path: Path, cfg_factory,
+):
+    """The lookup and the promotion the OmniPause fix rests on, for real.
+
+    A browse's own process owns no window — the interpreter a session launches
+    is a venv's ``python.exe``, which spawns the one that opens it — so the
+    first fix here looked the window up by the started pid, found nothing, and
+    left the browse buried under the player exactly as before.  Only a real
+    launch has a real process tree to get that wrong against, which is why this
+    lives here.
+
+    The stand-in going topmost is what leaving OmniPause does to the players:
+    ``HWND_TOPMOST`` inserts at the top of the band, over a browse that is not
+    in it.  Re-asserting the browse has to clear it again.
+    """
+    config = load_config(cfg_factory())
+    library = config.paths.nau_library_dirs[0] / "batch_one"
+    library.mkdir(parents=True, exist_ok=True)
+    for name in ("alpha.mp4", "beta.mp4"):
+        (library / name).write_bytes(b"\0" * 2048)
+    manifest = write_windows_bridge_manifest(config)
+
+    stand_in = QWidget(None)
+    stand_in.setWindowTitle(STAND_IN_TITLE)
+    stand_in.setWindowFlag(Qt.WindowType.WindowStaysOnTopHint, True)
+    stand_in.setGeometry(100, 100, 900, 700)
+    stand_in.show()
+    QApplication.instance().processEvents()
+    stand_in_hwnd = int(stand_in.winId())
+
+    # The bridge's own runner shape: it holds the Popen while the browse is up,
+    # and that object is what the promotion is handed.
+    started: list[subprocess.Popen] = []
+
+    def runner(command, **kwargs):
+        process = subprocess.Popen(command, **kwargs)
+        started.append(process)
+        process.wait()
+
+    browsing = threading.Thread(
+        target=lambda: browse_library(
+            manifest, sys.executable, over=(100, 100, 900, 700), runner=runner),
+        daemon=True,
+    )
+    browsing.start()
+    browse_hwnd = 0
+    try:
+        browse_hwnd = wait_for_window_by_title(WINDOW_TITLE, _BROWSE_WINDOW_TIMEOUT_S)
+        assert browse_hwnd, "the browse never opened a window"
+
+        set_always_on_top(stand_in_hwnd, True)
+        covering = [w.hwnd for w in windows_obscuring(browse_hwnd, iter_zorder())]
+        assert covering == [stand_in_hwnd], "the browse should be buried at this point"
+
+        assert keep_a_browse_on_top(started[0]) == browse_hwnd
+
+        assert windows_obscuring(browse_hwnd, iter_zorder()) == []
+    finally:
+        set_always_on_top(stand_in_hwnd, False)
         if browse_hwnd:
             close_window(browse_hwnd)
         browsing.join(timeout=30)

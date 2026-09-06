@@ -1510,12 +1510,14 @@ class TestBrowseLibrary:
 
         with patch.object(runner.windows, "restore_parked"), \
              patch.object(runner.windows, "restore_all_topmost"), \
-             patch("fun_time.windows_bridge_dispatch_loop.find_window_by_pid",
-                   return_value=BROWSE_HWND), \
+             patch("fun_time.windows_bridge_dispatch_loop.find_window_for_process",
+                   return_value=BROWSE_HWND) as lookup, \
              patch("fun_time.windows_bridge_dispatch_loop.set_always_on_top") as on_top:
             runner._dispatch("omnipause_toggle")
 
         assert on_top.call_args_list == [((BROWSE_HWND, True), {})]
+        # The whole process tree, not the started pid: that one owns no window.
+        assert lookup.call_args_list == [((BROWSE_PID,), {})]
 
     def test_nothing_is_promoted_when_no_browse_is_open(self, tmp_path):
         """Including one that has already exited — its window is another

@@ -735,12 +735,10 @@ def bring_the_browse_forward(window: QWidget) -> bool:
 
     Qt's ``activateWindow`` cannot: Windows refuses ``SetForegroundWindow`` to a
     process that neither owns the foreground nor took the last input, and this
-    one is a child the bridge started while the main player held both.  The
-    refusal is silent, so the browse came up behind the player whose rect it
-    opens over, with every arrow and Enter still going to the player.
-    ``force_foreground_window`` attaches the input queues, which is one of the
-    cases the rule accepts — the same answer a lock's tab uses to take back Fun
-    Time's own Chrome window.
+    one is a child the bridge started while the player held both.  Silently, so
+    the browse came up behind the player, with the arrows still going there.
+    ``force_foreground_window`` attaches the input queues, one of the cases the
+    rule accepts — the same answer a lock's tab uses for Fun Time's Chrome.
     """
     return force_foreground_window(int(window.winId()))
 
