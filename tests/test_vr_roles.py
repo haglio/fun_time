@@ -395,7 +395,7 @@ class TestStatus:
         player.position_ms = 1_000.0
         status_file = tmp_path / "nau_status.txt"
 
-        text = "".join(f"{k}={v}\n" for k, v in role.status_fields().items())
+        text = "".join(f"{k}={v}\n" for k, v in role.status_fields(None).items())
         status_file.write_text(text, encoding="utf-8")
         status = read_nau_status(status_file)
 
@@ -410,8 +410,39 @@ class TestStatus:
     def test_resting_is_reported_in_a_quiet_stretch(self, role_parts):
         role, player = role_parts.role, role_parts.player
         player.position_ms = 40_000.0  # far past the last action at 800ms
-        fields = role.status_fields()
+        fields = role.status_fields(None)
         assert fields["funscript_resting"] == "1"
+
+    def test_the_touch_the_panel_chose_is_published_for_the_arbiter(self, role_parts, tmp_path):
+        """Where the console panel drew Genau's turn ending, so the arbiter ends
+        it there and not at a trough of its own choosing."""
+        status_file = tmp_path / "nau_status.txt"
+        fields = role_parts.role.status_fields(3_600)
+        status_file.write_text("".join(f"{k}={v}\n" for k, v in fields.items()), encoding="utf-8")
+
+        assert read_nau_status(status_file).handoff_touch_ms == 3_600
+
+    def test_no_touch_publishes_an_empty_field_rather_than_a_zero(self, role_parts):
+        assert role_parts.role.status_fields(None)["handoff_touch_ms"] == ""
+
+
+class TestWhatTheDriveGateReadsOffIt:
+    """The panel's drive gate reads the role as Nau's reads its session: the
+    script in play and the rate the video runs at."""
+
+    def test_the_script_in_play(self, role_parts):
+        role = role_parts.role
+
+        assert role.current_funscript is not None
+        role.apply_command("NEXT", on_quit=_never_quits)
+        assert role.current_funscript is None
+
+    def test_the_rate_the_video_runs_at(self, role_parts):
+        role = role_parts.role
+
+        role.apply_command("SPEED_UP", on_quit=_never_quits)
+
+        assert role.speed == 1.25
 
 
 class TestWhetherItIsTheDisplay:

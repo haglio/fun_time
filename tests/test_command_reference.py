@@ -425,7 +425,7 @@ def test_genau_row_displays_genau_but_recognizer_uses_go_now():
     assert VOICE_COMMANDS["go now"] == "genau_activate"
     assert "genau" not in VOICE_COMMANDS  # display-only alias, not a recognizer phrase
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
-    assert genau_rows and genau_rows[0].voice == ("genau",)
+    assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
 
 
 def test_genau_mode_row_lists_genau_phrase_and_g_key():
@@ -434,6 +434,7 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert genau_rows, "expected a row for genau_activate"
     row = genau_rows[0]
     assert "genau" in row.voice
+    assert "genau mode" in row.voice
     assert "go now" not in row.voice
     assert any(key.lower() == "g" for key in _keys(row))
 
@@ -478,7 +479,7 @@ def test_video_mode_is_spoken_as_written_of_either_side_or_of_both():
     both_rows = [r for r in _all_rows() if "video_activate" in r.commands]
     assert both_rows and both_rows[0].voice == ("video mode",)
     genau_rows = [r for r in _all_rows() if "genau_activate" in r.commands]
-    assert genau_rows and genau_rows[0].voice == ("genau",)
+    assert genau_rows and genau_rows[0].voice == ("genau", "genau mode")
 
 
 def test_loop_control_row_consolidates_record_and_cancel():

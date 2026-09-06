@@ -50,7 +50,7 @@ from pathlib import Path
 import numpy as np
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
-from player_core.console_hud import ConsolePainter
+from player_core.drive_gate import DriveGate
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.genau_notifier import GenauNotifier
 from player_core.playlist import read_playlist
@@ -75,8 +75,10 @@ from .console_panel import (
     PANEL_AZIMUTH_DEG,
     PANEL_ELEVATION_DEG,
     PANEL_WIDTH_DEG,
+    PANEL_WIDTH_PX,
     paint_panel,
     panel_hud,
+    panel_painter,
 )
 from .furniture import chip_state, scrubber_state
 from .genau_role import GenauRole, run_ticks
@@ -305,10 +307,13 @@ class _MainUnit(_VideoUnit):
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
+        # The panel's forecasts of Genau's publish, and the touch each status carries.
+        self.drive_gate = DriveGate(self.role)
         self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._status_writer = StatusWriter(
-            Path(commands.nau_status_file), lambda role: role.status_fields()
+            Path(commands.nau_status_file),
+            lambda role: role.status_fields(self.drive_gate.handoff_touch()),
         )
         self._volume_painter = VolumeHudPainter()
         self._unhandled: set[str] = set()
@@ -474,12 +479,12 @@ class _PanelUnit:
     def __init__(self, primary: _MainUnit, genau: _GenauUnit) -> None:
         self._primary = primary
         self._genau = genau
-        self._painter = ConsolePainter()
+        self._painter = panel_painter()
         self._chip_painter = VolumeHudPainter()
         self._lock = threading.Lock()
         self._image = None
         self._key = None
-        self._width = 320
+        self._width = PANEL_WIDTH_PX
         self._uploaded = None
         self.texture = FrameTexture()
         self.mesh: ScreenMesh | None = None
@@ -493,6 +498,7 @@ class _PanelUnit:
             video_title=main.current_video.stem,
             clip_title=clip.stem if clip is not None else "",
             loading=genau.loading,
+            drive_gate=self._primary.drive_gate,
         )
         if genau.showing:
             scrubber = None

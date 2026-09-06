@@ -30,3 +30,4 @@ _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
 VR_APP_USER_MODEL_ID  # win32_taskbar; read by fun_time_vr, a scan of its own
+_.current_funscript  # MainRole; player_core's drive gate reads it off the role

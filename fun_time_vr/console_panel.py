@@ -11,7 +11,7 @@ from dataclasses import replace
 
 import numpy as np
 from PIL import Image
-from player_core.console_hud import ConsoleHud, ModeHud
+from player_core.console_hud import ConsoleHud, ConsolePainter, ModeHud
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, chip_xy
 
@@ -23,7 +23,17 @@ PANEL_AZIMUTH_DEG = 0.0
 PANEL_WIDTH_DEG = 24.0
 PANEL_ELEVATION_DEG = 32.0
 
+# Pixels across, held: the screen keeps one size between the modes (the genau
+# rows are narrower) and across titles (a long one is elided) -- its angular
+# width above is fixed, so a bitmap that changed width would rescale it all.
+PANEL_WIDTH_PX = 280
+
 _ROW_GAP = 6
+
+
+def panel_painter() -> ConsolePainter:
+    """The desktop's console painter, held to the panel's one width."""
+    return ConsolePainter(width=PANEL_WIDTH_PX)
 
 
 def panel_hud(
@@ -32,14 +42,22 @@ def panel_hud(
     video_title: str,
     clip_title: str,
     loading: str | None,
+    drive_gate,
 ) -> ConsoleHud:
-    """The engine's console with its top line re-said for the mode: the video's
-    name under a video, the clip's (or the one still decoding) in genau mode.
-    With no engine console (the broker has the room) the panel still names
-    what is playing."""
+    """The engine's console re-said for the mode: the video's name on top and
+    the funscript folded into the readout by *drive_gate*
+    (:class:`player_core.drive_gate.DriveGate`) under a video, as the desktop's
+    video-mode console draws it; the clip's name (or the one still decoding)
+    over Genau's own stroke in genau mode, where the gate is told nothing was
+    published, the video waiting paused while the wave moves on.  With no
+    engine console (the broker has the room) the panel still names what plays."""
     hud = engine_hud if engine_hud is not None else ConsoleHud()
-    title = video_title if nau_displays(hud.console.mode) else (loading or clip_title)
-    return replace(hud, modes=ModeHud(video=title))
+    if nau_displays(hud.console.mode):
+        title, drive = video_title, drive_gate.readout(hud.drive)
+    else:
+        drive_gate.readout(None)
+        title, drive = loading or clip_title, hud.drive
+    return replace(hud, modes=ModeHud(video=title), drive=drive)
 
 
 def _rgba(bgra: np.ndarray) -> Image.Image:
@@ -55,14 +73,14 @@ def paint_panel(
     chip_painter,
 ) -> Image.Image:
     """The console with the furniture row under it: the scrubber, given
-    ``(position_ms, duration_ms)`` (None for a clip, which loops), and the chip
-    at its right end where every desktop player puts it."""
+    ``(position_ms, duration_ms)`` (None for a clip, which loops -- the row
+    keeps its height, so the panel keeps its size), and the chip at its right
+    end where every desktop player puts it."""
     console_rgba, console_size = painter.rgba(hud)
     console = Image.frombytes("RGBA", console_size, console_rgba)
     chip_image = _rgba(chip_painter.bgra(chip))
     width = console.width
-    timeline_h = TIMELINE_HEIGHT if scrubber is not None else 0
-    row_h = max(timeline_h, chip_image.height)
+    row_h = max(TIMELINE_HEIGHT, chip_image.height)
     height = console.height + _ROW_GAP + row_h
     panel = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     panel.alpha_composite(console, (0, 0))
@@ -71,6 +89,6 @@ def paint_panel(
         position_ms, duration_ms = scrubber
         bar = _rgba(progress_bar_bgra(position_ms, duration_ms, None, width))
         panel.alpha_composite(bar, (0, height - bar.height))
-    x, y = chip_xy(win_w=width, win_h=height, timeline_h=timeline_h)
+    x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
     panel.alpha_composite(chip_image, (max(0, x), max(row_top, y)))
     return panel
