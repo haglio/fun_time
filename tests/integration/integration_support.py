@@ -126,7 +126,7 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
     is python.exe too.  The command line is what tells them apart: only the
     hosted app was launched ``-m origenerator``, and a leftover one owns real
     windows on this desktop that can sit over a later session's players (a
-    hung boot's splash covered a satellite for a whole test run).  One WMI
+    stalled boot's splash covered a satellite for a whole test run).  One WMI
     query answers for all candidate pids at once.
     """
     candidates = sorted(set(window_pids))

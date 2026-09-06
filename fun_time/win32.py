@@ -185,7 +185,7 @@ def wait_for_window_by_title(
 # only ever spent on one that has stopped — and it is spent once per call, so a
 # whole startup pass over the session's windows cannot cost more than a few
 # seconds.
-HUNG_WINDOW_TIMEOUT_S = 1.5
+STALLED_WINDOW_TIMEOUT_S = 1.5
 
 
 def _owned_by_this_process(hwnd: int) -> bool:
@@ -197,7 +197,7 @@ def _owned_by_this_process(hwnd: int) -> bool:
 
 def _without_hanging(call, hwnd, *args, what: str) -> bool:
     """Make a cross-process window call, and give up on a window that has stopped
-    answering.  True if the call returned, False if that window is hung.
+    answering.  True if the call returned, False if that window has stalled.
 
     ``SetWindowPos`` and ``ShowWindow`` do not merely set state: each SENDS
     messages to the thread that owns the window and waits for it to handle them,
@@ -207,13 +207,13 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     holds every rule below.
 
     So the call is made on a throwaway thread and waited on for
-    HUNG_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
+    STALLED_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
     changes — including the ORDER the caller makes these calls in, which is what
     stacks Genau's HUD above Nau's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
     named in the log and left where it is.  Its worker stays blocked in the
     kernel until that window's owner recovers or dies: one leaked thread per
-    call to a hung window, against a wedged session.
+    call to a stalled window, against a wedged session.
 
     Our OWN windows are called straight, and must be: the send would go to this
     process's UI thread, which is the very thread waiting here.  See
@@ -232,11 +232,11 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
             done.set()
 
     threading.Thread(target=run, daemon=True, name=f"win32-{what}").start()
-    if done.wait(HUNG_WINDOW_TIMEOUT_S):
+    if done.wait(STALLED_WINDOW_TIMEOUT_S):
         return True
     logger.warning(
         "%s did not return in %.1fs — that window has stopped answering; "
-        "carrying on without it", what, HUNG_WINDOW_TIMEOUT_S,
+        "carrying on without it", what, STALLED_WINDOW_TIMEOUT_S,
     )
     return False
 

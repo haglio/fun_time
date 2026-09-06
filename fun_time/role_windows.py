@@ -369,7 +369,7 @@ class WindowRoles:
 
         Judged from the WINDOW, not from a memory of what was asked: the app's
         main thread blocks for long stretches while it boots, so a restore sent
-        to it can time out through the hung-window guard and do nothing — and a
+        to it can time out through the stalled-window guard and do nothing — and a
         converger that then remembered "shown" never tried again, which left a
         resumed session's window parked until the user dug it out of the
         taskbar.  Reading the minimized state each pass makes every miss retry.

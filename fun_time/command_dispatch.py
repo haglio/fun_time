@@ -1178,7 +1178,7 @@ def _satellites_slot_ops(satellites_mode: str) -> list[WindowOp]:
     Entering origenerator mode restores its main window over the RFB and
     promotes the trio above the fixed roles (``restack_satellites``).  Leaving
     parks the main window; the shows close themselves on the ``CLOSE_SHOWS``
-    verb the switch queues, with the hide ops as the backstop for a hung app.
+    verb the switch queues, with the hide ops as the backstop for a stalled app.
     The RFB and the players underneath never move — being covered is not being
     hidden, and uncovering them is nothing but the cover leaving.
     """

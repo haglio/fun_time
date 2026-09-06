@@ -103,7 +103,7 @@ class TestFixPostLoadingWindows:
     def test_a_buried_satellite_is_re_promoted_until_frontmost(self):
         """The banding waits on each window's own thread, and the satellites
         are at their busiest exactly at the reveal — a promotion that times
-        out through the hung-window guard leaves the player under whatever
+        out through the stalled-window guard leaves the player under whatever
         the user had on that monitor (a maximized Chrome sat over the
         landscape player until the next full re-band).  The pass now walks
         the real z-order afterwards and re-promotes whoever is still buried."""

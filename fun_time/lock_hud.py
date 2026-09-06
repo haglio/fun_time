@@ -263,7 +263,7 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
     """Which axis of *anchor*'s map the live clip sits on — "seed", "action", or ""
     once it is on none of them.
 
-    This is what decides that a map hung on *anchor* goes on hanging there: while the
+    This is what decides that a map hanging on *anchor* stays there: while the
     clip on screen is somewhere on that map there is a cell to light, so nothing has
     to move.  It is how ending a loop leaves the map alone — the clip the loop was
     playing is still one of its cells — and how the map re-homes anyway once the

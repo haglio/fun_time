@@ -947,7 +947,7 @@ def _run_startup_phases(
 
 # How long a session resumed into origenerator mode holds the overlay for the
 # hosted app's window.  Its boot runs ComfyUI and the library passes, so it is
-# the slowest child by far; bounded so a hung boot cannot wedge startup — the
+# the slowest child by far; bounded so a stalled boot cannot wedge startup — the
 # reveal proceeds and the dispatch loop's converger adopts the window later.
 ORIGENERATOR_BOOT_TIMEOUT_S = 60.0
 
