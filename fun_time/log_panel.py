@@ -381,7 +381,7 @@ class LogPanelWidget(QWidget):
 
         # MouseMove comes from the viewport; Leave has to come from the list
         # itself, because moving the cursor onto the button — a child of the
-        # viewport — is already a Leave for the viewport, which would snatch the
+        # viewport — is already a Leave for the viewport, which would grab the
         # button away the instant it was aimed at.
         viewport.setMouseTracking(True)
         viewport.installEventFilter(self)
