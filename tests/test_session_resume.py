@@ -353,7 +353,7 @@ class TestPlaylistOpensOn:
 
 
 class TestPlaylistFitsSources:
-    """Telling a playlist this session built from one another app stranded.
+    """Telling a playlist this session built from one that another app stranded.
 
     FunTimeVR shares this state dir and writes the main player's playlist to the
     same file, built from the VR library merged with the desktop's — so the

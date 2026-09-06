@@ -120,7 +120,6 @@ def test_the_integration_support_modules_import_where_ctypes_has_no_windll():
     assert result.returncode == 0, result.stderr
 
 
-
 def test_our_own_rect_carries_win32s_own_memory_layout():
     """The four field NAMES are ours; the memory they sit in is Win32's.
 

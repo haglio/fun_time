@@ -369,7 +369,7 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
 
     *f_mode* is the session's, not off: the satellites' playlists came back
     built under it, and one player quietly holding the whole library while the
-    HUDs say F-mode is what this rebuild would otherwise leave.
+    HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
     write_nau_playlist_file(
         playlist_file, build_main_playlist_paths(main_sources, f_mode, recent=recent))

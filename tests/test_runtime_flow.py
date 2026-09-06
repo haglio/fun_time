@@ -475,7 +475,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
 
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
     landscape = "\n".join(_satellite_lines(tmp_path / "state", "landscape"))
-    assert p_clip in portrait and "pk.mp4" not in portrait
+    assert p_clip in portrait and "pt.mp4" not in portrait
     assert l_twirl in landscape and "lc.mp4" not in landscape
 
 
@@ -522,7 +522,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     assert _reloaded(portrait_cmd_file)
     assert not landscape_cmd_file.exists()
     portrait = "\n".join(_satellite_lines(tmp_path / "state", "portrait"))
-    assert p_clip in portrait and "pk.mp4" not in portrait
+    assert p_clip in portrait and "pt.mp4" not in portrait
 
 
 def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path: Path):
@@ -593,7 +593,7 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
     )
 
     assert clip in paths
-    assert not any("pk.mp4" in p for p in paths)
+    assert not any("pt.mp4" in p for p in paths)
 
 
 def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
