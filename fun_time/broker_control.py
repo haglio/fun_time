@@ -17,7 +17,7 @@ from pathlib import Path
 # later (``L00000I500``: position 0 over half a second) and mutes the script
 # feed meanwhile, so an in-flight tail cannot immediately undo it.
 PARK_CMD = "PARK"
-# Park's antonym: send the OSR2 to the far end of its stroke instead of home,
+# Park's antonym: send the OSR2 to the far end of its travel instead of home,
 # which is how a relief omnipause gets the device off the user.  Fires the same
 # way, under the same mute — only the position it lands on differs.
 RETRACT_CMD = "RETRACT"

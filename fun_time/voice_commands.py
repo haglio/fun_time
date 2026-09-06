@@ -108,7 +108,7 @@ def build_voice_commands(
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
         # Stopping the device alone, at either end of its axis, and back off
-        # that hold onto the stroke it took away (see fun_time.robot_hand_hold).
+        # that hold onto the motion it took away (see fun_time.robot_hand_hold).
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
         "retract": "robot_hand_retract",
@@ -190,7 +190,7 @@ def build_voice_commands(
         # the content overlay and are merged in below rather than written here.
         # Nothing in these words names an engine, so they follow whichever
         # holds the OSR2: the video's rate while a funscript is driving it
-        # (the script scales with the clock), else Genau's stroke.
+        # (the script scales with the clock), else Genau's motion.
         "slow down": "speed_down",
         "speed down": "speed_down",
         "speed up": "speed_up",
@@ -521,7 +521,7 @@ def build_voice_commands(
     commands["reset speed"] = "nau_speed_100"
 
     # "min speed"/"max speed" drive whichever engine currently owns the OSR2 (Nau's
-    # video or Genau's strokes); the amp/center extremes above stay Genau-only.
+    # video or Genau's motion); the amp/center extremes above stay Genau-only.
     commands["min speed"] = "speed_min"
     commands["max speed"] = "speed_max"
 

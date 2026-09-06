@@ -210,12 +210,12 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Center up / down", ("O", "U"), ("robot_hand_center_up", "robot_hand_center_down")),
             _Row("Set center", (), (), ("min center", "max center", "center 0–100")),
             # Neither the keys nor the words name an engine, so in video mode they
-            # follow the OSR2's driver — a held hand has no stroke to nudge, so
+            # follow the OSR2's driver — a held hand has no motion to nudge, so
             # under a park or retract they reach the video; the console's own ±
             # marks, which sit on one readout or the other, stay with the engine
             # they sit on.
             _Row(
-                "Speed up / down — the stroke's rate, or the video's playback "
+                "Speed up / down — the motion's rate, or the video's playback "
                 "rate while a funscript is driving the OSR2 (the script scales "
                 "with it)",
                 ("L", "J"),
@@ -224,9 +224,9 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Set speed", (), (), ("speed 0–100",)),
             _Row("Previous waveform shape", (), ("robot_hand_cycle_shape_prev",)),
             _Row("Next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
-            _Row("Enable / disable cruise control (varies the stroke)", ("C",), ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
+            _Row("Enable / disable cruise control (varies the motion)", ("C",), ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
             _Row(
-                "Hold the stroke still — cruise off, no amplitude, and the "
+                "Hold the motion still — cruise off, no amplitude, and the "
                 "center at one end: park settles the OSR2 home, retract sends "
                 "it to the far end, away from you.  Unlike OmniPause the room "
                 "plays on",
@@ -234,13 +234,13 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("robot_hand_park", "robot_hand_retract"),
             ),
             _Row(
-                "Off the hold — put the stroke back to whatever it was doing "
+                "Off the hold — put the motion back to whatever it was doing "
                 "before the park or retract, cruise included.  Any of the three "
                 "words undoes either hold",
                 (),
                 ("robot_hand_release",),
             ),
-            _Row("Offset the stroke ¼ cycle", ("\\",), ("quarter_button",)),
+            _Row("Offset the motion a ¼ cycle", ("\\",), ("quarter_button",)),
         ),
     ),
     _Section(
@@ -298,7 +298,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             # Named for the playback, so it reaches the video whoever holds the
             # OSR2 — the way to nudge the rate through a Robot Hand stretch in
-            # video mode, where the bare "speed up" goes to the stroke instead.
+            # video mode, where the bare "speed up" goes to the motion instead.
             _Row(
                 "Nudge the video's playback rate up / down",
                 (),

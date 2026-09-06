@@ -150,7 +150,7 @@ class TestVoiceCommands:
 
     def test_the_holds_stop_the_device_without_pausing_the_room(self):
         """"stop" beside them is relief OmniPause — it freezes everything.  These
-        are the narrow gesture: the stroke stills at one end of its axis or the
+        are the narrow gesture: the motion stills at one end of its axis or the
         other, the room plays on, and one release undoes either hold.
 
         "retract" was a second single-word spelling of relief and is reassigned

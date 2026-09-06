@@ -32,9 +32,9 @@ Four changes were made to the existing file-polling design:
 2. **Startup mode file override** — After the broker resets
    `genau_mode.txt` to "0", overwrite it with "1" from the
    orchestrator so the dispatch loop stays consistent.
-3. **BPM/stroke auto-mode inference** — The OSR2 doesn't re-announce
+3. **BPM/motion auto-mode inference** — The OSR2 doesn't re-announce
    "Auto mode is on!" if it was already on before MFP started. But it
-   does send BPM and stroke pattern messages (exclusive to auto mode).
+   does send BPM and motion pattern messages (exclusive to auto mode).
    Added inference in `handle_line` to detect these and call
    `set_auto(True)`.
 4. **Initial dispatch loop state** — Pass `initial_genau_mode=True`
@@ -65,7 +65,7 @@ Designed and implemented a clean rewrite with 7 commits:
    `mode_state_on` as parameter instead of reading file
 4. **Remove dispatch-side Genau show/hide** — Let Genau app
    be sole visibility controller
-5. **Fix stale timeout** — Use BPM/stroke evidence time
+5. **Fix stale timeout** — Use BPM/motion evidence time
 6. **`ensure_playback_state` only on transitions** — Stop 200ms polling
 7. **Orchestrator wiring** — UDP receiver, shutdown persistence, startup
 
@@ -94,7 +94,7 @@ UDP bind failure only manifests on the real Windows runtime.
 ### Hardware constraint (confirmed)
 The OSR2 only sends "Auto mode is on!" when it **transitions** to auto
 mode while receiving T-code. If auto mode was already on before MFP
-started, no transition message is sent. **However**, BPM and stroke
+started, no transition message is sent. **However**, BPM and motion
 pattern messages ARE sent during auto mode and are exclusive to it.
 This inference works — broker logs confirm `AUTO ON` within 4 seconds
 of startup.
@@ -104,7 +104,7 @@ When auto mode is active, T-code from MFP is blocked (by design).
 The OSR2's auto patterns eventually stop sending data. After
 `auto_stale_timeout` seconds of silence, the broker kills auto mode.
 In logs, auto mode lasted ~50 seconds before stale timeout fired.
-BPM/stroke evidence time can prevent this.
+BPM/motion evidence time can prevent this.
 
 ### Dual visibility controllers race
 The dispatch loop uses win32 `find_window_by_title("Genau")` +
@@ -170,7 +170,7 @@ All changes from both passes have been reverted. The codebase is clean
 at commit `9f514e4` (revert commit) which is functionally identical to
 `562e007` (the pre-attempt state).
 
-The BPM/stroke inference code is **not** in the codebase (reverted) but
+The BPM/motion inference code is **not** in the codebase (reverted) but
 is preserved in git history on the `robot-hand-mode-rewrite` branch
 commits. The inference logic itself is correct and should be reused.
 

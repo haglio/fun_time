@@ -342,7 +342,7 @@ def seed_startup_states(
     # Every player waits for the reveal: a live switch's flags would start its
     # player the moment they landed, and here that is twenty seconds of the OSR2
     # moving behind a progress bar.  The flag does not hold the Robot Hand,
-    # whose stroke follows the PAUSE/RESUME verbs on Genau's channel and never
+    # whose motion follows the PAUSE/RESUME verbs on Genau's channel and never
     # reads the paused flag at all — which is why the PAUSE above is written
     # whole and no RESUME follows it.
     for path in (genau_paused_file, audio_paused_file, nau_paused_file):

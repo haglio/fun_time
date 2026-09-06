@@ -32,7 +32,7 @@ from fun_time.shared_state import BridgeState
 
 
 def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
-    """A Robot Hand readout as Genau publishes it, with the stroke at *amplitude*."""
+    """A Robot Hand readout as Genau publishes it, with the motion at *amplitude*."""
     scalars = {"speed": 50, "amplitude": amplitude, "center": 50, "position": 50,
                "advance_interval": 0}
     flags = ("spd_at_max", "spd_at_min", "amp_at_max", "amp_at_min",
@@ -2251,7 +2251,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert ops == []
 
 
-def test_the_stroke_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
+def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
     """The hand is behind the screen in both modes — driving outright in genau
     mode, filling the funscript's gaps in video mode — so its own rate keys
     never land on Nau's video rate."""
@@ -2276,9 +2276,9 @@ def _set_nau_driving(config, *, driving: bool) -> None:
     )
 
 
-def test_the_stroke_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
+def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     """The console's ± marks sit on one readout or the other, so each must move
-    the engine it sits on: Genau's pair stayed on the stroke even mid-funscript,
+    the engine it sits on: Genau's pair stayed on the motion even mid-funscript,
     from when one shared pair made pressing Genau's − move the playback rate
     across the panel instead."""
     config = _make_config(tmp_path)
@@ -2307,7 +2307,7 @@ def test_the_bare_nudge_routes_to_nau_in_hybrid_while_the_funscript_drives(tmp_p
 
 def test_the_bare_nudge_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
     # Video mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
-    # OSR2, so the bare nudge tunes Genau's stroke rate.
+    # OSR2, so the bare nudge tunes Genau's motion rate.
     config = _make_config(tmp_path)
     _set_nau_driving(config, driving=False)
     state = _make_state(main_mode="video")
@@ -2319,7 +2319,7 @@ def test_the_bare_nudge_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: P
 
 
 def test_the_bare_nudge_reaches_the_video_while_the_hand_is_held(tmp_path: Path):
-    """A parked or retracted hand has no stroke to speed up, so the nudge that
+    """A parked or retracted hand has no motion to speed up, so the nudge that
     follows the OSR2's driver reaches the video instead."""
     config = _make_config(tmp_path)
     _publish_drive(config, amplitude=0)
@@ -2331,7 +2331,7 @@ def test_the_bare_nudge_reaches_the_video_while_the_hand_is_held(tmp_path: Path)
 
 
 def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: Path):
-    """Nothing to arbitrate in genau mode: only the stroke's rate is running."""
+    """Nothing to arbitrate in genau mode: only the motion's rate is running."""
     config = _make_config(tmp_path / "genau")
     dispatch_command("speed_up", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
@@ -2356,7 +2356,7 @@ def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
 
 def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path: Path):
     """The console's playback-rate arrows, and spoken "playback speed up".  They
-    tune Nau's video — never the stroke — so they reach Nau in video mode and
+    tune Nau's video — never the motion — so they reach Nau in video mode and
     are a no-op in genau, where Nau is off screen and its clips have no such
     rate."""
     config = _make_config(tmp_path / "video")
@@ -2371,7 +2371,7 @@ def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path:
 
 
 def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_path: Path):
-    """Video mode, unscripted stretch: the bare nudge goes to the stroke, so naming
+    """Video mode, unscripted stretch: the bare nudge goes to the motion, so naming
     the playback is the only way to move the video's rate — and it has to land
     there rather than follow whichever engine happens to be driving."""
     config = _make_config(tmp_path)

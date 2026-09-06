@@ -182,9 +182,9 @@ class TestTheFrameHandedToTheRenderThread:
 
         assert genau.role.take_frame() is None
 
-    def test_the_stroke_scrubs_the_clip(self, tmp_path):
+    def test_the_motion_scrubs_the_clip(self, tmp_path):
         """The frame is the picture of where the device is: with the hand
-        driving, ticks that move the stroke hand over different frames."""
+        driving, ticks that move the motion hand over different frames."""
         genau = Genau(tmp_path)
         genau.send("RESUME")
         shown = set()

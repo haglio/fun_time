@@ -45,7 +45,7 @@ from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
 from .robot_hand_hold import (
     HOLD_CENTERS,
-    StrokeDials,
+    MotionDials,
     dials_text,
     held,
     hold_commands,
@@ -107,7 +107,7 @@ _GENAU_CMD_MAP = {
     "robot_hand_center_up": "CENTER_UP",
     "robot_hand_cycle_shape": "CYCLE_SHAPE",
     "robot_hand_cycle_shape_prev": "CYCLE_SHAPE_PREV",
-    # Cruise varies the stroke, never which clip plays — moving on from a clip is
+    # Cruise varies the motion, never which clip plays — moving on from a clip is
     # what an unlocked Genau does by itself, at the pace below.
     "robot_hand_toggle_cruise": "TOGGLE_CRUISE",
     "robot_hand_cruise_on": "CRUISE_ON",
@@ -120,7 +120,7 @@ _GENAU_CMD_MAP = {
     "genau_weird_clip": "WEIRD",
     "genau_prev_clip": "PREV",
     "genau_next_clip": "NEXT",
-    # The stroke's rate as the console's own ± marks beside the wave send it —
+    # The motion's rate as the console's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
     "robot_hand_speed_down": "SPEED_DOWN",
     "robot_hand_speed_up": "SPEED_UP",
@@ -135,7 +135,7 @@ _SPEED_BY_DRIVER = {
     "speed_down": "SPEED_DOWN",
     "speed_up": "SPEED_UP",
 }
-# The video's own playback rate, as opposed to the stroke's — always Nau's.
+# The video's own playback rate, as opposed to the motion's — always Nau's.
 _SPEED_NAU_RELATIVE = {
     "nau_speed_down": "SPEED_DOWN",
     "nau_speed_up": "SPEED_UP",
@@ -170,7 +170,7 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
     while the unqualified nudge follows the OSR2: Nau's funscript while it is
     driving, else the Robot Hand.  The hand is paused for the whole of a
     scripted stretch, so a nudge sent there then reaches an engine that cannot
-    move — and a hand held still (parked or retracted) has no stroke to speed
+    move — and a hand held still (parked or retracted) has no motion to speed
     up either, so under a hold the nudge reaches the video as well.
     """
     if not nau_displays(state.main_mode):
@@ -179,7 +179,7 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
         return "nau"
     if read_nau_status(config.nau_status_file).funscript_driving:
         return "nau"
-    dials = _read_stroke_dials(config)
+    dials = _read_motion_dials(config)
     if dials is not None and held(dials):
         return "nau"
     return "genau"
@@ -1334,11 +1334,11 @@ def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _read_stroke_dials(config: BridgeConfig) -> StrokeDials | None:
+def _read_motion_dials(config: BridgeConfig) -> MotionDials | None:
     drive = read_drive(config.genau_drive_file)  # whole, or None: never partial
     if drive is None:
         return None
-    return StrokeDials(
+    return MotionDials(
         cruise=read_genau_status(genau_status_path(config.state_dir)).cruise_active,
         speed=drive.speed,
         amplitude=drive.amplitude,
@@ -1346,7 +1346,7 @@ def _read_stroke_dials(config: BridgeConfig) -> StrokeDials | None:
     )
 
 
-def _read_held_dials(config: BridgeConfig) -> StrokeDials | None:
+def _read_held_dials(config: BridgeConfig) -> MotionDials | None:
     try:
         return parse_dials(config.robot_hand_hold_file.read_text(encoding="utf-8"))
     except OSError:
@@ -1355,9 +1355,9 @@ def _read_held_dials(config: BridgeConfig) -> StrokeDials | None:
 
 def _robot_hand_hold(command: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """park / retract: record the stroke (only if nothing is), then still it."""
+    """park / retract: record the motion (only if nothing is), then still it."""
     if _read_held_dials(config) is None:
-        dials = _read_stroke_dials(config)
+        dials = _read_motion_dials(config)
         if dials is not None:
             config.robot_hand_hold_file.parent.mkdir(parents=True, exist_ok=True)
             config.robot_hand_hold_file.write_text(dials_text(dials), encoding="utf-8")

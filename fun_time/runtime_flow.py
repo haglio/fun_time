@@ -404,7 +404,7 @@ def apply_enter_omnipause(
     """Freeze the whole session, and send the OSR2 somewhere safe.
 
     ``relief`` picks which somewhere: home by default, or — for the sensation
-    emergency Shift+Esc raises — the far end of the stroke, away from the user.
+    emergency Shift+Esc raises — the far end of the travel, away from the user.
     Nothing else about the freeze differs between the two.
     """
     plan = build_omnipause_plan(

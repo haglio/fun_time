@@ -453,7 +453,7 @@ def test_section_titles_run_global_robot_hand_genau_nau_satellites():
 
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
-    """The backslash offsets the Robot Hand's stroke in either mode — it used to
+    """The backslash offsets the Robot Hand's motion in either mode — it used to
     open Nau's library browser in video mode, and that browser now has the key
     the retired mode had."""
     sections = build_reference_sections()

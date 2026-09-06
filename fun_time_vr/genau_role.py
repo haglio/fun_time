@@ -43,7 +43,7 @@ from .projection import default_projection
 
 logger = logging.getLogger(__name__)
 
-# The desktop window's rate: a slower tick shows fewer of the clip's frames per stroke.
+# The desktop window's rate: a slower tick shows fewer of the clip's frames per cycle.
 TICK_HZ = 120.0
 
 

@@ -22,7 +22,7 @@ A previous agent attempted to build this feature and failed. This document captu
 - `broker_heartbeat.txt` is written every 0.5s **unconditionally** (even if the OSR2 is off). Heartbeat freshness tells you the broker process is alive, NOT that the device is on.
 - `forward_real_to_virtual`: reads data FROM the OSR2 (COM4) and writes to the virtual port.
 - `forward_virtual_to_real`: reads data FROM the virtual port (MFP TCode commands) and writes to the OSR2. This path is **skipped** when `auto_mode.is_active` is True.
-- `BrokerAutoController.handle_line()` parses lines from the OSR2 looking for "tcode task started", "is on", BPM data, stroke data. These set `auto_mode.is_active`.
+- `BrokerAutoController.handle_line()` parses lines from the OSR2 looking for "tcode task started", "is on", BPM data, motion data. These set `auto_mode.is_active`.
 
 ## What data actually flows (verified from broker.log and genau_listener.log)
 
