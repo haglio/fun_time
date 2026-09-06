@@ -93,7 +93,7 @@ class TestTheRememberedLayout:
         assert "basement" not in layout
 
     def test_a_remembered_placement_is_held_within_the_scene(self, tmp_path):
-        """A hand-edited file cannot hang a screen behind the viewer, at the
+        """A hand-edited file cannot hang a screen at the viewer's back, at the
         zenith, or too small to grab."""
         path = tmp_path / "vr_layout.json"
         path.write_text(json.dumps({

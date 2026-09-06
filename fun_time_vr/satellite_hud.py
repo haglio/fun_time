@@ -1,4 +1,4 @@
-"""A satellite's lock HUD in the headset: hung under its picture, pressed by the controller."""
+"""A satellite's lock HUD in the headset: hanging under its picture, pressed by the controller."""
 from __future__ import annotations
 
 import threading

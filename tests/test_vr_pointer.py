@@ -74,8 +74,8 @@ class TestTheCylinderEveryScreenHangsOn:
         assert cylinder_hit(Ray((0.3, 0.2, 0.1), (0.0, 1.0, 0.0))) is None
 
     def test_from_inside_the_cylinder_the_far_wall_is_what_is_hit_whatever_the_direction(self):
-        behind = cylinder_hit(Ray((0.0, 0.0, 0.0), (0.0, 0.0, 1.0)))
-        assert abs(behind.azimuth_deg) == pytest.approx(180.0)
+        backward = cylinder_hit(Ray((0.0, 0.0, 0.0), (0.0, 0.0, 1.0)))
+        assert abs(backward.azimuth_deg) == pytest.approx(180.0)
 
         leftward = cylinder_hit(Ray((0.0, 0.0, 0.0), (-1.0, 0.0, 0.0)))
         assert leftward.azimuth_deg == pytest.approx(-90.0)
@@ -103,12 +103,12 @@ class TestWhereOnAScreenAPointLands:
         assert left[0] == pytest.approx(0.0)
         assert right[0] == pytest.approx(1.0)
 
-    def test_v_runs_bottom_to_top_over_the_arc_height_the_mesh_uses(self):
+    def test_v_runs_low_to_high_over_the_arc_height_the_mesh_uses(self):
         verts = surface_vertices(_A_SCREEN, aspect=16 / 9)
-        top, bottom = verts[:, 1].max(), verts[:, 1].min()
+        upper, lower = verts[:, 1].max(), verts[:, 1].min()
 
-        assert screen_uv(_on_the_cylinder(38.0, top), _A_SCREEN, aspect=16 / 9)[1] == pytest.approx(1.0)
-        assert screen_uv(_on_the_cylinder(38.0, bottom), _A_SCREEN, aspect=16 / 9)[1] == pytest.approx(0.0)
+        assert screen_uv(_on_the_cylinder(38.0, upper), _A_SCREEN, aspect=16 / 9)[1] == pytest.approx(1.0)
+        assert screen_uv(_on_the_cylinder(38.0, lower), _A_SCREEN, aspect=16 / 9)[1] == pytest.approx(0.0)
 
     def test_past_the_edges_the_answer_keeps_going_rather_than_stopping(self):
         u, v = screen_uv(_on_the_cylinder(38.0 + 28.0, -5.0), _A_SCREEN, aspect=16 / 9)
@@ -116,10 +116,10 @@ class TestWhereOnAScreenAPointLands:
         assert u == pytest.approx(1.5)
         assert v < 0
 
-    def test_a_screen_hung_across_the_seam_behind_the_viewer_still_reads_whole(self):
-        behind = Placement(azimuth_deg=170.0, elevation_deg=0.0, width_deg=40.0)
+    def test_a_screen_hanging_across_the_seam_still_reads_whole(self):
+        across_the_seam = Placement(azimuth_deg=170.0, elevation_deg=0.0, width_deg=40.0)
 
-        u, _v = screen_uv(_on_the_cylinder(-175.0, 0.0), behind, aspect=1.0)
+        u, _v = screen_uv(_on_the_cylinder(-175.0, 0.0), across_the_seam, aspect=1.0)
 
         assert u == pytest.approx(0.875)
 
@@ -163,7 +163,7 @@ class TestTheRayInTheScene:
 
 
 class TestTheHandles:
-    """A screen's chrome: a bar to move it by, hung just above its top edge so
+    """A screen's chrome: a bar to move it by, hanging just above its top edge so
     it takes nothing from the picture, and two corner squares to resize it by."""
 
     _ASPECT = 16 / 9
@@ -182,7 +182,7 @@ class TestTheHandles:
         assert self._at(0.0, 1.0 + self._DV / 2) == MOVE
         assert self._at(0.5, 1.0 + self._DV * 1.5) is None
 
-    def test_the_bottom_corners_resize_it(self):
+    def test_the_lower_corners_resize_it(self):
         assert self._at(1.0 - self._DU / 4, self._DV / 4) == RESIZE
         assert self._at(1.0 + self._DU / 4, -self._DV / 4) == RESIZE
         assert self._at(-self._DU / 4, -self._DV / 4) == RESIZE
@@ -240,14 +240,14 @@ class TestAGrab:
         assert flung.azimuth_deg == -AZIMUTH_LIMIT_DEG
         assert flung.elevation_deg == ELEVATION_LIMIT_DEG
 
-    def test_a_move_across_the_seam_behind_the_viewer_takes_the_short_way(self):
-        behind = Placement(azimuth_deg=140.0, elevation_deg=0.0, width_deg=20.0)
-        grab = Grab(MOVE, behind, start=_on_the_cylinder(175.0, 0.0))
+    def test_a_move_across_the_seam_takes_the_short_way(self):
+        across_the_seam = Placement(azimuth_deg=140.0, elevation_deg=0.0, width_deg=20.0)
+        grab = Grab(MOVE, across_the_seam, start=_on_the_cylinder(175.0, 0.0))
 
         assert grab.dragged_to(_on_the_cylinder(-175.0, 0.0)).azimuth_deg == pytest.approx(150.0)
 
     def _corner(self, placement: Placement) -> SurfacePoint:
-        """The bottom-right corner of *placement*, where a resize is grabbed."""
+        """The lower-right corner of *placement*, where a resize is grabbed."""
         half_arc = placement.width_deg / 2
         half_height = RADIUS * math.radians(placement.width_deg) / self._ASPECT / 2
         return _on_the_cylinder(placement.azimuth_deg + half_arc, _lift(placement) - half_height)
@@ -510,7 +510,7 @@ class TestWhatIsDrawnForThePointer:
         assert bar[:, 1].max() - bar[:, 1].min() == pytest.approx(
             RADIUS * math.radians(HANDLE_DEG), abs=1e-6)
 
-    def test_the_corner_squares_straddle_the_bottom_corners(self):
+    def test_the_corner_squares_straddle_the_lower_corners(self):
         strips = handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=True)
         screen = surface_vertices(_A_SCREEN, aspect=16 / 9)
 

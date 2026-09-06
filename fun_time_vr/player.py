@@ -215,24 +215,24 @@ class VrSettings:
         )
 
 
-class _HungScreen:
+class _HangingScreen:
     def __init__(self, placement: Placement) -> None:
         self.placement = placement
         self.mesh: ScreenMesh | None = None
-        self._hung: tuple[Placement, float] | None = None
+        self._hanging: tuple[Placement, float] | None = None
 
     @property
     def ready(self) -> bool:
         return self.mesh is not None and self.mesh.ready
 
     def rehang(self, aspect: float) -> None:
-        hung = (self.placement, aspect)
-        if hung == self._hung:
+        hanging = (self.placement, aspect)
+        if hanging == self._hanging:
             return
         if self.mesh is None:
             self.mesh = ScreenMesh()
         self.mesh.upload(surface_vertices(self.placement, aspect=aspect))
-        self._hung = hung
+        self._hanging = hanging
 
     def close(self) -> None:
         if self.mesh is not None:
@@ -245,7 +245,7 @@ class _VideoUnit:
     def __init__(self, player, target_cap_px: int, placement: Placement = PRIMARY_PLACEMENT) -> None:
         self.player = player
         self.target = RenderTarget()
-        self.screen = _HungScreen(placement)
+        self.screen = _HangingScreen(placement)
         self._target_cap_px = target_cap_px
         # Compositor-layer bookkeeping, render-thread-owned: whether the
         # target holds pixels its quad swapchain hasn't copied yet, and the
@@ -424,7 +424,7 @@ class _SatelliteUnit(_VideoUnit):
             player=self.hud_surface,
         )
         self.hud_texture = FrameTexture()
-        self.hud_screen = _HungScreen(placement)
+        self.hud_screen = _HangingScreen(placement)
         self._hud_version = -1
         self._hud_shown = False
         self._presses = _Presses(side, hud_screen_name(side))
@@ -452,7 +452,7 @@ class _SatelliteUnit(_VideoUnit):
             self.hud_screen.placement = attached_below(
                 self.screen.placement, aspect=self.target.aspect,
                 width_deg=self.hud_texture.width * HUD_DEG_PER_PX,
-                hung_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
+                hanging_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
 
@@ -523,7 +523,7 @@ class _GenauUnit:
             start_clip=read_genau_status(genau_status_path(genau_state)).clip or None,
         )
         self.texture = FrameTexture()
-        self.screen = _HungScreen(PRIMARY_PLACEMENT)
+        self.screen = _HangingScreen(PRIMARY_PLACEMENT)
 
     def render_latest_frame(self) -> None:
         frame = self.role.take_frame()
@@ -590,7 +590,7 @@ class _PanelUnit:
         self._width = PANEL_WIDTH_PX
         self._uploaded = None
         self.texture = FrameTexture()
-        self.screen = _HungScreen(placement)
+        self.screen = _HangingScreen(placement)
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -928,7 +928,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     keeper = _LayoutKeeper(layout_path, layout)
     units = [primary, genau, *satellites, panel]
     pumped = [*units, keeper]
-    hung = {unit.side: unit.screen for unit in satellites} | {PANEL: panel.screen}
+    hanging = {unit.side: unit.screen for unit in satellites} | {PANEL: panel.screen}
     pointer = Pointer()
     pointing = _PointerDrawing()
     use_layers = vr.compositor_layers
@@ -1007,7 +1007,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     screens=screens,
                 )
                 for name, placement in frame.moved.items():
-                    hung[name].placement = placement
+                    hanging[name].placement = placement
                     keeper.place(name, placement)
                 if frame.settled:
                     keeper.settle()

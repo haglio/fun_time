@@ -203,7 +203,7 @@ def _live_console() -> ConsoleHud:
 
 
 class TestAPressOnThePanel:
-    """The pointer's (u, v) on the hung panel, turned into what the desktop's
+    """The pointer's (u, v) on the hanging panel, turned into what the desktop's
     console does under a mouse: buttons post, bars are held and dragged, the
     chip sets the level, the scrubber seeks."""
 

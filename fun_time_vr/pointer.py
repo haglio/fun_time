@@ -157,10 +157,10 @@ def handle_vertices(
     )
     strips = {MOVE: [surface_vertices(bar, aspect=radius * width_rad / handle, radius=radius)]}
     if resizable:
-        bottom = _elevation_deg(lift - half_height, radius)
+        lower = _elevation_deg(lift - half_height, radius)
         strips[RESIZE] = [
             surface_vertices(
-                Placement(placement.azimuth_deg + side * placement.width_deg / 2.0, bottom,
+                Placement(placement.azimuth_deg + side * placement.width_deg / 2.0, lower,
                           HANDLE_DEG),
                 aspect=1.0, radius=radius, segments=2,
             )
