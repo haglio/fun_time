@@ -32,16 +32,16 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     action_all = sorted([current, *action_sibs])
     seed_all = sorted([current, *seed_sibs])
     # An action group varies the act; a seed family repeats the current clip's
-    # act under other seeds — seed_family_members narrows on exactly that.
+    # act under other seeds — seed_family_items narrows on exactly that.
     action_by_path = {K(current): "Alpha"}
     action_by_path.update({K(p): f"Act{i}" for i, p in enumerate(action_sibs)})
     action_by_path.update({K(p): "Alpha" for p in seed_sibs})
     return GroupIndex(
         action_key_by_path={K(p): "A" for p in action_all},
-        action_members={"A": action_all},
+        action_items={"A": action_all},
         action_by_path=action_by_path,
         seed_key_by_path={K(p): ("S", str(i)) for i, p in enumerate(seed_all)},
-        seed_members={"S": seed_all},
+        seed_items={"S": seed_all},
         path_by_key={K(p): p for p in (current, *action_sibs, *seed_sibs)},
     )
 
@@ -167,11 +167,11 @@ def _two_seed_index() -> GroupIndex:
     sibling NX.  Action groups are seed-scoped, so A's column and N's differ."""
     return GroupIndex(
         action_key_by_path={K(A): "GA", K(AY): "GA", K(N): "GN", K(NX): "GN"},
-        action_members={"GA": sorted([A, AY]), "GN": sorted([N, NX])},
+        action_items={"GA": sorted([A, AY]), "GN": sorted([N, NX])},
         action_by_path={K(A): "Alpha", K(AY): "Beta", K(N): "Alpha", K(NX): "Zeta"},
         seed_key_by_path={K(A): ("F", "1"), K(AY): ("F", "1"),
                           K(N): ("F", "2"), K(NX): ("F", "2")},
-        seed_members={"F": sorted([A, AY, N, NX])},
+        seed_items={"F": sorted([A, AY, N, NX])},
         path_by_key={K(p): p for p in (A, AY, N, NX)},
     )
 
@@ -252,7 +252,7 @@ def test_a_clip_down_the_column_keeps_the_corners_column():
 def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action():
     """The action column runs down from the clip the loop started on, in the queue's
     own order — so the lit row walks top-to-bottom as the group plays, not upwards
-    from wherever the group's lowest-keyed member happened to sit."""
+    from wherever the group's lowest-keyed item happened to sit."""
     index = _index(current=CUR, action_sibs=[A1])
 
     panel = _panel(
@@ -268,13 +268,13 @@ def test_an_action_loop_anchors_on_its_start_clip_and_marks_the_playing_action()
 def _twin_index(current: str, twin: str) -> GroupIndex:
     """A subject whose whole group is two renders of ONE act — the twins the action
     axis's distinct-acts view collapses into a single entry."""
-    members = sorted([current, twin])
+    items = sorted([current, twin])
     return GroupIndex(
-        action_key_by_path={K(p): "A" for p in members},
-        action_members={"A": members},
-        action_by_path={K(p): "Alpha" for p in members},
-        seed_key_by_path={}, seed_members={},
-        path_by_key={K(p): p for p in members},
+        action_key_by_path={K(p): "A" for p in items},
+        action_items={"A": items},
+        action_by_path={K(p): "Alpha" for p in items},
+        seed_key_by_path={}, seed_items={},
+        path_by_key={K(p): p for p in items},
     )
 
 
@@ -297,7 +297,7 @@ def test_a_running_action_loop_draws_every_clip_it_cycles():
 
 
 def test_a_looped_action_column_lights_the_twin_actually_playing():
-    """With the column holding the loop's own members, the live clip IS a cell — so
+    """With the column holding the loop's own items, the live clip IS a cell — so
     the lit row follows the loop instead of falling back to the corner."""
     index = _twin_index(CUR, A1)
 
@@ -323,7 +323,7 @@ def test_the_browse_map_still_collapses_same_act_twins():
 def test_ending_a_loop_leaves_the_map_hanging_where_it_was():
     """Switching a loop off must change only the loop's own chrome — the lit button
     and the rectangle round the group.  The map itself goes on hanging where it was,
-    so the thumbnails do not re-home onto whichever member the loop had reached."""
+    so the thumbnails do not re-home onto whichever item the loop had reached."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     panel = _panel(
@@ -355,10 +355,10 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
     near = "C:/vids/near.mp4"  # not in CUR's exact family, but near its scene
     index = GroupIndex(
         action_key_by_path={K(CUR): "g1", K(near): "g2"},
-        action_members={"g1": [CUR], "g2": [near]},
+        action_items={"g1": [CUR], "g2": [near]},
         action_by_path={K(CUR): "Alpha", K(near): "Alpha"},
         seed_key_by_path={K(CUR): ("S", "0")},
-        seed_members={"S": [CUR]},
+        seed_items={"S": [CUR]},
         path_by_key={K(p): p for p in (CUR, near)},
         scene_tags_by_path={
             K(CUR): frozenset({"a", "b", "c"}),
@@ -463,7 +463,7 @@ def test_a_lock_taken_inside_a_loop_joins_the_line_instead_of_replacing_it():
 
 def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
     """The whole panel goes on reading as a loop: the button stays lit, the map
-    stays anchored on the clip the loop started on, and ``playing`` names the member
+    stays anchored on the clip the loop started on, and ``playing`` names the item
     the lock is holding — which is the cell the HUD rings."""
     index = _index(current=CUR, seed_sibs=[S1])
 
@@ -475,7 +475,7 @@ def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
     assert panel.locked is True
     assert panel.active_loop == "seed"   # still looping — the lit button, the rectangle
     assert panel.current == CUR          # …over the map the loop pinned
-    assert panel.playing == S1           # …held on the member it had reached
+    assert panel.playing == S1           # …held on the item it had reached
 
 
 def test_the_status_line_says_looping_without_counting():
@@ -505,7 +505,7 @@ def test_the_panel_counts_the_seeds_and_actions_the_map_stands_for():
 def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
     """A loop with no anchor to read — state written before a session restart, or an
     anchor clip since trashed — must still hold the map still, so it falls back to
-    the group's lowest-keyed member instead of re-orienting on every auto-advance."""
+    the group's lowest-keyed item instead of re-orienting on every auto-advance."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     panel = _panel(
@@ -513,7 +513,7 @@ def test_a_loop_without_a_recorded_anchor_still_freezes_the_map():
     )
 
     assert panel.active_loop == "seed"
-    assert panel.current == CUR       # lowest-keyed member, stable across advances
+    assert panel.current == CUR       # lowest-keyed item, stable across advances
     assert panel.playing == S1
 
 
@@ -523,10 +523,10 @@ def test_widen_grows_the_seed_row_with_the_nearest_clips():
     other = "C:/vids/other.mp4"
     index = GroupIndex(
         action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
-        action_members={"g1": sorted([CUR, S1]), "g2": [other]},
+        action_items={"g1": sorted([CUR, S1]), "g2": [other]},
         action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
         seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
-        seed_members={"S": sorted([CUR, S1])},
+        seed_items={"S": sorted([CUR, S1])},
         path_by_key={K(p): p for p in (CUR, S1, other)},
         # `other` is not in the family but shares most of the scene's tags.
         scene_tags_by_path={
@@ -550,10 +550,10 @@ def test_widen_off_a_loop_resets_once_its_anchor_clip_leaves_the_screen():
     other = "C:/vids/other.mp4"
     index = GroupIndex(
         action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
-        action_members={"g1": sorted([CUR, S1]), "g2": [other]},
+        action_items={"g1": sorted([CUR, S1]), "g2": [other]},
         action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
         seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
-        seed_members={"S": sorted([CUR, S1])},
+        seed_items={"S": sorted([CUR, S1])},
         path_by_key={K(p): p for p in (CUR, S1, other)},
     )
 
@@ -573,10 +573,10 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
     x, x2, y, z = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4", "C:/v/z.mp4"
     index = GroupIndex(
         action_key_by_path={K(p): "scene" for p in (x, x2, y, z)},
-        action_members={"scene": sorted([x, x2, y, z])},
+        action_items={"scene": sorted([x, x2, y, z])},
         action_by_path={K(p): "Alpha" for p in (x, x2, y, z)},
         seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0"), K(z): ("F3", "0")},
-        seed_members={"F1": sorted([x, x2]), "F2": [y], "F3": [z]},
+        seed_items={"F1": sorted([x, x2]), "F2": [y], "F3": [z]},
         path_by_key={K(p): p for p in (x, x2, y, z)},
         scene_tags_by_path={K(p): frozenset({"a", "b", "c"}) for p in (x, x2, y, z)},
     )
@@ -589,7 +589,7 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
 
     assert panel.active_loop == "seed"                 # still looping — not reset
     assert panel.current == x                          # frozen on the widened anchor (min key)
-    assert panel.playing == y                          # the widened member actually on screen
+    assert panel.playing == y                          # the widened item actually on screen
     assert set(panel.seed_siblings) == {x2, y, z}      # the whole widened pool, minus the anchor
 
 
@@ -599,10 +599,10 @@ def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
     x, x2, y = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4"
     index = GroupIndex(
         action_key_by_path={K(p): "scene" for p in (x, x2, y)},
-        action_members={"scene": sorted([x, x2, y])},
+        action_items={"scene": sorted([x, x2, y])},
         action_by_path={K(p): "Alpha" for p in (x, x2, y)},
         seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0")},
-        seed_members={"F1": sorted([x, x2]), "F2": [y]},
+        seed_items={"F1": sorted([x, x2]), "F2": [y]},
         path_by_key={K(p): p for p in (x, x2, y)},
         scene_tags_by_path={K(p): frozenset({"a", "b", "c"}) for p in (x, x2, y)},
     )
@@ -963,7 +963,7 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
 
     assert portrait.active_loop == "seed"            # the loop is still recognized
     assert portrait.current == a                     # frozen on the widened anchor
-    assert portrait.playing == b                     # the widened member on screen
+    assert portrait.playing == b                     # the widened item on screen
     assert set(portrait.seed_siblings) == {a2, b}    # the whole loose family, minus the anchor
 
 

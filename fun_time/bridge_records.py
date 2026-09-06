@@ -166,7 +166,7 @@ class SideChannel:
 
 class Op(StrEnum):
     """The dispatcher's whole output vocabulary — the closed set of window work
-    a :class:`WindowOp` can ask the dispatch loop for (StrEnum: members compare
+    a :class:`WindowOp` can ask the dispatch loop for (StrEnum: items compare
     equal to the plain strings producers and tests have always used)."""
 
     NOTICE = "notice"

@@ -686,7 +686,7 @@ def _main_browse_stills(bridge_config) -> list[str]:
 
     Warmed with the satellites' clips so the browser opens on a full grid rather
     than filling in under the user.  Per handle rather than per file, and off the
-    smallest member: an upscale and the original it came from make the same
+    smallest item: an upscale and the original it came from make the same
     picture, and only one of them is seconds rather than minutes to open.
     """
     return [

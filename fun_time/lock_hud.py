@@ -16,11 +16,11 @@ from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, s
 
 from fun_time.media_metadata import (
     GroupIndex,
-    action_group_members,
+    action_group_items,
     cached_group_index,
     normalize_path_key,
-    seed_family_members,
-    widened_seed_members,
+    seed_family_items,
+    widened_seed_items,
 )
 from fun_time.modes import collect_video_files
 from fun_time.thumbnail_cache import thumbnail_for
@@ -110,10 +110,10 @@ class HudPanel:
     satellites_mode: str = ""
 
 
-def _others(members: list[str], current: str) -> list[str]:
-    """*members* without *current* itself — the clips you could reach from here."""
+def _others(items: list[str], current: str) -> list[str]:
+    """*items* without *current* itself — the clips you could reach from here."""
     key = normalize_path_key(current)
-    return [member for member in members if normalize_path_key(member) != key]
+    return [item for item in items if normalize_path_key(item) != key]
 
 
 def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
@@ -126,12 +126,12 @@ def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
     current_action = index.action_by_path.get(current_key, "")
     reps: list[str] = []
     seen: set[str] = set()
-    for member in action_group_members(index, current):
-        action = index.action_by_path.get(normalize_path_key(member), "")
+    for item in action_group_items(index, current):
+        action = index.action_by_path.get(normalize_path_key(item), "")
         if not action or action == current_action or action in seen:
             continue
         seen.add(action)
-        reps.append(member)
+        reps.append(item)
     return reps
 
 
@@ -204,8 +204,8 @@ def cell_path(cell: Cell, corner: str, seeds: list[str], actions: list[str]) -> 
     bucket, index = cell
     if bucket == "corner":
         return corner
-    members = seeds if bucket == "seed" else actions if bucket == "action" else []
-    return members[index] if 0 <= index < len(members) else ""
+    items = seeds if bucket == "seed" else actions if bucket == "action" else []
+    return items[index] if 0 <= index < len(items) else ""
 
 
 def hud_map_cells(
@@ -215,12 +215,12 @@ def hud_map_cells(
     at the overlay's draw limits.  The seed row is the exact family — keyboard
     navigation walks the core family, never the widened "more seeds" pool — so the
     axes match what a fresh (un-widened) map shows."""
-    seeds = _others(seed_family_members(index, anchor), anchor)[:seed_limit]
+    seeds = _others(seed_family_items(index, anchor), anchor)[:seed_limit]
     actions = _distinct_action_siblings(index, anchor)[:action_limit]
     return seeds, actions
 
 
-def _playing_member(
+def _playing_item(
     index: GroupIndex, anchor: str, current: str, action: list[str], axis: str
 ) -> str:
     """Which drawn map cell the live *current* clip is — the one the overlay
@@ -233,14 +233,14 @@ def _playing_member(
         return anchor
     if axis == "seed":
         return current
-    if any(key(member) == key(current) for member in action):
+    if any(key(item) == key(current) for item in action):
         return current
     current_action = index.action_by_path.get(key(current), "")
     if current_action == index.action_by_path.get(key(anchor), ""):
         return anchor
-    for member in action:
-        if index.action_by_path.get(key(member), "") == current_action:
-            return member
+    for item in action:
+        if index.action_by_path.get(key(item), "") == current_action:
+            return item
     return anchor
 
 
@@ -248,13 +248,13 @@ def _map_anchor_in(group: list[str], anchor: str) -> str:
     """The clip a running loop's map hangs on: *anchor* — the clip the loop started
     on, which heads the queue it wrote — whenever it is still one of *group*.
 
-    Falls back to the group's lowest-keyed member when there is no usable anchor (a
+    Falls back to the group's lowest-keyed item when there is no usable anchor (a
     loop still running from before the anchor was recorded, or one whose anchor clip
-    has since been trashed).  That is at least the same clip whichever member is
+    has since been trashed).  That is at least the same clip whichever item is
     playing, so the map goes on holding still as the loop advances.
     """
     key = normalize_path_key(anchor)
-    if anchor and any(normalize_path_key(member) == key for member in group):
+    if anchor and any(normalize_path_key(item) == key for item in group):
         return anchor
     return min(group, key=normalize_path_key)
 
@@ -272,10 +272,10 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
     key = normalize_path_key(current)
     if key == normalize_path_key(anchor):
         return "seed"  # the corner: on both axes at once, and lit either way
-    row = widened_pool or seed_family_members(index, anchor)
-    if any(normalize_path_key(member) == key for member in row):
+    row = widened_pool or seed_family_items(index, anchor)
+    if any(normalize_path_key(item) == key for item in row):
         return "seed"
-    if any(normalize_path_key(member) == key for member in action_group_members(index, anchor)):
+    if any(normalize_path_key(item) == key for item in action_group_items(index, anchor)):
         return "action"
     return ""
 
@@ -334,10 +334,10 @@ def build_hud_panel(
     """
     have_siblings = bool(inputs.current) and index is not None
     # The widened pool, ranked once around *inputs.widen_clip* and reused: ranking it again
-    # from another member would score a different set and shuffle the row underneath
+    # from another item would score a different set and shuffle the row underneath
     # a map that is supposed to be holding still.
-    widened_pool = widened_seed_members(index, inputs.widen_clip) if have_siblings and inputs.widen_clip else []
-    pool_keys = {normalize_path_key(member) for member in widened_pool}
+    widened_pool = widened_seed_items(index, inputs.widen_clip) if have_siblings and inputs.widen_clip else []
+    pool_keys = {normalize_path_key(item) for item in widened_pool}
     anchor = inputs.current
     active_loop = ""
     map_held = False
@@ -345,11 +345,11 @@ def build_hud_panel(
     nav_cell: Cell | None = None
     if have_siblings and inputs.loop_axis in ("seed", "action"):
         if inputs.loop_axis == "action":
-            group = action_group_members(index, inputs.current)
+            group = action_group_items(index, inputs.current)
         elif normalize_path_key(inputs.current) in pool_keys:
             group = widened_pool
         else:
-            group = seed_family_members(index, inputs.current)
+            group = seed_family_items(index, inputs.current)
         if len(group) >= 2:
             anchor = _map_anchor_in(group, inputs.map_anchor)
             active_loop = inputs.loop_axis
@@ -386,7 +386,7 @@ def build_hud_panel(
     elif widen and not nav_frozen:
         seed = _others(widened_pool, anchor)
     else:
-        seed = _others(seed_family_members(index, anchor), anchor)
+        seed = _others(seed_family_items(index, anchor), anchor)
     # The action column belongs to the cell the seed row lights.  An action group
     # is keyed by seed, so each seed out along the row has other acts of its own —
     # and while a held map plays a non-corner seed, those are the acts you would
@@ -402,7 +402,7 @@ def build_hud_panel(
         # is the *browse* map's answer, and leaving it here collapsed a two-clip loop
         # of a single act to one row, with the corner staying lit while the loop
         # played a clip that was never drawn.
-        action = _others(action_group_members(index, anchor), anchor)
+        action = _others(action_group_items(index, anchor), anchor)
     else:
         action = _distinct_action_siblings(index, column_clip)
     current_action = ""
@@ -411,10 +411,10 @@ def build_hud_panel(
     if have_siblings:
         current_action = index.action_by_path.get(normalize_path_key(anchor), "")
         action_labels = tuple(
-            index.action_by_path.get(normalize_path_key(member), "") for member in action
+            index.action_by_path.get(normalize_path_key(item), "") for item in action
         )
         if map_held:
-            playing = _playing_member(index, anchor, inputs.current, action, on_axis)
+            playing = _playing_item(index, anchor, inputs.current, action, on_axis)
         elif nav_frozen:
             playing = inputs.current  # the live clip is exactly the cell to light
     return HudPanel(
@@ -508,7 +508,7 @@ def build_panels(
     Each side's widen-clip and nav-anchor are threaded through as-is;
     ``build_hud_panel`` decides whether each still applies — the widen off a loop
     only while it is the clip on screen (so it auto-resets on navigation) and
-    across a widened seed loop for every member of the looped pool, and the
+    across a widened seed loop for every item in the looped pool, and the
     ``nav_anchor`` while the live clip is still one of its map cells.
 
     F-mode rides in each side's own inputs, since each satellite has its own

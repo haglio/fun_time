@@ -189,7 +189,7 @@ class TestPlaybackVerbs:
         assert role.muted is False
         assert player.muted is None  # never touched
 
-    def test_play_file_jumps_to_a_playlist_member(self, role_parts):
+    def test_play_file_jumps_to_a_playlist_item(self, role_parts):
         role, player, files = role_parts.role, role_parts.player, role_parts.files
         one, two, three, script = files
         role.apply_command(f"PLAY_FILE {two}", on_quit=_never_quits)

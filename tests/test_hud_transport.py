@@ -87,7 +87,7 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
     assert payload["active_loop"] == "seed"
 
 
-def test_a_running_loop_publishes_every_member_it_cycles():
+def test_a_running_loop_publishes_every_item_it_cycles():
     """The player windows the looped axis around the clip on screen, so it has to be
     given the whole loop.  Capping it at the handful of cells a map can draw is what
     left the highlight nowhere to be once the loop advanced past them — the user saw
@@ -102,9 +102,9 @@ def test_a_running_loop_publishes_every_member_it_cycles():
     assert payload["playing"] == ["seed", 9]
 
 
-def test_a_running_loop_keeps_a_member_whose_thumbnail_is_not_cached_yet():
+def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
     """Dropping it would renumber every cell behind it and slide the player's window
-    off the clip on screen, so a loop member with no frame yet is published with an
+    off the clip on screen, so a loop item with no frame yet is published with an
     empty thumbnail — drawn as a placeholder, in the loop's own order."""
     seeds = ["C:/v/s0.mp4", "C:/v/s1.mp4", "C:/v/s2.mp4"]
     panel = _panel(active_loop="seed", seed_siblings=seeds, playing=seeds[2])

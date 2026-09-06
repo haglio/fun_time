@@ -137,7 +137,7 @@ class SatelliteSession:
         after the current clip and play it.
 
         Powers "play this exact clip": a lock's back-dating (bring back the clip
-        the speaker actually saw) and a HUD switch both target a member, so those
+        the speaker actually saw) and a HUD switch both target an item, so those
         just jump; a newcomer from outside the list is inserted next and played.
         """
         for i, path in enumerate(self._playlist):

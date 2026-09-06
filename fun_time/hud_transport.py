@@ -55,7 +55,7 @@ def _loop_cells(paths: list[str], cache_dir: Path,
 
     Neither capped nor cached-only, unlike the browse map: the player windows this
     list around the clip on screen, so it needs the whole loop to window over, and
-    a member whose frame is not ready yet has to hold its place (as a placeholder)
+    an item whose frame is not ready yet has to hold its place (as a placeholder)
     rather than renumber the cells behind it and slide the window off the clip
     playing.
     """

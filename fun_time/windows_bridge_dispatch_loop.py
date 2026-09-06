@@ -728,7 +728,7 @@ class DispatchLoopRunner:
 
 
 # --- the window-op interpreter ----------------------------------------------
-# One handler per Op member, checked complete at import: a new op without a
+# One handler per Op item, checked complete at import: a new op without a
 # handler fails startup, not the first press.  Only the two hotkey-suspension
 # verbs may pass through to ahk_cmd.txt — AHK ignores every other string.
 

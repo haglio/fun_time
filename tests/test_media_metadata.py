@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 from fun_time.media_metadata import (
+    action_group_items,
     action_group_key,
-    action_group_members,
     action_label,
     build_group_index,
     cached_group_index,
@@ -19,10 +19,10 @@ from fun_time.media_metadata import (
     path_matches_query,
     records_no_generation,
     reject_action,
-    seed_family_members,
+    seed_family_items,
     seed_group_key,
     watch_weight_of,
-    widened_seed_members,
+    widened_seed_items,
 )
 
 SOURCE_IMAGE = {
@@ -233,11 +233,11 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
     index = build_group_index(paths.values(), metadata_root)
 
     subject1_key = index.action_key_by_path[normalize_path_key(paths["subject1_zeta"])]
-    assert sorted(index.action_members[subject1_key]) == sorted(
+    assert sorted(index.action_items[subject1_key]) == sorted(
         [paths["subject1_zeta"], paths["subject1_alpha"]]
     )
     family, seed = index.seed_key_by_path[normalize_path_key(paths["subject1_alpha"])]
-    assert set(index.seed_members[family]) == {
+    assert set(index.seed_items[family]) == {
         paths["subject1_zeta"], paths["subject1_alpha"], paths["subject2_alpha"]
     }
     assert seed != index.seed_key_by_path[normalize_path_key(paths["subject2_alpha"])][1]
@@ -449,7 +449,7 @@ def test_path_matches_query_excludes_a_sidecar_that_records_no_act(tmp_path):
     assert path_matches_query(str(video), metadata_root, "")
 
 
-# --- group membership for the action/seed loops ----------------------------
+# --- group containment for the action/seed loops ----------------------------
 
 def _t2v(action: str, seed: str, prompt: str = "scene") -> dict:
     return {"video": {"prompt": prompt, "action": action, "seed": seed}}
@@ -469,7 +469,7 @@ def _write_library(tmp_path, videos: dict[str, dict]) -> tuple[Path, Path, dict[
     return media_root, metadata_root, paths
 
 
-def test_action_group_members_are_the_subjects_other_actions(tmp_path: Path):
+def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
         # Same prompt+seed => same subject; the action varies within the group.
         "clip": _t2v("Alpha", "1"),
@@ -479,13 +479,13 @@ def test_action_group_members_are_the_subjects_other_actions(tmp_path: Path):
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = action_group_members(index, paths["clip"])
+    items = action_group_items(index, paths["clip"])
 
-    assert sorted(members) == sorted([paths["clip"], paths["twirl"]])
+    assert sorted(items) == sorted([paths["clip"], paths["twirl"]])
     assert index.action_by_path[normalize_path_key(paths["clip"])] == "Alpha"
 
 
-def test_seed_family_members_are_the_same_act_under_other_seeds(tmp_path: Path):
+def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):
     media_root, metadata_root, paths = _write_library(tmp_path, {
         # Same prompt+action, different seed => same family (another subject).
         "clip_a": _t2v("Alpha", "1"),
@@ -495,15 +495,15 @@ def test_seed_family_members_are_the_same_act_under_other_seeds(tmp_path: Path):
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = seed_family_members(index, paths["clip_a"])
+    items = seed_family_items(index, paths["clip_a"])
 
-    assert sorted(members) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["twirl"] not in members
+    assert sorted(items) == sorted([paths["clip_a"], paths["clip_b"]])
+    assert paths["twirl"] not in items
 
 
-def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
+def test_seed_family_items_pin_the_action_for_image_to_video(tmp_path: Path):
     """An i2v family is keyed on the source image, which does not pin the action,
-    so members must be narrowed to the current clip's action."""
+    so items must be narrowed to the current clip's action."""
     def i2v(action: str, image_seed: str) -> dict:
         return {
             "video": {"prompt": f"do {action}", "action": action, "seed": "77"},
@@ -517,13 +517,13 @@ def test_seed_family_members_pin_the_action_for_image_to_video(tmp_path: Path):
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = seed_family_members(index, paths["clip_a"])
+    items = seed_family_items(index, paths["clip_a"])
 
-    assert sorted(members) == sorted([paths["clip_a"], paths["clip_b"]])
-    assert paths["twirl_b"] not in members  # same family, wrong act
+    assert sorted(items) == sorted([paths["clip_a"], paths["clip_b"]])
+    assert paths["twirl_b"] not in items  # same family, wrong act
 
 
-def test_widened_seed_members_add_the_most_similar_clips_capped(tmp_path: Path):
+def test_widened_seed_items_add_the_most_similar_clips_capped(tmp_path: Path):
     """"more seeds" adds the clips whose prompt is closest to this one — nearest
     first, and only a handful.  Exact-config sisters come along as always; a
     same-act clip sharing no prompt tags is not "more seeds", it is the rest of
@@ -536,13 +536,13 @@ def test_widened_seed_members_add_the_most_similar_clips_capped(tmp_path: Path):
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    members = widened_seed_members(index, paths["cur"], additions=1)
+    items = widened_seed_items(index, paths["cur"], additions=1)
 
-    assert sorted(members) == sorted([paths["cur"], paths["sister"], paths["near"]])
-    assert paths["far"] not in members  # the cap stops at the nearest, not the whole act
+    assert sorted(items) == sorted([paths["cur"], paths["sister"], paths["near"]])
+    assert paths["far"] not in items  # the cap stops at the nearest, not the whole act
 
 
-def test_widened_seed_members_never_leave_the_clips_own_action(tmp_path: Path):
+def test_widened_seed_items_never_leave_the_clips_own_action(tmp_path: Path):
     """The seed axis is "the same act, another subject", so the action bounds the
     widen outright — a nearer-scened clip doing something else is not a wider seed
     row, it is the action column, and "more seeds" loops what it draws, so ranking
@@ -556,12 +556,12 @@ def test_widened_seed_members_never_leave_the_clips_own_action(tmp_path: Path):
 
     # Room for both: the other act is left out because it is the other act, not
     # because the cap ran out.
-    assert widened_seed_members(index, paths["cur"], additions=6) == [
+    assert widened_seed_items(index, paths["cur"], additions=6) == [
         paths["cur"], paths["same_act"],
     ]
 
 
-def test_widened_seed_members_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
+def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path):
     """An act nothing else in the library does has no wider seed row.  That is a
     real answer — the caller's "widening net failed" notice — and the widen used to
     dodge it by handing back the nearest clip of some other act."""
@@ -571,10 +571,10 @@ def test_widened_seed_members_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Pat
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    assert widened_seed_members(index, paths["solo"], additions=6) == [paths["solo"]]
+    assert widened_seed_items(index, paths["solo"], additions=6) == [paths["solo"]]
 
 
-def test_widened_seed_members_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
+def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
     """The library holds "POV …" beside "Pov …".  With the act now bounding the row
     rather than merely ranking it, a raw string compare would leave a clip alone in
     its casing with no seed row at all."""
@@ -584,10 +584,10 @@ def test_widened_seed_members_read_one_act_spelled_two_ways_as_one_act(tmp_path:
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    assert widened_seed_members(index, paths["cur"]) == [paths["cur"], paths["other_casing"]]
+    assert widened_seed_items(index, paths["cur"]) == [paths["cur"], paths["other_casing"]]
 
 
-def test_widened_seed_members_prefer_their_own_generation_kind(tmp_path: Path):
+def test_widened_seed_items_prefer_their_own_generation_kind(tmp_path: Path):
     """An image-to-video clip and a text-to-video one look drastically different
     even doing the same act, so within the action the widen ranks its own kind
     first — and falls through to the other kind rather than to nothing."""
@@ -604,11 +604,11 @@ def test_widened_seed_members_prefer_their_own_generation_kind(tmp_path: Path):
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
-    assert widened_seed_members(index, paths["cur"], additions=1) == [
+    assert widened_seed_items(index, paths["cur"], additions=1) == [
         paths["cur"], paths["i2v_kin"],
     ]
     # Only a preference: with no clip of its own kind, the other kind still comes.
-    assert widened_seed_members(index, paths["t2v_kin"], additions=1)[1:] != []
+    assert widened_seed_items(index, paths["t2v_kin"], additions=1)[1:] != []
 
 
 def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
@@ -622,7 +622,7 @@ def test_action_label_numbers_duplicate_actions_in_a_group(tmp_path: Path):
     index = build_group_index(list(paths.values()), metadata_root)
 
     # All three share a subject (same prompt+seed), so they cycle together.
-    assert sorted(action_group_members(index, paths["clip_one"])) == sorted(paths.values())
+    assert sorted(action_group_items(index, paths["clip_one"])) == sorted(paths.values())
     labels = {action_label(index, paths[name]) for name in ("clip_one", "clip_two")}
     assert labels == {"Alpha 1", "Alpha 2"}
     assert action_label(index, paths["twirl"]) == "Twirling"  # sole Twirling, unnumbered

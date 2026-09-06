@@ -96,15 +96,15 @@ def folder_at(
             children=tuple(
                 SubFolder(
                     name=name,
-                    count=len(members),
+                    count=len(grouped),
                     previews=tuple(
                         handle.preview
                         for handle in (rng or random.Random(name)).sample(
-                            members, min(FOLDER_PREVIEWS, len(members))
+                            grouped, min(FOLDER_PREVIEWS, len(grouped))
                         )
                     ),
                 )
-                for name, members in names.items()
+                for name, grouped in names.items()
             ),
             handles=(),
         )

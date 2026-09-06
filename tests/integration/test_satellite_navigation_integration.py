@@ -327,7 +327,7 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     """Turning a loop OFF must leave the clip on screen alone, changing only what
     comes up next — the whole contract of the loop toggle.
 
-    The interesting case is the real one: a loop cycles a group whose members are
+    The interesting case is the real one: a loop cycles a group whose items are
     NOT in the browse it returns to (the browse holds one clip per group), and a
     player whose clip is missing from a reloaded playlist restarts at the top.  So
     this drives the production ``portrait_no_loop`` against a real player with
@@ -400,8 +400,8 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
             ))
 
         state = BridgeState(portrait_loop="", locked2=True)
-        with patch("fun_time.satellite_groups.seed_family_members", return_value=family), \
-                patch("fun_time.satellite_groups.widened_seed_members", return_value=widened):
+        with patch("fun_time.satellite_groups.seed_family_items", return_value=family), \
+                patch("fun_time.satellite_groups.widened_seed_items", return_value=widened):
             state, _ = dispatch_command("portrait_loop", state, config)
             publish(family, "seed")
             _drained(satellite)

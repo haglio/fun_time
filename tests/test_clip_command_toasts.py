@@ -9,7 +9,7 @@ def test_the_clip_and_funscript_jumps_flash_their_own_outcome():
     confirmation under a red correction.  (The old version of this test
     restated the constant's whole definition, comprehensions included, so any
     edit failed it and the fix was pasting the new value in; the family-wide
-    memberships are the tests below.)"""
+    containment checks are the tests below.)"""
     assert {
         "nau_compilation", "nau_full_vid", "nau_clip_jump",
         "nau_funscript_jump", "nau_next_funscripted",

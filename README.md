@@ -432,7 +432,7 @@ Unlike prev/next, cycling does **not** release an active lock: it means "show me
 
 Both groupings are only as good as the acts the sidecars record, so there is a way to say one is wrong: **"wrong action"** (sided or bare, like "weird") strikes `video.action` out of the current clip's sidecar and keeps what it said under `video.wrong_action`. This is the one edit Fun Time makes to a sidecar. A clip with no act reads as one still needing one, so it comes back around in Evolver's Backfill Metadata tool to be named again — and the `wrong_action` key is how that tool tells a clip you rejected from one nobody ever labeled, so it asks about the rejected ones first, whatever source they came from. Nothing about playback changes: the clip is not bad, only mislabeled.
 
-During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that member weighted by the watch weight below; Premiere (`P`, newest-first) instead keeps the group's newest member and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
+During satellite builds, each action group **collapses to one playlist slot**, so the same subject+scene doesn't recur once per action. Shuffled builds draw that item weighted by the watch weight below; Premiere (`P`, newest-first) instead keeps the group's newest item and orders by recency. Either way it's one entry per group. Videos without a metadata sidecar behave exactly as before.
 
 ### Watch weight — videos "breed" by attention
 

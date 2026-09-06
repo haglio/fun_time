@@ -15,7 +15,7 @@ from .bridge_records import (
 from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .media_metadata import (
     GroupIndex,
-    action_group_members,
+    action_group_items,
     action_label,
     cached_group_index,
     load_metadata,
@@ -23,8 +23,8 @@ from .media_metadata import (
     normalize_path_key,
     reject_action,
     reset_group_index_cache,
-    seed_family_members,
-    widened_seed_members,
+    seed_family_items,
+    widened_seed_items,
 )
 from .modes import collect_video_files, write_playlist_file
 from .players import Player
@@ -96,18 +96,18 @@ def _satellite_group_index(which: int, config: BridgeConfig, current: str) -> Gr
 
 
 def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
-    """The action-group member after *current*, cycling in sorted order."""
+    """The action-group item after *current*, cycling in sorted order."""
     group_key = index.action_key_by_path.get(normalize_path_key(current))
     if group_key is None:
         return None
-    members = [m for m in index.action_members[group_key] if Path(m).exists()]
-    if len(members) < 2:
+    items = [m for m in index.action_items[group_key] if Path(m).exists()]
+    if len(items) < 2:
         return None
     current_key = normalize_path_key(current)
-    for position, member in enumerate(members):
-        if normalize_path_key(member) == current_key:
-            return members[(position + 1) % len(members)]
-    return members[0]
+    for position, item in enumerate(items):
+        if normalize_path_key(item) == current_key:
+            return items[(position + 1) % len(items)]
+    return items[0]
 
 
 def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
@@ -124,14 +124,14 @@ def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
         return None
     family, current_seed = entry
     found: list[tuple[str, str]] = []
-    for path in (m for m in index.seed_members.get(family, []) if Path(m).exists()):
+    for path in (m for m in index.seed_items.get(family, []) if Path(m).exists()):
         key = normalize_path_key(path)
         candidate = index.seed_key_by_path.get(key)
         # Same action only. An image-to-video seed family is keyed on the source
         # image alone, so it spans actions; but the seed axis is "the same act,
         # another subject", so a sister seed doing a different act belongs on the
         # action axis, not here. This keeps the walk in step with what
-        # seed_family_members draws in the HUD.
+        # seed_family_items draws in the HUD.
         if (
             candidate
             and candidate[0] == family
@@ -216,8 +216,8 @@ def more_seeds(
         return state, []
     index = _satellite_group_index(which, config, current)
     current_key = normalize_path_key(current)
-    exact = {normalize_path_key(m) for m in seed_family_members(index, current)} - {current_key}
-    wide = {normalize_path_key(m) for m in widened_seed_members(index, current)} - {current_key}
+    exact = {normalize_path_key(m) for m in seed_family_items(index, current)} - {current_key}
+    wide = {normalize_path_key(m) for m in widened_seed_items(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
     state = state.with_side(which, widen_clip=current)
@@ -260,13 +260,13 @@ def wrong_action(
     return state, [WindowOp(op="notice", key=f"Action removed: {action}", source=source)]
 
 
-def _loop_members(
+def _loop_items(
     which: int, axis: str, state: BridgeState, config: BridgeConfig, current: str
 ) -> tuple[list[str], bool]:
     """The clips *axis*'s loop would run on satellite *which* around *current*, and
     whether that pool is the widened seed row rather than the exact family.
 
-    Fewer than two members means the group holds only this clip, so there is no loop
+    Fewer than two items means the group holds only this clip, so there is no loop
     to be had on that axis — which is what turns the loop into a lock below and what
     makes the loop key step past the axis.  The group index behind this is cached,
     so asking a second time before dispatching costs nothing.
@@ -275,10 +275,10 @@ def _loop_members(
     # Loop what the HUD is showing: if the seed row has been widened around this
     # very clip ("more seeds"), loop that wider pool, not just the exact family.
     widened = axis == "seed" and same_video(state.side(which).widen_clip, current)
-    gather = widened_seed_members if widened else (
-        action_group_members if axis == "action" else seed_family_members
+    gather = widened_seed_items if widened else (
+        action_group_items if axis == "action" else seed_family_items
     )
-    return [member for member in gather(index, current) if Path(member).exists()], widened
+    return [item for item in gather(index, current) if Path(item).exists()], widened
 
 
 def group_loop(
@@ -290,8 +290,8 @@ def group_loop(
     current = target_path or satellite_current(config, which)
     if not current:
         return state, ops
-    members, widened = _loop_members(which, axis, state, config, current)
-    if len(members) < 2:
+    items, widened = _loop_items(which, axis, state, config, current)
+    if len(items) < 2:
         # Only this clip is in the group, so "looping" it is a single-video lock:
         # LOCK this one.  Never a dead end — the loop buttons are still valid with
         # one video, they just mean "lock" then.  A lock is not a loop, so any
@@ -309,10 +309,10 @@ def group_loop(
     # RELOAD_PLAYLIST: the native player keeps the current clip playing when it
     # survives the reload, so the clip on screen is never restarted and only what
     # comes up next becomes the group, which then cycles by auto-advance.
-    members = [current] + [m for m in members if normalize_path_key(m) != normalize_path_key(current)]
-    write_playlist_file(config.side(which).playlist_file, members)
+    items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
+    write_playlist_file(config.side(which).playlist_file, items)
     send_satellite(config, which, "RELOAD_PLAYLIST")
-    message = f"Loop {Player(which).label}: {len(members)} {axis}s"
+    message = f"Loop {Player(which).label}: {len(items)} {axis}s"
     logger.info(message)
     state = state.with_side(which, loop=axis, map_anchor=current)
     # Anchor the widen on the loop iff it is the loose family being looped, so the
@@ -365,7 +365,7 @@ def loop_cycle(
             if running:
                 return no_loop(which, state, config)
             continue  # nothing is looping, so the off step has nothing to switch off
-        if len(_loop_members(which, axis, state, config, current)[0]) >= 2:
+        if len(_loop_items(which, axis, state, config, current)[0]) >= 2:
             return group_loop(which, axis, state, config, current)
     if state.side(which).locked:
         state = cancel_lock(which, state, config)
@@ -379,7 +379,7 @@ def _browse_behind(browse: list[str], current: str) -> list[str]:
     """*browse*, guaranteed to still hold *current* — the clip on screen.
 
     The player keeps its clip across a playlist reload only while the new list
-    still holds it, and a loop member usually is not in the browse: the browse
+    still holds it, and a loop item usually is not in the browse: the browse
     picks one clip per group and the loop was cycling that group's others.  So the
     clip on screen heads the restored list — it plays to its own end and the browse
     is simply what comes up next.  A browse that already holds it keeps its own
