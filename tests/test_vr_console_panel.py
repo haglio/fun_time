@@ -1,4 +1,4 @@
-"""The console hung in the headset: what goes on it, and how it is composed."""
+"""The console hanging in the headset: what goes on it, and how it is composed."""
 from __future__ import annotations
 
 from types import SimpleNamespace

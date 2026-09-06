@@ -72,8 +72,9 @@ include = ["fun_time*", "satellite*", "fun_time_vr*"]
 # chosen to clear the 180 s guards on the child processes in
 # tests/test_win32_loader.py and tests/test_launch_smoke.py, so a wedged child
 # fails with the message written for it rather than with a generic stack dump.
-# --timeout-method=thread is the half that pays for itself: it dumps the hung
-# stack, which turns a stalled required check into a one-line diagnosis.
+# --timeout-method=thread is the half that pays for itself: it dumps the stack
+# of the test that stopped, which turns a stalled required check into a
+# one-line diagnosis.
 # tests/test_timeouts.py holds all three halves of it.
 addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin"
 testpaths = ["tests"]

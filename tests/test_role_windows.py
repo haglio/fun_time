@@ -250,7 +250,7 @@ class TestOrigeneratorWindowConverger:
 
     def test_a_restore_the_busy_app_dropped_is_retried_next_pass(self):
         """The app's boot blocks its main thread, so a restore can time out
-        through the hung-window guard and do nothing.  The converger judges
+        through the stalled-window guard and do nothing.  The converger judges
         from the WINDOW each pass — still minimized means try again — instead
         of remembering it as shown and leaving a resumed session parked until
         the user digs it out of the taskbar."""

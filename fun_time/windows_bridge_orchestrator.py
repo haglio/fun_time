@@ -581,7 +581,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
     # target's own thread, and the satellites are at their busiest exactly now
-    # (first clips decoding), so a promotion can time out through the hung-
+    # (first clips decoding), so a promotion can time out through the stalled-
     # window guard and leave the player under whatever the user had on that
     # monitor — a maximized Chrome sat over the landscape player until the
     # next full re-band.  Walk the real z-order and re-promote whoever is
@@ -648,7 +648,7 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
 
     The banding above can silently miss one: SetWindowPos waits on the target's
     own thread, and the satellites are at their busiest exactly now (first clips
-    decoding), so a promotion can time out through the hung-window guard and
+    decoding), so a promotion can time out through the stalled-window guard and
     leave the player under whatever the user had on that monitor — a maximized
     Chrome sat over the landscape player until the next full re-band.  So walk
     the real z-order and re-promote whoever is still buried.

@@ -567,7 +567,7 @@ class _Presses:
 
 
 class _PanelUnit:
-    """The console, hung in the scene: painted and pressed on the pump thread,
+    """The console, hanging in the scene: painted and pressed on the pump thread,
     uploaded on the render thread when it changed."""
 
     def __init__(

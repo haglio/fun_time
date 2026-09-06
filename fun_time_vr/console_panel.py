@@ -1,4 +1,4 @@
-"""The main console, hung in the headset -- what to put on it.
+"""The main console, hanging in the headset -- what to put on it.
 
 The desktop paints it onto the main player's window, scrubber and volume chip
 under the video.  Baked into an immersive video it would warp with it, down

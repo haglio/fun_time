@@ -126,20 +126,20 @@ class TestSetAlwaysOnTop:
 class TestAWindowThatHasStoppedAnswering:
     """SetWindowPos and ShowWindow SEND messages to the thread owning the window
     and wait for it to handle them, with no timeout — so a player whose own loop
-    has stalled froze the session that called them.  Startup's topmost pass hung
+    has stalled froze the session that called them.  Startup's topmost pass wedged
     on Genau's window: no main player, no hotkey script, and no way to quit.
     """
 
     @staticmethod
     @contextlib.contextmanager
-    def _hung(monkeypatch):
+    def _stalled(monkeypatch):
         """A user32 whose calls never return, freed again when the block ends.
 
         A scoped ``with patch(...)`` rather than ``.start()`` + a finally's
         ``patch.stopall()`` — the stopall stopped EVERY active patch in the
         process, and a raise between start() and the finally leaked the stub
         into the rest of the session."""
-        monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         released = threading.Event()
 
@@ -158,7 +158,7 @@ class TestAWindowThatHasStoppedAnswering:
         """The send would go to this process's UI thread — the very thread waiting
         on the worker — so waiting on it deadlocks against a pump that cannot
         happen.  It cost the dashboard the band on its own reference popup."""
-        monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: True)
         threads: list[str] = []
 
@@ -170,7 +170,7 @@ class TestAWindowThatHasStoppedAnswering:
         assert threads == [threading.current_thread().name]
 
     def test_the_caller_gives_up_instead_of_waiting_for_ever(self, monkeypatch):
-        with self._hung(monkeypatch):
+        with self._stalled(monkeypatch):
             started = time.monotonic()
             set_always_on_top(111, True)
             minimize_window(111, activate=False)
@@ -183,7 +183,7 @@ class TestAWindowThatHasStoppedAnswering:
 
     def test_it_says_which_window_stopped_answering(self, monkeypatch, caplog):
         """The session gave no clue which of six windows had wedged it."""
-        with self._hung(monkeypatch):
+        with self._stalled(monkeypatch):
             with caplog.at_level(logging.WARNING, logger="fun_time.win32"):
                 set_always_on_top(4242, True)
 
@@ -194,7 +194,7 @@ class TestAWindowThatHasStoppedAnswering:
         """The wait is only ever spent on a window that has stalled: a healthy one
         returns in microseconds, and the call order the caller made — which is what
         stacks Genau's HUD above Nau's video — is unchanged."""
-        monkeypatch.setattr(win32, "HUNG_WINDOW_TIMEOUT_S", 30)
+        monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 30)
         monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
         order: list[int] = []
 

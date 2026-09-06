@@ -3837,7 +3837,7 @@ class TestSatellitesModeSwitch:
         assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
         assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
         # Its windows leave the screen: the main one parks, the shows close
-        # themselves (the hides are the backstop for a hung app).
+        # themselves (the hides are the backstop for a stalled app).
         assert ("hide_role", "origenerator") in [(op.op, op.key) for op in ops]
 
     def test_satellites_toggle_flips_between_the_two(self, tmp_path):

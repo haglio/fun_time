@@ -245,7 +245,7 @@ class OverlayWindow:
 
         See TOPMOST_POLL_MS: every window a session raises lands above this one,
         and this is the only thing that puts it back.  Our own window, so the
-        call goes straight through rather than onto the hung-window guard's
+        call goes straight through rather than onto the stalled-window guard's
         worker thread — it cannot block on anything but ourselves.
 
         The handle is looked up by this window's own title, and only once:

@@ -474,7 +474,7 @@ def test_a_lock_inside_a_loop_keeps_the_loops_chrome_and_rings_the_held_clip():
 
     assert panel.locked is True
     assert panel.active_loop == "seed"   # still looping — the lit button, the rectangle
-    assert panel.current == CUR          # …over the map the loop hung
+    assert panel.current == CUR          # …over the map the loop pinned
     assert panel.playing == S1           # …held on the member it had reached
 
 
