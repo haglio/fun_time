@@ -10,11 +10,14 @@ from player_core.timeline import TIMELINE_HEIGHT
 
 from satellite.pointer import time_at
 
+from .console_panel import PANEL_WIDTH_PX
+from .layout import DEFAULT_LAYOUT, PANEL
 from .pointer import surface_pixel
 
 PICTURE = "picture"
 HUD = "hud"
 HUD_GAP_DEG = 0.6
+HUD_DEG_PER_PX = DEFAULT_LAYOUT[PANEL].width_deg / PANEL_WIDTH_PX
 
 
 def hud_screen_name(side: str) -> str:

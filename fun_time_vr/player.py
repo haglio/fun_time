@@ -105,6 +105,7 @@ from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immer
 from .roles import MainRole
 from .satellite_hud import (
     HUD,
+    HUD_DEG_PER_PX,
     HUD_GAP_DEG,
     PICTURE,
     HudSurface,
@@ -450,7 +451,7 @@ class _SatelliteUnit(_VideoUnit):
         if self._hud_shown and self.target.ready:
             self.hud_screen.placement = attached_below(
                 self.screen.placement, aspect=self.target.aspect,
-                width_fraction=self.hud_texture.width / self.target.width,
+                width_deg=self.hud_texture.width * HUD_DEG_PER_PX,
                 hung_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
             )
             self.hud_screen.rehang(self.hud_texture.aspect)
