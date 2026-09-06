@@ -120,6 +120,28 @@ def test_the_integration_support_modules_import_where_ctypes_has_no_windll():
     assert result.returncode == 0, result.stderr
 
 
+
+def test_our_own_rect_carries_win32s_own_memory_layout():
+    """The four field NAMES are ours; the memory they sit in is Win32's.
+
+    ``GetWindowRect`` and ``GetMonitorInfoW`` write four LONGs at fixed offsets
+    into whatever structure they are handed, so a structure that agrees on the
+    layout may disagree on the spelling -- and one that drifts on the layout
+    reads garbage without saying so.
+    """
+    theirs = ctypes.wintypes.RECT
+    ours = win32_loader.Win32Rect
+
+    assert [name for name, _ in ours._fields_] == ["left", "top", "right", "lower"]
+    assert ctypes.sizeof(ours) == ctypes.sizeof(theirs)
+    assert (
+        [(getattr(ours, name).offset, getattr(ours, name).size)
+         for name, _ in ours._fields_]
+        == [(getattr(theirs, name).offset, getattr(theirs, name).size)
+            for name, _ in theirs._fields_]
+    )
+
+
 def test_the_flag_says_whether_this_ctypes_can_bind_a_dll():
     assert win32_loader.WIN32_AVAILABLE is hasattr(ctypes, "windll")
 

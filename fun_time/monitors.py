@@ -11,6 +11,7 @@ import ctypes
 import ctypes.wintypes
 import os
 
+from .win32_loader import Win32Rect
 from .window_layout import MonitorRect
 
 MonitorInfo = MonitorRect
@@ -65,8 +66,8 @@ def enumerate_monitors() -> list[MonitorInfo]:
     class MONITORINFOEXW(ctypes.Structure):
         _fields_ = [
             ("cbSize", ctypes.wintypes.DWORD),
-            ("rcMonitor", ctypes.wintypes.RECT),
-            ("rcWork", ctypes.wintypes.RECT),
+            ("rcMonitor", Win32Rect),
+            ("rcWork", Win32Rect),
             ("dwFlags", ctypes.wintypes.DWORD),
             ("szDevice", ctypes.wintypes.WCHAR * 32),
         ]
@@ -75,7 +76,7 @@ def enumerate_monitors() -> list[MonitorInfo]:
         ctypes.wintypes.BOOL,
         ctypes.wintypes.HMONITOR,
         ctypes.wintypes.HDC,
-        ctypes.POINTER(ctypes.wintypes.RECT),
+        ctypes.POINTER(Win32Rect),
         ctypes.wintypes.LPARAM,
     )
 
@@ -88,7 +89,7 @@ def enumerate_monitors() -> list[MonitorInfo]:
             x=rc.left,
             y=rc.top,
             width=rc.right - rc.left,
-            height=rc.bottom - rc.top,
+            height=rc.lower - rc.top,
         ))
         return True
 

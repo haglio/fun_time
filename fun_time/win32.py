@@ -20,7 +20,7 @@ import time
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from fun_time.win32_loader import load_dll, win_functype
+from fun_time.win32_loader import Win32Rect, load_dll, win_functype
 from fun_time.win32_process import list_child_pids
 
 logger = logging.getLogger(__name__)
@@ -264,10 +264,10 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
     browser fills the main player's rect, since that is where the video it
     picks will play.
     """
-    rect = ctypes.wintypes.RECT()
+    rect = Win32Rect()
     if not _user32.GetWindowRect(hwnd, ctypes.byref(rect)):
         return None
-    return rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top
+    return rect.left, rect.top, rect.right - rect.left, rect.lower - rect.top
 
 
 def set_always_on_top(hwnd: int, on_top: bool) -> None:
@@ -374,14 +374,14 @@ def iter_zorder() -> list[StackedWindow]:
             if length > 0:
                 buf = ctypes.create_unicode_buffer(length + 1)
                 _user32.GetWindowTextW(hwnd, buf, length + 1)
-                rect = ctypes.wintypes.RECT()
+                rect = Win32Rect()
                 _user32.GetWindowRect(hwnd, ctypes.byref(rect))
                 out.append(
                     StackedWindow(
                         hwnd=hwnd,
                         title=buf.value,
                         topmost=is_window_topmost(hwnd),
-                        rect=(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top),
+                        rect=(rect.left, rect.top, rect.right - rect.left, rect.lower - rect.top),
                     )
                 )
         hwnd = _user32.GetWindow(hwnd, GW_HWNDNEXT)
