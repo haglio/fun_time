@@ -12,7 +12,7 @@ PROJECT_DIR = Path(fun_time.__file__).resolve().parent.parent
 
 
 def test_the_app_icon_is_the_familys_ft():
-    # One PINK block letter on the family's 5x5 grid: Fun Time's two initials
+    # One MAGENTA block letter on the family's 5x5 grid: Fun Time's two initials
     # sharing a stem.
     assert_follows_the_family_spec(PROJECT_DIR / "icon.ico", "FT")
 

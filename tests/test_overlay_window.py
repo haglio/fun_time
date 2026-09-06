@@ -171,16 +171,16 @@ class TestTheCoverComesDown:
         assert len(window._root.rearmed) == 1
 
 
-def test_the_two_wordmarks_are_one_pink():
+def test_the_two_wordmarks_are_one_magenta():
     """The panel's "Fun Time" and the cover's are the same tone.  They were two
     hex literals in two files kept in step by a comment, in a repo where one of
     the files cannot import Qt and the other cannot import tkinter."""
     from PyQt6.QtGui import QColor
 
-    from fun_time.cover_palette import WORDMARK_PINK
+    from fun_time.cover_palette import WORDMARK_MAGENTA
     from fun_time.dashboard_app import COLOR_APP_TITLE
 
-    assert QColor(WORDMARK_PINK) == COLOR_APP_TITLE
+    assert QColor(WORDMARK_MAGENTA) == COLOR_APP_TITLE
 
 
 def test_a_cover_process_loads_no_qt():
