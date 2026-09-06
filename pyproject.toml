@@ -53,3 +53,39 @@ include = ["fun_time*", "satellite*", "fun_time_vr*"]
 # the venv and CI do.  The rules are not configured here on purpose: the
 # dead-code gate in tests/test_dead_code.py names the ones it enforces, so
 # a bare `ruff check` cannot quietly become the gate.
+
+# The pytest settings live HERE, not in a pytest.ini beside it, because pytest
+# takes its whole configuration from ONE file and a caller may name that file.
+# `-c pyproject.toml` is the natural thing to pass in a worktree, and with the
+# settings in a separate pytest.ini it silently selected a config with no
+# addopts, no testpaths and no norecursedirs: it dropped the sanitize plugin and
+# the timeout, and it swept tests/integration/ into an ordinary unit run — which
+# put the suite's real players, Nau and AHK bridge on the user's monitors, on
+# top of his work.  One file means the explicit `-c` and bare discovery cannot
+# disagree.  tests/test_pytest_config.py holds it here.
+[tool.pytest.ini_options]
+# A ceiling on a hang, not a performance budget. The slowest test on a
+# developer machine is the tracked-tree content scan, but it is not the
+# slowest on a runner: it returns early when no blocklist is reachable, and
+# the blocklist is git-ignored, so a fresh checkout has none. What CI does run
+# longest here is the launcher-import children at about a second. 240 s is
+# chosen to clear the 180 s guards on the child processes in
+# tests/test_win32_loader.py and tests/test_launch_smoke.py, so a wedged child
+# fails with the message written for it rather than with a generic stack dump.
+# --timeout-method=thread is the half that pays for itself: it dumps the hung
+# stack, which turns a stalled required check into a one-line diagnosis.
+# tests/test_timeouts.py holds all three halves of it.
+addopts = "-p no:cacheprovider --timeout=240 --timeout-method=thread -p app_support.sanitize.pytest_plugin"
+testpaths = ["tests"]
+markers = [
+    "real_startup_waits: this test is about a startup wait, so it gets the real window lookup and the real timeouts instead of the conftest stubs.",
+]
+# `integration` is the load-bearing one: it is what keeps the integration suite
+# out of an ordinary unit run.  It is a convenience, not the guard — the guard
+# is tests/integration/conftest.py, which refuses whenever an integration test
+# is collected off the hidden desktop, however the run was invoked.
+norecursedirs = [
+    "archive", "state", "integration",
+    ".tmp-pytest-local", ".tmp-pytest-fresh", ".tmp-pytest-int", ".tmp-pytest-int-one",
+    "pytest-cache-files-*",
+]
