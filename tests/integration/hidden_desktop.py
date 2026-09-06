@@ -210,6 +210,13 @@ def pids_with_window_on_current_desktop() -> set[int]:
     return pids
 
 
+def on_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> bool:
+    """Whether the caller is on the hidden desktop — the same question
+    ``require_hidden_desktop`` answers, for a caller that wants to branch on it
+    rather than be stopped by it."""
+    return desktop_name() == HIDDEN_DESKTOP_NAME
+
+
 def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_name) -> None:
     """Refuse to run the suite anywhere but the hidden desktop.
 
@@ -230,7 +237,11 @@ def require_hidden_desktop(desktop_name: Callable[[], str] = current_desktop_nam
             f"    .venv/Scripts/python.exe -m tests.integration.hidden_desktop\n\n"
             "Running pytest against tests/integration/ directly puts real windows, a "
             "real AHK bridge and real players on your screen, on top of whatever Fun "
-            "Time session you have open."
+            "Time session you have open.\n\n"
+            "A unit run that swept this directory in lands here too — that is a run "
+            "whose config lacks the norecursedirs exclusion, which means a -c naming "
+            "some file other than pyproject.toml.  The unit suite is:\n\n"
+            "    .venv/Scripts/python.exe -m pytest\n"
         )
 
 

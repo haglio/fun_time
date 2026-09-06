@@ -11,6 +11,10 @@ Remove it here — before any ``QApplication`` is created or any bridge/Nau subp
 spawned — so Qt falls back to the native windows platform and every child process the
 integration session launches inherits a real platform too. Without this, those windows
 would render offscreen and the Win32 inspection helpers would find nothing.
+
+Removing it is also the one thing this file does that a *unit* run can feel, so it is
+done only on the hidden desktop; and this file holds the two hooks that refuse a run
+anywhere else, one for each way the directory can be reached.
 """
 from __future__ import annotations
 
@@ -19,11 +23,30 @@ import sys
 
 import pytest
 
-from .hidden_desktop import REFUSED_EXIT_CODE, require_hidden_desktop
+from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
 from .integration_support import close_udp_sinks
 from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
-os.environ.pop("QT_QPA_PLATFORM", None)
+# Only on the desktop this suite is allowed to run on.  Importing this file is not
+# the same thing as running it: a unit run that merely *recurses* into this
+# directory imports it too, and popping the variable there would take the whole
+# unit suite off the offscreen platform — every widget test flashing a real window
+# onto the user's monitors, before a single integration test had started.
+if sys.platform != "win32" or on_hidden_desktop():
+    os.environ.pop("QT_QPA_PLATFORM", None)
+
+
+def _refuse_a_run_off_the_hidden_desktop() -> None:
+    """End the run rather than let an integration test reach the user's screen."""
+    if sys.platform != "win32":
+        return
+    try:
+        require_hidden_desktop()
+    except RuntimeError as wrong_desktop:
+        # pytest.exit rather than letting it propagate: an exception out of a
+        # hook is reported as an INTERNALERROR traceback, which reads
+        # as a broken harness instead of what it is — the run being invoked wrongly.
+        pytest.exit(str(wrong_desktop), returncode=REFUSED_EXIT_CODE)
 
 
 def pytest_sessionstart(session):
@@ -34,15 +57,27 @@ def pytest_sessionstart(session):
     now desktop-scoped with no fallback, and would silently skip its cleanup here
     rather than sweep the machine.
     """
-    if sys.platform != "win32":
-        return
-    try:
-        require_hidden_desktop()
-    except RuntimeError as wrong_desktop:
-        # pytest.exit rather than letting it propagate: an exception out of a
-        # sessionstart hook is reported as an INTERNALERROR traceback, which reads
-        # as a broken harness instead of what it is — the run being invoked wrongly.
-        pytest.exit(str(wrong_desktop), returncode=REFUSED_EXIT_CODE)
+    _refuse_a_run_off_the_hidden_desktop()
+
+
+def pytest_collection_modifyitems(session, config, items):
+    """The same refusal, for a run that never named this directory.
+
+    ``pytest_sessionstart`` above can only fire when this conftest is one of the
+    run's *initial* conftests — which it is only when the command line names
+    ``tests/integration/``.  A run that instead recurses in from ``tests``
+    imports this file partway through collection, long after sessionstart has
+    passed, so the refusal never ran at all: the suite launched real players, a
+    real Nau and a real AHK bridge onto the user's monitors on top of his work.
+    That is not hypothetical — it is what ``-c pyproject.toml`` did while the
+    ``norecursedirs`` exclusion still lived in a separate pytest.ini.
+
+    Registered by the same import, and called once collection has finished and
+    before the first test runs, this hook fires however the directory was
+    reached.  ``norecursedirs`` decides what an ordinary run *collects*; this
+    decides what is allowed to *launch*, and only the second is a guard.
+    """
+    _refuse_a_run_off_the_hidden_desktop()
 
 
 def _announce_waiting(seconds: float) -> None:

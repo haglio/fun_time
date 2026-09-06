@@ -9,11 +9,18 @@ from __future__ import annotations
 
 import ast
 import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
-from tests.integration.hidden_desktop import HIDDEN_DESKTOP_NAME, require_hidden_desktop
+from tests.integration.hidden_desktop import (
+    HIDDEN_DESKTOP_NAME,
+    REFUSED_EXIT_CODE,
+    on_hidden_desktop,
+    require_hidden_desktop,
+)
 
 
 def test_a_run_on_the_hidden_desktop_is_allowed():
@@ -42,6 +49,54 @@ def test_the_guard_defaults_to_the_desktop_it_is_actually_running_on():
     run is on the ordinary desktop, so the default wiring must refuse."""
     with pytest.raises(RuntimeError):
         require_hidden_desktop()
+
+
+def test_the_predicate_and_the_refusal_agree():
+    """``on_hidden_desktop`` is what the conftest branches on before it touches
+    QT_QPA_PLATFORM; it must answer the same question the refusal asks."""
+    assert on_hidden_desktop(desktop_name=lambda: HIDDEN_DESKTOP_NAME)
+    assert not on_hidden_desktop(desktop_name=lambda: "Default")
+
+
+def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
+    """The hole this suite was written for, and did not cover.
+
+    ``pytest_sessionstart`` can only refuse when tests/integration/ is named on
+    the command line — that is what makes its conftest an *initial* conftest,
+    imported before the session starts.  A run that instead recurses in from
+    ``tests`` imports that file partway through collection, long after
+    sessionstart has passed, so nothing refused: the suite ran on the user's own
+    desktop and threw real players, a real Nau and a real AHK bridge over his
+    work.  That is what a config without the ``norecursedirs`` exclusion did.
+
+    Reproduced here by dropping ``integration`` from that setting — the rest of
+    the list is taken from the live config so this cannot go stale — and run
+    ``--collect-only``, so a regression is caught by an exit code rather than by
+    the windows it would otherwise open.
+    """
+    without_the_exclusion = [
+        directory for directory in pytestconfig.getini("norecursedirs") if directory != "integration"
+    ]
+
+    swept_in = subprocess.run(
+        [
+            sys.executable, "-m", "pytest", "tests",
+            "-o", "norecursedirs=" + " ".join(without_the_exclusion),
+            "--collect-only", "-q",
+        ],
+        cwd=Path(__file__).resolve().parent.parent,
+        capture_output=True,
+        text=True,
+        timeout=180,
+        env={**os.environ, "PYTEST_ADDOPTS": ""},
+    )
+
+    # The wording, not just the code: pytest spends exit 4 on any usage error, so
+    # only the refusal's own sentence proves the guard is what stopped the run.
+    said = swept_in.stdout + swept_in.stderr
+
+    assert swept_in.returncode == REFUSED_EXIT_CODE, said
+    assert f"must run on the '{HIDDEN_DESKTOP_NAME}' desktop" in said, said
 
 
 def test_the_unit_suite_never_inherits_the_integration_flag():

@@ -13,6 +13,8 @@ Unit tests (run freely, no permission needed):
 
 The default `pytest` invocation only runs unit tests. Integration tests live in `tests/integration/` and are excluded from the default collection.
 
+**Never pass `-c` to pytest.** The config lives in `pyproject.toml`; naming any other file gives pytest a config with no `addopts` and no `norecursedirs` — that switches off the sanitize guard and sweeps `tests/integration/` into the run, putting real players, a real Nau and a real AHK bridge on the user's monitors, over his work, while he cancels them and you read the wreckage as your change failing. `tests/test_pytest_config.py` keeps the settings in one file; `tests/integration/conftest.py` now refuses any run that reaches an integration test off the hidden desktop.
+
 Integration tests — run on a hidden Win32 desktop so the real windows never touch your screen; safe to run unattended, like unit tests, **including while Fun Time is open**:
 ```powershell
 .\.venv\Scripts\python.exe -m tests.integration.hidden_desktop
