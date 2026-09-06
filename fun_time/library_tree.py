@@ -65,7 +65,6 @@ class Folder:
 
 
 def folder_of(handle: LibraryHandle) -> tuple[str, ...]:
-    """Where in this tree *handle* sits — its section, as a path to walk to."""
     return tuple(part for part in handle.section.split("/") if part)
 
 

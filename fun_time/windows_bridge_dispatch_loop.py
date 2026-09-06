@@ -77,16 +77,7 @@ def read_nau_notice(path) -> tuple[float, str, str]:
 
 
 def keep_a_browse_on_top(browsing: subprocess.Popen | None) -> int:
-    """Put an open browse back above whatever was just promoted; its window, or 0.
-
-    Every promotion this session makes is an ``HWND_TOPMOST`` insert, landing at
-    the TOP of the band, so leaving OmniPause restacked the players over a browse
-    still up and nothing could lift it again.  Asserted after those, it is the
-    last insert; ``SWP_NOACTIVATE`` means only the band moves.
-
-    Across the process TREE: a venv's ``python.exe`` spawns the interpreter that
-    owns the window, so the started pid alone finds none.
-    """
+    # HWND_TOPMOST inserts at the band's TOP, so run this after the ops it outranks.
     if browsing is None or browsing.poll() is not None:
         return 0
     hwnd = find_window_for_process(browsing.pid)
