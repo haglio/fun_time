@@ -1471,8 +1471,29 @@ class TestBrowseLibrary:
 
         mock_browse.assert_called_once_with(
             tmp_path / "launch.ini", r"C:\python.exe", over=(0, 400, 1080, 1520),
-            runner=runner._run_browser,
+            playing="", runner=runner._run_browser,
         )
+
+    def test_browses_from_the_folder_the_main_player_is_playing_in(self, tmp_path):
+        """What is up decides where the browse opens, so it goes with the launch.
+
+        The main player publishes it, which is also the only thing that knows —
+        the pick that started this session's video may have come from anywhere.
+        """
+        runner = make_runner(tmp_path)
+        runner.state = BridgeState(omni_paused=False)
+        runner.config.nau_status_file.write_text(
+            "video=C:/videos/big_batch/beta.mp4\n", encoding="utf-8",
+        )
+
+        with patch.object(runner.windows, "remove_all_topmost"), \
+             patch.object(runner.windows, "restore_all_topmost"), \
+             patch("fun_time.role_windows.find_window_by_pid", side_effect=lookup_pid), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   return_value=None) as mock_browse:
+            runner._handle_browse_library()
+
+        assert mock_browse.call_args.kwargs["playing"] == "C:/videos/big_batch/beta.mp4"
 
     def test_sends_selected_file_to_nau_by_default(self, tmp_path):
         """In video mode (the default) a selected file becomes a Nau PLAY_FILE

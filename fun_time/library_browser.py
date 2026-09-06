@@ -37,8 +37,8 @@ from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, SIZE_SMALL, make_font
 
-from .library_handles import LibraryHandle, build_library_handles
-from .library_tree import Folder, SubFolder, folder_at
+from .library_handles import LibraryHandle, build_library_handles, handle_for
+from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
 
@@ -396,6 +396,7 @@ class LibraryBrowserWindow(QWidget):
         thumbnail_cache: str | Path,
         on_pick: Callable[[str], None],
         on_close: Callable[[], None] | None = None,
+        playing: str | None = None,
     ) -> None:
         super().__init__(None)
         # A Tool window, which on Windows means no taskbar button: a browse is
@@ -427,11 +428,32 @@ class LibraryBrowserWindow(QWidget):
         palette.setColor(QPalette.ColorRole.Window, BG_PRIMARY)
         self.setPalette(palette)
 
-        self.open_folder(())
+        self.open_on(playing)
         # The grid takes the focus, though the sidebar is first in the layout and
         # would otherwise have it: the arrows and the type-ahead are the way the
         # browse is driven, and both belong on the tiles.
         self.grid.setFocus()
+
+    def open_on(self, video: str | None) -> None:
+        """Open where *video* is, with its own tile picked out — or at the top.
+
+        A browse is nearly always for something near what is already playing —
+        the rest of a performer's folder, the scene the cut came out of — so
+        opening at the root spent every browse walking back down to where the
+        session already was.  The video itself is selected rather than merely
+        shown, since a folder of hundreds otherwise says nothing about where in
+        it you landed.
+
+        Anything the library does not hold falls back to the root: a session
+        playing a file from outside it has no folder here to open on.
+        """
+        handle = handle_for(self._handles, video) if video else None
+        if handle is None:
+            self.open_folder(())
+            return
+        self.open_folder(folder_of(handle))
+        if handle in self.grid.rows:
+            self.grid.reveal(self.grid.rows.index(handle))
 
     def open_folder(self, path: Sequence[str]) -> None:
         """Show *path* in both halves: its folder tiles, or the videos it holds."""
@@ -605,9 +627,13 @@ def browse_library(
     python_exe: str,
     *,
     over: tuple[int, int, int, int] | None = None,
+    playing: str | None = None,
     runner: Callable[..., object] = subprocess.run,
 ) -> str | None:
     """Browse the library and return the video picked, or None if none was.
+
+    *playing* is what the main player has up, which is where the browse opens —
+    see :meth:`LibraryBrowserWindow.open_on`.
 
     Blocks for the length of the browse, as the file dialog before it did — the
     caller is a dispatch-loop thread, and the browser is a window of its own
@@ -625,6 +651,8 @@ def browse_library(
     if over is not None:
         x, y, width, height = over
         command += ["--x", str(x), "--y", str(y), "--width", str(width), "--height", str(height)]
+    if playing:
+        command += ["--playing", playing]
     runner(command, **hidden_subprocess_kwargs())
 
     try:
@@ -667,6 +695,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--y", type=int)
     parser.add_argument("--width", type=int)
     parser.add_argument("--height", type=int)
+    parser.add_argument("--playing", help="What the main player has up — the browse opens there")
     return parser.parse_args(argv)
 
 
@@ -696,6 +725,7 @@ def main(argv: list[str] | None = None) -> int:
         thumbnail_cache=config.thumbnail_cache,
         on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
         on_close=app.quit,
+        playing=args.playing,
     )
     if None not in {args.x, args.y, args.width, args.height}:
         window.setGeometry(args.x, args.y, args.width, args.height)

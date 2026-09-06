@@ -15,6 +15,7 @@ from fun_time.library_browser import (
     ICON_WIDTH,
     NON_LETTER_HEADING,
     SIDEBAR_WIDTH,
+    WINDOW_TITLE,
     IndexLine,
     LibraryBrowserWindow,
     alphabetical_index,
@@ -149,6 +150,85 @@ def test_the_selection_starts_on_the_first_thing_worth_opening(browser, tmp_path
     window.open_folder(("big_batch",))
 
     assert window.grid.currentRow() == 1
+
+
+def test_a_browse_opens_where_the_session_already_is(browser, tmp_path: Path):
+    """The folder the video playing sits in, with that video's own tile picked.
+
+    Browsing is nearly always for something beside what is up, so the root is
+    the one place a browse never wants to start from.
+    """
+    handles = [
+        _handle("alpha scene", "C:/videos/small_batch/alpha.mp4", section="small_batch"),
+        _handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch/whole"),
+    ]
+    window = browser(
+        handles,
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+        playing="C:/videos/big_batch/beta.mp4",
+    )
+
+    assert window.windowTitle() == f"{WINDOW_TITLE} — big_batch/whole"
+    assert window.grid.rows[window.grid.currentRow()] == handles[1]
+
+
+def test_the_rendition_playing_need_not_be_the_one_a_pick_would_play(browser, tmp_path: Path):
+    """A handle is its whole family: the session is as likely to be on the small
+    original as on the upscale a pick plays, and both are the same video here."""
+    handles = [
+        _handle("alpha scene", "C:/videos/small_batch/alpha.mp4", section="small_batch"),
+        _handle(
+            "Beta Scene",
+            "C:/videos/big_batch/3_good_to_go/beta_big.mp4",
+            "C:/videos/big_batch/0 unsorted/beta.mp4",
+            section="big_batch",
+        ),
+    ]
+    window = browser(
+        handles,
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+        playing="C:/videos/big_batch/0 unsorted/beta.mp4",
+    )
+
+    assert window.grid.rows[window.grid.currentRow()] == handles[1]
+
+
+def test_the_playing_path_is_matched_however_it_is_spelled(browser, tmp_path: Path):
+    """The player publishes a path, not the library's own spelling of one, and
+    the disk beneath both does not distinguish their case."""
+    handles = [_handle("Beta Scene", "C:/Videos/Big_Batch/beta.mp4", section="big_batch")]
+    window = browser(
+        handles,
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+        playing="c:/videos/big_batch/BETA.MP4",
+    )
+
+    assert window.grid.rows[window.grid.currentRow()] == handles[0]
+
+
+def test_a_video_the_library_does_not_hold_opens_at_the_top(browser, tmp_path: Path):
+    """Nothing here to open on — a session playing from outside the library."""
+    handles = [_handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch")]
+    window = browser(
+        handles,
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+        playing="C:/elsewhere/something.mp4",
+    )
+
+    assert window.windowTitle() == WINDOW_TITLE
+    assert all(isinstance(what, SubFolder) for what in window.grid.rows)
+
+
+def test_a_browse_with_nothing_playing_opens_at_the_top(browser, tmp_path: Path):
+    handles = [_handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None, playing="")
+
+    assert window.windowTitle() == WINDOW_TITLE
+    assert all(isinstance(what, SubFolder) for what in window.grid.rows)
 
 
 def test_activating_a_video_reports_that_handles_playable_version(browser, tmp_path: Path):
@@ -480,6 +560,32 @@ def test_browsing_runs_the_browser_and_returns_what_it_picked(tmp_path: Path):
         str(manifest), str(pick_file_for(manifest)),
         "--x", "10", "--y", "20", "--width", "300", "--height", "400",
     ]]
+
+
+def test_the_browser_is_told_what_the_session_has_up(tmp_path: Path):
+    """So the window can open on that video's folder rather than at the root."""
+    manifest = tmp_path / "windows_bridge_launch.ini"
+    manifest.write_text("", encoding="utf-8")
+    commands: list[list[str]] = []
+
+    browse_library(
+        manifest, r"C:\python.exe", playing=r"C:\videos\beta.mp4",
+        runner=lambda command, **_k: commands.append(command),
+    )
+
+    assert commands[0][-2:] == ["--playing", r"C:\videos\beta.mp4"]
+
+
+def test_a_browse_with_nothing_up_names_no_video(tmp_path: Path):
+    """The flag is left off rather than passed empty, so a browse launched by
+    hand reads the same as one launched with nothing playing."""
+    manifest = tmp_path / "windows_bridge_launch.ini"
+    manifest.write_text("", encoding="utf-8")
+    commands: list[list[str]] = []
+
+    browse_library(manifest, r"C:\python.exe", runner=lambda c, **_k: commands.append(c))
+
+    assert "--playing" not in commands[0]
 
 
 def test_an_abandoned_browse_picks_nothing(tmp_path: Path):

@@ -64,7 +64,8 @@ class Folder:
         return "/".join(self.path)
 
 
-def _section_parts(handle: LibraryHandle) -> tuple[str, ...]:
+def folder_of(handle: LibraryHandle) -> tuple[str, ...]:
+    """Where in this tree *handle* sits — its section, as a path to walk to."""
     return tuple(part for part in handle.section.split("/") if part)
 
 
@@ -84,10 +85,10 @@ def folder_at(
     they are the same four every visit.  *rng* overrides that for a test.
     """
     path = tuple(path)
-    inside = [h for h in handles if _section_parts(h)[: len(path)] == path]
+    inside = [h for h in handles if folder_of(h)[: len(path)] == path]
     names: dict[str, list[LibraryHandle]] = {}
     for handle in inside:
-        parts = _section_parts(handle)
+        parts = folder_of(handle)
         if len(parts) > len(path):
             names.setdefault(parts[len(path)], []).append(handle)
     if names:
