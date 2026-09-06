@@ -519,7 +519,7 @@ class TestWindowRect:
     def test_reports_the_windows_position_and_size(self):
         def fill(_hwnd, rect_ref):
             rect = rect_ref._obj
-            rect.left, rect.top, rect.right, rect.bottom = 0, 400, 1080, 1920
+            rect.left, rect.top, rect.right, rect.lower = 0, 400, 1080, 1920
             return 1
 
         with patch("fun_time.win32._user32") as mock:
@@ -846,7 +846,7 @@ class TestIterZorder:
             left, top, width, height = by_hwnd[hwnd][3]
             rect = rect_ref._obj
             rect.left, rect.top = left, top
-            rect.right, rect.bottom = left + width, top + height
+            rect.right, rect.lower = left + width, top + height
             return 1
 
         mock.GetWindowRect.side_effect = rect_of

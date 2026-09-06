@@ -24,6 +24,15 @@ from typing import Any
 WIN32_AVAILABLE = hasattr(ctypes, "windll")
 
 
+class Win32Rect(ctypes.Structure):
+    _fields_ = [
+        ("left", ctypes.c_long),
+        ("top", ctypes.c_long),
+        ("right", ctypes.c_long),
+        ("lower", ctypes.c_long),
+    ]
+
+
 class Win32Unavailable(RuntimeError):
     """A Win32 entry point was called in a process that could not bind it."""
 
