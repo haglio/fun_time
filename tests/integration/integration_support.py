@@ -69,7 +69,7 @@ VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 
 
-# The images the apps a session leaves behind actually run as: the two
+# The images the apps a session leaves actually run as: the two
 # satellites, Nau/Genau/the audio companion/the dashboard (each under its own
 # ``FunTime-*`` copy of pythonw, or under plain pythonw where that copy could not
 # be made), and the AHK hotkey shell.  python.exe is deliberately absent — pytest

@@ -140,7 +140,7 @@ def band_names(bands: dict[tuple[str, bool], list[tuple[str, ...]]]) -> dict[tup
     second band to differ from — in both of those the folder keeps its own name
     and the cuts, if any, take the suffix.
 
-    Dominant rather than unanimous, so one straggler left behind by a move (a
+    Dominant rather than unanimous, so one straggler stranded by a move (a
     file the running session had open) cannot drag a band's name back.
     """
     names = {}

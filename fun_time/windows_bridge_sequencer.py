@@ -355,7 +355,7 @@ class _Layout:
 
 @dataclass(frozen=True)
 class _CoreSession:
-    """The children phase 1 leaves behind, and the modes it resumed into."""
+    """The children phase 1 leaves, and the modes it resumed into."""
 
     main_mode: str
     satellites_mode: str

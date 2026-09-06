@@ -324,7 +324,7 @@ def build_voice_commands(
         # to its defaults (lock, order, loop and all); "clear filter" and "show
         # everything" are the same gesture said another way, scoped like the grid.
         "no_filter": ("no filter", "filter off", "clear filter", "show everything"),
-        # "filter" is the same gesture named after what it leaves behind — the side's
+        # "filter" is the same gesture named after what it leaves — the side's
         # filter, the one the HUD lights and "no filter" drops — so "portrait filter"
         # and "filter portrait" say "portrait lock action", and bare it filters the
         # active side.  It does not collide with the no_filter phrases above: the

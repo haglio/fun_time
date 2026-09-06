@@ -89,7 +89,7 @@ def _named_checkout() -> Path | None:
         if line and not line.startswith("#"):
             named = Path(line)
             # Only if it is still THERE.  A worktree retired after its branch
-            # landed leaves this file behind naming a directory that no longer
+            # landed leaves this file naming a directory that no longer
             # exists, and returning it turned the test below into a skip — a
             # guard that silently stops guarding, which is the failure mode it
             # was written against in the first place.  Fall through to the

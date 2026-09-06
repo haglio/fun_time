@@ -79,7 +79,7 @@ def test_a_process_launched_into_the_run_job_dies_when_the_job_closes(tmp_path):
 def test_the_broker_a_run_starts_survives_that_runs_job(tmp_path):
     """The broker is a service, not a child: harem and the user's next Fun Time
     launch keep talking to it after the run that started it is gone.  It is the
-    one process a run may leave behind."""
+    one process a run may leave."""
     pid_file = tmp_path / "broker_pid.txt"
     spawn_broker = (
         "import pathlib, subprocess, sys;"

@@ -416,7 +416,7 @@ def window_exists(hwnd: int) -> bool:
     """Whether *hwnd* still names a live window.
 
     A handle captured at startup outlives the window it named — closing the
-    window leaves the number behind — so anything that must reach *that* window
+    window leaves the number — so anything that must reach *that* window
     and no other has to ask before it acts.
     """
     return bool(hwnd) and bool(_user32.IsWindow(hwnd))

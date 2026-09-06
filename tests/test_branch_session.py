@@ -187,7 +187,7 @@ def test_the_branch_session_keeps_its_state_inside_the_worktree(checkouts):
 
 
 def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
-    """The state dir moves into the worktree; the broker's files stay behind.
+    """The state dir moves into the worktree; the broker's files stay where they are.
 
     ``../broker`` opens its heartbeat, serial-activity, command and mode files
     from the one directory its own config names, and never learns that a session
