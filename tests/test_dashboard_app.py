@@ -223,8 +223,8 @@ def test_a_control_wearing_a_state_color_lightens_that_color_instead():
 
 
 def test_the_config_reads_only_what_the_bar_needs(tmp_path: Path):
-    """The dashboard used to read every player's status file to draw its boxes.
-    It draws no boxes, so it reads none of them."""
+    """The dashboard used to read every player's status file to draw its panels.
+    It draws no panels, so it reads none of them."""
     config = load_config(Path("fun_time_config.example.json"))
     manifest_path = write_windows_bridge_manifest(config, tmp_path / "manifest.ini")
 

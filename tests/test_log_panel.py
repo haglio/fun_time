@@ -251,7 +251,7 @@ class TestHoverCopyButton:
         _hover_row(panel, 0)
         assert _copy_button(panel).isVisible()
 
-        panel._source_boxes["system"].setChecked(False)  # empties the list
+        panel._source_buttons["system"].setChecked(False)  # empties the list
 
         assert not _copy_button(panel).isVisible()
 
@@ -322,7 +322,7 @@ def test_the_source_toggles_are_left_to_the_style(panel_factory):
 
     panel = panel_factory(["Clip saved"])
 
-    for button in panel._source_boxes.values():
+    for button in panel._source_buttons.values():
         assert button.font() == QApplication.font(), "given a font of our own"
         assert button.minimumWidth() == 0 and button.maximumWidth() > 1000,             "pinned to a width again"
         assert button.autoRaise()
@@ -346,7 +346,7 @@ def test_a_word_button_keeps_one_ground_however_it_is_toggled(panel_factory):
     from shared_ui.colors import BG_BUTTON_ACTIVE, TEXT_MUTED
 
     panel = panel_factory(["Clip saved"])
-    sheet = panel._source_boxes["system"].styleSheet()
+    sheet = panel._source_buttons["system"].styleSheet()
 
     assert BG_BUTTON_ACTIVE.name() not in sheet, "it took the square buttons' on-ground"
     assert "background" not in sheet.split("QToolButton:!checked")[-1]

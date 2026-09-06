@@ -6,7 +6,7 @@ A previous agent attempted to build this feature and failed. This document captu
 
 "I keep leaving my OSR2 powered on all night after using it." They want:
 
-1. **Idle alert:** If the OSR2 has been idle for 15 minutes, show a Windows message box.
+1. **Idle alert:** If the OSR2 has been idle for 15 minutes, show a Windows message dialog.
 2. **Shutdown block:** If shutting down with the OSR2 still on, block shutdown and show a warning (using `ShutdownBlockReasonCreate` + returning FALSE from `WM_QUERYENDSESSION`).
 
 ## Hardware facts (verified)

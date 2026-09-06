@@ -23,7 +23,7 @@ def _payload(**overrides) -> dict:
 
 
 class TestOsr2State:
-    """What has the device, as one compact word — the console boxes it."""
+    """What has the device, as one compact word — the console badges it."""
 
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
         for osr2_mode, expected in (("off", OSR2_OFF), ("auto", OSR2_AUTO)):

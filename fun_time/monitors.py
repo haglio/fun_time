@@ -1,7 +1,7 @@
 """Monitor geometry querying for the Python orchestrator.
 
 Provides ``enumerate_monitors`` (ctypes) to get live monitor work areas,
-``virtual_desktop_rect`` for the box they all sit inside, and
+``virtual_desktop_rect`` for the rectangle they all sit inside, and
 ``get_logical_monitor_rects`` to assign them to main/secondary roles with
 orientation correction.
 """
@@ -17,7 +17,7 @@ from .window_layout import MonitorRect
 MonitorInfo = MonitorRect
 
 
-# GetSystemMetrics indices for the box every monitor sits inside.
+# GetSystemMetrics indices for the rectangle every monitor sits inside.
 SM_XVIRTUALSCREEN = 76
 SM_YVIRTUALSCREEN = 77
 SM_CXVIRTUALSCREEN = 78
@@ -25,7 +25,7 @@ SM_CYVIRTUALSCREEN = 79
 
 
 def virtual_desktop_rect() -> MonitorInfo | None:
-    """The bounding box of every monitor together, or None if it cannot be read.
+    """The bounding rect of every monitor together, or None if it cannot be read.
 
     What a window covering the WHOLE desktop is sized and placed by.  Through
     ``ctypes.windll`` like the enumeration above, not the loader, whose stand-in

@@ -173,7 +173,7 @@ class TestHudPublishing:
     def test_the_console_says_what_has_the_osr2_and_whether_the_broker_is_up(self, tmp_path):
         """Broker status is the main player's alone — it moved off the dashboard onto
         this panel — and the OSR2 state comes down as one word for the console to
-        box."""
+        badge."""
         feed, state = make_feed(tmp_path), BridgeState()
         (tmp_path / "broker_heartbeat.txt").write_text(str(time.time()), encoding="utf-8")
 

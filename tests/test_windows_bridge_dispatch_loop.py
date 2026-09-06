@@ -2111,7 +2111,7 @@ class TestIdempotentVoiceCommands:
 
     def test_save_clip_failure_flashes_nothing(self, tmp_path, caplog):
         """save_clip_session answers "" on failure and has already logged why;
-        an empty toast would flash an empty box."""
+        an empty toast would flash an empty rectangle."""
         runner = make_runner(tmp_path)
         with patch(
             "fun_time.windows_bridge_dispatch_loop.save_clip_session", return_value=""

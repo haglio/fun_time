@@ -66,7 +66,7 @@ class TestOrientationCorrection:
 
 
 class TestTheVirtualDesktop:
-    """The box every monitor sits inside — what a cover is sized by.
+    """The rectangle every monitor sits inside — what a cover is sized by.
 
     Read with four bare indices into GetSystemMetrics inside a tkinter
     constructor before this; nothing named them and nothing tested them.

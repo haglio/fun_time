@@ -399,7 +399,7 @@ _NO_FILTER_SIDES: dict[str, tuple[Player, ...]] = {
 
 # A satellite's own minimize button (``player_core.satellite_hud.CONTROLS``), by the window
 # role the dispatch loop resolves it to.  Every player's window here is
-# borderless, so none of them carries a minimize box of its own, and the only
+# borderless, so none of them carries a minimize button of its own, and the only
 # other way to park one was the dashboard's minimize — which takes the whole room
 # down together.
 _MINIMIZE_ROLES: dict[str, str] = {

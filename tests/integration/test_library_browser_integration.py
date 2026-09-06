@@ -3,9 +3,9 @@
 The browser's whole value is what the user *reads* off it — the handle names
 under the stills — and the unit suite cannot see that: it renders on Qt's
 offscreen platform, where ``QFontDatabase.families()`` is empty and every glyph
-comes out as a missing-character box.  A grid of tofu passes every assertion a
-unit test can make about it.  So the "does it actually paint the titles" check
-lives here, on the native platform, where the fonts are real.
+comes out as tofu, the missing-character rectangle.  A grid of it passes every
+assertion a unit test can make about it.  So the "does it actually paint the
+titles" check lives here, on the native platform, where the fonts are real.
 """
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
 
     Legibility is read off the font: on the native platform the families are
     there and the title's glyphs are really in the face being drawn with, where
-    offscreen has no font at all and paints every character as a box.  Section
+    offscreen has no font at all and paints every character as tofu.  Section
     headers are held to the same bar — the separator in one is a character too,
     and a header nobody can read names no section.
     """
@@ -75,7 +75,7 @@ def test_the_grid_paints_its_titles_and_stills(tmp_path: Path):
         metrics = window.grid.fontMetrics()
         assert metrics.horizontalAdvance(TITLES[0]) > 0
         for character in set("".join(TITLES + SECTIONS)):
-            assert metrics.inFont(character), f"{character!r} would paint as a box"
+            assert metrics.inFont(character), f"{character!r} would paint as tofu"
 
         tiles = [row for row, handle in enumerate(window.grid.rows) if handle is not None]
         assert not window.grid.item(tiles[0]).icon().isNull()
