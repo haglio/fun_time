@@ -880,7 +880,7 @@ class TestDispatchLoopRunner:
             runner.tick()
             assert minimized == [LANDSCAPE_HWND]
 
-            # Nothing was queued behind a settle either: letting one pass adds
+            # Nothing was queued after a settle either: letting one pass adds
             # no second minimize.
             clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
@@ -1657,7 +1657,7 @@ class TestBrowseLibrary:
         """The browser is the user's window, not the loop's: a second request
         while one is open would stack a second Chrome window and a second
         topmost drop/restore pair.  So while a browse holds the floor, another
-        press is a no-op — dropped without blocking, not queued behind it."""
+        press is a no-op — dropped without blocking, not queued after it."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)  # fast path — no bands to manage
 

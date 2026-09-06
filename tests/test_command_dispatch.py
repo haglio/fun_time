@@ -132,7 +132,7 @@ def _tab_page(op_key: str) -> str:
 
 
 def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
-    """Lock defers the load behind the same Ctrl+R page the RFB's own tabs use."""
+    """Lock defers the load after the same Ctrl+R page the RFB's own tabs use."""
     config = _make_config(tmp_path)
     state = _make_state(locked2=False)
 
@@ -506,7 +506,7 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     dispatch_command("main_lock_on", state, config)
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
-    # Queued behind the first, not overwriting it: the file is the same queue
+    # Queued after the first, not overwriting it: the file is the same queue
     # the device arbiter's handoff verbs ride, and a whole-file write here is
     # what used to erase them.
     dispatch_command("main_lock_off", state, config)
@@ -1518,7 +1518,7 @@ def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
 def test_a_reorder_starts_the_side_at_the_top_of_the_new_order(tmp_path: Path):
     """The bug this fixes: "portrait latest" did reorder the queue, but the player
     kept playing the clip it was on and carried on from there — so the new order only
-    ever applied behind it and the newest arrivals, the whole point of asking, were
+    ever applied after it and the newest arrivals, the whole point of asking, were
     never reached."""
     config = _make_config(tmp_path)
 
@@ -3782,7 +3782,7 @@ def test_main_reset_makes_the_main_player_the_one_a_bare_word_reaches(tmp_path, 
 def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):
     """A reorder filters nothing out, so Nau keeps the video on screen across the
     reload and carries on from wherever it now sits — leaving the newest-first list
-    to apply only behind it, and the arrivals that were asked for never coming up.
+    to apply only after it, and the arrivals that were asked for never coming up.
     The satellites' reorder starts at the top for exactly this reason; so does this."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",

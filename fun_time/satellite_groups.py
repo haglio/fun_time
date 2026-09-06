@@ -375,7 +375,7 @@ def loop_cycle(
     return group_loop(which, _LOOP_CYCLE[0], state, config, current)
 
 
-def _browse_behind(browse: list[str], current: str) -> list[str]:
+def _browse_after(browse: list[str], current: str) -> list[str]:
     """*browse*, guaranteed to still hold *current* — the clip on screen.
 
     The player keeps its clip across a playlist reload only while the new list
@@ -415,7 +415,7 @@ def no_loop(
     # browse is only reshaped when it actually has clips; otherwise the loop's
     # queue keeps playing and just the flag clears.
     if browse:
-        write_playlist_file(config.side(which).playlist_file, _browse_behind(browse, current))
+        write_playlist_file(config.side(which).playlist_file, _browse_after(browse, current))
         send_satellite(config, which, "RELOAD_PLAYLIST")
     # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
     # keeps hanging exactly where it was and switching a loop off takes away the lit

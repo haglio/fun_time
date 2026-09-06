@@ -317,7 +317,7 @@ def _rfb_config(cfg_factory, tmp_path: Path, *, lazy_load: bool) -> Path:
     )
 
 
-def test_prepare_random_favs_browser_manifest_defers_each_tab_behind_a_local_page(
+def test_prepare_random_favs_browser_manifest_defers_each_tab_after_a_local_page(
     cfg_factory, tmp_path: Path
 ):
     """With lazy_load the manifest lists local pages, each naming its fav."""

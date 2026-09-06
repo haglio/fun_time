@@ -295,7 +295,7 @@ def test_latest_puts_the_newest_clip_on_screen(satellite, tmp_path):
     comes up.
 
     Reordering the queue is not enough — the reload keeps the clip on screen playing
-    while it survives the new list, so the newest-first order applied only *behind*
+    while it survives the new list, so the newest-first order applied only *after*
     it and the top of the list was never reached.  This drives the production
     dispatch over a small real source tree with mtimes we set, so "newest" is a fact
     of the filesystem rather than of a stub.

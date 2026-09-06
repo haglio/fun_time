@@ -81,7 +81,7 @@ def pytest_collection_modifyitems(session, config, items):
 
 
 def _announce_waiting(seconds: float) -> None:
-    """Surface that this run is queued behind another integration run.
+    """Surface that this run is queued after another integration run.
 
     Written to the real stderr so it appears live, rather than being held back
     with the rest of pytest's captured output until the run finishes.

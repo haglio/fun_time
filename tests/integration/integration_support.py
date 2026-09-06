@@ -74,7 +74,7 @@ INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 # ``FunTime-*`` copy of pythonw, or under plain pythonw where that copy could not
 # be made), and the AHK hotkey shell.  python.exe is deliberately absent — pytest
 # and the orchestrator both run as python.exe, and a reap that kills a pytest
-# takes down a whole integration run (this one, or one queued behind it) with no
+# takes down a whole integration run (this one, or one queued after it) with no
 # output at all.  The orchestrator needs no killing here: it exits once its AHK
 # is gone.  The set is an allow-list on purpose: an image a run never launches is
 # never swept, so a third-party app of the user's is never at risk — and the
@@ -99,7 +99,7 @@ def _kill_leftover_app_processes() -> None:
     desktop belongs to the user's real (input-desktop) session, which is what
     makes a run safe to fire unattended.  They are not all *ours*, though — the
     desktop is shared with any leftover session and with the pytest of a run
-    queued behind this one — so kill only the app images, never a python.exe.
+    queued after this one — so kill only the app images, never a python.exe.
 
     Anywhere else there is nothing of ours to find and nothing safe to kill, so
     this does nothing at all.  It used to fall back to

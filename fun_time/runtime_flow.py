@@ -141,7 +141,7 @@ def apply_main_fmode(
     satellite (see :func:`apply_satellite_filter`): Nau keeps the video on screen
     across a reload whenever the new list still holds it — which a reorder's
     always does, since it filters nothing out — so a newest-first rebuild would
-    otherwise apply only *behind* the video playing and the new arrivals would
+    otherwise apply only *after* the video playing and the new arrivals would
     never come up.  An F-mode change wants the opposite and does not ask.
     """
     paths = build_main_playlist_paths(main_sources, enabled, recent=recent)
@@ -303,7 +303,7 @@ def apply_satellite_filter(
     That reload keeps the clip on screen playing while it survives the new list, and
     carries on from where it sits — which is right for a filter, and wrong for a
     caller whose whole point is a fresh start.  Reordering newest-first is exactly
-    that: the new order would otherwise only apply *behind* the clip playing, and the
+    that: the new order would otherwise only apply *after* the clip playing, and the
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """

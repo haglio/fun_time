@@ -8,7 +8,7 @@ video, whatever renditions it exists as, alphabetical, with a still off each.
 
 The folder being shown is put up twice, side by side.  The grid of tiles is the
 half you walk, ordered the way the library ranks itself — biggest source folder
-first, cuts behind the videos they came out of — which is the order to browse
+first, cuts after the videos they came out of — which is the order to browse
 in and the wrong one to *find* in.  So the left sidebar is the other order: the
 same folder as a plain list of names, A to Z, each letter's names under a
 heading of that letter, for when the title is already in mind.
@@ -101,7 +101,7 @@ class LibraryGrid(BrowseList):
 
     Ordered as :func:`fun_time.library_handles.build_library_handles` ranked the
     library, which is what makes this the half you browse — the bulk of the
-    library first, a folder's cuts behind its whole videos.  Finding a title you
+    library first, a folder's cuts after its whole videos.  Finding a title you
     already know the name of is the sidebar's job instead.
     """
 

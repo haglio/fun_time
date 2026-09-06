@@ -214,7 +214,7 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
 def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
     """Nau cannot read F-mode off the playlist it is handed — a list of scripted
     videos looks like any other — so its HUD only knows because it is told: the
-    flag is queued right behind the reload it belongs to."""
+    flag is queued right after the reload it belongs to."""
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
@@ -245,7 +245,7 @@ def test_the_main_player_can_be_started_at_the_top_of_the_new_list(tmp_path: Pat
     """Nau keeps the video on screen across a reload whenever the new list still
     holds it — and a reorder, filtering nothing out, always does.  So "main latest"
     would rebuild newest-first and change nothing anyone could see: the new order
-    applied only behind the video playing, and the arrivals asked for never came up.
+    applied only after the video playing, and the arrivals asked for never came up.
 
     The jump rides the same write as the reload, since the file is overwritten
     rather than appended, and goes last so it lands on the list just taken.
@@ -337,7 +337,7 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
 def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path):
     """"Latest" means "show me what has just arrived", and a plain reload keeps the
     clip on screen and carries on from where it sat — so the new order only ever
-    applied *behind* it and the newest clips were never reached.  A caller that means
+    applied *after* it and the newest clips were never reached.  A caller that means
     "start over" asks for the head, which the player takes as PLAY_FILE."""
     portrait_root = tmp_path / "portrait"
     portrait_root.mkdir(parents=True)

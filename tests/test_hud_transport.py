@@ -103,7 +103,7 @@ def test_a_running_loop_publishes_every_item_it_cycles():
 
 
 def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
-    """Dropping it would renumber every cell behind it and slide the player's window
+    """Dropping it would renumber every cell after it and slide the player's window
     off the clip on screen, so a loop item with no frame yet is published with an
     empty thumbnail — drawn as a placeholder, in the loop's own order."""
     seeds = ["C:/v/s0.mp4", "C:/v/s1.mp4", "C:/v/s2.mp4"]

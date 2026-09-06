@@ -263,7 +263,7 @@ def _toggle_lock(
         logger.info(plan.log_message)
     lock_ops: list[WindowOp] = []
     if plan.open_rfb_tab and current_path:
-        # Resolved exactly like an RFB startup tab, and deferred behind the same
+        # Resolved exactly like an RFB startup tab, and deferred after the same
         # Ctrl+R landing page, so a lock never drops a heavy generate page on you.
         target = target_for_fav(
             FavEntry(local_path=current_path, web_url=make_web_url_from_path(current_path)),
@@ -900,7 +900,7 @@ def _dispatch_main_reorder(
     Nau the same RELOAD_PLAYLIST an F-mode change gets, from the top of the new
     order — a reorder filters nothing out, so Nau would otherwise keep the video
     on screen and carry on from wherever it now sits, the newest-first list
-    applying only behind it and the arrivals never coming up.  Genau has no
+    applying only after it and the arrivals never coming up.  Genau has no
     playlist file at all; it owns its own sequence, so it is told the order and
     rescans its clips folder itself.
 
@@ -975,7 +975,7 @@ def _dispatch_reorder(
     state = state.with_side(which, latest=recent)
     # From the top of the new order: asking for the latest is asking to see what has
     # just arrived, and the reload alone would leave the clip on screen playing with
-    # the new order applying only behind it.
+    # the new order applying only after it.
     result = _rebuild_side(which, state.side(which).filter, state, config, start_at_top=True)
     state = state.with_side(which, locked=False)
     state = clear_side_grouping(state, which)
@@ -1044,7 +1044,7 @@ def _rebuild_side(
     filter and a reorder cannot drift apart in how they read the side's state.
     ``start_at_top`` is for the callers that mean "start over" — a reorder or a
     reset — since the reload otherwise keeps the clip on screen and carries on from
-    where it sat, leaving the new order to apply only behind it.
+    where it sat, leaving the new order to apply only after it.
     """
     side = state.side(which)
     return apply_satellite_filter(
