@@ -337,7 +337,7 @@ def _tag_overlap(one: frozenset[str], other: frozenset[str]) -> float:
 class GroupIndex:
     """Grouping of a video library by generation identity.
 
-    Paths are keyed by :func:`normalize_path_key`; member lists hold the
+    Paths are keyed by :func:`normalize_path_key`; item lists hold the
     original path strings, sorted.  ``path_by_key`` remembers every input path
     (sidecar or not) so callers can tell "no metadata" apart from "not indexed
     yet" when deciding whether a cached index is stale — and so the widen can
@@ -345,10 +345,10 @@ class GroupIndex:
     """
 
     action_key_by_path: dict[str, str]
-    action_members: dict[str, list[str]]
+    action_items: dict[str, list[str]]
     action_by_path: dict[str, str]
     seed_key_by_path: dict[str, tuple[str, str]]
-    seed_members: dict[str, list[str]]
+    seed_items: dict[str, list[str]]
     path_by_key: dict[str, str]
     scene_tags_by_path: dict[str, frozenset[str]] = field(default_factory=dict)
     # Which clips were animated from a generated image rather than from text
@@ -363,12 +363,12 @@ class GroupIndex:
         return self.weight_by_path.get(normalize_path_key(path), 1.0)
 
 
-def action_group_members(index: GroupIndex, path: str) -> list[str]:
+def action_group_items(index: GroupIndex, path: str) -> list[str]:
     """Every clip of *path*'s subject — the same subject(s)+scene, each action."""
     key = index.action_key_by_path.get(normalize_path_key(path))
     if key is None:
         return []
-    return list(index.action_members[key])
+    return list(index.action_items[key])
 
 
 def indexed_act(index: GroupIndex, path: str) -> str:
@@ -385,11 +385,11 @@ def indexed_act(index: GroupIndex, path: str) -> str:
     return _norm_text(index.action_by_path.get(normalize_path_key(path), ""))
 
 
-def seed_family_members(index: GroupIndex, path: str) -> list[str]:
+def seed_family_items(index: GroupIndex, path: str) -> list[str]:
     """Every clip of *path*'s parameter set doing *path*'s action, each seed.
 
     A text-to-video family already pins the action, but an image-to-video family
-    is keyed on the source image alone, so its members are narrowed here to the
+    is keyed on the source image alone, so its items are narrowed here to the
     current clip's action — "the same act, another subject".
     """
     entry = index.seed_key_by_path.get(normalize_path_key(path))
@@ -398,9 +398,9 @@ def seed_family_members(index: GroupIndex, path: str) -> list[str]:
     family, _seed = entry
     action = indexed_act(index, path)
     return [
-        member
-        for member in index.seed_members[family]
-        if indexed_act(index, member) == action
+        item
+        for item in index.seed_items[family]
+        if indexed_act(index, item) == action
     ]
 
 
@@ -410,7 +410,7 @@ def seed_family_members(index: GroupIndex, path: str) -> list[str]:
 WIDEN_ADDITIONS = 6
 
 
-def widened_seed_members(
+def widened_seed_items(
     index: GroupIndex, path: str, additions: int = WIDEN_ADDITIONS
 ) -> list[str]:
     """The widened seed row for *path* — "more seeds": its exact seed family plus
@@ -439,12 +439,12 @@ def widened_seed_members(
     caller says so rather than reaching for a stranger.
     """
     key = normalize_path_key(path)
-    members = list(seed_family_members(index, path))
-    if not any(normalize_path_key(member) == key for member in members):
+    items = list(seed_family_items(index, path))
+    if not any(normalize_path_key(item) == key for item in items):
         # A clip with no exact family of its own (no sidecar, no seed) is still
         # the row it anchors, so the pool always opens with it.
-        members.insert(0, index.path_by_key.get(key, path))
-    seen = {normalize_path_key(member) for member in members} | {key}
+        items.insert(0, index.path_by_key.get(key, path))
+    seen = {normalize_path_key(item) for item in items} | {key}
     action = indexed_act(index, path)
     from_image = index.image_to_video_by_path.get(key, False)
     mine = index.scene_tags_by_path.get(key, frozenset())
@@ -461,8 +461,8 @@ def widened_seed_members(
         # Nearest first; the path key only breaks ties, so the row is stable.
         key=lambda scored: (-scored[0], -scored[1], scored[2]),
     )
-    members.extend(index.path_by_key[scored[-1]] for scored in ranked[:max(additions, 0)])
-    return members
+    items.extend(index.path_by_key[scored[-1]] for scored in ranked[:max(additions, 0)])
+    return items
 
 
 def action_label(index: GroupIndex, path: str) -> str:
@@ -477,29 +477,29 @@ def action_label(index: GroupIndex, path: str) -> str:
     if not action or group is None:
         return action
     twins = [
-        member
-        for member in index.action_members[group]
-        if index.action_by_path.get(normalize_path_key(member), "") == action
+        item
+        for item in index.action_items[group]
+        if index.action_by_path.get(normalize_path_key(item), "") == action
     ]
     if len(twins) < 2:
         return action
     position = next(
-        (slot for slot, member in enumerate(twins) if normalize_path_key(member) == key), 0
+        (slot for slot, item in enumerate(twins) if normalize_path_key(item) == key), 0
     )
     return f"{action} {position + 1}"
 
 
-def _record_seed_membership(
+def _record_seed_group(
     key: tuple[str, str] | None,
     path: str,
     key_by_path: dict[str, tuple[str, str]],
-    members: dict[str, list[str]],
+    items: dict[str, list[str]],
 ) -> None:
     """File *path* under its ``(family, seed)`` *key*, if it has one."""
     if key is None:
         return
     key_by_path[normalize_path_key(path)] = key
-    members.setdefault(key[0], []).append(path)
+    items.setdefault(key[0], []).append(path)
 
 
 def build_group_index(
@@ -512,10 +512,10 @@ def build_group_index(
     but belong to no group.
     """
     action_key_by_path: dict[str, str] = {}
-    action_members: dict[str, list[str]] = {}
+    action_items: dict[str, list[str]] = {}
     action_by_path: dict[str, str] = {}
     seed_key_by_path: dict[str, tuple[str, str]] = {}
-    seed_members: dict[str, list[str]] = {}
+    seed_items: dict[str, list[str]] = {}
     path_by_key: dict[str, str] = {}
     scene_tags_by_path: dict[str, frozenset[str]] = {}
     image_to_video_by_path: dict[str, bool] = {}
@@ -537,16 +537,16 @@ def build_group_index(
         action_key = action_group_key(metadata)
         if action_key is not None:
             action_key_by_path[normalize_path_key(path)] = action_key
-            action_members.setdefault(action_key, []).append(path)
-        _record_seed_membership(seed_group_key(metadata), path, seed_key_by_path, seed_members)
-    for members in (*action_members.values(), *seed_members.values()):
-        members.sort()
+            action_items.setdefault(action_key, []).append(path)
+        _record_seed_group(seed_group_key(metadata), path, seed_key_by_path, seed_items)
+    for items in (*action_items.values(), *seed_items.values()):
+        items.sort()
     return GroupIndex(
         action_key_by_path=action_key_by_path,
-        action_members=action_members,
+        action_items=action_items,
         action_by_path=action_by_path,
         seed_key_by_path=seed_key_by_path,
-        seed_members=seed_members,
+        seed_items=seed_items,
         path_by_key=path_by_key,
         scene_tags_by_path=scene_tags_by_path,
         image_to_video_by_path=image_to_video_by_path,

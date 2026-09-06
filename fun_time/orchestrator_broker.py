@@ -23,10 +23,10 @@ BROKER_IMAGE_PATTERN = ProcessNamer("Broker").process_name_pattern
 
 # The broker outlives the session that starts it — harem and the user's next Fun
 # Time launch keep talking to it.  An integration run wraps its whole process
-# tree in a job object that Windows destroys with the run, and a job member's
-# children join its job, so the broker has to be created outside one.  The flag
-# is inert when the launching process is in no job that permits breakaway, which
-# is every production launch.
+# tree in a job object that Windows destroys with the run, and the children of a
+# process in a job join that job, so the broker has to be created outside one.
+# The flag is inert when the launching process is in no job that permits
+# breakaway, which is every production launch.
 CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
 

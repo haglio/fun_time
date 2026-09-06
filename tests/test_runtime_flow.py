@@ -427,7 +427,7 @@ def test_recents_repicks_up_new_files(tmp_path: Path):
 
 def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
     """Recents honors action groups too: with the provider roots supplied,
-    same-source-image clips collapse to one entry, its newest member."""
+    same-source-image clips collapse to one entry, its newest item."""
     media_root = tmp_path / "videos" / "videos"
     metadata_root = tmp_path / "videos" / "metadata"
     portrait_root = media_root / "portrait"
@@ -448,7 +448,7 @@ def test_recents_collapses_action_groups_with_provider_roots(tmp_path: Path):
              regen_metadata_root=metadata_root)
 
     entries = [line for line in _satellite_lines(tmp_path / "state", "portrait") if line]
-    assert entries == [str(newer)], "the two-action group collapses to its newest member"
+    assert entries == [str(newer)], "the two-action group collapses to its newest item"
 
 
 def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):

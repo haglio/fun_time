@@ -401,8 +401,8 @@ def test_build_primary_playlist_paths_includes_funscripted_ai_subdir_in_f_mode(t
 # --- action-group collapse and watch weighting (satellites) ---
 
 
-def test_shuffled_satellite_build_plays_one_member_per_action_group(tmp_path: Path):
-    """Same subject+situation in several actions = one playlist slot, one random member."""
+def test_shuffled_satellite_build_plays_one_item_per_action_group(tmp_path: Path):
+    """Same subject+situation in several actions = one playlist slot, one random item."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
@@ -427,7 +427,7 @@ def test_shuffled_satellite_build_plays_one_member_per_action_group(tmp_path: Pa
     assert seen == group, "every action should get picked across builds"
 
 
-def test_group_member_choice_follows_the_weights_stamped_on_the_sidecars(tmp_path: Path):
+def test_group_item_choice_follows_the_weights_stamped_on_the_sidecars(tmp_path: Path):
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "loved": _i2v_meta("111", "Zeta Massage"),
         "skipped": _i2v_meta("111", "Alpha"),
@@ -464,9 +464,9 @@ def test_chronically_skipped_standalone_video_sits_most_builds_out(tmp_path: Pat
     assert appearances < 15, "a weight-1/8 video should miss most builds"
 
 
-def test_latest_build_collapses_groups_to_newest_member(tmp_path: Path):
+def test_latest_build_collapses_groups_to_newest_item(tmp_path: Path):
     """Latest shows one entry per action group even while reviewing arrivals:
-    the group's newest member represents it, ungrouped clips pass through, and
+    the group's newest item represents it, ungrouped clips pass through, and
     the whole list stays newest-first."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_old": _i2v_meta("111", "Alpha"),

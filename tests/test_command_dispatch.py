@@ -2015,7 +2015,7 @@ def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
 def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
     """Image-to-video clips of one source image share a seed family across
     actions (the family is keyed on the image, action-blind).  But the seed axis
-    is "the same act, another subject", and the HUD draws only same-action members,
+    is "the same act, another subject", and the HUD draws only same-action items,
     so "next seed" must skip a different-action clip even though it is a sister
     seed — that clip is reached on the action axis instead."""
     config, paths = _make_grouped_config(tmp_path, {
@@ -3025,7 +3025,7 @@ def test_clipper_save_noop_when_in_genau_mode(tmp_path: Path):
 # --- group loops and lock-action --------------------------------------------
 
 def _loop_config(tmp_path: Path, *, axis: str, side: int = 2) -> tuple[BridgeConfig, str, str]:
-    """A config whose side holds a two-member group on the requested axis,
+    """A config whose side holds a two-item group on the requested axis,
     grouped by the real index over real sidecars."""
     if axis == "action":
         # Same subject (one source image), different acts.
@@ -3148,13 +3148,13 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
     """A loop's queue is written clip-on-screen-first, so the HUD has to order its
     map the same way — from the clip the loop started on.
 
-    Anchoring the map on some other member (the group's lowest-keyed one) drew the
+    Anchoring the map on some other item (the group's lowest-keyed one) drew the
     clip on screen somewhere in the middle of the row the instant the loop began,
     and made the action column light up bottom-to-top as the group played.
     """
     config, a, b = _loop_config(tmp_path, axis="seed")
 
-    _set_current(config, 2, b)  # the loop starts on the group's *second* member
+    _set_current(config, 2, b)  # the loop starts on the group's *second* item
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
     assert state.portrait_map_anchor == b
@@ -3162,7 +3162,7 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
 
 
 def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
-    """The one-member "loop" is really a lock, so it must drop any loop the side
+    """The one-item "loop" is really a lock, so it must drop any loop the side
     was running instead of leaving a stale flag."""
     config, paths = _make_grouped_config(tmp_path, {"only": _subject_meta()})
     only = Path(paths["only"])
@@ -3258,7 +3258,7 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
     rectangle — and nothing else.
 
     The map keeps hanging on the same clip, over the same (possibly widened) row, so
-    the thumbnails do not re-home onto whichever member the loop had reached; it lets
+    the thumbnails do not re-home onto whichever item the loop had reached; it lets
     go by itself once the browse moves on past the group.
     """
     config = _make_config(tmp_path)
@@ -3294,13 +3294,13 @@ def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_pat
     """Turning a loop OFF must not interrupt the clip playing.
 
     The player keeps its clip across a reload only when that clip is still in the
-    new list, and a loop member usually is NOT in the browse — the browse holds one
+    new list, and a loop item usually is NOT in the browse — the browse holds one
     representative per group, and the loop was cycling the others.  Without this the
     reload fell through to "restart at the top" and yanked the user onto another
     video, which is exactly the interruption the loop-off toggle must not cause.
     """
     config = _make_config(tmp_path)
-    playing = "C:/v/seed_4.mp4"  # a loop member, not one of the browse's picks
+    playing = "C:/v/seed_4.mp4"  # a loop item, not one of the browse's picks
     browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
     _set_current(config, 2, playing)
 

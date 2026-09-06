@@ -101,7 +101,7 @@ def test_a_folder_with_less_than_four_pictures_itself_with_what_it_has():
 
 
 class TestAFolderTileHoldsStill:
-    """The four stills a tile is drawn with are sampled from its members.  With
+    """The four stills a tile is drawn with are sampled from its items.  With
     a fresh Random each call, walking into a folder and straight back up redrew
     the parent with a different set — the tile changed under the pointer that
     had just been on it."""

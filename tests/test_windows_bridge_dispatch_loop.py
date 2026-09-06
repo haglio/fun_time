@@ -2073,7 +2073,7 @@ class TestIdempotentVoiceCommands:
         assert any("frobnicate" in record.message for record in caplog.records)
 
     def test_the_op_interpreter_covers_the_whole_vocabulary(self):
-        """Every Op member has a handler, so a new op without one is caught by
+        """Every Op item has a handler, so a new op without one is caught by
         this (and by the import-time assert beside the table) instead of at the
         first press."""
         from fun_time.bridge_records import Op

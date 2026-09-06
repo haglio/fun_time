@@ -131,7 +131,7 @@ def _collapse_axis(
     index: GroupIndex,
     by_seed_family: bool,
 ) -> tuple[Callable[[str], str | None], Callable[[str], list[str]]]:
-    """The (group-of-path, members-of-group) accessors for a collapse axis.
+    """The (group-of-path, items-of-group) accessors for a collapse axis.
 
     Unfiltered browsing collapses **action groups** — one clip per subject — so
     the playlist shows variety and "cycle action" explores a subject's other
@@ -145,21 +145,21 @@ def _collapse_axis(
             entry = index.seed_key_by_path.get(normalize_path_key(path))
             return entry[0] if entry is not None else None
 
-        return seed_family_of, lambda family: index.seed_members[family]
+        return seed_family_of, lambda family: index.seed_items[family]
     return (
         lambda path: index.action_key_by_path.get(normalize_path_key(path)),
-        lambda key: index.action_members[key],
+        lambda key: index.action_items[key],
     )
 
 
 def _collapse_groups(
     paths: list[str],
     group_key_of: Callable[[str], str | None],
-    members_of: Callable[[str], list[str]],
+    items_of: Callable[[str], list[str]],
     pick: Callable[[list[str]], str],
 ) -> list[str]:
     """One slot per group, in first-seen order; *pick* chooses each group's
-    representative from its members.  Ungrouped paths pass through."""
+    representative from its items.  Ungrouped paths pass through."""
     slots: list[str] = []
     seen_groups: set[str] = set()
     for path in paths:
@@ -170,7 +170,7 @@ def _collapse_groups(
         if group_key in seen_groups:
             continue
         seen_groups.add(group_key)
-        slots.append(pick(members_of(group_key)))
+        slots.append(pick(items_of(group_key)))
     return slots
 
 
@@ -184,7 +184,7 @@ def _collapse_and_weigh(
     """Shuffle *paths* by the weights stamped on their sidecars, one slot per group.
 
     Chronically-skipped videos sit the build out proportionally to their
-    weight; each group contributes a single member, drawn weighted so preferred
+    weight; each group contributes a single item, drawn weighted so preferred
     clips surface more.  The final order is a weighted shuffle: loved videos
     land early, and with nothing stamped every step degenerates to a uniform
     shuffle.  See :func:`_collapse_axis` for which axis groups.
@@ -193,14 +193,14 @@ def _collapse_and_weigh(
     index = build_group_index(paths, metadata_root)
     survivors = [path for path in paths if passes_inclusion(index.weight_of(path), randomizer)]
     surviving = {normalize_path_key(path) for path in survivors}
-    group_key_of, members_of = _collapse_axis(index, by_seed_family)
+    group_key_of, items_of = _collapse_axis(index, by_seed_family)
 
-    def pick(members: list[str]) -> str:
-        candidates = [member for member in members if normalize_path_key(member) in surviving]
-        weights = [index.weight_of(member) for member in candidates]
+    def pick(items: list[str]) -> str:
+        candidates = [item for item in items if normalize_path_key(item) in surviving]
+        weights = [index.weight_of(item) for item in candidates]
         return randomizer.choices(candidates, weights=weights, k=1)[0]
 
-    collapsed = _collapse_groups(survivors, group_key_of, members_of, pick)
+    collapsed = _collapse_groups(survivors, group_key_of, items_of, pick)
     return weighted_shuffle(collapsed, index.weight_of, randomizer)
 
 
@@ -213,14 +213,14 @@ def _collapse_recent(
     """Newest-first, one slot per group — the Latest review order.
 
     New arrivals stay the focus: each group is represented by its most recent
-    member and sits at that member's position, so the freshest clip of a group
+    item and sits at that item's position, so the freshest clip of a group
     surfaces once, near the top.  Watch weighting is deliberately not applied —
     a chronically-skipped clip still appears; recency alone ranks.
     """
     ordered = sort_paths_by_recency(paths)
     index = build_group_index(ordered, metadata_root)
-    group_key_of, members_of = _collapse_axis(index, by_seed_family)
-    return _collapse_groups(ordered, group_key_of, members_of, lambda members: max(members, key=_path_mtime))
+    group_key_of, items_of = _collapse_axis(index, by_seed_family)
+    return _collapse_groups(ordered, group_key_of, items_of, lambda items: max(items, key=_path_mtime))
 
 
 def build_satellite_playlist_paths(

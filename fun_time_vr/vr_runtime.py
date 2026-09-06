@@ -51,7 +51,7 @@ class Readiness(Enum):
     FAILED = "failed"
 
 
-# Keyed by the member: a typo is a NameError, not wording nothing finds.
+# Keyed by the item: a typo is a NameError, not wording nothing finds.
 _EXPLANATIONS = {
     Readiness.NO_HEADSET: (
         "No VR headset is answering.\n\n"

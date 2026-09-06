@@ -27,7 +27,7 @@ to collide over, so they no longer have to take turns.
 
 pytest is also placed in a *job object* that this runner alone holds a handle to.
 Windows destroys a job when its last handle closes, and a job with
-``KILL_ON_JOB_CLOSE`` takes its members down with it — so however the run ends, it
+``KILL_ON_JOB_CLOSE`` takes its processes down with it — so however the run ends, it
 cannot leave a player or an AHK behind to poison the next one.  The broker is the sole
 exception: it is a service that outlives the session, and it breaks away (see
 ``fun_time.orchestrator_broker.broker_launch_kwargs``).
@@ -82,7 +82,7 @@ INFINITE = 0xFFFFFFFF
 
 # Destroying the job terminates every process still in it.  The run's whole
 # process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
-# because a process created by a job member joins that member's job.
+# because a process created by a process in a job joins that job.
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
 _JOB_OBJECT_EXTENDED_LIMIT_INFORMATION = 9
@@ -250,7 +250,7 @@ def _repo_root() -> Path:
 
 
 def create_run_job() -> int:
-    """A job object that outlives nothing: destroying it kills its members.
+    """A job object that outlives nothing: destroying it kills its processes.
 
     The runner holds the job's only handle, so whichever way the runner ends —
     a clean exit, a crash, a TerminateProcess — Windows closes that handle,
