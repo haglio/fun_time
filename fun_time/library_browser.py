@@ -269,10 +269,10 @@ class FolderIndex(BrowseList):
     name, with the letter each group files under standing over it.
 
     Choosing a name moves the grid to it, and so does clicking the letter over
-    a group — the headings are this list's table of contents.  The grid never
-    moves this in return, deliberately: an index that re-scrolled itself every
-    time the grid's selection changed would slide out from under the walk down
-    it that caused the change.
+    a group — the headings are this list's table of contents.  The grid moves
+    this back only when a browse opens (see :meth:`reveal`): an index that
+    re-scrolled itself every time the grid's selection changed would slide out
+    from under the walk down it that caused the change.
     """
 
     def __init__(
@@ -356,14 +356,22 @@ class FolderIndex(BrowseList):
         item.setToolTip(name)
         return item
 
+    def reveal(self, grid_row: int) -> None:
+        """Stand on the name for *grid_row*, scrolled into view."""
+        row = next((r for r, g in enumerate(self.grid_rows) if g == grid_row), None)
+        if row is None:
+            return
+        self.setCurrentRow(row)
+        self.scrollToItem(self.item(row), QAbstractItemView.ScrollHint.PositionAtCenter)
+
     def mousePressEvent(self, event) -> None:  # Qt override
         """Clicking a letter selects the first name filed under it.
 
-        A heading is a disabled row — which is what keeps the arrows and the
-        type-ahead on the names (see :meth:`_heading_item`) — and Qt gives a
-        disabled row no click signal, so the press is answered here.  Selecting
-        rather than scrolling: the index then stands where the walk carries on,
-        and the grid follows it the way it follows any name.
+        A heading is a disabled row — which keeps the arrows and the type-ahead
+        on the names (see :meth:`_heading_item`) — and Qt gives a disabled row no
+        click signal, so the press is answered here.  By selecting rather than
+        scrolling: the index then stands where the walk carries on, and the grid
+        follows it the way it follows any name.
         """
         item = self.itemAt(event.position().toPoint())
         row = self.row(item) if item is not None else -1
@@ -377,7 +385,6 @@ class FolderIndex(BrowseList):
             self._reveal(self.item(first))
 
     def _first_name_under(self, heading_row: int) -> int | None:
-        """This list's row for the first name under the heading at *heading_row*."""
         return next(
             (row for row in range(heading_row + 1, len(self.grid_rows))
              if self.grid_rows[row] is not None),
@@ -467,10 +474,8 @@ class LibraryBrowserWindow(QWidget):
     def open_on(self, video: str | None) -> None:
         """Open where *video* is, with its own tile picked out — or at the top.
 
-        A browse is nearly always for something near what is playing, so opening
-        at the root spent every one of them walking back down to where the
-        session already was.  The video is selected rather than merely shown: a
-        folder of hundreds otherwise says nothing about where in it you landed.
+        A browse is nearly always for something near what is playing, and the
+        root spent every one of them walking back down to where the session was.
         """
         handle = handle_for(self._handles, video) if video else None
         if handle is None:
@@ -478,7 +483,9 @@ class LibraryBrowserWindow(QWidget):
             return
         self.open_folder(folder_of(handle))
         if handle in self.grid.rows:
-            self.grid.reveal(self.grid.rows.index(handle))
+            row = self.grid.rows.index(handle)
+            self.grid.reveal(row)
+            self.index.reveal(row)
 
     def open_folder(self, path: Sequence[str]) -> None:
         """Show *path* in both halves: its folder tiles, or the videos it holds."""
@@ -733,8 +740,7 @@ def bring_the_browse_forward(window: QWidget) -> bool:
     opens over, with every arrow and Enter still going to the player.
     ``force_foreground_window`` attaches the input queues, which is one of the
     cases the rule accepts — the same answer a lock's tab uses to take back Fun
-    Time's own Chrome window.  Nothing is promoted into the topmost band; the
-    bridge already dropped the players out of it for the browse's duration.
+    Time's own Chrome window.
     """
     return force_foreground_window(int(window.winId()))
 

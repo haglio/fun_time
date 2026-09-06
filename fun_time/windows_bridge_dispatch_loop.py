@@ -37,7 +37,13 @@ from .voice_commands import parse_command_line
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
-from .win32 import force_foreground_window, window_exists, window_rect
+from .win32 import (
+    find_window_by_pid,
+    force_foreground_window,
+    set_always_on_top,
+    window_exists,
+    window_rect,
+)
 from .window_roles import visible_roles
 from .windows_bridge_random_favs_browser import ChromeShortcut, open_rfb_tab
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
@@ -425,6 +431,7 @@ class DispatchLoopRunner:
                 logger.error("unhandled window op %r", op.op)
                 continue
             handler(self, op)
+        self._keep_an_open_browse_on_top()
         write_shared_state(self.shared_state_file, self.state)
         # Outside a poll batch (e.g. a lone lock) there is nothing to coalesce
         # with, so open immediately; within a batch the tick flushes once.
@@ -432,6 +439,21 @@ class DispatchLoopRunner:
             self._flush_rfb_tabs()
         if self.dashboard_enabled:
             self._update_dashboard()
+
+    def _keep_an_open_browse_on_top(self) -> None:
+        """Put an open browse back above whatever a command just promoted.
+
+        Every promotion here is an ``HWND_TOPMOST`` insert, which lands at the
+        TOP of the band, so leaving OmniPause restacked the players over a
+        browse still up and nothing could bring it back.  Re-asserted last, and
+        with ``SWP_NOACTIVATE``, so only the band moves.
+        """
+        browsing = self._browser_process
+        if browsing is None or browsing.poll() is not None:
+            return
+        hwnd = find_window_by_pid(browsing.pid)
+        if hwnd:
+            set_always_on_top(hwnd, True)
 
     def _flush_rfb_tabs(self) -> None:
         """Open every buffered RFB URL as tabs in the session's own Chrome window.

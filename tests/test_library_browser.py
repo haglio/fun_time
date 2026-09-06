@@ -191,6 +191,25 @@ def test_a_browse_opens_where_the_session_already_is(browser, tmp_path: Path):
     assert window.grid.rows[window.grid.currentRow()] == handles[1]
 
 
+def test_a_browse_opens_with_the_index_standing_on_it_too(browser, tmp_path: Path):
+    """Both halves, not the grid alone: an index still showing another letter's
+    names beside a grid that has already moved is a browse split in two."""
+    handles = [
+        _handle("Alpha Scene", "C:/videos/main/alpha.mp4", section="main"),
+        _handle("Mike Scene", "C:/videos/main/mike.mp4", section="main"),
+        _handle("Zulu Scene", "C:/videos/main/zulu.mp4", section="main"),
+    ]
+    window = browser(
+        handles,
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+        playing="C:/videos/main/zulu.mp4",
+    )
+
+    assert window.index.currentItem().text() == "Zulu Scene"
+    assert window.grid.rows[window.grid.currentRow()] == handles[2]
+
+
 def test_the_rendition_playing_need_not_be_the_one_a_pick_would_play(browser, tmp_path: Path):
     """A handle is its whole family: the session is as likely to be on the small
     original as on the upscale a pick plays, and both are the same video here."""
