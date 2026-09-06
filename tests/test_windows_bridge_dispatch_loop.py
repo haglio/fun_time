@@ -2506,3 +2506,26 @@ def test_stop_closes_the_press_socket(tmp_path):
     runner.stop()
 
     assert runner._press_socket.fileno() == -1
+
+
+class TestASessionThatHostsNoOrigenerator:
+    """The shared state file is read every tick and can carry origenerator mode
+    over from a desktop session; a session with no Origenerator (VR, or a
+    config naming none) has no such mode, and reading it in sent every
+    satellite verb to an app that was not there."""
+
+    def test_a_resumed_origenerator_mode_reads_as_video(self, tmp_path):
+        runner = make_runner(tmp_path)
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(satellites_mode="origenerator"))
+
+        runner.tick()
+
+        assert runner.state.satellites_mode == "video"
+
+    def test_with_an_origenerator_the_resumed_mode_stands(self, tmp_path):
+        runner = make_runner(tmp_path, config=replace(make_config(tmp_path), origenerator_enabled=True))
+        write_shared_state(tmp_path / "shared_state.ini", BridgeState(satellites_mode="origenerator"))
+
+        runner.tick()
+
+        assert runner.state.satellites_mode == "origenerator"

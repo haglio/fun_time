@@ -1144,7 +1144,8 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     """
     if command not in _ORIGENERATOR_TRANSPORT and command not in _ORIGENERATOR_SPEECH:
         return False
-    return (origenerator_shows(state.satellites_mode)
+    return (config.origenerator_enabled
+            and origenerator_shows(state.satellites_mode)
             and config.origenerator_cmd_file is not None)
 
 

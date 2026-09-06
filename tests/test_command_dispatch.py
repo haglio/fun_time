@@ -4160,3 +4160,19 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()
     assert [p.name for p in config.weird_dir.iterdir()] == ["twice.mp4"]
+
+
+class TestASessionThatHostsNoOrigenerator:
+    def test_a_resumed_origenerator_mode_still_drives_the_players(self, tmp_path):
+        """A VR session hosts no Origenerator while its manifest still names the
+        app's command file, and the shared state file can carry origenerator
+        mode over from a desktop session: every satellite verb then went to an
+        app that was not there, and "portrait next" did nothing."""
+        config = replace(_origenerator_config(tmp_path), origenerator_enabled=False)
+        state = BridgeState(satellites_mode="origenerator")
+
+        assert not routes_to_origenerator("portrait_next", state, config)
+        dispatch_command("portrait_next", state, config)
+
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, 2) == ["NEXT"]
