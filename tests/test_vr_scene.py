@@ -10,6 +10,7 @@ from fun_time_vr.scene import (
     PRIMARY_WIDTH_DEG,
     RADIUS,
     Placement,
+    attached_below,
     quad_layer_placement,
     surface_vertices,
 )
@@ -162,3 +163,33 @@ class TestQuadLayerPlacement:
         )
         expected = scene @ np.array([*untilted, 1.0], dtype=np.float32)
         np.testing.assert_allclose(position, expected[:3], atol=1e-6)
+
+
+class TestAttachedBelow:
+    """A strip hung under a screen's bottom edge, centered on it: the satellite's
+    HUD, which follows the picture wherever it is dragged and however it is
+    resized."""
+
+    _PICTURE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
+
+    def test_it_is_centered_under_the_screen_and_scaled_to_its_pixels(self):
+        hud = attached_below(self._PICTURE, aspect=9 / 16, width_fraction=0.4, hung_aspect=2.0)
+
+        assert hud.azimuth_deg == self._PICTURE.azimuth_deg
+        assert hud.width_deg == pytest.approx(0.4 * self._PICTURE.width_deg)
+
+    def test_its_top_edge_meets_the_screens_bottom_edge(self):
+        hud = attached_below(self._PICTURE, aspect=9 / 16, width_fraction=0.4, hung_aspect=2.0)
+        picture = surface_vertices(self._PICTURE, aspect=9 / 16)
+        strip = surface_vertices(hud, aspect=2.0)
+
+        assert strip[:, 1].max() == pytest.approx(picture[:, 1].min(), abs=1e-6)
+
+    def test_a_gap_holds_it_off_the_edge_by_that_arc(self):
+        flush = attached_below(self._PICTURE, aspect=9 / 16, width_fraction=0.4, hung_aspect=2.0)
+        spaced = attached_below(self._PICTURE, aspect=9 / 16, width_fraction=0.4, hung_aspect=2.0,
+                                gap_deg=1.0)
+        flush_top = surface_vertices(flush, aspect=2.0)[:, 1].max()
+        spaced_top = surface_vertices(spaced, aspect=2.0)[:, 1].max()
+
+        assert flush_top - spaced_top == pytest.approx(RADIUS * math.radians(1.0), abs=1e-6)

@@ -46,7 +46,7 @@ import math
 import queue
 import threading
 import time
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -93,8 +93,8 @@ from .pointer import (
     RELEASE,
     SURFACE,
     Frame,
-    PanelEvent,
     Pointer,
+    PressEvent,
     Screen,
     cursor_vertices,
     handle_vertices,
@@ -103,7 +103,22 @@ from .pointer import (
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import MainRole
-from .scene import PRIMARY_PLACEMENT, Placement, quad_layer_placement, surface_vertices
+from .satellite_hud import (
+    HUD,
+    HUD_GAP_DEG,
+    PICTURE,
+    HudSurface,
+    SatellitePointer,
+    hud_screen_name,
+    screen_kind,
+)
+from .scene import (
+    PRIMARY_PLACEMENT,
+    Placement,
+    attached_below,
+    quad_layer_placement,
+    surface_vertices,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -401,14 +416,49 @@ class _SatelliteUnit(_VideoUnit):
         self._status_writer = StatusWriter(
             Path(commands.side_file(side, "status")), satellite_status_fields
         )
-        # The lock HUD panel fun_time publishes, composited into the video by
-        # mpv — no pointer reaches it in VR, but the map itself carries over.
+        self.hud_surface = HudSurface()
         self.hud = HudOverlay(
             hud_file=Path(commands.side_file(side, "hud")),
             command_file=Path(commands.dashboard_cmd_file),
-            player=self.player,
+            player=self.hud_surface,
+        )
+        self.hud_texture = FrameTexture()
+        self.hud_screen = _HungScreen(placement)
+        self._hud_version = -1
+        self._hud_shown = False
+        self._presses = _Presses(side, hud_screen_name(side))
+        self._pointer = SatellitePointer(
+            hud=self.hud, seek=self.session.seek_to, duration_ms=lambda: self.session.duration_ms,
         )
         self._volume_painter = VolumeHudPainter()
+
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    @property
+    def hud_ready(self) -> bool:
+        return self._hud_shown and self.hud_texture.ready and self.hud_screen.ready
+
+    def render_latest_frame(self) -> None:
+        super().render_latest_frame()
+        rgba, version = self.hud_surface.take()
+        if version != self._hud_version:
+            self._hud_version = version
+            self._hud_shown = rgba is not None
+            if rgba is not None:
+                self.hud_texture.upload(rgba)
+        if self._hud_shown and self.target.ready:
+            self.hud_screen.placement = attached_below(
+                self.screen.placement, aspect=self.target.aspect,
+                width_fraction=self.hud_texture.width / self.target.width,
+                hung_aspect=self.hud_texture.aspect, gap_deg=HUD_GAP_DEG,
+            )
+            self.hud_screen.rehang(self.hud_texture.aspect)
+
+    def _surface_size(self, kind: str) -> tuple[int, int]:
+        if kind == HUD:
+            return self.hud_surface.size or (1, 1)
+        return max(1, self.target.width), max(1, self.target.height)
 
     def _read_playlist(self) -> list[Path]:
         return [video for video, _funscript in read_playlist(self.playlist_file)]
@@ -427,6 +477,14 @@ class _SatelliteUnit(_VideoUnit):
         self.session.advance()
         self._status_writer.write(self.session)
         self.hud.tick(video=self.session.current_video.stem)
+        for event in self._presses.drain():
+            if event.kind == PRESS:
+                kind = screen_kind(event.screen)
+                self._pointer.press(kind, event.u, event.v, size=self._surface_size(kind))
+        hover = self._presses.hover
+        kind = screen_kind(hover[0]) if hover is not None else PICTURE
+        self._pointer.hover(
+            kind, hover[1] if hover is not None else None, size=self._surface_size(kind))
         self.overlay_furniture(
             self.session.position_ms, self.session.duration_ms,
             _MUTED_INDICATOR, self._volume_painter,
@@ -434,6 +492,8 @@ class _SatelliteUnit(_VideoUnit):
 
     def close(self) -> None:
         self.session.close()  # closes the player
+        self.hud_texture.close()
+        self.hud_screen.close()
         self._close_graphics()
 
 
@@ -480,6 +540,31 @@ class _GenauUnit:
         self.screen.close()
 
 
+class _Presses:
+    def __init__(self, *screens: str) -> None:
+        self._screens = screens
+        self._events: queue.SimpleQueue[PressEvent] = queue.SimpleQueue()
+        self.hover: tuple[str, tuple[float, float]] | None = None
+
+    def point(self, frame: Frame) -> None:
+        for event in frame.events:
+            if event.screen in self._screens:
+                self._events.put(event)
+        hover = frame.hover
+        self.hover = (
+            (hover.screen, (hover.u, hover.v))
+            if hover is not None and hover.screen in self._screens and hover.handle == SURFACE
+            else None
+        )
+
+    def drain(self) -> Iterator[PressEvent]:
+        while True:
+            try:
+                yield self._events.get_nowait()
+            except queue.Empty:
+                return
+
+
 class _PanelUnit:
     """The console, hung in the scene: painted and pressed on the pump thread,
     uploaded on the render thread when it changed."""
@@ -497,8 +582,7 @@ class _PanelUnit:
             post=lambda command: append_command(dashboard_cmd_file, command),
             seek=primary.role.seek_to,
         )
-        self._events: queue.SimpleQueue[PanelEvent] = queue.SimpleQueue()
-        self._hover: tuple[float, float] | None = None
+        self._presses = _Presses(PANEL)
         self._lock = threading.Lock()
         self._image = None
         self._key = None
@@ -507,17 +591,11 @@ class _PanelUnit:
         self.texture = FrameTexture()
         self.screen = _HungScreen(placement)
 
-    def point(self, events: Iterable[PanelEvent], *, hover: tuple[float, float] | None) -> None:
-        for event in events:
-            self._events.put(event)
-        self._hover = hover
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
 
     def _take_presses(self) -> None:
-        while True:
-            try:
-                event = self._events.get_nowait()
-            except queue.Empty:
-                return
+        for event in self._presses.drain():
             if event.kind == PRESS:
                 self._pointer.press(event.u, event.v)
             elif event.kind == DRAG:
@@ -542,7 +620,8 @@ class _PanelUnit:
         else:
             scrubber = (main.position_ms, main.duration_ms)
             chip = VolumeHud(volume=main.volume, muted=main.muted)
-        hover = self._pointer.tooltip_anchor(self._hover)
+        hovered = self._presses.hover
+        hover = self._pointer.tooltip_anchor(hovered[1] if hovered is not None else None)
         # Repainted only when what it shows moves, as the furniture is.
         key = (
             hud,
@@ -710,10 +789,15 @@ def _update_quad_layer(
 
 
 def _pointable_screens(satellites: Sequence[_SatelliteUnit], panel: _PanelUnit) -> list[Screen]:
-    screens = [
-        Screen(unit.side, unit.screen.placement, unit.target.aspect, movable=True, resizable=True)
-        for unit in satellites if unit.target.ready
-    ]
+    screens = []
+    for unit in satellites:
+        if not unit.target.ready:
+            continue
+        screens.append(Screen(unit.side, unit.screen.placement, unit.target.aspect,
+                              movable=True, resizable=True, pressable=True))
+        if unit.hud_ready:
+            screens.append(Screen(hud_screen_name(unit.side), unit.hud_screen.placement,
+                                  unit.hud_texture.aspect, pressable=True))
     if panel.texture.ready:
         screens.append(Screen(
             PANEL, panel.screen.placement, panel.texture.aspect, movable=True, pressable=True))
@@ -775,6 +859,12 @@ def _draw_eyes(
                 if satellite.target.ready and satellite.screen.ready:
                     renderer.draw_screen(
                         satellite.screen.mesh, satellite.target.texture, view_proj32)
+        for satellite in satellites:
+            if satellite.hud_ready:
+                renderer.draw_screen(
+                    satellite.hud_screen.mesh, satellite.hud_texture.texture, view_proj32,
+                    blend=True,
+                )
         if panel.texture.ready and panel.screen.ready:
             renderer.draw_screen(panel.screen.mesh, panel.texture.texture, view_proj32, blend=True)
         pointing.draw(renderer, view_proj32)
@@ -920,13 +1010,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     keeper.place(name, placement)
                 if frame.settled:
                     keeper.settle()
-                hover = frame.hover
-                panel.point(
-                    frame.events,
-                    hover=(hover.u, hover.v)
-                    if hover is not None and hover.screen == PANEL and hover.handle == SURFACE
-                    else None,
-                )
+                for unit in (*satellites, panel):
+                    unit.point(frame)
                 pointing.update(frame, screens)
                 mode = immersive_mode(primary.role.projection)
                 if use_layers:

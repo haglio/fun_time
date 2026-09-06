@@ -19,6 +19,8 @@ from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_
 from fun_time.mode_plan import nau_displays
 from satellite.pointer import time_at
 
+from .pointer import surface_pixel
+
 # Pixels across, held: the screen keeps one size between the modes (the genau
 # rows are narrower) and across titles (a long one is elided) -- its angular
 # width above is fixed, so a bitmap that changed width would rescale it all.
@@ -112,11 +114,7 @@ class PanelPointer:
         self._size, self._scrubber, self._chip = size, scrubber, chip
 
     def _pixel(self, u: float, v: float) -> tuple[int, int]:
-        width, height = self._size
-        return (
-            min(width - 1, max(0, int(u * width))),
-            min(height - 1, max(0, int((1.0 - v) * height))),
-        )
+        return surface_pixel(u, v, self._size)
 
     def _chip_part(self, px: int, py: int) -> tuple[str, int]:
         width, height = self._size

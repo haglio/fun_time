@@ -35,7 +35,7 @@ from fun_time_vr.player import (
     _VideoUnit,
     build_parser,
 )
-from fun_time_vr.pointer import PRESS, RELEASE, PanelEvent
+from fun_time_vr.pointer import PRESS, RELEASE, SURFACE, Frame, Hover, PressEvent
 from fun_time_vr.scene import Placement
 
 
@@ -101,9 +101,9 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 # the state directory.  Faked wholesale: what is under test here is which
 # manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
-    "MpvRenderPlayer", "RenderTarget", "MainRole", "SatelliteSession",
+    "MpvRenderPlayer", "RenderTarget", "FrameTexture", "MainRole", "SatelliteSession",
     "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
-    "VolumeHudPainter",
+    "VolumeHudPainter", "DriveGate",
 )
 
 
@@ -173,6 +173,9 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     hud = faked_collaborators["HudOverlay"].call_args.kwargs
     assert hud["hud_file"] == Path(commands.side_file(side, "hud"))
     assert hud["command_file"] == Path(commands.dashboard_cmd_file)
+    # The HUD paints into a surface of its own, hung under the picture, not
+    # into the video through mpv as the desktop satellite's does.
+    assert hud["player"] is unit.hud_surface
 
 
 class _OverlayPlayer:
@@ -357,8 +360,9 @@ class TestThePanelUnderThePointer:
         p = self._unit(tmp_path)
         p.unit.pump(threading.Event(), 0.0)  # painted: the buttons now have places
 
-        p.unit.point([PanelEvent(PRESS, *self._uv_of(p.unit, "main_lock")), PanelEvent(RELEASE)],
-                     hover=None)
+        p.unit.point(Frame(events=(
+            PressEvent(PRESS, PANEL, *self._uv_of(p.unit, "main_lock")), PressEvent(RELEASE, PANEL),
+        )))
         assert not p.command_file.exists()
 
         p.unit.pump(threading.Event(), 0.0)
@@ -370,7 +374,7 @@ class TestThePanelUnderThePointer:
         p.unit.pump(threading.Event(), 0.0)
         plain = np.asarray(p.unit._image).copy()
 
-        p.unit.point([], hover=self._uv_of(p.unit, "main_lock"))
+        p.unit.point(Frame(hover=Hover(PANEL, SURFACE, *self._uv_of(p.unit, "main_lock"))))
         p.unit.pump(threading.Event(), 0.0)
 
         assert not np.array_equal(np.asarray(p.unit._image), plain)

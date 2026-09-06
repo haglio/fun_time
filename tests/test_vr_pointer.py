@@ -28,8 +28,8 @@ from fun_time_vr.pointer import (
     SURFACE,
     Grab,
     HandInput,
-    PanelEvent,
     Pointer,
+    PressEvent,
     Ray,
     Screen,
     SurfacePoint,
@@ -387,6 +387,7 @@ class TestThePointerOverTheScene:
         pressed = self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.25, 0.75), right_trigger=1.0))
         assert len(pressed.events) == 1
         assert pressed.events[0].kind == PRESS
+        assert pressed.events[0].screen == "panel"
         assert (pressed.events[0].u, pressed.events[0].v) == pytest.approx((0.25, 0.75), abs=1e-6)
 
         dragged = self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75), right_trigger=1.0))
@@ -395,7 +396,7 @@ class TestThePointerOverTheScene:
         assert dragged.hover.screen == "panel"
 
         released = self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75)))
-        assert released.events == (PanelEvent(RELEASE),)
+        assert released.events == (PressEvent(RELEASE, "panel"),)
         assert not released.settled
         assert self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75))).events == ()
 
@@ -429,7 +430,7 @@ class TestThePointerOverTheScene:
         assert pressed.events[0].kind == PRESS
         assert stolen.events[0].kind == DRAG
         assert stolen.hover.screen == "panel"
-        assert released.events == (PanelEvent(RELEASE),)
+        assert released.events == (PressEvent(RELEASE, "panel"),)
 
     def test_the_pointer_comes_from_whichever_hand_is_tracked(self):
         frame = self._frame(Pointer(), _hands(left=_aim_at_uv(_PANEL, 0.5, 0.5)))
