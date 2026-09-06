@@ -41,6 +41,7 @@ from .library_handles import LibraryHandle, build_library_handles, handle_for
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
+from .win32 import force_foreground_window
 
 WINDOW_TITLE = "Fun Time Library"
 
@@ -437,15 +438,12 @@ class LibraryBrowserWindow(QWidget):
     def open_on(self, video: str | None) -> None:
         """Open where *video* is, with its own tile picked out — or at the top.
 
-        A browse is nearly always for something near what is already playing —
-        the rest of a performer's folder, the scene the cut came out of — so
-        opening at the root spent every browse walking back down to where the
-        session already was.  The video itself is selected rather than merely
-        shown, since a folder of hundreds otherwise says nothing about where in
-        it you landed.
-
-        Anything the library does not hold falls back to the root: a session
-        playing a file from outside it has no folder here to open on.
+        A browse is nearly always for something near what is playing, so opening
+        at the root spent every one of them walking back down to where the
+        session already was.  The video is selected rather than merely shown: a
+        folder of hundreds otherwise says nothing about where in it you landed.
+        Anything the library does not hold — a file from outside it, or nothing
+        playing — falls back to the root.
         """
         handle = handle_for(self._handles, video) if video else None
         if handle is None:
@@ -699,6 +697,22 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def bring_the_browse_forward(window: QWidget) -> bool:
+    """Put the browse in front of the players, with the keyboard on it.
+
+    Qt's ``activateWindow`` cannot: Windows refuses ``SetForegroundWindow`` to a
+    process that neither owns the foreground nor took the last input, and this
+    one is a child the bridge started while the main player held both.  The
+    refusal is silent, so the browse came up behind the player whose rect it
+    opens over, with every arrow and Enter still going to the player.
+    ``force_foreground_window`` attaches the input queues, which is one of the
+    cases the rule accepts — the same answer a lock's tab uses to take back Fun
+    Time's own Chrome window.  Nothing is promoted into the topmost band; the
+    bridge already dropped the players out of it for the browse's duration.
+    """
+    return force_foreground_window(int(window.winId()))
+
+
 def main(argv: list[str] | None = None) -> int:
     from PyQt6.QtWidgets import QApplication
 
@@ -730,8 +744,7 @@ def main(argv: list[str] | None = None) -> int:
     if None not in {args.x, args.y, args.width, args.height}:
         window.setGeometry(args.x, args.y, args.width, args.height)
     window.show()
-    window.activateWindow()
-    window.raise_()
+    bring_the_browse_forward(window)
     return app.exec()
 
 
