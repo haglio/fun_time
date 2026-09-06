@@ -28,7 +28,7 @@ End If
 ' orchestrator is the one process it cannot name on the way in,
 ' because writing the copy takes the very interpreter being launched.
 '
-' So the naming happens one launch behind: this picks the copy up when it is
+' So the naming happens one launch late: this picks the copy up when it is
 ' there, the session makes it for the session after, and a checkout that has
 ' never run starts anonymous exactly as it used to.
 namedExe = fso.BuildPath(scriptDir, ".venv\Scripts\FunTime-Orchestrator.exe")
