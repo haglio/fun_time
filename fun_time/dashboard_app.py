@@ -23,7 +23,7 @@ from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
 
 from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
-from fun_time.cover_palette import WORDMARK_PINK
+from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -61,8 +61,8 @@ COLOR_BG = BG_PRIMARY
 # which left them reading as flat panels beside another app's raised buttons.
 COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
-# NOT the logo's magenta-pink; deliberately different hues.
-COLOR_APP_TITLE = QColor(WORDMARK_PINK)
+# A hue of its own, deliberately not the family icon's ink.
+COLOR_APP_TITLE = QColor(WORDMARK_MAGENTA)
 
 
 def lighten_color(color: QColor, amount: int = 50) -> QColor:
@@ -246,7 +246,7 @@ def build_dashboard_scene(
         DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
     )
-    # The app-name lockup, styled like the loading screen: pink, bold italic.
+    # The app-name lockup, styled like the loading screen: bold italic, wordmark tone.
     # Built fresh (not via the cached make_font) so setItalic cannot leak into
     # every other user of a shared QFont.
     _font_app = QFont(FONT_UI, SIZE_BODY)

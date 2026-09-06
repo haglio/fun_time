@@ -26,7 +26,7 @@ from .cover_palette import (
     HINT_DIM,
     TEXT_DIM,
     TROUGH,
-    WORDMARK_PINK,
+    WORDMARK_MAGENTA,
 )
 from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import parse_progress
@@ -124,7 +124,7 @@ def _apply_theme(root: tk.Tk) -> None:
     style.configure(
         "FunTime.Horizontal.TProgressbar",
         troughcolor=TROUGH,
-        background=WORDMARK_PINK,
+        background=WORDMARK_MAGENTA,
         thickness=18,
         borderwidth=0,
     )
@@ -163,7 +163,7 @@ def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
             pass
 
     tk.Label(frame, text="Fun Time", font=(FACE, 18, "bold italic"),
-             fg=WORDMARK_PINK, bg=BG).pack(pady=(0, 10))
+             fg=WORDMARK_MAGENTA, bg=BG).pack(pady=(0, 10))
 
     status_label = tk.Label(frame, text=status, font=(FACE, 10), fg=TEXT_DIM, bg=BG)
     status_label.pack(pady=(0, 10))
