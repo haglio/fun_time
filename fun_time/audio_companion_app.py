@@ -51,13 +51,19 @@ def pick_audio_device(names, wanted: str | None) -> str | None:
 
 
 def init_mixer(wanted: str | None) -> str | None:
-    """Open the mixer on the output *wanted* names -- the headset, in VR -- else
-    the default, and say which."""
-    device = None
-    if wanted:
-        from pygame._sdl2.audio import get_audio_device_names
+    """Open the mixer on *wanted*'s output (the headset, in VR) else the default,
+    and say which.  Listing outputs needs the mixer already open or SDL raises
+    "Audio system not initialised" -- so open the default, list, reopen on it."""
+    if not wanted:
+        pygame.mixer.init(devicename=None)
+        return None
+    from pygame._sdl2.audio import get_audio_device_names
 
+    pygame.mixer.init(devicename=None)
+    try:
         device = pick_audio_device(get_audio_device_names(False), wanted)
+    finally:
+        pygame.mixer.quit()
     pygame.mixer.init(devicename=device)
     return device
 

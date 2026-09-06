@@ -425,11 +425,38 @@ class TestTheOutputItPlaysOn:
         from fun_time.audio_companion_app import init_mixer
 
         with patch("pygame._sdl2.audio.get_audio_device_names", return_value=self.NAMES), \
-             patch.object(audio_companion_app.pygame.mixer, "init") as init:
+             patch.object(audio_companion_app.pygame.mixer, "init") as init, \
+             patch.object(audio_companion_app.pygame.mixer, "quit"):
             picked = init_mixer("pimax")
 
         assert picked == "Headphones (Pimax 8K)"
-        init.assert_called_once_with(devicename="Headphones (Pimax 8K)")
+        init.assert_any_call(devicename="Headphones (Pimax 8K)")
+
+    def test_the_outputs_are_listed_only_once_the_audio_subsystem_is_up(self):
+        """Listing before the mixer opened raised "Audio system not initialised", crashing the companion on every VR launch."""
+        from fun_time.audio_companion_app import init_mixer
+
+        audio_up = False
+
+        def opened(devicename=None):
+            nonlocal audio_up
+            audio_up = True
+
+        def closed():
+            nonlocal audio_up
+            audio_up = False
+
+        def listed(_capture):
+            if not audio_up:
+                raise RuntimeError("Audio system not initialised")
+            return self.NAMES
+
+        with patch.object(audio_companion_app.pygame.mixer, "init", side_effect=opened), \
+             patch.object(audio_companion_app.pygame.mixer, "quit", side_effect=closed), \
+             patch("pygame._sdl2.audio.get_audio_device_names", side_effect=listed):
+            picked = init_mixer("pimax")
+
+        assert picked == "Headphones (Pimax 8K)"
 
     def test_with_nothing_wanted_the_devices_are_not_even_listed(self):
         """The desktop session: the default output, no SDL device enumeration."""
