@@ -11,6 +11,7 @@ import socket
 import subprocess
 import threading
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from app_support.file_channel import consume_command_file
@@ -30,7 +31,7 @@ from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import build_mirrored_funscript_path
 from .player_status import is_broker_heartbeat_fresh
 from .role_windows import WindowRoles
-from .satellites_mode import origenerator_shows
+from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .voice_commands import parse_command_line
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
@@ -230,6 +231,11 @@ class DispatchLoopRunner:
             genau_cmd_file=config.genau_cmd_file,
         )
 
+    def _modes_this_session_hosts(self, state: BridgeState) -> BridgeState:
+        if self.config.origenerator_enabled or not origenerator_shows(state.satellites_mode):
+            return state
+        return replace(state, satellites_mode=VIDEO_MODE)
+
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
         self._flash_nau_notice()
@@ -237,7 +243,7 @@ class DispatchLoopRunner:
         # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
-            self.state = shared
+            self.state = self._modes_this_session_hosts(shared)
 
         # Hand the OSR2 to the current video's funscript (or back to the Robot
         # Hand).  Runs before the command loop so a mode switch that also writes
