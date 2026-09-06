@@ -1,4 +1,4 @@
-"""A satellite's lock HUD hung under its picture: the bitmap the overlay paints,
+"""A satellite's lock HUD hanging under its picture: the bitmap the overlay paints,
 and what a press or a hover on either screen does."""
 from __future__ import annotations
 
@@ -112,7 +112,7 @@ class TestAPressOnASatellite:
 
         assert hud.motions == [(50 + MARGIN, 50 + MARGIN)]
 
-    def test_a_pointer_off_the_hud_leaves_no_tooltip_behind(self):
+    def test_a_pointer_off_the_hud_leaves_no_tooltip(self):
         pointer, hud, _seeks = self._pointer()
 
         pointer.hover(HUD, None, size=_HUD_SIZE)
@@ -130,7 +130,7 @@ _A_PANEL = {
 
 
 class TestThePressReachesTheDesktopsOwnMap:
-    """The whole chain a squeeze on the hung HUD travels: the overlay paints
+    """The whole chain a squeeze on the hanging HUD travels: the overlay paints
     into the surface, the pointer turns the screen's (u, v) into the pixel
     under it, and the desktop's own click map posts the command."""
 

@@ -27,7 +27,7 @@ from fun_time.manifest import (
 from fun_time_vr.layout import DEFAULT_LAYOUT, LANDSCAPE, PANEL, PORTRAIT, read_layout
 from fun_time_vr.player import (
     VrSettings,
-    _HungScreen,
+    _HangingScreen,
     _LayoutKeeper,
     _MainUnit,
     _PanelUnit,
@@ -173,7 +173,7 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     hud = faked_collaborators["HudOverlay"].call_args.kwargs
     assert hud["hud_file"] == Path(commands.side_file(side, "hud"))
     assert hud["command_file"] == Path(commands.dashboard_cmd_file)
-    # The HUD paints into a surface of its own, hung under the picture, not
+    # The HUD paints into a surface of its own, hanging under the picture, not
     # into the video through mpv as the desktop satellite's does.
     assert hud["player"] is unit.hud_surface
 
@@ -269,8 +269,8 @@ class _FakeMesh:
         self.uploads.append(vertices)
 
 
-def test_a_screen_is_rehung_when_its_placement_moves_and_only_then():
-    screen = _HungScreen(DEFAULT_LAYOUT[LANDSCAPE])
+def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
+    screen = _HangingScreen(DEFAULT_LAYOUT[LANDSCAPE])
     screen.mesh = _FakeMesh()
 
     screen.rehang(4 / 3)
