@@ -248,10 +248,19 @@ class Hover:
 
 
 @dataclass(frozen=True)
-class PanelEvent:
+class PressEvent:
     kind: str
+    screen: str
     u: float = 0.0
     v: float = 0.0
+
+
+def surface_pixel(u: float, v: float, size: tuple[int, int]) -> tuple[int, int]:
+    width, height = size
+    return (
+        min(width - 1, max(0, int(u * width))),
+        min(height - 1, max(0, int((1.0 - v) * height))),
+    )
 
 
 @dataclass(frozen=True)
@@ -261,7 +270,7 @@ class Frame:
     hover: Hover | None = None
     moved: dict[str, Placement] = field(default_factory=dict)
     settled: bool = False
-    events: tuple[PanelEvent, ...] = ()
+    events: tuple[PressEvent, ...] = ()
 
 
 def _hover_at(point: SurfacePoint, screens: Sequence[Screen]) -> tuple[Screen, Hover] | None:
@@ -313,14 +322,14 @@ class Pointer:
         elif edge == PRESS and screen.pressable:
             self._pressing = screen
             return Frame(ray=ray, point=point, hover=hover,
-                         events=(PanelEvent(PRESS, hover.u, hover.v),))
+                         events=(PressEvent(PRESS, screen.name, hover.u, hover.v),))
         return Frame(ray=ray, point=point, hover=hover)
 
     def _blind(self, edge: str | None) -> Frame:
         if edge != RELEASE:
             return Frame()
         settled = self._grab is not None
-        events = (PanelEvent(RELEASE),) if self._pressing is not None else ()
+        events = (PressEvent(RELEASE, self._pressing.name),) if self._pressing is not None else ()
         self._grab = self._pressing = None
         return Frame(settled=settled, events=events)
 
@@ -340,13 +349,13 @@ class Pointer:
 
     def _pressing_on(self, ray: Ray, point: SurfacePoint | None, edge: str | None) -> Frame:
         screen = self._pressing
-        events: tuple[PanelEvent, ...] = ()
+        events: tuple[PressEvent, ...] = ()
         hover = None
         if point is not None:
             u, v = screen_uv(point, screen.placement, screen.aspect)
             hover = Hover(screen.name, SURFACE, u, v)
-            events = (PanelEvent(DRAG, u, v),)
+            events = (PressEvent(DRAG, screen.name, u, v),)
         if edge == RELEASE:
             self._pressing = None
-            events = (PanelEvent(RELEASE),)
+            events = (PressEvent(RELEASE, screen.name),)
         return Frame(ray=ray, point=point, hover=hover, events=events)
