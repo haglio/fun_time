@@ -268,10 +268,11 @@ class FolderIndex(BrowseList):
     stills.  So the same folder goes up again here as text alone, sorted by
     name, with the letter each group files under standing over it.
 
-    Choosing a name moves the grid to it.  The grid never moves this in return,
-    deliberately: an index that re-scrolled itself every time the grid's
-    selection changed would slide out from under the walk down it that caused
-    the change.
+    Choosing a name moves the grid to it, and so does clicking the letter over
+    a group — the headings are this list's table of contents.  The grid never
+    moves this in return, deliberately: an index that re-scrolled itself every
+    time the grid's selection changed would slide out from under the walk down
+    it that caused the change.
     """
 
     def __init__(
@@ -354,6 +355,34 @@ class FolderIndex(BrowseList):
         item = QListWidgetItem(name)
         item.setToolTip(name)
         return item
+
+    def mousePressEvent(self, event) -> None:  # Qt override
+        """Clicking a letter selects the first name filed under it.
+
+        A heading is a disabled row — which is what keeps the arrows and the
+        type-ahead on the names (see :meth:`_heading_item`) — and Qt gives a
+        disabled row no click signal, so the press is answered here.  Selecting
+        rather than scrolling: the index then stands where the walk carries on,
+        and the grid follows it the way it follows any name.
+        """
+        item = self.itemAt(event.position().toPoint())
+        row = self.row(item) if item is not None else -1
+        if not (0 <= row < len(self.grid_rows)) or self.grid_rows[row] is not None:
+            super().mousePressEvent(event)
+            return
+        first = self._first_name_under(row)
+        if first is not None:
+            self.setCurrentRow(first)
+            # Again by hand: setCurrentRow is silent when it is already current.
+            self._reveal(self.item(first))
+
+    def _first_name_under(self, heading_row: int) -> int | None:
+        """This list's row for the first name under the heading at *heading_row*."""
+        return next(
+            (row for row in range(heading_row + 1, len(self.grid_rows))
+             if self.grid_rows[row] is not None),
+            None,
+        )
 
     def _grid_row(self, item: QListWidgetItem | None) -> int | None:
         if item is None:
@@ -442,8 +471,6 @@ class LibraryBrowserWindow(QWidget):
         at the root spent every one of them walking back down to where the
         session already was.  The video is selected rather than merely shown: a
         folder of hundreds otherwise says nothing about where in it you landed.
-        Anything the library does not hold — a file from outside it, or nothing
-        playing — falls back to the root.
         """
         handle = handle_for(self._handles, video) if video else None
         if handle is None:
@@ -630,8 +657,7 @@ def browse_library(
 ) -> str | None:
     """Browse the library and return the video picked, or None if none was.
 
-    *playing* is what the main player has up, which is where the browse opens —
-    see :meth:`LibraryBrowserWindow.open_on`.
+    *playing* is what the main player has up; see :meth:`LibraryBrowserWindow.open_on`.
 
     Blocks for the length of the browse, as the file dialog before it did — the
     caller is a dispatch-loop thread, and the browser is a window of its own

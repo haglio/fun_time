@@ -6,9 +6,9 @@ from unittest.mock import patch
 
 import pytest
 from PIL import Image
-from PyQt6.QtCore import QEvent, Qt
-from PyQt6.QtGui import QKeyEvent
-from PyQt6.QtWidgets import QApplication, QListWidget
+from PyQt6.QtCore import QEvent, QPointF, Qt
+from PyQt6.QtGui import QKeyEvent, QMouseEvent
+from PyQt6.QtWidgets import QAbstractItemView, QApplication, QListWidget
 
 from fun_time import load_config
 from fun_time.library_browser import (
@@ -41,6 +41,21 @@ def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
 
 def _labels(view: QListWidget) -> list[str]:
     return [view.item(row).text() for row in range(view.count())]
+
+
+def _click(view: QAbstractItemView, row: int) -> None:
+    """Deliver a real press and release onto *row*, through the viewport.
+
+    Sent as events rather than by calling the handler, so the test exercises the
+    same route a mouse takes — and a heading, which emits none of Qt's own click
+    signals, can only be reached that way.
+    """
+    point = QPointF(view.visualItemRect(view.item(row)).center())
+    for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+        QApplication.sendEvent(view.viewport(), QMouseEvent(
+            kind, point, Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        ))
 
 
 def _backspace() -> QKeyEvent:
@@ -445,6 +460,56 @@ def test_choosing_a_name_moves_the_grid_to_it(browser, tmp_path: Path):
 
     window.index.setCurrentRow(_labels(window.index).index("Zulu Scene"))
 
+    assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
+
+
+def test_clicking_a_letter_moves_the_grid_to_where_that_letter_starts(
+    browser, tmp_path: Path,
+):
+    """The headings are the index's table of contents, so they answer a click.
+
+    Qt gives a disabled row no clicked/activated signal of its own, which is why
+    this is the gesture worth testing rather than a handler call.
+    """
+    handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+
+    _click(window.index, _labels(window.index).index("Z"))
+
+    assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
+    assert window.index.currentItem().text() == "Zulu Scene"
+
+
+def test_clicking_a_letter_takes_the_grid_back_after_it_has_wandered(
+    browser, tmp_path: Path,
+):
+    """The grid has a selection of its own, and it moves on its own — so a
+    second click on the same letter must bring it back, though the index has
+    not moved and Qt reports no change of current row."""
+    handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+    _click(window.index, _labels(window.index).index("Z"))
+    window.grid.setCurrentRow(window.grid.rows.index(handles[0]))
+
+    _click(window.index, _labels(window.index).index("Z"))
+
+    assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
+
+
+def test_clicking_a_name_still_selects_it(browser, tmp_path: Path):
+    """The press only answers a heading; on a name it is Qt's to handle."""
+    handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+
+    _click(window.index, _labels(window.index).index("Zulu Scene"))
+
+    assert window.index.currentItem().text() == "Zulu Scene"
     assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
 
 
