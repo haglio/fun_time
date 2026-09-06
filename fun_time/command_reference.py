@@ -566,8 +566,8 @@ def render_reference_html() -> str:
     ]
     for section in build_reference_sections():
         parts.append(
-            f'<h3 style="color:{_ACCENT};margin:14px 0 2px 0;'
-            f'border-bottom:1px solid {_BORDER}">{html.escape(section.title)}</h3>'
+            f'<h3 style="color:{_ACCENT};margin:14px 0 2px 0">'
+            f"{html.escape(section.title)}</h3>"
         )
         if section.note:
             parts.append(
