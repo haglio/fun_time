@@ -165,6 +165,29 @@ as the direct way to start a VR session on the installed config, and as one of
 the launchers `tests/test_launch_smoke.py` reads to decide what to import-check;
 it is simply not something to pin any more.
 
+## The hosted app is not booted twice
+
+Origenerator is the longest thing a desktop startup waits on: the curtain is
+held up to forty seconds for it to answer. A crossing used to pay that twice,
+because the desktop session closed it on the way out and the session coming
+back launched a new one — no faster the second time, it being a fresh boot.
+
+So a crossing keeps it. The teardown minimizes its window and records
+`(pid, created_at)` in `origenerator_kept.txt` instead of closing it, leaves it
+out of the kill sweep, and the arriving session adopts it: its window is
+restored under the cover with every other window, and only the boot is skipped.
+Identity is the pair and never the pid alone, because Windows hands freed pids
+straight back out.
+
+Its status file is deliberately left alone on adoption — the app is already
+answering through it, and clearing it would buy back the forty seconds this
+saves. The paused flag and the command file are cleared as ever: a stale freeze
+or an unread verb from the last session would land on this one.
+
+Whoever ends up with nothing to hand it to closes it: a VR session quitting
+rather than crossing back, and a relay whose crossing failed. A record whose
+process is gone is simply forgotten.
+
 ## What each cover waits on
 
 Every cover reads a progress file and gives up on one that stops moving, so

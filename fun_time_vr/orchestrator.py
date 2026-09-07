@@ -100,6 +100,7 @@ from fun_time.windows_bridge_dispatch_loop import (
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     add_dispatch_file_handler,
+    close_a_kept_origenerator,
     kill_recorded_child,
     open_event_log,
     start_hud_priming,
@@ -633,6 +634,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             )
             if not held:
                 kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
+            if crossing is None:  # nothing is crossing in to adopt a parked one
+                close_a_kept_origenerator(state_dir)
         if not held:
             _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
     return exit_code

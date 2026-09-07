@@ -22,7 +22,13 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
-from fun_time.session_handoff import VR, crossing_progress_path, request_handoff
+from fun_time.session_handoff import (
+    VR,
+    crossing_progress_path,
+    keep_the_origenerator,
+    kept_origenerator,
+    request_handoff,
+)
 from fun_time.shared_state import BridgeState
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
@@ -385,21 +391,21 @@ def _recorded_children(**overrides: ChildProcess) -> dict[str, ChildProcess]:
 
 
 class TestShutdownChildren:
-    def test_closes_rfb_window(self):
+    def test_closes_rfb_window(self, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(88888, _recorded_children(), NullProgress())
+            _shutdown_children(88888, _recorded_children(), NullProgress(), state_dir=tmp_path)
 
         mock_close.assert_called_once_with(88888)
 
-    def test_skips_rfb_close_when_no_hwnd(self):
+    def test_skips_rfb_close_when_no_hwnd(self, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window") as mock_close:
-            _shutdown_children(0, _recorded_children(), NullProgress())
+            _shutdown_children(0, _recorded_children(), NullProgress(), state_dir=tmp_path)
 
         mock_close.assert_called_once_with(0)
 
-    def test_kills_the_recorded_children_but_never_a_recycled_pid(self):
+    def test_kills_the_recorded_children_but_never_a_recycled_pid(self, tmp_path):
         children = _recorded_children(
             nau_pid=ChildProcess(pid=200, created_at=111),
             portrait_pid=ChildProcess(pid=300, created_at=222),
@@ -410,11 +416,11 @@ class TestShutdownChildren:
             side_effect=live_creation_times.get,
         ), patch("fun_time.windows_bridge_orchestrator.kill_process_tree") as mock_kill, \
              patch("fun_time.windows_bridge_orchestrator.close_window"):
-            _shutdown_children(0, children, NullProgress())
+            _shutdown_children(0, children, NullProgress(), state_dir=tmp_path)
 
         mock_kill.assert_called_once_with(200)
 
-    def test_every_recorded_child_belongs_to_a_reported_group(self):
+    def test_every_recorded_child_belongs_to_a_reported_group(self, tmp_path):
         """The groups teardown walks are the same list startup records, so a
         seventh child cannot be launched and pinned yet never killed."""
         killed: list[int] = []
@@ -425,7 +431,7 @@ class TestShutdownChildren:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=killed.append):
             children = identify_children(_fake_startup_result())
-            _shutdown_children(0, children, NullProgress())
+            _shutdown_children(0, children, NullProgress(), state_dir=tmp_path)
 
         assert sorted(killed) == sorted(child.pid for child in children.values())
 
@@ -959,6 +965,85 @@ class TestLoadingScreenLifecycle:
             )
 
         assert runner.call_args.kwargs["env"] == env
+
+
+class TestKeepingTheHostedApp:
+    """A crossing parks Origenerator instead of closing it, because its boot is
+    the longest thing the next startup waits on (docs/entering-vr.md)."""
+
+    def test_a_crossing_parks_it_and_records_it_instead_of_killing_it(self, tmp_path):
+        killed: list[int] = []
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
+                   side_effect=lambda child: killed.append(child.pid)), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+                   return_value=4242), \
+             patch("fun_time.windows_bridge_orchestrator.minimize_window") as parked, \
+             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+                   ) as closed:
+            children = _recorded_children(
+                origenerator_pid=ChildProcess(pid=7071, created_at=90),
+            )
+            _shutdown_children(0, children, NullProgress(),
+                               state_dir=tmp_path, keep_origenerator=True)
+
+        parked.assert_called_once_with(4242, activate=False)
+        closed.assert_not_called()
+        assert children["origenerator_pid"].pid not in killed
+        assert kept_origenerator(tmp_path) == (
+            children["origenerator_pid"].pid, children["origenerator_pid"].created_at,
+        )
+
+    def test_an_ordinary_quit_closes_it_and_leaves_no_record(self, tmp_path):
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+                   ) as closed:
+            _shutdown_children(0, _recorded_children(), NullProgress(), state_dir=tmp_path)
+
+        closed.assert_called_once()
+        assert kept_origenerator(tmp_path) is None
+
+    def test_a_window_that_cannot_be_found_is_closed_rather_than_kept(self, tmp_path):
+        """Nothing to park means nothing to adopt, so it goes the ordinary way
+        rather than being left running with no record of it."""
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+                   return_value=0), \
+             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+                   ) as closed:
+            _shutdown_children(
+                0,
+                _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
+                NullProgress(), state_dir=tmp_path, keep_origenerator=True,
+            )
+
+        closed.assert_called_once()
+        assert kept_origenerator(tmp_path) is None
+
+    def test_a_record_whose_process_is_gone_is_forgotten_not_killed(self, tmp_path):
+        keep_the_origenerator(tmp_path, pid=999999, created_at=1)
+        with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+                   return_value=None), \
+             patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
+            windows_bridge_orchestrator.close_a_kept_origenerator(tmp_path)
+
+        killed.assert_not_called()
+        assert kept_origenerator(tmp_path) is None
+
+    def test_a_record_that_still_matches_is_closed(self, tmp_path):
+        keep_the_origenerator(tmp_path, pid=999999, created_at=1)
+        with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+                   return_value=1), \
+             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+                   ) as closed, \
+             patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
+            windows_bridge_orchestrator.close_a_kept_origenerator(tmp_path)
+
+        closed.assert_called_once()
+        killed.assert_called_once()
+        assert kept_origenerator(tmp_path) is None
 
 
 class TestClosingScreenLifecycle:
