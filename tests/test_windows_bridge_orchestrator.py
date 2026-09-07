@@ -1917,3 +1917,43 @@ class TestThePlayersStartWhenTheCoverIsGone:
         assert events.index("cover gone") < events.index("players released"), (
             "the players were started while the cover was still up"
         )
+
+
+class TestEscOnTheWayBackFromACancelledCrossing:
+    """A launch that IS a crossing coming back cannot be cancelled.  Esc is what
+    called the crossing off; there is nowhere further back to go, and cancelling
+    here closed the app out from under him -- which is not what any number of
+    Escs may do."""
+
+    def test_the_standing_cover_is_what_says_this_is_a_return(self, tmp_path):
+        from fun_time.session_handoff import (
+            VR,
+            drop_crossing_cover,
+            raise_crossing_cover,
+            returning_from_a_crossing,
+        )
+
+        assert not returning_from_a_crossing(tmp_path)
+
+        raise_crossing_cover(tmp_path, VR)
+        assert returning_from_a_crossing(tmp_path)
+
+        drop_crossing_cover(tmp_path)
+        assert returning_from_a_crossing(tmp_path), (
+            "DONE is the other session's word that it is up, not a deletion"
+        )
+
+    def test_a_return_launch_is_built_with_no_cancel_file(self):
+        """The loading screen needs real monitors, so this reads the decision
+        rather than making one: without it Esc closed the app on the way back."""
+        import ast
+        import inspect
+
+        from fun_time.windows_bridge_orchestrator import _open_the_cover
+
+        tree = ast.parse(inspect.getsource(_open_the_cover).lstrip())
+        (progress,) = [n for n in ast.walk(tree)
+                       if isinstance(n, ast.Call) and ast.unparse(n.func) == "PhaseProgress"]
+        (cancel,) = [kw for kw in progress.keywords if kw.arg == "cancel_file"]
+
+        assert ast.unparse(cancel.value) == "None if returning else cancel_file"

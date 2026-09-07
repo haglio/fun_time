@@ -969,6 +969,17 @@ class TestCancellingALaunch:
         assert pending_handoff(tmp_path) == DESKTOP
         assert "DONE" not in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
 
+    def test_the_monitors_say_so_the_moment_esc_lands(self, tmp_path, monkeypatch):
+        """Pressing Esc looked like nothing happening: the cover went on saying
+        "Entering VR..." through a teardown that takes seconds, so he pressed it
+        again -- and the second one cancelled the launch coming back."""
+        from fun_time.session_handoff import CANCELLING_CROSSING, crossing_progress_path
+
+        self._cancel(tmp_path, monkeypatch, {})
+
+        said = crossing_progress_path(tmp_path).read_text(encoding="utf-8")
+        assert CANCELLING_CROSSING in said
+
     def test_the_quit_chord_takes_the_monitors_back_instead(
             self, tmp_path, monkeypatch):
         """Esc means "not this, put me back"; the quit chord means "end

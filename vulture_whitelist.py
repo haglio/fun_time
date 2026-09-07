@@ -39,3 +39,4 @@ headset_hold_asked
 headset_hold_stops_the_runtime
 report_the_headset_held
 headset_is_held
+say_the_crossing_is_cancelled  # session_handoff; the VR orchestrator's cancel says it

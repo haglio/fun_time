@@ -85,6 +85,7 @@ from fun_time.session_handoff import (
     pending_handoff,
     release_the_headset,
     request_handoff,
+    say_the_crossing_is_cancelled,
 )
 from fun_time.session_resume import (
     resume_main_video,
@@ -358,12 +359,12 @@ def _cancel_vr_startup(
     runtime_was_up: bool,
 ) -> int:
     """Tear down a launch the user called off from the headset, then exit.
-    The player is killed LAST because it wears the cover, so everything else
-    goes while "Cancelling..." is in front of the eyes.  The hotkey script
-    first: it read the Esc that got us here.  Then the monitors -- the crossing
-    cover is the LEFT session's and always on top, and this exit left it over an
-    empty machine, a reboot."""
+    The player is killed LAST because it wears the cover, so the rest goes while
+    "Cancelling..." is in front of the eyes; the hotkey script first, having read
+    the Esc.  Then the monitors: the crossing cover is always on top, and this
+    exit left it over an empty machine -- a reboot."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
+    say_the_crossing_is_cancelled(state_dir)  # before a teardown of some seconds
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     player = children.get("vr_player_pid")
     for key, child in children.items():
