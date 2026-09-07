@@ -2619,7 +2619,7 @@ class TestASessionThatHostsNoOrigenerator:
 
 
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
-    """Two of the session's paths were worked out from a neighbour's, so the
+    """Two of the session's paths were worked out from a neighbor's, so the
     writer that owns the layout had no say in them: the state directory was
     dashboard_state_file's parent, and the notice channel was nau_status_file
     with the name swapped.  Both are keys now, and a manifest that says
