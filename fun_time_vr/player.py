@@ -877,7 +877,7 @@ class _DashUnit:
         for event in self._presses.drain():
             if event.kind == PRESS:
                 self._pointer.press(*surface_pixel(event.u, event.v, size))
-        # The same snapshot the desktop's own bar reads.
+        # The snapshot the desktop's own bar reads.
         snapshot = load_dashboard_snapshot(self._state_file)
         self._pointer.session_state(
             omni_paused=snapshot is not None and snapshot.omni_paused,
@@ -1256,6 +1256,7 @@ def _draw_eyes(
     genau: _GenauUnit,
     satellites: list[_SatelliteUnit],
     panel: _PanelUnit,
+    dash: _DashUnit,
     pointing: _PointerDrawing,
     views,
     mode: int | None,
@@ -1265,8 +1266,8 @@ def _draw_eyes(
 ) -> None:
     """Render the projection layer's two eyes: the main slot as an immersive wrap
     or a screen, every video screen the compositor did not take as a quad
-    (*in_scene*, by layout name), then the console and the pointer's chrome over
-    all of it.  *scene_rotation* is where the arrangement sits."""
+    (*in_scene*, by layout name), then the two hanging panels and the pointer's
+    chrome over all of it.  *scene_rotation* is where the arrangement sits."""
     clip_showing = genau.role.showing
     clip_mode = immersive_mode(genau.role.projection) if clip_showing else None
     for eye_index, view in enumerate(views):
@@ -1308,8 +1309,10 @@ def _draw_eyes(
                     satellite.hud_screen.mesh, satellite.hud_texture.texture, view_proj32,
                     blend=True,
                 )
-        if panel.texture.ready and panel.screen.ready:
-            renderer.draw_screen(panel.screen.mesh, panel.texture.texture, view_proj32, blend=True)
+        for hanging in (panel, dash):
+            if hanging.texture.ready and hanging.screen.ready:
+                renderer.draw_screen(
+                    hanging.screen.mesh, hanging.texture.texture, view_proj32, blend=True)
         pointing.draw(renderer, view_proj32)
         session.release_eye_framebuffer(eye_index)
 
@@ -1571,7 +1574,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if frame.settled:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own
-                             *satellites, panel):
+                             *satellites, panel, dash):
                     unit.point(frame)
                 pointing.update(frame, screens)
                 mode = immersive_mode(primary.role.projection)
@@ -1595,8 +1598,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(
-                    session, renderer, primary, genau, satellites, panel, pointing, views, mode,
-                    scene_rotation,
+                    session, renderer, primary, genau, satellites, panel, dash, pointing,
+                    views, mode, scene_rotation,
                     in_scene=in_scene,
                 )
             t4 = time.perf_counter()

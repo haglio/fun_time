@@ -47,6 +47,7 @@ from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
     _CoverUnit,
+    _draw_eyes,
     _GenauUnit,
     _HangingScreen,
     _LayoutKeeper,
@@ -853,3 +854,67 @@ class TestTheClipsOwnControls:
         unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
 
         assert unit._control_size == control_size(DEFAULT_LAYOUT[PRIMARY].width_deg, 640 / 360)
+
+class _FakeRenderer:
+    """Records which meshes were drawn, so a screen nobody draws is visible."""
+
+    def __init__(self) -> None:
+        self.screens: list[str] = []
+
+    def begin_eye(self) -> None:
+        pass
+
+    def draw_screen(self, mesh, _texture, _view_proj, blend: bool = False) -> None:
+        self.screens.append(mesh)
+
+    def draw_immersive(self, *_args) -> None:
+        self.screens.append("immersive")
+
+
+def _hanging(mesh: str):
+    return SimpleNamespace(
+        texture=SimpleNamespace(ready=True, texture=object()),
+        screen=SimpleNamespace(ready=True, mesh=mesh),
+    )
+
+
+class TestEveryHangingScreenIsDrawn:
+    """The dash was pumped, pointed at and placed in the layout, and left out of
+    the eye pass -- so it existed everywhere except in front of him."""
+
+    def _views(self):
+        fov = SimpleNamespace(angle_left=-0.8, angle_right=0.8,
+                              angle_up=0.8, angle_down=-0.8)
+        pose = SimpleNamespace(
+            position=SimpleNamespace(x=0.0, y=0.0, z=0.0),
+            orientation=SimpleNamespace(x=0.0, y=0.0, z=0.0, w=1.0),
+        )
+        return [SimpleNamespace(fov=fov, pose=pose)]
+
+    def _draw(self):
+        renderer = _FakeRenderer()
+        session = SimpleNamespace(
+            bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
+        primary = SimpleNamespace(
+            target=SimpleNamespace(ready=False, texture=object()),
+            screen=SimpleNamespace(ready=False, mesh="primary"),
+            role=SimpleNamespace(displayed=True, projection="flat"),
+        )
+        genau = SimpleNamespace(
+            role=SimpleNamespace(showing=False, projection="flat"),
+            texture=SimpleNamespace(ready=False, texture=object()),
+            screen=SimpleNamespace(ready=False, mesh="genau"),
+        )
+        panel, dash = _hanging("panel"), _hanging("dash")
+        _draw_eyes(
+            session, renderer, primary, genau, [], panel, dash,
+            SimpleNamespace(draw=lambda *_a: None), self._views(), None,
+            np.eye(4, dtype=np.float64), in_scene={PRIMARY, PORTRAIT, LANDSCAPE},
+        )
+        return renderer
+
+    def test_the_console_reaches_the_eyes(self):
+        assert "panel" in self._draw().screens
+
+    def test_the_dashboard_reaches_them_too(self):
+        assert "dash" in self._draw().screens

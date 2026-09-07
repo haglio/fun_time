@@ -44,8 +44,7 @@ _FONT_PX = 13
 _SMALL_PX = 11
 LOG_ROWS = 8
 
-# Handled here, never posted: the dial is the panel's, as it is on the desktop.
-VERBOSITY_CHIP = "dash_verbosity"
+VERBOSITY_CHIP = "dash_verbosity"  # handled here, as the desktop's dial is
 
 
 def _font(px: int) -> ImageFont.FreeTypeFont:
