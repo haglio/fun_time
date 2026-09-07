@@ -52,6 +52,7 @@ from .session_handoff import (
     launch_crossing_cover,
     pending_handoff,
     release_the_headset,
+    returning_from_a_crossing,
 )
 from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
@@ -432,7 +433,7 @@ def _cancel_startup(
             logger.warning("Loading screen did not exit after cancel, killed")
     progress_file.unlink(missing_ok=True)
     cancel_file.unlink(missing_ok=True)
-    drop_crossing_cover(progress_file.parent)  # over an empty machine: no way out
+    drop_crossing_cover(progress_file.parent)  # else: no way out of an empty machine
     return _CANCELLED_EXIT_CODE
 
 
@@ -815,7 +816,9 @@ def _clear_last_sessions_leftovers(
 
 
 def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
-    """Put the loading screen up over every monitor, and resolve its window."""
+    """The loading screen over every monitor, its window resolved."""
+    # A return is uncancellable: cancelling here closed the app under him.
+    returning = returning_from_a_crossing(state_dir)
     progress_file = state_dir / PROGRESS_FILENAME
     cancel_file = state_dir / CANCEL_FILENAME
     # Clear a cancel flag left over from a previous session so it can't abort
@@ -841,8 +844,11 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
                        "will show through whatever it raises")
     # Handed over here, not at the reveal, which it would sit on top of.
     drop_crossing_cover(state_dir)
-    return _Cover(loading_proc, PhaseProgress(progress_file, cancel_file=cancel_file),
-                  overlay_hwnd, progress_file, cancel_file)
+    return _Cover(
+        loading_proc,
+        PhaseProgress(progress_file, cancel_file=None if returning else cancel_file),
+        overlay_hwnd, progress_file, cancel_file,
+    )
 
 
 def _reveal_the_room(

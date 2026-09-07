@@ -32,6 +32,7 @@ HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
 HEADSET_HELD_NAME = "vr_headset_held.flag"
 _STOP_RUNTIME = "stop_runtime"
 _CROSSING_MESSAGES = {"vr": "Entering VR...", "desktop": "Returning to Fun Time..."}
+CANCELLING_CROSSING = "Cancelling..."
 
 # The first expires only on a session wedged holding the mutex; the second is
 # what both launchers allow a session to report in.
@@ -181,6 +182,16 @@ def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"1/2|{_CROSSING_MESSAGES[target.key]}\n", encoding="utf-8")
     return path
+
+
+def returning_from_a_crossing(state_dir: str | Path) -> bool:
+    return crossing_progress_path(state_dir).exists()  # the other's cover stands
+
+
+def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
+    path = crossing_progress_path(state_dir)
+    if path.exists():
+        path.write_text(f"1/2|{CANCELLING_CROSSING}\n", encoding="utf-8")
 
 
 def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subprocess.Popen:
