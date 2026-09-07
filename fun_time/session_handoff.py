@@ -57,7 +57,6 @@ class HandoffTarget:
     ready_marker: str
 
 
-# Log and marker names are each app's own ``.vbs``'s, pinned by a test.
 DESKTOP = HandoffTarget(
     key="desktop",
     app_name="Fun Time",
@@ -102,8 +101,8 @@ def pending_handoff(state_dir: str | Path) -> HandoffTarget | None:
 
 
 def take_handoff_request(state_dir: str | Path) -> HandoffTarget | None:
-    """The crossing this session was asked for, taken off the disk as it is
-    read.  Unreadable or unrecognized reads as no request at all."""
+    """The crossing asked for, taken off the disk as it is read; unreadable or
+    unrecognized reads as no request at all."""
     return _read_request(state_dir, take=True)
 
 
@@ -159,7 +158,7 @@ def release_the_headset(state_dir: str | Path) -> None:
 
 
 def keep_the_origenerator(state_dir: str | Path, *, pid: int, created_at: int) -> None:
-    """Record the hosted app a crossing leaves running (docs/entering-vr.md)."""
+    """Record the hosted app a crossing leaves running."""
     (Path(state_dir) / KEPT_ORIGENERATOR_NAME).write_text(
         f"{pid} {created_at}\n", encoding="utf-8",
     )
@@ -185,7 +184,7 @@ def crossing_progress_path(state_dir: str | Path) -> Path:
 
 
 def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
-    """Say on the monitors that the room is changing over to *target*."""
+    """Say the room is changing over to *target*."""
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"1/2|{_CROSSING_MESSAGES[target.key]}\n", encoding="utf-8")
@@ -202,7 +201,7 @@ def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subpr
 
 
 def drop_crossing_cover(state_dir: str | Path) -> None:
-    """Take the monitors' crossing cover down; a no-op where none is up."""
+    """Take the crossing cover down; a no-op where none is up."""
     path = crossing_progress_path(state_dir)
     if path.exists():
         path.write_text("DONE\n", encoding="utf-8")

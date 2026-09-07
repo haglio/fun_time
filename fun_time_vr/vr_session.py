@@ -19,6 +19,9 @@ import glfw
 import xr
 from OpenGL import GL
 
+from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.win32 import minimize_window, set_window_icon
+
 from .pointer import LEFT, RIGHT, HandInput
 
 logger = logging.getLogger(__name__)
@@ -153,9 +156,9 @@ class VRSession:
     # ------------------------------------------------------------------
 
     def _init_glfw(self, app_name: str) -> None:
-        """The window owning the GL context the whole pipeline runs on, mpv's
-        render contexts included.  Never shown: this session draws in the
-        headset, and on the desktop it was a blank square in Alt+Tab."""
+        """The window owning the GL context the pipeline runs on, mpv's
+        included.  Created invisible and shown minimized: nothing is drawn in
+        it, and what it is for is the taskbar button (docs/entering-vr.md)."""
         if not glfw.init():
             raise RuntimeError("Failed to initialize GLFW")
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
@@ -167,6 +170,9 @@ class VRSession:
             glfw.terminate()
             raise RuntimeError("Failed to create GLFW window")
         glfw.make_context_current(self._window)
+        hwnd = glfw.get_win32_window(self._window)
+        set_window_icon(hwnd, PROJECT_VR_ICON)
+        minimize_window(hwnd, activate=False)
 
     def _init_openxr(self, app_name: str) -> None:
         self._instance = xr.create_instance(
