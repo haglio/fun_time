@@ -49,6 +49,8 @@ from pathlib import Path
 
 from fun_time.win32_loader import load_dll, win_functype
 
+from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
+
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
 INTEGRATION_DIR = "tests/integration/"
 
@@ -320,12 +322,28 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     return pi
 
 
+def _announce_waiting(seconds: float) -> None:
+    print(f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
+          f"waiting for it to finish ({seconds:.0f}s elapsed)",
+          file=sys.stderr, flush=True)
+
+
 def run_on_hidden_desktop(extra_args: list[str]) -> int:
     """Create the hidden desktop, run the integration pytest bound to it, and
     return pytest's exit code.  The desktop handle is closed on the way out, and
     the run's job object with it — so nothing the run spawned can survive it.
+
+    The machine-wide queue is waited out HERE, around the child rather than
+    inside it: held session-scoped in the conftest, the wait was charged to the
+    first test's setup and pytest's own per-test timeout killed the run, so a
+    run that was merely queued reported a test timeout.
     """
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
+    with hold_integration_lock(notify=_announce_waiting):
+        return _run_the_suite(extra_args)
+
+
+def _run_the_suite(extra_args: list[str]) -> int:
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
         raise ctypes.WinError(ctypes.get_last_error())

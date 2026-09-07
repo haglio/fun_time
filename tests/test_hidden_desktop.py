@@ -39,6 +39,41 @@ def test_argv_appends_caller_args_after_the_defaults():
     assert argv[-3:] == ["-k", "smoke", "-x"]
 
 
+def test_the_queue_is_waited_out_before_pytest_is_started():
+    """A run that has to queue must do its waiting OUT HERE, not inside pytest.
+
+    Held session-scoped in the conftest, the wait was charged to the first
+    test's setup and pytest's 240 s per-test timeout killed the run: three runs
+    in a row reported a timeout in test_branch_session_integration when all
+    that had happened was another agent's suite holding the machine-wide lock.
+    A queued run is not a failing run.
+    """
+    events: list[str] = []
+
+    class _Lock:
+        def __enter__(self):
+            events.append("lock")
+            return self
+
+        def __exit__(self, *exc):
+            events.append("unlock")
+
+    def fake_launch(*_args, **_kwargs):
+        events.append("pytest")
+        raise _StopTheRun
+
+    with patch.object(hidden_desktop, "hold_integration_lock", lambda **_kw: _Lock()), \
+         patch.object(hidden_desktop, "_launch_on_desktop", fake_launch), \
+         pytest.raises(_StopTheRun):
+        hidden_desktop.run_on_hidden_desktop([])
+
+    assert events == ["lock", "pytest", "unlock"]
+
+
+class _StopTheRun(Exception):
+    """Ends the run at the point the child would have been launched."""
+
+
 def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
     with patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
          patch.object(sys, "argv", ["hidden_desktop", "-k", "nau"]):

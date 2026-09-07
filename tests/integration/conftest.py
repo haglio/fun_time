@@ -25,7 +25,6 @@ import pytest
 
 from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
 from .integration_support import close_udp_sinks
-from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
 # Only on the desktop this suite is allowed to run on.  Importing this file is not
 # the same thing as running it: a unit run that merely *recurses* into this
@@ -80,21 +79,6 @@ def pytest_collection_modifyitems(session, config, items):
     _refuse_a_run_off_the_hidden_desktop()
 
 
-def _announce_waiting(seconds: float) -> None:
-    """Surface that this run is queued after another integration run.
-
-    Written to the real stderr so it appears live, rather than being held back
-    with the rest of pytest's captured output until the run finishes.
-    """
-    stream = sys.__stderr__ or sys.stderr
-    if stream is not None:
-        stream.write(
-            f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
-            f"waiting for it to finish ({seconds:.0f}s elapsed)…\n"
-        )
-        stream.flush()
-
-
 @pytest.fixture(autouse=True)
 def _never_inherit_the_integration_flag():
     """Override the unit suite's flag scrub.
@@ -130,30 +114,3 @@ def _release_the_runs_udp_sinks():
     close_udp_sinks()
 
 
-@pytest.fixture(scope="session", autouse=True)
-def _serialize_integration_runs():
-    """Hold one machine-wide lock for the entire integration run.
-
-    Multiple worktree agents share this repo and may launch the integration
-    suite at the same time.  Runs are isolated from the user's session but not
-    from each other: they share one hidden desktop, so a run's leftover-process
-    reap (``FunTimeIntegrationSession._reap_leftover_runtime_processes``) finds a
-    concurrent run's freshly-spawned players there, and the AHK bridge runs under
-    ``#SingleInstance Force``, whose search is desktop-scoped — so a second
-    bridge on that desktop evicts the first.  Overlapping runs therefore fail
-    flakily on different tests each time.
-
-    Serialize them: only one run's processes are ever live at a time; the rest
-    queue here instead of clobbering.  A crashed holder's mutex is auto-released
-    by the OS, so a dead run cannot wedge the queue.
-
-    Session-scoped + autouse so the lock is acquired before the first test's
-    setup — hence before any module-scoped fixture calls ``start()`` (which runs
-    the process sweep) — and released only after the last session has been torn
-    down.
-    """
-    if sys.platform != "win32":
-        yield
-        return
-    with hold_integration_lock(notify=_announce_waiting):
-        yield
