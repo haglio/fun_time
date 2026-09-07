@@ -454,10 +454,7 @@ def start_core_session(
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
         mode=carried.main_mode,
     )
-    # seed_startup_states does not touch the satellite paused files; seed them
-    # for the mode this session opens in — playing in video mode (clearing any
-    # "1" a prior OmniPause stranded), paused when resumed into origenerator
-    # mode, whose players are black and held for the whole mode.
+    # seed_startup_states does not touch the satellite paused files.
     reset_satellite_paused_states(portrait.paused_file, landscape.paused_file,
                                   satellites_mode=carried.satellites_mode)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)

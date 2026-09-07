@@ -1516,9 +1516,6 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["main_nudge_next"] = partial(_forward_to_nau, "SEEK_FWD")
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
-    # FunTimeVR's pair: projection walks flat → 180 → fisheye → MKX200 → 360 and
-    # remembers the pick in the video's sidecar; recenter re-zeroes the scene
-    # onto wherever the headset faces.  Sent only where there is VR to answer.
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_player, "RECENTER")
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_player, "TILT_UP")

@@ -10,8 +10,25 @@
     all run in VR as of 2026-09-04, on the engine that moved to `player_core`
     for it; GenauVR, the standalone headset app, is retired with that.
   - Nau verbs the VR main role does not implement: loop recording, version cycling,
-    clip jumps, length modes, compilations. They report unhandled, and the player
-    logs each once rather than crashing.
+    clip jumps, funscript jumps, length modes, compilations. They report unhandled,
+    and the player logs each once rather than crashing. The list with a reason
+    per verb is `fun_time_vr.roles.UNIMPLEMENTED_NAU_VERBS`, and it is the only
+    place a control may be left dead in the headset:
+    `tests/test_vr_control_parity.py` walks every hotkey and every spoken phrase
+    through the real dispatch and holds each verb that lands to the vocabulary of
+    whatever will read it in VR, so a gap is a red test rather than a discovery
+    in the log.
+  - Origenerator is not hosted in VR, and a VR bridge config says so
+    (`build_bridge_config_from_manifest(..., vr_main_player=True)`) however the
+    config is set up: the hosted app rides in the Random Favs Browser's Chrome
+    window, which is not launched. Without that, a session resuming origenerator
+    mode from a desktop session sat in the headset in front of two black
+    satellite players — the mode pauses them and routes their verbs to the app —
+    with no key that reached them, and `X` did the same on purpose.
+  - Every notice a command raises is a desktop overlay window the session does not
+    launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
+    session, say) shows nothing in the headset. What the panel and the satellite
+    HUDs draw is unaffected: those are in-scene surfaces, not windows.
   - With `vr.compositor_layers` on, the controllers' laser, the handles and the
     spot the laser lands on draw in the projection layer, which the runtime
     composites beneath the satellites' quads; the pointer still works there,

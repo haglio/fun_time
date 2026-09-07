@@ -164,6 +164,29 @@ def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, t
     assert build_bridge_config_from_manifest(manifest).loopback_port == 8771
 
 
+def test_only_a_desktop_session_hosts_the_origenerator_its_config_names(
+    cfg_factory, tmp_path,
+):
+    """One configured Origenerator, two sessions, one host.
+
+    The hosted app rides in the Random Favs Browser's Chrome window, and a VR
+    session launches neither — but both sessions build from the same manifest,
+    so the headset read the configured directory and believed it was hosting.
+    Origenerator mode then pauses both satellite PLAYERS for the whole mode and
+    routes every satellite verb to the app: a session that merely resumed the
+    mode from a desktop session sat in the headset in front of two black
+    screens with no key that reached them, and X did the same on purpose.
+    """
+    origenerator_dir = tmp_path / "origenerator"
+    origenerator_dir.mkdir()
+    config = load_config(cfg_factory({"paths": {"origenerator_dir": str(origenerator_dir)}}))
+    manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
+
+    assert build_bridge_config_from_manifest(manifest).origenerator_enabled
+    assert not build_bridge_config_from_manifest(
+        manifest, vr_main_player=True).origenerator_enabled
+
+
 def _wait_for_the_browse(mock_browse) -> None:
     """Hold the caller's patch until the browse thread has actually taken it.
 

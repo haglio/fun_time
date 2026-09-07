@@ -82,10 +82,8 @@ class HudFeed:
             )
 
         if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):
-            # The players are black and paused for the whole mode: a clip map
-            # here would be thumbnails of videos nobody is being shown.  The
-            # sides say the mode instead (status + the mode row home); a show
-            # covering a region wears its own map of the origenerator items.
+            # A clip map here would be thumbnails of videos nobody is being
+            # shown; the sides say the mode instead (status + the mode row home).
             portrait = origenerator_mode_panel(
                 "portrait", active=Player.label_of(state.active_side) == "portrait")
             landscape = origenerator_mode_panel(

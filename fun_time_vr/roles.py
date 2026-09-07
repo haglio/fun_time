@@ -3,8 +3,7 @@
 The nau file quartet — playlist, command file, paused flag, status file —
 spoken from inside the VR player: the verb subset the orchestrator sends,
 funscript→T-Code through the shared ``player_core`` driver, nau-shaped status
-fields, and the verbs only a headset has.  Nau verbs outside the subset
-report unhandled, logged once each; docs/known-issues.md names them.
+fields, the headset's own verbs, and what UNIMPLEMENTED_NAU_VERBS refuses.
 """
 from __future__ import annotations
 
@@ -30,6 +29,25 @@ MAX_SPEED = 2.0
 TILT_STEP_DEG = 5.0
 TILT_LIMIT_DEG = 90.0
 
+#: The only place a control may be left dead in VR: the parity suite holds every
+#: key and every phrase to this list or to a role that answers it.
+UNIMPLEMENTED_NAU_VERBS: dict[str, str] = {
+    "RECORD_DOWN": "loop recording needs Nau's loop machine",
+    "RECORD_UP": "loop recording needs Nau's loop machine",
+    "RECORD_TAP": "loop recording needs Nau's loop machine",
+    "LOOP_CANCEL": "there is no A/B loop here to cancel",
+    "SET_LOOP": "there is no A/B loop here to restore",
+    "CYCLE_VERSION": "version cycling needs Nau's same-content index",
+    "TOGGLE_LENGTH_MODE": "the length modes need Nau's duration cache",
+    "SET_LENGTH_MODE": "the length modes need Nau's duration cache",
+    "PLAY_COMPILATION": "a compilation is built from the length modes above",
+    "END_COMPILATION": "a compilation is built from the length modes above",
+    "PLAY_FULL_VID": "the clip/full-video pair needs Nau's sidecar index",
+    "PLAY_CLIP_JUMP": "the clip/full-video pair needs Nau's sidecar index",
+    "JUMP_TO_FUNSCRIPT": "funscript navigation needs Nau's parsed-script window",
+    "NEXT_FUNSCRIPTED": "funscript navigation needs Nau's parsed-script window",
+}
+
 
 class MainRole:
     def __init__(
@@ -54,6 +72,9 @@ class MainRole:
         self._paused = start_paused
         self._speed = 1.0
         self._tcode_enabled = True
+        self._locked = True
+        self._stepped_at_eof = False
+        self._f_mode = False
         self._funscript: Funscript | None = None
         self._projection = ""
         self._volume = 100
@@ -115,6 +136,16 @@ class MainRole:
     def muted(self) -> bool:
         return self._muted
 
+    @property
+    def locked(self) -> bool:
+        """Published: the console drawing the padlock is not always this player."""
+        return self._locked
+
+    @property
+    def f_mode(self) -> bool:
+        """A narrowed playlist looks like any other, so the panel is told."""
+        return self._f_mode
+
     def _funscript_resting(self) -> bool:
         if self._funscript is None:
             return False
@@ -150,6 +181,12 @@ class MainRole:
             self._apply_play_file(arg)
         elif keyword == "RELOAD_PLAYLIST":
             self._reload_playlist()
+        elif keyword == "TOGGLE_LOCK":
+            self._set_locked(not self._locked)
+        elif keyword in ("LOCK_ON", "LOCK_OFF"):
+            self._set_locked(keyword == "LOCK_ON")
+        elif keyword == "SET_F_MODE" and arg:
+            self._f_mode = arg.strip() != "0"
         elif keyword == "CYCLE_PROJECTION":
             self._cycle_projection()
         elif keyword == "RECENTER":
@@ -186,8 +223,10 @@ class MainRole:
         self._player.set_paused(paused)
 
     def tick(self, now: float) -> None:
-        """Drive the OSR2 for this instant: waypoints while scripted, parked while
-        unscripted, silent while paused or handed to the Robot Hand."""
+        """One turn of the pump: step off the end of an unlocked video, then
+        drive the OSR2 for this instant -- waypoints while scripted, parked
+        while unscripted, silent while paused or handed to the Robot Hand."""
+        self._step_at_eof()
         if self._paused or not self._tcode_enabled:
             return
         if self._funscript is not None:
@@ -196,6 +235,17 @@ class MainRole:
             )
         else:
             self._driver.park(now=now)
+
+    def _step_at_eof(self) -> None:
+        """The end of the file, with nothing holding it: on to the next entry,
+        under Nau's own latch (``nau.session.advance``) against a second read."""
+        if self._paused or self._locked:
+            return
+        if not self._player.eof:
+            self._stepped_at_eof = False
+        elif not self._stepped_at_eof:
+            self._stepped_at_eof = True
+            self._load(self._index + 1)
 
     def seek_to(self, position_ms: float) -> None:
         self._player.seek_ms(max(0.0, min(self._player.duration_ms, position_ms)))
@@ -221,6 +271,7 @@ class MainRole:
             "funscript_resting": "1" if self._funscript_resting() else "0",
             "state": "normal",
             "paused": "1" if self._paused else "0",
+            "locked": "1" if self._locked else "0",
             "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
         }
 
@@ -250,6 +301,13 @@ class MainRole:
         except (OSError, ValueError, KeyError):
             logger.warning("Unreadable funscript %s", path, exc_info=True)
             return None
+
+    def _set_locked(self, locked: bool) -> None:
+        """Hold the video on screen or hand its end back to the playlist: mpv's
+        own ``loop_file``, this family's one lock, and the latch with it."""
+        self._locked = locked
+        self._stepped_at_eof = False
+        self._player.set_loop_file(locked)
 
     def _set_speed(self, speed: float) -> None:
         self._speed = max(MIN_SPEED, min(MAX_SPEED, speed))

@@ -331,7 +331,7 @@ class TestThePanelUnderThePointer:
         primary = SimpleNamespace(
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=10_000.0,
-                volume=70, muted=False, seek_to=seeks.append,
+                volume=70, muted=False, seek_to=seeks.append, f_mode=False,
             ),
             drive_gate=SimpleNamespace(readout=lambda published: published),
         )
