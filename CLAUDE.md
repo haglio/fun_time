@@ -117,6 +117,20 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `git pull --ff-only origin main`; the running app self-updates the same way.
   The primary is only ever fast-forwarded — never reset or merged-into.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
+- **A PR that sits with green checks is CONFLICTED, not un-armed — poll
+  `mergeStateStatus`, never `autoMergeRequest`.** Auto-merge arms itself six
+  seconds after the PR opens (`.github/workflows/auto-merge.yml`) and nothing
+  takes it back off, so "it never armed" is never the answer; `gh pr view N
+  --json autoMergeRequest` reads null once the queue has the PR, which is the
+  reading that invites that wrong conclusion. What actually stalls a landing
+  here is another agent's PR merging first and leaving yours `DIRTY`: the queue
+  will not take a PR it cannot merge cleanly, so it waits, armed, forever. So
+  wait on `until [ "$(gh pr view N --json mergeStateStatus --jq
+  .mergeStateStatus)" = DIRTY ] || [ merged ]` rather than on MERGED alone, and
+  rebase the moment it turns — the repo lands several agents' work an hour, so
+  losing that race is ordinary, and only noticing it is not. Re-arming does
+  nothing; on 2026-09-07 it bought twenty minutes of silence and a wrong report
+  to him about what had gone wrong.
 
 - **Get his eyes on the branch before the PR — leave him a shortcut.** He runs Fun
   Time from the primary checkout, which only moves when `main` does, so a branch
