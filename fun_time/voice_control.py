@@ -1,16 +1,14 @@
-"""Voice control module for Fun Time.
-
-Uses Vosk (offline speech recognition) with a restricted grammar to
-recognize voice commands and write them to the dashboard command file,
-where the dispatch loop picks them up identically to AHK hotkey commands.
-"""
+"""Vosk listens on a restricted grammar and writes what it hears to the dashboard
+command file, where the dispatch loop picks it up as it would an AHK hotkey."""
 from __future__ import annotations
 
+import array
 import json
 import logging
 import math
 import threading
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -38,9 +36,8 @@ logger = logging.getLogger(__name__)
 def _source_for_command(command: str) -> str:
     """The event-log source a recognized command's confirmation flashes on.
 
-    A command addressed to a satellite or the main player flashes over that player;
-    everything else (mode switches, Genau params, the audio level) has no single
-    player, so it flashes on the main player via ``system``.
+    A command addressed to one player flashes over it; everything else has no
+    single player, so it flashes on the main player via ``system``.
     """
     return {
         1: SOURCE_MAIN,
@@ -50,9 +47,8 @@ def _source_for_command(command: str) -> str:
 
 
 # The player words a speaker can put in any command, and which window a notice
-# about that player flashes over.  "main" is the main player's synonym throughout the
-# spoken vocabulary, so it names the same player here.  "both" is deliberately
-# absent: it addresses two players, and a notice flashes over one.
+# about that player flashes over.  "both" is deliberately absent: it addresses
+# two players, and a notice flashes over one.
 _SPOKEN_PLAYER_SOURCES: dict[str, str] = {
     "portrait": SOURCE_PORTRAIT,
     "landscape": SOURCE_LANDSCAPE,
@@ -65,11 +61,9 @@ def _source_for_heard_text(text: str) -> str:
 
     A phrase the grammar rejected can still say who it was for — "landscape full
     length please" is landscape's problem — so the report flashes over that
-    player instead of defaulting to the main player, where a satellite's mis-hearing
-    would be read as the main player's.  Matched on whole words, since "portrait" has
-    to be the word spoken and not a fragment of a longer one; the first player
-    word wins when a mis-hearing produces two.  A phrase naming no player is
-    SOURCE_SYSTEM, which flashes over the main player as everything session-wide does.
+    player rather than where a satellite's mis-hearing reads as the main
+    player's.  Whole words only: "portrait" has to be the word spoken and not a
+    fragment of a longer one, and the first player word wins.
     """
     for word in text.lower().split():
         source = _SPOKEN_PLAYER_SOURCES.get(word)
@@ -103,10 +97,8 @@ def has_partial_text(raw_json: str) -> bool:
 class UtteranceOnset:
     """When the speech Vosk is currently decoding began.
 
-    Each audio block is offered here with the wall time its capture *started*
-    and whether Vosk holds a partial hypothesis after consuming it.  Speech
-    began at the first block of the current unbroken run of partials; a block
-    that leaves the partial empty ends the run, so a false start cannot
+    Speech began at the first block of the current unbroken run of partials; a
+    block that leaves the partial empty ends the run, so a false start cannot
     back-date the utterance that follows it.
     """
 
@@ -120,67 +112,153 @@ class UtteranceOnset:
             self._started_at = block_started_at
 
     def take(self, *, fallback: float) -> float:
-        """Consume the onset for the utterance just recognized.
-
-        *fallback* covers a phrase short enough to be recognized from the very
-        block that carried it, with no partial ever observed.
-        """
+        """Consume the onset for the utterance just recognized; *fallback* covers
+        a phrase recognized from the very block that carried it."""
         started_at = self._started_at
         self._started_at = None
         return fallback if started_at is None else started_at
 
 
+# How many of the recognizer's ranked readings the phrase list gets to filter.
+# Vosk's "grammar" restricts the VOCABULARY, not the phrases: it decodes any
+# sequence of the 181 words the phrases are built from, and most such sequences
+# are no command -- "portrait next" comes back as "portrait net", "net" being a
+# word only because "widen net" is a phrase.  The right phrase sits in the
+# rankings under it, where the exact-match lookup never looked.
+GRAMMAR_ALTERNATIVES = 5
+
+# A command that ENDS the session may only be the recognizer's first choice: a
+# repair promotes a reading vosk ranked below another, which is a fine trade for
+# a satellite nudge and a bad one for quitting the room.
+NO_REPAIR_INTO: frozenset[str] = frozenset({"quit"})
+
+
+@dataclass(frozen=True)
+class Hypothesis:
+    """One reading of an utterance, and vosk's per-word scores for it -- empty in
+    alternatives mode, where it scores whole readings: unscored, never zero."""
+
+    text: str
+    confidences: tuple[float, ...] = ()
+
+
+def _hypotheses(raw_json: str) -> list[Hypothesis]:
+    """The recognizer's readings of one utterance, best first -- from either shape
+    vosk emits, ``{"text", "result"}`` or the ``SetMaxAlternatives`` list."""
+    data = json.loads(raw_json) if raw_json else {}
+    readings = data.get("alternatives") or [data]
+    out = []
+    for reading in readings:
+        text = reading.get("text", "").strip()
+        if not text:
+            continue
+        words = reading.get("result") or []
+        out.append(Hypothesis(text, tuple(w["conf"] for w in words if "conf" in w)))
+    return out
+
+
 def _text_and_confidences(raw_json: str) -> tuple[str, list[float]]:
-    """The recognized text and its per-word confidences (empty if unscored)."""
-    data = json.loads(raw_json)
-    text = data.get("text", "").strip()
-    return text, [w.get("conf", 0) for w in data.get("result") or []]
+    """The best reading's text and its per-word confidences (empty if unscored)."""
+    best = _hypotheses(raw_json)
+    return (best[0].text, list(best[0].confidences)) if best else ("", [])
 
 
-def _clears(confidences: list[float], threshold: float) -> bool:
+def _clears(confidences: Sequence[float], threshold: float) -> bool:
     """Whether the words' mean confidence reaches *threshold* -- inclusive, and
-    decided as a sum against the bar times the count rather than as a quotient.
-    Dividing rounds: three words each scoring exactly the bar averaged a hair
-    under it, and the phrase was refused.  ``fsum`` is the exactly rounded sum,
-    which is what the product on the other side is too, so a phrase at the bar
-    clears it whatever its word count.  Unscored words are no evidence at all.
+    decided as a sum against the bar times the count rather than as a quotient,
+    which rounds a phrase spoken exactly at the bar under it (bug 86).  Unscored
+    words are no evidence at all.
     """
     return bool(confidences) and math.fsum(confidences) >= threshold * len(confidences)
 
 
 @dataclass(frozen=True)
 class Recognition:
-    """What the listener made of one utterance.
+    """What the listener made of one utterance -- always something, never nothing.
 
-    Exactly one of these holds, or none (noise): a *command* was recognized from
-    the grammar (with the *phrase* that matched, for the confirmation flash), or
-    speech was clearly heard but matched no command (*unrecognized_text*, the free
-    recognizer's transcription — what lets the user see that "full length" came
-    through as something else).
-    """
+    A *command* (the *phrase* that matched, and the *rank* vosk gave it: 0 its
+    first choice, higher a repair the phrase list rescued), a phrase the
+    confidence gate *refused*, speech matching no command (*unrecognized_text*),
+    or none of those -- which "it did nothing" used to cover indistinguishably.
+    *heard* is vosk's best reading, which a repair is then logged against."""
 
     command: str | None = None
     phrase: str | None = None
+    rank: int = 0
+    refused_phrase: str | None = None
     unrecognized_text: str | None = None
+    heard: str | None = None
 
 
 def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float) -> Recognition:
     """Combine the grammar and free recognizers' takes on one utterance.
 
-    The grammar recognizer is the authority on commands — its restricted
-    vocabulary is what keeps recognition accurate.  The free recognizer runs
-    only to caption what was said when the grammar matched nothing confident, so
-    an out-of-grammar phrase surfaces as text instead of vanishing into "[unk]".
-    """
-    text, confidences = _text_and_confidences(grammar_json)
-    if text and text != "[unk]":
-        command = VOICE_COMMANDS.get(text)
-        if command is not None and _clears(confidences, threshold):
-            return Recognition(command=command, phrase=text)
+    The grammar recognizer is the authority, and its first reading that is a
+    phrase wins: the phrase list filters, vosk's ranking is the evidence, and
+    nothing here invents a similarity of its own.  The free recognizer only
+    captions an utterance the grammar made nothing of; ``threshold`` gates that
+    caption -- room noise it latches onto must not caption a phantom command --
+    and any reading vosk scored."""
+    hypotheses = _hypotheses(grammar_json)
+    spoken = next((h.text for h in hypotheses if h.text != "[unk]"), None)
+    for rank, hypothesis in enumerate(hypotheses):
+        if hypothesis.text == "[unk]":
+            continue
+        command = VOICE_COMMANDS.get(hypothesis.text)
+        if command is None:
+            continue
+        if hypothesis.confidences and not _clears(hypothesis.confidences, threshold):
+            # Scored, and under the bar.  A lower-ranked reading is less likely
+            # still, so this ends the search rather than falling through to one.
+            return Recognition(refused_phrase=hypothesis.text, heard=spoken)
+        if rank and command in NO_REPAIR_INTO:
+            continue
+        return Recognition(command=command, phrase=hypothesis.text, rank=rank, heard=spoken)
+    if spoken:
+        return Recognition(unrecognized_text=spoken, heard=spoken)
     heard, heard_confidences = _text_and_confidences(free_json)
     if heard and heard != "[unk]" and _clears(heard_confidences, threshold):
         return Recognition(unrecognized_text=heard)
     return Recognition()
+
+
+# Blocks arrive twice a second, so ten seconds of nothing is the stream gone.
+AUDIO_STALL_S = 10.0
+
+# How often the loop says what it hears even when nothing is recognized: without
+# it, a session where every phrase missed and one where the microphone was dead
+# leave identical logs.
+LISTEN_HEARTBEAT_S = 60.0
+
+
+class CaptureLevel:
+    """The loudest sample delivered, per utterance and per heartbeat.
+
+    Its job is to be in the log when a command misses: a peak of 30 says the
+    microphone is muted, gated or aimed elsewhere, and one of 8000 says the audio
+    was fine and the recognizer is the stage to look at.
+    """
+
+    def __init__(self) -> None:
+        self._utterance = 0
+        self._recent = 0
+
+    def note_block(self, pcm: bytes) -> None:
+        block = array.array("h")
+        block.frombytes(pcm[: len(pcm) // 2 * 2])
+        if not block:
+            return
+        peak = max(max(block), -min(block))
+        self._utterance = max(self._utterance, peak)
+        self._recent = max(self._recent, peak)
+
+    def take_utterance(self) -> int:
+        peak, self._utterance = self._utterance, 0
+        return peak
+
+    def take_recent(self) -> int:
+        peak, self._recent = self._recent, 0
+        return peak
 
 
 _VOICE_IMPORT_ERROR: str = ""
@@ -201,8 +279,8 @@ VOICE_AVAILABLE = vosk is not None and sd is not None
 def voice_import_error() -> str:
     """Why voice control is unavailable, or "" when it is available.
 
-    An accessor rather than the module global it reads, so the two orchestrators
-    that report this cannot bind a name this module calls its own.
+    An accessor, so the two orchestrators that report it cannot bind this
+    module's global as a name of their own.
     """
     return _VOICE_IMPORT_ERROR
 
@@ -236,8 +314,7 @@ class VoiceController:
     def _is_listening(self) -> bool:
         """Whether spoken input is currently acted on — not muted, not suspended.
 
-        Gates the recognition feedback (the "unrecognized voice command" flash): a
-        muted or omnipaused room's talk is discarded, so it must not be captioned
+        A muted or omnipaused room's talk is discarded, so it is not captioned
         either.
         """
         return not self._muted.is_set() and not self._suspended.is_set()
@@ -261,13 +338,10 @@ class VoiceController:
     def _write_command(self, command: str, *, spoken_at: float) -> bool:
         """Append a command to the dashboard command file; return whether it was.
 
-        No-op (returns False) when muted (the user turned voice off), and — while
-        suspended by omnipause — for everything but the exempt commands.  The
-        caller flashes a confirmation only when the command actually went through.
-
-        The line carries *spoken_at* — when the utterance began — so the
-        dispatcher can act on the video that was on screen then, not on
-        whatever replaced it while the phrase was still being recognized.
+        No-op (returns False) when muted, and — while suspended by omnipause —
+        for everything but the exempt commands.  The line carries *spoken_at*, so
+        the dispatcher acts on the video that was on screen when the user started
+        talking rather than whatever replaced it during recognition.
         """
         if self._muted.is_set():
             return False
@@ -276,21 +350,28 @@ class VoiceController:
             return False
         return append_command(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
 
-    def _handle_recognition(self, interp: Recognition, *, spoken_at: float) -> None:
-        """Act on one interpreted utterance: dispatch, confirm, or report.
+    def _handle_recognition(self, interp: Recognition, *, spoken_at: float, peak: int = 0) -> None:
+        """Act on one interpreted utterance -- and say which of its ends it reached.
 
-        A recognized command that actually dispatches flashes a plain white
-        confirmation over the player it addresses; speech that matched nothing
-        flashes a red "unrecognized voice command: …" so a mis-heard phrase is
-        visible rather than silent — over the player it named, if it named one,
-        which is where the user was already looking when they said it.
-        Confirmations follow whether the command dispatched, so a muted/omnipaused
-        no-op stays quiet; the unrecognized report is gated on the room actually
-        being listened to.
+        Every finalized utterance leaves one log line naming its outcome and the
+        level the microphone delivered, so a command that misses says where it
+        died instead of leaving the same silence as an unplugged microphone.  On
+        screen it stays quieter: a white confirmation over the player a
+        dispatched command addresses, a red report over the player a refused or
+        unmatched phrase named -- the confirmation only when the command really
+        dispatched, the reports only while the room is being listened to.
         """
+        heard_at = time.monotonic() - spoken_at
         if interp.command:
-            logger.info("Voice command: %s (spoken %.2fs before recognition)",
-                        interp.command, time.monotonic() - spoken_at)
+            if interp.rank:
+                logger.info(
+                    "Voice command: %s -- %r was the recognizer's choice %d, "
+                    "under %r, which is no command (spoken %.2fs before recognition, peak %d)",
+                    interp.command, interp.phrase, interp.rank + 1, interp.heard, heard_at, peak,
+                )
+            else:
+                logger.info("Voice command: %s (spoken %.2fs before recognition, peak %d)",
+                            interp.command, heard_at, peak)
             dispatched = self._write_command(interp.command, spoken_at=spoken_at)
             if dispatched and interp.command not in SELF_REPORTING_COMMANDS:
                 notice(
@@ -298,24 +379,34 @@ class VoiceController:
                     friendly_voice(interp.phrase or interp.command),
                     source=_source_for_command(interp.command),
                 )
-        elif interp.unrecognized_text and self._is_listening():
-            logger.info("Unrecognized speech: %s", interp.unrecognized_text)
-            notice(
-                logger,
-                f"unrecognized voice command: {interp.unrecognized_text}",
-                source=_source_for_heard_text(interp.unrecognized_text),
-                level=logging.ERROR,
-            )
+        elif interp.refused_phrase:
+            logger.info("Voice: heard %r but its confidence was under %.2f (peak %d)",
+                        interp.refused_phrase, self.confidence_threshold, peak)
+            if self._is_listening():
+                notice(
+                    logger,
+                    f"not sure enough of: {friendly_voice(interp.refused_phrase)}",
+                    source=_source_for_heard_text(interp.refused_phrase),
+                    level=logging.ERROR,
+                )
+        elif interp.unrecognized_text:
+            logger.info("Unrecognized speech: %s (peak %d)", interp.unrecognized_text, peak)
+            if self._is_listening():
+                notice(
+                    logger,
+                    f"unrecognized voice command: {interp.unrecognized_text}",
+                    source=_source_for_heard_text(interp.unrecognized_text),
+                    level=logging.ERROR,
+                )
+        else:
+            logger.debug("Voice: an utterance ended with nothing in it (peak %d)", peak)
 
     def _resolve_device(self) -> int | None:
         """The sounddevice input index to open the listen stream on.
 
-        Resolved from ``device_name`` (a mic-name substring).  Pinning by name
-        rather than a fragile index is deliberate: Windows renumbers devices when
-        one is added or removed, and its default input is often a dead virtual
-        mic (a VR headset, "Sound Mapper") that returns pure silence and so
-        silently kills every voice command.  Falls back to None (the system
-        default) when no name is configured or none matches.
+        Resolved from ``device_name``, a mic-name substring — see
+        :mod:`fun_time.mic_selection` for why it is a name and not an index.
+        Falls back to None (the system default) when nothing matches.
         """
         if not self.device_name:
             return None
@@ -338,12 +429,7 @@ class VoiceController:
         self._stop.set()
 
     def run(self) -> None:
-        """Blocking listen loop — call from a daemon thread.
-
-        Reads audio from the default microphone, feeds it to Vosk with
-        a restricted grammar, and writes recognized commands to the
-        dashboard command file.
-        """
+        """Blocking listen loop — call from a daemon thread."""
         if not VOICE_AVAILABLE:
             raise ImportError("vosk and sounddevice are required for voice control")
 
@@ -360,6 +446,7 @@ class VoiceController:
             audio_q.put((bytes(indata), time.monotonic()))
 
         onset = UtteranceOnset()
+        level = CaptureLevel()
         device = self._resolve_device()
 
         try:
@@ -367,18 +454,16 @@ class VoiceController:
             grammar = build_grammar()
             rec = vosk.KaldiRecognizer(model, self.sample_rate, grammar)
             # A second, unrestricted recognizer runs alongside the grammar one,
-            # fed the same audio, purely to transcribe what was said when the
-            # grammar matches nothing — so an out-of-grammar phrase can be shown
-            # back as "unrecognized voice command: <what it heard>" instead of silently
-            # becoming "[unk]".  It never drives a dispatch.
+            # fed the same audio, purely to transcribe an utterance the grammar
+            # made nothing of.  It never drives a dispatch.
             free_rec = vosk.KaldiRecognizer(model, self.sample_rate)
-            # Grammar mode reports per-word confidences only when words are
-            # enabled; without them every recognition arrives unscored and the
-            # confidence threshold below can never reject anything.
             rec.SetWords(True)
+            # ...and the ranked readings the phrase list filters; vosk drops the
+            # per-word scores in this mode, which interpret_recognition expects.
+            rec.SetMaxAlternatives(GRAMMAR_ALTERNATIVES)
             free_rec.SetWords(True)
-            logger.info("Voice control listening (model=%s, rate=%d, device=%s)",
-                        self.model_path, self.sample_rate, device)
+            logger.info("Voice control listening (model=%s, rate=%d, device=%s, alternatives=%d)",
+                        self.model_path, self.sample_rate, device, GRAMMAR_ALTERNATIVES)
 
             with sd.RawInputStream(
                 samplerate=self.sample_rate,
@@ -388,23 +473,52 @@ class VoiceController:
                 device=device,
                 callback=_callback,
             ):
+                # The free recognizer ends its utterances on its own schedule, so
+                # its latest is banked here: reading it only when the two
+                # happened to finish on one block threw the transcription away.
+                free_json = ""
+                last_block_at = time.monotonic()
+                last_heartbeat = last_block_at
+                stalled = False
                 while not self._stop.is_set():
                     try:
                         data, captured_at = audio_q.get(timeout=0.5)
                     except _queue.Empty:
+                        idle = time.monotonic() - last_block_at
+                        if not stalled and idle >= AUDIO_STALL_S:
+                            stalled = True
+                            logger.warning(
+                                "Voice control: no audio from device %s for %.0fs -- "
+                                "nothing spoken can be heard until it comes back",
+                                device, idle,
+                            )
                         continue
+                    if stalled:
+                        stalled = False
+                        logger.warning("Voice control: audio from device %s resumed", device)
+                    last_block_at = time.monotonic()
+                    level.note_block(data)
+                    if last_block_at - last_heartbeat >= LISTEN_HEARTBEAT_S:
+                        last_heartbeat = last_block_at
+                        logger.debug("Voice control listening; loudest sample since the last "
+                                     "report: %d", level.take_recent())
                     block_started_at = captured_at - (len(data) / 2) / self.sample_rate
                     grammar_final = rec.AcceptWaveform(data)
-                    # Feed the free recognizer the same block so its own
-                    # end-of-utterance lands with the grammar's.
-                    free_final = free_rec.AcceptWaveform(data)
+                    # Feed the free recognizer the same block, and bank whatever
+                    # it finishes.
+                    if free_rec.AcceptWaveform(data):
+                        free_json = free_rec.Result()
                     if grammar_final:
-                        free_json = free_rec.Result() if free_final else free_rec.FinalResult()
                         interp = interpret_recognition(
-                            rec.Result(), free_json, threshold=self.confidence_threshold,
+                            rec.Result(),
+                            free_json or free_rec.FinalResult(),
+                            threshold=self.confidence_threshold,
                         )
+                        free_json = ""
                         spoken_at = onset.take(fallback=block_started_at)
-                        self._handle_recognition(interp, spoken_at=spoken_at)
+                        self._handle_recognition(
+                            interp, spoken_at=spoken_at, peak=level.take_utterance(),
+                        )
                     else:
                         onset.note_block(
                             block_started_at=block_started_at,

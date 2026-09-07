@@ -394,11 +394,13 @@ class _AppendOnWriteHandler(logging.Handler):
             pass
 
 
-def _add_dispatch_file_handler(log_path: Path) -> None:
+def add_dispatch_file_handler(log_path: Path) -> None:
     """Add a file handler to bridge-related loggers.
 
     This ensures log messages from Python-dispatched commands appear in the
-    windows bridge log file — the same file AHK writes to.
+    windows bridge log file — the same file AHK writes to.  Public because the
+    VR session runs the same dispatch loop and voice controller and needs the
+    same durable record.
     """
     log_path.parent.mkdir(parents=True, exist_ok=True)
     handler = _AppendOnWriteHandler(log_path)
@@ -1038,7 +1040,7 @@ def run_session(
     # appear alongside AHK log entries (integration tests read this file).
     # Before the hotkey script goes up, so the line naming what was launched
     # lands in the same file the script itself starts writing to.
-    _add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
+    add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
 
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"

@@ -26,6 +26,22 @@ def _scored(text: str, conf: float) -> str:
     return json.dumps({"text": text, "result": words})
 
 
+def _ranked(*texts: str) -> str:
+    """A Vosk result JSON in the shape ``SetMaxAlternatives`` switches it to.
+
+    Best reading first, each scored as a whole and with no per-word confidences
+    — which is what vosk actually reports in that mode, and why the phrase list
+    rather than a word score decides which reading is a command.
+    """
+    return json.dumps({
+        "alternatives": [
+            {"text": t, "confidence": 100.0 - i,
+             "result": [{"word": w, "start": 0.0, "end": 0.1} for w in t.split()]}
+            for i, t in enumerate(texts)
+        ],
+    })
+
+
 class TestUtteranceOnset:
     def test_onset_is_the_first_block_that_produced_a_partial(self):
         """Vosk finalizes a phrase only after the speaker stops, so the arrival
@@ -73,9 +89,13 @@ class _FakeRecognizer:
     def __init__(self, model, sample_rate, grammar=None) -> None:
         self.grammar = grammar
         self.words_enabled = False
+        self.alternatives = 0
 
     def SetWords(self, enable: bool) -> None:  # noqa: N802 — vosk's API
         self.words_enabled = enable
+
+    def SetMaxAlternatives(self, count: int) -> None:  # noqa: N802 — vosk's API
+        self.alternatives = count
 
     def AcceptWaveform(self, data: bytes) -> bool:  # noqa: N802 — vosk's API
         return False
@@ -135,23 +155,69 @@ class TestInterpretRecognition:
         interp = interpret_recognition(
             _scored("landscape next", 0.95), _scored("landscape next", 0.9), threshold=0.7,
         )
-        assert interp == Recognition(command="landscape_next", phrase="landscape next")
+        assert interp == Recognition(
+            command="landscape_next", phrase="landscape next", heard="landscape next")
 
-    def test_an_unscored_grammar_match_is_not_dispatched(self):
-        """An unscored recognition cannot clear the threshold — the loop enables
-        SetWords, so a result with no word data is one we have no evidence for."""
+    def test_a_ranked_reading_that_is_a_command_is_the_command(self):
+        """Alternatives mode carries no per-word scores, so the phrase list is
+        what decides: vosk's own ranking picks the order, the grammar's phrases
+        pick the winner."""
+        interp = interpret_recognition(_ranked("landscape next"), "", threshold=0.7)
+        assert interp == Recognition(
+            command="landscape_next", phrase="landscape next", heard="landscape next")
+
+    def test_a_near_miss_is_repaired_from_the_recognizer_own_alternatives(self):
+        """Vosk's grammar restricts the vocabulary, not the phrases: it decodes
+        "portrait net" because "net" is a word ("widen net") even though the
+        sequence is no command.  The right phrase is sitting in the alternatives
+        directly under it, and taking it is the difference between the command
+        landing and the utterance vanishing without a trace."""
         interp = interpret_recognition(
-            json.dumps({"text": "pause"}), json.dumps({"text": ""}), threshold=0.7,
-        )
+            _ranked("portrait net", "portrait next"), "", threshold=0.7)
+        assert interp.command == "portrait_next"
+        assert interp.phrase == "portrait next"
+        assert interp.rank == 1
+        assert interp.heard == "portrait net"
+
+    def test_the_recognizer_first_choice_beats_a_lower_ranked_command(self):
+        interp = interpret_recognition(
+            _ranked("portrait next", "portrait lock"), "", threshold=0.7)
+        assert interp.command == "portrait_next"
+        assert interp.rank == 0
+
+    def test_ending_the_session_is_never_a_repair(self):
+        """A repair promotes a reading vosk ranked below another.  That is a fine
+        trade for a satellite nudge and a bad one for quitting the room, so
+        "quit" has to be the recognizer's own first choice."""
+        interp = interpret_recognition(_ranked("net", "quit"), "", threshold=0.7)
         assert interp.command is None
+        assert interp.unrecognized_text == "net"
 
-    def test_an_out_of_grammar_phrase_is_captioned_from_the_free_recognizer(self):
-        """The grammar hears only "[unk]" (it can't leave its vocabulary); the
-        free recognizer supplies what was actually said."""
+        top = interpret_recognition(_ranked("quit"), "", threshold=0.7)
+        assert top.command == "quit"
+
+    def test_an_off_phrase_reading_is_reported_rather_than_swallowed(self):
+        """No alternative is a command, so nothing dispatches — but the speaker
+        is told what the recognizer made of them, in the app's own words.  This
+        used to be silence: no command, no report, no log line."""
+        interp = interpret_recognition(_ranked("portrait net", "net portrait"), "", threshold=0.7)
+        assert interp.command is None
+        assert interp.unrecognized_text == "portrait net"
+
+    def test_the_grammar_reading_outranks_the_free_caption(self):
+        """The grammar heard something in its own vocabulary; that is a better
+        thing to show the speaker than the free model's guess at the same
+        audio, because it names the word the command actually missed on."""
         interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("full length please", 0.9), threshold=0.7,
-        )
-        assert interp == Recognition(unrecognized_text="full length please")
+            _ranked("portrait net"), _scored("what's next", 0.9), threshold=0.7)
+        assert interp.unrecognized_text == "portrait net"
+
+    def test_an_unscored_grammar_match_below_the_bar_is_refused_out_loud(self):
+        """A scored reading under the bar is refused — and says so, rather than
+        falling through to a silence indistinguishable from a dead microphone."""
+        interp = interpret_recognition(_scored("skip", 0.3), "", threshold=0.7)
+        assert interp.command is None
+        assert interp.refused_phrase == "skip"
 
     def test_a_match_scored_exactly_at_the_threshold_fires(self):
         """The bar is inclusive — ``conf >= threshold`` — and the equality
@@ -161,7 +227,8 @@ class TestInterpretRecognition:
         interp = interpret_recognition(
             _scored("landscape next", 0.7), _scored("landscape next", 0.7), threshold=0.7,
         )
-        assert interp == Recognition(command="landscape_next", phrase="landscape next")
+        assert interp == Recognition(
+            command="landscape_next", phrase="landscape next", heard="landscape next")
 
     def test_a_caption_scored_exactly_at_the_threshold_surfaces(self):
         # Two words; the three-word case, where the mean used to land a hair
@@ -179,7 +246,8 @@ class TestInterpretRecognition:
         interp = interpret_recognition(
             _scored("main video mode", 0.7), _scored("main video mode", 0.7), threshold=0.7,
         )
-        assert interp == Recognition(command="main_video_activate", phrase="main video mode")
+        assert interp == Recognition(
+            command="main_video_activate", phrase="main video mode", heard="main video mode")
 
     def test_a_three_word_caption_at_the_threshold_surfaces(self):
         interp = interpret_recognition(
@@ -187,12 +255,15 @@ class TestInterpretRecognition:
         )
         assert interp == Recognition(unrecognized_text="skip it now")
 
-    def test_a_grammar_match_below_threshold_falls_back_to_the_caption(self):
+    def test_a_grammar_match_below_threshold_is_refused_by_name(self):
+        """The speaker hears which phrase was turned down, not the free model's
+        transcription of the same audio: "skip" under the bar is a different
+        thing to be told than "skip it"."""
         interp = interpret_recognition(
             _scored("skip", 0.3), _scored("skip it", 0.9), threshold=0.7,
         )
         assert interp.command is None
-        assert interp.unrecognized_text == "skip it"
+        assert interp.refused_phrase == "skip"
 
     def test_quiet_free_text_is_treated_as_noise_and_dropped(self):
         """"Definitely saying something" is a confidence bar — quiet-room noise
@@ -455,6 +526,20 @@ class TestVoiceController:
         assert len(fake_vosk) == 2
         assert all(r.words_enabled for r in fake_vosk)
         assert [r.grammar is None for r in fake_vosk] == [False, True]
+
+    def test_run_asks_the_grammar_recognizer_for_its_ranked_readings(self, tmp_path, fake_vosk):
+        """Vosk's grammar bounds the vocabulary, not the phrases, so its best
+        reading is regularly a word sequence that is no command.  Only the ranked
+        alternatives carry the command that was actually said; without them those
+        utterances reach nothing at all."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        vc.stop()
+        vc.run()
+
+        grammar_rec, free_rec = fake_vosk
+        assert grammar_rec.alternatives == voice_control.GRAMMAR_ALTERNATIVES
+        # The free recognizer only ever captions; ranking it would buy nothing.
+        assert free_rec.alternatives == 0
 
 
 def test_filter_phrases_reach_the_recognizer_grammar():

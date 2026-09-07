@@ -307,9 +307,7 @@ class DispatchLoopRunner:
 
         The suspend_hotkeys WindowOp only reaches AHK; voice lives in this
         process, so it is driven off ``omni_paused`` itself — the one authority
-        both the dashboard and the shared state file agree on.  Suspended, only
-        the exempt commands (resume, quit, relief) still write, mirroring the AHK
-        script's ``#SuspendExempt`` block.
+        both the dashboard and the shared state file agree on.
         """
         if self.voice_controller is None:
             return
@@ -349,13 +347,10 @@ class DispatchLoopRunner:
             and spoken_at is not None
             and cmd not in SUSPEND_EXEMPT_COMMANDS
         ):
-            # Freeze SPOKEN commands while paused — a mis-heard phrase must not
-            # act on a paused room.  ``spoken_at`` marks a voice line; the
-            # deliberate mouse (dashboard, lock HUD) stays live because a click
-            # is not an accident.  This backstops VoiceController's own suspend,
-            # closing the entry race where a phrase is written in the tick before
-            # the suspend flag is set.  Exempts the same resume/quit/relief
-            # voice does.
+            # Freeze SPOKEN commands while paused — ``spoken_at`` marks a voice
+            # line, and the deliberate mouse stays live because a click is not an
+            # accident.  Backstops VoiceController's own suspend, closing the
+            # entry race where a phrase is written in the tick before the flag.
             logger.debug("OmniPause dropped spoken command: %s", cmd)
             return
         self._send_press(cmd)

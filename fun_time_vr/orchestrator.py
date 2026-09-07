@@ -88,6 +88,7 @@ from fun_time.windows_bridge_dispatch_loop import (
 )
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
+    add_dispatch_file_handler,
     kill_recorded_child,
     open_event_log,
     start_hud_priming,
@@ -397,6 +398,10 @@ def run_vr_bridge(config) -> int:
     )
     open_event_log(state_dir)
     manifest = LaunchManifest.read(manifest_path)
+    # The dispatch loop and voice controller log under fun_time.*, which
+    # configure_logging wired up for fun_time_vr.orchestrator alone; without this
+    # they reach only the event log open_event_log has just truncated.
+    add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_player=True)
     commands = manifest.commands
     pids_file = state_dir / "bridge_pids.ini"
