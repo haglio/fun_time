@@ -31,6 +31,7 @@ HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
 # What the monitors read while the room changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
+KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 
 HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
 HEADSET_HELD_NAME = "vr_headset_held.flag"
@@ -155,6 +156,28 @@ def release_the_headset(state_dir: str | Path) -> None:
     """Let a held player go: the room it covered for is on screen."""
     for name in (HEADSET_HOLD_NAME, HEADSET_HELD_NAME):
         (Path(state_dir) / name).unlink(missing_ok=True)
+
+
+def keep_the_origenerator(state_dir: str | Path, *, pid: int, created_at: int) -> None:
+    """Record the hosted app a crossing leaves running (docs/entering-vr.md)."""
+    (Path(state_dir) / KEPT_ORIGENERATOR_NAME).write_text(
+        f"{pid} {created_at}\n", encoding="utf-8",
+    )
+
+
+def kept_origenerator(state_dir: str | Path) -> tuple[int, int] | None:
+    """``(pid, created_at)`` of a hosted app left running, or None."""
+    try:
+        pid, created_at = (
+            Path(state_dir) / KEPT_ORIGENERATOR_NAME
+        ).read_text(encoding="utf-8").split()
+        return int(pid), int(created_at)
+    except (OSError, ValueError):
+        return None
+
+
+def forget_the_kept_origenerator(state_dir: str | Path) -> None:
+    (Path(state_dir) / KEPT_ORIGENERATOR_NAME).unlink(missing_ok=True)
 
 
 def crossing_progress_path(state_dir: str | Path) -> Path:
@@ -295,6 +318,9 @@ def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
     """Report a crossing that did not happen, and uncover what was waiting."""
     drop_crossing_cover(state_dir)
     release_the_headset(state_dir)
+    from fun_time.windows_bridge_orchestrator import close_a_kept_origenerator
+
+    close_a_kept_origenerator(Path(state_dir))
     report_a_failed_crossing(reason, log_file)
     return 1
 

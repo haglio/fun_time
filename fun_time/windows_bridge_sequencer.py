@@ -37,6 +37,7 @@ from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
 from .satellites_mode import ORIGENERATOR_MODE, VIDEO_MODE
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
+from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .shared_state import read_shared_state, shared_state_path
 from .win32 import (
     disable_window_transitions,
@@ -47,6 +48,7 @@ from .win32 import (
     set_always_on_top,
     wait_for_window_by_title,
 )
+from .win32_process import get_process_creation_time
 from .window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -552,6 +554,23 @@ def _launch_the_main_slot_players(
     return genau_pid, nau_pid, nau_status_file
 
 
+def _adopt_a_kept_origenerator(m: LaunchManifest) -> int:
+    """A hosted app the session before this one left running, or 0.  Only its
+    boot is skipped, and its status file is left alone (docs/entering-vr.md)."""
+    state_dir = Path(m.commands.origenerator_status_file).parent
+    kept = kept_origenerator(state_dir)
+    forget_the_kept_origenerator(state_dir)
+    if kept is None:
+        return 0
+    pid, created_at = kept
+    if get_process_creation_time(pid) != created_at:
+        return 0  # gone since, or that pid is somebody else's now
+    write_flag_file(m.commands.origenerator_paused_file, False)
+    Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
+    logger.info("Adopted the hosted Origenerator left running (pid %d)", pid)
+    return pid
+
+
 def _launch_the_hosted_origenerator(
     m: LaunchManifest,
     *,
@@ -559,26 +578,24 @@ def _launch_the_hosted_origenerator(
     project_dirs: str,
     launched: _LaunchedChildren,
 ) -> int:
-    """The hosted app, when the config names a checkout, or 0 for a session
-    with none.  Launched FIRST of the children: the slowest of them, and the
-    reveal waits it out, so its head start is time off the loading screen."""
+    """The hosted app, when the config names a checkout, or 0 for a session with
+    none.  Launched FIRST: the slowest child, and the reveal waits it out."""
     origenerator_dir = m.runtime.origenerator_dir.strip()
     origenerator_pid = 0
+    adopted = _adopt_a_kept_origenerator(m) if origenerator_dir else 0
+    if adopted:
+        launched.pids.append(adopted)
+        return adopted
     if origenerator_dir:
-        # Clear a "1" a prior session's OmniPause stranded in the hosted app's
-        # paused flag: the app reads it every tick, so a stale freeze made
-        # every show open frozen while the room ran.  The room opens unpaused
-        # (OmniPause is never resumed into), so the flag opens unpaused too.
+        # A "1" a prior OmniPause stranded opens every show frozen while the
+        # room runs, and an unread verb lands on this session: the app reads
+        # both on its first tick, and a room never opens paused.
         write_flag_file(m.commands.origenerator_paused_file, False)
-        # And the command file, for the same reason and one more: the app drains
-        # whatever is in it on its first tick, so a verb the last session left
-        # unread would land on this one -- a stranded OPEN_SHOWS filling the
-        # regions of a session that opened in video mode.
         origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
         origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         origenerator_cmd_file.write_text("", encoding="utf-8")
-        # And the status file, since last session's answers the reveal's
-        # readiness wait before this app has drawn anything.
+        # And the status file: last session's answers the readiness wait before
+        # this app has drawn anything.
         Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
         origenerator_pid = launch_origenerator(
             python_exe=(m.executables.origenerator_python_exe.strip()

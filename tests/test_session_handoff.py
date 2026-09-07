@@ -21,12 +21,15 @@ from fun_time.session_handoff import (
     clear_handoff_request,
     crossing_progress_path,
     drop_crossing_cover,
+    forget_the_kept_origenerator,
     hand_over_if_asked,
     handoff_request_path,
     headset_hold_asked,
     headset_hold_stops_the_runtime,
     headset_is_held,
     hold_the_headset,
+    keep_the_origenerator,
+    kept_origenerator,
     last_lines_of,
     launch_crossing_cover,
     pending_handoff,
@@ -192,6 +195,33 @@ class TestTheHeadsetHold:
             assert run(DESKTOP, config) == 1
 
         assert headset_hold_asked(config.paths.state_dir) is False
+
+
+class TestTheKeptOrigenerator:
+    """The hosted app a crossing leaves running rather than booting twice
+    (docs/entering-vr.md)."""
+
+    def test_the_record_is_the_pid_and_the_creation_time(self, tmp_path: Path):
+        """Never the pid alone: Windows hands freed pids straight back out, and
+        the adopting session checks the pair against the process still there."""
+        keep_the_origenerator(tmp_path, pid=4321, created_at=99)
+
+        assert kept_origenerator(tmp_path) == (4321, 99)
+
+    def test_no_record_reads_as_nothing_kept(self, tmp_path: Path):
+        assert kept_origenerator(tmp_path) is None
+
+    def test_a_record_that_cannot_be_read_is_nothing_kept(self, tmp_path: Path):
+        (tmp_path / "origenerator_kept.txt").write_text("torn", encoding="utf-8")
+
+        assert kept_origenerator(tmp_path) is None
+
+    def test_forgetting_it_is_safe_where_there_was_none(self, tmp_path: Path):
+        keep_the_origenerator(tmp_path, pid=1, created_at=2)
+        forget_the_kept_origenerator(tmp_path)
+        forget_the_kept_origenerator(tmp_path)
+
+        assert kept_origenerator(tmp_path) is None
 
 
 class TestWhichSessionIsWhich:

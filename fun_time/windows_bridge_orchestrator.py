@@ -46,6 +46,9 @@ from .session_handoff import (
     HandoffTarget,
     crossing_progress_path,
     drop_crossing_cover,
+    forget_the_kept_origenerator,
+    keep_the_origenerator,
+    kept_origenerator,
     launch_crossing_cover,
     pending_handoff,
     release_the_headset,
@@ -58,6 +61,7 @@ from .win32 import (
     find_window_by_pid,
     find_window_for_process,
     iter_zorder,
+    minimize_window,
     set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
@@ -221,10 +225,9 @@ def kill_process_tree(pid: int) -> None:
 def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     """WM_CLOSE the hosted Origenerator and give its close a moment to finish.
 
-    Its closeEvent is where the session persists and the absence experiments
-    are handed to ComfyUI — a straight taskkill loses both.  Bounded: a close
-    that hangs falls through to the companions sweep, which kills the tree the
-    way it kills everything else.
+    Its closeEvent is where the session persists and the absence experiments are
+    handed to ComfyUI — a taskkill loses both.  A hanging close falls through to
+    the companions sweep, which kills the tree.
     """
     if child is None or not child.pid:
         return
@@ -240,21 +243,60 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     logger.warning("Origenerator did not close within 5s; the kill sweep takes it")
 
 
+def _park_the_hosted_origenerator(state_dir: Path, child: ChildProcess | None) -> bool:
+    """Park the hosted app for the arriving session; whether it took it."""
+    if child is None or not child.pid:
+        return False
+    hwnd = find_window_for_process(child.pid, "Origenerator", include_hidden=True)
+    if not hwnd:
+        return False
+    minimize_window(hwnd, activate=False)
+    keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at)
+    logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
+    return True
+
+
+def close_a_kept_origenerator(state_dir: Path) -> None:
+    """Close a hosted app a crossing left running, when nothing will adopt it."""
+    kept = kept_origenerator(state_dir)
+    forget_the_kept_origenerator(state_dir)
+    if kept is None:
+        return
+    pid, created_at = kept
+    if get_process_creation_time(pid) != created_at:
+        return  # gone already, or that pid is somebody else's now
+    child = ChildProcess(pid=pid, created_at=created_at)
+    _close_origenerator_gracefully(child)
+    kill_recorded_child(child)
+
+
 def _shutdown_children(
-    rfb_hwnd: int, children: dict[str, ChildProcess], progress: ProgressReporter
+    rfb_hwnd: int,
+    children: dict[str, ChildProcess],
+    progress: ProgressReporter,
+    *,
+    state_dir: Path,
+    keep_origenerator: bool = False,
 ) -> None:
     """Kill all child processes launched during startup.
 
-    Reports each group as it starts, so the closing screen covering all this can
-    say which windows are on their way out — and, if a kill ever wedges, which
-    one it wedged on.
+    Reports each group as it starts, so the closing screen can say which windows
+    are on their way out — and, if a kill wedges, which one it wedged on.
+    *keep_origenerator* parks the hosted app for the session crossing in after
+    this one, rather than closing it (docs/entering-vr.md).
     """
     progress.advance("browser")
     close_window(rfb_hwnd)
-    _close_origenerator_gracefully(children.get("origenerator_pid"))
+    kept = keep_origenerator and _park_the_hosted_origenerator(
+        state_dir, children.get("origenerator_pid"))
+    if not kept:
+        forget_the_kept_origenerator(state_dir)
+        _close_origenerator_gracefully(children.get("origenerator_pid"))
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         for key in keys:
+            if kept and key == "origenerator_pid":
+                continue
             kill_recorded_child(children[key])
 
 
@@ -1021,7 +1063,10 @@ def _run_until_the_hotkeys_exit(
                 loopback_server.shutdown()
                 loopback_server.server_close()
             logger.info("AHK exited — shutting down child processes")
-            _shutdown_children(rfb_hwnd, children, shutdown_progress)
+            _shutdown_children(
+                rfb_hwnd, children, shutdown_progress,
+                state_dir=state_dir, keep_origenerator=pending_handoff(state_dir) is not None,
+            )
 
     return exit_code
 

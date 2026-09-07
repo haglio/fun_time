@@ -1684,3 +1684,68 @@ class TestWaitingForThePlayersToDraw:
 
         with pytest.raises(StartupCancelled):
             _wait_for_players_drawing((tmp_path / "s.txt",), progress, timeout_s=1.0)
+
+
+class TestAdoptingAKeptOrigenerator:
+    """A crossing leaves the hosted app running; this is the half that picks it
+    up rather than paying for a second boot (docs/entering-vr.md)."""
+
+    def _manifest(self, tmp_path):
+        from unittest.mock import MagicMock
+
+        m = MagicMock()
+        m.commands.origenerator_status_file = str(tmp_path / "origenerator_status.txt")
+        m.commands.origenerator_paused_file = str(tmp_path / "origenerator_paused.txt")
+        m.commands.origenerator_cmd_file = str(tmp_path / "origenerator_cmd.txt")
+        return m
+
+    def test_a_live_record_is_adopted_and_spent(self, tmp_path: Path):
+        from unittest.mock import patch
+
+        from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
+        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
+
+        keep_the_origenerator(tmp_path, pid=6060, created_at=44)
+        with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
+                   return_value=44):
+            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) == 6060
+
+        assert kept_origenerator(tmp_path) is None, "the record outlived its one use"
+
+    def test_a_recycled_pid_is_never_adopted(self, tmp_path: Path):
+        """Windows hands freed pids straight back out, so the creation time is
+        what says the process is still the one that was parked."""
+        from unittest.mock import patch
+
+        from fun_time.session_handoff import keep_the_origenerator
+        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
+
+        keep_the_origenerator(tmp_path, pid=6060, created_at=44)
+        with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
+                   return_value=45):
+            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) == 0
+
+    def test_an_ordinary_startup_adopts_nothing(self, tmp_path: Path):
+        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
+
+        assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) == 0
+
+    def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
+        """The app is already answering through its status file, and clearing it
+        would buy back the forty seconds this saves."""
+        from unittest.mock import patch
+
+        from fun_time.session_handoff import keep_the_origenerator
+        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
+
+        status = tmp_path / "origenerator_status.txt"
+        status.write_text("ready\n", encoding="utf-8")
+        (tmp_path / "origenerator_cmd.txt").write_text("OPEN_SHOWS\n", encoding="utf-8")
+        keep_the_origenerator(tmp_path, pid=6060, created_at=44)
+
+        with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
+                   return_value=44):
+            _adopt_a_kept_origenerator(self._manifest(tmp_path))
+
+        assert status.read_text(encoding="utf-8") == "ready\n"
+        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
