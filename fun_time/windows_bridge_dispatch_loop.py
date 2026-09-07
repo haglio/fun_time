@@ -28,7 +28,7 @@ from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
-from .modes import build_mirrored_funscript_path
+from .modes import matching_funscript, playlist_entry_line
 from .player_status import is_broker_heartbeat_fresh, read_nau_status
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
@@ -98,9 +98,8 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 # Navigation is the same gesture on every player; "end loop" is the same *word* for
 # a different loop — Nau's A-B loop rather than a satellite's group loop.  A lock
 # is the same thing on all three — repeat-one on what is on screen — so the bare
-# word reaches whichever was last addressed, the main player included.  So is F-mode,
-# though what it narrows to differs: the favorites on a satellite, the videos
-# with a funscript on the main player.
+# word reaches whichever was last addressed, the main player included.  So is
+# F-mode, though it narrows each player to something different.
 _MAIN_EQUIVALENTS = {
     "next": "main_next",
     "prev": "main_prev",
@@ -685,14 +684,11 @@ class DispatchLoopRunner:
                 runner=self._run_browser,
             )
             if selected:
-                # Nau owns the main player; play the pick there, paired with
-                # its funscript when one exists at the mirrored path.
-                mirrored = build_mirrored_funscript_path(selected)
-                if mirrored and Path(mirrored).exists():
-                    command = f"PLAY_FILE {selected}\t{mirrored}"
-                else:
-                    command = f"PLAY_FILE {selected}"
-                append_command(self.config.nau_cmd_file, command)
+                # Nau owns the main player; play the pick there, paired with its
+                # funscript the same way a playlist line pairs one, so a browse
+                # pick and a playlist entry can never name a script differently.
+                entry = playlist_entry_line(selected, matching_funscript(selected))
+                append_command(self.config.nau_cmd_file, f"PLAY_FILE {entry}")
         finally:
             if manage_session:
                 self.windows.restore_all_topmost(
