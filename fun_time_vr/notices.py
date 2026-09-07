@@ -15,8 +15,7 @@ from fun_time.event_log import (
 
 from .layout import PRIMARY
 
-# Long enough to read after looking up, short enough that the strip is empty
-# again by the next command.
+# Long enough to read; short enough to be gone by the next command.
 NOTICE_SECONDS = 8.0
 KEPT = 3
 

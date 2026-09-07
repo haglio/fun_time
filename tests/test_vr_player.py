@@ -21,6 +21,7 @@ from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
 from player_core.volume import VolumeHud, VolumeHudPainter
 
+from fun_time.dashboard_actions import QUIT_BUTTON
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -34,8 +35,10 @@ from fun_time.overlay_progress import (
 )
 from fun_time_vr.console_panel import NOTICE_STRIP_HEIGHT, PANEL_WIDTH_DEG
 from fun_time_vr.cover import VR_SHUTDOWN_PHASES, VR_STARTUP_PHASES
+from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.furniture import control_size
 from fun_time_vr.layout import (
+    DASH,
     DEFAULT_LAYOUT,
     LANDSCAPE,
     PANEL,
@@ -47,6 +50,7 @@ from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
     _CoverUnit,
+    _DashUnit,
     _draw_eyes,
     _GenauUnit,
     _HangingScreen,
@@ -811,7 +815,10 @@ class TestTheMainSlotUnderThePointer:
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
         )
 
-        screens = _pointable_screens(*self._units(), [satellite], panel)
+        dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
+                               screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
+
+        screens = _pointable_screens(*self._units(), [satellite], panel, dash)
 
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
@@ -929,3 +936,92 @@ class TestEveryHangingScreenIsDrawn:
 
     def test_the_dashboard_reaches_them_too(self):
         assert "dash" in self._draw().screens
+
+
+
+class TestTheDashUnderThePointer:
+    """It was drawn and it was up to date, and the pointer had never heard of
+    it: no button did anything, and there was no handle to move it off the
+    picture it was covering."""
+
+    def _unit(self, tmp_path):
+        with patch("fun_time_vr.player.FrameTexture"):
+            return _DashUnit(
+                placement=DEFAULT_LAYOUT[DASH],
+                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                notices=NoticeBoard(tmp_path / "event_log.jsonl"),
+                dashboard_state_file=tmp_path / "dashboard_state.ini",
+            )
+
+    @staticmethod
+    def _uv_of(action: str) -> tuple[float, float]:
+        width, height = DASH_WIDTH_PX, dash_height()
+        rect = dash_actions()[action]
+        return ((rect.x + rect.width // 2 + 0.5) / width,
+                1 - (rect.y + rect.height // 2 + 0.5) / height)
+
+    def test_a_press_on_a_control_posts_its_command(self, tmp_path):
+        unit = self._unit(tmp_path)
+
+        unit.point(Frame(events=[PressEvent(PRESS, DASH, *self._uv_of(QUIT_BUTTON))]))
+        unit.pump(threading.Event(), 0.0)
+
+        posted = (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8")
+        assert posted.strip() == QUIT_BUTTON
+
+    def test_a_press_meant_for_another_screen_is_not_its(self, tmp_path):
+        unit = self._unit(tmp_path)
+
+        unit.point(Frame(events=[PressEvent(PRESS, PANEL, *self._uv_of(QUIT_BUTTON))]))
+        unit.pump(threading.Event(), 0.0)
+
+        assert not (tmp_path / "dashboard_cmd.txt").exists()
+
+
+class TestWhatThePointerCanReach:
+    def _screens(self, tmp_path):
+        with patch("fun_time_vr.player.FrameTexture"):
+            dash = _DashUnit(
+                placement=DEFAULT_LAYOUT[DASH],
+                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                notices=NoticeBoard(tmp_path / "event_log.jsonl"),
+                dashboard_state_file=tmp_path / "dashboard_state.ini",
+            )
+        panel = SimpleNamespace(
+            texture=SimpleNamespace(ready=True, aspect=1.2),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        )
+        dash.texture = SimpleNamespace(ready=True, aspect=2.5)
+        primary = SimpleNamespace(
+            target=SimpleNamespace(ready=False, aspect=16 / 9),
+            role=SimpleNamespace(displayed=True, projection=FLAT),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        )
+        genau = SimpleNamespace(
+            texture=SimpleNamespace(ready=False, aspect=4 / 3),
+            role=SimpleNamespace(showing=False, projection=FLAT),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        )
+        return {s.name: s
+                for s in _pointable_screens(primary, genau, [], panel, dash)}
+
+    def test_the_dash_is_one_of_them(self, tmp_path):
+        assert DASH in self._screens(tmp_path)
+
+    def test_it_can_be_pressed_and_dragged(self, tmp_path):
+        """Movable is what gives a screen the bar it is dragged by; without it
+        there was no way to get it off what it was covering.  The console beside
+        it is pressed and never dragged -- it rides on the main player."""
+        screens = self._screens(tmp_path)
+
+        assert screens[DASH].pressable and screens[DASH].movable
+        assert screens[PANEL].pressable and not screens[PANEL].movable
+
+
+class TestWhereItHangsToStart:
+    def test_the_dash_opens_above_the_main_player(self):
+        assert DEFAULT_LAYOUT[DASH].azimuth_deg == 0.0
+        assert DEFAULT_LAYOUT[DASH].elevation_deg > 0
+
+    def test_it_clears_the_main_player_and_the_console_riding_on_it(self):
+        assert DEFAULT_LAYOUT[DASH].elevation_deg > DEFAULT_LAYOUT[PRIMARY].elevation_deg

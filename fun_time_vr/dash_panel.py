@@ -71,10 +71,8 @@ def next_verbosity(verbosity: int) -> int:  # wrapping: a headset has no dropdow
 
 
 def verbosity_name(verbosity: int) -> str:
-    for name in LEVEL_NAMES:
-        if LEVELS_BY_NAME[name] == verbosity:
-            return name
-    return "NOTICE"
+    named = {level: name for name, level in LEVELS_BY_NAME.items()}
+    return named.get(verbosity, "NOTICE")
 
 
 def format_row(record: EventRecord) -> str:  # the desktop panel's own shape
@@ -167,8 +165,8 @@ def paint_dash(state: DashState, records) -> Image.Image:
 
 
 class DashPointer:
-    """A press on the hanging panel, turned into what the desktop's bar does: the
-    four controls post its commands, the chips change only what this shows."""
+    """A press, turned into what the desktop's bar does: the four controls post
+    its commands, the chips change only what this shows."""
 
     def __init__(self, *, post, state: DashState | None = None) -> None:
         self._post = post

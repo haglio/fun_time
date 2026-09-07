@@ -137,6 +137,7 @@ from .pointer import (
     handle_vertices,
     head_position,
     laser_vertices,
+    surface_pixel,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import UNIMPLEMENTED_NAU_VERBS, MainRole
@@ -1241,7 +1242,7 @@ def _main_slot_screen(primary: _MainUnit, genau: _GenauUnit) -> Screen | None:
 
 def _pointable_screens(
     primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
-    panel: _PanelUnit,
+    panel: _PanelUnit, dash: _DashUnit,
 ) -> list[Screen]:
     main = _main_slot_screen(primary, genau)
     screens = [main] if main is not None else []  # first, so the rest win the overlap
@@ -1256,6 +1257,9 @@ def _pointable_screens(
     if panel.texture.ready:
         screens.append(Screen(
             PANEL, panel.screen.placement, panel.texture.aspect, pressable=True))
+    if dash.texture.ready:
+        screens.append(Screen(DASH, dash.screen.placement, dash.texture.aspect,
+                              movable=True, pressable=True))
     return screens
 
 
@@ -1567,7 +1571,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
                     math.radians(scene_pitch_deg)
                 )
-                screens = _pointable_screens(primary, genau, satellites, panel)
+                screens = _pointable_screens(primary, genau, satellites, panel, dash)
                 frame = pointer.frame(
                     session.hands,
                     head=head_position([
