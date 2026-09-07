@@ -1,6 +1,7 @@
 """The INI a session reads its own mode off."""
 from __future__ import annotations
 
+import configparser
 import subprocess
 import sys
 from dataclasses import fields, replace
@@ -315,3 +316,40 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
     for mode in MAIN_MODES:
         write_shared_state(state_file, BridgeState(main_mode=mode))
         assert read_shared_state(state_file).main_mode == mode
+
+
+# Every key the file carries, and the value a default session writes for it.
+# Derived from the dataclass since the round trip stopped spelling them by
+# hand — so this is where a field rename becomes a deliberate, visible act,
+# the way tests/test_manifest.py holds the launch manifest's inventory.
+_EXPECTED_STATE_KEYS = {
+    "locked2": "0", "locked3": "0",
+    "main_mode": "video", "satellites_mode": "video",
+    "main_f_mode": "0", "portrait_f_mode": "0", "landscape_f_mode": "0",
+    "omni_paused": "0",
+    "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",
+    "genau_latest": "0",
+    "active_side": "1",
+    "portrait_filter": "", "landscape_filter": "",
+    "portrait_loop": "", "landscape_loop": "",
+    "portrait_map_anchor": "", "landscape_map_anchor": "",
+    "portrait_widen_clip": "", "landscape_widen_clip": "",
+    "portrait_nav_anchor": "", "landscape_nav_anchor": "",
+    "volume": "100", "muted": "0",
+}
+
+
+def test_the_file_carries_exactly_these_keys_spelled_exactly_this_way(tmp_path: Path):
+    """The dashboard and the resume both read this file by key name, so a
+    respelling is a session that comes back at its defaults with nothing said.
+    A key added, dropped or renamed must be added, dropped or renamed here in
+    the same commit.
+    """
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    write_shared_state(state_file, BridgeState())
+
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(state_file, encoding="utf-8")
+
+    assert dict(parser["state"]) == _EXPECTED_STATE_KEYS

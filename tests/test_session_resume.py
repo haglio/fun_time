@@ -5,6 +5,7 @@ from dataclasses import fields
 from pathlib import Path
 
 from fun_time.session_resume import (
+    NOT_RESUMED,
     RESUMED_FIELDS,
     playlist_fits_sources,
     playlist_opens_on,
@@ -216,9 +217,18 @@ class TestResumeSharedState:
         state = resume_shared_state(state_file, resumed=True)
 
         fresh = BridgeState()
-        for field in fields(BridgeState):
-            if field.name not in RESUMED_FIELDS:
-                assert getattr(state, field.name) == getattr(fresh, field.name)
+        for name in NOT_RESUMED:
+            assert getattr(state, name) == getattr(fresh, name)
+
+    def test_the_state_left_behind_is_named_positively_and_is_all_of_it(self):
+        """The list used to run the other way: what came BACK was spelled out,
+        so a field added to BridgeState and not added here was dropped, silently
+        and by default.  Dropping is now the exception, and every exception is a
+        field that exists.
+        """
+        names = {field.name for field in fields(BridgeState)}
+        assert names >= NOT_RESUMED, sorted(NOT_RESUMED - names)
+        assert set(RESUMED_FIELDS) == names - NOT_RESUMED
 
 
 class TestResumeSatelliteLocks:

@@ -23,6 +23,7 @@ session, and a crash or a power cut too, where a shutdown hook would not.
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import fields
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -35,48 +36,37 @@ from .shared_state import BridgeState, read_shared_state, write_shared_state
 
 PlaylistEntries = list[tuple[Path, Path | None]]
 
-# What a reopened session comes back believing.  Most of it is what shaped the
-# playlist files that were just resumed — each player's own F-mode and each
-# side's filter decide which clips are in them, Latest fixes their order, and a
-# group loop IS the group written out as the playlist, with the map anchored
-# (and the seed row widened) on the clip it started from.  The rest is what the
-# session was simply *left* in: the sound level and each side's lock are how you
-# had it set, and there is no more reason for them to reset overnight than there
-# is for the clip on screen to.
+# What a reopened session does NOT come back believing.  Everything else does,
+# because most of it is what shaped the playlist files that were just resumed —
+# each player's own F-mode and each side's filter decide which clips are in
+# them, Latest fixes their order, and a group loop IS the group written out as
+# the playlist — and the rest is what the session was simply *left* in: the
+# sound level and each side's lock are how you had it set, and there is no more
+# reason for them to reset overnight than there is for the clip on screen to.
 #
-# Three of them have a live counterpart to re-assert, since none lives in a file
-# a new process reads: the level is seeded to both audio sinks at startup (see
-# fun_time.audio_volume.publish_audio_level), each lock is queued back to its
-# satellite (:func:`resume_satellite_locks`), and the main slot's mode is what
-# startup seeds the two main-slot players and their windows for (see
+# Three of those have a live counterpart to re-assert, since none lives in a
+# file a new process reads: the level is seeded to both audio sinks at startup
+# (see fun_time.audio_volume.publish_audio_level), each lock is queued back to
+# its satellite (:func:`resume_satellite_locks`), and the main slot's mode is
+# what startup seeds the two main-slot players and their windows for (see
 # fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
-# Nothing else survives, because nothing carries it into the new session:
-# OmniPause's paused flags are cleared before the players launch, and a
-# keyboard-navigation selection was never a thing you could leave running.
-RESUMED_FIELDS = (
-    "main_mode",
-    # The satellites' own mode axis comes back the way main_mode does.
-    "satellites_mode",
-    "main_f_mode",
-    "portrait_f_mode",
-    "landscape_f_mode",
-    "portrait_filter",
-    "landscape_filter",
-    "main_latest",
-    "portrait_latest",
-    "landscape_latest",
-    "portrait_loop",
-    "landscape_loop",
-    "portrait_map_anchor",
-    "landscape_map_anchor",
-    "portrait_widen_clip",
-    "landscape_widen_clip",
-    "locked2",
-    "locked3",
-    "volume",
-    "muted",
+# These five are dropped because nothing carries them into the new session:
+# OmniPause's flags are cleared before the players launch, Genau reshuffles its
+# clips folder at every launch, whichever player was last addressed is a fact
+# about the session that ended, and a keyboard-navigation selection was never a
+# thing you could leave running.
+NOT_RESUMED = frozenset({
+    "omni_paused",
+    "active_side",
+    "genau_latest",
+    "portrait_nav_anchor",
+    "landscape_nav_anchor",
+})
+
+RESUMED_FIELDS: tuple[str, ...] = tuple(
+    field.name for field in fields(BridgeState) if field.name not in NOT_RESUMED
 )
 
 
