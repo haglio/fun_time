@@ -51,9 +51,13 @@ def lookup_title(title, exact=False):
     return GENAU_HWND if title == "Genau" and not exact else 0
 
 
-def lookup_hosted(pid, title):
-    """The hosted app's windows, which resolve by pid AND caption together."""
-    if pid != HOSTED_PID:
+def lookup_hosted(pid, title, *, include_hidden=False):
+    """The hosted app's windows, which resolve by pid AND caption together.
+
+    Parked, so a caller that does not ask for hidden windows finds nothing —
+    which is the state the hosted app boots in and spends every mode switch
+    away from it in."""
+    if pid != HOSTED_PID or not include_hidden:
         return 0
     return {
         "Origenerator": HOSTED_HWND,

@@ -676,11 +676,12 @@ class TestFindWindowForProcess:
 
     @staticmethod
     def _enumerating(mock, windows):
-        """*windows* is a list of (hwnd, pid, title)."""
-        by_hwnd = {hwnd: (pid, title) for hwnd, pid, title in windows}
+        """*windows* is a list of (hwnd, pid, title) or (hwnd, pid, title, visible)."""
+        rows = [(*window, True)[:4] for window in windows]
+        by_hwnd = {hwnd: (pid, title, visible) for hwnd, pid, title, visible in rows}
 
         def enum(proc, _lparam):
-            for hwnd, _pid, _title in windows:
+            for hwnd, *_rest in rows:
                 if not proc(hwnd, 0):
                     break
             return True
@@ -691,6 +692,7 @@ class TestFindWindowForProcess:
 
         mock.EnumWindows.side_effect = enum
         mock.GetWindowThreadProcessId.side_effect = gwtpid
+        mock.IsWindowVisible.side_effect = lambda hwnd: int(by_hwnd[hwnd][2])
         mock.GetWindowTextLengthW.side_effect = lambda hwnd: len(by_hwnd[hwnd][1])
         mock.GetWindowTextW.side_effect = lambda hwnd, buf, _cap: setattr(
             buf, "value", by_hwnd[hwnd][1])
@@ -762,6 +764,28 @@ class TestFindWindowForProcess:
         with patch("fun_time.win32._user32") as mock:
             assert win32.find_window_for_process(0, "Nau") == 0
             mock.EnumWindows.assert_not_called()
+
+    def test_a_hidden_window_is_skipped_when_nothing_names_the_one_wanted(self, monkeypatch):
+        """Qt gives a process hidden top-level windows that carry captions of
+        their own — ``_q_titlebar``, ``Default IME`` — so with no title to
+        match on, the enumeration order alone decided which one a caller got.
+        The library browse promotion asked this way and promoted a hidden
+        internal window instead of the browse, leaving it buried."""
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, "_q_titlebar", False),
+                                     (12, 500, "Fun Time Library", True)])
+            assert win32.find_window_for_process(500) == 12
+
+    def test_a_parked_window_still_resolves_for_a_caller_that_asks_for_one(self, monkeypatch):
+        """The hosted app's main window boots hidden and must still be found,
+        which is what ``include_hidden`` is for."""
+        monkeypatch.setattr(win32, "list_child_pids", lambda _pid: [])
+        with patch("fun_time.win32._user32") as mock:
+            self._enumerating(mock, [(11, 500, "Origenerator", False)])
+            assert win32.find_window_for_process(
+                500, "Origenerator", include_hidden=True) == 11
+            assert win32.find_window_for_process(500, "Origenerator") == 0
 
 
 class TestListChildPids:

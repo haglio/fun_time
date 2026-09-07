@@ -220,7 +220,7 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     """
     if child is None or not child.pid:
         return
-    hwnd = find_window_for_process(child.pid, "Origenerator")
+    hwnd = find_window_for_process(child.pid, "Origenerator", include_hidden=True)
     if not hwnd:
         return
     close_window(hwnd)
@@ -555,11 +555,13 @@ def _fix_post_loading_windows(result: StartupResult, *,
     # leaving them out of this pass is what put two blacked players over them.
     hosted = result.origenerator_pid and result.satellites_mode == "origenerator"
     origenerator_hwnd = (
-        find_window_for_process(result.origenerator_pid, "Origenerator")
+        find_window_for_process(
+            result.origenerator_pid, "Origenerator", include_hidden=True)
         if hosted else 0
     )
     show_hwnds = {
-        role: (find_window_for_process(result.origenerator_pid, title) if hosted else 0)
+        role: (find_window_for_process(result.origenerator_pid, title,
+                                       include_hidden=True) if hosted else 0)
         for role, title in ORIGENERATOR_ROLE_TITLES.items()
         if role != "origenerator"
     }
@@ -625,7 +627,8 @@ def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
             return [("portrait", portrait_hwnd), ("landscape", landscape_hwnd)]
         return [
             (role.removeprefix("origenerator_"),
-             find_window_for_process(result.origenerator_pid, title))
+             find_window_for_process(result.origenerator_pid, title,
+                                     include_hidden=True))
             for role, title in ORIGENERATOR_ROLE_TITLES.items()
             if role != "origenerator"
         ]
