@@ -95,9 +95,7 @@ def build_voice_commands(
         "exit": "quit",
         "pause": "pause",
         "play": "play",
-        # Synonyms for "play"/resume.  vosk has no "unpause" token but does have
-        # "un", so the recognizer listens for the two-word "un pause"; the reference
-        # shows it as "unpause" via the row's friendly_voice override.
+        # Synonyms for "play"/resume.
         "resume": "play",
         "un pause": "play",
         # The sensation emergency: omnipause AND send the OSR2 away.  Three
@@ -132,10 +130,8 @@ def build_voice_commands(
         "main video mode": "main_video_activate",
         "satellite video mode": "satellites_video_activate",
         "satellites video mode": "satellites_video_activate",
-        # The satellite side's other mode.  "origenerator" is not a vosk token,
-        # so the recognizer listens for "generator mode"; the reference displays
-        # "origenerator mode".  Spoken as explicit modes rather than a toggle,
-        # so a phrase misheard twice cannot land on the opposite of what was asked.
+        # The satellite side's other mode, spoken as explicit modes rather than a
+        # toggle, so a phrase misheard twice cannot land on the opposite.
         "generator mode": "origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
@@ -168,9 +164,8 @@ def build_voice_commands(
         # half.  "main reset" contains this and goes further, dropping F-mode too (see
         # the main-player grid below); this is the narrow gesture of the pair.
         "mixed": "nau_length_mixed",
-        # Clip navigation (Larkin-style clips carved from compilations). "vid" is
-        # not in the vosk vocabulary, so "full video" is the reliable phrase; "full
-        # vid" stays as a fallback the model uses only if it knows the word.
+        # Clip navigation (Larkin-style clips carved from compilations); "full
+        # video" is the reliable phrase, "full vid" a fallback.
         "compilation": "nau_compilation",
         # …and back out of one, without having to name a length: Nau returns to
         # whichever mode was feeding the playlist when it went in.
@@ -180,17 +175,13 @@ def build_voice_commands(
         # Funscript navigation.  A scripted video is mostly not scripted — the action
         # comes in runs with quiet stretches between them — so one phrase skips the
         # stretch you are in and the other gives up on the video entirely for the next
-        # one that has a script, landing on its action rather than at its top.  vosk
-        # has no "funscript" token but has both halves, so the recognizer listens for
-        # the split "fun script"/"fun scripted"; the reference joins them back up via
-        # friendly_voice below.
+        # one that has a script, landing on its action rather than at its top.
         "jump to fun script": "nau_funscript_jump",
         "next fun scripted": "nau_next_funscripted",
         # The phrases for the clip jump are library vocabulary, so they come from
         # the content overlay and are merged in below rather than written here.
-        # Nothing in these words names an engine, so they follow whichever
-        # holds the OSR2: the video's rate while a funscript is driving it
-        # (the script scales with the clock), else Genau's motion.
+        # Nothing in these words names an engine, so they follow whichever holds
+        # the OSR2: the video's rate under a funscript, else Genau's motion.
         "slow down": "speed_down",
         "speed down": "speed_down",
         "speed up": "speed_up",
@@ -206,8 +197,6 @@ def build_voice_commands(
         "center up": "robot_hand_center_up",
         "next shape": "robot_hand_cycle_shape",
         "previous shape": "robot_hand_cycle_shape_prev",
-        # vosk cannot hear "genau", so this reuses the "go now" sound-alike the mode
-        # phrases already rely on; the reference shows it as "genau auto".
         "go now auto": "genau_toggle_auto",
         "cruise control": "robot_hand_toggle_cruise",
         "cruise on": "robot_hand_cruise_on",
@@ -227,9 +216,6 @@ def build_voice_commands(
         "mic off": "voice_off",
         # The main player's sound, whichever mode owns it.  Each pair's two
         # words mean the same thing, so a speaker never has to pick between them.
-        # vosk has no "unmute" token but does have "un", so the recognizer listens
-        # for the two-word "un mute"; the reference shows it as "unmute" via the
-        # row's voice_display override.
         "mute": "audio_mute",
         "un mute": "audio_unmute",
         "quiet": "audio_volume_down",
@@ -245,9 +231,7 @@ def build_voice_commands(
     commands.update(dict.fromkeys(clip_jump_phrases, "nau_clip_jump"))
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
-    # closes from any of them prefixed with "close".  vosk has no "hotkeys" token,
-    # so it listens for "hot keys" (two words); the reference shows the friendly
-    # "hotkeys" via friendly_voice below.
+    # closes from any of them prefixed with "close".
     for _ref_phrase in ("help", "reference", "hot keys", "voice commands"):
         commands[_ref_phrase] = "help_reference"
         commands[f"close {_ref_phrase}"] = "help_reference_close"
@@ -294,10 +278,9 @@ def build_voice_commands(
     # and join the same order-agnostic grid.  "action loop" cycles the subject's
     # other acts; "seed loop" the same act under its other seeds; both are repeat-all
     # over that group (a lock, by contrast, is repeat-one over a single clip).
-    # "lock action" filters the satellite to the current clip's action — it is
-    # "portrait <act>" with the act read off the clip instead of spoken.  Each
+    # "lock action" filters the satellite to the current clip's action.  Each
     # command's own two words are order-agnostic too ("loop action" == "action
-    # loop"), so a speaker never has to remember which word leads.
+    # loop").
     _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
         # "loop actions"/"loop seeds" are the grid's names; the singular/reversed
         # forms and "loop scene(s)" (scene == action) are kept as equivalents.
@@ -420,9 +403,7 @@ def build_voice_commands(
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
     # that mode's player.  Video drives the main slot's video; Genau steps its own
-    # clip.  vosk can't hear "genau", so the recognizer reuses the mode-activation
-    # sound-alike ("go now") — the reference translates it back to the friendly
-    # mode name.
+    # clip.
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
         "video": ("main_next", "main_prev"),
@@ -594,7 +575,9 @@ SELF_REPORTING_COMMANDS = frozenset({
 
 # recognizer phrase -> what the reference and the toasts show, one pair per word
 # vosk cannot hear: a mode name, a joined-up word it only has the halves of, or
-# a device name it only has the letters of.  Applied in order as plain replaces,
+# a device name it only has the letters of.  EVERY sound-alike spelling above is
+# here and nowhere else, which is why no row up there explains its own.
+# Applied in order as plain replaces,
 # so "un pause" precedes "omni pause" and cannot be re-split by it, and each
 # rewrite reaches the derived phrases the word sits inside ("next fun scripted").
 _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (

@@ -1,21 +1,19 @@
-"""Brief notices, flashed over the player they concern.
+"""The glanceable flash of a notice (:func:`fun_time.event_log.notice`), at the
+top-center of the window it is about: a main-player one over the Nau/Genau
+display, a portrait/landscape one over that satellite.
 
-"Clip saved", "No other seeds", "Next seed", "Similar clip" — the messages that
-used to be AHK tooltips at the mouse pointer — appear at the top-center of the window they
-are about: a main-player notice over the Nau/Genau display, a portrait/landscape
-notice over that satellite.  They also land in the event log, so the log panel
-keeps the running history; this is just the glanceable, in-place flash.
-
-The pure model here (which rect a source maps to, where the overlay sits on it,
-whether a record is loud enough to flash) is separated from the Qt window so it
-tests without a QApplication.
+The pure model here (which rect a source maps to, where the overlay sits on it)
+is separated from the Qt window so it tests without a QApplication.
 """
 from __future__ import annotations
 
 from dataclasses import dataclass
 
 from fun_time.dashboard_layout import Rect, Size
-from fun_time.event_log import NOTICE, EventRecord
+from fun_time.event_log import is_announcement
+
+# Re-exported: notice_feed and the tests read the rule from here.
+__all__ = ["PlayerRects", "is_announcement"]
 
 
 @dataclass(frozen=True)
@@ -26,15 +24,6 @@ class PlayerRects:
     portrait: Rect
     landscape: Rect
     dash: Rect
-
-
-def is_announcement(record: EventRecord) -> bool:
-    """Whether *record* is loud enough to flash — a notice, or louder.
-
-    The verbosity dial governs only what the log panel *lists*; a notice always
-    flashes, exactly as the old cursor tooltip always showed.
-    """
-    return record.level >= NOTICE
 
 
 def notice_target_rect(source: str, rects: PlayerRects) -> Rect:

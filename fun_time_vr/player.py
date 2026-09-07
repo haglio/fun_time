@@ -55,6 +55,7 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
+from fun_time.event_log import event_log_path
 from fun_time.manifest import LaunchManifest
 from fun_time.player_status import genau_status_path, read_genau_status
 from fun_time.project_paths import PROJECT_VR_ICON
@@ -88,6 +89,7 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
+from .notices import NoticeStrip
 from .perf import FramePerf
 from .pointer import (
     DRAG,
@@ -577,10 +579,11 @@ class _PanelUnit:
 
     def __init__(
         self, primary: _MainUnit, genau: _GenauUnit, *, placement: Placement,
-        dashboard_cmd_file: Path,
+        dashboard_cmd_file: Path, event_log: Path,
     ) -> None:
         self._primary = primary
         self._genau = genau
+        self._notices = NoticeStrip(event_log)
         self._painter = panel_painter()
         self._chip_painter = VolumeHudPainter()
         self._pointer = PanelPointer(
@@ -611,6 +614,7 @@ class _PanelUnit:
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self._take_presses()
+        self._notices.pump(now)
         genau, main = self._genau.role, self._primary.role
         clip = genau.current_clip
         hud = panel_hud(
@@ -630,18 +634,21 @@ class _PanelUnit:
             chip = VolumeHud(volume=main.volume, muted=main.muted)
         hovered = self._presses.hover
         hover = self._pointer.tooltip_anchor(hovered[1] if hovered is not None else None)
-        # Repainted only when what it shows moves, as the furniture is.
+        notices = self._notices.lines
+        # Repainted only when what it shows moves, as the furniture is -- a
+        # notice arriving and a notice fading are both that.
         key = (
             hud,
             scrubber_state(self._width, 1, *scrubber) if scrubber is not None else None,
             chip,
             hover,
+            notices,
         )
         if key == self._key:
             return
         image = paint_panel(
             self._painter, hud, scrubber=scrubber, chip=chip, chip_painter=self._chip_painter,
-            hover=hover,
+            hover=hover, notices=notices,
         )
         self._pointer.painted(image.size, scrubber=scrubber, chip=chip)
         with self._lock:
@@ -1154,6 +1161,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     panel = _PanelUnit(
         primary, genau, placement=layout[PANEL],
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+        event_log=event_log_path(Path(commands.dashboard_cmd_file).parent),
     )
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
