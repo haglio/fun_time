@@ -36,7 +36,7 @@ import math
 import queue
 import threading
 import time
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -78,7 +78,9 @@ from satellite.volume import SatelliteVolume
 from . import vr_runtime
 from .console_panel import (
     DEG_PER_PX,
+    NOTICE_STRIP_HEIGHT,
     PANEL_WIDTH_DEG,
+    PANEL_WIDTH_PX,
     PanelPointer,
     paint_panel,
     panel_hud,
@@ -100,6 +102,7 @@ from .furniture import (
     FurniturePointer,
     chip_state,
     control_size,
+    paint_row,
     scaled,
     scrubber_state,
     with_furniture,
@@ -286,6 +289,19 @@ class _HangingScreen:
             self.mesh.close()
 
 
+def _wraps_the_viewer(role) -> bool:
+    return immersive_mode(role.projection) is not None  # a shader: no edge for a row
+
+
+@dataclass(frozen=True)
+class _SlotControls:  # what the row shows and does, said by the player in the slot
+    position: float
+    duration: float
+    hud: VolumeHud
+    seek: Callable[[float], None]
+    scrub_duration_ms: float  # 1.0 for Genau, which counts frames and seeks by fraction
+
+
 class _VideoUnit:
     """What every mpv-backed player shares: an offscreen mpv and a texture target."""
 
@@ -371,6 +387,13 @@ class _VideoUnit:
         x, y, bgra = placed
         self.player.overlay(_OV_TOAST, x, y, bgra)
 
+    def clear_furniture(self) -> None:
+        if self._scrubber_shown is None and self._chip_shown is None:
+            return
+        self._scrubber_shown = self._chip_shown = None  # on a wrap it rides round the nadir
+        self.player.remove_overlay(_OV_SCRUBBER)
+        self.player.remove_overlay(_OV_VOLUME)
+
     def pump(self, stop: threading.Event, now: float) -> None:
         """One turn of the file-channel worker — what every unit owes it."""
         raise NotImplementedError
@@ -438,6 +461,14 @@ class _MainUnit(_VideoUnit):
     def _post(self, command: str) -> None:
         append_command(self._dashboard_cmd_file, command)
 
+    @property
+    def controls(self) -> _SlotControls:
+        return _SlotControls(
+            position=self.role.position_ms, duration=self.role.duration_ms,
+            hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
+            seek=self.role.seek_to, scrub_duration_ms=self.role.duration_ms,
+        )
+
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
 
@@ -479,10 +510,13 @@ class _MainUnit(_VideoUnit):
         self._watch_progress(now)
         self._status_writer.write(self.role)
         self._take_presses()
-        self.overlay_furniture(
-            self.role.position_ms, self.role.duration_ms,
-            VolumeHud(volume=self.role.volume, muted=self.role.muted), self._volume_painter,
-        )
+        if _wraps_the_viewer(self.role):
+            self.clear_furniture()
+        else:
+            controls = self.controls
+            self.overlay_furniture(
+                controls.position, controls.duration, controls.hud, self._volume_painter,
+            )
         if self._notices is not None:
             self.overlay_toast(self._notices.toast(self.notice_screen))
 
@@ -710,11 +744,21 @@ class _GenauUnit:
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
 
+    @property
+    def controls(self) -> _SlotControls:
+        played, of = self.role.playhead
+        return _SlotControls(
+            position=played, duration=of,
+            hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
+            seek=self.role.seek, scrub_duration_ms=1.0,
+        )
+
     def render_latest_frame(self) -> None:
         frame = self.role.take_frame()
         if frame is None:
             return
-        self.texture.upload(self._furnished(frame))
+        wrapped = _wraps_the_viewer(self.role)  # no row blended into one: it would ride
+        self.texture.upload(frame if wrapped else self._furnished(frame))  # round the nadir
         self.screen.rehang(self.texture.aspect)
 
     def _furnished(self, frame):
@@ -801,43 +845,84 @@ def _upload_and_rehang(unit) -> None:
 
 
 class _PanelUnit:
-    """The console, docked under the main player as a satellite's HUD is docked
-    under its picture: painted and pressed on the pump thread, uploaded on the
-    render thread when it changed."""
+    """The console, docked under the main player -- or, a wrapped video leaving nothing to
+    dock to and no edge for a scrubber, carrying that video's row and docked to the dash."""
 
     def __init__(
-        self, primary: _MainUnit, genau: _GenauUnit, *, dashboard_cmd_file: Path,
-        notices: NoticeBoard,
+        self, primary: _MainUnit, genau: _GenauUnit, dash, *,
+        dashboard_cmd_file: Path, notices: NoticeBoard,
     ) -> None:
         self._primary = primary
         self._genau = genau
+        self._dash = dash
         self._notices = notices
         self._painter = panel_painter()
-        self._pointer = PanelPointer(
-            self._painter,
-            post=lambda command: append_command(dashboard_cmd_file, command),
+        self._row_painter = VolumeHudPainter()
+        self._post = lambda command: append_command(dashboard_cmd_file, command)
+        self._pointer = PanelPointer(self._painter, post=self._post)
+        self._furniture = FurniturePointer(
+            seek=self._seek,
+            mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
+            set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
         )
+        self._pressing = None  # which of the two took the squeeze, until it lets go
+        self._controls: _SlotControls | None = None  # pump-thread-owned
         self._presses = _Presses(PANEL)
         self._lock = threading.Lock()
         self._image = None
-        self._key = None
+        self._key = self._row_key = None
+        self._row = None
         self._uploaded = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(primary.screen.placement)
 
+    def _seek(self, position: float) -> None:
+        if self._controls is not None:
+            self._controls.seek(position)
+
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
 
+    @property
+    def _panel_height(self) -> int:
+        return self._image.size[1] if self._image is not None else 1
+
+    def _on_the_row(self, v: float) -> float | None:
+        height = self._panel_height  # v in the ROW's own, or None: it is the last rows
+        if self._row is None or v * height > TIMELINE_HEIGHT:
+            return None
+        return v * height / TIMELINE_HEIGHT
+
     def _take_presses(self) -> None:
         for event in self._presses.drain():
-            if event.kind == PRESS:
-                self._pointer.press(event.u, event.v)
-            elif event.kind == DRAG:
-                self._pointer.drag(event.u, event.v)
-            elif event.kind == RELEASE:
+            if event.kind == RELEASE:
                 self._pointer.release()
+                self._furniture.release()
+                self._pressing = None
+                continue
+            row_v = self._on_the_row(event.v)
+            if event.kind == PRESS:
+                self._pressing = self._furniture if row_v is not None else self._pointer
+            if self._pressing is self._furniture:
+                self._squeeze_the_row(event.kind, event.u, event.v if row_v is None else row_v)
+            elif self._pressing is self._pointer:
+                (self._pointer.press if event.kind == PRESS else self._pointer.drag)(
+                    event.u, event.v)
+
+    def _squeeze_the_row(self, kind: str, u: float, v: float) -> None:
+        controls = self._controls
+        if controls is None:
+            return
+        size = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+        if kind == PRESS:
+            self._furniture.press(u, v, size=size, duration_ms=controls.scrub_duration_ms,
+                                  muted=controls.hud.muted)
+        else:
+            self._furniture.drag(u, v, size=size, duration_ms=controls.scrub_duration_ms)
 
     def pump(self, stop: threading.Event, now: float) -> None:
+        slot = _wrapped_slot(self._primary, self._genau)
+        self._controls = None if slot is None else slot.controls  # the roles' thread
         self._take_presses()
         genau, main = self._genau.role, self._primary.role
         clip = genau.current_clip
@@ -852,15 +937,29 @@ class _PanelUnit:
         )
         hovered = self._presses.hover
         hover = self._pointer.tooltip_anchor(hovered[1] if hovered is not None else None)
-        notices = self._notices.lines
-        key = (hud, hover, notices)  # repainted only when what it shows moves
-        if key == self._key:
+        lines = None if slot is not None else self._notices.lines  # no strip under the dash
+        # A clip's bar crossing a pixel must not redraw the console's text:
+        key, row_key = (hud, hover, lines), self._row_state()
+        if (key, row_key) == (self._key, self._row_key):
             return
-        image = paint_panel(self._painter, hud, hover=hover, notices=notices)
-        self._pointer.painted(image.size)
+        if row_key != self._row_key:
+            self._row = None if row_key is None else paint_row(
+                self._controls.position, self._controls.duration, self._controls.hud,
+                self._row_painter, (PANEL_WIDTH_PX, TIMELINE_HEIGHT))
+        image = paint_panel(self._painter, hud, hover=hover, notices=lines, row=self._row)
+        self._pointer.painted(
+            image.size, strip_height=0 if slot is not None else NOTICE_STRIP_HEIGHT)
         with self._lock:
             self._image = image
-        self._key = key
+        self._key, self._row_key = key, row_key
+
+    def _row_state(self):
+        controls = self._controls
+        if controls is None:
+            return None
+        size = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+        return (scrubber_state(*size, controls.position, controls.duration),
+                chip_state(*size, controls.hud))
 
     def render_latest_frame(self) -> None:
         with self._lock:
@@ -870,14 +969,16 @@ class _PanelUnit:
             self._uploaded = image
         if not self.texture.ready:
             return
-        # Every frame: the player under it moves, and its own repaints are seconds apart.
+        # Every frame: what it hangs from moves, and its repaints are seconds apart.
+        wrapped = _wrapped_slot(self._primary, self._genau) is not None
+        under, aspect, gap = (
+            (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
+            (self._primary.screen.placement,
+             self._primary.target.aspect if self._primary.target.ready
+             else PANEL_DOCK_FALLBACK_ASPECT, HUD_GAP_DEG))
         self.screen.placement = attached_below(
-            self._primary.screen.placement,
-            aspect=(self._primary.target.aspect if self._primary.target.ready
-                    else PANEL_DOCK_FALLBACK_ASPECT),
-            width_deg=PANEL_WIDTH_DEG,
-            hanging_aspect=self.texture.aspect,
-            gap_deg=HUD_GAP_DEG,
+            under, aspect=aspect, width_deg=PANEL_WIDTH_DEG,
+            hanging_aspect=self.texture.aspect, gap_deg=gap,
         )
         self.screen.rehang(self.texture.aspect)
 
@@ -887,12 +988,17 @@ class _PanelUnit:
 
 
 class _DashUnit:
-    """The dashboard, hanging in the scene: painted and pressed like the console."""
+    # Painted like the console; the pair's handle while it carries one, and a spot for that.
 
-    def __init__(self, *, placement: Placement, dashboard_cmd_file: Path,
+    def __init__(self, primary: _MainUnit, genau: _GenauUnit, *, placement: Placement,
+                 wrapped_placement: Placement, dashboard_cmd_file: Path,
                  notices: NoticeBoard, dashboard_state_file: Path) -> None:
+        self._primary = primary
+        self._genau = genau
         self._notices = notices
         self._state_file = dashboard_state_file
+        self._floating = placement
+        self._wrapped = wrapped_placement
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
         self._presses = _Presses(DASH)
@@ -902,6 +1008,26 @@ class _DashUnit:
         self._uploaded = None
         self.texture = FrameTexture()
         self.screen = _HangingScreen(placement)
+
+    @property
+    def _carrying_the_console(self) -> bool:  # a wrapped slot leaves it the only handle
+        return _wrapped_slot(self._primary, self._genau) is not None
+
+    @property
+    def layout_key(self) -> str:  # which remembered spot a drag lands in
+        return PANEL if self._carrying_the_console else DASH
+
+    @property
+    def placement(self) -> Placement:
+        return self.screen.placement
+
+    @placement.setter
+    def placement(self, placement: Placement) -> None:
+        self.screen.placement = placement
+        if self._carrying_the_console:
+            self._wrapped = placement
+        else:
+            self._floating = placement
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -927,6 +1053,8 @@ class _DashUnit:
         self._key = key
 
     def render_latest_frame(self) -> None:
+        self.screen.placement = (
+            self._wrapped if self._carrying_the_console else self._floating)
         _upload_and_rehang(self)
 
     def close(self) -> None:
@@ -1303,6 +1431,15 @@ def _main_slot_screen(primary: _MainUnit, genau: _GenauUnit) -> Screen | None:
                   pressable=True)
 
 
+def _wrapped_slot(primary: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
+    # Whichever player wraps the viewer in the main slot; None when it hangs on a screen.
+    if genau.role.showing:
+        return genau if genau.texture.ready and _wraps_the_viewer(genau.role) else None
+    if primary.target.ready and primary.role.displayed and _wraps_the_viewer(primary.role):
+        return primary
+    return None
+
+
 def _pointable_screens(
     primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
     panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit,
@@ -1317,7 +1454,7 @@ def _pointable_screens(
         if unit.hud_ready:
             screens.append(Screen(hud_screen_name(unit.side), unit.hud_screen.placement,
                                   unit.hud_texture.aspect, pressable=True))
-    if panel.texture.ready:  # pressed, never dragged: it rides on the main player
+    if panel.texture.ready:  # pressed, never dragged: it rides on what is above it
         screens.append(Screen(
             PANEL, panel.screen.placement, panel.texture.aspect, pressable=True))
     hangings = [(DASH, dash)]
@@ -1539,24 +1676,27 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         for side in (PORTRAIT, LANDSCAPE)
     ]
     _present_the_cover(session, renderer, cover)
-    panel = _PanelUnit(
-        primary, genau, dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        notices=notices,
-    )
     dash = _DashUnit(
+        primary, genau,
         placement=layout[DASH],
+        wrapped_placement=layout[PANEL],
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
+    )
+    panel = _PanelUnit(
+        primary, genau, dash,
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+        notices=notices,
     )
     reference = _ReferenceUnit(placement=layout[REFERENCE], state_dir=state_dir)
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
-    units = [primary, genau, *satellites, panel, dash, reference, cover]
-    pumped = [notices, *units, keeper]
+    units = [primary, genau, *satellites, dash, panel, reference, cover]  # dash first:
+    pumped = [notices, *units, keeper]  # the console hangs off where it ended up
     hanging = {unit.side: (unit.screen,) for unit in satellites} | {
-        PRIMARY: (primary.screen, genau.screen), DASH: (dash.screen,),
+        PRIMARY: (primary.screen, genau.screen), DASH: (dash,),
         REFERENCE: (reference.screen,)}
     pointer = Pointer()
     pointing = _PointerDrawing()
@@ -1656,7 +1796,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 for name, placement in frame.moved.items():
                     for screen in hanging[name]:
                         screen.placement = placement
-                    keeper.place(name, placement)
+                    keeper.place(  # the dashboard says which of its two spots moved
+                        dash.layout_key if name == DASH else name, placement)
                 if frame.settled:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own

@@ -1,8 +1,4 @@
-"""The main console, hanging in the headset -- what to put on it.
-
-The desktop paints it onto the main player's window.  Baked into an immersive
-video it would warp with it, down at the nadir, so here it is a screen of its own.
-"""
+"""The main console, hanging in the headset -- what to put on it."""
 from __future__ import annotations
 
 import logging
@@ -143,16 +139,22 @@ def paint_panel(
     hud: ConsoleHud,
     *,
     hover: tuple[int, int] | None = None,
-    notices: Sequence[Notice] = (),
+    notices: Sequence[Notice] | None = (),
+    row=None,
 ) -> Image.Image:
-    """The console with the announcement strip over it, and nothing else: every
-    player draws its own scrubber and volume slider over its own picture."""
+    # Strip over the console, *row* under it, ``notices=None`` for no strip at all --
+    # which an empty one is not: it holds its height, and reads there as a gap.
     console_rgba, console_size = painter.rgba(hud, hover=hover)
     console = Image.frombytes("RGBA", console_size, console_rgba)
-    strip = paint_notices(notices, console.width)
-    panel = Image.new("RGBA", (console.width, strip.height + console.height), (0, 0, 0, 0))
-    panel.alpha_composite(strip, (0, 0))
-    panel.alpha_composite(console, (0, strip.height))
+    strip = None if notices is None else paint_notices(notices, console.width)
+    top = 0 if strip is None else strip.height
+    tall = top + console.height + (0 if row is None else row.shape[0])
+    panel = Image.new("RGBA", (console.width, tall), (0, 0, 0, 0))
+    if strip is not None:
+        panel.alpha_composite(strip, (0, 0))
+    panel.alpha_composite(console, (0, top))
+    if row is not None:
+        panel.alpha_composite(Image.fromarray(row, "RGBA"), (0, top + console.height))
     return panel
 
 
@@ -161,10 +163,12 @@ class PanelPointer:
         self._painter = painter
         self._post = post
         self._size = (1, 1)
+        self._strip = NOTICE_STRIP_HEIGHT
         self._tip: tuple[str, tuple[int, int]] | None = None
 
-    def painted(self, size: tuple[int, int]) -> None:
-        self._size = size
+    def painted(self, size: tuple[int, int], *, strip_height: int = NOTICE_STRIP_HEIGHT
+                ) -> None:
+        self._size, self._strip = size, strip_height
 
     def _pixel(self, u: float, v: float) -> tuple[int, int]:
         return surface_pixel(u, v, self._size)
@@ -172,7 +176,7 @@ class PanelPointer:
     def _console_pixel(self, u: float, v: float) -> tuple[int, int]:
         """The same point in the CONSOLE's pixels, which the strip pushed down."""
         px, py = self._pixel(u, v)
-        return px, py - NOTICE_STRIP_HEIGHT
+        return px, py - self._strip
 
     def press(self, u: float, v: float) -> None:
         self.release()

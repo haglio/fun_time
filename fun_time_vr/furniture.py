@@ -11,8 +11,8 @@ from collections.abc import Callable
 
 import numpy as np
 from PIL import Image
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x
-from player_core.volume import VolumeHud, chip_local, hit_part, volume_at
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x, progress_bar_bgra
+from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
 
 from satellite.pointer import time_at
 
@@ -54,6 +54,20 @@ def with_furniture(frame: np.ndarray, pieces) -> np.ndarray:
         under = out[y0:y1, x0:x1, :3].astype(np.uint16)
         out[y0:y1, x0:x1, :3] = ((over * alpha + under * (255 - alpha)) // 255).astype(np.uint8)
     return out
+
+
+def paint_row(
+    position_ms: float, duration_ms: float, hud: VolumeHud, painter, size: tuple[int, int],
+) -> np.ndarray:
+    width, height = size  # a transparent strip: RGBA rows, top row first
+    bar = progress_bar_bgra(position_ms, duration_ms, None, width, height=height)
+    chip = painter.bgra(hud)
+    over = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    over.paste(Image.fromarray(np.ascontiguousarray(chip), "RGBA"),  # BGRA both: only the swap cares
+               chip_xy(win_w=width, win_h=height, timeline_h=height))
+    row = np.asarray(Image.alpha_composite(  # not with_furniture, which drops the alpha
+        Image.fromarray(bar, "RGBA"), over))
+    return np.ascontiguousarray(row[:, :, [2, 1, 0, 3]])
 
 
 def furniture_at(u: float, v: float, *, size: tuple[int, int]) -> str | None:

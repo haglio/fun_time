@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import logging
 import threading
+from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import DEFAULT, patch
@@ -19,7 +20,16 @@ import pytest
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
-from player_core.volume import VolumeHud, VolumeHudPainter
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
+from player_core.volume import (
+    CHIP_H,
+    CHIP_W,
+    PAD,
+    SPEAKER_W,
+    VolumeHud,
+    VolumeHudPainter,
+    chip_xy,
+)
 
 from fun_time.dashboard_actions import QUIT_BUTTON
 from fun_time.manifest import (
@@ -33,7 +43,11 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
-from fun_time_vr.console_panel import NOTICE_STRIP_HEIGHT, PANEL_WIDTH_DEG
+from fun_time_vr.console_panel import (
+    NOTICE_STRIP_HEIGHT,
+    PANEL_WIDTH_DEG,
+    PANEL_WIDTH_PX,
+)
 from fun_time_vr.cover import VR_SHUTDOWN_PHASES, VR_STARTUP_PHASES
 from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.furniture import control_size
@@ -62,12 +76,21 @@ from fun_time_vr.player import (
     _pointable_screens,
     _SatelliteUnit,
     _scene_is_up,
+    _SlotControls,
     _VideoUnit,
+    _wrapped_slot,
     build_parser,
 )
-from fun_time_vr.pointer import PRESS, RELEASE, SURFACE, Frame, Hover, PressEvent
+from fun_time_vr.pointer import (
+    PRESS,
+    RELEASE,
+    SURFACE,
+    Frame,
+    Hover,
+    PressEvent,
+)
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
-from fun_time_vr.scene import Placement
+from fun_time_vr.scene import Placement, attached_below, surface_vertices
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -218,9 +241,13 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
 class _OverlayPlayer:
     def __init__(self):
         self.overlays: list[tuple[int, int, int]] = []
+        self.removed: list[int] = []
 
     def overlay(self, ident, x, y, _bgra):
         self.overlays.append((ident, x, y))
+
+    def remove_overlay(self, ident):
+        self.removed.append(ident)
 
 
 def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer]:
@@ -235,6 +262,22 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
                                  aspect=width / height)
     unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
     return unit, player
+
+
+def test_the_row_comes_off_the_frame_of_a_video_that_wraps_the_viewer():
+    """Painted into a wrapped picture it rides round the nadir with it, a ring
+    nothing can read or hit; the console carries it there instead."""
+    unit, player = _unit_with_pixels()
+    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
+
+    unit.clear_furniture()
+    assert set(player.removed) == {ident for ident, _x, _y in player.overlays}
+
+    unit.clear_furniture()
+    assert len(player.removed) == 2  # taken off once, not every turn of the pump
+
+    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
+    assert len(player.overlays) == 4  # and it repaints when the video is flat again
 
 
 def test_the_furniture_is_painted_once_and_not_per_tick():
@@ -390,44 +433,76 @@ class _FakePanelTexture:
 
 
 class TestThePanelUnderThePointer:
-    def _unit(self, tmp_path):
+    """The console in the headset: docked under the main player and pressed
+    there, and -- while the video wraps the viewer and there is nothing to dock
+    to -- carrying that video's row and moved by a handle of its own."""
+
+    def _unit(self, tmp_path, *, wrapped=False, showing=False):
+        projection = EQUIRECT_180_SBS if wrapped else FLAT
         seeks: list[float] = []
         primary = SimpleNamespace(
             role=SimpleNamespace(
-                current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=10_000.0,
+                current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=600_000.0,
                 volume=70, muted=False, seek_to=seeks.append, f_mode=False,
-                speed=1.25,
+                speed=1.25, displayed=True, projection=projection,
             ),
             drive_gate=SimpleNamespace(readout=lambda published: published),
             target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            controls=_SlotControls(
+                position=1_000.0, duration=600_000.0, hud=VolumeHud(volume=70, muted=False),
+                seek=seeks.append, scrub_duration_ms=600_000.0),
         )
-        genau = SimpleNamespace(role=SimpleNamespace(
-            console_hud=ConsoleHud(
-                console=ConsoleModel(mode="video", broker=True, locked=False),
-                drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine", position=1000,
-                               advance_interval=10, waveform=tuple([0.5] * 80),
-                               trace_seconds=12.0),
+        genau = SimpleNamespace(
+            texture=SimpleNamespace(ready=True, aspect=4 / 3),
+            # Genau's bar counts frames, and its seek takes the fraction read out.
+            controls=_SlotControls(
+                position=5, duration=20, hud=VolumeHud(volume=70, muted=False),
+                seek=seeks.append, scrub_duration_ms=1.0),
+            role=SimpleNamespace(
+                console_hud=ConsoleHud(
+                    console=ConsoleModel(mode="video", broker=True, locked=False),
+                    drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
+                                   position=1000, advance_interval=10,
+                                   waveform=tuple([0.5] * 80), trace_seconds=12.0),
+                ),
+                current_clip=None, loading=None, showing=showing, volume=100, muted=False,
+                projection=projection, playhead=(5, 20), seek=seeks.append,
             ),
-            current_clip=None, loading=None, showing=False, volume=100, muted=False,
-        ))
+        )
         command_file = tmp_path / "dashboard_cmd.txt"
         event_log = tmp_path / "event_log.jsonl"
         notices = NoticeBoard(event_log)
+        dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=560 / 218),
+                               screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PANEL]))
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
-            unit = _PanelUnit(primary, genau, dashboard_cmd_file=command_file,
-                              notices=notices)
+            unit = _PanelUnit(primary, genau, dash,
+                              dashboard_cmd_file=command_file, notices=notices)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
-                               event_log=event_log, notices=notices, primary=primary)
+                               event_log=event_log, notices=notices, primary=primary,
+                               dash=dash)
 
-    def _uv_of(self, unit, action: str) -> tuple[float, float]:
-        """A button's middle in the PANEL's pixels: the painter places its buttons
-        in the console's, which the announcement strip above pushes down."""
+    @staticmethod
+    def _uv(unit, x: float, y: float) -> tuple[float, float]:
         width, height = unit._image.size
+        return (x + 0.5) / width, 1 - (y + 0.5) / height
+
+    def _uv_of(self, unit, action: str, *, strip=NOTICE_STRIP_HEIGHT) -> tuple[float, float]:
+        """A button's middle in the PANEL's pixels: the painter places its buttons
+        in the console's, which the announcement strip above pushes down -- and
+        that strip is left off while the dashboard sits over the console."""
         (x, y, w, h), _button = next(
             (rect, button) for rect, button in unit._painter.buttons if button.action == action)
-        y += NOTICE_STRIP_HEIGHT
-        return (x + w // 2 + 0.5) / width, 1 - (y + h // 2 + 0.5) / height
+        return self._uv(unit, x + w // 2, y + h // 2 + strip)
+
+    def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
+        """A point in the ROW's own pixels, as a point on the panel."""
+        return self._uv(unit, x, unit._image.size[1] - TIMELINE_HEIGHT + y)
+
+    def _press(self, room, uv):
+        room.unit.point(Frame(events=(
+            PressEvent(PRESS, PANEL, *uv), PressEvent(RELEASE, PANEL))))
+        room.unit.pump(threading.Event(), 0.0)
 
     def test_a_notice_the_session_raised_reaches_the_panel(self, tmp_path):
         """A VR session launches no dashboard, so this strip is the whole of what
@@ -489,6 +564,119 @@ class TestThePanelUnderThePointer:
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
         assert followed.width_deg == docked.width_deg == PANEL_WIDTH_DEG
+
+    def test_no_row_joins_it_while_the_video_draws_its_own(self, tmp_path):
+        p = self._unit(tmp_path)
+
+        p.unit.pump(threading.Event(), 0.0)
+
+        assert p.unit._row is None
+
+    def test_a_wrapped_videos_row_joins_it_along_its_lower_edge(self, tmp_path):
+        """The video has no edge of its own to draw them on, so the console takes
+        them -- the same scrubber and chip, under the buttons."""
+        flat, wrapped = self._unit(tmp_path), self._unit(tmp_path, wrapped=True)
+
+        flat.unit.pump(threading.Event(), 0.0)
+        wrapped.unit.pump(threading.Event(), 0.0)
+
+        assert flat.unit._row is None
+        assert np.array_equal(
+            np.asarray(wrapped.unit._image)[-TIMELINE_HEIGHT:], wrapped.unit._row)
+
+    def test_a_squeeze_on_the_row_seeks_the_video_the_wrap_is_showing(self, tmp_path):
+        p = self._unit(tmp_path, wrapped=True)
+        p.unit.pump(threading.Event(), 0.0)
+        left, right = bar_track_x(PANEL_WIDTH_PX)
+
+        self._press(p, self._row_uv(p.unit, left, TIMELINE_HEIGHT // 2))
+        assert p.seeks[-1] == pytest.approx(0.0, abs=3_000)
+
+        self._press(p, self._row_uv(p.unit, right - 1, TIMELINE_HEIGHT // 2))
+        assert p.seeks[-1] == pytest.approx(600_000.0, rel=0.02)
+
+    def test_it_seeks_genaus_clip_by_fraction_while_genau_has_the_scene(self, tmp_path):
+        """Its bar counts frames, not milliseconds; read as a time, a squeeze
+        would throw the clip back to its first frame every time."""
+        p = self._unit(tmp_path, wrapped=True, showing=True)
+        p.unit.pump(threading.Event(), 0.0)
+
+        self._press(p, self._row_uv(p.unit, bar_track_x(PANEL_WIDTH_PX)[1] - 1,
+                                    TIMELINE_HEIGHT // 2))
+
+        assert p.seeks[-1] == pytest.approx(1.0, abs=0.02)
+
+    def test_the_speaker_and_the_slider_ask_fun_time_for_the_level(self, tmp_path):
+        """Fun Time holds the level for the whole display, so the row posts for
+        it the way every other player's row does rather than setting it here."""
+        p = self._unit(tmp_path, wrapped=True)
+        p.unit.pump(threading.Event(), 0.0)
+        x, y = chip_xy(win_w=PANEL_WIDTH_PX, win_h=TIMELINE_HEIGHT, timeline_h=TIMELINE_HEIGHT)
+
+        self._press(p, self._row_uv(p.unit, x + SPEAKER_W // 2, y + CHIP_H // 2))
+        self._press(p, self._row_uv(p.unit, x + CHIP_W - PAD, y + CHIP_H // 2))
+
+        assert p.command_file.read_text(encoding="utf-8").split() == [
+            "audio_mute", "audio_set_volume|100"]
+
+    def test_the_buttons_still_answer_with_the_row_under_them(self, tmp_path):
+        """The row is the panel's last rows only; everything above it is console."""
+        p = self._unit(tmp_path, wrapped=True)
+        p.unit.pump(threading.Event(), 0.0)
+
+        self._press(p, self._uv_of(p.unit, "main_lock", strip=0))
+
+        assert p.command_file.read_text(encoding="utf-8").split() == ["main_lock"]
+
+    def test_a_clips_bar_crossing_a_pixel_does_not_redraw_the_console(self, tmp_path):
+        """Genau counts frames, so its bar moves every frame of a short clip --
+        and the console's text is far too expensive to repaint at that rate."""
+        p = self._unit(tmp_path, wrapped=True, showing=True)
+        p.unit.pump(threading.Event(), 0.0)
+        painted, row = p.unit._image, p.unit._row
+
+        p.unit._genau.controls = replace(p.unit._genau.controls, position=19)
+        p.unit.pump(threading.Event(), 0.0)
+
+        assert p.unit._row is not row
+        assert np.array_equal(  # the console above the row is the same pixels
+            np.asarray(p.unit._image)[:-TIMELINE_HEIGHT],
+            np.asarray(painted)[:-TIMELINE_HEIGHT])
+
+    def test_a_wrapped_console_hangs_from_the_dashboard_instead(self, tmp_path):
+        """No picture to dock to, so it docks to the one thing above it -- which
+        is what carries the handle the pair is moved by."""
+        p = self._unit(tmp_path, wrapped=True)
+        p.unit.pump(threading.Event(), 0.0)
+
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            p.unit.render_latest_frame()
+
+        assert p.unit.screen.placement == attached_below(
+            p.dash.screen.placement, aspect=p.dash.texture.aspect,
+            width_deg=PANEL_WIDTH_DEG, hanging_aspect=_FakePanelTexture.aspect)
+
+    def test_it_meets_the_dashboard_with_nothing_between_them(self, tmp_path):
+        """The strip is left off there -- empty, it read as a gap the width of a
+        handle between the two panels, which is what a handle looks like."""
+        p = self._unit(tmp_path, wrapped=True)
+        p.unit.pump(threading.Event(), 0.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            p.unit.render_latest_frame()
+
+        console = surface_vertices(p.unit.screen.placement, aspect=_FakePanelTexture.aspect)
+        over = surface_vertices(p.dash.screen.placement, aspect=p.dash.texture.aspect)
+        assert console[:, 1].max() == pytest.approx(over[:, 1].min(), abs=1e-6)
+
+    def test_the_strip_goes_while_it_is_docked_there_and_comes_back_after(self, tmp_path):
+        """Console and row and no strip against console and strip and no row."""
+        flat, wrapped = self._unit(tmp_path), self._unit(tmp_path, wrapped=True)
+
+        flat.unit.pump(threading.Event(), 0.0)
+        wrapped.unit.pump(threading.Event(), 0.0)
+
+        assert wrapped.unit._image.height == (
+            flat.unit._image.height - NOTICE_STRIP_HEIGHT + TIMELINE_HEIGHT)
 
 
 # --- The cover the roles arrive and leave under ---------------------------
@@ -811,10 +999,7 @@ class TestTheMainSlotUnderThePointer:
             side=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
         )
-        panel = SimpleNamespace(
-            texture=SimpleNamespace(ready=True, aspect=1.3),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
-        )
+        panel = _a_panel()
 
         dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
@@ -827,6 +1012,37 @@ class TestTheMainSlotUnderThePointer:
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
         assert (console.pressable, console.movable, console.resizable) == (True, False, False)
+
+
+class TestWhichSlotAsksForARow:
+    """_main_slot_screen's mirror.  A video on a screen paints its own row into
+    its own frame; a video that wraps the viewer has nowhere to paint one, and
+    the console carries what it says instead."""
+
+    @pytest.mark.parametrize("state", [
+        {"projection": EQUIRECT_180_SBS},
+        {"showing": True, "clip_projection": EQUIRECT_180_SBS},
+    ])
+    def test_a_wrapped_slot_is_the_one_that_asks(self, state):
+        assert _wrapped_slot(*TestTheMainSlotUnderThePointer()._units(**state)) is not None
+
+    @pytest.mark.parametrize("state", [
+        {},
+        {"showing": True},
+        {"projection": EQUIRECT_180_SBS, "picture": False},
+        {"projection": EQUIRECT_180_SBS, "displayed": False},
+        {"showing": True, "clip_projection": EQUIRECT_180_SBS, "clip": False},
+    ])
+    def test_a_slot_on_a_screen_does_not(self, state):
+        assert _wrapped_slot(*TestTheMainSlotUnderThePointer()._units(**state)) is None
+
+    def test_it_is_genaus_own_while_genau_has_the_scene(self):
+        """Genau's bar counts frames and its seek takes a fraction, so a row
+        asking the primary instead would scrub a video nobody is watching."""
+        units = TestTheMainSlotUnderThePointer()._units(
+            showing=True, clip_projection=EQUIRECT_180_SBS, projection=EQUIRECT_180_SBS)
+
+        assert _wrapped_slot(*units) is units[1]
 
 
 class TestTheClipsOwnControls:
@@ -843,6 +1059,31 @@ class TestTheClipsOwnControls:
         unit._scrubber_shown = unit._chip_shown = None
         unit._bar = unit._chip = None
         return unit
+
+    def _uploading(self, projection):
+        unit = self._unit()
+        clip = np.zeros((360, 640, 3), dtype=np.uint8)
+        unit.role.take_frame = lambda: clip
+        unit.role.projection = projection
+        uploaded: list = []
+        unit.texture = SimpleNamespace(aspect=16 / 9, upload=uploaded.append)
+        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY],
+                                      rehang=lambda _aspect: None)
+        unit.render_latest_frame()
+        return clip, uploaded[-1]
+
+    def test_a_wrapped_clip_is_uploaded_with_no_controls_blended_into_it(self):
+        """Blended in they ride round the nadir with the picture; the console
+        carries them there instead."""
+        clip, uploaded = self._uploading(EQUIRECT_180_SBS)
+
+        assert uploaded is clip
+
+    def test_a_clip_on_a_screen_still_carries_them(self):
+        clip, uploaded = self._uploading(FLAT)
+
+        assert uploaded is not clip
+        assert uploaded[-2].max() > 0
 
     def test_the_clip_comes_back_with_its_controls_on_it(self):
         unit = self._unit()
@@ -952,19 +1193,52 @@ class TestEveryHangingScreenIsDrawn:
 
 
 
+def _a_panel(*, ready=True):
+    """The console as the pointer reads it: pressed, never dragged."""
+    return SimpleNamespace(
+        texture=SimpleNamespace(ready=ready, aspect=1.2),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PANEL]),
+    )
+
+
+def _slot(*, wrapped=False):
+    """The two players sharing the main slot, as the dashboard reads them."""
+    projection = EQUIRECT_180_SBS if wrapped else FLAT
+    primary = SimpleNamespace(
+        target=SimpleNamespace(ready=True, aspect=16 / 9),
+        role=SimpleNamespace(displayed=True, projection=projection),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+    )
+    genau = SimpleNamespace(
+        texture=SimpleNamespace(ready=True, aspect=4 / 3),
+        role=SimpleNamespace(showing=False, projection=projection),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+    )
+    return primary, genau
+
+
+def _a_dash(tmp_path, *, wrapped=False, texture=None):
+    with patch("fun_time_vr.player.FrameTexture"):
+        dash = _DashUnit(
+            *_slot(wrapped=wrapped),
+            placement=DEFAULT_LAYOUT[DASH],
+            wrapped_placement=DEFAULT_LAYOUT[PANEL],
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+            notices=NoticeBoard(tmp_path / "event_log.jsonl"),
+            dashboard_state_file=tmp_path / "dashboard_state.ini",
+        )
+    if texture is not None:
+        dash.texture = texture
+    return dash
+
+
 class TestTheDashUnderThePointer:
     """It was drawn and it was up to date, and the pointer had never heard of
     it: no button did anything, and there was no handle to move it off the
     picture it was covering."""
 
     def _unit(self, tmp_path):
-        with patch("fun_time_vr.player.FrameTexture"):
-            return _DashUnit(
-                placement=DEFAULT_LAYOUT[DASH],
-                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                notices=NoticeBoard(tmp_path / "event_log.jsonl"),
-                dashboard_state_file=tmp_path / "dashboard_state.ini",
-            )
+        return _a_dash(tmp_path)
 
     @staticmethod
     def _uv_of(action: str) -> tuple[float, float]:
@@ -992,29 +1266,13 @@ class TestTheDashUnderThePointer:
 
 
 class TestWhatThePointerCanReach:
-    def _screens(self, tmp_path, *, reference_showing=False):
-        with patch("fun_time_vr.player.FrameTexture"):
-            dash = _DashUnit(
-                placement=DEFAULT_LAYOUT[DASH],
-                dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
-                notices=NoticeBoard(tmp_path / "event_log.jsonl"),
-                dashboard_state_file=tmp_path / "dashboard_state.ini",
-            )
-        panel = SimpleNamespace(
-            texture=SimpleNamespace(ready=True, aspect=1.2),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
-        )
-        dash.texture = SimpleNamespace(ready=True, aspect=2.5)
-        primary = SimpleNamespace(
-            target=SimpleNamespace(ready=False, aspect=16 / 9),
-            role=SimpleNamespace(displayed=True, projection=FLAT),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
-        )
-        genau = SimpleNamespace(
-            texture=SimpleNamespace(ready=False, aspect=4 / 3),
-            role=SimpleNamespace(showing=False, projection=FLAT),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
-        )
+    def _screens(self, tmp_path, *, reference_showing=False, wrapped=False):
+        panel = _a_panel()
+        dash = _a_dash(tmp_path, wrapped=wrapped,
+                       texture=SimpleNamespace(ready=True, aspect=2.5))
+        primary, genau = _slot(wrapped=wrapped)
+        primary.target = SimpleNamespace(ready=False, aspect=16 / 9)
+        genau.texture = SimpleNamespace(ready=False, aspect=4 / 3)
         reference = SimpleNamespace(
             showing=reference_showing,
             texture=SimpleNamespace(ready=True, aspect=1.7),
@@ -1035,11 +1293,58 @@ class TestWhatThePointerCanReach:
     def test_it_can_be_pressed_and_dragged(self, tmp_path):
         """Movable is what gives a screen the bar it is dragged by; without it
         there was no way to get it off what it was covering.  The console beside
-        it is pressed and never dragged -- it rides on the main player."""
+        it is pressed and never dragged -- it rides on what is above it."""
         screens = self._screens(tmp_path)
 
         assert screens[DASH].pressable and screens[DASH].movable
         assert screens[PANEL].pressable and not screens[PANEL].movable
+
+    def test_the_dashboard_keeps_the_only_handle_when_it_carries_the_console(self, tmp_path):
+        """It is the top of the pair then, so its bar is above both of them --
+        a bar on the console would sit between them instead."""
+        screens = self._screens(tmp_path, wrapped=True)
+
+        assert screens[DASH].movable and not screens[DASH].resizable
+        assert screens[PANEL].pressable and not screens[PANEL].movable
+
+
+class TestWhereTheDashboardHangs:
+    """Two remembered spots: its own above the main player, and the one it takes
+    with the console under it -- dragged there, it must not drop over the
+    picture the next time a flat video comes back."""
+
+    def _placed(self, tmp_path, *, wrapped=False):
+        dash = _a_dash(tmp_path, wrapped=wrapped, texture=_FakePanelTexture())
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            dash.render_latest_frame()
+        return dash
+
+    def test_it_keeps_its_own_place_while_a_picture_is_in_the_slot(self, tmp_path):
+        assert self._placed(tmp_path).screen.placement == DEFAULT_LAYOUT[DASH]
+
+    def test_it_takes_the_pairs_place_while_it_carries_the_console(self, tmp_path):
+        assert self._placed(tmp_path, wrapped=True).screen.placement == DEFAULT_LAYOUT[PANEL]
+
+    def test_a_drag_lands_in_the_spot_that_is_showing(self, tmp_path):
+        put = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
+        dash = self._placed(tmp_path, wrapped=True)
+
+        assert dash.layout_key == PANEL
+        dash.placement = put  # what the frame loop does with a settled drag
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            dash.render_latest_frame()
+
+        assert dash.screen.placement == put
+
+    def test_the_other_spot_is_untouched_by_it(self, tmp_path):
+        """Dragged down over a wrapped video, it must not be down there over the
+        picture when the next flat one comes up."""
+        dash = self._placed(tmp_path, wrapped=True)
+
+        dash.placement = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
+
+        assert dash._floating == DEFAULT_LAYOUT[DASH]
+        assert dash.layout_key == PANEL
 
 
 class TestWhereItHangsToStart:

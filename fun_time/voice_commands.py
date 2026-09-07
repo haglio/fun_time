@@ -104,6 +104,9 @@ def build_voice_commands(
         # Synonyms for "play"/resume.
         "resume": "play",
         "un pause": "play",
+        # Three syllables the recognizer can tell apart, where a bare "pause"
+        "omni pause": "pause",  # competes with every one-word phrase and loses
+        "omni play": "play",
         # The sensation emergency: omnipause AND send the OSR2 away.  Three
         # words is a lot to get out in the moment this is for, so the one
         # obvious single word answers too ("stop broker" is a whole phrase, so
@@ -579,6 +582,7 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("un pause", "unpause"),
     ("fun script", "funscript"),
     ("omni pause", "omnipause"),
+    ("omni play", "omniplay"),
     ("un park", "unpark"),
     ("un retract", "unretract"),
     ("o s r two", "OSR2"),

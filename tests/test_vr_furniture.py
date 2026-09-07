@@ -4,8 +4,16 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
-from player_core.volume import CHIP_H, CHIP_W, PAD, SPEAKER_W, VolumeHud, chip_xy
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
+from player_core.volume import (
+    CHIP_H,
+    CHIP_W,
+    PAD,
+    SPEAKER_W,
+    VolumeHud,
+    VolumeHudPainter,
+    chip_xy,
+)
 
 from fun_time_vr.console_panel import PANEL_WIDTH_DEG, PANEL_WIDTH_PX
 from fun_time_vr.furniture import (
@@ -16,6 +24,7 @@ from fun_time_vr.furniture import (
     chip_state,
     control_size,
     furniture_at,
+    paint_row,
     scrubber_state,
     with_furniture,
 )
@@ -105,6 +114,57 @@ def _on_the_chip(part: str, size: tuple[int, int] = _SIZE) -> tuple[float, float
     x, y = chip_xy(win_w=size[0], win_h=size[1], timeline_h=TIMELINE_HEIGHT)
     across = SPEAKER_W // 2 if part == "mute" else (SPEAKER_W + CHIP_W - PAD) // 2
     return _uv(x + across, y + CHIP_H // 2, size)
+
+
+class TestTheRowOfItsOwn:
+    """A video that wraps the viewer carries no controls in its own frame -- baked
+    in they ride round the nadir with it -- so the same two are painted on a strip
+    the console carries along its lower edge instead.  It stands in for a video's
+    last row, and these hold it to that: same height, same hit map, so nothing
+    moves under the hand when the projection changes."""
+
+    _SIZE = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+
+    def test_it_is_hit_exactly_as_a_videos_last_row_is(self):
+        """The row IS that row: read any other way, the scrubber and the chip
+        would move the moment a video was watched wrapped instead of flat."""
+        picture = control_size(PANEL_WIDTH_DEG, PANEL_WIDTH_PX / 400)
+        halfway_down = TIMELINE_HEIGHT / 2  # from the lower edge, in both
+
+        found = set()
+        for u in (0.05, 0.3, 0.55, 0.62, 0.75, 0.99):
+            on_the_row = furniture_at(u, halfway_down / self._SIZE[1], size=self._SIZE)
+            in_the_picture = furniture_at(u, halfway_down / picture[1], size=picture)
+            assert (u, on_the_row) == (u, in_the_picture)
+            found.add(on_the_row)
+
+        assert found == {SCRUBBER, MUTE, VOLUME}  # and all three were reached
+
+    def test_it_paints_both_controls_and_stays_clear_between_them(self):
+        """Transparent where it draws nothing: the strip is composited onto the
+        console, which is itself blended over whatever the wrap is showing."""
+        width, height = self._SIZE
+
+        row = paint_row(1_000.0, 10_000.0, VolumeHud(volume=70, muted=False),
+                        VolumeHudPainter(), self._SIZE)
+
+        assert row.shape == (height, width, 4)
+        assert row[height // 2, bar_track_x(width)[0] + 3, 3] > 0  # the scrubber's track
+        assert row[height // 2, chip_xy(win_w=width, win_h=height,
+                                        timeline_h=height)[0] + 5, 3] > 0  # the chip
+        assert row[height // 2, bar_track_x(width)[1] + 3, 3] == 0  # the gap they leave
+        assert row[0, 0, 3] == 0  # and the corner outside the track
+
+    def test_it_comes_back_rgba_for_the_texture_it_becomes(self):
+        """Every other row is handed to mpv or blended as BGRA; this one reaches
+        the eye through a texture, and the swap is the last thing paint_row does."""
+        x = bar_track_x(self._SIZE[0])[0] + 3
+
+        row = paint_row(1_000.0, 10_000.0, VolumeHud(), VolumeHudPainter(), self._SIZE)
+        bgra = progress_bar_bgra(1_000.0, 10_000.0, None, self._SIZE[0])
+
+        assert row[self._SIZE[1] // 2, x, :3].tolist() == bgra[
+            self._SIZE[1] // 2, x, 2::-1].tolist()
 
 
 class TestWhichControlAPressLandsOn:
