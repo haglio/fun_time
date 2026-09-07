@@ -99,6 +99,7 @@ def hud_payload(panel: HudPanel, cache_dir: Path) -> dict:
 
         "is_favorite": panel.is_favorite,
         "f_mode": panel.f_mode,
+        "latest": panel.latest,
         "filter_query": panel.filter_query,
         "seed_count": panel.seed_count,
         "action_count": panel.action_count,

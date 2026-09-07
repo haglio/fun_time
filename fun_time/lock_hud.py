@@ -80,6 +80,7 @@ class HudPanel:
     # the status line already; the flag rides along so the side's own F-mode button
     # can light, the way ``locked`` lights the lock button.
     f_mode: bool = False
+    latest: bool | None = None
     # Labels for the map's axes: the current clip's own action (the top row),
     # and each action sibling's action name (the rows down the column). Seed
     # columns are labeled by ordinal ("Seed 1", …) so need no data here.
@@ -423,6 +424,7 @@ def build_hud_panel(
         lock_label=_status_label(inputs.locked, active_loop, inputs.latest, inputs.filter_query, inputs.f_mode),
         is_favorite=inputs.is_favorite,
         f_mode=inputs.f_mode,
+        latest=inputs.latest,
         current=anchor,
         seed_siblings=seed,
         action_siblings=action,
