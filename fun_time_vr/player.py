@@ -55,7 +55,7 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
-from fun_time.event_log import event_log_path
+from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.manifest import LaunchManifest
 from fun_time.player_status import genau_status_path, read_genau_status
 from fun_time.project_paths import PROJECT_VR_ICON
@@ -91,6 +91,7 @@ from .matrices import (
 )
 from .notices import NoticeStrip
 from .perf import FramePerf
+from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
     DRAG,
     PRESS,
@@ -287,9 +288,9 @@ class _VideoUnit:
         )
 
     def overlay_furniture(self, position_ms: float, duration_ms: float, volume_hud, painter) -> None:
-        """The scrubber along the lower edge and the volume chip at its right end,
-        exactly the furniture the desktop players draw — repainted only when
-        what they show moves (see :mod:`fun_time_vr.furniture`)."""
+        """The scrubber along the lower edge and the volume chip at its right
+        end, the furniture the desktop players draw — repainted only when what
+        they show moves (:mod:`fun_time_vr.furniture`)."""
         if not self.target.ready:
             return
         width, height = self.target.width, self.target.height
@@ -350,16 +351,17 @@ class _MainUnit(_VideoUnit):
             lambda role: role.status_fields(self.drive_gate.handoff_touch()),
         )
         self._volume_painter = VolumeHudPainter()
+        self._watch = PlaybackWatch()
         self._unhandled: set[str] = set()
 
     def route_audio(self) -> None:
         """Give the primary its sound on the first frame the headset is WORN.
 
         Routed earlier — at construction, or on VISIBLE with the headset on its
-        stand — the parked endpoint takes the stream without consuming it, and
-        mpv's audio clock (which the video clock follows) never ticks: the
-        primary frozen on frame 1 for the session.  FOCUSED means a human is
-        wearing it, endpoints draining.
+        stand — the parked endpoint takes the stream without consuming it and
+        mpv's audio clock never ticks, freezing the primary on frame 1; FOCUSED
+        means a human is wearing it, endpoints draining.  When it wedges anyway,
+        :mod:`fun_time_vr.playback_watch` is what notices.
         """
         if self._audio_routed:
             return
@@ -387,11 +389,31 @@ class _MainUnit(_VideoUnit):
                         UNIMPLEMENTED_NAU_VERBS.get(keyword, "not a verb it knows at all"),
                     )
         self.role.tick(now)
+        self._watch_progress(now)
         self._status_writer.write(self.role)
         self.overlay_furniture(
             self.role.position_ms, self.role.duration_ms,
             VolumeHud(volume=self.role.volume, muted=self.role.muted), self._volume_painter,
         )
+
+    def _watch_progress(self, now: float) -> None:
+        """Say it out loud when the video stops advancing, and reopen it once:
+        the failure leaves the player unpaused, its duration known and its
+        position frozen, raising nothing and logging nothing."""
+        verdict = self._watch.note(
+            position_ms=self.role.position_ms,
+            playing=not self.role.paused and self.role.duration_ms > 0,
+            now=now,
+        )
+        if verdict is None:
+            return
+        if verdict == STALLED:
+            notice(logger, "the video stopped advancing; reopening it", source=SOURCE_MAIN,
+                   level=logging.ERROR)
+            self.role.reopen()
+        else:
+            notice(logger, "the video is still not advancing", source=SOURCE_MAIN,
+                   level=logging.ERROR)
 
     def close(self) -> None:
         self.role.close()  # closes driver + player
@@ -402,7 +424,7 @@ class _SatelliteUnit(_VideoUnit):
     def __init__(
         self, side: str, manifest: LaunchManifest, get_proc_address, *, placement: Placement,
     ) -> None:
-        # audio=False, not merely muted: any audio chain here can wedge on the
+        # audio=False, not merely muted: an audio chain here can wedge on the
         # headset's parked endpoint and freeze the video clock (see route_audio).
         super().__init__(
             MpvRenderPlayer(
@@ -574,8 +596,8 @@ class _Presses:
 
 
 class _PanelUnit:
-    """The console, hanging in the scene: painted and pressed on the pump thread,
-    uploaded on the render thread when it changed."""
+    """The console, hanging in the scene: painted and pressed on the pump
+    thread, uploaded on the render thread when it changed."""
 
     def __init__(
         self, primary: _MainUnit, genau: _GenauUnit, *, placement: Placement,
@@ -819,6 +841,9 @@ def main(argv: list[str] | None = None) -> int:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
     args = build_parser().parse_args(argv)
     manifest = LaunchManifest.read(args.manifest)
+    # The strip that shows this process's notices tails the session's event log,
+    # which is appended to per line so several processes can share it.
+    _log_into_the_event_log(Path(manifest.commands.dashboard_cmd_file).parent)
     vr = VrSettings.read(args.manifest)
     # Before any window exists: the VR session is its own app on the taskbar.
     try:
@@ -870,6 +895,12 @@ class _PumpFaults:  # one unit's pump failing, said once, not seven times a seco
                 "...and %d more %s.pump failures like it: %s",
                 self._repeats[key], self._names[key], self._kind[key][1],
             )
+
+
+def _log_into_the_event_log(state_dir: Path) -> None:
+    handler = EventLogHandler(event_log_path(state_dir))
+    handler.setLevel(NOTICE)  # announcements only; the log file carries the rest
+    logging.getLogger("fun_time_vr").addHandler(handler)
 
 
 def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:

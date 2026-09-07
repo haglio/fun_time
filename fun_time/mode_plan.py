@@ -2,17 +2,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# The mode every session is BUILT in, whatever it opens in: Nau loads the main
-# player's playlist while the loading screen is up, both players launch into the
-# main player's rect, and the defaults everywhere — flag files, window bands, a
-# fresh BridgeState — are this one's.  Opening in a mode and switching into it
-# say the same things to the players, from the same verbs below.
+# The mode every session is BUILT in, whatever it opens in: the defaults
+# everywhere — flag files, window bands, a fresh BridgeState — are this one's.
 STARTUP_MAIN_MODE = "video"
 
-# The main slot's two modes.  In both the Robot Hand is at work: in
-# genau mode it drives the OSR2 outright under Genau's clips, and in video mode
-# the arbiter hands the device between it and the video's funscript while
-# Genau's window is the see-through HUD layer over Nau's video.
+# The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
+# drives the OSR2 outright under Genau's clips, and in video mode the arbiter
+# hands the device between it and the video's funscript.
 VIDEO_MODE = "video"
 
 
@@ -21,15 +17,13 @@ class ModeSwitchPlan:
     target_mode: str
     is_transition: bool
     # RESUME on every transition: in genau mode Genau drives from here, and in
-    # video mode the arbiter takes it from here, pausing Genau for the scripted
-    # stretches on its next tick.
+    # video mode the arbiter takes it from here.
     genau_cmd: str | None
     hud_cmd: str | None
     nau_should_play: bool | None
     # Distinct from nau_should_play: a paused Nau still holds the frame it
-    # stopped on, and the idle main-slot player is minimized rather than hidden
-    # (it keeps its taskbar button), so an alt-tab back to it lands on that
-    # frame unless it is blanked.
+    # stopped on, and the idle main-slot player is minimized rather than hidden,
+    # so an alt-tab back to it lands on that frame unless it is blanked.
     nau_display_cmd: str | None
     log_message: str
 
@@ -45,7 +39,7 @@ def hud_verb(mode: str) -> str:
 
 
 def nau_display_verb(mode: str) -> str:
-    """Whether Nau paints in *mode* — the mirror of :func:`hud_verb`."""
+    """Whether Nau paints in *mode* — :func:`hud_verb`'s mirror."""
     return "DISPLAY_ON" if nau_displays(mode) else "DISPLAY_OFF"
 
 

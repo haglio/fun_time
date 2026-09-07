@@ -28,6 +28,7 @@ from player_core.file_channel import append_command
 from fun_time.config import load_config
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.player_status import read_nau_status
+from fun_time.runtime_flow import apply_mode_switch
 from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.layout import LANDSCAPE, LAYOUT_FILENAME, PORTRAIT, read_layout
 from fun_time_vr.orchestrator import build_vr_manifest
@@ -344,4 +345,84 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             for unit in units:
                 unit.close()
         renderer.close()
+        glfw.terminate()
+
+
+def test_the_main_player_plays_once_video_mode_unpauses_it():
+    """He put the headset on in genau mode, said "video mode", and the main
+    player sat on one frame for the rest of the session -- unpaused, its
+    duration known, its position stuck at zero.  This walks that exact path: the
+    main player comes up paused the way a genau-mode session leaves it, and the
+    PRODUCTION mode switch is what unpauses it."""
+    temp_root = build_integration_temp_root()
+    config = load_config(build_integration_config(temp_root))
+    manifest_path = write_manifest_data(
+        build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
+    )
+
+    import glfw  # noqa: PLC0415 — the GL stack loads only inside the test
+
+    import fun_time_vr.player as vrp  # noqa: PLC0415
+
+    manifest = LaunchManifest.read(manifest_path)
+    vr = vrp.VrSettings.read(manifest_path)
+    commands = manifest.commands
+    Path(commands.nau_playlist_file).write_text(
+        "".join(f"{video}\n" for video in _sample_library_videos(
+            [*config.vr.library_dirs, *config.paths.nau_library_dirs], 2)),
+        encoding="utf-8",
+    )
+    # Genau mode is where the main player waits paused, and the flag survives a
+    # session end -- so this is the state a headset session opens in.
+    Path(commands.nau_paused_file).write_text("1", encoding="utf-8")
+
+    assert glfw.init(), "glfw failed to initialize"
+    glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
+    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
+    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
+    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
+    window = glfw.create_window(320, 200, "vr-play-test", None, None)
+    assert window, "hidden GL window could not be created"
+    glfw.make_context_current(window)
+
+    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address)
+    stop = threading.Event()
+    pump = threading.Thread(
+        target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
+        daemon=True, name="file-channels",
+    )
+
+    def run_frames(count: int) -> None:
+        for _ in range(count):
+            main.render_latest_frame()
+            glfw.poll_events()
+            time.sleep(FRAME_BUDGET_MS / 1e3)
+
+    try:
+        pump.start()
+        _wait(lambda: read_nau_status(Path(commands.nau_status_file)).duration_ms,
+              timeout=30, desc="the main player to open its video")
+        run_frames(120)
+        assert read_nau_status(Path(commands.nau_status_file)).paused, (
+            "the main player should still be holding where genau mode left it"
+        )
+
+        apply_mode_switch(
+            current_mode="genau", target_mode="video", omni_paused=False,
+            genau_cmd_file=commands.genau_cmd_file,
+            nau_paused_file=commands.nau_paused_file,
+            nau_cmd_file=commands.nau_cmd_file,
+        )
+
+        position = _wait(
+            lambda: (run_frames(9) or read_nau_status(Path(commands.nau_status_file)).position_ms),
+            timeout=30,
+            desc="the main player's position to advance once video mode unpaused it",
+        )
+        assert position > 0
+        assert main.role.displayed, "DISPLAY_ON rides the switch into video mode"
+    finally:
+        stop.set()
+        pump.join(timeout=5.0)
+        main.close()
         glfw.terminate()
