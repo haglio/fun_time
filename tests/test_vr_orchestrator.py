@@ -155,6 +155,58 @@ class TestVrManifest:
         assert Path(manifest["commands"]["nau_cmd_file"]).name == "nau_cmd.txt"
 
 
+class TestNoOrigeneratorInVr:
+    """A VR session hosts no Origenerator, and its manifest has to say so.
+
+    ``run_vr_bridge`` launches the audio companion and the VR player and
+    nothing else, so the checkout the desktop manifest names is a mode with no
+    app to run it.  Left in, the satellites' HUDs drew the Origenerator/Video
+    pair and a session resumed out of a desktop session's origenerator mode
+    opened in it, both sides labeled "Origenerator mode" over players the
+    hosted app was never started to cover.
+    """
+
+    @pytest.fixture
+    def hosted(self, config, tmp_path):
+        """The same config with an Origenerator named, as a real one names it."""
+        from dataclasses import replace
+
+        origenerator = tmp_path / "origenerator"
+        origenerator.mkdir()
+        return replace(config, paths=replace(
+            config.paths,
+            origenerator_dir=origenerator,
+            origenerator_python_exe=tmp_path / "system_python.exe",
+        ))
+
+    def test_the_desktop_manifest_does_name_one(self, hosted, tmp_path):
+        """The precondition, so the assertions below cannot pass vacuously."""
+        from fun_time.manifest import build_windows_bridge_manifest
+
+        desktop = build_windows_bridge_manifest(hosted)
+        assert desktop["runtime"]["origenerator_dir"] == str(tmp_path / "origenerator")
+        assert desktop["executables"]["origenerator_python_exe"]
+
+    def test_the_vr_manifest_names_none(self, hosted):
+        manifest = build_vr_manifest(hosted)
+
+        assert manifest["runtime"]["origenerator_dir"] == ""
+        assert manifest["executables"]["origenerator_python_exe"] == ""
+
+    def test_the_session_reads_back_as_hosting_none(self, hosted, tmp_path):
+        """The join the rest hangs off: ``origenerator_enabled`` is what keeps
+        the mode pair off both HUDs, pulls a resumed origenerator mode back to
+        video, and answers the switch with a notice instead of a dead end."""
+        from fun_time.manifest import LaunchManifest, write_manifest_data
+        from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
+
+        path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
+        bridge = build_bridge_config_from_manifest(
+            LaunchManifest.read(path), vr_main_player=True)
+
+        assert bridge.origenerator_enabled is False
+
+
 class _FakeProc:
     """poll()/terminate()/wait() shaped like subprocess.Popen, exiting after a
     set number of polls."""

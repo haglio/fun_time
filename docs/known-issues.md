@@ -5,10 +5,16 @@
 - Status: Deferred
 - Scope:
   - Not launched in VR: the Qt dashboard and its log panel, the Random Favs Browser,
-    and the loopback server. The main slot's two modes, Genau's clips and the
-    Robot Hand's stretches, and the audio companion (on the headset's output)
-    all run in VR as of 2026-09-04, on the engine that moved to `player_core`
-    for it; GenauVR, the standalone headset app, is retired with that.
+    the loopback server, and the hosted Origenerator. The main slot's two modes,
+    Genau's clips and the Robot Hand's stretches, and the audio companion (on the
+    headset's output) all run in VR as of 2026-09-04, on the engine that moved to
+    `player_core` for it; GenauVR, the standalone headset app, is retired with that.
+  - Without the hosted app there is no origenerator mode either, so
+    `build_vr_manifest` empties `origenerator_dir` and the session says so the
+    one way every reader already understands: no mode pair on the satellites'
+    HUDs, a resumed origenerator mode pulled back to video, and the switch
+    answered with "No Origenerator configured". Advertising it instead is what
+    opened a VR session in a mode nothing was hosting.
   - Nau verbs the VR main role does not implement: loop recording, version cycling,
     clip jumps, funscript jumps, length modes, compilations. They report unhandled,
     and the player logs each once rather than crashing. The list with a reason
