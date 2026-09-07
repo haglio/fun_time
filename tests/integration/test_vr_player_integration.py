@@ -146,9 +146,23 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     units = [main, *satellites]
     stop = threading.Event()
     perf = vrp.FramePerf(logger=vrp.logger)
+    pump_failure: list[BaseException] = []
+
+    def pump_channels() -> None:
+        """The production worker, with whatever it raises kept for the test.
+
+        What it does *after* the players close is the point of the teardown
+        check at the end, and a worker that died quietly in that window would
+        otherwise look exactly like one that had nothing left to do.
+        """
+        try:
+            vrp._pump_channels(units, stop, perf)
+        except BaseException as exc:  # noqa: BLE001 — re-raised, and reported
+            pump_failure.append(exc)
+            raise
+
     pump_thread = threading.Thread(
-        target=vrp._pump_channels, args=(units, stop, perf), daemon=True,
-        name="file-channels",
+        target=pump_channels, daemon=True, name="file-channels",
     )
 
     def has_picture(unit) -> bool:
@@ -179,6 +193,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                 sink.append(elapsed * 1e3)
             time.sleep(max(0.0, period - elapsed))
 
+    closed = False
     try:
         pump_thread.start()
 
@@ -300,10 +315,33 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         assert main.role.projection == "flat" or (
             immersive_mode(main.role.projection) is not None
         )
-    finally:
-        stop.set()
-        pump_thread.join(timeout=5.0)
+
+        # Teardown, deliberately in the hostile order: the players close while
+        # the worker is still pumping them.  Production reaches this state
+        # whenever its `join(timeout=...)` returns with the pump still inside
+        # libmpv — and freeing a render context and terminating a core under a
+        # live `mpv_get_property` faulted the reader every single time it was
+        # staged.  Each player now bars its own gate, waits out the call in
+        # flight and no-ops the rest (`player_core.mpv_gate`), so this order is
+        # safe; staging it here is what makes a regression fail deterministically
+        # rather than once in nine full-suite runs.  It fails LOUDLY — a
+        # reintroduced use-after-free takes the whole pytest process down here.
         for unit in units:
             unit.close()
+        closed = True
+        time.sleep(0.5)  # more worker turns against players that are already gone
+        stop.set()
+        pump_thread.join(timeout=30.0)
+        assert not pump_thread.is_alive(), (
+            "the file-channel worker never came back after the players closed"
+        )
+        assert not pump_failure, (
+            f"the worker raised once the players were closed: {pump_failure[0]!r}"
+        )
+    finally:
+        stop.set()
+        if not closed:
+            for unit in units:
+                unit.close()
         renderer.close()
         glfw.terminate()
