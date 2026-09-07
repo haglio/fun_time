@@ -680,7 +680,7 @@ def test_apply_leave_omnipause_in_video_mode_resumes_nau_and_lifts_the_hand(flow
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
 
-def test_apply_leave_omnipause_in_hybrid_leaves_genaus_motion_to_the_arbiter(flow_files):
+def test_apply_leave_omnipause_in_video_mode_leaves_genaus_motion_to_the_arbiter(flow_files):
     """Video mode hands the OSR2 between the funscript and Genau per stretch, and the
     arbiter re-asserts that on its next tick.  Resuming Genau's motion here too
     started it against a funscript that was still driving — both on the device at

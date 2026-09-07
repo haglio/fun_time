@@ -27,7 +27,8 @@ from player_core.genau_controls import VERBS as GENAU_VERBS
 from fun_time.bridge_records import BridgeConfig, Op
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
-from fun_time.mode_plan import VIDEO_MODE
+from fun_time.mode_plan import MAIN_MODES
+from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time_vr.roles import UNIMPLEMENTED_NAU_VERBS, MainRole
@@ -66,10 +67,6 @@ _OPS_WITH_NO_WINDOWS = frozenset({
 _OPS_THAT_STILL_ACT = frozenset({
     Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS, Op.SAVE_CLIP, Op.OPEN_RFB_TAB,
 })
-
-# The other main-slot mode.  ``mode_plan`` names only the video one, since
-# genau is simply "not video" everywhere it is asked; the sweep needs the word.
-_GENAU_MODE = "genau"
 
 
 def _vr_config(tmp_path: Path) -> BridgeConfig:
@@ -163,9 +160,9 @@ def landed(tmp_path_factory) -> dict[str, dict[str, list[str]]]:
     config = _vr_config(tmp_path_factory.mktemp("vr_parity"))
     _drain(config)
     sweep: dict[str, dict[str, list[str]]] = {}
-    for mode in (VIDEO_MODE, _GENAU_MODE):
+    for mode in MAIN_MODES:
         for command in every_command():
-            state = BridgeState(main_mode=mode, satellites_mode=VIDEO_MODE)
+            state = BridgeState(main_mode=mode, satellites_mode=SATELLITE_VIDEO_MODE)
             _state, ops = dispatch_command(command, state, config, target_path="")
             written = _drain(config)
             written["__ops__"] = sorted({op.op for op in ops})

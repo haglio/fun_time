@@ -31,7 +31,7 @@ from .event_log import (
 from .filter_vocab import decode_filter_command
 from .lock import build_discard_plan, build_lock_toggle_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
-from .mode_plan import nau_displays
+from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, nau_displays
 from .modes import is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .player_status import (
@@ -749,7 +749,7 @@ def _main_slot_ops(main_mode: str) -> list[WindowOp]:
     window, a plain topmost flag can't say "Genau above Nau, both on top."
     """
     restack = WindowOp(op="restack_main")
-    if main_mode == "genau":
+    if main_mode == MAIN_GENAU_MODE:
         return [
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
@@ -1246,7 +1246,7 @@ def _video_activate(state: BridgeState, config: BridgeConfig,
     """"video mode", said of no side: the main slot's video AND the satellites'
     players, each through its own switch — a session hosting no Origenerator
     has only the main slot's to make."""
-    state, ops = _dispatch_mode_switch("video", state, config, [])
+    state, ops = _dispatch_mode_switch(MAIN_VIDEO_MODE, state, config, [])
     if config.origenerator_enabled:
         state, ops = _dispatch_satellites_switch(
             "satellites_video_activate", state, config, ops)
@@ -1269,8 +1269,8 @@ _TRANSPORT_COMMANDS: dict[str, tuple[Player, str]] = {
 
 # The main slot's two mode switches, by their target mode.
 _MODE_SWITCH_COMMANDS: dict[str, str] = {
-    "genau_activate": "genau",
-    "main_video_activate": "video",
+    "genau_activate": MAIN_GENAU_MODE,
+    "main_video_activate": MAIN_VIDEO_MODE,
 }
 
 
@@ -1465,7 +1465,7 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
     sibling repo's interpreter (up to its 10 s timeout) and this runs on the
     20 Hz tick, so the loop saves on a worker thread and flashes the result
     when it lands — the one toast that trails its keypress."""
-    if state.main_mode == "genau":
+    if state.main_mode == MAIN_GENAU_MODE:
         return state, []
     return state, [WindowOp(op="save_clip")]
 

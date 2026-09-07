@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import pytest
+
 from fun_time.mode_plan import (
+    MAIN_GENAU_MODE,
+    MAIN_MODES,
+    MAIN_VIDEO_MODE,
     STARTUP_MAIN_MODE,
     build_mode_switch_plan,
     hud_verb,
@@ -70,3 +75,27 @@ def test_omnipaused_skips_transition():
     assert plan.genau_cmd is None
     assert plan.nau_should_play is None
     assert plan.nau_display_cmd is None
+
+
+def test_the_main_slot_has_exactly_two_modes_and_they_are_spelled_here():
+    assert (MAIN_VIDEO_MODE, MAIN_GENAU_MODE) == ("video", "genau")
+    assert MAIN_MODES == (MAIN_VIDEO_MODE, MAIN_GENAU_MODE)
+    assert STARTUP_MAIN_MODE in MAIN_MODES
+
+
+def test_a_mode_nobody_named_is_refused_rather_than_quietly_parking_everything():
+    """nau_displays and genau_active both answer False for an unrecognized
+    string, so a typo used to build a session that parked every player instead
+    of failing."""
+    with pytest.raises(ValueError):
+        build_mode_switch_plan(
+            current_mode=MAIN_VIDEO_MODE, target_mode="genua", omni_paused=False)
+
+
+def test_a_session_already_in_an_unnamed_mode_is_refused_too():
+    """The saved state file is where an unrecognized mode gets in — shared_state
+    remaps the modes this app used to have, and anything it does not know comes
+    through as written."""
+    with pytest.raises(ValueError):
+        build_mode_switch_plan(
+            current_mode="hybrid", target_mode=MAIN_GENAU_MODE, omni_paused=False)

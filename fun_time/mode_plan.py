@@ -2,14 +2,18 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-# The mode every session is BUILT in, whatever it opens in: the defaults
-# everywhere — flag files, window bands, a fresh BridgeState — are this one's.
-STARTUP_MAIN_MODE = "video"
-
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
 # drives the OSR2 outright under Genau's clips, and in video mode the arbiter
-# hands the device between it and the video's funscript.
-VIDEO_MODE = "video"
+# hands the device between it and the video's funscript.  The axis is in the
+# name because the satellites' own "video" mode is that same string, and
+# unprefixed the two were one name inside command_dispatch, which handles both.
+MAIN_VIDEO_MODE = "video"
+MAIN_GENAU_MODE = "genau"
+MAIN_MODES: tuple[str, ...] = (MAIN_VIDEO_MODE, MAIN_GENAU_MODE)
+
+# The mode every session is BUILT in, whatever it opens in: the defaults
+# everywhere — flag files, window bands, a fresh BridgeState — are this one's.
+STARTUP_MAIN_MODE = MAIN_VIDEO_MODE
 
 
 @dataclass(frozen=True)
@@ -30,7 +34,7 @@ class ModeSwitchPlan:
 
 def nau_displays(mode: str) -> bool:
     """Return True if Nau owns the on-screen display (and its interaction)."""
-    return mode == VIDEO_MODE
+    return mode == MAIN_VIDEO_MODE
 
 
 def hud_verb(mode: str) -> str:
@@ -49,7 +53,10 @@ def build_mode_switch_plan(
     target_mode: str,
     omni_paused: bool,
 ) -> ModeSwitchPlan:
-    """Plan a switch between the main slot's modes: video and genau."""
+    """Plan a switch between the main slot's modes; refuse any other."""
+    for mode in (current_mode, target_mode):
+        if mode not in MAIN_MODES:
+            raise ValueError(f"Not a main-slot mode: {mode!r}")
     if current_mode == target_mode:
         return ModeSwitchPlan(
             target_mode=target_mode,

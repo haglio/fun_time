@@ -446,7 +446,7 @@ def test_portrait_next_queues_next(tmp_path: Path):
 # --- main_prev / main_next ---
 
 
-def test_primary_prev_in_hybrid_writes_nau_cmd(tmp_path: Path):
+def test_primary_prev_in_video_mode_writes_nau_cmd(tmp_path: Path):
     """Video mode displays Nau, so navigation goes to Nau's command file, not a satellite's."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
@@ -456,7 +456,7 @@ def test_primary_prev_in_hybrid_writes_nau_cmd(tmp_path: Path):
     assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
-def test_primary_next_in_hybrid_writes_nau_cmd(tmp_path: Path):
+def test_primary_next_in_video_mode_writes_nau_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
@@ -2312,7 +2312,7 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     assert not config.nau_cmd_file.exists()
 
 
-def test_the_bare_nudge_routes_to_nau_in_hybrid_while_the_funscript_drives(tmp_path: Path):
+def test_the_bare_nudge_routes_to_nau_in_video_mode_while_the_funscript_drives(tmp_path: Path):
     """Video mode, actively scripted stretch: the funscript drives the OSR2 and Genau
     is paused, so "speed up" tunes Nau's video — whose clock scales the script.
     Sent to Genau it moved a number on a dimmed readout and nothing else."""
@@ -2326,7 +2326,7 @@ def test_the_bare_nudge_routes_to_nau_in_hybrid_while_the_funscript_drives(tmp_p
     assert not config.genau_cmd_file.exists()
 
 
-def test_the_bare_nudge_routes_to_genau_in_hybrid_while_genau_drives(tmp_path: Path):
+def test_the_bare_nudge_routes_to_genau_in_video_mode_while_genau_drives(tmp_path: Path):
     # Video mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
     # OSR2, so the bare nudge tunes Genau's motion rate.
     config = _make_config(tmp_path)
@@ -2414,7 +2414,7 @@ def test_nau_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
     assert not config.nau_cmd_file.exists()
 
 
-def test_absolute_speed_reaches_nau_video_in_hybrid_even_when_genau_drives(tmp_path: Path):
+def test_absolute_speed_reaches_nau_video_in_video_mode_even_when_genau_drives(tmp_path: Path):
     # Absolute video-speed sets (multiplier, min/max) tune whatever Nau shows, so
     # they land on Nau's video even during a Genau-driven stretch — they must not
     # silently vanish the way a driver-routed command would.
@@ -2900,7 +2900,7 @@ def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
 # --- main-player nudge ---
 
 
-def test_primary_nudge_in_hybrid_writes_nau_seek(tmp_path: Path):
+def test_primary_nudge_in_video_mode_writes_nau_seek(tmp_path: Path):
     """Video mode displays Nau, so nudges seek Nau just like in video mode."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
@@ -3723,7 +3723,7 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
     assert state.genau_latest is False
 
 
-def test_a_main_reorder_in_hybrid_still_reaches_nau(tmp_path, monkeypatch):
+def test_a_main_reorder_in_video_mode_still_reaches_nau(tmp_path, monkeypatch):
     """Video mode is Nau on screen with Genau driving the OSR2, so the video being
     browsed is Nau's — Genau's clips are not what a reorder there is about."""
     calls: list[dict] = []

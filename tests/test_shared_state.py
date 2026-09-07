@@ -6,6 +6,8 @@ import sys
 from dataclasses import fields, replace
 from pathlib import Path
 
+from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
+from fun_time.satellites_mode import VIDEO_MODE as SATELLITES_VIDEO_MODE
 from fun_time.shared_state import (
     SHARED_STATE_FILENAME,
     BridgeState,
@@ -290,3 +292,26 @@ def test_a_state_saved_before_video_mode_comes_back_in_video_mode(tmp_path: Path
         resumed = read_shared_state(state_file)
 
         assert (resumed.main_mode, resumed.satellites_mode) == ("video", "video"), saved_main
+
+
+def test_a_state_file_from_before_the_rename_comes_back_in_a_mode_that_exists(tmp_path: Path):
+    """The main slot's nau and hybrid modes became one video mode, and the
+    satellites' player mode was renamed to match.  A file saved then has to come
+    back as the mode those are now: an unrecognized one used to answer False to
+    every question and quietly park the players, and now build_mode_switch_plan
+    refuses it outright, so a resumed session would not switch at all.
+    """
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    for saved in ("nau", "hybrid"):
+        write_shared_state(state_file, BridgeState(main_mode=saved))
+        assert read_shared_state(state_file).main_mode == MAIN_VIDEO_MODE
+
+    write_shared_state(state_file, BridgeState(satellites_mode="player"))
+    assert read_shared_state(state_file).satellites_mode == SATELLITES_VIDEO_MODE
+
+
+def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
+    state_file = tmp_path / SHARED_STATE_FILENAME
+    for mode in MAIN_MODES:
+        write_shared_state(state_file, BridgeState(main_mode=mode))
+        assert read_shared_state(state_file).main_mode == mode

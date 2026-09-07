@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
-from .mode_plan import nau_displays
+from .mode_plan import MAIN_GENAU_MODE, nau_displays
 
 
 @dataclass(frozen=True)
@@ -57,7 +57,7 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str) -> O
             # Only genau mode, where the hand always has the device.  In video mode
             # the arbiter re-asserts the driver on its next tick, and resuming it
             # here would race it onto a funscript's stretch.
-            resume_genau_playback=main_mode == "genau",
+            resume_genau_playback=main_mode == MAIN_GENAU_MODE,
             broker_command=RESUME_CMD,
             log_message="OmniPause: leaving",
         )

@@ -19,7 +19,7 @@ from dataclasses import dataclass, fields, replace
 from pathlib import Path
 
 from .audio_volume import MAX_VOLUME
-from .mode_plan import STARTUP_MAIN_MODE
+from .mode_plan import MAIN_VIDEO_MODE, STARTUP_MAIN_MODE
 from .players import Player
 from .satellites_mode import STARTUP_SATELLITES_MODE
 
@@ -201,11 +201,7 @@ def _int_or(section, key: str, default: int) -> int:
         return default
 
 
-# The modes a session saved before the main slot's nau and hybrid modes became
-# the one video mode, and the satellites' video mode was renamed to match: a
-# state file from then comes back in the mode that is that one now, rather
-# than in a mode nothing recognizes.
-_RESUMED_MAIN_MODES = {"nau": "video", "hybrid": "video"}
+_RESUMED_MAIN_MODES = {"nau": MAIN_VIDEO_MODE, "hybrid": MAIN_VIDEO_MODE}
 _RESUMED_SATELLITES_MODES = {"player": "video"}
 
 
