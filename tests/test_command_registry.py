@@ -129,19 +129,15 @@ def test_every_verb_the_shared_console_posts_lands_on_a_handler():
     its buttons' verbs into this dispatcher, and it publishes them as data for
     exactly this check.  Nothing held the two together before, which is how the
     clip-seconds pair came to post a verb this table had renamed away -- both
-    buttons inert in genau mode, and no test to say so (bug 19)."""
+    buttons inert in genau mode, and no test to say so (bug 19).  The
+    enhanced-filter button was the last one carried here as dormant, unanswered
+    because no session had a filter to narrow (bug 90)."""
     from player_core.console import CONSOLE_VERBS
 
     # Minimize is answered before the handler map, by name; browse and the
     # broker panel are the loop's own branches.
     answered = _handler_ids() | _loop_branch_ids() | {command_dispatch.MAIN_MINIMIZE}
-    # The console shows its enhanced-filter button only when a host puts that
-    # state on the model, which no Fun Time session does -- and nothing here
-    # would answer the verb if one did (bug 90).  Named rather than answered,
-    # so the button's first real appearance fails here by name.
-    dormant = {"genau_filter_enhanced"}
-    assert answered >= CONSOLE_VERBS - dormant, sorted(CONSOLE_VERBS - dormant - answered)
-    assert not (dormant & answered), "a dormant verb has an answer now: take it out of dormant"
+    assert answered >= CONSOLE_VERBS, sorted(CONSOLE_VERBS - answered)
 
 
 def test_every_spoken_phrase_lands_on_a_handler():
@@ -207,7 +203,8 @@ def test_every_loop_branch_is_reachable_and_known():
 
 def test_the_reference_and_the_handlers_agree():
     """Surface 3 ↔ 5: every reference row names real commands, and the only
-    handled ids the reference omits are the two the console alone posts."""
+    handled ids the reference omits are the ones a console alone posts —
+    HUD_ONLY_COMMAND_IDS, which is what "no phrase, key or row names it" means."""
     reference = _reference_ids()
     real = (
         _handler_ids()
@@ -220,7 +217,7 @@ def test_the_reference_and_the_handlers_agree():
     ghosts = reference - real
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"
 
-    undocumented = _handler_ids() - reference - {"robot_hand_speed_down", "robot_hand_speed_up"}
+    undocumented = _handler_ids() - reference - frozenset(HUD_ONLY_COMMAND_IDS)
     assert not undocumented, f"handled commands the reference omits: {sorted(undocumented)}"
 
 
