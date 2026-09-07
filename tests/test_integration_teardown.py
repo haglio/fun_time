@@ -5,6 +5,8 @@ real (input-desktop) session — which is what makes an unattended run safe.  It
 has no other mode: the suite refuses to run anywhere but the hidden desktop, so
 there is nowhere a by-name sweep of the machine could be the right answer.
 """
+from __future__ import annotations
+
 import os
 import sys
 from unittest.mock import patch
