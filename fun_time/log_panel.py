@@ -1,12 +1,9 @@
 """The log panel — the strip beside the dashboard where the session narrates itself.
 
-It tails :mod:`fun_time.event_log` and shows the session's log stream, filtered by
-a verbosity dial and by which window each line is about.  The brief notices
-("Clip saved", "No other seeds") flash over the player they concern — see
-:mod:`fun_time.notice_overlay` — and also land here in the stream, colored by
-level, so the panel is the place to scroll back through everything that happened
-— and, via the button that follows the cursor down the rows, to lift a line out
-of.
+It tails :mod:`fun_time.event_log` and shows the whole stream, filtered by a
+verbosity dial and by which window each line is about, so this is the place to
+scroll back through everything that happened — and, via the button that follows
+the cursor down the rows, to lift a line out of.
 
 The pure model (filter, buffer, formatting, prefs, button placement) sits above
 the Qt widgets so it can be tested without a QApplication.
@@ -174,8 +171,7 @@ _SOURCE_LABELS: dict[str, str] = {
 
 # An ordinary announcement is white; green is kept for the one family it means
 # across this whole app — the favorites, the lock that puts a clip in them,
-# F-mode, and the funscripts (see :data:`fun_time.event_log.FAVORITE`).  These
-# color the log lines and, through them, the notices flashed over the players.
+# F-mode, and the funscripts (see :data:`fun_time.event_log.FAVORITE`).
 _LEVEL_COLORS: dict[int, QColor] = {
     logging.DEBUG: TEXT_MUTED,
     logging.INFO: TEXT_MUTED,

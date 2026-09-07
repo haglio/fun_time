@@ -6,11 +6,12 @@ at the nadir, so here it is a small screen of its own.
 """
 from __future__ import annotations
 
-from collections.abc import Callable
+import logging
+from collections.abc import Callable, Sequence
 from dataclasses import replace
 
 import numpy as np
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from player_core.console import tooltip_at
 from player_core.console_hud import (
     ConsoleHud,
@@ -21,10 +22,13 @@ from player_core.console_hud import (
 )
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
+from shared_ui.palette import AMBER, BG_PRIMARY, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
+from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.mode_plan import nau_displays
 from satellite.pointer import time_at
 
+from .notices import KEPT, Notice
 from .pointer import surface_pixel
 
 # Pixels across, held: the screen keeps one size between the modes (the genau
@@ -33,6 +37,70 @@ from .pointer import surface_pixel
 PANEL_WIDTH_PX = 280
 
 _ROW_GAP = 6
+
+# Segoe UI Bold, the face every HUD here is read at a glance in, at 9pt.
+_NOTICE_FONT_PX = 12
+_NOTICE_ROW_H = 15
+_NOTICE_PAD = 4
+
+# Held, the way the furniture row below is.
+NOTICE_STRIP_HEIGHT = KEPT * _NOTICE_ROW_H + _NOTICE_PAD
+
+# fun_time.log_panel's own mapping.
+_LEVEL_COLORS: dict[int, tuple[int, int, int]] = {
+    NOTICE: TEXT_PRIMARY,
+    FAVORITE: GREEN,
+    logging.WARNING: AMBER,
+    logging.ERROR: RED,
+}
+
+
+def level_color(level: int) -> tuple[int, int, int]:
+    """The color for *level*, rounding down to the loudest level it reaches."""
+    for threshold in sorted(_LEVEL_COLORS, reverse=True):
+        if level >= threshold:
+            return _LEVEL_COLORS[threshold]
+    return TEXT_MUTED
+
+
+def _notice_font() -> ImageFont.FreeTypeFont:
+    try:
+        return ImageFont.truetype("segoeuib.ttf", _NOTICE_FONT_PX)
+    except OSError:
+        return ImageFont.load_default(_NOTICE_FONT_PX)
+
+
+def fit_notice(font, text: str, width: int) -> str:
+    """*text* if it draws inside *width*, else its head with an ellipsis."""
+    if font.getlength(text) <= width or not text:
+        return text
+    kept = text
+    while kept and font.getlength(kept + "…") > width:
+        kept = kept[:-1]
+    return kept + "…"
+
+
+def paint_notices(notices: Sequence[Notice], width: int) -> Image.Image:
+    """The strip above the console, newest lowest -- always NOTICE_STRIP_HEIGHT
+    tall and transparent where there is nothing to say."""
+    strip = Image.new("RGBA", (width, NOTICE_STRIP_HEIGHT), (0, 0, 0, 0))
+    if not notices:
+        return strip
+    font = _notice_font()
+    draw = ImageDraw.Draw(strip)
+    inner = width - 2 * _NOTICE_PAD
+    rows = list(notices)[-KEPT:]
+    top = NOTICE_STRIP_HEIGHT - _NOTICE_PAD - len(rows) * _NOTICE_ROW_H
+    for index, one in enumerate(rows):
+        y = top + index * _NOTICE_ROW_H
+        draw.rounded_rectangle(
+            (0, y, width - 1, y + _NOTICE_ROW_H - 1), radius=4, fill=(*BG_PRIMARY, 224),
+        )
+        draw.text(
+            (_NOTICE_PAD, y + 1), fit_notice(font, one.message, inner),
+            font=font, fill=(*level_color(one.level), 255),
+        )
+    return strip
 
 
 def panel_painter() -> ConsolePainter:
@@ -88,20 +156,22 @@ def paint_panel(
     chip: VolumeHud,
     chip_painter,
     hover: tuple[int, int] | None = None,
+    notices: Sequence[Notice] = (),
 ) -> Image.Image:
-    """The console with the furniture row under it: the scrubber, given
-    ``(position_ms, duration_ms)`` (None for a clip, which loops -- the row
-    keeps its height, so the panel keeps its size), and the chip at its right
-    end where every desktop player puts it."""
+    """The console with the announcement strip over it and the furniture row
+    under it: the scrubber, given ``(position_ms, duration_ms)`` (None for a clip,
+    which loops -- the row keeps its height), and the chip at its right end."""
     console_rgba, console_size = painter.rgba(hud, hover=hover)
     console = Image.frombytes("RGBA", console_size, console_rgba)
     chip_image = _rgba(chip_painter.bgra(chip))
     width = console.width
     row_h = max(TIMELINE_HEIGHT, chip_image.height)
-    height = console.height + _ROW_GAP + row_h
+    strip = paint_notices(notices, width)
+    height = strip.height + console.height + _ROW_GAP + row_h
     panel = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    panel.alpha_composite(console, (0, 0))
-    row_top = console.height + _ROW_GAP
+    panel.alpha_composite(strip, (0, 0))
+    panel.alpha_composite(console, (0, strip.height))
+    row_top = strip.height + console.height + _ROW_GAP
     if scrubber is not None:
         position_ms, duration_ms = scrubber
         bar = _rgba(progress_bar_bgra(position_ms, duration_ms, None, width))
@@ -134,6 +204,11 @@ class PanelPointer:
     def _pixel(self, u: float, v: float) -> tuple[int, int]:
         return surface_pixel(u, v, self._size)
 
+    def _console_pixel(self, u: float, v: float) -> tuple[int, int]:
+        """The same point in the CONSOLE's pixels, which the strip pushed down."""
+        px, py = self._pixel(u, v)
+        return px, py - NOTICE_STRIP_HEIGHT
+
     def _chip_part(self, px: int, py: int) -> tuple[str, int]:
         width, height = self._size
         cx, cy = chip_local(px, py, win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
@@ -158,7 +233,8 @@ class PanelPointer:
             self._seek(time_at(px, win_w=self._size[0], duration_ms=self._scrubber[1]))
         else:
             left, top = hud_xy()
-            command = self._painter.press_at(px + left, py + top)
+            _, cy = self._console_pixel(u, v)
+            command = self._painter.press_at(px + left, cy + top)
             if command:
                 self._post(command)
 
@@ -168,7 +244,8 @@ class PanelPointer:
             self._slide_volume(self._chip_part(px, py)[1])
         elif self._painter.holding:
             left, top = hud_xy()
-            command = self._painter.drag_to(px + left, py + top)
+            _, cy = self._console_pixel(u, v)
+            command = self._painter.drag_to(px + left, cy + top)
             if command:
                 self._post(command)
 
@@ -177,9 +254,10 @@ class PanelPointer:
         self._sliding_volume, self._asked_volume = False, ""
 
     def tooltip_anchor(self, uv: tuple[float, float] | None) -> tuple[int, int] | None:
+        """The tooltip's anchor, in the CONSOLE's pixels -- where its buttons are."""
         tip = ""
         if uv is not None and 0.0 <= uv[0] <= 1.0 and 0.0 <= uv[1] <= 1.0:
-            px, py = self._pixel(*uv)
+            px, py = self._console_pixel(*uv)
             tip = tooltip_at(self._painter.buttons, px, py)
         if not tip:
             self._tip = None

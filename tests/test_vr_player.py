@@ -7,6 +7,8 @@ volume chip every video unit paints.
 """
 from __future__ import annotations
 
+import json
+import logging
 import threading
 from pathlib import Path
 from types import SimpleNamespace
@@ -30,6 +32,7 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
+from fun_time_vr.console_panel import NOTICE_STRIP_HEIGHT
 from fun_time_vr.cover import VR_SHUTDOWN_PHASES, VR_STARTUP_PHASES
 from fun_time_vr.layout import DEFAULT_LAYOUT, LANDSCAPE, PANEL, PORTRAIT, read_layout
 from fun_time_vr.player import (
@@ -362,16 +365,35 @@ class TestThePanelUnderThePointer:
             current_clip=None, loading=None, showing=False, volume=100, muted=False,
         ))
         command_file = tmp_path / "dashboard_cmd.txt"
+        event_log = tmp_path / "event_log.jsonl"
         with patch("fun_time_vr.player.FrameTexture"):
             unit = _PanelUnit(primary, genau, placement=DEFAULT_LAYOUT[PANEL],
-                              dashboard_cmd_file=command_file)
-        return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks)
+                              dashboard_cmd_file=command_file, event_log=event_log)
+        return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
+                               event_log=event_log)
 
     def _uv_of(self, unit, action: str) -> tuple[float, float]:
+        """A button's middle in the PANEL's pixels: the painter places its buttons
+        in the console's, which the announcement strip above pushes down."""
         width, height = unit._image.size
         (x, y, w, h), _button = next(
             (rect, button) for rect, button in unit._painter.buttons if button.action == action)
+        y += NOTICE_STRIP_HEIGHT
         return (x + w // 2 + 0.5) / width, 1 - (y + h // 2 + 0.5) / height
+
+    def test_a_notice_the_session_raised_reaches_the_panel(self, tmp_path):
+        """A VR session launches no dashboard, so this strip is the whole of what
+        the headset is told — the voice controller's reports among it."""
+        p = self._unit(tmp_path)
+        p.unit.pump(threading.Event(), 0.0)
+        quiet = np.asarray(p.unit._image).copy()
+
+        p.event_log.write_text(json.dumps(
+            {"ts": 1.0, "level": logging.ERROR, "source": "system",
+             "msg": "unrecognized voice command: portrait net"}) + "\n", encoding="utf-8")
+        p.unit.pump(threading.Event(), 1.0)
+
+        assert not np.array_equal(np.asarray(p.unit._image), quiet)
 
     def test_a_press_the_render_thread_hands_over_posts_on_the_worker(self, tmp_path):
         p = self._unit(tmp_path)

@@ -117,12 +117,26 @@ class EventLogHandler(logging.Handler):
 def notice(logger: logging.Logger, message: str, *, source: str, level: int = NOTICE) -> None:
     """Log a message meant for the person watching the screen.
 
-    *level* defaults to NOTICE (a normal announcement — white in the panel and
-    the on-player flash); pass FAVORITE for one about the favorites or a
-    funscript, which reads green, or a louder level (WARNING/ERROR) for a command
-    that failed or hit a dead end, which reads amber/red.
+    "Clip saved", "No other seeds", "unrecognized voice command: …".  Each reaches
+    three surfaces: the dashboard's log panel keeps the history, a toast flashes
+    over the player *source* names (:mod:`fun_time.notice_feed`), and a VR
+    session, which has neither, draws a strip on the console hanging in the
+    headset (:mod:`fun_time_vr.notices`).
+
+    *level* defaults to NOTICE (a normal announcement, white); pass FAVORITE for
+    one about the favorites or a funscript, which reads green, or a louder level
+    (WARNING/ERROR) for a command that failed or hit a dead end, amber and red.
     """
     logger.log(level, message, extra={"source": source})
+
+
+def is_announcement(record: EventRecord) -> bool:
+    """Whether *record* is loud enough to flash — a notice, or louder.
+
+    The verbosity dial governs only what the log panel *lists*; a notice always
+    flashes, exactly as the old cursor tooltip always showed.
+    """
+    return record.level >= NOTICE
 
 
 def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], int]:

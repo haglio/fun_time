@@ -1,12 +1,10 @@
-"""The announcements that flash over the player they are about.
-
-A second tail of the session's event log, faster than the panel's 500ms refresh
-so a "Clip saved" lands promptly, and drawn over the window it concerns — from
-the same two layout functions startup positioned that window with.
+"""What drives the on-player flash: a second tail of the event log, faster than
+the panel's 500ms refresh so a "Clip saved" lands promptly, drawn over the
+window it concerns — from the same two layout functions startup positioned that
+window with.
 
 The overlay is a widget, so it arrives as something to call and every rule here
-runs headless.  Not Qt-FREE though: `notice_overlay`, whose pure half this
-reads, imports PyQt6 for its widget.
+runs headless.
 """
 from __future__ import annotations
 
