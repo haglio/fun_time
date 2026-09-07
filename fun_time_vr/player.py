@@ -1379,13 +1379,15 @@ def _update_quad_layer(
 
 def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> None:
     """Fill both eyes with the cover: ground edge to edge, panel at the heading
-    the viewer had when it went up.  Through the same rotation-only view matrix
-    the scene uses, so it holds still while the head turns; the projection
-    matrix alone glues it to the lenses."""
+    he is facing, latched once he is at the lenses (:class:`CoverAnchor`), through
+    the rotation-only view matrix the scene uses so it holds still as he turns."""
+    was_held = cover.anchor.held
     heading = cover.anchor.heading(yaw_of_orientation((
         views[0].pose.orientation.x, views[0].pose.orientation.y,
         views[0].pose.orientation.z, views[0].pose.orientation.w,
-    )))
+    )), settled=session.focused)
+    if was_held is None and cover.anchor.held is not None:
+        logger.info("Cover placed at heading %.0f°", math.degrees(heading))
     hanging = yaw_rotation_matrix(heading)
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
