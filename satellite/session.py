@@ -187,5 +187,5 @@ class SatelliteSession:
         self._player.stage_next(nxt)
 
     def close(self) -> None:
-        """Tear down the underlying player (mpv terminate) on shutdown."""
+        """Tear down the underlying player, whatever thread is still driving it."""
         self._player.close()

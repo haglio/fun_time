@@ -748,9 +748,8 @@ def main(argv: list[str] | None = None) -> int:
 
 def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:
     """The file-channel worker: every unit's flags, drains, status writes and
-    repaints.  File I/O that can stall under a sync client, so never the frame
-    loop's thread; libmpv's client API on one thread and its render API on
-    another is its designed usage."""
+    repaints — file I/O that can stall under a sync client, so never the frame
+    loop's thread.  Two threads on one mpv is its design; see player_core.mpv_gate."""
     period = 1.0 / PUMP_HZ
     while not stop.is_set():
         started = time.monotonic()
@@ -1049,6 +1048,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         logger.info("Interrupted")
     finally:
         stop.set()
+        # Only to settle the file channels — player_core.mpv_gate makes the closes safe.
         pump_thread.join(timeout=2.0)
         genau_thread.join(timeout=2.0)
         for unit in pumped:
