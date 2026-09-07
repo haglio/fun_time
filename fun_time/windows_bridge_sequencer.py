@@ -652,14 +652,13 @@ def _launch_core_media(
     )
 
 
-
-# What the two UI companions wait out before they are launched.  Nothing has
-# ever been established that this is waiting FOR: it has been here unexplained
-# since the sequencer replaced the AHK startup, the browser phase before it
-# already waits for its own Chrome window, and the dashboard and the audio
-# companion are the last children of the run.  Named rather than deleted
-# because only the hidden-desktop suite on the Windows machine can show whether
-# anything leans on it; see the changelog note.
+# What the two UI companions wait out before they are launched.  Unexplained
+# since the sequencer replaced the AHK startup, and taking it out was tried on
+# the hidden desktop rather than argued about: the suite passed three times with
+# it, and the one run without it left the hosted app's window restored from a
+# mode switch but never in the topmost band (test_origenerator_mode_integration).
+# Twelve runs of that test ALONE, six per arm, pass either way, so whatever
+# leans on this needs a whole room going up at once.  Kept, unproven.
 _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
