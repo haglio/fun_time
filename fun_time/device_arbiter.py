@@ -85,15 +85,11 @@ class DeviceArbiter:
             return
         if funscript_driving and self._funscript_driving is False:
             # Taking the device FROM the hand: a motion whose floor rests ON the
-            # park is set down exactly where the trace draws its blue ending —
-            # on its next touch-down — so the flip holds for that one touch.
-            # A raised floor takes the ramp instead and flips at once.  Only a
-            # FLOWING boundary crossing holds: entered by a seek, there is no
-            # drawn blue ending to honor — the trace shows the script's turn
-            # already running — and a hold there kept the hand swinging under a
-            # pure green picture for its whole cap.  Nothing re-asserts during
-            # a hold; the standing pair still says the hand, which is the truth
-            # of it.
+            # park is set down where the trace draws its blue ending, on its next
+            # touch-down, so the flip holds for that one touch; a raised floor
+            # takes the ramp and flips at once.  Only a FLOWING crossing holds --
+            # entered by a seek there is no drawn ending to honor, and a hold
+            # there kept the hand swinging under a green picture for its cap.
             flowed = (previous is not None
                       and abs(status.position_ms - previous.position_ms) < 1_500)
             if flowed and self._holding_for_park_touch(now, status):

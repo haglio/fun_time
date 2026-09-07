@@ -1,9 +1,7 @@
-"""The log panel — the strip beside the dashboard where the session narrates itself.
-
-It tails :mod:`fun_time.event_log` and shows the whole stream, filtered by a
-verbosity dial and by which window each line is about, so this is the place to
-scroll back through everything that happened — and, via the button that follows
-the cursor down the rows, to lift a line out of.
+"""The log panel — the strip beside the dashboard where the session narrates
+itself.  It tails :mod:`fun_time.event_log` and shows the whole stream, filtered
+by a verbosity dial and by which window each line is about, with a button that
+follows the cursor down the rows to lift one out of.
 
 The pure model (filter, buffer, formatting, prefs, button placement) sits above
 the Qt widgets so it can be tested without a QApplication.
@@ -21,6 +19,7 @@ from fun_time.event_log import (
     LEVEL_NAMES,
     LEVELS_BY_NAME,
     NOTICE,
+    SOURCE_LABELS,
     SOURCES,
     EventRecord,
     read_events,
@@ -161,13 +160,7 @@ from shared_ui.spacing import (
 # Short labels for the source toggles so the whole control strip fits one row.
 # The full source name is the tooltip.  "Sat" is the user's word for the portrait
 # satellite; landscape is named in full because they treat it as its own thing.
-_SOURCE_LABELS: dict[str, str] = {
-    "main": "Main",
-    "portrait": "Sat",
-    "landscape": "Land",
-    "dash": "Dash",
-    "system": "Sys",
-}
+_SOURCE_LABELS = SOURCE_LABELS  # beside the sources now; the headset wears them too
 
 # An ordinary announcement is white; green is kept for the one family it means
 # across this whole app — the favorites, the lock that puts a clip in them,

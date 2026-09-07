@@ -1,9 +1,8 @@
 """The dashboard's own actions — the names it writes into the command file.
 
-Only the handful the control bar still carries.  Every other command the bar
-used to write is now posted by the player it belongs to, straight off that
-player's own HUD, as a literal string in the player's own repo; the dispatch
-loop matches on the string either way.
+Only the handful the control bar still carries: every other command is posted by
+the player it belongs to, off that player's own HUD, and the dispatch loop
+matches on the string either way.
 """
 from __future__ import annotations
 
@@ -20,3 +19,6 @@ HELP_REFERENCE_CLOSE = "help_reference_close"
 # would let them through — under a pause they are frozen with everything else
 # (see SUSPEND_EXEMPT_COMMANDS in voice_control).
 HELP_REFERENCE_COMMANDS = frozenset({HELP_REFERENCE, HELP_REFERENCE_CLOSE})
+
+# Whether the reference is up, for a surface with no window to be told about.
+REFERENCE_OPEN_FILENAME = "reference_open.txt"

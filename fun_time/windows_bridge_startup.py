@@ -76,17 +76,11 @@ SATELLITE_PORTRAIT_TITLE = "Portrait AI Player"
 SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
 
 # Every player this launches is one of Fun Time's windows, not an application of
-# its own — the user opened one program and it opened these — so each is told to
-# take Fun Time's taskbar identity rather than claim one.  Windows groups
-# buttons by AppUserModelID and takes the icon and name from the pinned shortcut
-# carrying the same one (``orchestrator.stamp_shortcut_aumid`` puts it there), so
-# without this the bar showed four applications: Nau and Genau under their own
-# marks, and the satellites — which claimed nothing — under whichever unrelated
-# app had registered the shared python interpreter's path.
-#
-# Passed rather than shared as a constant: the players are separate apps in
-# another repo and must not know Fun Time's name.  Each still runs as itself when
-# launched from its own shortcut, since then there is nobody to tell it otherwise.
+# its own, so each takes Fun Time's taskbar identity rather than claiming one:
+# Windows groups buttons by AppUserModelID and reads the icon and name off the
+# pinned shortcut carrying it, and without this the bar showed four apps.
+# Passed rather than shared as a constant -- the players are separate apps in
+# another repo and must not know Fun Time's name.
 TASKBAR_IDENTITY_ARGS = ("--taskbar-identity", APP_USER_MODEL_ID)
 
 
