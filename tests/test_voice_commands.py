@@ -31,6 +31,46 @@ class TestCommandLineFormat:
         assert parse_command_line("filter_both_come @ shot") == ("filter_both_come @ shot", None)
 
 
+class TestTheSpokenCrossing:
+    """"enter VR" / "exit VR" — the whole way into the headset, since there is
+    no key for it and no pin left to click (docs/entering-vr.md)."""
+
+    @pytest.mark.parametrize(
+        ("phrase", "command"),
+        [
+            ("enter vr", "enter_vr"),
+            ("enter v r", "enter_vr"),
+            ("exit vr", "exit_vr"),
+            ("exit v r", "exit_vr"),
+        ],
+    )
+    def test_both_spellings_of_the_name_answer(self, phrase, command):
+        """The model has "vr" as a word AND has the two letters, and which of
+        them it hears the sound as is not something to bet a one-way door on."""
+        assert VOICE_COMMANDS[phrase] == command
+
+    def test_saying_exit_vr_is_not_saying_exit(self):
+        """The grammar matches whole utterances, which is what lets these sit
+        beside a bare "exit" that quits — but only while both stay listed."""
+        assert VOICE_COMMANDS["exit"] == "quit"
+        assert VOICE_COMMANDS["exit vr"] == "exit_vr"
+
+    @pytest.mark.parametrize(
+        ("phrase", "shown"),
+        [("enter v r", "enter VR"), ("enter vr", "enter VR"),
+         ("exit v r", "exit VR"), ("exit vr", "exit VR")],
+    )
+    def test_the_reference_and_the_toasts_show_one_spelling(self, phrase, shown):
+        assert friendly_voice(phrase) == shown
+
+    def test_the_crossing_is_not_exempt_from_omnipause(self):
+        """A paused room answers three verbs, and taking the session away is
+        not among them — so a phrase misheard while paused cannot cross."""
+        from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
+
+        assert {"enter_vr", "exit_vr"}.isdisjoint(SUSPEND_EXEMPT_COMMANDS)
+
+
 class TestVoiceCommands:
     def test_exit_is_a_synonym_for_quit(self):
         assert VOICE_COMMANDS["exit"] == "quit"

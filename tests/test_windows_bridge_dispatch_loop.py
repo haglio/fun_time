@@ -27,6 +27,7 @@ from fun_time.role_windows import (
     WindowRoles,
 )
 from fun_time.session_environment import SessionEnvironment
+from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
@@ -730,6 +731,58 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
+
+    def test_entering_vr_ends_this_session_with_word_of_where_to_go(self, tmp_path):
+        """Crossing over IS the quit, plus a request the orchestrator reads on
+        its way out (docs/entering-vr.md)."""
+        runner = make_runner(tmp_path)
+        (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
+
+        runner.tick()
+
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        assert take_handoff_request(tmp_path) is VR
+
+    def test_exiting_vr_from_a_vr_session_asks_for_the_desktop(self, tmp_path):
+        runner = make_runner(tmp_path, config=make_config(tmp_path, vr_main_player=True))
+        (tmp_path / "dashboard_cmd.txt").write_text("exit_vr", encoding="utf-8")
+
+        runner.tick()
+
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        assert take_handoff_request(tmp_path) is DESKTOP
+
+    @pytest.mark.parametrize(
+        ("command", "vr_main_player"), [("exit_vr", False), ("enter_vr", True)],
+    )
+    def test_crossing_to_the_session_already_running_says_so_and_stays_put(
+        self, tmp_path, command, vr_main_player,
+    ):
+        """A room can be told the same thing twice — misheard, or said again
+        while the headset was slow to come up — and ending the session on the
+        second is the worst available reading of it."""
+        runner = make_runner(tmp_path, config=make_config(
+            tmp_path, vr_main_player=vr_main_player,
+        ))
+        (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
+
+        runner.tick()
+
+        assert not (tmp_path / "ahk_cmd.txt").exists()
+        assert take_handoff_request(tmp_path) is None
+
+    def test_a_crossing_is_frozen_by_omnipause_like_every_other_spoken_command(
+        self, tmp_path,
+    ):
+        """It is not one of the three verbs a paused room answers, so a phrase
+        misheard during omnipause cannot take the session away."""
+        runner = make_runner(tmp_path)
+        runner.state = replace(runner.state, omni_paused=True)
+
+        runner._handle_command("enter_vr", spoken_at=123.0)
+
+        assert not (tmp_path / "ahk_cmd.txt").exists()
+        assert take_handoff_request(tmp_path) is None
 
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
         """omniminimize minimizes the windows the current mode shows, without

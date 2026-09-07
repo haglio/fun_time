@@ -22,7 +22,7 @@ from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import HELP_REFERENCE_COMMANDS
 from .dashboard_bridge import write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter
-from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, notice
+from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
@@ -32,6 +32,7 @@ from .player_status import is_broker_heartbeat_fresh, read_nau_status
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
+from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .voice_commands import parse_command_line
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
@@ -92,6 +93,9 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
     The family's consumer, with case kept: a dashboard verb can carry a path.
     """
     return consume_command_file(cmd_file, uppercase=False)
+
+
+HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
 
 
 # The side-agnostic actions the main player (Nau) answers, and what it answers with.
@@ -359,6 +363,9 @@ class DispatchLoopRunner:
         if cmd == "quit":
             self.ahk_cmd_file.write_text("exit", encoding="utf-8")
             return
+        if cmd in HANDOFF_COMMANDS:
+            self._handle_handoff(cmd)
+            return
         if cmd in HELP_REFERENCE_COMMANDS:
             # Pure dashboard-UI action: the press above tells the dashboard to
             # toggle/close the hotkeys/voice popup — nothing to dispatch here.
@@ -416,6 +423,21 @@ class DispatchLoopRunner:
             self._handle_voice_toggle(cmd)
         else:
             self._dispatch(cmd, spoken_at)
+
+    def _handle_handoff(self, cmd: str) -> None:
+        """Cross to the other session — the headset's, or the desktop's.
+
+        Ends this one exactly as "quit" does, having left word of where to go
+        next (docs/entering-vr.md).  Asked for the session already running it
+        says so and stays put; a room can be told the same thing twice.
+        """
+        target = HANDOFF_COMMANDS[cmd]
+        if target is this_session(vr_main_player=self.config.vr_main_player):
+            notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM)
+            return
+        logger.info("Handing this session over to %s", target.app_name)
+        request_handoff(self.config.state_dir, target)
+        self.ahk_cmd_file.write_text("exit", encoding="utf-8")
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)

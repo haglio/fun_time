@@ -31,9 +31,16 @@ REPO_DIR = Path(__file__).resolve().parent.parent
 # launcher builds for cmd.
 _LAUNCH_MODULE = re.compile(r'-m\s+([A-Za-z_][\w.]*)')
 
+# The one ``-m`` entry point no ``.vbs`` names, so the scan below cannot find
+# it: the crossing relay is started by an orchestrator on its way out
+# (fun_time.session_handoff), which means nothing else is watching it either --
+# a session that died importing it would leave an empty desktop and no word.
+_UNLAUNCHED_ENTRY_POINTS = (("session_handoff (started by an orchestrator)",
+                             "fun_time.session_handoff"),)
+
 
 def _launched_modules() -> list[tuple[str, str]]:
-    found: list[tuple[str, str]] = []
+    found: list[tuple[str, str]] = list(_UNLAUNCHED_ENTRY_POINTS)
     for launcher in sorted(REPO_DIR.glob("*.vbs")):
         text = launcher.read_text(encoding="utf-8", errors="replace")
         for module in dict.fromkeys(_LAUNCH_MODULE.findall(text)):
@@ -46,7 +53,7 @@ LAUNCHED = _launched_modules()
 
 def test_the_launchers_name_modules_to_check():
     """A regex that matched nothing would make every case below vacuous."""
-    assert LAUNCHED
+    assert [module for launcher, module in LAUNCHED if launcher.endswith(".vbs")]
 
 
 @pytest.mark.parametrize(

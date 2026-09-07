@@ -25,6 +25,7 @@ from fun_time.orchestrator import (
     validate_config,
 )
 from fun_time.session_environment import SessionEnvironment
+from fun_time.session_handoff import VR, request_handoff
 
 # ---------------------------------------------------------------------------
 # build_parser
@@ -401,6 +402,58 @@ class TestMainCheckFlag:
 
         assert result == 0
         run_bridge.assert_not_called()
+
+
+class TestTheCrossingIntoTheOtherSession:
+    """Both ends of it: the request cleared coming in, and the relay going out.
+
+    docs/entering-vr.md has the design; what is held here is that this
+    orchestrator is where each end actually happens.
+    """
+
+    def _main(self, cfg_path: Path, *, during_session=lambda: None):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.prepare_orchestrator_launcher"), \
+             patch("fun_time.session_handoff.subprocess.Popen") as popen, \
+             patch("fun_time.orchestrator.run_windows_bridge",
+                   side_effect=lambda *_a, **_k: (during_session(), 0)[1]):
+            return main(["--config", str(cfg_path)]), popen
+
+    def test_a_session_that_asked_to_cross_spawns_the_relay_on_its_way_out(
+        self, cfg_path: Path,
+    ):
+        config = load_config(cfg_path)
+
+        code, popen = self._main(
+            cfg_path,
+            during_session=lambda: request_handoff(config.paths.state_dir, VR),
+        )
+
+        assert code == 0
+        assert popen.call_args.args[0][:4] == [
+            str(config.paths.python_exe), "-m", "fun_time.session_handoff", "--target",
+        ]
+
+    def test_an_ordinary_quit_spawns_nothing(self, cfg_path: Path):
+        _code, popen = self._main(cfg_path)
+
+        popen.assert_not_called()
+
+    def test_a_request_a_crash_left_behind_never_reaches_the_next_session(
+        self, cfg_path: Path,
+    ):
+        """It describes one ending; obeyed later it would send an ordinary
+        launch into the headset on its way out, hours after."""
+        config = load_config(cfg_path)
+        request_handoff(config.paths.state_dir, VR)
+
+        _code, popen = self._main(cfg_path)
+
+        popen.assert_not_called()
 
 
 class TestMainStampsOnlyTheMachinesOwnShortcut:

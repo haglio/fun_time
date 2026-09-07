@@ -12,9 +12,7 @@ from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
     _release_vr_runtime,
     build_vr_manifest,
-    is_vr_pin,
     main_playlist_has_vr,
-    stamp_vr_shortcut_aumid,
     stock_the_playlists,
     validate_vr_config,
     vr_main_sources,
@@ -498,6 +496,136 @@ class TestStockingThePlaylists:
         written = sorted(p.name for p in state.glob("*playlist*.tsv"))
         assert len(written) == 3, written
 
+    def test_a_desktop_playlist_is_rebuilt_around_the_clip_it_was_on(self, config, tmp_path):
+        """Crossing in from the desktop: its rotation holds no VR video, so the
+        primary is rebuilt from the merged sources — and rotated back onto the
+        clip that was on screen, which the headset can play because this
+        session's sources include the desktop's (docs/entering-vr.md)."""
+        library = tmp_path / "library"
+        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
+        flat_one = library / "2D" / "scene two.mp4"
+        flat_two = library / "2D" / "scene three.mp4"
+        for clip in (flat_one, flat_two):
+            clip.write_bytes(b"")
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+        nau_playlist = state / "nau_playlist.tsv"
+        nau_playlist.write_text(f"{flat_one}\n{flat_two}\n", encoding="utf-8")
+
+        stock_the_playlists(
+            self._manifest(config, tmp_path),
+            state_dir=state,
+            metadata_root=tmp_path / "metadata",
+            vr_library_dirs=config.vr.library_dirs,
+            resumed=True,
+            main_f_mode=False,
+            main_recent=False,
+            main_video=str(flat_two),
+        )
+
+        entries = nau_playlist.read_text(encoding="utf-8").splitlines()
+        assert entries[0].split("\t")[0] == str(flat_two)
+        # …and the headset's own library is in the queue under it.
+        assert any("finished" in entry for entry in entries)
+
+    def test_a_rebuild_that_cannot_hold_the_clip_opens_on_its_own_first(
+        self, config, tmp_path,
+    ):
+        """A clip deleted since the last session leaves nothing to rotate onto,
+        and the session opens on the rebuild rather than on a dead path."""
+        library = tmp_path / "library"
+        (library / "VR" / "finished" / "scene one.mp4").write_bytes(b"")
+        flat = library / "2D" / "scene two.mp4"
+        flat.write_bytes(b"")
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+        nau_playlist = state / "nau_playlist.tsv"
+        nau_playlist.write_text(f"{flat}\n", encoding="utf-8")
+
+        stock_the_playlists(
+            self._manifest(config, tmp_path),
+            state_dir=state,
+            metadata_root=tmp_path / "metadata",
+            vr_library_dirs=config.vr.library_dirs,
+            resumed=True,
+            main_f_mode=False,
+            main_recent=False,
+            main_video=str(library / "2D" / "gone since.mp4"),
+        )
+
+        entries = nau_playlist.read_text(encoding="utf-8").splitlines()
+        assert entries and "gone since" not in entries[0]
+
+    def test_a_playlist_that_already_holds_vr_is_left_exactly_as_it_was(
+        self, config, tmp_path,
+    ):
+        """A VR session reopening its own files resumes them whole; only the
+        crossing rebuilds."""
+        library = tmp_path / "library"
+        vr_clip = library / "VR" / "finished" / "scene one.mp4"
+        vr_clip.write_bytes(b"")
+        state = tmp_path / "state"
+        state.mkdir(exist_ok=True)
+        nau_playlist = state / "nau_playlist.tsv"
+        nau_playlist.write_text(f"{vr_clip}\n", encoding="utf-8")
+
+        stock_the_playlists(
+            self._manifest(config, tmp_path),
+            state_dir=state,
+            metadata_root=tmp_path / "metadata",
+            vr_library_dirs=config.vr.library_dirs,
+            resumed=True,
+            main_f_mode=False,
+            main_recent=False,
+            main_video=str(vr_clip),
+        )
+
+        assert nau_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
+
+
+class TestTheCrossingBackToTheDesktop:
+    """FunTimeVR's end of it, the desktop orchestrator's mirrored: the request
+    cleared coming in, the relay spawned going out (docs/entering-vr.md)."""
+
+    def _main(self, config, *, during_session=lambda: None):
+        from unittest.mock import MagicMock, patch
+
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             patch("fun_time.session_handoff.subprocess.Popen") as popen, \
+             patch.object(orchestrator, "run_vr_bridge",
+                          side_effect=lambda *_a, **_k: (during_session(), 0)[1]):
+            return orchestrator.main([]), popen
+
+    def test_a_session_that_asked_to_cross_spawns_the_relay_on_its_way_out(self, config):
+        from fun_time.session_handoff import DESKTOP, request_handoff
+
+        code, popen = self._main(
+            config,
+            during_session=lambda: request_handoff(config.paths.state_dir, DESKTOP),
+        )
+
+        assert code == 0
+        assert popen.call_args.args[0][3:6] == ["--target", "desktop", "--config"]
+
+    def test_an_ordinary_quit_spawns_nothing(self, config):
+        _code, popen = self._main(config)
+
+        popen.assert_not_called()
+
+    def test_a_request_a_crash_left_behind_never_reaches_the_next_session(self, config):
+        from fun_time.session_handoff import DESKTOP, request_handoff
+
+        request_handoff(config.paths.state_dir, DESKTOP)
+
+        _code, popen = self._main(config)
+
+        popen.assert_not_called()
+
 
 def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch):
     """Started hidden, so nothing on screen would offer to quit it afterwards."""
@@ -588,45 +716,38 @@ class TestGenausRoleInTheManifest:
         assert settings.genau == GenauSettings()
 
 
-class TestTheVrPin:
-    """The VR session's pinned button is its own, lit by the VR player's window."""
+class TestTheOnePin:
+    """One app, one button.  FunTimeVR had a pin and an AppUserModelID of its own
+    while the headset was a separate thing to start; it is entered by saying
+    "enter VR" now, so a VR session is Fun Time in a headset and lights Fun
+    Time's button."""
 
-    @pytest.mark.parametrize("stem", ["Fun Time VR", "fun time vr", "Fun Time VR (2)"])
-    def test_the_vr_shortcut_and_its_copies_are_ours(self, stem):
-        assert is_vr_pin(stem) is True
+    def test_the_vr_player_claims_fun_times_own_identity(self):
+        """The claim is made before any window exists, so the id it names is
+        what every window of the session ends up grouped under."""
+        import ast
+        import inspect
 
-    @pytest.mark.parametrize("stem", ["Fun Time", "Fun Time (2)", "GenauVR", "Genau"])
-    def test_the_desktop_pin_and_every_other_are_not(self, stem):
-        assert is_vr_pin(stem) is False
+        from fun_time.win32_taskbar import APP_USER_MODEL_ID
+        from fun_time_vr import player
 
-    def test_only_the_vr_pins_are_stamped_with_the_vr_identity(self, tmp_path):
-        from unittest.mock import patch
-
-        from fun_time.win32_taskbar import VR_APP_USER_MODEL_ID
-
-        for name in ("Fun Time.lnk", "Fun Time VR.lnk", "Fun Time VR (2).lnk", "Other.lnk"):
-            (tmp_path / name).write_bytes(b"")
-        with patch("fun_time_vr.orchestrator.taskbar_pin_dir", return_value=tmp_path), \
-             patch("fun_time_vr.orchestrator.set_shortcut_app_user_model_id") as stamp:
-            stamp_vr_shortcut_aumid()
-
-        assert sorted(call.args for call in stamp.call_args_list) == [
-            (str(tmp_path / "Fun Time VR (2).lnk"), VR_APP_USER_MODEL_ID),
-            (str(tmp_path / "Fun Time VR.lnk"), VR_APP_USER_MODEL_ID),
+        source = inspect.getsource(player.main)
+        claimed = [
+            node.args[0].id
+            for node in ast.walk(ast.parse(source.lstrip()))
+            if isinstance(node, ast.Call)
+            and getattr(node.func, "id", "") == "set_app_user_model_id"
         ]
+        assert claimed == ["APP_USER_MODEL_ID"]
+        assert player.APP_USER_MODEL_ID == APP_USER_MODEL_ID
 
-    def test_a_pin_that_will_not_take_the_stamp_is_logged_and_left(self, tmp_path):
-        from unittest.mock import MagicMock, patch
+    def test_there_is_no_second_identity_left_to_claim(self):
+        """The VR id is gone rather than merely unused: left defined, the next
+        window opened in the headset could still be given a button of its own."""
+        from fun_time import win32_taskbar
 
-        (tmp_path / "Fun Time VR.lnk").write_bytes(b"")
-        log = MagicMock()
-        with patch("fun_time_vr.orchestrator.taskbar_pin_dir", return_value=tmp_path), \
-             patch("fun_time_vr.orchestrator.set_shortcut_app_user_model_id",
-                   side_effect=OSError("locked")), \
-             patch("fun_time_vr.orchestrator.logger", log):
-            stamp_vr_shortcut_aumid()   # must not raise
-
-        assert "Could not stamp" in log.warning.call_args.args[0]
+        assert not [name for name in vars(win32_taskbar) if name.endswith("APP_USER_MODEL_ID")
+                    and name != "APP_USER_MODEL_ID"]
 
     def test_a_session_on_another_config_leaves_the_pin_alone(self, config):
         from unittest.mock import patch
@@ -636,12 +757,12 @@ class TestTheVrPin:
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch.object(orchestrator, "install_exception_logging"), \
-             patch.object(orchestrator, "stamp_vr_shortcut_aumid") as stamp:
+             patch.object(orchestrator, "stamp_shortcut_aumid") as stamp:
             orchestrator.main(["--check"])
 
         stamp.assert_not_called()
 
-    def test_the_installed_app_stamps_its_own_pin(self, config):
+    def test_the_installed_app_stamps_the_one_pin(self, config):
         from unittest.mock import patch
 
         from fun_time_vr import orchestrator
@@ -650,7 +771,7 @@ class TestTheVrPin:
              patch.object(orchestrator, "DEFAULT_CONFIG_PATH", config.config_path), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch.object(orchestrator, "install_exception_logging"), \
-             patch.object(orchestrator, "stamp_vr_shortcut_aumid") as stamp:
+             patch.object(orchestrator, "stamp_shortcut_aumid") as stamp:
             orchestrator.main(["--check"])
 
         stamp.assert_called_once_with()

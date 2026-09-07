@@ -10,6 +10,7 @@ from fun_time.session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
     resume_main_loop,
+    resume_main_video,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
@@ -425,6 +426,84 @@ class TestPlaylistFitsSources:
         """Having no session to come back to is the resume's own answer, and it
         must not read as a playlist needing a rebuild."""
         assert playlist_fits_sources(tmp_path / "absent.tsv", str(tmp_path)) is True
+
+
+class TestResumeMainVideo:
+    """The other half of a cross-app rebuild: keeping the clip on screen.
+
+    Both apps refuse the other's main playlist, so crossing between them
+    rebuilds that one file — and a rebuild alone dropped what you were watching
+    every time, in both directions, while both satellites came back untouched
+    (docs/entering-vr.md).
+    """
+
+    def test_the_rebuild_is_rotated_onto_the_clip_that_was_on_screen(self, tmp_path: Path):
+        a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [a, b, c])
+
+        assert resume_main_video(playlist, b) is True
+
+        assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
+
+    def test_a_clip_the_arriving_session_cannot_play_is_reported_not_forced(
+        self, tmp_path: Path
+    ):
+        """A VR master on the way back to the desktop is not in the desktop's
+        rebuild, because the desktop cannot play it: that crossing opens on the
+        rebuild's own first clip rather than on a path nothing can load."""
+        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [a, b])
+
+        assert resume_main_video(playlist, str(tmp_path / "headset scene.mp4")) is False
+
+        assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
+
+    def test_the_funscript_column_survives_the_rotation(self, tmp_path: Path):
+        """The main player drives the OSR2 off that column, so a crossing that
+        dropped it would carry the video over and leave it unscripted."""
+        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [f"{a}\ta.funscript", f"{b}\tb.funscript"])
+
+        assert resume_main_video(playlist, b) is True
+
+        assert playlist.read_text(encoding="utf-8").splitlines() == [
+            f"{b}\tb.funscript", f"{a}\ta.funscript",
+        ]
+
+    def test_case_alone_is_not_a_different_clip(self, tmp_path: Path):
+        """The playlist and the status file are written by different processes,
+        and Windows hands the same path back in either case."""
+        (tmp_path / "Scene One.mp4").write_bytes(b"")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [str(tmp_path / "b.mp4"), str(tmp_path / "Scene One.mp4")])
+
+        assert resume_main_video(playlist, str(tmp_path / "scene one.mp4")) is True
+
+        assert playlist.read_text(encoding="utf-8").splitlines()[0] == str(
+            tmp_path / "Scene One.mp4"
+        )
+
+    def test_a_player_that_published_no_clip_leaves_the_rebuild_alone(self, tmp_path: Path):
+        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [a, b])
+
+        assert resume_main_video(playlist, "") is False
+
+        assert playlist.read_text(encoding="utf-8").splitlines() == [a, b]
+
+    def test_it_leaves_the_main_player_s_loop_answerable(self, tmp_path: Path):
+        """``resume_main_loop`` is queued only when the player really did come
+        back onto the video the loop was cut from, which is what this decides."""
+        a, b = _clips(tmp_path, "a.mp4", "b.mp4")
+        playlist = tmp_path / "nau_playlist.tsv"
+        _write_playlist(playlist, [a, b])
+
+        assert resume_main_video(playlist, b) is True
+        assert playlist_opens_on(playlist, b) is True
 
 
 def test_resume_carries_the_satellites_mode(tmp_path):

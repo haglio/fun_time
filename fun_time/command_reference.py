@@ -119,6 +119,12 @@ _SECTIONS: tuple[_Section, ...] = (
         "Global",
         (
             _Row("Quit — close everything", ("Ctrl+Alt+Q",), ("quit",)),
+            _Row(
+                "Enter VR / exit VR — the same session in the headset, or back "
+                "on the monitors, carrying what you were watching across",
+                (),
+                ("enter_vr", "exit_vr"),
+            ),
             _Row("Omnipause / resume", ("Esc",), ("omnipause_toggle", "pause", "play")),
             # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),

@@ -63,12 +63,14 @@ def test_skips_unrelated_shortcuts(tmp_path):
     assert read_shortcut_app_user_model_id(str(unrelated)) is None
 
 
-def test_leaves_the_vr_pin_its_own_identity(tmp_path):
-    """"Fun Time VR.lnk" starts with our name and is not ours to stamp.
+def test_leaves_a_retired_vr_pin_alone(tmp_path):
+    """"Fun Time VR.lnk" starts with our name and is still not ours to stamp.
 
-    Both pins sit in the same folder, so a prefix or "contains" match would
-    give the VR session the desktop app's AUMID -- and Windows reads one AUMID
-    as one app, collapsing the V and the FT into a single taskbar button.
+    It was a second app's pin, with an AppUserModelID of its own, and it is a
+    retired one now: the headset is entered by saying "enter VR" rather than by
+    clicking anything.  Either way the match has to be exact -- a prefix or a
+    "contains" would reach it, and stamping a pin we no longer launch through
+    keeps it looking live on a taskbar it should be gone from.
     """
     fake_pin_dir = tmp_path / "pins"
     fake_pin_dir.mkdir()

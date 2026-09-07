@@ -1,24 +1,9 @@
 """Bring a reopened session back to the clip each player was on, and the mode
 they were in.
 
-Every player starts at the top of the playlist file fun_time hands it, and
-startup used to overwrite all three with a fresh weighted shuffle — so
-reopening Fun Time landed on three clips you had never chosen and lost whatever
-you were watching.  Resume instead keeps last session's playlists and rotates
-each one onto the clip that was on screen: the player's first entry is where
-you left off, and because a playlist wraps, the clips that were coming up still
-come up in the same order.
-
-Keeping those files means keeping what SHAPED them, which is the other half here
-(:func:`resume_shared_state`): a playlist carries its session's F-mode, filter,
-order and loop in it, so the session has to come back believing what its files
-say, or every HUD describes a session other than the one playing.
-
-Nothing has to be written at shutdown for either half.  Each player already
-publishes the video it is playing to its status file every tick, and the
-dispatch loop writes the state file after every command, so the last tick before
-the session ended is the record — one that survives the force-kill that ends a
-session, and a crash or a power cut too, where a shutdown hook would not.
+Keeping last session's playlists means keeping what SHAPED them, which is the
+other half here (:func:`resume_shared_state`).  Why either half exists, what
+comes back and what cannot: ``docs/resuming-a-session.md``.
 """
 from __future__ import annotations
 
@@ -74,15 +59,12 @@ def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
     """Whether every video in *playlist_file* comes from *sources*.
 
     A playlist is only ever built from the source spec of the session that
-    built it, so an entry from outside this session's spec means the file was
-    left by a DIFFERENT app sharing this state dir — today FunTimeVR, whose
-    main rotation merges the VR library into this one's.  Resuming that is
-    how VR videos reached the desktop app's main player, which must never
-    play them, so the caller rebuilds rather than resumes.
+    built it, so an entry from outside this one's means the file was left by
+    the OTHER app sharing this state dir, and the caller rebuilds rather than
+    resumes (:func:`resume_main_video`).
 
     An unreadable or missing playlist reads as empty, and so fits vacuously:
-    there is nothing foreign in it, and having nothing to resume at all is the
-    caller's own separate answer.
+    having nothing to resume at all is the caller's own separate answer.
     """
     roots = source_roots(sources)
     return all(
@@ -94,11 +76,9 @@ def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
 def _is_within(video: Path, root: Path) -> bool:
     """Whether *video* is *root* itself or sits somewhere beneath it.
 
-    Compared component by component, on the same normalized key the rest of the
-    app matches paths by: a library dir and the playlist naming a file in it
-    can differ in case and in separator on Windows, and neither difference is a
-    different library.  Matching on components also keeps a sibling dir whose
-    name merely starts the same — ``.../VR_old`` beside ``.../VR`` — outside.
+    Compared component by component, on the app's normalized path key: case and
+    separator differ between a library dir and a playlist naming a file in it,
+    and a component match also keeps ``.../VR_old`` out of ``.../VR``.
     """
     root_parts = [normalize_path_key(part) for part in root.parts]
     video_parts = [normalize_path_key(part) for part in video.parts]
@@ -106,27 +86,25 @@ def _is_within(video: Path, root: Path) -> bool:
 
 
 def playlist_opens_on(playlist_file: Path, video: str) -> bool:
-    """Whether *playlist_file*'s first entry is *video*.
-
-    Which is to say: whether the player handed this file will actually load that
-    clip, since every player starts at the top.  Asked of the main player before its
-    loop is handed back — a loop is a range inside one video, and a resume that
-    could not rotate onto that video (deleted since, or the whole playlist
-    rebuilt) would otherwise put those bounds on whatever leads instead.
-
-    Matched on the same normalized key :func:`_rotate_onto` compares by, and for
-    the same reason: the playlist and the status file are written by different
-    processes, and case alone is not a different file on Windows.
+    """Whether *playlist_file*'s first entry is *video* — which is to say,
+    whether the player handed this file will load that clip, since every player
+    starts at the top.  Asked before the main player's loop is handed back
+    (docs/resuming-a-session.md).  Matched on the normalized key
+    :func:`_rotate_onto` uses: case alone is not a different file, and the
+    playlist and the status file are written by different processes.
     """
-    entries = read_playlist(playlist_file)
+    return playlist_leads_with(read_playlist(playlist_file), video)
+
+
+def playlist_leads_with(entries: PlaylistEntries, video: str) -> bool:
+    """:func:`playlist_opens_on` asked of a playlist in hand, not one on disk."""
     return bool(entries) and normalize_path_key(str(entries[0][0])) == normalize_path_key(video)
 
 
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
     """Last session's playlist, minus the clips that are no longer on disk.
 
-    A playlist built moments before launch could only name files that were
-    there; one resumed from yesterday can name clips trashed or pruned since,
+    A playlist resumed from yesterday can name clips trashed or pruned since,
     and handing mpv a path to nothing is how a satellite comes up stuck.
     """
     return [
@@ -156,11 +134,8 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     *resumptions* pairs a playlist file with the video named in that player's
     status file.  Returns whether there was a session to come back to at all: a
     playlist file that is missing, or that has no clip left on disk, means there
-    is not — a first run, a wiped state dir — and the caller builds fresh instead.
-
-    All or nothing, because one build writes all three playlists: every rotation
-    is worked out before any of them is written, so a session either resumes
-    whole or is left exactly as the last build wrote it.
+    is not — a first run, a wiped state dir — and the caller builds fresh
+    instead.  All or nothing (docs/resuming-a-session.md).
     """
     rotated: list[tuple[Path, PlaylistEntries]] = []
     for playlist_file, last_video in resumptions:
@@ -173,18 +148,30 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     return True
 
 
+def resume_main_video(playlist_file: Path, video: str) -> bool:
+    """Rotate a just-REBUILT main playlist onto *video*; False when it is not in it.
+
+    The other half of the cross-app rebuild above (``docs/entering-vr.md``).
+    False is an answer rather than a failure — a rebuild that lacks the clip is
+    a session that cannot play it — and it decides whether the main player's
+    loop can come back (:func:`resume_main_loop`).
+    """
+    entries = read_playlist(playlist_file)
+    rotated = _rotate_onto(entries, video)
+    if not playlist_leads_with(rotated, video):
+        return False
+    write_playlist_entries(playlist_file, rotated)
+    return True
+
+
 def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
     """Queue LOCK on the command file of each satellite that was locked.
 
     *locks* pairs a satellite's command file with whether that side comes back
-    locked.  A lock is repeat-one in mpv's own ``loop_file``, which lives in a
-    player process that has just been replaced, so unlike a filter or a loop it
-    cannot ride back in on a file the new player reads — it has to be re-sent.
-
-    Queued before the satellites launch, so each drains it on its very first
-    tick, by which time its session has already loaded the clip the resume put at
-    the top of its playlist: the same clip the lock was on when the session
-    closed, locked again before a frame of anything else can play.
+    locked.  A lock lives in the player process rather than in any file the new
+    one reads, so it has to be re-sent; queued before the satellites launch, it
+    drains on the first tick, over the clip the resume put at the top of the
+    playlist (docs/resuming-a-session.md).
     """
     for command_file, locked in locks:
         if locked:
@@ -194,17 +181,10 @@ def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
 def resume_main_loop(nau_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
     """Queue SET_LOOP on the main player's command file for the loop it was running.
 
-    The main player's counterpart of :func:`resume_satellite_locks`, and re-sent for
-    the same reason: an A/B loop is a range inside one video, held in mpv by a
-    player process that has just been replaced, so unlike F-mode or an order it
-    cannot ride back in on a file the new player reads.  *bounds* is None when
-    there was no loop — Nau then simply plays the video through, which is
-    already what no loop means.
-
-    Queued before Nau launches, so it drains on the first pass of its command
-    file, over the video the resume put at the top of its playlist: the same
-    video the loop was cut from.  Nau holds the seek until mpv has the file open
-    (see its ``restore_loop``), so it lands however slowly the file opens.
+    The main player's counterpart of :func:`resume_satellite_locks`, re-sent for
+    the same reason and queued the same way (docs/resuming-a-session.md).
+    *bounds* is None when there was no loop — Nau then plays the video through,
+    which is already what no loop means.
     """
     if bounds is not None:
         append_command(Path(nau_cmd_file), f"{SET_LOOP_CMD} {bounds[0]} {bounds[1]}")
@@ -213,18 +193,11 @@ def resume_main_loop(nau_cmd_file: Path, bounds: tuple[int, int] | None) -> None
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     """Seed *state_file* with the state a resumed session comes back in.
 
-    Pass *resumed* as :func:`resume_playlists` reported it: the state carried
-    forward is only ever the state that explains the files on disk, so a session
-    built fresh — nothing to resume, or a rebuild over the top — opens on
-    defaults, and one that kept last session's playlists keeps what shaped them
-    and what it was left set to (:data:`RESUMED_FIELDS`).
-
-    Written either way, and returned, since the file is what the dispatch loop
-    reads its opening state from: the alternative was deleting it at startup,
-    which is exactly how a session came back playing favorites while every HUD
-    said F-mode was off — and then answered "F-mode" by reporting it *enabled*
-    and changing nothing you could see.  Writing defaults clears a crashed
-    session's leftovers just as the delete did.
+    Pass *resumed* as :func:`resume_playlists` reported it: a session built
+    fresh opens on defaults, one that kept last session's playlists keeps
+    :data:`RESUMED_FIELDS`.  Written either way, and returned, since this file
+    is what the dispatch loop reads its opening state from
+    (docs/resuming-a-session.md).
     """
     previous = read_shared_state(state_file) if resumed else None
     state = (

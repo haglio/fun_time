@@ -30,6 +30,7 @@ from app_support.win32 import mutex_name, set_shortcut_app_user_model_id, try_ac
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
 from .session_environment import SessionEnvironment
+from .session_handoff import clear_handoff_request, hand_over_if_asked
 from .single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
 from .win32_taskbar import APP_USER_MODEL_ID
 from .windows_bridge_orchestrator import run_session
@@ -108,12 +109,12 @@ def taskbar_pin_dir() -> Path:
 def stamp_shortcut_aumid() -> None:
     """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    The stem has to match "Fun Time" exactly, not merely start with it: the
-    pin folder also holds "Fun Time VR.lnk", which launches the VR session and
-    must keep an identity of its own.  Stamping by prefix would hand the
-    desktop app's windows and the VR session's windows the same AUMID, which
-    is Windows' definition of one app — one pinned button for both, lighting
-    up whichever of them the user did not start.
+    Called by both shapes of the session — a VR session is Fun Time in a
+    headset and lights the same button (see fun_time.win32_taskbar).
+
+    The stem has to match "Fun Time" exactly, not merely start with it: a
+    "Fun Time VR.lnk" may still sit in the pin folder from when the headset was
+    a second app to click, and stamping a retired pin keeps it looking live.
 
     Only the copy under %APPDATA% is ours to touch; nothing in the repo is a
     shortcut, since .lnk is git-ignored here.  Failures are logged but never
@@ -193,6 +194,7 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
+    clear_handoff_request(config.paths.state_dir)
     validate_config(config)
     # The taskbar pin belongs to the installed app, and lives in %APPDATA% —
     # outside every checkout.  Only the session the pin actually launches has
@@ -214,7 +216,9 @@ def main(argv: list[str] | None = None) -> int:
     # Every child below is named as it is launched; this one process cannot be,
     # because it is the one doing the naming -- see prepare_orchestrator_launcher.
     prepare_orchestrator_launcher()
-    return run_windows_bridge(config, logger, env)
+    exit_code = run_windows_bridge(config, logger, env)
+    hand_over_if_asked(config, logger)  # last: the relay waits on the mutex above
+    return exit_code
 
 
 if __name__ == "__main__":

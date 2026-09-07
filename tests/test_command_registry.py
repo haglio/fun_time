@@ -18,7 +18,7 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from fun_time import command_dispatch, dashboard_actions
+from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.command_reference import build_reference_sections
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
@@ -62,9 +62,10 @@ def _loop_branch_ids() -> frozenset[str]:
     """The ids _handle_command branches on, read from its source.
 
     The loop's if/elif IS the definition of what it intercepts; a parallel
-    hand-kept list would be one more surface to miss.  Every comparison in it
-    is a literal (or the HELP_REFERENCE_COMMANDS constant), so the parse is
-    exact — a new non-literal branch shape fails the assert below.
+    hand-kept list would be one more surface to miss.  Every comparison in it is
+    a literal or a named table of ids the loop imports (HELP_REFERENCE_COMMANDS,
+    HANDOFF_COMMANDS), so the parse is exact — a new branch shape, or a name
+    that is not a collection of ids, fails an assert below.
     """
     source = (_REPO_ROOT / "fun_time" / "windows_bridge_dispatch_loop.py").read_text(
         encoding="utf-8"
@@ -89,8 +90,10 @@ def _loop_branch_ids() -> frozenset[str]:
         elif isinstance(comparator, ast.Tuple):
             ids.update(element.value for element in comparator.elts)
         elif isinstance(comparator, ast.Name):
-            assert comparator.id == "HELP_REFERENCE_COMMANDS", ast.dump(node)
-            ids.update(dashboard_actions.HELP_REFERENCE_COMMANDS)
+            table = getattr(windows_bridge_dispatch_loop, comparator.id, None)
+            assert table is not None, f"the loop branches on an unresolvable {comparator.id}"
+            assert all(isinstance(entry, str) for entry in table), ast.dump(node)
+            ids.update(table)
         else:  # pragma: no cover - a new branch shape must be classified here
             raise AssertionError(f"unrecognized _handle_command comparison: {ast.dump(node)}")
     return frozenset(ids)
