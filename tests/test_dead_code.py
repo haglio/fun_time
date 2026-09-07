@@ -119,6 +119,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
+# 6916 since 2026-09-07, when the VR covers landed and the contract the cover
+# family had each restated -- the two Esc routes, the flag a cover follows, the
+# ready flag both ends derive -- collapsed into overlay_progress alone.
 # 6917 since 2026-09-06, when the bug wave's two new dispatch functions went in
 # under their own names, and the anchor fix's paragraph shrank to the sentence
 # left true.  6919 the same day, when the sidecar writer took the family's lock
@@ -129,7 +132,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 6917
+MAX_PROSE_LINES = 6916
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

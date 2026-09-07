@@ -34,8 +34,8 @@ from fun_time.project_paths import PROJECT_VR_ICON
 logger = logging.getLogger(__name__)
 
 # Shorter than the desktop's: no browser, no Origenerator, no windows.  The
-# cover appears only once the player holds an OpenXR session, well into
-# "players" -- the tail of that phase is what it opens on.
+# cover cannot appear before the player holds an OpenXR session, well into
+# "players", so the tail of that phase is what it opens on.
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
@@ -51,7 +51,7 @@ VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
 )
 
 # Startup's matches the orchestrator's patience with the player: that whole
-# wait is one phase, so nothing writes to the file for the length of it.
+# wait is one phase, so nothing writes for the length of it.
 STARTUP_STALE_TIMEOUT_S = 120.0
 SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
@@ -75,7 +75,6 @@ class Cover:
 
 class CoverWatcher:
     """What the cover should show, read off the orchestrator's progress files.
-
     Polled from the player's file-channel worker, never its frame loop.  None
     means show the scene: no end running, DONE, or a file gone stale -- a
     headset must never be left under a panel that will never move."""
@@ -168,8 +167,7 @@ class CoverWatcher:
 
 
 # The player's answer to "is the room on screen?", which a desktop orchestrator
-# sees for itself: a VR session's pictures are textures inside a process it only
-# holds a pid for.  The grace caps it -- an empty satellite playlist never gets
+# sees for itself.  The grace caps it -- an empty satellite playlist never gets
 # a texture, and the reveal may be late but never absent.
 SCENE_READY_FILENAME = "vr_scene_ready.flag"
 SCENE_READY_GRACE_S = 8.0
@@ -181,7 +179,7 @@ def scene_ready_file(state_dir: str | Path) -> Path:
 
 class SceneReady:
     """Watches the room fill in under the cover, and says once when it has.
-    Without it the reveal lands on the player's first STATUS write -- a role
+    Without it the reveal lands on the player's first STATUS write: a role
     having PICKED a video, a second or so before the pictures do."""
 
     def __init__(
@@ -198,8 +196,8 @@ class SceneReady:
         self._reported = False
 
     def note(self, ready: bool) -> None:
-        """One frame's answer, written once: on the first yes, or on the
-        grace running out."""
+        """One frame's answer, written once: on the first yes, or on the grace
+        running out."""
         if self._reported:
             return
         now = self._clock()
@@ -243,12 +241,30 @@ def wait_for_cover_painted(
 
 # --- Painting -------------------------------------------------------------
 
-# Held: a bitmap that changed size would rescale the whole cover.
-COVER_SIZE_PX = (512, 320)
+COVER_SIZE_PX = (512, 320)  # held: a changed size rescales the whole cover
 
 COVER_WIDTH_DEG = 40.0  # wider than the console's 24: that is glanced at
 
-# Segoe UI as filenames, Pillow loading a face by file rather than by family.
+
+class CoverAnchor:
+    """Where the cover hangs: the heading the viewer had when it went up, held
+    until it comes down.  Head-locked it turns with the eyes and reads as glued
+    to the lenses; held to one heading it is a panel out in the world, to be
+    looked at or away from.  Captured rather than fixed at the scene's forward,
+    so it arrives in front of whoever raised it."""
+
+    def __init__(self) -> None:
+        self._yaw: float | None = None
+
+    def heading(self, yaw: float) -> float:  # takes *yaw* only if none is held
+        if self._yaw is None:
+            self._yaw = yaw
+        return self._yaw
+
+    def release(self) -> None:
+        self._yaw = None
+
+# Segoe UI as filenames: Pillow loads a face by file, not by family.
 _WORDMARK_FONT = "segoeuiz.ttf"
 _BODY_FONT = "segoeui.ttf"
 
@@ -262,8 +278,8 @@ _GAPS = (14, 12, 14, 12)  # icon->wordmark, wordmark->status, status->bar, bar->
 
 
 def _clear_color(hex_color: str) -> tuple[float, float, float, float]:
-    """A palette tone as ``glClearColor``'s four floats, straight through:
-    nothing enables GL_FRAMEBUFFER_SRGB, so decoding would light it."""
+    """A palette tone as ``glClearColor``'s floats, straight through: nothing
+    enables GL_FRAMEBUFFER_SRGB, so decoding would light it."""
     value = hex_color.lstrip("#")
     return (*(int(value[i:i + 2], 16) / 255.0 for i in (0, 2, 4)), 1.0)
 
@@ -293,8 +309,7 @@ def _text_height(font: ImageFont.FreeTypeFont, text: str) -> int:
 
 
 def paint_cover(cover: Cover, *, size: tuple[int, int] = COVER_SIZE_PX) -> Image.Image:
-    """The desktop cover's panel, in its five tones, on a ground that fills the
-    view."""
+    """The desktop cover's panel, in its five tones, on a filled ground."""
     width, height = size
     image = Image.new("RGBA", size, BG)
     draw = ImageDraw.Draw(image)

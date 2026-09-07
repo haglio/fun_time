@@ -34,6 +34,7 @@ from fun_time_vr.cover import (
     VR_SHUTDOWN_PHASES,
     VR_STARTUP_PHASES,
     Cover,
+    CoverAnchor,
     CoverWatcher,
     SceneReady,
     paint_cover,
@@ -389,3 +390,34 @@ class TestTheRoomComingUp:
 
     def test_both_ends_derive_the_marker_from_the_state_dir(self, tmp_path: Path):
         assert scene_ready_file(tmp_path) == tmp_path / SCENE_READY_FILENAME
+
+
+class TestWhereTheCoverHangs:
+    """Drawn head-locked it turns with the eyes and reads as glued to the
+    lenses; held to one heading it is a panel out in the world, which can be
+    looked at and looked away from."""
+
+    def test_the_first_heading_is_the_one_it_keeps(self):
+        anchor = CoverAnchor()
+
+        assert anchor.heading(1.2) == pytest.approx(1.2)
+        assert anchor.heading(2.9) == pytest.approx(1.2)
+        assert anchor.heading(-0.4) == pytest.approx(1.2)
+
+    def test_a_released_anchor_takes_the_next_viewer_where_they_are(self):
+        """The closing cover must not hang where the loading one did, hours and
+        a headset-turn earlier."""
+        anchor = CoverAnchor()
+        anchor.heading(1.2)
+
+        anchor.release()
+
+        assert anchor.heading(2.9) == pytest.approx(2.9)
+
+    def test_a_heading_of_zero_is_a_heading(self):
+        """Held as None-or-not rather than as a truthiness, or facing the
+        reference space's forward would re-anchor every frame."""
+        anchor = CoverAnchor()
+        anchor.heading(0.0)
+
+        assert anchor.heading(2.9) == pytest.approx(0.0)
