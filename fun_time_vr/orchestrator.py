@@ -596,6 +596,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             sample_rate=config.voice_control.sample_rate,
         )
         dispatch_runner.voice_controller = voice_controller
+        voice_controller.active_side = lambda: dispatch_runner.state.active_side
         voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
         voice_thread.start()
         logger.info("Voice control thread launched")

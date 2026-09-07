@@ -351,6 +351,60 @@ class TestHandleRecognition:
 
         assert seen == [(f"unrecognized voice command: {heard}", source)]
 
+    def test_a_bare_command_confirms_over_the_player_it_reached(self, tmp_path, monkeypatch):
+        """"Portrait next" makes portrait the active player, so the "next" after
+        it drives portrait -- and the confirmation belongs over portrait, not
+        over the main player the command's own name resolves to."""
+        vc = self._controller(tmp_path)
+        vc.active_side = lambda: 2  # Player.PORTRAIT
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(source))
+
+        vc._handle_recognition(
+            Recognition(command="active_next", phrase="next"), spoken_at=1.0)
+
+        assert seen == ["portrait"]
+
+    def test_a_bare_command_with_the_main_player_active_confirms_over_it(
+            self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        vc.active_side = lambda: 1  # Player.MAIN
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(source))
+
+        vc._handle_recognition(
+            Recognition(command="active_next", phrase="next"), spoken_at=1.0)
+
+        assert seen == ["main"]
+
+    def test_a_named_command_ignores_which_player_is_active(self, tmp_path, monkeypatch):
+        """"Landscape next" says who it is for; the active side has no say."""
+        vc = self._controller(tmp_path)
+        vc.active_side = lambda: 2
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(source))
+
+        vc._handle_recognition(
+            Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0)
+
+        assert seen == ["landscape"]
+
+    def test_with_nothing_to_ask_a_bare_command_falls_back_to_the_main_player(
+            self, tmp_path, monkeypatch):
+        """A listener nobody wired to a dispatch loop still has to flash somewhere."""
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(source))
+
+        vc._handle_recognition(
+            Recognition(command="active_next", phrase="next"), spoken_at=1.0)
+
+        assert seen == ["system"]
+
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
         assert voice_control._source_for_heard_text("mainly landscaped") == "system"

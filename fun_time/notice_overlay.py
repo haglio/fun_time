@@ -70,11 +70,10 @@ NOTICE_TOP_MARGIN = 28
 class NoticeOverlay(QLabel):
     """A frameless, click-through banner that flashes a notice over a player.
 
-    It never takes focus — this suite is acutely focus-sensitive — so it is shown
-    with ``WA_ShowWithoutActivating`` and the ``Tool`` window type, which Qt maps
-    to a non-activating top-level on Windows.  Input falls through it
-    (``WA_TransparentForMouseEvents``) so it cannot intercept a click meant for
-    the player beneath.
+    It never takes focus -- this suite is acutely focus-sensitive -- so it is
+    shown with ``WA_ShowWithoutActivating`` and the ``Tool`` window type, and
+    input falls through it (``WA_TransparentForMouseEvents``) so it cannot
+    intercept a click meant for the player under it.
     """
 
     def __init__(self) -> None:

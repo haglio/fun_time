@@ -37,7 +37,7 @@ def screen_for(source: str) -> str:
 
 
 @dataclass(frozen=True)
-class Notice:  # its screen, and the reader's clock when it arrived
+class Notice:  # with its screen and the reader's clock when it arrived
     message: str
     level: int
     screen: str
@@ -84,11 +84,9 @@ class NoticeBoard:
     def lines(self) -> tuple[Notice, ...]:  # oldest first
         return tuple(self._lines)
 
-    def toast(self, screen: str) -> Notice | None:
-        """What is flashing over *screen* right now, if anything."""
+    def toast(self, screen: str) -> Notice | None:  # what is flashing over it
         return self._toasts.get(screen)
 
     @property
-    def records(self) -> tuple:
-        """The session's whole stream, unfiltered, oldest first."""
+    def records(self) -> tuple:  # the whole stream, unfiltered, oldest first
         return tuple(self._records)

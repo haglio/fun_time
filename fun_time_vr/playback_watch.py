@@ -14,8 +14,7 @@ STALLED = "stalled"
 STILL_STALLED = "still stalled"
 
 
-class PlaybackWatch:
-    """One player's progress, judged against the clock the caller pumps with."""
+class PlaybackWatch:  # progress, judged against the caller's own clock
 
     def __init__(self, *, seconds: float = STALL_SECONDS) -> None:
         self._seconds = seconds

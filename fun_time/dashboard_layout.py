@@ -103,13 +103,10 @@ class DashboardBarLayout:
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
-    """The control bar, laid out left to right at its natural size.
-
-    The app's own name and mark lead, then the four controls in one run.  The
-    microphone is one of them rather than a light set off to the side: F-mode was
-    the other light, and with it gone to the players' own HUDs a lone chip past a
-    gap read as something adrift from the bar rather than part of it.
-    """
+    """The control bar, laid out left to right at its natural size: the app's own
+    name and mark, then the four controls in one run.  The microphone is one of
+    them rather than a light off to the side, which read as adrift once F-mode
+    left for the players' own HUDs."""
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
 
