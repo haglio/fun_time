@@ -1,14 +1,15 @@
-"""The VR session's one decision that does not need a headset to check.
+"""The VR session's decisions that do not need a headset to check.
 
 Everything else in :mod:`fun_time_vr.vr_session` wants the OpenXR loader, a
 runtime and a live GL context; whether a located view is worth rendering from
-is pure, and it decides whether anything reaches the headset at all.
+is pure, and so is what the runtime's own session states ask of the session --
+both decide whether anything reaches the headset at all.
 """
 from __future__ import annotations
 
 import xr
 
-from fun_time_vr.vr_session import views_are_renderable
+from fun_time_vr.vr_session import VRSession, views_are_renderable
 
 
 def test_a_fully_tracked_view_is_renderable():
@@ -35,3 +36,70 @@ def test_an_unlocated_view_is_not_renderable():
     which is a zero-width frustum and a division by zero in the projection."""
     assert views_are_renderable(0) is False
     assert views_are_renderable(xr.ViewStateFlags.POSITION_VALID_BIT) is False
+
+
+class _SessionStateEvents:
+    """``xr.poll_event``, feeding a queue of state changes and then running dry."""
+
+    def __init__(self, *states):
+        self._queue = list(states)
+
+    def __call__(self, _instance):
+        if not self._queue:
+            raise xr.EventUnavailable
+        event = xr.EventDataSessionStateChanged(state=self._queue.pop(0))
+        event.type = xr.StructureType.EVENT_DATA_SESSION_STATE_CHANGED
+        return event
+
+
+def _a_session_off_a_headset(monkeypatch, *states):
+    """A session with no bring-up: the few fields its event poll reads, and the
+    three runtime calls it makes recorded rather than sent."""
+    session = VRSession.__new__(VRSession)
+    session.running = True
+    session._instance = object()
+    session._session = object()
+    session._session_state = xr.SessionState.UNKNOWN
+    session._session_begun = False
+    calls: list[str] = []
+    monkeypatch.setattr(xr, "poll_event", _SessionStateEvents(*states))
+    monkeypatch.setattr(xr, "begin_session", lambda *_a, **_kw: calls.append("begin"))
+    monkeypatch.setattr(xr, "end_session", lambda *_a, **_kw: calls.append("end"))
+    return session, calls
+
+
+def test_a_session_the_runtime_has_readied_is_ready_to_submit_frames(monkeypatch):
+    session, calls = _a_session_off_a_headset(monkeypatch, xr.SessionState.READY)
+
+    session.poll_events()
+
+    assert calls == ["begin"]
+    assert session.session_ready is True
+
+
+def test_a_stopped_session_is_no_longer_ready_to_submit_frames(monkeypatch):
+    """STOPPING ends the session, and a session that has ended takes no frames.
+
+    The flag was set on READY and never cleared, so the player's frame loop
+    went on submitting into an ended session and the app could die there
+    (bug 18).
+    """
+    session, calls = _a_session_off_a_headset(
+        monkeypatch, xr.SessionState.READY, xr.SessionState.STOPPING)
+
+    session.poll_events()
+
+    assert calls == ["begin", "end"]
+    assert session.session_ready is False
+
+
+def test_a_session_that_comes_back_is_ready_again(monkeypatch):
+    """The runtime readies a stopped session again when the headset is worn
+    once more, so the way back has to work as well as the way out."""
+    session, _calls = _a_session_off_a_headset(
+        monkeypatch, xr.SessionState.READY, xr.SessionState.STOPPING,
+        xr.SessionState.READY)
+
+    session.poll_events()
+
+    assert session.session_ready is True
