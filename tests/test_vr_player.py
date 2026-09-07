@@ -332,6 +332,7 @@ class TestThePanelUnderThePointer:
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=10_000.0,
                 volume=70, muted=False, seek_to=seeks.append, f_mode=False,
+                speed=1.25,
             ),
             drive_gate=SimpleNamespace(readout=lambda published: published),
         )

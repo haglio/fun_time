@@ -616,6 +616,7 @@ class _PanelUnit:
             loading=genau.loading,
             drive_gate=self._primary.drive_gate,
             f_mode=main.f_mode,
+            playback_speed=main.speed,
         )
         if genau.showing:
             scrubber = None
