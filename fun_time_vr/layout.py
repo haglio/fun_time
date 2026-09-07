@@ -17,13 +17,13 @@ LANDSCAPE = "landscape"
 PANEL = "panel"
 LAYOUT_FILENAME = "vr_layout.json"
 
-# Tuned on the first headset run: satellites flush beside the primary (36° wide,
-# centers at ±54°) sat in the peripheral vision, so they tuck inward over its
-# edges and ride a little high; the panel hangs above its top edge, out of the
-# action, which sits low in an immersive picture.
+# Sides as on the desktop: landscape left of the main player, portrait right.  Tuned on
+# the first headset run — satellites flush beside the primary sat in the peripheral
+# vision, so they tuck inward over its edges and ride a little high, and the panel hangs
+# above its top edge, out of the action.
 DEFAULT_LAYOUT: dict[str, Placement] = {
-    PORTRAIT: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
-    LANDSCAPE: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
+    LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
+    PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
     PANEL: Placement(azimuth_deg=0.0, elevation_deg=32.0, width_deg=24.0),
 }
 
