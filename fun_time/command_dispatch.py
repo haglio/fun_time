@@ -575,13 +575,10 @@ def dispatch_command(
         state = replace(state, active_side=side)
         # Every side command except a navigation step ends keyboard navigation on
         # that side, so its map re-homes on the live clip; nav commands manage
-        # their own anchor.  The main player has no anchor of its own; its
-        # commands have always cleared LANDSCAPE's (the old binary helper read
-        # "not portrait" as landscape), and that stands until argued otherwise —
-        # see the 2026-08-31 changelog note on audit item 33.
-        if not _is_hud_nav_command(command):
-            anchored = Player.LANDSCAPE if side is Player.MAIN else side
-            state = state.with_side(anchored, nav_anchor="")
+        # their own anchor.  The main player has none, so its commands end
+        # nobody's.
+        if not _is_hud_nav_command(command) and side is not Player.MAIN:
+            state = state.with_side(side, nav_anchor="")
 
     # In origenerator mode, a side's transport goes to the hosted app, never to
     # the blacked player invisibly underneath its region.  Ahead of the handler
