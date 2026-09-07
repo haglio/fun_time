@@ -290,16 +290,12 @@ class LogPanelWidget(QWidget):
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
-            # A word-button, which is a different animal from the square icon
-            # buttons: one ground, always, the way Scripture's and Evolver's
-            # rows are drawn.  It does NOT take the lighter on-ground those
-            # squares use -- that is what says "this square is engaged", and a
-            # word-button is not a thing you engage.  Which source is being
-            # shown is carried by the label alone, bright or muted.
-            #
-            # The font, the metrics and the shape stay Qt's, as Scripture leaves
-            # its own; only the colors are ours, because Qt paints a checked
-            # button in the default palette's bright highlight otherwise.
+            # A word-button keeps one ground always, the way Scripture's and
+            # Evolver's rows are drawn: the lighter on-ground says "this square
+            # is engaged", and a word-button is not a thing you engage -- which
+            # source is shown is the label's own brightness.  Font, metrics and
+            # shape stay Qt's; only the colors are ours, because Qt paints a
+            # checked button in the default palette's highlight otherwise.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
             button.setStyleSheet(
                 "QToolButton {"

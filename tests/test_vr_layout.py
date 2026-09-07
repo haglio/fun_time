@@ -5,6 +5,7 @@ import json
 
 from fun_time_vr.layout import (
     AZIMUTH_LIMIT_DEG,
+    DASH,
     DEFAULT_LAYOUT,
     ELEVATION_LIMIT_DEG,
     LANDSCAPE,
@@ -54,7 +55,7 @@ class TestTheDefaults:
     def test_only_the_screens_a_controller_places_are_in_here(self):
         """The console docks under the main player rather than being placed, so
         it is not one of these -- and a file naming it is ignored, not obeyed."""
-        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE}
+        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, DASH}
 
 
 class TestTheRememberedLayout:

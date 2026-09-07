@@ -16,6 +16,7 @@ PRIMARY = "primary"
 PORTRAIT = "portrait"
 LANDSCAPE = "landscape"
 PANEL = "panel"
+DASH = "dash"
 LAYOUT_FILENAME = "vr_layout.json"
 
 # Sides as on the desktop: landscape left of the main player, portrait right.  Tuned on
@@ -25,6 +26,8 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
     PRIMARY: PRIMARY_PLACEMENT,
     LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
     PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
+    # Off to the left and low, beside the room rather than in it.
+    DASH: Placement(azimuth_deg=-62.0, elevation_deg=-12.0, width_deg=40.0),
 }
 
 AZIMUTH_LIMIT_DEG = 150.0

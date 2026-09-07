@@ -412,8 +412,11 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
     # Before the hotkey script reads two of these: a dead session's pids file
     # would tell it THIS session is up, taking Esc's cancel with it, and an
     # "exit" in its mailbox would be read on its first tick.
+    # ...and a desktop session's press-hint port, which would take this
+    # session's presses to whatever now answers there.
     for stale in (pids_file, ahk_cmd_file, dashboard_cmd_file,
-                  dashboard_cmd_file.with_suffix(".processing")):
+                  dashboard_cmd_file.with_suffix(".processing"),
+                  state_dir / "dashboard_press_port.txt"):
         stale.unlink(missing_ok=True)
 
     cover = _Cover(state_dir)
@@ -574,7 +577,9 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         # Every role pid stays 0: the roles are surfaces of the VR player, and
         # unresolved HWNDs are what make the window ops no-ops.
         windows=WindowRoles(pids=ChildPids()),
-        dashboard_enabled=False,
+        # There IS a dashboard now, hanging in the scene; this publishes what
+        # its bar reads.
+        dashboard_enabled=True,
         hud_publisher=hud_publisher,
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")

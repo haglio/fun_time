@@ -380,21 +380,15 @@ def build_voice_commands(
         commands[f"main {_action_word}"] = f"main_{_action}"
         commands[f"{_action_word} main"] = f"main_{_action}"
 
-    # F-mode, per player.  Every player has its own — narrowing each to something
-    # different (``runtime_flow.MAIN_PLAYER``) — so each is sayable by naming it, in
-    # either order like the rest of the grid: "portrait f mode" and "f mode portrait"
-    # are the same command.  "both" drives the two satellites (expanded into its pair
-    # by the dispatch loop), "main" the main player, "all" every player — the F key.
-    #
-    # Bare, it reaches the player last addressed, exactly as bare "lock" and "next"
-    # do.  Reading the bare phrase as the whole room instead is what made a spoken
-    # "f mode" answer a room that already looked narrowed with "enabled": one player
-    # had been turned off by name hours earlier, and the all-players toggle turns ON
-    # unless every one of them is already on.
+    # F-mode, per player, sayable by naming it in either order like the rest of
+    # the grid: "both" drives the two satellites, "main" the main player, "all"
+    # every player -- the F key.  Bare, it reaches the player last addressed,
+    # exactly as bare "lock" and "next" do; reading it as the whole room instead
+    # made a spoken "f mode" answer "enabled" on a room that already looked
+    # narrowed, one player having been turned off by name hours earlier.
     #
     # ``_FMODE_PHRASES`` pairs each phrase with the per-player suffix and the
-    # all-players command it means, which are spelled differently for the toggle
-    # alone ("<player>_fmode" against a bare "fmode_toggle").
+    # all-players command, spelled differently for the toggle alone.
     _FMODE_PHRASES: dict[str, tuple[str, str]] = {
         "f mode": ("fmode", "fmode_toggle"),
         "f mode on": ("fmode_on", "fmode_on"),
