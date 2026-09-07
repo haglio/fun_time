@@ -160,8 +160,7 @@ class GenauRole:
 
     @property
     def showing(self) -> bool:
-        """Whether the clip has the scene: HUD_ON is video mode, where on the
-        desktop Genau is the see-through layer over the video."""
+        """Whether the clip has the scene; HUD_ON is video mode."""
         return not self._hud.on
 
     @property

@@ -93,17 +93,12 @@ def apply_mode_switch(
     nau_paused_file: str | Path,
     nau_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
-    """Switch the main slot between video and genau mode.
+    """Switch the main slot between video and genau mode, sending each player
+    what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
 
-    Genau's window is told what it is now — the display, or the HUD layer over
-    Nau's video — and RESUMEd either way: in genau mode the Robot Hand drives
-    from here, and in video mode the dispatch loop's arbiter takes it from
-    here, pausing the hand for the funscript's stretches on its next tick.
-    Nau is paused or played to match, and told whether it is on screen, the
-    mirror of the HUD verb Genau gets — a paused Nau still holds the frame it
-    stopped on, and the parked window keeps its taskbar button.  Queued, never
-    written whole: the files are queues shared with every other writer, and
-    replacing one here erased whatever they had appended since the last drain.
+    Queued, never written whole: the files are queues shared with every other
+    writer, and replacing one here erased whatever they had appended since the
+    last drain.
     """
     plan = build_mode_switch_plan(
         current_mode=current_mode,

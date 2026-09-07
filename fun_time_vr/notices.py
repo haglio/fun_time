@@ -1,9 +1,6 @@
-"""The session's announcements, held for the headset to draw.
-
-The desktop's two surfaces for a notice both live in the dashboard process,
-which a VR session does not launch — so every notice a VR session raised (the
-voice controller's among them) reached the event log and no one's eyes.
-"""
+"""The session's announcements, held for the headset to draw: the desktop's two
+surfaces for a notice both live in the dashboard process, which a VR session
+does not launch."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -27,8 +24,7 @@ class Notice:
 
 
 class NoticeStrip:
-    """Tails the event log and holds what is still worth showing, fading each
-    line on the clock the CALLER pumps with rather than the record's own."""
+    """Tails the event log, fading each line on the CALLER's clock."""
 
     def __init__(self, event_log: Path | str, *, seconds: float = NOTICE_SECONDS,
                  kept: int = KEPT) -> None:
@@ -39,7 +35,7 @@ class NoticeStrip:
         _, self._offset = read_events(self._path, 0)
 
     def pump(self, now: float) -> None:
-        """Take everything written since the last call, and drop what has faded."""
+        """Take what was written since the last call; drop what has faded."""
         records, self._offset = read_events(self._path, self._offset)
         for record in records:
             if is_announcement(record):

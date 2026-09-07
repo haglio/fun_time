@@ -79,18 +79,15 @@ class MainRole:
         self._projection = ""
         self._volume = 100
         self._muted = False
-        # Until the host says the sound is live (fun_time_vr.player.route_audio),
-        # a SET_VOLUME records the level without unmuting: the primary starts
-        # silent, and reports muted meanwhile.
+        # Until the host says the sound is live (player.route_audio), a
+        # SET_VOLUME records the level without unmuting.
         self.audio_live = False
         # Set by RECENTER and drained by the host each frame: re-zeroing the
         # scene onto the head pose is the host's to do.
         self._recenter_requested = False
         self._tilt_deg = 0.0  # state, not a request; both inputs write here
-        # Whether this player is what the headset shows.  DISPLAY_OFF rides
-        # every switch into genau mode, where the clip takes the scene and
-        # this player waits paused under it, the way Nau is parked off
-        # screen on the desktop.
+        # Whether this player is what the headset shows: DISPLAY_OFF rides every
+        # switch into genau mode, where the clip takes the scene instead.
         self.displayed = True
         self._load(0)
 
@@ -119,6 +116,10 @@ class MainRole:
     @property
     def speed(self) -> float:
         return self._speed
+
+    @property
+    def paused(self) -> bool:
+        return self._paused
 
     @property
     def position_ms(self) -> float:
@@ -200,15 +201,14 @@ class MainRole:
         elif keyword == "SET_TCODE_ENABLED" and arg:
             enabled = arg.strip() != "0"
             # Re-enabling is a takeover — the device is wherever Genau's motion
-            # left it — so reset the driver the way every takeover resets it:
-            # the next tick re-sends a waypoint at once, with the handoff glide.
+            # left it — so reset the driver: the next tick re-sends a waypoint at
+            # once, with the handoff glide.
             if enabled and not self._tcode_enabled:
                 self._driver.reset()
             self._tcode_enabled = enabled
         elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
-            # One of the pair rides every mode switch: the mirror of the HUD
-            # verb Genau's role gets, so the two roles cannot both claim the
-            # scene or both step out of it.
+            # The mirror of the HUD verb Genau's role gets, so the two roles
+            # cannot both claim the scene or both step out of it.
             self.displayed = keyword == "DISPLAY_ON"
         elif keyword == "QUIT":
             on_quit()
@@ -364,6 +364,16 @@ class MainRole:
                 self._index = position
                 return
         self._load(0)
+
+    def reopen(self) -> None:
+        """Load the current video again and seek back to where it was -- the way
+        out of a wedged pipeline, since mpv builds a whole new one, its audio
+        output included, and nothing else about the role moves."""
+        position_ms = self._player.position_ms
+        logger.warning("Reopening the main player at %.0fms", position_ms)
+        self._load(self._index)
+        if position_ms:
+            self._player.seek_ms(position_ms)
 
     def _cycle_projection(self) -> None:
         self._projection = next_projection(self._projection)

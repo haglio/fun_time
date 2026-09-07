@@ -621,3 +621,34 @@ class TestSeekTo:
         role_parts.role.seek_to(role_parts.player.duration_ms + 5.0)
 
         assert role_parts.player.seeks[-2:] == [0.0, role_parts.player.duration_ms]
+
+
+class TestReopen:
+    """The way out of a wedged pipeline: the main player is the one mpv here
+    that keeps an audio track, and mpv's clock follows audio, so an output
+    device that stops draining freezes its video on one frame."""
+
+    def test_it_loads_the_same_video_again_and_seeks_back(self, role_parts):
+        role_parts.player.position_ms = 8_000.0
+
+        role_parts.role.reopen()
+
+        assert role_parts.player.loaded[-1] == role_parts.role.current_video
+        assert role_parts.player.seeks[-1] == 8_000.0
+
+    def test_it_does_not_seek_a_video_that_never_started(self, role_parts):
+        """Frozen on frame one is the shape this is for; seeking to zero would
+        only ask mpv for a seek it does not need."""
+        role_parts.player.position_ms = 0.0
+
+        role_parts.role.reopen()
+
+        assert role_parts.player.seeks == []
+
+    def test_it_keeps_the_role_paused_if_it_was(self, role_parts):
+        role_parts.role.set_paused(True)
+
+        role_parts.role.reopen()
+
+        assert role_parts.player.paused is True
+        assert role_parts.role.paused is True

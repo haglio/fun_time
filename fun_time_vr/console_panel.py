@@ -1,8 +1,7 @@
 """The main console, hanging in the headset -- what to put on it.
 
-The desktop paints it onto the main player's window, scrubber and volume chip
-under the video.  Baked into an immersive video it would warp with it, down
-at the nadir, so here it is a small screen of its own.
+The desktop paints it onto the main player's window; baked into an immersive
+video it would warp with it, so here it is a small screen of its own.
 """
 from __future__ import annotations
 
@@ -31,9 +30,9 @@ from satellite.pointer import time_at
 from .notices import KEPT, Notice
 from .pointer import surface_pixel
 
-# Pixels across, held: the screen keeps one size between the modes (the genau
-# rows are narrower) and across titles (a long one is elided) -- its angular
-# width above is fixed, so a bitmap that changed width would rescale it all.
+# Pixels across, held: the screen keeps one size between the modes and across
+# titles -- its angular width is fixed, so a bitmap that changed width would
+# rescale it all.
 PANEL_WIDTH_PX = 280
 
 _ROW_GAP = 6
