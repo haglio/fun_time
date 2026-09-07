@@ -4,18 +4,12 @@ Startup, omnipause and mode switches all read this ONE policy, so they can
 never disagree about a window's topmost band — the drift that once left Nau
 stranded on top after entering omnipause.
 
-The satellite / dashboard / RFB windows each own a screen rect and
-never overlap, so they are unconditionally topmost.  The main-slot players Nau and
-Genau are the exception: they SHARE one rect (in video mode Genau's transparent
-HUD overlays Nau's video), so they both need to float above the desktop AND be
-stacked relative to each other:
-
-  * video mode — Nau is topmost so the video floats up, and Genau is stacked
-                 just ABOVE it so the HUD overlays the video.  That ordering is
-                 enforced by promoting Nau before Genau (see
-                 ``role_windows.WindowRoles.restack_main_slot``), not by these
-                 flags.
-  * genau mode — Genau owns the display and is topmost (Nau hidden).
+The satellite / dashboard / RFB windows each own a screen rect and never
+overlap, so they are unconditionally topmost.  Nau and Genau are the exception:
+they SHARE one rect, so they float above the desktop AND stack against each
+other -- in video mode Genau's HUD sits just above Nau's video, an order
+``role_windows.WindowRoles.restack_main_slot`` enforces rather than these flags;
+in genau mode Genau owns the display and Nau is hidden.
 """
 from __future__ import annotations
 
