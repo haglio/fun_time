@@ -514,6 +514,12 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
     )
 
 
+def hide_window(hwnd: int) -> None:
+    """Take a window off the screen entirely, where minimizing leaves it one
+    Alt+Tab from being back on it.  Through :func:`_without_hanging`."""
+    _without_hanging(_user32.ShowWindow, hwnd, SW_HIDE, what=f"hide_window({hwnd})")
+
+
 def restore_window(hwnd: int, *, activate: bool = True) -> None:
     """Restore (un-minimize) a window to its previous size and position.
 

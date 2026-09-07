@@ -60,8 +60,8 @@ from .win32 import (
     close_window,
     find_window_by_pid,
     find_window_for_process,
+    hide_window,
     iter_zorder,
-    minimize_window,
     set_always_on_top,
     wait_for_window_by_title,
     windows_obscuring,
@@ -250,7 +250,7 @@ def _park_the_hosted_origenerator(state_dir: Path, child: ChildProcess | None) -
     hwnd = find_window_for_process(child.pid, "Origenerator", include_hidden=True)
     if not hwnd:
         return False
-    minimize_window(hwnd, activate=False)
+    hide_window(hwnd)
     keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at)
     logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
     return True

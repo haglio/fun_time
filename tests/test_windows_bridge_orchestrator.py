@@ -969,7 +969,9 @@ class TestLoadingScreenLifecycle:
 
 class TestKeepingTheHostedApp:
     """A crossing parks Origenerator instead of closing it, because its boot is
-    the longest thing the next startup waits on (docs/entering-vr.md)."""
+    the longest thing the next startup waits on -- and takes it off the screen
+    entirely, minimizing having left it one Alt+Tab away with nothing to close
+    it by (docs/entering-vr.md)."""
 
     def test_a_crossing_parks_it_and_records_it_instead_of_killing_it(self, tmp_path):
         killed: list[int] = []
@@ -978,7 +980,7 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
                    return_value=4242), \
-             patch("fun_time.windows_bridge_orchestrator.minimize_window") as parked, \
+             patch("fun_time.windows_bridge_orchestrator.hide_window") as parked, \
              patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
                    ) as closed:
             children = _recorded_children(
@@ -987,7 +989,7 @@ class TestKeepingTheHostedApp:
             _shutdown_children(0, children, NullProgress(),
                                state_dir=tmp_path, keep_origenerator=True)
 
-        parked.assert_called_once_with(4242, activate=False)
+        parked.assert_called_once_with(4242)
         closed.assert_not_called()
         assert children["origenerator_pid"].pid not in killed
         assert kept_origenerator(tmp_path) == (

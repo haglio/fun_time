@@ -19,13 +19,10 @@ import glfw
 import xr
 from OpenGL import GL
 
-from fun_time.project_paths import PROJECT_VR_ICON
-
 from .pointer import LEFT, RIGHT, HandInput
 
 logger = logging.getLogger(__name__)
 
-_ICON_PATH = PROJECT_VR_ICON
 
 
 @dataclass
@@ -156,38 +153,20 @@ class VRSession:
     # ------------------------------------------------------------------
 
     def _init_glfw(self, app_name: str) -> None:
-        """A small desktop window: it owns the GL context the whole pipeline
-        (mpv render contexts included) runs on, and gives the hidden-launched
-        process a taskbar presence with a close button."""
+        """The window owning the GL context the whole pipeline runs on, mpv's
+        render contexts included.  Never shown: this session draws in the
+        headset, and on the desktop it was a blank square in Alt+Tab."""
         if not glfw.init():
             raise RuntimeError("Failed to initialize GLFW")
         glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
         glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
         glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-        glfw.window_hint(glfw.DECORATED, glfw.TRUE)
+        glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
         self._window = glfw.create_window(320, 200, app_name, None, None)
         if not self._window:
             glfw.terminate()
             raise RuntimeError("Failed to create GLFW window")
         glfw.make_context_current(self._window)
-        self._set_window_icon()
-
-    def _set_window_icon(self) -> None:
-        """FunTimeVR's icon via Win32 WM_SETICON — GLFW's own icon API loses to
-        the taskbar (GenauVR's commit 722df45 learned this the slow way)."""
-        try:
-            import ctypes.wintypes  # Windows-only, error path tolerant
-
-            hwnd = glfw.get_win32_window(self._window)
-            image_icon, lr_loadfromfile, wm_seticon = 1, 0x10, 0x80
-            for which, cx, cy in ((0, 16, 16), (1, 32, 32)):  # ICON_SMALL, ICON_BIG
-                hicon = ctypes.windll.user32.LoadImageW(
-                    None, str(_ICON_PATH), image_icon, cx, cy, lr_loadfromfile,
-                )
-                if hicon:
-                    ctypes.windll.user32.SendMessageW(hwnd, wm_seticon, which, hicon)
-        except Exception:
-            logger.debug("Could not set window icon", exc_info=True)
 
     def _init_openxr(self, app_name: str) -> None:
         self._instance = xr.create_instance(
