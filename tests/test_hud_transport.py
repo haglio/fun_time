@@ -56,6 +56,16 @@ def test_hud_payload_carries_whether_the_clip_is_a_favorite():
         assert hud_payload(_panel(), Path("C:/t"))["is_favorite"] is False
 
 
+def test_hud_payload_carries_which_browse_order_the_side_is_in():
+    """The player draws the Shuffle/Latest pair only for a panel that says which
+    order it is in — so a satellite gets the pair, and the origenerator-mode
+    panel, whose player is black and paused under a show, gets neither."""
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        assert hud_payload(_panel(latest=True), Path("C:/t"))["latest"] is True
+        assert hud_payload(_panel(latest=False), Path("C:/t"))["latest"] is False
+        assert hud_payload(_panel(), Path("C:/t"))["latest"] is None
+
+
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
     """The corner is the clip on screen, so it stays (the player draws a
     placeholder); a sibling whose frame the prewarm hasn't produced simply isn't
