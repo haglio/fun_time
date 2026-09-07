@@ -76,7 +76,7 @@ class Probe:
 def probe() -> Probe:
     """Ask OpenXR for a head-mounted display, without opening a window."""
     try:
-        import xr  # noqa: PLC0415 — the loader DLL should load only on VR paths
+        import xr  # deferred: the loader DLL should load only on VR paths
     except Exception as exc:
         # A loader that will not *load* fails here rather than at create_instance,
         # and not as an ImportError: pyopenxr raises NotImplementedError off

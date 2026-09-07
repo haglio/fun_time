@@ -153,7 +153,6 @@ class TestLoadConfig:
         path = cfg_factory()
         raw = json.loads(path.read_text(encoding="utf-8"))
         raw.pop("random_favs_browser", None)
-        raw.pop("chrome_overlay", None)
         path.write_text(json.dumps(raw), encoding="utf-8")
 
         cfg = load_config(path)
@@ -228,23 +227,6 @@ class TestRegenConfig:
         )
         cfg = load_config(path)
         assert cfg.random_favs_browser.lazy_load is True
-
-    def test_legacy_chrome_overlay_section_still_loads_random_favs_browser_settings(self, cfg_factory):
-        path = cfg_factory(
-            {
-                "chrome_overlay": {
-                    "enabled": True,
-                    "shortcut_path": "chrome.exe",
-                    "user_data_dir": "chrome_data",
-                    "profile_name": "Jane Doe",
-
-                    "open_count": 7,
-                }
-            }
-        )
-        cfg = load_config(path)
-        assert cfg.random_favs_browser.enabled is True
-        assert cfg.random_favs_browser.shortcut_path.name == "chrome.exe"
 
     def test_a_singular_dir_key_is_read_as_a_one_folder_list(self, cfg_path: Path, tmp_path: Path):
         """README offers `portrait_dir` beside `portrait_dirs` for the one-folder
