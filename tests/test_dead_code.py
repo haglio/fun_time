@@ -119,14 +119,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
-# 6905 since 2026-09-07, when the main slot's two modes got names and the
-# paragraph about the state file's older ones became the test that reads one.
-# 6907 since 2026-09-07, when the lock plan's four outcomes became four named
-# constructors and the paragraph arguing that a discard is two steps shrank to
-# the one sentence its tests do not already say.
-# 6911 since 2026-09-07, when the session-environment record replaced eleven
-# ambient switch reads and took the two paragraphs that had explained them --
-# one duplicated word for word by the test that pins it.
+# 6904 since 2026-09-07, measured on the merged tree: the audit stack replaced
+# eleven ambient switch reads with one record, gave the lock plan's four
+# outcomes four named constructors and the main slot's two modes their names,
+# and each of those took the paragraph that had explained it -- one of them
+# duplicated word for word by the test that pins it.
 # 6916 since 2026-09-07, when the VR covers landed and the contract the cover
 # family had each restated -- the two Esc routes, the flag a cover follows, the
 # ready flag both ends derive -- collapsed into overlay_progress alone.
@@ -140,7 +137,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 6916
+MAX_PROSE_LINES = 6904
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
