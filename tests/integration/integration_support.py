@@ -883,3 +883,25 @@ def _safe_link(src: Path, dest: Path) -> None:
     except OSError:
         shutil.copy2(src, dest)
 
+
+
+def window_is_quiet(frame_ms, *, budget_ms: float) -> bool:
+    """Whether nine frames in ten of *frame_ms* came in under *budget_ms*.
+
+    Not the median: a window taken while a session is still tearing down can
+    hold a median of a millisecond and a 428ms frame at the same time, and a
+    measurement started there indicts the code instead of the machine.
+    """
+    ordered = sorted(frame_ms)
+    return ordered[len(ordered) * 9 // 10] < budget_ms
+
+
+def stall_per_transition(passes) -> float:
+    """The median across *passes* of each pass's worst frame, in milliseconds.
+
+    A regression that stalls the render thread stalls every transition, so
+    the typical pass is what says whether one is back; the single worst frame
+    across all of them is the one number a machine's own hiccup can own.
+    """
+    worst = sorted(max(one) for one in passes)
+    return worst[len(worst) // 2]
