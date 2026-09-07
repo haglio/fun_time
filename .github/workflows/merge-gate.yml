@@ -23,7 +23,7 @@ jobs:
       qt-platform: offscreen
       sdl-video: dummy
       sdl-audio: dummy
-      pip-extra: pywin32
+      extras: "dev,windows"
       reverse: false
       prepare: |
         set -euo pipefail

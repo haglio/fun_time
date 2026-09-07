@@ -8,39 +8,58 @@ version = "0.1.0"
 # 3.12, not 3.10: branch_session.py:592 is a PEP 701 f-string (a `"` and a
 # backslash inside the replacement field), which will not parse before it.
 requires-python = ">=3.12"
-# The shared siblings are NOT listed here — ../player_core (the satellite
-# players' engine, which brings python-mpv and the libmpv DLL), ../app_support
-# (logging, threading, CLI and subprocess scaffolding) and ../shared_ui. Each is
-# installed editable from a local path (see their READMEs) and none is
-# published, so pip would go looking for them on PyPI.
+# The shared siblings are in [tool.haglio] below, not here — ../player_core (the
+# satellite players' engine, which brings python-mpv and the libmpv DLL),
+# ../app_support (logging, threading, CLI and subprocess scaffolding) and
+# ../shared_ui. Each is installed editable from a local path (see their READMEs)
+# and none is published, so pip would go looking for them on PyPI.
+# Every requirement carries a ceiling. Without one each run installs whatever
+# PyPI served that morning: this repo's venv holds opencv-python 4 and the gate
+# was installing opencv-python 5, so the imaging stack the players stand on was
+# a different major version in CI than in production. Floors are what this
+# repo's venv holds today.
 dependencies = [
-    "numpy",
-    "opencv-python",
-    "pillow",
-    "pygame-ce",
-    "PyQt6",
+    "numpy>=2.4,<3",
+    "opencv-python>=4.8,<5",
+    "pillow>=12,<13",
+    "pygame-ce>=2,<3",
+    "PyQt6>=6,<7",
     # The FunTimeVR stack: OpenXR loader bindings, GL, and the hidden window
     # that carries the GL context.  Imported only on VR code paths, but listed
     # here (not as an extra) so one venv serves both apps and CI's import
     # completeness check stays simple.
-    "pyopenxr",
-    "PyOpenGL",
-    "glfw",
+    "pyopenxr>=1,<2",
+    "PyOpenGL>=3,<4",
+    "glfw>=2,<3",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "hypothesis",
-    "pytest",
-    "pytest-cov",
-    "pytest-timeout",
+    "hypothesis>=6,<7",
+    "pytest>=9,<10",
+    "pytest-cov>=7,<8",
+    "pytest-timeout>=2.4,<3",
     "ruff==0.16.6",
-    "vulture",
+    "vulture>=2.16,<3",
 ]
 voice = [
-    "vosk",
-    "sounddevice",
+    "vosk>=0.3,<0.4",
+    "sounddevice>=0.5,<0.6",
 ]
+# The windows bridge reads .lnk files through win32com, and this was installed
+# by a bare `pip install pywin32` line in the merge gate and declared nowhere --
+# invisible to the import gate, which exempts an import inside a try, and that
+# import sits in one. A marker rather than a plain dependency: the package is
+# Windows-only and this pyproject is read on other platforms.
+windows = [
+    "pywin32>=312,<313 ; sys_platform == 'win32'",
+]
+
+# The family checkouts this one is installed beside. None is published, so none
+# can go in [project.dependencies]; tests/test_dependency_completeness.py holds
+# this list against the tree, counting what a declared sibling needs in turn.
+[tool.haglio]
+siblings = ["app_support", "player_core", "shared_ui"]
 
 # Three top-level packages share this repo — the orchestrator, the satellite
 # player it launches as `python -m satellite`, and the FunTimeVR variant.

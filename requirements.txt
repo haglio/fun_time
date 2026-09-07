@@ -13,6 +13,9 @@ glfw
 # Not listed: player_core, installed editable from ../player_core (see its
 # README). It is never published, so pip would go looking for it on PyPI.
 
+# Windows only (pyproject [project.optional-dependencies].windows)
+pywin32 ; sys_platform == 'win32'
+
 # Voice control (pyproject [project.optional-dependencies].voice)
 vosk
 sounddevice
