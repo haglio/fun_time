@@ -51,6 +51,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 import numpy as np
+from app_support import ports
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
@@ -191,7 +192,7 @@ class VrSettings:
     clips_dirs: tuple[Path, ...] = ()
     vr_clip_dirs: tuple[Path, ...] = ()
     notify_host: str = "127.0.0.1"
-    notify_port: int = 50556
+    notify_port: int = ports.AUDIO_COMPANION
     genau: GenauSettings = field(default_factory=GenauSettings)
 
     @classmethod
@@ -210,7 +211,7 @@ class VrSettings:
             clips_dirs=_folders(vr.get("clips_dirs", "")),
             vr_clip_dirs=_folders(vr.get("vr_clip_dirs", "")),
             notify_host=vr.get("notify_host", "127.0.0.1"),
-            notify_port=int(vr.get("notify_port", "50556")),
+            notify_port=int(vr.get("notify_port", ports.AUDIO_COMPANION)),
             genau=GenauSettings.from_manifest(vr),
         )
 

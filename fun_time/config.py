@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from app_support import state_files
+from app_support import ports, state_files
 from app_support.config_reader import (
     optional_section,
     require_path,
@@ -124,7 +124,7 @@ class VrConfig:
     clips_dir: Path | None = None
     audio_device: str | None = None
     tcode_udp_host: str = "127.0.0.1"
-    tcode_udp_port: int = 50557
+    tcode_udp_port: int = ports.TCODE_UDP
     compositor_layers: bool = False
 
 
@@ -371,7 +371,7 @@ def _load_vr_config(raw: dict[str, Any] | None, project_dir: Path) -> VrConfig:
         clips_dir=resolve_path(project_dir, str(clips_dir)) if clips_dir else None,
         audio_device=str(audio_device) if audio_device else None,
         tcode_udp_host=str(values.get("tcode_udp_host", "127.0.0.1")),
-        tcode_udp_port=int(values.get("tcode_udp_port", 50557)),
+        tcode_udp_port=int(values.get("tcode_udp_port", ports.TCODE_UDP)),
         compositor_layers=bool(values.get("compositor_layers", False)),
     )
 

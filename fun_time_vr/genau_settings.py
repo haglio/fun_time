@@ -10,6 +10,8 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support import ports
+
 
 @dataclass(frozen=True)
 class GenauSettings:
@@ -21,7 +23,7 @@ class GenauSettings:
     shuffle_on_load: bool = True
     # Where the OSR2 broker publishes its beat for Genau to follow.
     udp_host: str = "127.0.0.1"
-    udp_port: int = 50555
+    udp_port: int = ports.GENAU_UDP
 
     @classmethod
     def read(cls, genau_config_path: Path | None) -> GenauSettings:

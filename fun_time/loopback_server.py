@@ -25,9 +25,11 @@ from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from app_support import ports
+
 # Baked into the userscript's @updateURL/@downloadURL header, so the two must
 # stay in lockstep (a regression test pins them). 127.0.0.1-only.
-LOOPBACK_PORT = 8770
+LOOPBACK_PORT = ports.USERSCRIPT_HTTP
 USERSCRIPT_NAME = "regen_autofill.user.js"
 # The real script is provider-specific and git-ignored; a public checkout has
 # only this committed template, which the server falls back to serving.
