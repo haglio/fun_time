@@ -164,6 +164,8 @@ def build_vr_manifest(config) -> dict[str, dict[str, str]]:
     """
     manifest = build_windows_bridge_manifest(config)
     manifest["media"]["nau_library_sources"] = vr_main_sources(config)
+    manifest["runtime"]["origenerator_dir"] = ""  # nothing here hosts one, so no such mode
+    manifest["executables"]["origenerator_python_exe"] = ""  # nor a python to run it with
     manifest["vr"] = {
         "player_module": VR_PLAYER_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
