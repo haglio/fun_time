@@ -28,30 +28,22 @@ class LockActionPlan:
     # free of logging — the two things a discard can be look identical otherwise.
     notice_about_favorites: bool = False
 
+    @classmethod
+    def lock(cls, player_name: str, *, current_path: str) -> LockActionPlan:
+        return cls(
+            next_locked=True,
+            ensure_in_favs=bool(current_path),
+            remove_from_favs=False,
+            advance_playlist=False,
+            drop_from_playlist=False,
+            move_to_weird=False,
+            open_rfb_tab=True,
+            log_message=f"Locked {player_name} satellite",
+        )
 
-def build_lock_plan(
-    action: str,
-    *,
-    which: int,
-    locked: bool,
-    current_path: str,
-    is_favorite: bool = False,
-) -> LockActionPlan:
-    player_name = Player(which).label
-
-    if action == "toggle-lock":
-        if not locked:
-            return LockActionPlan(
-                next_locked=True,
-                ensure_in_favs=bool(current_path),
-                remove_from_favs=False,
-                advance_playlist=False,
-                drop_from_playlist=False,
-                move_to_weird=False,
-                open_rfb_tab=True,
-                log_message=f"Locked {player_name} satellite",
-            )
-        return LockActionPlan(
+    @classmethod
+    def unlock(cls, player_name: str) -> LockActionPlan:
+        return cls(
             next_locked=False,
             ensure_in_favs=False,
             remove_from_favs=False,
@@ -62,29 +54,24 @@ def build_lock_plan(
             log_message=f"Unlocked {player_name} satellite",
         )
 
-    if action == "discard":
-        # Discard is a demotion by one step, not a single verdict.  On a
-        # favorite it only undoes the favoriting — locking is what put the clip
-        # in the favs list, so the same gesture has to be able to take it back
-        # out.  Nothing else about the clip changes: the file stays in the
-        # library and the clip stays in the playlist, so moving on from it is a
-        # plain advance and stepping back returns to it.  Only a clip that is
-        # *not* a favorite is condemned — dropped from the playlist and moved to
-        # the weird dir — which is what a second press on a demoted clip does.
-        if is_favorite and current_path:
-            return LockActionPlan(
-                next_locked=False,
-                ensure_in_favs=False,
-                remove_from_favs=True,
-                advance_playlist=True,
-                drop_from_playlist=False,
-                move_to_weird=False,
-                open_rfb_tab=False,
-                log_message=f"Removed from favorites on player {which}: {current_path}",
-                notice_message="Unfavorited",
-                notice_about_favorites=True,
-            )
-        return LockActionPlan(
+    @classmethod
+    def demote(cls, which: int, current_path: str) -> LockActionPlan:
+        return cls(
+            next_locked=False,
+            ensure_in_favs=False,
+            remove_from_favs=True,
+            advance_playlist=True,
+            drop_from_playlist=False,
+            move_to_weird=False,
+            open_rfb_tab=False,
+            log_message=f"Removed from favorites on player {which}: {current_path}",
+            notice_message="Unfavorited",
+            notice_about_favorites=True,
+        )
+
+    @classmethod
+    def condemn(cls, which: int, current_path: str) -> LockActionPlan:
+        return cls(
             next_locked=False,
             ensure_in_favs=False,
             remove_from_favs=bool(current_path),
@@ -98,4 +85,21 @@ def build_lock_plan(
             notice_message="Marked weird" if current_path else "",
         )
 
-    raise ValueError(f"Unsupported lock action: {action}")
+
+def build_lock_toggle_plan(*, which: int, locked: bool, current_path: str) -> LockActionPlan:
+    player_name = Player(which).label
+    if locked:
+        return LockActionPlan.unlock(player_name)
+    return LockActionPlan.lock(player_name, current_path=current_path)
+
+
+def build_discard_plan(
+    *, which: int, current_path: str, is_favorite: bool = False
+) -> LockActionPlan:
+    """Two steps, not one verdict: locking is what put a clip in the favs list,
+    so a first discard only takes it back out, and a second — the clip no longer
+    a favorite — condemns it.
+    """
+    if is_favorite and current_path:
+        return LockActionPlan.demote(which, current_path)
+    return LockActionPlan.condemn(which, current_path)
