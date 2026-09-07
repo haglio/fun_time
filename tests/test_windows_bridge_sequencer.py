@@ -25,6 +25,7 @@ from fun_time.player_status import (
     genau_status_path,
     read_nau_status,
 )
+from fun_time.session_environment import SessionEnvironment
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -731,14 +732,15 @@ class TestRunStartupSequenceCancellation:
 class TestNoActivateWindowDuringIntegration:
     """During integration tests, window moves must not steal focus."""
 
-    def test_moves_windows_without_activation_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+    def test_moves_windows_without_activation_in_integration_mode(self, cfg_factory, tmp_path):
+        """Told by its argument: the environment here is a production one."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         move_activates: list[bool] = []
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), move_window=dict(side_effect=lambda *a, **kw: move_activates.append(kw.get("activate", True)))):
-            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 env=SessionEnvironment(integration=True))
 
         assert move_activates, "Windows should still be positioned in integration mode"
         assert all(activate is False for activate in move_activates), \
@@ -1238,7 +1240,7 @@ class TestMaybeLaunchRandomFavsBrowser:
 
         with patch("fun_time.windows_bridge_sequencer.move_window",
                     side_effect=lambda *a, **kw: move_calls.append(a)):
-            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
+            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
 
         assert move_calls == []
         assert rfb_hwnd == 0
@@ -1255,7 +1257,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
-            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan)
+            rfb_hwnd = _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
 
         # Browser window should be positioned at the planned rect
         mock_move.assert_called_once_with(
@@ -1282,7 +1284,7 @@ class TestMaybeLaunchRandomFavsBrowser:
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window"):
-            _maybe_launch_random_favs_browser(m, plan)
+            _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
 
         assert set(launch_kwargs) == {"shortcut"}
         assert launch_kwargs["shortcut"] == ChromeShortcut(

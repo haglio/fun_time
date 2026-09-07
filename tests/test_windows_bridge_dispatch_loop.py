@@ -21,6 +21,7 @@ from fun_time.role_windows import (
     ChildPids,
     WindowRoles,
 )
+from fun_time.session_environment import SessionEnvironment
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
@@ -626,9 +627,9 @@ class TestDispatchLoopRunner:
 
         assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
 
-    def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path, monkeypatch):
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
-        runner = make_runner(tmp_path)
+    def test_dispatch_suppresses_unsuspend_during_integration(self, tmp_path):
+        """Told by the record it was built with, not by the environment."""
+        runner = make_runner(tmp_path, env=SessionEnvironment(integration=True))
         ahk_cmd_file = tmp_path / "ahk_cmd.txt"
 
         unsuspend_op = WindowOp(op="unsuspend_hotkeys")
@@ -1323,12 +1324,10 @@ class TestModeSwitchVisibility:
     hide_role ops, whose silent dropping broke mode switches once.
     """
 
-    def _run_mode_switch(self, tmp_path, monkeypatch, *, from_mode, command,
-                         integration_env=False):
-        if integration_env:
-            monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+    def _run_mode_switch(self, tmp_path, *, from_mode, command, integration=False):
         clock = FakeClock()
-        runner = make_runner(tmp_path, clock=clock)
+        runner = make_runner(tmp_path, clock=clock,
+                             env=SessionEnvironment(integration=integration))
         runner.state = BridgeState(main_mode=from_mode)
 
         calls: list[tuple[str, int]] = []
@@ -1354,9 +1353,9 @@ class TestModeSwitchVisibility:
         }[command]
         return calls
 
-    def test_genau_activate_shows_genau_before_hiding_nau(self, tmp_path, monkeypatch):
+    def test_genau_activate_shows_genau_before_hiding_nau(self, tmp_path):
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="video", command="genau_activate",
+            tmp_path, from_mode="video", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
@@ -1364,9 +1363,9 @@ class TestModeSwitchVisibility:
             ("hide", NAU_HWND),
         ]
 
-    def test_main_video_activate_shows_nau_under_genaus_hud(self, tmp_path, monkeypatch):
+    def test_main_video_activate_shows_nau_under_genaus_hud(self, tmp_path):
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="genau", command="main_video_activate",
+            tmp_path, from_mode="genau", command="main_video_activate",
         )
         assert calls == [
             ("show", NAU_HWND),
@@ -1374,12 +1373,12 @@ class TestModeSwitchVisibility:
             ("activate", GENAU_HWND),
         ]
 
-    def test_video_to_genau_hides_nau(self, tmp_path, monkeypatch):
+    def test_video_to_genau_hides_nau(self, tmp_path):
         """Video mode and Genau differ only in Nau's visibility, so the transition
         must still swap windows.  Regression — a guard that compared
         genau_active() instead of the mode missed this pair."""
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="video", command="genau_activate",
+            tmp_path, from_mode="video", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
@@ -1387,12 +1386,12 @@ class TestModeSwitchVisibility:
             ("hide", NAU_HWND),
         ]
 
-    def test_activation_suppressed_during_integration_runs(self, tmp_path, monkeypatch):
-        """FUN_TIME_RUN_INTEGRATION=1 keeps mode switches from stealing the
-        real desktop's focus; show/hide still happen."""
+    def test_activation_suppressed_during_integration_runs(self, tmp_path):
+        """An integration session keeps mode switches from stealing the real
+        desktop's focus; show/hide still happen."""
         calls = self._run_mode_switch(
-            tmp_path, monkeypatch, from_mode="video", command="genau_activate",
-            integration_env=True,
+            tmp_path, from_mode="video", command="genau_activate",
+            integration=True,
         )
         assert calls == [
             ("show", GENAU_HWND),

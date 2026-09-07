@@ -11,7 +11,6 @@ import configparser
 import contextlib
 import datetime
 import logging
-import os
 import subprocess
 import sys
 import threading
@@ -42,6 +41,7 @@ from .overlay_progress import (
 )
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
+from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
@@ -899,6 +899,7 @@ def _start_the_dispatch_loop(
     ahk_cmd_file: Path,
     dashboard_enabled: bool,
     hud_publisher,
+    env: SessionEnvironment,
 ) -> tuple[DispatchLoopRunner, threading.Thread]:
     """Hand the finished session to the loop that runs it, on its own thread.
 
@@ -930,6 +931,7 @@ def _start_the_dispatch_loop(
             role_hwnds=result.role_hwnds,
         ),
         dashboard_enabled=dashboard_enabled,
+        env=env,
         hud_publisher=hud_publisher,
         rfb_shortcut=ChromeShortcut(
             target=rfb_target, work_dir=rfb_work_dir, args=rfb_args),
@@ -1005,6 +1007,7 @@ def run_session(
     hotkey_script: str,
     state_dir: str | Path,
     project_dir: str | Path,
+    env: SessionEnvironment = ORDINARY_SESSION,
 ) -> int:
     """Open a session, hold it, and close it.
 
@@ -1022,16 +1025,6 @@ def run_session(
     # tails it: this session's event log starts empty and starts collecting.
     open_event_log(state_dir)
 
-    integration_mode = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    # Integration runs skip the loading screen by default — most tests only
-    # need the session, not its curtain.  FUN_TIME_INTEGRATION_OVERLAYS forces
-    # the full production path (hide, load, reveal, and the post-overlay
-    # z-order pass) so the hidden desktop can test the exact startup a real
-    # session takes; without a test exercising it, "the landscape player is
-    # under other windows on startup" could only ever be reproduced live.
-    show_overlays = (not integration_mode
-                     or os.environ.get("FUN_TIME_INTEGRATION_OVERLAYS") == "1")
-
     manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
     dashboard_enabled = manifest.dashboard_enabled
@@ -1048,11 +1041,11 @@ def run_session(
     _clear_last_sessions_leftovers(ahk_cmd_file, pids_file, dashboard_cmd_file)
 
     # --- Launch loading screen (normal mode only) ---
-    cover = _open_the_cover(state_dir, show_overlays=show_overlays)
+    cover = _open_the_cover(state_dir, show_overlays=env.show_overlays)
     loading_proc, progress, overlay_hwnd = cover.process, cover.progress, cover.hwnd
     progress_file, cancel_file = cover.progress_file, cover.cancel_file
 
-    if integration_mode:
+    if env.integration:
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
         logger.info("Pre-wrote suspend_hotkeys for integration test run")
 
@@ -1076,8 +1069,9 @@ def run_session(
             manifest_path=manifest_path,
             state_dir=state_dir,
             progress=progress,
-            hide_windows=show_overlays,
+            hide_windows=env.show_overlays,
             cover_hwnd=overlay_hwnd,
+            env=env,
         )
     except StartupCancelled as cancelled:
         # Esc during a phase: the sequence handed back exactly what it had
@@ -1120,7 +1114,7 @@ def run_session(
 
     # --- Close loading screen (normal mode only) ---
     # The sequencer already positioned all windows in Phase 4 (the reveal).
-    if show_overlays:
+    if env.show_overlays:
         _reveal_the_room(result, manifest=manifest, cover=cover,
                          hud_publisher=hud_publisher, hud_primed=hud_primed)
 
@@ -1141,6 +1135,7 @@ def run_session(
         ahk_cmd_file=ahk_cmd_file,
         dashboard_enabled=dashboard_enabled,
         hud_publisher=hud_publisher,
+        env=env,
     )
 
     # Serve the Provider autofill userscript so Tampermonkey can auto-update it
@@ -1167,7 +1162,7 @@ def run_session(
     return _run_until_the_hotkeys_exit(
         ahk_proc,
         state_dir=state_dir,
-        show_overlays=show_overlays,
+        show_overlays=env.show_overlays,
         rfb_hwnd=result.rfb_hwnd,
         children=children,
         voice=(voice_controller, voice_thread),

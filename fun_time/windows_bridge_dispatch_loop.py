@@ -6,7 +6,6 @@ dispatch directly in Python instead of spawning subprocesses.
 from __future__ import annotations
 
 import logging
-import os
 import socket
 import subprocess
 import threading
@@ -32,6 +31,7 @@ from .modes import matching_funscript, playlist_entry_line
 from .player_status import is_broker_heartbeat_fresh, read_nau_status
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
+from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .voice_commands import parse_command_line
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
@@ -183,6 +183,7 @@ class DispatchLoopRunner:
         ahk_cmd_file: Path,
         windows: WindowRoles,
         dashboard_enabled: bool,
+        env: SessionEnvironment = ORDINARY_SESSION,
         manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
         rfb_shortcut: ChromeShortcut | None = None,
@@ -202,6 +203,7 @@ class DispatchLoopRunner:
         # the tick and the library browser's own thread both go through here.
         self.windows = windows
         self.dashboard_enabled = dashboard_enabled
+        self.env = env
         # This loop holds the state each player's own HUD is drawn from (locks,
         # filters, loops) and already ticks, so it is what feeds them.
         self.hud = HudFeed(config=config, publisher=hud_publisher)
@@ -765,7 +767,7 @@ def _run_restore_parked(runner: DispatchLoopRunner, _op: WindowOp) -> None:
 
 
 def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1":
+    if not runner.env.integration:
         runner.windows.activate(op.key)
 
 
@@ -809,8 +811,7 @@ def _run_notice(_runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
-    if (op.op == Op.UNSUSPEND_HOTKEYS
-            and os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"):
+    if op.op == Op.UNSUSPEND_HOTKEYS and runner.env.integration:
         return
     runner.ahk_cmd_file.write_text(op.op, encoding="utf-8")
 

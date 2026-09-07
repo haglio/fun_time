@@ -24,6 +24,7 @@ from fun_time.orchestrator import (
     startup_marker_path,
     validate_config,
 )
+from fun_time.session_environment import SessionEnvironment
 
 # ---------------------------------------------------------------------------
 # build_parser
@@ -184,11 +185,20 @@ class TestControllerManifest:
         result = build_windows_bridge_manifest(cfg)
         assert result["dashboard"]["enabled"] == "1"
 
-    def test_dashboard_enabled_can_be_disabled_for_integration(self, cfg_path: Path, monkeypatch):
+    def test_dashboard_enabled_can_be_disabled_for_integration(self, cfg_path: Path):
+        """The switch is an argument here, not the ambient environment: this
+        builder writes a config artifact, and what it writes has to be readable
+        off its call."""
         cfg = load_config(cfg_path)
-        monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
-        result = build_windows_bridge_manifest(cfg)
+        result = build_windows_bridge_manifest(cfg, dashboard_enabled=False)
         assert result["dashboard"]["enabled"] == "0"
+
+    def test_the_environment_alone_no_longer_disables_the_dashboard(
+            self, cfg_path: Path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
+        cfg = load_config(cfg_path)
+        result = build_windows_bridge_manifest(cfg)
+        assert result["dashboard"]["enabled"] == "1"
 
     def test_media_actions_module_removed_from_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
@@ -336,11 +346,12 @@ class TestRunController:
 
         with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
              patch("fun_time.orchestrator.run_session", return_value=0) as bridge:
-            result = run_windows_bridge(cfg, logger)
+            result = run_windows_bridge(cfg, logger, SessionEnvironment())
 
         assert result == 0
-        # The manifest is written from the config alone.
-        writer.assert_called_once_with(cfg)
+        # The manifest is written from the config plus the one switch the
+        # process edge read, which decides whether this session has a dashboard.
+        writer.assert_called_once_with(cfg, dashboard_enabled=True)
         bridge.assert_called_once()
         call_kwargs = bridge.call_args.kwargs
         assert call_kwargs["manifest_path"] == cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -348,9 +359,34 @@ class TestRunController:
         assert call_kwargs["hotkey_script"] == str(cfg.project_dir / "windows_bridge_hotkeys.ahk")
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
         assert call_kwargs["project_dir"] == cfg.project_dir
+        assert call_kwargs["env"] == SessionEnvironment()
 
 
 # --- main() --check flag ---
+
+
+class TestTheProcessEdgeReadsTheSwitchesOnce:
+    """The FUN_TIME_* switches are answered once, here, and handed down.
+
+    Read at the point of use they were ambient: eleven reads in eight modules,
+    none of them visible in a signature.  Everything below this call takes the
+    record instead, so what a session does can be read off its arguments.
+    """
+
+    def test_main_hands_the_session_what_the_environment_said(self, cfg_path: Path, monkeypatch):
+        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+        monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
+
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_bridge:
+            main(["--config", str(cfg_path)])
+
+        assert run_bridge.call_args.args[2] == SessionEnvironment(
+            integration=True, show_overlays=False, dashboard_enabled=False)
 
 
 class TestMainCheckFlag:

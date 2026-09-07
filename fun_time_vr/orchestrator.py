@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import contextlib
 import logging
+import os
 import subprocess
 import threading
 import time
@@ -73,6 +74,7 @@ from fun_time.overlay_progress import (
 from fun_time.player_status import read_nau_status
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
+from fun_time.session_environment import SessionEnvironment
 from fun_time.session_resume import (
     resume_playlists,
     resume_satellite_locks,
@@ -178,14 +180,14 @@ def stamp_vr_shortcut_aumid() -> None:
             logger.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
 
 
-def build_vr_manifest(config) -> dict[str, dict[str, str]]:
+def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
     """The desktop manifest, amended for a VR session.
 
     The primary's sources swap to the VR-merged spec — every reader
     (playlist rebuilds, the file dialog default) then sees the VR rotation —
     and a ``[vr]`` section carries what only the VR player needs.
     """
-    manifest = build_windows_bridge_manifest(config)
+    manifest = build_windows_bridge_manifest(config, dashboard_enabled=dashboard_enabled)
     manifest["media"]["nau_library_sources"] = vr_main_sources(config)
     manifest["runtime"]["origenerator_dir"] = ""  # nothing here hosts one, so no such mode
     manifest["executables"]["origenerator_python_exe"] = ""  # nor a python to run it with
@@ -391,10 +393,11 @@ def _closing_cover(
         ready_file.unlink(missing_ok=True)
 
 
-def run_vr_bridge(config) -> int:
+def run_vr_bridge(config, env: SessionEnvironment) -> int:
     state_dir = config.paths.state_dir
     manifest_path = write_manifest_data(
-        build_vr_manifest(config), state_dir / "windows_bridge_launch.ini"
+        build_vr_manifest(config, dashboard_enabled=env.dashboard_enabled),
+        state_dir / "windows_bridge_launch.ini",
     )
     open_event_log(state_dir)
     manifest = LaunchManifest.read(manifest_path)
@@ -632,6 +635,7 @@ def _release_vr_runtime(was_up: bool) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
     configure_logging(logger.name, config.log_file("vr_orchestrator"), console=True)
     install_exception_logging(logger)
@@ -665,7 +669,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
-    return run_vr_bridge(config)
+    return run_vr_bridge(config, env)
 
 
 if __name__ == "__main__":

@@ -21,6 +21,7 @@ from fun_time.overlay_progress import (
     cancel_file_for,
     ready_file_for,
 )
+from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.shared_state import BridgeState
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
@@ -476,8 +477,7 @@ class TestWritePidsFile:
 
 
 class TestHotkeySuspendDuringIntegration:
-    def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+    def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -500,6 +500,7 @@ class TestHotkeySuspendDuringIntegration:
                 hotkey_script="hotkeys.ahk",
                 state_dir=state_dir,
                 project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
         ahk_cmd_file = state_dir / "ahk_cmd.txt"
@@ -835,8 +836,7 @@ class TestLoadingScreenLifecycle:
         loading_cmd = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmd) == 1, "Loading screen subprocess not launched"
 
-    def test_loading_screen_skipped_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
+    def test_loading_screen_skipped_in_integration_mode(self, cfg_factory, tmp_path):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -860,18 +860,112 @@ class TestLoadingScreenLifecycle:
                 hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state",
                 project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
             )
 
         # No loading screen subprocess should have been launched
         loading_cmds = [c for c in popen_calls if "loading_screen" in str(c)]
         assert len(loading_cmds) == 0, "Loading screen launched in integration mode"
 
+    def test_the_record_decides_the_curtain_and_the_environment_does_not(
+            self, cfg_factory, tmp_path):
+        """Read once at the process edge: nothing downstream re-reads the switch.
+
+        The environment here is a production one -- conftest strips
+        FUN_TIME_RUN_INTEGRATION from every unit test -- so a session that still
+        skips the curtain can only have been told to by its argument.
+        """
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        popen_calls: list[list] = []
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        def fake_popen(cmd, **kwargs):
+            popen_calls.append(cmd)
+            return fake_ahk_proc
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert not [c for c in popen_calls if "loading_screen" in str(c)]
+
+    def test_the_startup_sequence_is_handed_the_same_record(self, cfg_factory, tmp_path):
+        """The sequencer's own window moves ride on it, so a session that read
+        the switch and kept it to itself would still steal focus mid-run."""
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        env = SessionEnvironment(integration=True, show_overlays=False)
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()) as sequence, \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+                env=env,
+            )
+
+        assert sequence.call_args.kwargs["env"] == env
+
+    def test_the_dispatch_loop_is_handed_the_same_record(self, cfg_factory, tmp_path):
+        """Its activate and unsuspend ops ride on it for the rest of the run."""
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        env = SessionEnvironment(integration=True, show_overlays=False)
+
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+                env=env,
+            )
+
+        assert runner.call_args.kwargs["env"] == env
+
 
 class TestClosingScreenLifecycle:
     """The session's windows go out under a cover, the way they came in under
     one: raised before the first kill, dropped after the last."""
 
-    def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True):
+    def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
+             env: SessionEnvironment = ORDINARY_SESSION):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -912,6 +1006,7 @@ class TestClosingScreenLifecycle:
                 hotkey_script="hotkeys.ahk",
                 state_dir=state_dir,
                 project_dir=tmp_path,
+                env=env,
             )
         return state_dir
 
@@ -971,13 +1066,13 @@ class TestClosingScreenLifecycle:
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
-    def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path, monkeypatch):
+    def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path):
         """An integration run has no eyes on it and no desktop of its own to
         cover — the same reason it skips the loading screen."""
-        monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
         events: list[str] = []
 
-        self._run(cfg_factory, tmp_path, events=events)
+        self._run(cfg_factory, tmp_path, events=events,
+                  env=SessionEnvironment(integration=True, show_overlays=False))
 
         assert "cover_up" not in events
 

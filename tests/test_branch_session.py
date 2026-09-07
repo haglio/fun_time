@@ -796,7 +796,11 @@ def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch
     key, and the origenerator-mode test names its own stub.  The override
     out-ranking them made every session the suite launched from a worktree
     carrying the file host the REAL app: the machine's one ComfyUI, booted on
-    the hidden desktop by a test run."""
+    the hidden desktop by a test run.
+
+    Told by its argument, not by the environment: the process edge reads the
+    switch once and every layer below takes the answer.
+    """
     from fun_time.config import load_config
 
     state = tmp_path / "state"
@@ -804,9 +808,9 @@ def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch
     (state / branch_session.ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
         "C:/origenerator/.claude/worktrees/mine\n", encoding="utf-8")
     monkeypatch.setattr(branch_session.config_module, "PROJECT_DIR", tmp_path)
-    monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
 
-    config = branch_session.apply_origenerator_dir_override(load_config(cfg_path))
+    config = branch_session.apply_origenerator_dir_override(
+        load_config(cfg_path), integration=True)
 
     assert config.paths.origenerator_dir is None  # the config's own answer stands
 
