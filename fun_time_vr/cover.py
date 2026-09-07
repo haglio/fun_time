@@ -281,12 +281,8 @@ COVER_WIDTH_DEG = 40.0  # wider than the console's 24: that is glanced at
 
 class CoverAnchor:
     """Where the cover hangs: one heading, so it holds still as the head turns.
-
-    Latched on the first frame drawn it was whatever pose the runtime had then,
-    and ORIENTATION_VALID is answered with a predicted pose long before one
-    follows a head -- so the panel sat where he was not looking and he called
-    it no loading screen.  It follows him until he is at the lenses (*settled*).
-    """
+    Latched on the first frame drawn it was the runtime's guessed pose, and the
+    panel sat where he was not looking; it follows him until *settled*."""
 
     def __init__(self) -> None:
         self._yaw: float | None = None

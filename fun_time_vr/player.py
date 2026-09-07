@@ -1115,6 +1115,7 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
         self._state_dir = state_dir
         self.holding = False  # render-thread-read, set on the pump's refresh
         self.awaiting_wearer = False  # set by the loop, read on the pump's refresh
+        self.anchor_settled = False  # set by the loop: has it been read yet
         self._watcher = CoverWatcher(state_dir)
         self._lock = threading.Lock()
         self._pending: tuple[object, bool] | None = None  # (image, closing)
@@ -1385,7 +1386,7 @@ def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> N
     heading = cover.anchor.heading(yaw_of_orientation((
         views[0].pose.orientation.x, views[0].pose.orientation.y,
         views[0].pose.orientation.z, views[0].pose.orientation.w,
-    )), settled=session.focused)
+    )), settled=cover.anchor_settled)
     if was_held is None and cover.anchor.held is not None:
         logger.info("Cover placed at heading %.0f°", math.degrees(heading))
     hanging = yaw_rotation_matrix(heading)
@@ -1774,6 +1775,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             # The only place that sees the room fill in, and whether anyone
             # had the headset on while it did.
             room_is_up = _scene_is_up(primary, genau, satellites, panel)
+            cover.anchor_settled = cover_seen.dwelt and session.views_tracked
             cover.awaiting_wearer = room_is_up and not session.focused  # set before he looks
             scene_ready.note(room_is_up and cover_seen.dwelt)
             t2 = time.perf_counter()
