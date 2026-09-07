@@ -102,6 +102,39 @@ across the crossing as it does across any restart, the AHK bridge is
 `#SingleInstance Force` and the outgoing one is gone before the incoming one
 starts, and everything the two sessions share is already on disk.
 
+## Nothing is ever uncovered
+
+A crossing tears one session down and builds another, and the covers each
+session raises go with it — so the monitors went bare between them, and the
+first thing "enter VR" showed was the desktop closing and FunTimeVR starting up
+in the space it left.
+
+The crossing cover is what spans that stretch. It is raised by the session that
+is LEAVING and taken down by the one that ARRIVES, which is the one thing the
+closing screen cannot do:
+
+- **Entering VR.** The desktop's teardown raises it instead of its closing
+  screen, saying "Entering VR...", and leaves it standing. FunTimeVR's own
+  loading cover comes up in the headset meanwhile, so both devices are covered
+  at once. The cover comes down when the VR session reveals — the headset is
+  showing content by then, which is the moment it was waiting for.
+- **Leaving VR.** FunTimeVR's teardown cover hangs in the headset, so the
+  monitors get a crossing cover of their own, saying "Returning to Fun Time...".
+  The arriving desktop session hands over to its own loading screen the moment
+  that is painted, rather than at its reveal, where a crossing cover would spend
+  the whole startup sitting on top of it.
+
+`fun_time.transition_screen` is the cover itself; `fun_time.session_handoff`
+raises and drops it. A relay whose crossing failed drops it too, so a session
+that never arrived does not leave the monitors covered; the cover's own
+staleness timeout is the backstop for a relay that died outright.
+
+What is NOT covered is the headset on the way out: the VR cover is drawn by the
+VR player, and the player is the last thing the teardown kills. Holding it past
+that would mean keeping the player alive — and its roles hold the very status
+and command files the arriving desktop session claims — so the headset shows the
+runtime's own environment for the few seconds until Fun Time is up.
+
 ## The taskbar
 
 There is one pinned button now, and one `AppUserModelID` under it

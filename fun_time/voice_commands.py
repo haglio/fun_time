@@ -93,10 +93,8 @@ def build_voice_commands(
     commands: dict[str, str] = {
         "quit": "quit",
         # Into the headset and back out (docs/entering-vr.md).  No key and no
-        # pin, so the phrase IS the way in.  Two spellings apiece: the model has
-        # "vr" AND the letters, and which it hears is not a bet worth taking.
-        # A bare "exit" quit the session until it made "exit VR" unsayable, and
-        # it is gone; the rule it left is a test, not a paragraph.
+        # pin, so the phrase IS the way in; two spellings apiece, the model
+        # having both.  A bare "exit" quit until it made "exit VR" unsayable.
         "enter vr": "enter_vr",
         "enter v r": "enter_vr",
         "exit vr": "exit_vr",

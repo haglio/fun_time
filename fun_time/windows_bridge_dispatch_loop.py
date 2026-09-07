@@ -425,12 +425,9 @@ class DispatchLoopRunner:
             self._dispatch(cmd, spoken_at)
 
     def _handle_handoff(self, cmd: str) -> None:
-        """Cross to the other session — the headset's, or the desktop's.
-
-        Ends this one exactly as "quit" does, having left word of where to go
-        next (docs/entering-vr.md).  Asked for the session already running it
-        says so and stays put; a room can be told the same thing twice.
-        """
+        """Cross to the other session, ending this one as "quit" does and
+        leaving word of where to go next (docs/entering-vr.md).  Asked for the
+        session already running it says so and stays put."""
         target = HANDOFF_COMMANDS[cmd]
         if target is this_session(vr_main_player=self.config.vr_main_player):
             notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM)

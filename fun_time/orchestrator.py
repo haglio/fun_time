@@ -109,16 +109,11 @@ def taskbar_pin_dir() -> Path:
 def stamp_shortcut_aumid() -> None:
     """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    Called by both shapes of the session — a VR session is Fun Time in a
-    headset and lights the same button (see fun_time.win32_taskbar).
-
-    The stem has to match "Fun Time" exactly, not merely start with it: a
-    "Fun Time VR.lnk" may still sit in the pin folder from when the headset was
-    a second app to click, and stamping a retired pin keeps it looking live.
-
-    Only the copy under %APPDATA% is ours to touch; nothing in the repo is a
-    shortcut, since .lnk is git-ignored here.  Failures are logged but never
-    fatal — the app still launches, just without the open indicator.
+    Called by both shapes of the session (docs/entering-vr.md).  The stem has to
+    match "Fun Time" exactly: a retired "Fun Time VR.lnk" may still sit in the
+    pin folder, and stamping it would keep it looking live.  Only the copy under
+    %APPDATA% is ours to touch, and a failure is logged rather than fatal — the
+    app still launches, just without the open indicator.
     """
     _log = logging.getLogger(__name__)
 

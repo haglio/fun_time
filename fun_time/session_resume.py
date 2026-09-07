@@ -152,9 +152,8 @@ def resume_main_video(playlist_file: Path, video: str) -> bool:
     """Rotate a just-REBUILT main playlist onto *video*; False when it is not in it.
 
     The other half of the cross-app rebuild above (``docs/entering-vr.md``).
-    False is an answer rather than a failure — a rebuild that lacks the clip is
-    a session that cannot play it — and it decides whether the main player's
-    loop can come back (:func:`resume_main_loop`).
+    False is an answer, not a failure: a rebuild that lacks the clip is a
+    session that cannot play it, and it decides whether the loop comes back.
     """
     entries = read_playlist(playlist_file)
     rotated = _rotate_onto(entries, video)

@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import logging
 import subprocess
+import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -21,17 +22,20 @@ from fun_time.config import load_config
 from fun_time.process_identity import NAMER
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 
-# No genau_project_dirs override here, unlike the two orchestrators: the dispatch
-# loop imports THIS, and the session started below applies its own.
-
+# No genau_project_dirs override here: the dispatch loop imports THIS, and the
+# session started below applies its own.
 # Named, not __name__: started with `-m`, where __name__ is "__main__".
 logger = logging.getLogger("fun_time.session_handoff")
 
 HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
-# Teardown is seconds, so this only expires on a session wedged holding the mutex.
+# What the monitors read while the room changes shape.
+CROSSING_PROGRESS_NAME = "crossing_progress.txt"
+_CROSSING_MESSAGES = {"vr": "Entering VR...", "desktop": "Returning to Fun Time..."}
+
+# Teardown is seconds, so this expires only on a session wedged holding the
+# mutex; the second is what both launchers allow a session to report in.
 RELEASE_TIMEOUT_S = 60.0
-# What both launchers allow a session to report in; matched, not second-guessed.
 STARTUP_TIMEOUT_S = 45.0
 
 _POLL_S = 0.25
@@ -48,8 +52,7 @@ class HandoffTarget:
     ready_marker: str
 
 
-# Log and marker names are each app's own ``.vbs``'s, pinned to the
-# orchestrators' constants by tests/test_session_handoff.py.
+# Log and marker names are each app's own ``.vbs``'s, pinned by a test.
 DESKTOP = HandoffTarget(
     key="desktop",
     app_name="Fun Time",
@@ -88,31 +91,68 @@ def clear_handoff_request(state_dir: str | Path) -> None:
     handoff_request_path(state_dir).unlink(missing_ok=True)
 
 
+def pending_handoff(state_dir: str | Path) -> HandoffTarget | None:
+    """The crossing this session is ending for, WITHOUT taking it -- asked by
+    a teardown, which looks different when the room is changing shape."""
+    return _read_request(state_dir, take=False)
+
+
 def take_handoff_request(state_dir: str | Path) -> HandoffTarget | None:
     """The crossing this session was asked for, taken off the disk as it is read.
 
     Unreadable or unrecognized reads as no request, and a session with no
     request ends normally.
     """
+    return _read_request(state_dir, take=True)
+
+
+def _read_request(state_dir: str | Path, *, take: bool) -> HandoffTarget | None:
     path = handoff_request_path(state_dir)
     try:
         key = path.read_text(encoding="utf-8").strip()
     except OSError:
         return None
     finally:
-        path.unlink(missing_ok=True)
+        if take:
+            path.unlink(missing_ok=True)
     target = TARGETS.get(key)
     if target is None and key:
         logger.warning("Ignoring unrecognized handoff request %r", key)
     return target
 
 
+def crossing_progress_path(state_dir: str | Path) -> Path:
+    return Path(state_dir) / CROSSING_PROGRESS_NAME
+
+
+def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
+    """Say on the monitors that the room is changing over to *target*."""
+    path = crossing_progress_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(f"1/2|{_CROSSING_MESSAGES[target.key]}\n", encoding="utf-8")
+    return path
+
+
+def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subprocess.Popen:
+    """Raise the monitors' crossing cover and leave it standing."""
+    progress_file = raise_crossing_cover(state_dir, target)
+    return subprocess.Popen([
+        NAMER.named_exe(sys.executable, "TransitionScreen"),
+        "-m", "fun_time.transition_screen", str(progress_file),
+    ])
+
+
+def drop_crossing_cover(state_dir: str | Path) -> None:
+    """Take the monitors' crossing cover down; a no-op where none is up."""
+    path = crossing_progress_path(state_dir)
+    if path.exists():
+        path.write_text("DONE\n", encoding="utf-8")
+
+
 def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget | None:
     """Spawn the relay when the session ended by crossing over; None otherwise.
-
     An orchestrator's last act, and detached, because the relay's first act is
-    to wait for that orchestrator's mutex, which frees only once it is gone.
-    """
+    to wait for that orchestrator's mutex, which frees only once it is gone."""
     target = take_handoff_request(config.paths.state_dir)
     if target is None:
         return None
@@ -151,11 +191,8 @@ def start_the_session(
     state_dir: str | Path,
     config_path: str | Path,
 ) -> subprocess.Popen:
-    """Launch *target*'s orchestrator the way its own ``.vbs`` launches it.
-
-    The stale marker goes first: written once per launch and read as this
-    launch's, the outgoing session's would vouch for one not started yet.
-    """
+    """Launch *target*'s orchestrator as its own ``.vbs`` does.  The stale
+    marker goes first: the outgoing session's would vouch for this launch."""
     (Path(state_dir) / target.ready_marker).unlink(missing_ok=True)
     # Named as launch.vbs names it: a session entered by voice is as findable
     # in the task list as one entered by clicking.
@@ -178,10 +215,8 @@ def wait_for_the_session_to_come_up(
     poll_s: float = _POLL_S,
 ) -> str:
     """Empty once *target* has published its startup marker, else why not.
-
     Watches the process too: one that died has a traceback to show now, where
-    one merely wedged has nothing until the timeout.
-    """
+    one merely wedged has nothing until the timeout."""
     marker = Path(state_dir) / target.ready_marker
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -207,9 +242,7 @@ def last_lines_of(path: Path, count: int = 15) -> str:
 
 def report_a_failed_crossing(reason: str, log_file: Path) -> None:
     """Say the other session never came up: by now there is nothing on screen.
-
-    Qt is imported in here so a relay that only waits and spawns never loads it.
-    """
+    Qt is imported in here so a relay that only waits never loads it."""
     from shared_ui.alert import Level, show_alert
 
     from fun_time.project_paths import PROJECT_ICON
@@ -222,18 +255,25 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
     show_alert("Fun Time", message, level=Level.ERROR, icon=PROJECT_ICON)
 
 
+def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
+    """Report a crossing that did not happen, and uncover the monitors: their
+    cover is waiting for a session that is not coming."""
+    drop_crossing_cover(state_dir)
+    report_a_failed_crossing(reason, log_file)
+    return 1
+
+
 def run(target: HandoffTarget, config) -> int:
     state_dir = config.paths.state_dir
     log_file = state_dir / target.launcher_log
     if not wait_for_the_session_to_let_go(
         mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)
     ):
-        report_a_failed_crossing(
+        return _give_up(
             "The session that was running never finished shutting down, so "
             f"{target.app_name} could not take over.",
-            log_file,
+            log_file, state_dir,
         )
-        return 1
     session = start_the_session(
         target,
         python_exe=config.paths.python_exe,
@@ -243,8 +283,7 @@ def run(target: HandoffTarget, config) -> int:
     )
     reason = wait_for_the_session_to_come_up(target, session, state_dir=state_dir)
     if reason:
-        report_a_failed_crossing(reason, log_file)
-        return 1
+        return _give_up(reason, log_file, state_dir)
     logger.info("%s is up (pid=%d)", target.app_name, session.pid)
     return 0
 

@@ -74,7 +74,13 @@ from fun_time.player_status import read_nau_status
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_environment import SessionEnvironment
-from fun_time.session_handoff import clear_handoff_request, hand_over_if_asked
+from fun_time.session_handoff import (
+    clear_handoff_request,
+    drop_crossing_cover,
+    hand_over_if_asked,
+    launch_crossing_cover,
+    pending_handoff,
+)
 from fun_time.session_resume import (
     resume_main_video,
     resume_playlists,
@@ -545,6 +551,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
     # The player takes the cover down within a poll of this line.
     progress.finish()
     release_the_players(manifest, carried.main_mode)
+    # The headset is showing the session: the monitors' cover can go.
+    drop_crossing_cover(state_dir)
     # Records the children for teardown and hands the keyboard over: the hotkey
     # script takes its startup hold off, so Esc now means omnipause.
     write_pids_file(pids_file, children)
@@ -596,6 +604,9 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         logger.info("Interrupted -- shutting down")
         exit_code = 1
     finally:
+        # This teardown's cover hangs in the headset (docs/entering-vr.md).
+        if (crossing := pending_handoff(state_dir)) is not None:
+            launch_crossing_cover(state_dir, crossing)
         # Up first and up through everything below.  A session that ended
         # BECAUSE the player went has nothing left to draw with, and nothing to
         # hide: the cut to the runtime's environment already came.
