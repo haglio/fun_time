@@ -335,6 +335,7 @@ class _VideoUnit:
             # flip_y: mpv renders top-left-origin; the scene samples GL
             # lower-left convention (verified against a top-half-white clip).
             self.player.render(self.target.fbo, self.target.width, self.target.height, flip_y=True)
+            self.target.painted = True
             self.layer_dirty = True
 
     def layer_placement(self, scene_yaw_deg: float = 0.0, scene_pitch_deg: float = 0.0):
@@ -1402,13 +1403,13 @@ def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> N
 
 
 def _scene_is_up(primary, genau, satellites: Sequence, panel) -> bool:
-    """Whether every picture the session opens with has reached its texture;
-    the main slot counts once."""
+    """Whether every picture the session opens with has been RENDERED, not
+    merely sized (``has_picture``, never ``ready``); the main slot counts once."""
     main = genau.texture if genau.role.showing else primary.target
     return bool(
-        main.ready
-        and panel.texture.ready
-        and all(satellite.target.ready for satellite in satellites)
+        main.has_picture
+        and panel.texture.has_picture
+        and all(satellite.target.has_picture for satellite in satellites)
     )
 
 
