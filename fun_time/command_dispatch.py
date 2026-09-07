@@ -29,7 +29,7 @@ from .event_log import (
     SOURCE_SYSTEM,
 )
 from .filter_vocab import decode_filter_command
-from .lock import build_lock_plan
+from .lock import build_discard_plan, build_lock_toggle_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .mode_plan import nau_displays
 from .modes import is_favorite_path, read_favs_content
@@ -249,7 +249,7 @@ def _toggle_lock(
         play_video(config, which, target_path)
         logger.info("Lock back-dated to %s (player %d had advanced)", target_path, which)
         current_path = target_path
-    plan = build_lock_plan("toggle-lock", which=which, locked=locked, current_path=current_path)
+    plan = build_lock_toggle_plan(which=which, locked=locked, current_path=current_path)
     send_satellite(config, which, "LOCK" if plan.next_locked else "UNLOCK")
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
@@ -295,9 +295,7 @@ def _discard(
     # file that lights the HUD's ★ for this clip, so the key does what the badge
     # on screen implies: a starred clip loses the star, an unstarred one goes.
     is_favorite = is_favorite_path(condemned, read_favs_content(config.favs_file))
-    plan = build_lock_plan(
-        "discard", which=which, locked=locked, current_path=condemned, is_favorite=is_favorite
-    )
+    plan = build_discard_plan(which=which, current_path=condemned, is_favorite=is_favorite)
     if locked:
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.
