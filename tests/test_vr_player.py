@@ -615,3 +615,34 @@ def test_the_cover_goes_up_before_the_players_are_built():
     assert calls["_raise_the_cover"] < calls["_MainUnit"]
     assert calls["_raise_the_cover"] < calls["_SatelliteUnit"]
     assert calls["_raise_the_cover"] < calls["_PanelUnit"]
+
+
+def test_the_reveal_waits_for_the_cover_to_have_been_seen():
+    """The room being drawable is not the same as anyone having had the headset
+    on while it was covered."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    (note,) = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_ready.note"]
+
+    assert "cover_seen.dwelt" in ast.unparse(note)
+    assert "_scene_is_up" in ast.unparse(note)
+
+
+def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
+    """A frame submitted while the runtime cannot locate the views, or while the
+    headset is on the desk, showed nobody anything."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    (note,) = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Call) and ast.unparse(n.func) == "cover_seen.note"]
+
+    assert ast.unparse(note) == "cover_seen.note(covered and session.focused)"

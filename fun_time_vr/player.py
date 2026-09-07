@@ -71,6 +71,7 @@ from .cover import (
     COVER_WIDTH_DEG,
     Cover,
     CoverAnchor,
+    CoverSeen,
     CoverWatcher,
     SceneReady,
     paint_cover,
@@ -662,10 +663,7 @@ class _PanelUnit:
         self.screen.close()
 
 
-class _CoverUnit:
-    """The covers (:mod:`fun_time_vr.cover`): read and painted on the pump
-    thread, uploaded and drawn on the render thread, in place of the scene."""
-
+class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     def __init__(self, state_dir: Path) -> None:
         self._watcher = CoverWatcher(state_dir)
         self._lock = threading.Lock()
@@ -920,8 +918,8 @@ def _update_quad_layer(
 def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> None:
     """Fill both eyes with the cover: ground edge to edge, panel at the heading
     the viewer had when it went up.  Through the same rotation-only view matrix
-    the scene uses, so it holds still in the world while the head turns; the
-    projection matrix alone leaves that out and glues it to the lenses."""
+    the scene uses, so it holds still while the head turns; the projection
+    matrix alone glues it to the lenses."""
     heading = cover.anchor.heading(yaw_of_orientation((
         views[0].pose.orientation.x, views[0].pose.orientation.y,
         views[0].pose.orientation.z, views[0].pose.orientation.w,
@@ -949,8 +947,8 @@ def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> N
 
 
 def _scene_is_up(primary, genau, satellites: Sequence, panel) -> bool:
-    """Whether every picture the session opens with has reached its texture —
-    what the orchestrator holds the cover for; the main slot counts once."""
+    """Whether every picture the session opens with has reached its texture;
+    the main slot counts once."""
     main = genau.texture if genau.role.showing else primary.target
     return bool(
         main.ready
@@ -1042,15 +1040,14 @@ def _draw_eyes(
         session.release_eye_framebuffer(eye_index)
 
 
-# A couple of frames on a running compositor; past this, not worth a quit.
-TEARDOWN_COVER_TIMEOUT_S = 1.0
+TEARDOWN_COVER_TIMEOUT_S = 1.0  # a couple of frames; past this, not worth it
 
 FIRST_COVER_TIMEOUT_S = 5.0  # the READY event, a frame or two after the session
 
 
 def _present_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> bool:
-    """One frame carrying nothing but the cover; whether it reached the eyes.
-    Never at the cost of the launch or the quit it runs inside."""
+    """One frame of cover; whether it reached the eyes.  Never at the cost of
+    the launch or quit it runs inside."""
     try:
         should_render, display_time, views = session.frame_begin()
         cover.render_latest_frame()
@@ -1065,12 +1062,9 @@ def _present_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> b
 
 
 def _raise_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> None:
-    """Get the cover in front of the eyes BEFORE the players are built.
-
-    Built first and shown after, it was up for the tail of a launch that had
-    already finished -- a tenth of a second, which nobody sees.  The compositor
-    holds the last frame submitted, so one frame here covers the mpv bring-up.
-    """
+    """Get the cover in front of the eyes BEFORE the players are built: built
+    first and shown after, it was up for the tail of a launch that had already
+    finished.  One frame here carries through the mpv bring-up."""
     if not cover.wanted:
         return  # a player with no orchestrator: nothing is coming to wait for
     deadline = time.monotonic() + FIRST_COVER_TIMEOUT_S
@@ -1084,8 +1078,7 @@ def _raise_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> Non
 def _cover_the_teardown(session, renderer: SceneRenderer, cover: _CoverUnit) -> None:
     """Raise the closing cover and hold it while this process comes apart.  The
     ordinary quit asks through the shutdown progress file; this is the other way
-    out — window closed, interrupt, a runtime that ended the session — where the
-    units below would be watched closing one at a time."""
+    out — window closed, interrupt, a runtime that ended the session."""
     cover.closing_now()
     try:
         cover.refresh()
@@ -1146,8 +1139,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     state_dir = Path(commands.dashboard_cmd_file).parent
     layout_path = state_dir / LAYOUT_FILENAME
     layout = read_layout(layout_path)
-    # Before the players and refreshed between them: each opens media, seconds
-    # the headset would otherwise spend on the runtime's own home.
+    # Before the players and refreshed between them: each opens media.
     cover = _CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)
     primary = _MainUnit(manifest, vr, get_proc_address)
@@ -1165,6 +1157,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     )
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
+    cover_seen = CoverSeen()
     units = [primary, genau, *satellites, panel, cover]
     pumped = [*units, keeper]
     hanging = {unit.side: unit.screen for unit in satellites} | {PANEL: panel.screen}
@@ -1212,8 +1205,11 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             t1 = time.perf_counter()
             for unit in units:
                 unit.render_latest_frame()
-            # The only place that sees the room fill in; it says so once.
-            scene_ready.note(_scene_is_up(primary, genau, satellites, panel))
+            # The only place that sees the room fill in, and whether anyone
+            # had the headset on while it did.
+            scene_ready.note(
+                _scene_is_up(primary, genau, satellites, panel) and cover_seen.dwelt
+            )
             t2 = time.perf_counter()
 
             quads = []
@@ -1287,6 +1283,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             t4 = time.perf_counter()
             session.frame_end(display_time, views, project=project, quads=quads)
             t5 = time.perf_counter()
+            cover_seen.note(covered and session.focused)
             if covered or not should_render:
                 cover.settled()
             glfw.poll_events()

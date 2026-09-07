@@ -26,6 +26,7 @@ from fun_time_vr.cover import (
     CANCELLING_STATUS,
     CLOSING_STATUS,
     COVER_CLEAR,
+    COVER_DWELL_S,
     COVER_SIZE_PX,
     SCENE_READY_FILENAME,
     SCENE_READY_GRACE_S,
@@ -35,6 +36,7 @@ from fun_time_vr.cover import (
     VR_STARTUP_PHASES,
     Cover,
     CoverAnchor,
+    CoverSeen,
     CoverWatcher,
     SceneReady,
     paint_cover,
@@ -421,3 +423,43 @@ class TestWhereTheCoverHangs:
         anchor.heading(0.0)
 
         assert anchor.heading(2.9) == pytest.approx(0.0)
+
+
+class TestBeingSeen:
+    """A launch is over in six seconds and the headset is still on the desk;
+    the first two verifications of the cover saw nothing at all because of it.
+    The reveal now waits for the panel to have been in front of a WORN headset,
+    so what a viewer sees on putting it on is the loading screen."""
+
+    def test_frames_that_reached_nobody_do_not_count(self):
+        clock = _Clock()
+        seen = CoverSeen(clock=clock)
+
+        for _frame in range(500):
+            seen.note(False)
+            clock.now += 0.1
+
+        assert not seen.dwelt
+
+    def test_the_dwell_runs_from_the_first_frame_that_landed(self):
+        clock = _Clock()
+        seen = CoverSeen(clock=clock)
+        clock.now += 60  # a minute on the desk
+
+        seen.note(True)
+        assert not seen.dwelt
+
+        clock.now += COVER_DWELL_S
+        assert seen.dwelt
+
+    def test_a_headset_taken_off_mid_dwell_does_not_restart_it(self):
+        """Its wearer looked; asking them to look again from zero would hold a
+        launch on a glance."""
+        clock = _Clock()
+        seen = CoverSeen(clock=clock)
+        seen.note(True)
+
+        clock.now += COVER_DWELL_S
+        seen.note(False)
+
+        assert seen.dwelt
