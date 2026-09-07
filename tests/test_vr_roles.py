@@ -29,9 +29,16 @@ class FakePlayer:
         self.position_ms = 0.0
         self.duration_ms = 60_000.0
         self.closed = False
+        # The main player opens locked on either display, which is mpv's own
+        # loop_file — the option the real one is constructed with.
+        self.loop_file = True
+        self.eof = False
 
     def load(self, path: Path) -> None:
         self.loaded.append(Path(path))
+        # Opening a file is what clears mpv's end-of-file flag; the role's
+        # step-at-eof latch is written against that.
+        self.eof = False
 
     def set_paused(self, paused: bool) -> None:
         self.paused = paused
@@ -44,6 +51,9 @@ class FakePlayer:
 
     def set_muted(self, muted: bool) -> None:
         self.muted = muted
+
+    def set_loop_file(self, loop: bool) -> None:
+        self.loop_file = loop
 
     def seek_ms(self, ms: float) -> None:
         self.seeks.append(ms)
@@ -387,6 +397,133 @@ class TestTCode:
         role.apply_command("SET_TCODE_ENABLED 1", on_quit=_never_quits)
 
         assert driver.resets == resets_before
+
+
+class TestTheMainSlotLock:
+    """One padlock for whichever player owns the main slot, and in video mode
+    that is this one: the apostrophe, the console's padlock and the spoken
+    "main lock" all arrive here as Nau's own three verbs."""
+
+    def test_a_fresh_role_is_locked_the_way_the_player_opens(self, role_parts):
+        """On is the main player's opening state on either display — the
+        ``loop_file=True`` the VR player is constructed with — so the console's
+        padlock is right before the first status is even published."""
+        assert role_parts.role.locked is True
+        assert role_parts.player.loop_file is True
+
+    def test_toggle_hands_the_end_of_the_file_back_to_the_playlist(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("TOGGLE_LOCK", on_quit=_never_quits)
+        assert (role.locked, player.loop_file) == (False, False)
+        role.apply_command("TOGGLE_LOCK", on_quit=_never_quits)
+        assert (role.locked, player.loop_file) == (True, True)
+
+    def test_the_absolute_pair_asks_for_the_state_it_names(self, role_parts):
+        """The spoken forms are "main lock" and "main unlock": a speaker asks
+        for the state they want, so saying it twice must not undo it."""
+        role = role_parts.role
+        for _ in range(2):
+            role.apply_command("LOCK_OFF", on_quit=_never_quits)
+            assert role.locked is False
+        for _ in range(2):
+            role.apply_command("LOCK_ON", on_quit=_never_quits)
+            assert role.locked is True
+
+    def test_the_padlock_goes_out_in_the_status_file(self, role_parts, tmp_path):
+        """The console that draws it is not always this player — in genau mode
+        it is drawn over Genau's clip — so the flag travels with the status."""
+        role = role_parts.role
+        status_file = tmp_path / "nau_status.txt"
+
+        def published() -> bool:
+            text = "".join(f"{k}={v}\n" for k, v in role.status_fields(None).items())
+            status_file.write_text(text, encoding="utf-8")
+            return read_nau_status(status_file).locked
+
+        assert published() is True
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        assert published() is False
+
+    def test_an_unlocked_video_ending_steps_to_the_next(self, role_parts):
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
+        _one, two, *_ = files
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        player.eof = True
+
+        role.tick(now=0.0)
+
+        assert player.loaded[-1] == two
+
+    def test_a_locked_video_ending_stays_where_it_is(self, role_parts):
+        """Locked is mpv's own loop-file, which restarts the file rather than
+        ending it — so this is belt and braces, and it is what keeps a lock
+        applied at the very end of a file from stepping off it."""
+        role, player = role_parts.role, role_parts.player
+        player.eof = True
+
+        role.tick(now=0.0)
+
+        assert len(player.loaded) == 1
+
+    def test_the_step_is_taken_once_however_long_mpv_keeps_saying_end_of_file(
+        self, role_parts,
+    ):
+        """``loadfile`` is asynchronous: mpv goes on reporting end-of-file for a
+        tick or two after the step is issued, and reading that again would walk
+        past a whole video before the new one had opened."""
+        role, player, files = role_parts.role, role_parts.player, role_parts.files
+        _one, two, *_ = files
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        player.eof = True
+
+        for _ in range(5):
+            role.tick(now=0.0)
+            player.eof = True  # the fake's load() clears it; mpv would not, yet
+
+        assert player.loaded[-1] == two
+        assert len(player.loaded) == 2
+
+    def test_a_paused_player_never_walks_its_own_playlist(self, role_parts):
+        """Which is what makes OmniPause a settled state: freeze the flag and
+        nothing moves on by itself."""
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        role.set_paused(True)
+        player.eof = True
+
+        role.tick(now=0.0)
+
+        assert len(player.loaded) == 1
+
+    def test_locking_spends_an_end_of_file_the_unlock_would_have_stepped_on(
+        self, role_parts,
+    ):
+        """A video sitting at end-of-file when the lock goes on has already
+        spent it; without clearing the latch the next unlock stepped off at
+        once, from a video that had been repeating happily for minutes."""
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("LOCK_OFF", on_quit=_never_quits)
+        player.eof = True
+        role.tick(now=0.0)  # steps, and latches
+        role.apply_command("LOCK_ON", on_quit=_never_quits)
+
+        assert role._stepped_at_eof is False
+
+
+class TestFMode:
+    """Fun Time's F-mode over this player's playlist.  The list arrives already
+    narrowed and a scripted playlist looks like any other, so the flag has to be
+    said outright — and the panel's status line is the only thing that says it."""
+
+    def test_a_fresh_role_is_not_in_it(self, role_parts):
+        assert role_parts.role.f_mode is False
+
+    def test_the_flag_is_taken_from_the_verb(self, role_parts):
+        role = role_parts.role
+        role.apply_command("SET_F_MODE 1", on_quit=_never_quits)
+        assert role.f_mode is True
+        role.apply_command("SET_F_MODE 0", on_quit=_never_quits)
+        assert role.f_mode is False
 
 
 class TestStatus:

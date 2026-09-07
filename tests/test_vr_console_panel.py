@@ -1,6 +1,7 @@
 """The console hanging in the headset: what goes on it, and how it is composed."""
 from __future__ import annotations
 
+from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
@@ -9,6 +10,7 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import OSR2_ROBOT_HAND, ConsoleHud, ConsolePainter, ModeHud
 from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
+from player_core.hud_status import F_MODE_LABEL
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import CHIP_H, CHIP_W, PAD, SPEAKER_W, VolumeHud, VolumeHudPainter, chip_xy
 
@@ -51,9 +53,10 @@ class FakeGate:
         return _drive(speed=99)
 
 
-def _hud(engine, *, gate=None, video_title="feature", clip_title="scene one", loading=None):
+def _hud(engine, *, gate=None, video_title="feature", clip_title="scene one", loading=None,
+         f_mode=False):
     return panel_hud(engine, video_title=video_title, clip_title=clip_title,
-                     loading=loading, drive_gate=gate or FakeGate())
+                     loading=loading, drive_gate=gate or FakeGate(), f_mode=f_mode)
 
 
 class TestWhatThePanelNames:
@@ -81,6 +84,38 @@ class TestWhatThePanelNames:
     def test_with_no_engine_console_the_panel_still_names_what_is_playing(self):
         """The broker has the room: no console of Genau's own, but a panel."""
         assert _hud(None).modes.video == "feature"
+
+
+class TestFModeOnTheStatusLine:
+    """The word for the switch the F key throws.
+
+    The console model Fun Time publishes lights the F button, but the status
+    line above it is read off the player DRAWING the console — Nau's own copy
+    on the desktop, and here the main role's.  Left out, F-mode was a button
+    that lit with nothing said beside it, and the key read as doing nothing.
+    """
+
+    def test_the_line_says_it_under_a_video(self):
+        assert F_MODE_LABEL in _hud(_engine_console("video"), f_mode=True).status_line
+
+    def test_the_line_leaves_it_out_when_it_is_off(self):
+        assert F_MODE_LABEL not in _hud(_engine_console("video"), f_mode=False).status_line
+
+    def test_it_is_the_main_players_flag_and_so_not_said_over_a_clip(self):
+        """In genau mode the slot belongs to Genau's own two filters, which ride
+        in the console the engine composed; the main player's playlist is not
+        what is on screen and its narrowing is not what the line describes."""
+        hud = _hud(_engine_console("genau"), f_mode=True)
+
+        assert hud.modes.f_mode is False
+
+    def test_genaus_own_filter_still_fills_the_slot_in_genau_mode(self):
+        engine = replace(
+            _engine_console("genau"),
+            console=replace(_engine_console("genau").console, favorites_filter=True),
+        )
+
+        assert F_MODE_LABEL in _hud(engine, f_mode=False).status_line
 
 
 class TestWhoseReadoutItDraws:

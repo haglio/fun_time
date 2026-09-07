@@ -2,16 +2,13 @@
 
 Same config, same broker, same playlists, same dispatch loop / voice / AHK
 hotkeys — the difference is what gets launched: instead of Nau, Genau and two
-satellite windows, ONE VR player process (fun_time_vr.player) hosts all the
-visual roles — the main player, Genau, both satellites — and the
-desktop-window management goes unused (the dispatch loop's window ops resolve
-no HWNDs and settle into no-ops).  The audio companion is launched as on the
-desktop, sent to the headset's output.  Everything else the session does —
-the two main-slot modes, omnipause, watch stats, the device arbiter's status
-files, F-mode rebuilds — runs on the same state files it always did.
+satellite windows, ONE VR player process (fun_time_vr.player) hosts every
+visual role, and the audio companion goes to the headset's output.  Everything
+else runs on the state files it always did.
 
-What a VR session does not launch, and what that waits on, is in
-docs/known-issues.md.
+What a VR session does not launch, what each control it sends reaches, and
+what that waits on, is in docs/known-issues.md and
+tests/test_vr_control_parity.py.
 """
 from __future__ import annotations
 
@@ -381,9 +378,8 @@ def run_vr_bridge(config) -> int:
         dashboard_cmd_file=dashboard_cmd_file,
         shared_state_file=shared_state_path(state_dir),
         ahk_cmd_file=state_dir / "ahk_cmd.txt",
-        # Every role pid stays 0: the roles live inside the VR player, there
-        # are no per-role windows, and unresolved HWNDs are exactly what makes
-        # the desktop window ops settle into no-ops.
+        # Every role pid stays 0: the roles are surfaces of the VR player, and
+        # unresolved HWNDs are what make the window ops no-ops.
         windows=WindowRoles(pids=ChildPids()),
         dashboard_enabled=False,
         hud_publisher=hud_publisher,

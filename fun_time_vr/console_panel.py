@@ -41,6 +41,7 @@ def panel_hud(
     clip_title: str,
     loading: str | None,
     drive_gate,
+    f_mode: bool = False,
 ) -> ConsoleHud:
     """The engine's console re-said for the mode: the video's name on top and
     the funscript folded into the readout by *drive_gate*
@@ -48,14 +49,23 @@ def panel_hud(
     video-mode console draws it; the clip's name (or the one still decoding)
     over Genau's own motion in genau mode, where the gate is told nothing was
     published, the video waiting paused while the wave moves on.  With no
-    engine console (the broker has the room) the panel still names what plays."""
+    engine console (the broker has the room) the panel still names what plays.
+
+    *f_mode* is the main player's own, folded in as Nau folds in its own: the
+    published console lights the F button, the line beside it is the drawing
+    player's, and in genau mode that slot is Genau's filters'.
+    """
     hud = engine_hud if engine_hud is not None else ConsoleHud()
     if nau_displays(hud.console.mode):
         title, drive = video_title, drive_gate.readout(hud.drive)
     else:
         drive_gate.readout(None)
         title, drive = loading or clip_title, hud.drive
-    return replace(hud, modes=ModeHud(video=title), drive=drive)
+    return replace(
+        hud,
+        modes=ModeHud(video=title, f_mode=f_mode and nau_displays(hud.console.mode)),
+        drive=drive,
+    )
 
 
 def _rgba(bgra: np.ndarray) -> Image.Image:

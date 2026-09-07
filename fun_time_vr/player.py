@@ -3,16 +3,13 @@ OpenXR scene.
 
 The desktop session runs Nau, Genau and two satellite processes, each owning
 a window; an OpenXR runtime gives the headset to a single rendering process,
-so in VR all four are surfaces of this one process.  Each keeps its desktop
-sibling's whole contract — the playlist/command/paused/status file quartet —
-so the orchestrator, dispatch loop, voice control and device arbiter drive
-them without knowing the display changed.  The satellites ARE the satellite
-package's own session/verb/status/HUD code, running against offscreen players;
-the main player is :class:`fun_time_vr.roles.MainRole`, Nau's contract
-in-process; Genau is :class:`fun_time_vr.genau_role.GenauRole`, the clip
-player's engine on a thread of its own, taking the scene in genau mode and
-driving beneath the video in video mode.  The console hangs in the scene as
-a panel of its own (:mod:`fun_time_vr.console_panel`), and the controllers
+so in VR all four are surfaces of this one — :class:`fun_time_vr.roles.MainRole`,
+:class:`fun_time_vr.genau_role.GenauRole` on a thread of its own, and the
+satellite package's own session against offscreen players.  Each keeps its
+desktop sibling's whole contract — the playlist/command/paused/status file
+quartet — so the orchestrator, dispatch loop, voice control and device arbiter
+drive them without knowing the display changed.  The console hangs in the scene
+as a panel of its own (:mod:`fun_time_vr.console_panel`), and the controllers
 point at it and at the satellites (:mod:`fun_time_vr.pointer`).
 
 Two threads.  A worker owns every file channel — pause flags, command drains,
@@ -103,7 +100,7 @@ from .pointer import (
     laser_vertices,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
-from .roles import MainRole
+from .roles import UNIMPLEMENTED_NAU_VERBS, MainRole
 from .satellite_hud import (
     HUD,
     HUD_DEG_PER_PX,
@@ -379,7 +376,10 @@ class _MainUnit(_VideoUnit):
                 keyword = line.split(None, 1)[0].upper() if line.split() else line
                 if keyword not in self._unhandled:
                     self._unhandled.add(keyword)
-                    logger.info("Verb the VR main role does not handle: %s", keyword)
+                    logger.info(
+                        "Verb the VR main role does not handle: %s (%s)", keyword,
+                        UNIMPLEMENTED_NAU_VERBS.get(keyword, "not a verb it knows at all"),
+                    )
         self.role.tick(now)
         self._status_writer.write(self.role)
         self.overlay_furniture(
@@ -615,6 +615,7 @@ class _PanelUnit:
             clip_title=clip.stem if clip is not None else "",
             loading=genau.loading,
             drive_gate=self._primary.drive_gate,
+            f_mode=main.f_mode,
         )
         if genau.showing:
             scrubber = None
