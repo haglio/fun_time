@@ -21,7 +21,7 @@ from player_core.file_channel import append_command
 
 from .config import LayoutConfig
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
-from .mode_plan import STARTUP_MAIN_MODE, nau_displays
+from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, nau_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
@@ -290,7 +290,7 @@ def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     # on its first tick, and a RESUME here would start the hand against a
     # funscript that is about to take the device — the same reason leaving
     # OmniPause resumes it in genau mode alone.
-    if main_mode == "genau":
+    if main_mode == MAIN_GENAU_MODE:
         append_command(Path(m.commands.genau_cmd_file), "RESUME")
 
 

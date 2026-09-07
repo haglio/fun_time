@@ -119,6 +119,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
+# 6905 since 2026-09-07, when the main slot's two modes got names and the
+# paragraph about the state file's older ones became the test that reads one.
 # 6907 since 2026-09-07, when the lock plan's four outcomes became four named
 # constructors and the paragraph arguing that a discard is two steps shrank to
 # the one sentence its tests do not already say.
