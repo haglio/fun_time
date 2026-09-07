@@ -33,9 +33,8 @@ from fun_time.project_paths import PROJECT_VR_ICON
 
 logger = logging.getLogger(__name__)
 
-# Shorter than the desktop's: no browser, no Origenerator, no windows.  The
-# cover cannot appear before the player holds an OpenXR session, well into
-# "players" -- the tail of that phase is what it opens on.
+# Shorter than the desktop's: no browser, no Origenerator, no windows.  It
+# cannot appear before the player holds an OpenXR session, well into "players".
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
@@ -72,10 +71,9 @@ class Cover:  # what the cover says now; *closing* is teardown's
 
 
 class CoverWatcher:
-    """What the cover should show, read off the orchestrator's progress files.
-    Polled from the player's worker, never its frame loop.  None means show the
-    scene: no end running, DONE, or a file gone stale -- a headset must never be
-    left under a panel that will never move."""
+    """What the cover should show, read off the orchestrator's progress files
+    and polled from the player's worker, never its frame loop.  None means show
+    the scene: no end running, DONE, or a file gone stale."""
 
     def __init__(
         self, state_dir: str | Path, *, clock: Callable[[], float] = time.monotonic,
@@ -89,7 +87,7 @@ class CoverWatcher:
         self._closing_locally = False
         self._cancelling = False
         self._held: dict[str, tuple[float, str]] = {}
-        self._seen: dict[str, tuple[float | None, float]] = {}
+        self._seen: dict[str, tuple[str, float]] = {}
         self._gave_up: set[str] = set()
 
     def closing_now(self) -> None:
@@ -126,13 +124,12 @@ class CoverWatcher:
             return None
         try:
             text = path.read_text(encoding="utf-8")
-            mtime: float | None = path.stat().st_mtime
         except OSError:
             return None  # no file: that end of the session is not running
         progress = parse_progress(text)
         if progress.done:
             return None
-        if self._went_stale(key, mtime, stale_timeout_s):
+        if self._went_stale(key, text, stale_timeout_s):
             logger.warning("%s progress has not moved in %.0fs; taking the cover down",
                            key, stale_timeout_s)
             self._gave_up.add(key)
@@ -155,11 +152,14 @@ class CoverWatcher:
             return False
         return self._cancelling
 
-    def _went_stale(self, key: str, mtime: float | None, stale_timeout_s: float) -> bool:
+    def _went_stale(self, key: str, text: str, stale_timeout_s: float) -> bool:
+        """Whether the file has said the same thing for too long -- judged on
+        what it SAYS, since two steps written inside one filesystem timestamp
+        tick share an mtime, and a clock keyed on that never restarts."""
         now = self._clock()
         seen = self._seen.get(key)
-        if seen is None or seen[0] != mtime:
-            self._seen[key] = (mtime, now)
+        if seen is None or seen[0] != text:
+            self._seen[key] = (text, now)
             return False
         return now - seen[1] > stale_timeout_s
 
