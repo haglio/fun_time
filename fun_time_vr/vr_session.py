@@ -430,6 +430,7 @@ class VRSession:
                     self._session_begun = True
                 elif self._session_state == xr.SessionState.STOPPING:
                     xr.end_session(self._session)
+                    self._session_begun = False
                 elif self._session_state in (
                     xr.SessionState.LOSS_PENDING,
                     xr.SessionState.EXITING,
