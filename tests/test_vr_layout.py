@@ -20,10 +20,12 @@ from fun_time_vr.scene import PRIMARY_WIDTH_DEG, Placement
 
 
 class TestTheDefaults:
-    def test_the_satellites_flank_the_primary_portrait_left_landscape_right(self):
+    def test_the_satellites_flank_the_primary_landscape_left_portrait_right(self):
+        """The sides a desktop session puts them on, so the room reads the same
+        in the headset as it does on the monitors."""
         portrait, landscape = DEFAULT_LAYOUT[PORTRAIT], DEFAULT_LAYOUT[LANDSCAPE]
 
-        assert portrait.azimuth_deg < 0 < landscape.azimuth_deg
+        assert landscape.azimuth_deg < 0 < portrait.azimuth_deg
         assert portrait.azimuth_deg == -landscape.azimuth_deg
         assert portrait.width_deg == landscape.width_deg
         assert portrait.elevation_deg == landscape.elevation_deg
@@ -35,7 +37,7 @@ class TestTheDefaults:
         landscape = DEFAULT_LAYOUT[LANDSCAPE]
         flush = (PRIMARY_WIDTH_DEG + landscape.width_deg) / 2
 
-        assert landscape.azimuth_deg < flush
+        assert abs(landscape.azimuth_deg) < flush
 
     def test_the_satellites_are_smaller_than_the_primary_half(self):
         assert DEFAULT_LAYOUT[LANDSCAPE].width_deg < PRIMARY_WIDTH_DEG / 2
