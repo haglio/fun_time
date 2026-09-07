@@ -37,7 +37,7 @@ import queue
 import threading
 import time
 from collections.abc import Callable, Iterator, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 import numpy as np
@@ -89,6 +89,7 @@ from .console_panel import (
 from .cover import (
     COVER_CLEAR,
     COVER_WIDTH_DEG,
+    WEARER_STATUS,
     Cover,
     CoverAnchor,
     CoverSeen,
@@ -1113,6 +1114,7 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
         self.holding = False  # render-thread-read, set on the pump's refresh
+        self.awaiting_wearer = False  # set by the loop, read on the pump's refresh
         self._watcher = CoverWatcher(state_dir)
         self._lock = threading.Lock()
         self._pending: tuple[object, bool] | None = None  # (image, closing)
@@ -1146,6 +1148,8 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
         """Re-read the progress files and repaint if what they say has moved."""
         self.holding = headset_hold_asked(self._state_dir)
         cover = self._watcher.read()
+        if cover is not None and not cover.closing and self.awaiting_wearer:
+            cover = replace(cover, status=WEARER_STATUS)
         if cover == self._cover:
             return
         self._cover = cover
@@ -1767,9 +1771,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 unit.render_latest_frame()
             # The only place that sees the room fill in, and whether anyone
             # had the headset on while it did.
-            scene_ready.note(
-                _scene_is_up(primary, genau, satellites, panel) and cover_seen.dwelt
-            )
+            room_is_up = _scene_is_up(primary, genau, satellites, panel)
+            cover.awaiting_wearer = room_is_up and not session.focused  # set before he looks
+            scene_ready.note(room_is_up and cover_seen.dwelt)
             t2 = time.perf_counter()
 
             quads = []

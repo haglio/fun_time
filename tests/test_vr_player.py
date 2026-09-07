@@ -48,7 +48,12 @@ from fun_time_vr.console_panel import (
     PANEL_WIDTH_DEG,
     PANEL_WIDTH_PX,
 )
-from fun_time_vr.cover import VR_SHUTDOWN_PHASES, VR_STARTUP_PHASES
+from fun_time_vr.cover import (
+    VR_SHUTDOWN_PHASES,
+    VR_STARTUP_PHASES,
+    WEARER_STATUS,
+    CoverWatcher,
+)
 from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.furniture import control_size
 from fun_time_vr.layout import (
@@ -748,6 +753,35 @@ class TestTheCoverUnit:
 
         assert len(unit.texture.uploads) == 2
 
+    def test_it_says_it_is_waiting_on_him_once_the_room_is_up(
+            self, tmp_path, cover_graphics):
+        """A room that is finished is not waiting for players, and saying so
+        while he has the headset off is the only moment the words can reach
+        him -- they have to be right before he looks, not after."""
+        PhaseProgress(tmp_path / PROGRESS_FILENAME,
+                      phases=VR_STARTUP_PHASES).advance("players")
+        unit = _CoverUnit(tmp_path)
+        assert unit._cover.status == "Waiting for players..."
+
+        unit.awaiting_wearer = True
+        unit.pump(threading.Event(), 0.0)
+
+        assert unit._cover.status == WEARER_STATUS
+        assert unit._cover.fraction == pytest.approx(
+            CoverWatcher(tmp_path).read().fraction
+        ), "only the words change; the bar still says how far the launch got"
+
+    def test_a_teardown_never_asks_him_to_put_it_on(self, tmp_path, cover_graphics):
+        """The closing cover is shown to someone already wearing it."""
+        PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
+                      phases=VR_SHUTDOWN_PHASES).advance("players")
+        unit = _CoverUnit(tmp_path)
+
+        unit.awaiting_wearer = True
+        unit.pump(threading.Event(), 0.0)
+
+        assert unit._cover.status != WEARER_STATUS
+
     def test_done_hands_the_headset_back(self, tmp_path, cover_graphics):
         progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
         progress.advance("finalizing")
@@ -971,9 +1005,30 @@ def test_the_reveal_waits_for_the_cover_to_have_been_seen():
     tree = ast.parse(inspect.getsource(player._run))
     (note,) = [n for n in ast.walk(tree)
                if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_ready.note"]
+    (room,) = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Assign) and ast.unparse(n.targets[0]) == "room_is_up"]
 
     assert "cover_seen.dwelt" in ast.unparse(note)
-    assert "_scene_is_up" in ast.unparse(note)
+    assert "room_is_up" in ast.unparse(note)
+    assert "_scene_is_up" in ast.unparse(room.value)
+
+
+def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
+    """Said before that, it would blame him for a launch still building the
+    room; said off the same value the reveal reads, the two cannot disagree."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    (told,) = [n for n in ast.walk(tree)
+               if isinstance(n, ast.Assign)
+               and ast.unparse(n.targets[0]) == "cover.awaiting_wearer"]
+
+    assert ast.unparse(told.value).replace("(", "").replace(")", "") == (
+        "room_is_up and not session.focused"
+    )
 
 
 def test_only_frames_a_worn_headset_took_count_towards_the_dwell():

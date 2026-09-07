@@ -57,6 +57,7 @@ CANCEL_HINT = "Press Esc to cancel"  # through the hook, which needs no focus
 CANCELLING_STATUS = "Cancelling..."
 CLOSING_STATUS = VR_SHUTDOWN_PHASES[0].message
 HELD_STATUS = "Returning to Fun Time..."  # exempt from staleness: see the doc
+WEARER_STATUS = "Waiting for you to put the headset on..."  # not on the players
 
 _STARTUP = "startup"
 _SHUTDOWN = "shutdown"
