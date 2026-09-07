@@ -1466,7 +1466,8 @@ class TestOrigeneratorUnderTheOverlay:
         waited = stubs._wait_for_the_hosted_app.call_args
         assert waited.args[0] == Path(cfg.origenerator_status_file)
         assert waited.kwargs["shows"] is True
-        resolve.assert_called_with(ORIGENERATOR_PID, "Origenerator")
+        resolve.assert_called_with(
+            ORIGENERATOR_PID, "Origenerator", include_hidden=True)
         restore.assert_called_once_with(7171, activate=False)
         assert result.satellites_mode == "origenerator"
         assert result.role_hwnds["origenerator"] == 7171

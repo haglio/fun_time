@@ -228,7 +228,8 @@ class TestFixPostLoadingWindows:
             side_effect=lambda title, **kwargs: by_title.get(title, 0),
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_for_process",
-            side_effect=lambda _pid, title: for_process.get(title, 0),
+            side_effect=lambda _pid, title, *, include_hidden=False: (
+                for_process.get(title, 0) if include_hidden else 0),
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
         ), patch(

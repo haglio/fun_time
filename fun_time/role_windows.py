@@ -105,10 +105,9 @@ class WindowRoles:
         if role in ("origenerator_portrait", "origenerator_landscape"):
             # The region shows come and go with the slideshows, so a cached
             # handle would name a destroyed window — resolved fresh every time.
-            # find_window_for_process: the recorded pid can be a launcher's,
-            # with the interpreter that owns the windows one child down.
             return find_window_for_process(
-                self.pids.origenerator, ORIGENERATOR_ROLE_TITLES[role])
+                self.pids.origenerator, ORIGENERATOR_ROLE_TITLES[role],
+                include_hidden=True)
         hwnd = self._role_hwnds.get(role, 0)
         if hwnd and role == "origenerator" and not window_exists(hwnd):
             # The hosted app's boot can put a short-lived twin of this caption
@@ -148,7 +147,8 @@ class WindowRoles:
             # standalone Origenerator of his owns windows with the same titles.
             # Children included, for a recorded pid that is a launcher's.
             hwnd = find_window_for_process(
-                self.pids.origenerator, ORIGENERATOR_ROLE_TITLES[role])
+                self.pids.origenerator, ORIGENERATOR_ROLE_TITLES[role],
+                include_hidden=True)
         if hwnd:
             self._role_hwnds[role] = hwnd
         return hwnd

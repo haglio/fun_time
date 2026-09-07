@@ -129,7 +129,9 @@ def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     return _first_window(matches)
 
 
-def find_window_for_process(pid: int, title: str | None = None) -> int:
+def find_window_for_process(
+    pid: int, title: str | None = None, *, include_hidden: bool = False
+) -> int:
     """*pid*'s — or its direct children's — window titled exactly *title*, or 0.
 
     Pid AND title, because a process can own several titled windows (the
@@ -139,8 +141,11 @@ def find_window_for_process(pid: int, title: str | None = None) -> int:
     recorded pid can be a launcher's: a venv's ``Scripts\\python.exe`` spawns
     the interpreter that actually owns the windows as a child and exits the
     lookup empty-handed.  One generation is the launcher pattern; nothing
-    spawns windows two shims deep.  Includes hidden/minimized windows: the
-    hosted app's main window boots parked and must still resolve.
+    spawns windows two shims deep.
+
+    Hidden windows count only for a caller that asks — the hosted app's main
+    window boots parked — because a process's own internals carry captions
+    too (Qt's ``_q_titlebar``, Windows' ``Default IME``).
     """
     if not pid:
         return 0
@@ -150,6 +155,8 @@ def find_window_for_process(pid: int, title: str | None = None) -> int:
         window_pid = ctypes.wintypes.DWORD()
         _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(window_pid))
         if window_pid.value not in pids:
+            return False
+        if not include_hidden and not _user32.IsWindowVisible(hwnd):
             return False
         length = _user32.GetWindowTextLengthW(hwnd)
         if length <= 0:

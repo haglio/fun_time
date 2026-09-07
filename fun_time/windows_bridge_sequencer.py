@@ -992,7 +992,8 @@ def _wait_for_origenerator_window(pid: int,
     from a window already built."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
-        hwnd = find_window_for_process(pid, ORIGENERATOR_ROLE_TITLES["origenerator"])
+        hwnd = find_window_for_process(
+            pid, ORIGENERATOR_ROLE_TITLES["origenerator"], include_hidden=True)
         if hwnd:
             return hwnd
         time.sleep(0.5)
