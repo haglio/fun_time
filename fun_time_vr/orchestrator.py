@@ -642,8 +642,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
 
 
 def _leave_the_headset_covered(state_dir: Path, *, stop_runtime: bool) -> bool:
-    """Ask the player to hold its cover and let go of every channel; whether it
-    did.  The wait is the point: the desktop claims those channels."""
+    """Ask the player to hold its cover and let go of every channel."""
     hold_the_headset(state_dir, stop_runtime=stop_runtime)
     deadline = time.monotonic() + HEADSET_HOLD_ACK_TIMEOUT_S
     while time.monotonic() < deadline:

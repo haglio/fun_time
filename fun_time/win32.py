@@ -52,6 +52,9 @@ SW_HIDE = 0
 SW_SHOW = 5
 IMAGE_ICON, LR_LOADFROMFILE, WM_SETICON = 1, 0x10, 0x80
 ICON_SMALL, ICON_BIG = 0, 1
+WS_EX_LAYERED = 0x00080000
+WS_EX_TRANSPARENT = 0x00000020
+LWA_ALPHA = 0x00000002
 GW_HWNDNEXT = 2  # next window DOWN the z-order (GetWindow relationship)
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
@@ -516,6 +519,14 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
     )
 
 
+def draw_nothing_at_all(hwnd: int) -> None:
+    """On the taskbar while painting no pixels and taking no clicks."""
+    ex_style = _user32.GetWindowLongW(hwnd, GWL_EXSTYLE)
+    _user32.SetWindowLongW(
+        hwnd, GWL_EXSTYLE, ex_style | WS_EX_LAYERED | WS_EX_TRANSPARENT)
+    _user32.SetLayeredWindowAttributes(hwnd, 0, 0, LWA_ALPHA)
+
+
 def set_window_icon(hwnd: int, icon_path: str | Path) -> None:
     """Give a window the icon Alt+Tab draws -- WM_SETICON, GLFW's losing."""
     try:
@@ -529,8 +540,7 @@ def set_window_icon(hwnd: int, icon_path: str | Path) -> None:
 
 
 def hide_window(hwnd: int) -> None:
-    """Take a window off the screen, where minimizing leaves it one Alt+Tab
-    from being back on it.  Through :func:`_without_hanging`."""
+    """Take a window off the screen; minimizing leaves it an Alt+Tab away."""
     _without_hanging(_user32.ShowWindow, hwnd, SW_HIDE, what=f"hide_window({hwnd})")
 
 

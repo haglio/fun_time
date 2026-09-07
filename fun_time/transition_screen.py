@@ -1,9 +1,8 @@
 """The cover the monitors wear while the room changes shape.
 
-Runs as a subprocess: ``python -m fun_time.transition_screen <progress_file>``
-
-Raised by the session leaving, taken down by the one arriving: the one thing a
-closing screen cannot do (``docs/entering-vr.md``).
+Runs as a subprocess: ``python -m fun_time.transition_screen <progress_file>``,
+raised by the session leaving and taken down by the one arriving
+(``docs/entering-vr.md``).
 """
 from __future__ import annotations
 
@@ -13,11 +12,8 @@ from pathlib import Path
 from .overlay_progress import ready_file_for
 from .overlay_window import OverlayWindow
 
-# Distinct from the other covers', so an exact-title lookup resolves one.
-WINDOW_TITLE = "Fun Time Transition"
-
-# The backstop for a relay that died outright (docs/entering-vr.md).
-STALE_TIMEOUT_S = 180.0
+WINDOW_TITLE = "Fun Time Transition"  # distinct: an exact-title lookup resolves one
+STALE_TIMEOUT_S = 180.0  # the backstop for a relay that died outright
 
 
 def main() -> None:
