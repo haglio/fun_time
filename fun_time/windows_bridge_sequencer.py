@@ -30,12 +30,13 @@ from .player_status import (
     genau_status_path,
     read_genau_status,
     read_nau_status,
+    read_origenerator_status,
 )
 from .players import Player
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
-from .satellites_mode import VIDEO_MODE
+from .satellites_mode import ORIGENERATOR_MODE, VIDEO_MODE
 from .shared_state import read_shared_state, shared_state_path
 from .win32 import (
     disable_window_transitions,
@@ -562,13 +563,8 @@ def _launch_the_hosted_origenerator(
     launched: _LaunchedChildren,
 ) -> int:
     """The hosted app, when the config names a checkout, or 0 for a session
-    with none.
-
-    Launched with the players so its own boot (ComfyUI, the library maintenance
-    passes) runs under the rest of startup.  Nothing here waits on it — it
-    comes up parked by design, and the dispatch loop adopts its window whenever
-    it appears, restoring it only if the session is in origenerator mode.
-    """
+    with none.  Launched FIRST of the children: the slowest of them, and the
+    reveal waits it out, so its head start is time off the loading screen."""
     origenerator_dir = m.runtime.origenerator_dir.strip()
     origenerator_pid = 0
     if origenerator_dir:
@@ -584,6 +580,9 @@ def _launch_the_hosted_origenerator(
         origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
         origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
         origenerator_cmd_file.write_text("", encoding="utf-8")
+        # And the status file, since last session's answers the reveal's
+        # readiness wait before this app has drawn anything.
+        Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
         origenerator_pid = launch_origenerator(
             python_exe=(m.executables.origenerator_python_exe.strip()
                         or m.executables.python_exe),
@@ -609,24 +608,24 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    """Phase 1: the two satellites, then Genau and Nau, then the hosted app.
+    """Phase 1: the hosted app, then the two satellites, then Genau and Nau.
 
     Nothing here waits for a window.  Everything is started as early as it can
-    be so each child's own boot — pygame, a media scan, first frames, ComfyUI —
-    runs under the rest of startup.
+    be, slowest first, so each child's own boot — ComfyUI, pygame, a media
+    scan, first frames — runs under the rest of startup.
     """
     # Read before the first launch that needs it: every child below takes the
     # named checkouts, the satellites and the hosted app included, because they
     # all import player_core.
     project_dirs = m.runtime.genau_project_dirs
+    origenerator_pid = _launch_the_hosted_origenerator(
+        m, plan=layout.plan, project_dirs=project_dirs, launched=launched)
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
         m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
     genau_pid, nau_pid, nau_status_file = _launch_the_main_slot_players(
         m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
-    origenerator_pid = _launch_the_hosted_origenerator(
-        m, plan=layout.plan, project_dirs=project_dirs, launched=launched)
 
     # The satellite side's resumed mode: the core session just wrote the
     # opening state to the shared INI (see session_resume), and a session that
@@ -639,9 +638,8 @@ def _launch_core_media(
     # switch into it sends: the mode means both regions playing the library of
     # their own shape, and a resumed session that skipped this came up on two
     # black rectangles under a mode that said otherwise.  Written now rather
-    # than after the app is up -- it drains its command file on its first tick,
-    # which is after its window exists, so an early write is read at exactly
-    # the right moment and needs no waiting on.
+    # than once the app is up -- it drains this file on its first tick, so an
+    # early write lands at exactly the right moment.
     if origenerator_pid and satellites_mode == "origenerator":
         append_command(Path(m.commands.origenerator_cmd_file), "OPEN_SHOWS")
 
@@ -764,18 +762,32 @@ def _wait_for_the_room_to_be_drawing(
         )
 
 
-def _restore_the_hosted_window(origenerator_pid: int, cover_hwnd: int) -> int:
-    """Bring the hosted app's window back under the curtain, and its hwnd.
-
-    A session opening in origenerator mode holds the overlay for this window
-    too — the whole point of the loading screen is that the room is set up
-    before it is seen, and this one used to pop up seconds after the reveal.
-    Restoring is overlay-safe (no promotion); the band comes from the
-    post-overlay pass.  A boot that outruns the wait does not keep the desktop:
-    the reveal goes ahead and the dispatch loop's converger adopts the window
-    when it finally appears.
-    """
-    hwnd = _wait_for_origenerator_window(origenerator_pid)
+def _hold_the_cover_for_the_hosted_app(
+    m: LaunchManifest,
+    *,
+    core: _CoreSession,
+    cover_hwnd: int,
+    progress: ProgressReporter,
+) -> int:
+    """Hold the curtain until the hosted app is ready — for its shows too, in
+    the mode that shows them, where the window is then restored under the cover
+    (its hwnd, for the post-overlay pass to band) rather than left parked.  A
+    stalled boot does not get to keep the desktop."""
+    if not core.origenerator_pid:
+        return 0
+    shows = core.satellites_mode == ORIGENERATOR_MODE
+    if not _wait_for_the_hosted_app(
+        Path(m.commands.origenerator_status_file), progress, shows=shows,
+    ):
+        logger.warning(
+            "Origenerator was not %s within %.0fs; revealing without it — the "
+            "converger adopts its window when it appears",
+            "showing both regions" if shows else "answering",
+            ORIGENERATOR_BOOT_TIMEOUT_S,
+        )
+    if not shows:
+        return 0
+    hwnd = _wait_for_origenerator_window(core.origenerator_pid)
     if hwnd:
         restore_window(hwnd, activate=False)
         keep_the_cover_up(cover_hwnd)
@@ -783,7 +795,7 @@ def _restore_the_hosted_window(origenerator_pid: int, cover_hwnd: int) -> int:
         logger.warning(
             "Origenerator window not up within %.0fs; revealing without "
             "it — the converger adopts it when it appears",
-            ORIGENERATOR_BOOT_TIMEOUT_S,
+            WINDOW_RESOLVE_TIMEOUT_S,
         )
     return hwnd
 
@@ -861,9 +873,9 @@ def _settle_the_room_under_the_cover(
     _wait_for_the_room_to_be_drawing(
         m, nau_status_file=core.nau_status_file, progress=progress)
 
-    origenerator_hwnd = 0
-    if core.origenerator_pid and core.satellites_mode == "origenerator":
-        origenerator_hwnd = _restore_the_hosted_window(core.origenerator_pid, cover_hwnd)
+    progress.advance("origenerator")
+    origenerator_hwnd = _hold_the_cover_for_the_hosted_app(
+        m, core=core, cover_hwnd=cover_hwnd, progress=progress)
 
     progress.advance("windows")
     role_hwnds = _place_and_park_under_the_cover(
@@ -945,17 +957,39 @@ def _run_startup_phases(
     )
 
 
-# How long a session resumed into origenerator mode holds the overlay for the
-# hosted app's window.  Its boot runs ComfyUI and the library passes, so it is
-# the slowest child by far; bounded so a stalled boot cannot wedge startup — the
-# reveal proceeds and the dispatch loop's converger adopts the window later.
-ORIGENERATOR_BOOT_TIMEOUT_S = 60.0
+# How long every session holds the overlay for the hosted app's boot.  Bounded
+# with the resolve after it under the cover's staleness guard, which a test pins.
+ORIGENERATOR_BOOT_TIMEOUT_S = 40.0
+_HOSTED_POLL_S = 0.25
+
+
+def _wait_for_the_hosted_app(
+    status_file: Path,
+    progress: ProgressReporter,
+    *,
+    shows: bool,
+    timeout_s: float = ORIGENERATOR_BOOT_TIMEOUT_S,
+) -> bool:
+    """Wait until the hosted app is ready, returning whether it got there.
+
+    Its window is not the signal, for the reason Nau's caption is not Nau's: it
+    is built at the END of a boot whose last act opens a gallery, and the shows
+    arrive seconds later still."""
+    for _ in range(max(1, int(timeout_s / _HOSTED_POLL_S))):  # counted, not clocked
+        if progress.cancelled:
+            raise StartupCancelled()
+        status = read_origenerator_status(status_file)
+        if status is not None and (status.shows_are_up or not shows):
+            return True
+        time.sleep(_HOSTED_POLL_S)
+    return False
 
 
 def _wait_for_origenerator_window(pid: int,
-                                  timeout_s: float = ORIGENERATOR_BOOT_TIMEOUT_S) -> int:
-    """The hosted app's main window, polled until its slow boot shows one —
-    parked (minimized) included — or 0 at the ceiling."""
+                                  timeout_s: float = WINDOW_RESOLVE_TIMEOUT_S) -> int:
+    """The hosted app's main window — parked (minimized) included — or 0 at
+    the ceiling.  A resolve, not a wait: the status it follows is published
+    from a window already built."""
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
         hwnd = find_window_for_process(pid, ORIGENERATOR_ROLE_TITLES["origenerator"])

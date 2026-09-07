@@ -152,6 +152,9 @@ STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("browser", "Launching browser...", 0.4),
     Phase("companions", "Launching companions...", 1.3),
     Phase("players", "Waiting for players...", 0.5),
+    # The long one: the hosted app's window lands 10-28s after launch (its own
+    # boot log) against 5-8s for the rest of the room.
+    Phase("origenerator", "Waiting for Origenerator...", 9.0),
     Phase("windows", "Positioning windows...", 0.5),
     Phase("finalizing", "Finalizing...", 0.0),
 )
