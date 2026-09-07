@@ -147,7 +147,9 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   **Always take your shortcut back out.** The work is in Fun Time by then,
   so a file still offering to run it separately is clutter he has to reason
   about, and nothing else sweeps it until some other agent happens to write one.
-  Then tell him it is live and needs a restart. Only he may waive the launch —
+  Then tell him it is live the next time he opens Fun Time — not that it
+  "needs a restart", which he only has running while he is using it, unlike
+  the broker's tray and Evolver. Only he may waive the launch —
   "just land it" is his call to make, never yours. **The shortcut is owed to him
   whether or not you are the one landing** — an agent handing its branch to
   another agent to merge still gets his verdict first, because the merge is what
