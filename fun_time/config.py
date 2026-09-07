@@ -422,8 +422,6 @@ def load_config(config_path: str | Path | None = None, *, project_dir: Path | No
     layout_raw = require_section(raw, "layout", path)
     audio_raw = require_section(raw, "audio_companion", path)
     browser_raw = optional_section(raw, "random_favs_browser", path)
-    if browser_raw is None:
-        browser_raw = optional_section(raw, "chrome_overlay", path)
     voice_raw = optional_section(raw, "voice_control", path)
     regen_raw = optional_section(raw, "regen", path)
     vr_raw = optional_section(raw, "vr", path)
