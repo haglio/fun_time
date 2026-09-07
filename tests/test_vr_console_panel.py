@@ -24,7 +24,7 @@ from fun_time_vr.console_panel import (
     panel_hud,
     panel_painter,
 )
-from fun_time_vr.notices import KEPT, Notice
+from fun_time_vr.notices import KEPT, PRIMARY, Notice
 
 
 def _drive(**over) -> DriveHud:
@@ -207,7 +207,8 @@ class TestTheAnnouncementStrip:
     _NOW = 100.0
 
     def _notices(self, *messages, level=NOTICE):
-        return tuple(Notice(message, level, self._NOW) for message in messages)
+        return tuple(
+            Notice(message, level, PRIMARY, self._NOW) for message in messages)
 
     def test_it_keeps_its_height_with_nothing_to_say(self):
         """A strip that grew and shrank would rehang the console a little lower
@@ -276,7 +277,7 @@ class TestItKeepsItsSize:
         quiet = _paint()
         speaking = paint_panel(
             panel_painter(), _hud(_engine_console("video")),
-            notices=(Notice("landscape next", NOTICE, 100.0),),
+            notices=(Notice("landscape next", NOTICE, PRIMARY, 100.0),),
         )
 
         assert speaking.size == quiet.size

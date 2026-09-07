@@ -117,7 +117,7 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
-from .notices import NoticeStrip
+from .notices import NoticeBoard
 from .perf import FramePerf
 from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
@@ -152,12 +152,14 @@ from .scene import (
     quad_layer_placement,
     surface_vertices,
 )
+from .toast import toast_bgra
 
 logger = logging.getLogger(__name__)
 
 # Overlay ids shared with the desktop satellite (10 is its lock HUD).
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
+_OV_TOAST = 13
 
 # Longest texture side each video gets: near-native for the primary, and for
 # a satellite's 28° of view well above what the headset resolves there.
@@ -287,6 +289,7 @@ class _VideoUnit:
         # Furniture last painted, pump-thread-owned.
         self._scrubber_shown: tuple | None = None
         self._chip_shown: tuple | None = None
+        self._toast_shown: tuple | None = None
 
     def render_latest_frame(self) -> None:
         width, height = self.player.video_dims
@@ -335,6 +338,25 @@ class _VideoUnit:
             self.player.overlay(_OV_VOLUME, round(x * factor), round(y * factor),
                                 scaled(painter.bgra(volume_hud), factor))
 
+    def overlay_toast(self, notice) -> None:
+        """Flash *notice* over this picture, or clear what was flashing --
+        repainted only when it changes, as the furniture is."""
+        if not self.target.ready:
+            return
+        width, height = self.target.width, self.target.height
+        shown = None if notice is None else (notice.message, notice.level, width, height)
+        if shown == self._toast_shown:
+            return
+        self._toast_shown = shown
+        if shown is None:
+            self.player.remove_overlay(_OV_TOAST)
+            return
+        placed = toast_bgra(notice.message, notice.level, width=width, height=height)
+        if placed is None:
+            return
+        x, y, bgra = placed
+        self.player.overlay(_OV_TOAST, x, y, bgra)
+
     def pump(self, stop: threading.Event, now: float) -> None:
         """One turn of the file-channel worker — what every unit owes it."""
         raise NotImplementedError
@@ -348,8 +370,11 @@ class _VideoUnit:
 
 
 class _MainUnit(_VideoUnit):
+    notice_screen = PRIMARY  # NOT `screen`, which every unit uses for its _HangingScreen
+
     def __init__(
-        self, manifest: LaunchManifest, vr: VrSettings, get_proc_address, *, placement: Placement,
+        self, manifest: LaunchManifest, vr: VrSettings, get_proc_address, *,
+        placement: Placement, notices=None,
     ) -> None:
         # Muted at birth: the headset's sink cannot be trusted until the
         # compositor is presenting (see route_audio).
@@ -384,6 +409,7 @@ class _MainUnit(_VideoUnit):
             lambda role: role.status_fields(self.drive_gate.handoff_touch()),
         )
         self._volume_painter = VolumeHudPainter()
+        self._notices = notices
         self._watch = PlaybackWatch()
         self._unhandled: set[str] = set()
         self._presses = _Presses(PRIMARY)
@@ -442,6 +468,8 @@ class _MainUnit(_VideoUnit):
             self.role.position_ms, self.role.duration_ms,
             VolumeHud(volume=self.role.volume, muted=self.role.muted), self._volume_painter,
         )
+        if self._notices is not None:
+            self.overlay_toast(self._notices.toast(self.notice_screen))
 
     def _watch_progress(self, now: float) -> None:
         """Say it out loud when the video stops advancing, and reopen it once:
@@ -480,7 +508,7 @@ class _MainUnit(_VideoUnit):
 class _SatelliteUnit(_VideoUnit):
     def __init__(
         self, side: str, manifest: LaunchManifest, get_proc_address, *,
-        vr: VrSettings, placement: Placement,
+        vr: VrSettings, placement: Placement, notices=None,
     ) -> None:
         # Muted, and on the default sink until the headset is worn, for the reason
         # _MainUnit.route_audio waits: a sink not draining stops the video clock.
@@ -493,6 +521,8 @@ class _SatelliteUnit(_VideoUnit):
         )
         commands = manifest.commands
         self.side = side
+        self.notice_screen = side  # its notices flash over its own picture
+        self._notices = notices
         self.cmd_file = Path(commands.side_file(side, "cmd"))
         self.paused_file = Path(commands.side_file(side, "paused"))
         self.playlist_file = Path(commands.side_file(side, "playlist"))
@@ -602,6 +632,8 @@ class _SatelliteUnit(_VideoUnit):
             self.session.position_ms, self.session.duration_ms,
             self.volume.hud, self._volume_painter,
         )
+        if self._notices is not None:
+            self.overlay_toast(self._notices.toast(self.notice_screen))
 
     def close(self) -> None:
         self.session.close()  # closes the player
@@ -738,11 +770,11 @@ class _PanelUnit:
 
     def __init__(
         self, primary: _MainUnit, genau: _GenauUnit, *, dashboard_cmd_file: Path,
-        event_log: Path,
+        notices: NoticeBoard,
     ) -> None:
         self._primary = primary
         self._genau = genau
-        self._notices = NoticeStrip(event_log)
+        self._notices = notices
         self._painter = panel_painter()
         self._pointer = PanelPointer(
             self._painter,
@@ -770,7 +802,6 @@ class _PanelUnit:
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self._take_presses()
-        self._notices.pump(now)
         genau, main = self._genau.role, self._primary.role
         clip = genau.current_clip
         hud = panel_hud(
@@ -1351,24 +1382,29 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     # Before the players and refreshed between them: each opens media.
     cover = _CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)
-    primary = _MainUnit(manifest, vr, get_proc_address, placement=layout[PRIMARY])
+    # One read of the event log per tick, pumped before anything that shows a
+    # notice off it: the console's strip and every screen's own toast.
+    notices = NoticeBoard(event_log_path(state_dir))
+    primary = _MainUnit(manifest, vr, get_proc_address, placement=layout[PRIMARY],
+                        notices=notices)
     _present_the_cover(session, renderer, cover)
     genau = _GenauUnit(manifest, vr, stop, placement=layout[PRIMARY])
     _present_the_cover(session, renderer, cover)
     satellites = [
-        _SatelliteUnit(side, manifest, get_proc_address, vr=vr, placement=layout[side])
+        _SatelliteUnit(side, manifest, get_proc_address, vr=vr, placement=layout[side],
+                       notices=notices)
         for side in (PORTRAIT, LANDSCAPE)
     ]
     _present_the_cover(session, renderer, cover)
     panel = _PanelUnit(
         primary, genau, dashboard_cmd_file=Path(commands.dashboard_cmd_file),
-        event_log=event_log_path(Path(commands.dashboard_cmd_file).parent),
+        notices=notices,
     )
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
     units = [primary, genau, *satellites, panel, cover]
-    pumped = [*units, keeper]
+    pumped = [notices, *units, keeper]
     hanging = {unit.side: (unit.screen,) for unit in satellites} | {
         PRIMARY: (primary.screen, genau.screen)}
     pointer = Pointer()

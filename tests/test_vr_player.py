@@ -43,6 +43,7 @@ from fun_time_vr.layout import (
     PRIMARY,
     read_layout,
 )
+from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
     _CoverUnit,
@@ -406,11 +407,12 @@ class TestThePanelUnderThePointer:
         ))
         command_file = tmp_path / "dashboard_cmd.txt"
         event_log = tmp_path / "event_log.jsonl"
+        notices = NoticeBoard(event_log)
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
             unit = _PanelUnit(primary, genau, dashboard_cmd_file=command_file,
-                              event_log=event_log)
+                              notices=notices)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
-                               event_log=event_log, primary=primary)
+                               event_log=event_log, notices=notices, primary=primary)
 
     def _uv_of(self, unit, action: str) -> tuple[float, float]:
         """A button's middle in the PANEL's pixels: the painter places its buttons
@@ -425,12 +427,14 @@ class TestThePanelUnderThePointer:
         """A VR session launches no dashboard, so this strip is the whole of what
         the headset is told — the voice controller's reports among it."""
         p = self._unit(tmp_path)
+        p.notices.pump(None, 0.0)
         p.unit.pump(threading.Event(), 0.0)
         quiet = np.asarray(p.unit._image).copy()
 
         p.event_log.write_text(json.dumps(
             {"ts": 1.0, "level": logging.ERROR, "source": "system",
              "msg": "unrecognized voice command: portrait net"}) + "\n", encoding="utf-8")
+        p.notices.pump(None, 1.0)
         p.unit.pump(threading.Event(), 1.0)
 
         assert not np.array_equal(np.asarray(p.unit._image), quiet)
