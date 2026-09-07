@@ -1127,8 +1127,7 @@ HEADSET_HOLD_TIMEOUT_S = 180.0
 def _hold_the_headset(
     session, renderer: SceneRenderer, cover: _CoverUnit, state_dir: Path,
 ) -> None:
-    """Cover the headset until the next session releases it; safe because
-    every channel is closed first."""
+    """Cover the headset until the next session releases it."""
     report_the_headset_held(state_dir)
     deadline = time.monotonic() + HEADSET_HOLD_TIMEOUT_S
     try:

@@ -257,7 +257,7 @@ def _park_the_hosted_origenerator(state_dir: Path, child: ChildProcess | None) -
 
 
 def close_a_kept_origenerator(state_dir: Path) -> None:
-    """Close a hosted app a crossing left running, when nothing will adopt it."""
+    """Close a hosted app a crossing left running that nothing will adopt."""
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
     if kept is None:

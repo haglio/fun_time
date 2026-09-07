@@ -1,8 +1,4 @@
-"""Crossing between Fun Time and FunTimeVR: "enter VR", "exit VR".
-
-Why a relay rather than one orchestrator starting the other, what the crossing
-carries and what it cannot: ``docs/entering-vr.md``.
-"""
+"""Crossing between Fun Time and FunTimeVR: ``docs/entering-vr.md``."""
 from __future__ import annotations
 
 import argparse
@@ -23,8 +19,7 @@ from fun_time.process_identity import NAMER
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 
 # No genau_project_dirs override here: the dispatch loop imports THIS, and the
-# session started below applies its own.
-# Named, not __name__: started with `-m`, where __name__ is "__main__".
+# session started below applies its own.  Named, not __name__: `-m` runs this.
 logger = logging.getLogger("fun_time.session_handoff")
 
 HANDOFF_REQUEST_NAME = "session_handoff.txt"
@@ -38,8 +33,8 @@ HEADSET_HELD_NAME = "vr_headset_held.flag"
 _STOP_RUNTIME = "stop_runtime"
 _CROSSING_MESSAGES = {"vr": "Entering VR...", "desktop": "Returning to Fun Time..."}
 
-# Teardown is seconds, so this expires only on a session wedged holding the
-# mutex; the second is what both launchers allow a session to report in.
+# The first expires only on a session wedged holding the mutex; the second is
+# what both launchers allow a session to report in.
 RELEASE_TIMEOUT_S = 60.0
 STARTUP_TIMEOUT_S = 45.0
 
@@ -84,14 +79,13 @@ def handoff_request_path(state_dir: str | Path) -> Path:
 
 
 def request_handoff(state_dir: str | Path, target: HandoffTarget) -> None:
-    """Leave word that this session is crossing to *target*, not quitting."""
+    """Leave word that this session is crossing, not quitting."""
     path = handoff_request_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"{target.key}\n", encoding="utf-8")
 
 
 def clear_handoff_request(state_dir: str | Path) -> None:
-    """Drop a request the session that wrote it never got to take."""
     handoff_request_path(state_dir).unlink(missing_ok=True)
 
 
@@ -101,8 +95,7 @@ def pending_handoff(state_dir: str | Path) -> HandoffTarget | None:
 
 
 def take_handoff_request(state_dir: str | Path) -> HandoffTarget | None:
-    """The crossing asked for, taken off the disk as it is read; unreadable or
-    unrecognized reads as no request at all."""
+    """The crossing asked for, taken off the disk as it is read."""
     return _read_request(state_dir, take=True)
 
 
@@ -122,8 +115,7 @@ def _read_request(state_dir: str | Path, *, take: bool) -> HandoffTarget | None:
 
 
 def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
-    """Cover the headset past this session; *stop_runtime* rides along
-    because the player outlives the orchestrator that knows the answer."""
+    """Cover the headset past this session; *stop_runtime* rides along."""
     (Path(state_dir) / HEADSET_HELD_NAME).unlink(missing_ok=True)
     (Path(state_dir) / HEADSET_HOLD_NAME).write_text(
         _STOP_RUNTIME if stop_runtime else "", encoding="utf-8",
@@ -209,8 +201,7 @@ def drop_crossing_cover(state_dir: str | Path) -> None:
 
 def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget | None:
     """Spawn the relay when the session ended by crossing over; None otherwise.
-    An orchestrator's last act, and detached, because the relay's first act is
-    to wait for that orchestrator's mutex, which frees only once it is gone."""
+    An orchestrator's last act, the relay's first being to wait for its mutex."""
     target = take_handoff_request(config.paths.state_dir)
     if target is None:
         return None
@@ -249,8 +240,7 @@ def start_the_session(
     state_dir: str | Path,
     config_path: str | Path,
 ) -> subprocess.Popen:
-    """Launch *target*'s orchestrator as its own ``.vbs`` does, clearing the
-    stale marker the outgoing session would otherwise vouch with."""
+    """Launch *target*'s orchestrator as its own ``.vbs`` does."""
     (Path(state_dir) / target.ready_marker).unlink(missing_ok=True)
     # Named as launch.vbs names it: a session entered by voice is as findable
     # in the task list as one entered by clicking.
@@ -272,9 +262,7 @@ def wait_for_the_session_to_come_up(
     timeout_s: float = STARTUP_TIMEOUT_S,
     poll_s: float = _POLL_S,
 ) -> str:
-    """Empty once *target* has published its startup marker, else why not.
-    Watches the process too: one that died has a traceback to show now, where
-    one merely wedged has nothing until the timeout."""
+    """Empty once *target* has published its startup marker, else why not."""
     marker = Path(state_dir) / target.ready_marker
     deadline = time.monotonic() + timeout_s
     while time.monotonic() < deadline:
@@ -299,8 +287,7 @@ def last_lines_of(path: Path, count: int = 15) -> str:
 
 
 def report_a_failed_crossing(reason: str, log_file: Path) -> None:
-    """Say the other session never came up: by now there is nothing on screen.
-    Qt is imported in here so a relay that only waits never loads it."""
+    """Say the other session never came up; Qt loads only for this."""
     from shared_ui.alert import Level, show_alert
 
     from fun_time.project_paths import PROJECT_ICON
