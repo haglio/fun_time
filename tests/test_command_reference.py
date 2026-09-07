@@ -302,11 +302,14 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     )
 
 
-def test_quit_row_lists_exit_synonym():
-    """"exit" is a spoken synonym for "quit" and appears in the legend's Quit row."""
+def test_the_quit_row_no_longer_offers_the_exit_synonym():
+    """"exit" quit the session until it made "exit VR" unsayable: the shorter
+    phrase won every recognition, so leaving the headset ended the room instead
+    (docs/entering-vr.md).  The legend must not keep offering a word the
+    recognizer now reads as the crossing."""
     rows = _all_rows()
     quit_rows = [r for r in rows if "quit" in r.commands]
-    assert quit_rows and {"exit", "quit"} <= set(quit_rows[0].voice)
+    assert quit_rows and set(quit_rows[0].voice) == {"quit"}
 
 
 def test_reference_popup_row_shows_toggle_and_close_names():

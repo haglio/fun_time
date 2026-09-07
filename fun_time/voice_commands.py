@@ -92,12 +92,11 @@ def build_voice_commands(
         origenerator_phrases = ORIGENERATOR_PHRASES
     commands: dict[str, str] = {
         "quit": "quit",
-        "exit": "quit",
         # Into the headset and back out (docs/entering-vr.md).  No key and no
         # pin, so the phrase IS the way in.  Two spellings apiece: the model has
-        # "vr" AND the letters, and which it hears is not something to bet a
-        # one-way door on.  "exit vr" does not collide with the bare "exit" —
-        # whole utterances match, as for "filter off"/"filter".
+        # "vr" AND the letters, and which it hears is not a bet worth taking.
+        # A bare "exit" quit the session until it made "exit VR" unsayable, and
+        # it is gone; the rule it left is a test, not a paragraph.
         "enter vr": "enter_vr",
         "enter v r": "enter_vr",
         "exit vr": "exit_vr",

@@ -83,6 +83,20 @@ A request left on disk by a session that crashed before it could take its own is
 cleared at every startup: it describes one ending, and obeyed later it would
 send an ordinary launch into the headset on its way out.
 
+### A crossing phrase must not begin with a phrase of its own
+
+"exit" was a spoken synonym for "quit". The first time "exit VR" was ever said,
+the room quit instead: both were whole phrases in the grammar, and the shorter
+one scored better — the event log recorded `Voice command: quit`, the AHK
+channel took an exit, and no crossing was ever requested. "enter VR" was never
+at risk, because no bare "enter" was in the grammar to win.
+
+So the synonym is gone. "quit" still quits, and so does Ctrl+Alt+Q. A stray
+"exit" now lands on the crossing pair instead, which in the session it names is
+answered with a notice and nothing else — a far cheaper misreading than ending
+the room. `tests/test_voice_commands.py` holds the rule for every crossing
+phrase, present and future.
+
 Nothing has to be handed over besides the request. The broker keeps running
 across the crossing as it does across any restart, the AHK bridge is
 `#SingleInstance Force` and the outgoing one is gone before the incoming one
