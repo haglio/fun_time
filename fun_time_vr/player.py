@@ -12,13 +12,12 @@ drive them without knowing the display changed.  The console hangs in the scene
 as a panel of its own (:mod:`fun_time_vr.console_panel`), and the controllers
 point at it and at the satellites (:mod:`fun_time_vr.pointer`).
 
-Two threads.  A worker owns every file channel — pause flags, command drains,
-status writes, HUD polls, and the in-video furniture repaints — at its own
-cadence, because file I/O under a sync client can stall for arbitrary
-milliseconds and none of it may ride the frame loop.  The render thread owns
-GL: per frame it waits on the compositor, lets each mpv render its latest
-frame into that unit's texture (only when one is newly due — the videos'
-24-30fps never paces the 90Hz loop), and hands the compositor its layers.
+Two threads: ``_pump_channels`` owns every file channel at its own cadence,
+because file I/O under a sync client can stall for arbitrary milliseconds and
+none of it may ride the frame loop.  The render thread owns GL: it waits on the
+compositor, lets each mpv render its latest frame into that unit's texture when
+one is newly due (the videos' 24-30fps never paces the 90Hz loop), and hands
+the compositor its layers.
 
 With ``vr.compositor_layers=true``, flat screens (the satellites always, the
 primary when its projection is ``flat``) are submitted as compositor quad
@@ -29,10 +28,7 @@ never composites them, so screens submitted that way don't appear; everything
 draws in-scene inside the projection layer instead, which every runtime
 composites.
 
-The GL/OpenXR/mpv shell.  Everything it wires — roles, scene geometry,
-matrices, projections, furniture throttling, the pointer — is tested pure,
-and the whole pipeline minus OpenXR runs against the real DLLs in the
-hidden-desktop integration suite.  See CLAUDE.md, "Standing rules".
+A shell: what it wires is tested outside it, per CLAUDE.md's standing rules.
 """
 from __future__ import annotations
 
@@ -747,15 +743,60 @@ def main(argv: list[str] | None = None) -> int:
     return _run(manifest, vr)
 
 
+def _unit_name(unit: object) -> str:
+    side = getattr(unit, "side", "")
+    return f"{type(unit).__name__}[{side}]" if side else type(unit).__name__
+
+
+class _PumpFaults:  # one unit's pump failing, said once, not seven times a second
+    def __init__(self) -> None:
+        self._kind: dict[int, tuple[str, str]] = {}  # by identity: satellites share a class
+        self._repeats: dict[int, int] = {}
+        self._names: dict[int, str] = {}
+
+    def failed(self, unit: object, exc: BaseException) -> None:
+        key = id(unit)
+        kind = (type(exc).__name__, str(exc))
+        if self._kind.get(key) == kind:
+            self._repeats[key] += 1
+            return
+        self._close_out(key)
+        self._kind[key] = kind
+        self._repeats[key] = 0
+        self._names[key] = _unit_name(unit)
+        logger.error("%s.pump failed", self._names[key], exc_info=exc)
+
+    def worked(self, unit: object) -> None:
+        key = id(unit)
+        if key in self._kind:
+            self._close_out(key)
+            del self._kind[key]
+            self._repeats.pop(key, None)
+
+    def _close_out(self, key: int) -> None:
+        if self._repeats.get(key):
+            logger.error(
+                "...and %d more %s.pump failures like it: %s",
+                self._repeats[key], self._names[key], self._kind[key][1],
+            )
+
+
 def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:
     """The file-channel worker: every unit's flags, drains, status writes and
     repaints — file I/O that can stall under a sync client, so never the frame
-    loop's thread.  Two threads on one mpv is its design; see player_core.mpv_gate."""
+    loop's thread.  Two threads on one mpv is its design; see player_core.mpv_gate.
+    Guarded per unit: the OSR2 is driven from here (:class:`_PumpFaults`)."""
     period = 1.0 / PUMP_HZ
+    faults = _PumpFaults()
     while not stop.is_set():
         started = time.monotonic()
         for unit in units:
-            unit.pump(stop, started)
+            try:
+                unit.pump(stop, started)
+            except Exception as exc:  # noqa: BLE001 - the whole point is that none escapes
+                faults.failed(unit, exc)
+            else:
+                faults.worked(unit)
         perf.note("pump", (time.monotonic() - started) * 1e3)
         perf.maybe_flush()
         stop.wait(max(0.0, period - (time.monotonic() - started)))
