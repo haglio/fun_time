@@ -239,16 +239,20 @@ SC034::QueueCommand("genau_next_clip")
 ; hooks nothing.
 EndSession() {
     global StartupPhase
+    ; Marked FIRST either way: mid-startup the quit chord and Esc both arrive at
+    ; the orchestrator as the one cancel flag, and this is what tells them
+    ; apart -- Esc means "put me back", this means "end everything".  Without it
+    ; the quit chord silently became a cancel and he was handed back to a
+    ; session he had asked to leave.
+    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
     if (StartupPhase) {
         RequestStartupCancel()
         return
     }
-    ; Say so before going, because everything the orchestrator sees from here
-    ; is identical whether this was asked for or not: the script exits, the
-    ; closing screen goes up, the session comes down with code 0.  Without the
-    ; marker a session that died on its own reads in the log exactly like one
-    ; the user quit, which is why "it crashed" could not be checked at all.
-    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
+    ; The marker above is also what keeps an unexpected death distinguishable:
+    ; everything else the orchestrator sees is identical either way -- the
+    ; script exits, the closing screen goes up, the session comes down with
+    ; code 0 -- so without it "it crashed" could not be checked at all.
     ExitApp()
 }
 

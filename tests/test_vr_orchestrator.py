@@ -906,7 +906,9 @@ class TestTheHeadsetsCover:
 
 
 class TestCancellingALaunch:
-    def _cancel(self, tmp_path, monkeypatch, children):
+    def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False):
+        from fun_time.session_handoff import raise_crossing_cover
+        from fun_time.windows_bridge_orchestrator import SESSION_END_MARKER
         from fun_time_vr import orchestrator
 
         order: list = []
@@ -917,9 +919,15 @@ class TestCancellingALaunch:
         cover = orchestrator._Cover(tmp_path)
         cover.progress.advance("players")
         cover.cancel_file.write_text("cancel\n", encoding="utf-8")
+        # The monitors as the crossing left them: a full-screen window belonging
+        # to the session that has already gone.
+        raise_crossing_cover(tmp_path, orchestrator.DESKTOP)
+        if by_quit_chord:
+            (tmp_path / SESSION_END_MARKER).write_text("quit\n", encoding="utf-8")
 
         code = orchestrator._cancel_vr_startup(
-            children=children, ahk_proc=None, ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            state_dir=tmp_path, children=children, ahk_proc=None,
+            ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             cover=cover, runtime_was_up=True,
         )
         return code, order, cover
@@ -947,6 +955,34 @@ class TestCancellingALaunch:
         assert code == 0
         assert not cover.progress_file.exists()
         assert not cover.cancel_file.exists()
+
+    def test_esc_hands_the_monitors_back_to_the_session_he_came_from(
+            self, tmp_path, monkeypatch):
+        """The crossing cover belongs to a process that has already gone.  Left
+        standing over a machine with no session running, there is no way back to
+        Fun Time and no way to anything else -- it cost him a reboot.  So the
+        desktop is asked for, and the cover stays up until IT is running."""
+        from fun_time.session_handoff import DESKTOP, crossing_progress_path, pending_handoff
+
+        self._cancel(tmp_path, monkeypatch, {})
+
+        assert pending_handoff(tmp_path) == DESKTOP
+        assert "DONE" not in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
+
+    def test_the_quit_chord_takes_the_monitors_back_instead(
+            self, tmp_path, monkeypatch):
+        """Esc means "not this, put me back"; the quit chord means "end
+        everything", and nothing is coming to drop the cover for us."""
+        from fun_time.session_handoff import crossing_progress_path, pending_handoff
+        from fun_time.windows_bridge_orchestrator import SESSION_END_MARKER
+
+        self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
+
+        assert pending_handoff(tmp_path) is None
+        assert "DONE" in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
+        assert not (tmp_path / SESSION_END_MARKER).exists(), (
+            "removed, or the next session reads this one's quit as its own"
+        )
 
 
 class _AlivePlayer:

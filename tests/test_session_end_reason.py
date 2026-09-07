@@ -60,10 +60,17 @@ def test_an_unreadable_marker_is_read_as_no_marker(tmp_path):
     assert "UNEXPECTED" in _describe_session_end(tmp_path, 0)
 
 
-def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_exit():
+def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     """The other half of the contract, and the half a Python test cannot run:
-    both of the script's asked-for exits go through MarkSessionEnd, so an exit
-    that does NOT is exactly the unexpected one."""
+    every asked-for END goes through MarkSessionEnd, so one that does NOT is
+    exactly the unexpected one.
+
+    Two of the three ways out exit the script.  The third does not: mid-startup
+    the quit chord cannot exit, because the orchestrator is still building a
+    session that has to be torn down first -- it asks startup to unwind, and the
+    marker is what tells the orchestrator that unwind was a quit rather than an
+    Esc, which mean opposite things about who takes the monitors back.
+    """
     from pathlib import Path
 
     script = Path(__file__).resolve().parents[1] / "windows_bridge_hotkeys.ahk"
@@ -71,8 +78,6 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_exit():
 
     assert body.count("MarkSessionEnd(") == 3  # the definition, and two callers
     assert SESSION_END_MARKER in body
-    # Every ExitApp that ends a live session is preceded by the marker.  The
-    # two that are not are the startup failures, which never reach one.
     lines = body.splitlines()
     callers = [
         i for i, line in enumerate(lines)
@@ -80,4 +85,5 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_exit():
     ]
     assert len(callers) == 2  # the quit chord, and the command channel's exit
     for index in callers:
-        assert any("ExitApp" in line for line in lines[index:index + 3])
+        after = "\n".join(lines[index:index + 12])
+        assert "ExitApp" in after or "RequestStartupCancel" in after

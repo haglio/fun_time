@@ -432,6 +432,7 @@ def _cancel_startup(
             logger.warning("Loading screen did not exit after cancel, killed")
     progress_file.unlink(missing_ok=True)
     cancel_file.unlink(missing_ok=True)
+    drop_crossing_cover(progress_file.parent)  # over an empty machine: no way out
     return _CANCELLED_EXIT_CODE
 
 

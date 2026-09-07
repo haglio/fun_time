@@ -436,8 +436,7 @@ class DispatchLoopRunner:
             return
         logger.info("Handing this session over to %s", target.app_name)
         if self.config.broker_cmd_file is not None:
-            # Here, not in the session being started: its park was 2s later.
-            write_broker_command(self.config.broker_cmd_file, PARK_CMD)
+            write_broker_command(self.config.broker_cmd_file, PARK_CMD)  # 2s sooner
         request_handoff(self.config.state_dir, target)
         self.ahk_cmd_file.write_text("exit", encoding="utf-8")
 

@@ -75,6 +75,7 @@ from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
+    DESKTOP,
     clear_handoff_request,
     drop_crossing_cover,
     hand_over_if_asked,
@@ -83,6 +84,7 @@ from fun_time.session_handoff import (
     launch_crossing_cover,
     pending_handoff,
     release_the_headset,
+    request_handoff,
 )
 from fun_time.session_resume import (
     resume_main_video,
@@ -98,6 +100,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from fun_time.windows_bridge_orchestrator import (
+    SESSION_END_MARKER,
     ChildProcess,
     add_dispatch_file_handler,
     close_a_kept_origenerator,
@@ -133,8 +136,7 @@ VR_PLAYER_MODULE = "fun_time_vr.player"
 # auto-start alone may take 45s, though a healthy launch answers in seconds.
 PLAYER_READY_TIMEOUT_S = 120.0
 
-# And for the room under it: that first status is a role having PICKED a video,
-# and the cover has to have been seen (cover.COVER_DWELL_S) besides.
+# And for the room under it: that status is a role having PICKED a video.
 SCENE_READY_TIMEOUT_S = 35.0
 
 # Named, not __name__: started with `-m`, where __name__ is "__main__".
@@ -339,8 +341,16 @@ class _Cover:
         self.cancel_file.unlink(missing_ok=True)
 
 
+def _cancel_was_a_quit(state_dir: Path) -> bool:
+    marker = Path(state_dir) / SESSION_END_MARKER
+    asked = marker.exists()
+    marker.unlink(missing_ok=True)
+    return asked
+
+
 def _cancel_vr_startup(
     *,
+    state_dir: Path,
     children: dict[str, ChildProcess],
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
@@ -348,9 +358,11 @@ def _cancel_vr_startup(
     runtime_was_up: bool,
 ) -> int:
     """Tear down a launch the user called off from the headset, then exit.
-    The player is killed LAST because it wears the cover: everything else goes
-    while "Cancelling..." is still in front of the eyes.  The hotkey script
-    first: it is what read the Esc that got us here."""
+    The player is killed LAST because it wears the cover, so everything else
+    goes while "Cancelling..." is in front of the eyes.  The hotkey script
+    first: it read the Esc that got us here.  Then the monitors -- the crossing
+    cover is the LEFT session's and always on top, and this exit left it over an
+    empty machine, a reboot."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     player = children.get("vr_player_pid")
@@ -361,6 +373,12 @@ def _cancel_vr_startup(
         kill_recorded_child(player)
     _release_vr_runtime(runtime_was_up)
     cover.clear()
+    if _cancel_was_a_quit(state_dir):
+        logger.info("Cancelled by the quit chord; taking the monitors back")
+        drop_crossing_cover(state_dir)  # nothing is coming to do it for us
+    else:
+        logger.info("Cancelled; handing back to Fun Time")
+        request_handoff(state_dir, DESKTOP)  # it drops the cover once it is up
     return 0  # a clean, user-initiated exit, as the desktop's cancel is
 
 
@@ -555,8 +573,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
     except StartupCancelled:
         # The checkpoint raised before its phase ran, so *children* is exact.
         return _cancel_vr_startup(
-            children=children, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
-            cover=cover, runtime_was_up=runtime_was_up,
+            state_dir=state_dir, children=children, ahk_proc=ahk_proc,
+            ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
         )
 
     # --- The reveal ---
