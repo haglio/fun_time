@@ -15,6 +15,7 @@ from shared_ui.colors import (
     BG_PRIMARY,
     BLUE,
     BORDER_SUBTLE,
+    MAGENTA,
     TEXT_PRIMARY,
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
@@ -25,6 +26,8 @@ from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
 from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
+    ENTER_VR,
+    FMODE_TOGGLE,
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
     OMNIMINIMIZE,
@@ -52,13 +55,12 @@ from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
 from fun_time.press_channel import PressChannel
-from fun_time.project_paths import PROJECT_ICON
+from fun_time.project_paths import PROJECT_ICON, PROJECT_VR_ICON
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 
 COLOR_BG = BG_PRIMARY
 # The family's own resting button ground -- the one Origenerator's toolbar
-# buttons sit on.  This bar used to sit its controls on the darker BG_SECONDARY,
-# which left them reading as flat panels beside another app's raised buttons.
+# buttons sit on, so these read as the same raised object that app's do.
 COLOR_PANEL = BG_BUTTON
 COLOR_TEXT = TEXT_PRIMARY
 # A hue of its own, deliberately not the family icon's ink.
@@ -147,12 +149,8 @@ def load_dashboard_app_config(manifest_path: Path) -> DashboardAppConfig:
 
 
 class MarkCache:
-    """The pixmaps one bar is painted from, kept for as long as that bar.
-
-    Twice a second, every render asks for the same five images.  These were two
-    module-level dicts with no owner, no bound and no reset; a cache belongs to
-    the widget that paints out of it.
-    """
+    """The pixmaps one bar is painted from, kept for as long as that bar: every
+    render asks for the same handful, twice a second."""
 
     def __init__(self) -> None:
         self._icons: dict[tuple[str, int], QPixmap] = {}
@@ -174,17 +172,20 @@ class MarkCache:
             self._icons[key] = pm
         return self._icons[key]
 
-    def mark(self, name: str, rect) -> QPixmap:
+    def mark(self, name: str, rect, color: QColor | None = None) -> QPixmap:
         """One of the family's marks, drawn square for the control it sits in.
 
         From shared_ui, not typed as a font character: typed, each mark came out
         at whatever weight its face gave it.  Square, because a mark drawn to a
         wide panel's aspect stops being round; the widget centers it.
+
+        *color* is the bar's ink unless the mark owns one — F-mode's is magenta.
         """
-        key = (name, rect.width, rect.height)
+        ink = color or COLOR_TEXT
+        key = (name, rect.width, rect.height, ink.rgba())
         if key not in self._marks:
             side = min(BUTTON_ICON, min(rect.width, rect.height))
-            self._marks[key] = glyph_pixmap(name, side, COLOR_TEXT)
+            self._marks[key] = glyph_pixmap(name, side, ink)
         return self._marks[key]
 
 
@@ -204,6 +205,8 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     OMNIPAUSE_TOGGLE: "Pause everything",
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
+    FMODE_TOGGLE: "F-Mode on every player",
+    ENTER_VR: "Enter VR — end this session and open FunTimeVR",
 }
 OMNIPAUSE_RESUME_TOOLTIP = "Play everything"
 
@@ -216,13 +219,12 @@ def build_dashboard_scene(
     marks: MarkCache,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
-    """The control bar: the app's mark, then the four controls in one run.
+    """The control bar: the app's mark, then the session's four in one run, then
+    the two that reach past it — the room's F-mode and the way into VR.
 
-    What each player is doing is on that player's own HUD now, so nothing here
-    stands for a player — which is why the bar has no shape to keep and simply
-    runs along the top of the window.  The OSR2 broker light went to the main player's
-    HUD with the rest of the device status; it is the main player's, not the room's.
-    F-mode went to every player's HUD, since each player has its own now.
+    Nothing here stands for one player: what a player is doing is on that
+    player's own HUD, which is why the bar has no shape to keep and simply runs
+    along the top of the window.
     """
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
 
@@ -245,6 +247,8 @@ def build_dashboard_scene(
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(COLOR_PANEL, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
+        DashboardRectItem(layout.fmode_button, fill=_press_fill(COLOR_PANEL, FMODE_TOGGLE)),
+        DashboardRectItem(layout.enter_vr_button, fill=_press_fill(COLOR_PANEL, ENTER_VR)),
     )
     # The app-name lockup, styled like the loading screen: bold italic, wordmark tone.
     # Built fresh (not via the cached make_font) so setItalic cannot leak into
@@ -266,6 +270,11 @@ def build_dashboard_scene(
                            layout.omnipause_button),
         DashboardImageItem(marks.mark("question", layout.help_button), layout.help_button),
         DashboardImageItem(marks.mark("mic", layout.voice_panel), layout.voice_panel),
+        # Enter VR in FunTimeVR's own icon, since the button opens that app.
+        DashboardImageItem(marks.mark("fmode", layout.fmode_button, QColor(MAGENTA)),
+                           layout.fmode_button),
+        DashboardImageItem(marks.icon(PROJECT_VR_ICON, layout.enter_vr_button.height),
+                           layout.enter_vr_button),
     )
     tooltips = dict(_ACTION_TOOLTIPS)
     if omni_paused:
@@ -275,6 +284,8 @@ def build_dashboard_scene(
         (OMNIPAUSE_TOGGLE, layout.omnipause_button),
         (HELP_REFERENCE, layout.help_button),
         (VOICE_TOGGLE, layout.voice_panel),
+        (FMODE_TOGGLE, layout.fmode_button),
+        (ENTER_VR, layout.enter_vr_button),
     )
     return DashboardScene(
         width=width,
@@ -576,9 +587,8 @@ class DashboardWindow(QMainWindow):
         )
 
         # The window spans the whole left column: the control bar across the
-        # top and the log stream filling the rest.  The log used to be a second
-        # top-level window the bridge tracked by title; embedding it as a child
-        # lets it ride the dashboard's topmost band, minimize/restore and close.
+        # top and the log stream filling the rest.  The log is a child rather
+        # than a window of its own, so it rides the dashboard's topmost band.
         self._widget = DashboardWidget()
         self._widget.action_triggered.connect(self._on_action)
         self._log_widget = LogPanelWidget(

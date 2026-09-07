@@ -3,8 +3,7 @@
 The player on the main slot knows what it is playing.  It does not know which
 mode the slot is in, what has the OSR2, whether Genau may take it over, whether
 the broker is up, or which player a bare command would reach — all of that is the
-orchestrator's.  The dashboard used to draw it as a panel per player; the console
-draws it now, so this is what has to reach the player for that console to be
+orchestrator's.  So this is what has to reach the player for its console to be
 drawable: a small JSON panel, published the way each satellite's map is (see
 :mod:`fun_time.hud_transport`), and read back by ``nau.console``.
 """

@@ -70,15 +70,11 @@ class HudPanel:
     current: str
     seed_siblings: list[str]
     action_siblings: list[str]
-    # Whether the clip on screen is one of the favorites.  The dashboard used to
-    # say this by turning the side's panel green; the HUD marks it in its control
-    # band instead, beside the buttons that act on that clip.  It would read
-    # better beside ``locked``, but a defaulted field cannot precede a required
-    # one, and defaulting it keeps every construction site from naming it.
+    # Whether the clip on screen is one of the favorites — the star the HUD
+    # marks at the head of the line naming that very clip.
     is_favorite: bool = False
-    # Whether THIS side is in F-mode — narrowed to the favorites.  It is said in
-    # the status line already; the flag rides along so the side's own F-mode button
-    # can light, the way ``locked`` lights the lock button.
+    # Whether THIS side is in F-mode — said in the status line already, and
+    # riding along so the side's own button can light the way ``locked`` does.
     f_mode: bool = False
     latest: bool | None = None
     # Labels for the map's axes: the current clip's own action (the top row),
@@ -86,10 +82,8 @@ class HudPanel:
     # columns are labeled by ordinal ("Seed 1", …) so need no data here.
     current_action: str = ""
     action_labels: tuple[str, ...] = ()
-    # How many clips each axis stands for, the clip on screen included: the seed
-    # family (widened when the row is) and the distinct acts of the subject.  The map
-    # draws only a few cells of each, so these are the only place the real size of
-    # each axis can be read.
+    # How many clips each axis stands for, the clip on screen included.  The map
+    # draws a few cells of each, so these are where its real size can be read.
     seed_count: int = 0
     action_count: int = 0
     filter_query: str = ""
@@ -97,11 +91,10 @@ class HudPanel:
     # addressed most recently.  Global state, published per side so each panel can
     # answer "is it me?" without knowing what the others are.
     active: bool = False
-    # Which axis this side is looping ("" none / "action" / "seed").  While a
-    # loop runs, ``current`` is frozen to the group's anchor (so the map does not
-    # re-orient as the clip auto-advances) and ``playing`` names the map cell
-    # actually on screen, which the overlay lights up.  With no loop, ``playing``
-    # is just ``current`` — the corner.
+    # Which axis this side is looping ("" none / "action" / "seed").  While a loop
+    # runs, ``current`` is frozen to the group's anchor so the map does not
+    # re-orient, and ``playing`` names the cell actually on screen; with no loop
+    # ``playing`` is just ``current`` — the corner.
     active_loop: str = ""
     playing: str = ""
     # The satellite side's mode axis ("video" / "origenerator"), or "" for a
