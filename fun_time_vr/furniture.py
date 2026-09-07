@@ -77,15 +77,18 @@ def volume_slid_to(u: float, v: float, *, size: tuple[int, int]) -> int:
 
 class FurniturePointer:
     """What a squeeze on a video's own controls does: the scrubber seeks and keeps
-    seeking as the hand moves, the speaker mutes, and the slider sets the level."""
+    seeking as the hand moves, the speaker mutes, and the slider sets the level.
+    A squeeze on none of them is a squeeze on the picture, which is *picture*'s."""
 
     def __init__(
         self, *, seek: Callable[[float], None], mute: Callable[[bool], None] | None = None,
         set_volume: Callable[[int], None] | None = None,
+        picture: Callable[[], None] | None = None,
     ) -> None:
         self._seek = seek
         self._mute = mute
         self._set_volume = set_volume
+        self._picture = picture
         self._holding = ""
         self._asked = -1
 
@@ -102,6 +105,8 @@ class FurniturePointer:
         elif part == VOLUME and self._set_volume is not None:
             self._holding = VOLUME
             self._ask(volume_slid_to(u, v, size=size))
+        elif part is None and self._picture is not None:
+            self._picture()
 
     def drag(self, u: float, v: float, *, size: tuple[int, int], duration_ms: float) -> None:
         if self._holding == SCRUBBER:

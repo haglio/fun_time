@@ -122,7 +122,7 @@ class TestWhichControlAPressLandsOn:
 
 
 class TestASqueezeOnAVideosOwnControls:
-    def _pointer(self, *, silent=False):
+    def _pointer(self, *, silent=False, picture=True):
         seeks: list[float] = []
         posted: list[str] = []
 
@@ -134,6 +134,7 @@ class TestASqueezeOnAVideosOwnControls:
             mute=None if silent else mute,
             set_volume=None if silent else (
                 lambda level: posted.append(f"audio_set_volume|{level}")),
+            picture=(lambda: posted.append("omnipause_toggle")) if picture else None,
         )
         return SimpleNamespace(pointer=pointer, seeks=seeks, posted=posted)
 
@@ -184,11 +185,21 @@ class TestASqueezeOnAVideosOwnControls:
         assert p.posted == ["audio_set_volume|50", "audio_set_volume|100"]
         assert p.seeks == []
 
-    def test_the_picture_itself_asks_for_nothing(self):
+    def test_the_picture_itself_is_the_rooms_pause(self):
+        """No control is under the press, so the press is on the player -- and a
+        player in a session has no pause of its own to give."""
         p = self._pointer()
 
         self._press(p, (0.5, 0.5))
         p.pointer.drag(0.6, 0.5, size=_SIZE, duration_ms=10_000.0)
+
+        assert p.seeks == []
+        assert p.posted == ["omnipause_toggle"]  # and the drag adds nothing
+
+    def test_a_picture_nobody_is_listening_to_asks_for_nothing(self):
+        p = self._pointer(picture=None)
+
+        self._press(p, (0.5, 0.5))
 
         assert p.seeks == [] and p.posted == []
 

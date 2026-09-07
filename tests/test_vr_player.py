@@ -773,13 +773,24 @@ class TestTheMainSlotUnderThePointer:
     @pytest.mark.parametrize("state", [
         {"projection": EQUIRECT_180_SBS},
         {"showing": True, "clip_projection": EQUIRECT_180_SBS},
+    ])
+    def test_a_wrapped_video_has_no_edges_to_take_hold_of(self, state):
+        """It is round the viewer rather than hanging in the slot, so there is
+        nothing to grab — but it is still what a squeeze out there lands on, so
+        it stays in the scene as the screen with no rectangle."""
+        screen = _main_slot_screen(*self._units(**state))
+
+        assert (screen.movable, screen.resizable) == (False, False)
+        assert (screen.pressable, screen.immersive) == (True, True)
+
+    @pytest.mark.parametrize("state", [
         {"picture": False},
         {"displayed": False},
         {"showing": True, "clip": False},
     ])
-    def test_a_slot_with_no_flat_screen_in_it_offers_nothing_to_take_hold_of(self, state):
-        """A wrapped video has no edges, and a slot still waiting for its first
-        frame has no picture; either way a grab there would take hold of nothing."""
+    def test_a_slot_with_no_picture_in_it_is_not_in_the_scene_at_all(self, state):
+        """Still waiting for its first frame, or standing aside for the other
+        player: there is nothing there for the ray to find."""
         assert _main_slot_screen(*self._units(**state)) is None
 
     def test_the_main_slot_is_listed_under_the_screens_that_overlap_it(self):

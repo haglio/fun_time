@@ -57,11 +57,13 @@ class SatellitePointer:
     def __init__(
         self, *, hud, seek: Callable[[float], None], duration_ms: Callable[[], float],
         volume, mute: Callable[[bool], None], set_volume: Callable[[int], None],
+        picture: Callable[[], None] | None = None,
     ) -> None:
         self._hud = hud
         self._duration_ms = duration_ms
         self._volume = volume
-        self._furniture = FurniturePointer(seek=seek, mute=mute, set_volume=set_volume)
+        self._furniture = FurniturePointer(
+            seek=seek, mute=mute, set_volume=set_volume, picture=picture)
 
     def press(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
         if kind == HUD:

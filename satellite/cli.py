@@ -28,7 +28,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--hud-file", type=Path, default=None,
                    help="Lock-HUD panel fun_time publishes; drawn into the video")
     p.add_argument("--dashboard-cmd-file", type=Path, default=None,
-                   help="Where a click on the lock HUD posts its fun_time command")
+                   help="Where a click on the lock HUD, or on the picture itself, "
+                        "posts its fun_time command")
     p.add_argument("--width", type=int, default=1200)
     p.add_argument("--height", type=int, default=900)
     p.add_argument("--x", type=int, default=None)

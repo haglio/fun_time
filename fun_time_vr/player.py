@@ -66,6 +66,7 @@ from fun_time.session_handoff import (
 )
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from satellite.hud_overlay import HudOverlay
+from satellite.pointer import OMNIPAUSE_TOGGLE
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
 from satellite.status import status_fields as satellite_status_fields
@@ -392,6 +393,7 @@ class _MainUnit(_VideoUnit):
             seek=self.role.seek_to,
             mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
             set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
+            picture=lambda: self._post(OMNIPAUSE_TOGGLE),
         )
 
     def _post(self, command: str) -> None:
@@ -518,13 +520,18 @@ class _SatelliteUnit(_VideoUnit):
         self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._presses = _Presses(side, hud_screen_name(side))
+        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
         self._pointer = SatellitePointer(
             hud=self.hud, seek=self.session.seek_to,
             duration_ms=lambda: self.session.duration_ms,
             volume=lambda: self.volume.hud,
             mute=self._toggle_mute, set_volume=self._set_volume,
+            picture=lambda: self._post(OMNIPAUSE_TOGGLE),
         )
         self._volume_painter = VolumeHudPainter()
+
+    def _post(self, command: str) -> None:
+        append_command(self._dashboard_cmd_file, command)
 
     def route_audio(self) -> None:
         if self._audio_routed:
@@ -645,6 +652,7 @@ class _GenauUnit:
             seek=self.role.seek,
             mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
             set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
+            picture=lambda: self._post(OMNIPAUSE_TOGGLE),
         )
         self._volume_painter = VolumeHudPainter()
         self._control_size: tuple[int, int] | None = None
@@ -1125,20 +1133,22 @@ def _scene_is_up(primary, genau, satellites: Sequence, panel) -> bool:
 
 
 def _main_slot_screen(primary: _MainUnit, genau: _GenauUnit) -> Screen | None:
-    """The flat screen in the main slot: the primary's picture, or Genau's clip
-    while it has the scene.  None when what is there wraps the viewer instead."""
+    """The main slot's picture: the primary's, or Genau's clip while it has the
+    scene.  A screen hanging in the slot while it is flat; wrapped round the
+    viewer otherwise, which has no rectangle to move, resize or aim at."""
     if genau.role.showing:
-        if not genau.texture.ready or immersive_mode(genau.role.projection) is not None:
+        if not genau.texture.ready:
             return None
-        screen, aspect, pressable = genau.screen, genau.texture.aspect, True
+        screen, aspect, projection = genau.screen, genau.texture.aspect, genau.role.projection
     elif primary.target.ready and primary.role.displayed:
-        if immersive_mode(primary.role.projection) is not None:
-            return None
-        screen, aspect, pressable = primary.screen, primary.target.aspect, True
+        screen, aspect, projection = (
+            primary.screen, primary.target.aspect, primary.role.projection)
     else:
         return None
+    if immersive_mode(projection) is not None:
+        return Screen(PRIMARY, screen.placement, aspect, pressable=True, immersive=True)
     return Screen(PRIMARY, screen.placement, aspect, movable=True, resizable=True,
-                  pressable=pressable)
+                  pressable=True)
 
 
 def _pointable_screens(

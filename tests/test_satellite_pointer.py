@@ -4,14 +4,17 @@ The three controls overlap in principle — the chip sits inside the scrubber's
 row, and a tall HUD can reach the lower edge of a short window — so what these pin is
 the ORDER, against the real geometry of all three: the chip's placement, the
 scrubber's inset track, and the row's height, each read from the module that
-draws it rather than restated here.
+draws it rather than restated here.  What none of them wanted is the picture,
+and a press there is the room's.
 """
 from __future__ import annotations
+
+from pathlib import Path
 
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import CHIP_H, chip_xy
 
-from satellite.pointer import Pointer
+from satellite.pointer import OMNIPAUSE_TOGGLE, Pointer
 from satellite.volume import SatelliteVolume
 from tests.satellite_fakes import make_satellite_session
 
@@ -31,25 +34,42 @@ ON_THE_VIDEO = (300, 200)
 
 
 class _StubHud:
-    """The lock HUD's half of the pointer's interface, and nothing else."""
+    """The lock HUD's half of the pointer's interface, and nothing else.
 
-    def __init__(self, *, suppressed: bool = False) -> None:
+    *takes* is whether its slab is under the press — the real HUD answers that
+    from the panel it last drew, which is a question about a bitmap's size.
+    """
+
+    def __init__(self, *, suppressed: bool = False, takes: bool = True) -> None:
         self.display_suppressed = suppressed
+        self._takes = takes
         self.presses: list[tuple[int, int]] = []
         self.motions: list[tuple[int, int]] = []
 
-    def press(self, x: int, y: int) -> None:
+    def press(self, x: int, y: int) -> bool:
         self.presses.append((x, y))
+        return self._takes
 
     def motion(self, x: int, y: int) -> None:
         self.motions.append((x, y))
 
 
-def _pointer(tmp_path, *, suppressed: bool = False, hud: bool = True):
+def _asks(tmp_path) -> Path:
+    return tmp_path / "dashboard_cmd.txt"
+
+
+def _asked(tmp_path) -> list[str]:
+    path = _asks(tmp_path)
+    return path.read_text(encoding="utf-8").split() if path.exists() else []
+
+
+def _pointer(tmp_path, *, suppressed: bool = False, hud: bool = True,
+             hud_takes: bool = True, in_a_session: bool = True):
     session, player = make_satellite_session(tmp_path, duration_ms=DURATION_MS)
     volume = SatelliteVolume(player)
-    stub = _StubHud(suppressed=suppressed) if hud else None
-    return Pointer(session=session, volume=volume, hud=stub), player, stub
+    stub = _StubHud(suppressed=suppressed, takes=hud_takes) if hud else None
+    return Pointer(session=session, volume=volume, hud=stub,
+                   dashboard_cmd_file=_asks(tmp_path) if in_a_session else None), player, stub
 
 
 def _press(pointer, point) -> None:
@@ -85,8 +105,6 @@ class TestTheScrubber:
         assert player.seeks == [DURATION_MS]
 
     def test_a_press_on_the_video_seeks_nothing_and_reaches_the_hud(self, tmp_path):
-        # A satellite's paused state is the flag file's, re-read every pass, so
-        # there is nothing for a press on the video itself to do here.
         pointer, player, hud = _pointer(tmp_path)
 
         _press(pointer, ON_THE_VIDEO)
@@ -101,6 +119,53 @@ class TestTheScrubber:
         _press(pointer, ON_THE_VIDEO)
 
         assert player.seeks == [DURATION_MS / 2]
+
+
+class TestThePicture:
+    """A satellite has no pause of its own to give — its paused state is the
+    room's flag file, re-read every pass — so a press on the picture asks
+    fun_time to pause or resume the whole room, and asks it off again."""
+
+    def test_a_press_the_hud_refused_asks_the_room_to_pause(self, tmp_path):
+        pointer, player, hud = _pointer(tmp_path, hud_takes=False)
+
+        _press(pointer, ON_THE_VIDEO)
+
+        assert hud.presses == [ON_THE_VIDEO]  # offered to the HUD first
+        assert player.seeks == []
+        assert _asked(tmp_path) == [OMNIPAUSE_TOGGLE]
+
+    def test_a_satellite_with_no_hud_asks_from_the_whole_picture(self, tmp_path):
+        pointer, _player, _hud = _pointer(tmp_path, hud=False)
+
+        _press(pointer, ON_THE_VIDEO)
+
+        assert _asked(tmp_path) == [OMNIPAUSE_TOGGLE]
+
+    def test_a_press_the_hud_took_asks_for_nothing(self, tmp_path):
+        pointer, _player, _hud = _pointer(tmp_path)
+
+        _press(pointer, ON_THE_VIDEO)
+
+        assert _asked(tmp_path) == []
+
+    def test_neither_the_scrubber_nor_the_chip_is_the_picture(self, tmp_path):
+        pointer, _player, _hud = _pointer(tmp_path, hud_takes=False)
+
+        _press(pointer, BAR_MIDPOINT)
+        _press(pointer, CHIP_HALFWAY)
+
+        assert _asked(tmp_path) == []
+
+    def test_a_player_with_no_session_to_ask_does_nothing(self, tmp_path):
+        # Launched by hand rather than by fun_time: the ask has nowhere to go,
+        # and a press on the picture is still not an error.
+        pointer, player, _hud = _pointer(tmp_path, hud_takes=False, in_a_session=False)
+
+        _press(pointer, ON_THE_VIDEO)
+
+        assert player.seeks == []
+        assert _asked(tmp_path) == []
 
 
 class TestTheChip:
