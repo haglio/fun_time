@@ -199,6 +199,25 @@ class TestHowItIsComposed:
             _hud(_engine_console("video")))[1][1]
 
 
+def test_the_held_width_covers_the_widest_row_the_console_can_build():
+    """The painter widens past this constant for a row it cannot otherwise hold,
+    so a constant short of the widest row makes the panel change size when the
+    mode does — which is the one thing holding it fixed exists to prevent.  The
+    video-mode transport row is that row, and it grows every time the console
+    grows a button."""
+    from player_core.console import ConsoleModel, ModeHud, _row_width, console_rows
+    from player_core.console_hud import _PAD
+
+    widest = max(
+        _row_width(console_rows(ConsoleModel(mode=mode, latest=False),
+                                nau=ModeHud(length_mode=length)))
+        for mode in ("video", "genau")
+        for length in ("mixed", "full", "shorts", "")
+    )
+
+    assert widest + 2 * _PAD <= PANEL_WIDTH_PX
+
+
 class TestTheAnnouncementStrip:
     """The desktop flashes a toast over the player and lists it in the log
     panel; both live in the dashboard, which a VR session never launches, so

@@ -55,7 +55,7 @@ from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
 from fun_time.press_channel import PressChannel
-from fun_time.project_paths import PROJECT_ICON, PROJECT_VR_ICON
+from fun_time.project_paths import PROJECT_ICON
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 
 COLOR_BG = BG_PRIMARY
@@ -270,10 +270,11 @@ def build_dashboard_scene(
                            layout.omnipause_button),
         DashboardImageItem(marks.mark("question", layout.help_button), layout.help_button),
         DashboardImageItem(marks.mark("mic", layout.voice_panel), layout.voice_panel),
-        # Enter VR in FunTimeVR's own icon, since the button opens that app.
+        # F-mode's badge on the app-icon grid; Enter VR a headset, since the
+        # app's letters say which app rather than what the button does.
         DashboardImageItem(marks.mark("fmode", layout.fmode_button, QColor(MAGENTA)),
                            layout.fmode_button),
-        DashboardImageItem(marks.icon(PROJECT_VR_ICON, layout.enter_vr_button.height),
+        DashboardImageItem(marks.mark("headset", layout.enter_vr_button),
                            layout.enter_vr_button),
     )
     tooltips = dict(_ACTION_TOOLTIPS)

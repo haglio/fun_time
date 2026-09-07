@@ -58,10 +58,9 @@ def client_rect_filling_frame(
 
 
 # --- the control bar ---------------------------------------------------------
-# What is on the bar is the handful of controls that belong to no player: quit,
-# pause everything, the reference popup, the microphone, the room's F-mode and
-# the way across to the headset.  Anything about a particular player is on that
-# player's own HUD, which is why the bar is not arranged like the room.
+# The bar carries what belongs to no one player: quit, pause everything, the
+# reference popup, the microphone, the room's F-mode, the way into VR.  Anything
+# about ONE player is on that player's HUD, so the bar is not arranged like the room.
 
 # The family's own button square and the gap between two of them, so a control
 # here is the same object a control in Origenerator's bank is.  Both were this
@@ -109,9 +108,9 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
 
     The app's own name and mark lead, then the session's own four in one run —
     the microphone among them rather than a light set off to the side, which read
-    as something adrift from the bar rather than part of it.  Then two in groups
-    of their own: an F-mode that reaches all three players, and the one control
-    that crosses to the other session rather than acting inside this one.
+    as adrift from the bar.  Then two in groups of their own: an F-mode reaching
+    all three players, and the control that ends the session rather than acting
+    inside it.
     """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
