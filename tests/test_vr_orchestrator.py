@@ -627,6 +627,38 @@ class TestTheCrossingBackToTheDesktop:
         popen.assert_not_called()
 
 
+class TestHandingTheHeadsetOver:
+    """The wait is the point: the arriving desktop session claims the very
+    status and command files the held player's roles were driving, so the
+    orchestrator does not let go until the player says it has
+    (docs/entering-vr.md)."""
+
+    def test_a_player_that_takes_the_hold_is_left_running(self, tmp_path: Path):
+        from unittest.mock import patch
+
+        from fun_time.session_handoff import headset_hold_stops_the_runtime
+        from fun_time_vr.orchestrator import _leave_the_headset_covered
+
+        with patch("fun_time_vr.orchestrator.headset_is_held", return_value=True):
+            assert _leave_the_headset_covered(tmp_path, stop_runtime=True) is True
+
+        assert headset_hold_stops_the_runtime(tmp_path) is True
+
+    def test_a_player_that_never_answers_is_closed_as_before(self, tmp_path: Path):
+        """A hold that cannot be taken is never worth a session that will not
+        start, so the flag goes back off and the caller kills the player."""
+        from unittest.mock import patch
+
+        from fun_time.session_handoff import headset_hold_asked
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "HEADSET_HOLD_ACK_TIMEOUT_S", 0.0):
+            assert orchestrator._leave_the_headset_covered(
+                tmp_path, stop_runtime=False) is False
+
+        assert headset_hold_asked(tmp_path) is False
+
+
 def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch):
     """Started hidden, so nothing on screen would offer to quit it afterwards."""
     calls = []

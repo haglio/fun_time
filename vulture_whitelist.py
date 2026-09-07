@@ -31,3 +31,10 @@ _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
 _.remove_overlay  # satellite.hud_overlay.HudOverlay.close, on the VR HudSurface; a scan of its own
 _.current_funscript  # MainRole; player_core's drive gate reads it off the role
+# The headset hold's channel: written by fun_time_vr's orchestrator and read by
+# its player, each a scan of its own.
+hold_the_headset
+headset_hold_asked
+headset_hold_stops_the_runtime
+report_the_headset_held
+headset_is_held

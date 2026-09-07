@@ -48,6 +48,7 @@ from .session_handoff import (
     drop_crossing_cover,
     launch_crossing_cover,
     pending_handoff,
+    release_the_headset,
 )
 from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
@@ -852,6 +853,8 @@ def _reveal_the_room(
     # through, and the opening seconds of the video would be gone by the time
     # it lifted.
     release_the_players(manifest, result.main_mode)
+    # And the headset, where a player may have been holding its cover.
+    release_the_headset(cover.progress_file.parent)
 
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished

@@ -2,8 +2,8 @@
 
 Runs as a subprocess: ``python -m fun_time.transition_screen <progress_file>``
 
-Raised by the session leaving, taken down by the one arriving -- the one thing
-the closing screen cannot do (``docs/entering-vr.md``).
+Raised by the session leaving, taken down by the one arriving: the one thing a
+closing screen cannot do (``docs/entering-vr.md``).
 """
 from __future__ import annotations
 
@@ -16,8 +16,7 @@ from .overlay_window import OverlayWindow
 # Distinct from the other covers', so an exact-title lookup resolves one.
 WINDOW_TITLE = "Fun Time Transition"
 
-# The backstop for a relay that died outright; the relay bounds a crossing far
-# shorter, and drops this cover itself when one fails.
+# The backstop for a relay that died outright (docs/entering-vr.md).
 STALE_TIMEOUT_S = 180.0
 
 

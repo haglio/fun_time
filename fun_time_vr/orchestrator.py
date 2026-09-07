@@ -78,8 +78,11 @@ from fun_time.session_handoff import (
     clear_handoff_request,
     drop_crossing_cover,
     hand_over_if_asked,
+    headset_is_held,
+    hold_the_headset,
     launch_crossing_cover,
     pending_handoff,
+    release_the_headset,
 )
 from fun_time.session_resume import (
     resume_main_video,
@@ -305,6 +308,10 @@ def stock_the_playlists(
 # nothing answers at once (player._CoverUnit.settled).
 CLOSING_COVER_READY_TIMEOUT_S = 5.0
 
+# What the player needs to break its loop and close every channel; past it the
+# hold is refused and the player closed, as before.
+HEADSET_HOLD_ACK_TIMEOUT_S = 15.0
+
 
 class _Cover:
     """The loading cover from the orchestrator's side: the progress file the
@@ -357,9 +364,8 @@ def _closing_cover(
     state_dir: Path, player: subprocess.Popen, *, enabled: bool
 ) -> Iterator[ProgressReporter]:
     """Raise the headset's cover over the teardown, and hold the first kill for
-    it — on the ready flag the desktop's closing screen drops once painted.
-    No DONE: the cover goes when the player drawing it does, and a DONE would
-    uncover a half-dismantled scene.  Off when the player is what ended."""
+    it.  No DONE: the cover goes when the player drawing it does, and a DONE
+    would uncover a half-dismantled scene.  Off when the player is what ended."""
     if not enabled:
         yield NullProgress()
         return
@@ -605,6 +611,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         exit_code = 1
     finally:
         # This teardown's cover hangs in the headset (docs/entering-vr.md).
+        held = False
         if (crossing := pending_handoff(state_dir)) is not None:
             launch_crossing_cover(state_dir, crossing)
         # Up first and up through everything below.  A session that ended
@@ -620,9 +627,30 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             shutdown.advance("companions")
             kill_recorded_child(children["audio_pid"])
             shutdown.advance("players")
-            kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
-        _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
+            # Held, the player outlives this session with only its cover left.
+            held = crossing is not None and _leave_the_headset_covered(
+                state_dir, stop_runtime=not runtime_was_up,
+            )
+            if not held:
+                kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
+        if not held:
+            _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
     return exit_code
+
+
+def _leave_the_headset_covered(state_dir: Path, *, stop_runtime: bool) -> bool:
+    """Ask the player to hold its cover and let go of every channel; whether it
+    did.  The wait is the point: the desktop claims those channels."""
+    hold_the_headset(state_dir, stop_runtime=stop_runtime)
+    deadline = time.monotonic() + HEADSET_HOLD_ACK_TIMEOUT_S
+    while time.monotonic() < deadline:
+        if headset_is_held(state_dir):
+            logger.info("The VR player is holding the headset covered")
+            return True
+        time.sleep(0.1)
+    release_the_headset(state_dir)
+    logger.warning("The VR player did not take the headset hold; closing it")
+    return False
 
 
 def _release_vr_runtime(was_up: bool) -> None:
