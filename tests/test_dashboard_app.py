@@ -34,7 +34,7 @@ from fun_time.dashboard_layout import (
     compute_dashboard_bar_layout,
     dashboard_window_height,
 )
-from fun_time.dashboard_runtime import DashboardSnapshot, DashboardWindowSnapshot
+from fun_time.dashboard_runtime import DashboardSnapshot
 from fun_time.manifest import write_windows_bridge_manifest
 
 
@@ -45,12 +45,7 @@ def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
 
 
 def _snapshot(**overrides) -> DashboardSnapshot:
-    base = dict(
-        omni_paused=False,
-        window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
-    )
-    base.update(overrides)
-    return DashboardSnapshot(**base)
+    return DashboardSnapshot(**{"omni_paused": False, **overrides})
 
 
 @pytest.fixture
@@ -302,18 +297,6 @@ def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
     assert poll_dashboard_commands(command_file) == ["portrait_lock", "quit"]
 
 
-def test_dashboard_window_geometry_uses_snapshot_window_when_available():
-    scene = _scene()
-    snapshot = _snapshot(window=DashboardWindowSnapshot(111, 222, 333, 444))
-
-    from PyQt6.QtWidgets import QWidget
-    widget = QWidget()
-    apply_dashboard_window_geometry(widget, snapshot, scene)
-    geo = widget.geometry()
-
-    assert (geo.x(), geo.y(), geo.width(), geo.height()) == (111, 222, 333, 444)
-
-
 def test_dashboard_window_geometry_prefers_launch_geometry_when_provided():
     scene = _scene()
 
@@ -321,7 +304,6 @@ def test_dashboard_window_geometry_prefers_launch_geometry_when_provided():
     widget = QWidget()
     apply_dashboard_window_geometry(
         widget,
-        None,
         scene,
         launch_geometry=DashboardLaunchGeometry(x=11, y=22, width=333, height=444),
     )

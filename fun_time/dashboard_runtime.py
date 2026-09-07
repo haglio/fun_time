@@ -1,4 +1,4 @@
-"""The panel's own snapshot: what the bar draws, and where its window sits.
+"""The panel's own snapshot: what the bar draws.
 
 The dispatch loop writes this INI every tick and the panel reads it back.
 """
@@ -9,15 +9,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .dashboard_bridge import decode_snapshot
-from .dashboard_layout import Rect
-
-DashboardWindowSnapshot = Rect
 
 
 @dataclass(frozen=True)
 class DashboardSnapshot:
     omni_paused: bool
-    window: DashboardWindowSnapshot
     voice_active: bool = True
 
 
@@ -34,18 +30,8 @@ def load_dashboard_snapshot(path: Path) -> DashboardSnapshot | None:
     return DashboardSnapshot(
         omni_paused=_read_bool(parser, "omnipause", "active"),
         voice_active=_read_bool(parser, "voice", "active") if parser.has_section("voice") else True,
-        window=_read_window(parser),
     )
 
 
 def _read_bool(parser: configparser.ConfigParser, section: str, option: str) -> bool:
     return parser.get(section, option, fallback="0").strip() not in {"", "0", "false", "False"}
-
-
-def _read_window(parser: configparser.ConfigParser) -> DashboardWindowSnapshot:
-    return DashboardWindowSnapshot(
-        x=parser.getint("window", "x", fallback=0),
-        y=parser.getint("window", "y", fallback=0),
-        width=parser.getint("window", "width", fallback=0),
-        height=parser.getint("window", "height", fallback=0),
-    )

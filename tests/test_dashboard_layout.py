@@ -91,18 +91,16 @@ def test_the_bar_uses_the_familys_button_metrics():
 
 
 def test_one_rectangle_under_every_name_the_session_calls_it():
-    """Six frozen dataclasses declared the same four ints under six names —
-    Rect, MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry,
-    DashboardWindowSnapshot — and callers paid for it in hand-written
-    conversions between types that were already identical."""
+    """Frozen dataclasses declared the same four ints under several names —
+    Rect, MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry — and
+    callers paid for it in hand-written conversions between types that were
+    already identical."""
     from fun_time.dashboard_app import DashboardLaunchGeometry
     from fun_time.dashboard_layout import Rect
-    from fun_time.dashboard_runtime import DashboardWindowSnapshot
     from fun_time.monitors import MonitorInfo
     from fun_time.window_layout import MonitorRect, WindowRect
 
-    every_name = (MonitorRect, WindowRect, MonitorInfo,
-                  DashboardLaunchGeometry, DashboardWindowSnapshot)
+    every_name = (MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry)
 
     assert all(name is Rect for name in every_name)
 

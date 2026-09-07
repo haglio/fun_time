@@ -25,10 +25,7 @@ from fun_time.dashboard_app import (
     build_dashboard_window,
     load_dashboard_app_config,
 )
-from fun_time.dashboard_runtime import (
-    DashboardSnapshot,
-    DashboardWindowSnapshot,
-)
+from fun_time.dashboard_runtime import DashboardSnapshot
 from fun_time.event_log import NOTICE, event_log_path, notice
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.win32 import find_window_by_title, is_window_topmost
@@ -202,10 +199,7 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
 
 def _omnipause_snapshot(*, omni_paused: bool) -> DashboardSnapshot:
     """The state file's snapshot, as the dashboard's refresh reads it."""
-    return DashboardSnapshot(
-        omni_paused=omni_paused,
-        window=DashboardWindowSnapshot(x=0, y=0, width=0, height=0),
-    )
+    return DashboardSnapshot(omni_paused=omni_paused)
 
 
 def test_omnipause_drops_the_reference_popup_from_the_topmost_band(cfg_path: Path):
