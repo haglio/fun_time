@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import math
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 
 import numpy as np
 
-from .layout import clamp_placement
+from .layout import clamp_elevation, clamp_placement, clamp_width
 from .matrices import quat_to_rotation_matrix
 from .scene import RADIUS, Placement, surface_vertices
 
@@ -94,8 +94,8 @@ def handle_extent(placement: Placement, aspect: float) -> tuple[float, float]:
 def handle_at(
     u: float, v: float, placement: Placement, *, aspect: float, resizable: bool = True,
 ) -> str | None:
-    du, dv = handle_extent(placement, aspect)
-    if resizable and abs(v) <= dv / 2 and (abs(u) <= du / 2 or abs(u - 1.0) <= du / 2):
+    du, dv = handle_extent(placement, aspect)  # outside the corners, not straddling
+    if resizable and -dv <= v <= 0.0 and (-du <= u <= 0.0 or 1.0 <= u <= 1.0 + du):
         return RESIZE
     if 0.0 <= u <= 1.0 and 0.0 <= v <= 1.0:
         return SURFACE
@@ -157,11 +157,12 @@ def handle_vertices(
     )
     strips = {MOVE: [surface_vertices(bar, aspect=radius * width_rad / handle, radius=radius)]}
     if resizable:
-        lower = _elevation_deg(lift - half_height, radius)
+        below = _elevation_deg(lift - half_height - handle / 2.0, radius)
         strips[RESIZE] = [
             surface_vertices(
-                Placement(placement.azimuth_deg + side * placement.width_deg / 2.0, lower,
-                          HANDLE_DEG),
+                Placement(
+                    placement.azimuth_deg + side * (placement.width_deg + HANDLE_DEG) / 2.0,
+                    below, HANDLE_DEG),
                 aspect=1.0, radius=radius, segments=2,
             )
             for side in (-1.0, 1.0)
@@ -171,18 +172,30 @@ def handle_vertices(
 
 class Grab:
     def __init__(
-        self, handle: str, placement: Placement, *, start: SurfacePoint, radius: float = RADIUS,
+        self, handle: str, placement: Placement, *, start: SurfacePoint, aspect: float = 1.0,
+        radius: float = RADIUS,
     ) -> None:
         self.handle = handle
         self._placement = placement
         self._start = start
+        self._aspect = aspect
         self._radius = radius
-        self._start_reach = self._reach(start)
+        self._side = 1.0 if _turn_deg(  # which lower corner was taken hold of
+            placement.azimuth_deg, start.azimuth_deg) >= 0.0 else -1.0
+        self._anchor = (  # the corner across from it, which a resize keeps still
+            placement.azimuth_deg - self._side * placement.width_deg / 2.0,
+            _lift(placement, radius) + self._half_height(placement.width_deg),
+        )
+        self._width_deg = placement.width_deg
 
-    def _reach(self, point: SurfacePoint) -> float:
-        along = self._radius * math.radians(
-            _turn_deg(self._placement.azimuth_deg, point.azimuth_deg))
-        return math.hypot(along, point.y - _lift(self._placement, self._radius))
+    def _half_height(self, width_deg: float) -> float:
+        return self._radius * math.radians(width_deg) / self._aspect / 2.0
+
+    def _from_the_anchor(self, azimuth_deg: float) -> float:
+        """How far round the grabbed corner has gone: _turn_deg takes the short way,
+        which reverses at a half turn, so the width already reached picks the turn."""
+        turn = _turn_deg(self._anchor[0], azimuth_deg)
+        return turn + 360.0 * round((self._side * self._width_deg - turn) / 360.0)
 
     def dragged_to(self, point: SurfacePoint) -> Placement:
         placement = self._placement
@@ -194,8 +207,23 @@ class Grab:
                 elevation_deg=math.degrees(math.atan2(lift, self._radius)),
                 width_deg=placement.width_deg,
             ))
-        scale = self._reach(point) / self._start_reach if self._start_reach > 0.0 else 1.0
-        return clamp_placement(replace(placement, width_deg=placement.width_deg * scale))
+        return self._resized_to(point)
+
+    def _resized_to(self, point: SurfacePoint) -> Placement:
+        """Grown away from the anchored corner rather than out of the center, down
+        the picture's own diagonal: the reach along that line is the width."""
+        azimuth, y = self._anchor
+        across = self._radius * math.radians(self._from_the_anchor(point.azimuth_deg))
+        reach = (self._side * across - (point.y - y) / self._aspect) / (
+            1.0 + 1.0 / (self._aspect * self._aspect))
+        width_deg = clamp_width(math.degrees(reach / self._radius))
+        self._width_deg = width_deg
+        return Placement(  # not clamp_placement: its azimuth limit would slip the anchor
+            azimuth_deg=_turn_deg(0.0, azimuth + self._side * width_deg / 2.0),
+            elevation_deg=clamp_elevation(
+                _elevation_deg(y - self._half_height(width_deg), self._radius)),
+            width_deg=width_deg,
+        )
 
 
 PRESS_LEVEL = 0.55
@@ -318,7 +346,8 @@ class Pointer:
             return Frame(ray=ray, point=point)
         screen, hover = under
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
-            self._grab = (screen, Grab(hover.handle, screen.placement, start=point))
+            self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
+                                       aspect=screen.aspect))
         elif edge == PRESS and screen.pressable:
             self._pressing = screen
             return Frame(ray=ray, point=point, hover=hover,

@@ -6,15 +6,12 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
-import pytest
 from PIL import ImageFont
 from player_core.console import ConsoleModel
 from player_core.console_hud import OSR2_ROBOT_HAND, ConsoleHud, ConsolePainter, ModeHud
 from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
 from player_core.hud_status import F_MODE_LABEL
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
-from player_core.volume import CHIP_H, CHIP_W, PAD, SPEAKER_W, VolumeHud, VolumeHudPainter, chip_xy
 
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time_vr.console_panel import (
@@ -28,7 +25,6 @@ from fun_time_vr.console_panel import (
     panel_painter,
 )
 from fun_time_vr.notices import KEPT, Notice
-from satellite.pointer import time_at
 
 
 def _drive(**over) -> DriveHud:
@@ -181,56 +177,26 @@ class TestWhoseReadoutItDraws:
         assert gate.asked == [None]
 
 
-_A_LEVEL = VolumeHud(volume=70, muted=False)
-_A_SCRUBBER = (1_000.0, 10_000.0)
-
-
-def _paint(mode="video", *, scrubber=_A_SCRUBBER, chip=_A_LEVEL, title="feature"):
+def _paint(mode="video", *, title="feature"):
     hud = _hud(_engine_console(mode), video_title=title, clip_title=title)
-    return paint_panel(panel_painter(), hud, scrubber=scrubber, chip=chip,
-                       chip_painter=VolumeHudPainter())
-
-
-def _chip_columns(painted) -> tuple[int, int]:
-    """Where the chip sits across the furniture row."""
-    x, _y = chip_xy(win_w=painted.width, win_h=painted.height, timeline_h=TIMELINE_HEIGHT)
-    return x, x + VolumeHudPainter().bgra(_A_LEVEL).shape[1]
+    return paint_panel(panel_painter(), hud)
 
 
 class TestHowItIsComposed:
-    def test_the_console_sits_under_the_strip_and_over_the_furniture_row(self):
-        with_row = _paint()
+    def test_the_console_sits_under_the_announcement_strip(self):
+        painted = _paint()
         console_rgba, (console_w, console_h) = panel_painter().rgba(_hud(_engine_console("video")))
 
-        assert with_row.width == console_w
-        assert with_row.height > NOTICE_STRIP_HEIGHT + console_h + TIMELINE_HEIGHT
-        middle = np.asarray(with_row)[NOTICE_STRIP_HEIGHT:NOTICE_STRIP_HEIGHT + console_h]
-        assert np.array_equal(middle, np.frombuffer(console_rgba, dtype=np.uint8).reshape(console_h, console_w, 4))
+        assert painted.size == (console_w, NOTICE_STRIP_HEIGHT + console_h)
+        under = np.asarray(painted)[NOTICE_STRIP_HEIGHT:]
+        assert np.array_equal(
+            under, np.frombuffer(console_rgba, dtype=np.uint8).reshape(console_h, console_w, 4))
 
-    def test_a_video_gets_its_scrubber_along_the_lower_edge(self):
-        lower = np.asarray(_paint())[-TIMELINE_HEIGHT:]
-
-        assert lower[:, :, 3].max() > 0
-
-    def test_a_clip_gets_no_scrubber(self):
-        """It loops; there is nothing to seek.  The row stays, empty but for
-        the chip."""
-        painted = _paint("genau", scrubber=None)
-        left, _right = _chip_columns(painted)
-
-        assert np.asarray(painted)[-TIMELINE_HEIGHT:, :left, 3].max() == 0
-
-    def test_the_chip_is_at_the_right_end_of_the_row(self):
-        painted = _paint("genau", scrubber=None)
-        left, right = _chip_columns(painted)
-
-        assert np.asarray(painted)[-TIMELINE_HEIGHT:, left:right, 3].max() > 0
-
-    def test_the_chip_shows_the_level_it_was_given(self):
-        loud = np.asarray(_paint(scrubber=None, chip=VolumeHud(volume=100, muted=False)))
-        quiet = np.asarray(_paint(scrubber=None, chip=VolumeHud(volume=10, muted=False)))
-
-        assert not np.array_equal(loud, quiet)
+    def test_the_panel_is_that_and_nothing_else(self):
+        """Every player draws its own scrubber and volume slider over its own
+        picture, Genau's clip included, so none of that is repeated here."""
+        assert _paint().height == NOTICE_STRIP_HEIGHT + panel_painter().rgba(
+            _hud(_engine_console("video")))[1][1]
 
 
 class TestTheAnnouncementStrip:
@@ -303,14 +269,13 @@ class TestTheAnnouncementStrip:
 
 class TestItKeepsItsSize:
     """He saw the panel change size between the modes: the console sized itself
-    to its rows, the genau-mode ones are narrower, and the scrubber row came and
-    went.  A screen in a scene that changes size is a screen that moves."""
+    to its rows, and the genau-mode ones are narrower.  A screen in a scene that
+    changes size is a screen that moves."""
 
     def test_a_notice_does_not_resize_the_panel(self):
         quiet = _paint()
         speaking = paint_panel(
-            panel_painter(), _hud(_engine_console("video")), scrubber=(1_000.0, 10_000.0),
-            chip=_A_LEVEL, chip_painter=VolumeHudPainter(),
+            panel_painter(), _hud(_engine_console("video")),
             notices=(Notice("landscape next", NOTICE, 100.0),),
         )
 
@@ -318,8 +283,7 @@ class TestItKeepsItsSize:
         assert not np.array_equal(np.asarray(speaking), np.asarray(quiet))
 
     def test_the_two_modes_paint_the_same_size(self):
-        video = _paint("video")
-        genau = _paint("genau", scrubber=None)
+        video, genau = _paint("video"), _paint("genau")
 
         assert video.size == genau.size == (PANEL_WIDTH_PX, video.height)
 
@@ -349,20 +313,13 @@ class TestAPressOnThePanel:
     console does under a mouse: buttons post, bars are held and dragged, the
     chip sets the level, the scrubber seeks."""
 
-    _SCRUBBER = (1_000.0, 10_000.0)
-    _CHIP = VolumeHud(volume=70, muted=False)
-
-    def _pointer(self, *, chip=_CHIP, scrubber=_SCRUBBER):
+    def _pointer(self):
         painter = panel_painter()
-        hud = _hud(_live_console(), clip_title="")
-        panel = paint_panel(painter, hud, scrubber=scrubber, chip=chip,
-                            chip_painter=VolumeHudPainter())
+        panel = paint_panel(painter, _hud(_live_console(), clip_title=""))
         posted: list[str] = []
-        seeks: list[float] = []
-        pointer = PanelPointer(painter, post=posted.append, seek=seeks.append)
-        pointer.painted(panel.size, scrubber=scrubber, chip=chip)
-        return SimpleNamespace(pointer=pointer, painter=painter, posted=posted, seeks=seeks,
-                               size=panel.size)
+        pointer = PanelPointer(painter, post=posted.append)
+        pointer.painted(panel.size)
+        return SimpleNamespace(pointer=pointer, painter=painter, posted=posted, size=panel.size)
 
     @staticmethod
     def _uv(size, px: float, py: float) -> tuple[float, float]:
@@ -383,54 +340,16 @@ class TestAPressOnThePanel:
         p.pointer.release()
 
         assert p.posted == ["main_lock"]
-        assert p.seeks == []
 
-    def test_a_press_on_the_chips_speaker_toggles_the_mute(self):
-        p = self._pointer()
-        x, y = chip_xy(win_w=p.size[0], win_h=p.size[1], timeline_h=TIMELINE_HEIGHT)
-
-        p.pointer.press(*self._uv(p.size, x + 5, y + CHIP_H // 2))
-
-        assert p.posted == ["audio_mute"]
-
-        muted = self._pointer(chip=VolumeHud(volume=70, muted=True))
-        muted.pointer.press(*self._uv(muted.size, x + 5, y + CHIP_H // 2))
-
-        assert muted.posted == ["audio_unmute"]
-
-    def test_a_press_on_the_chips_track_sets_the_level_and_a_drag_along_it_follows(self):
-        p = self._pointer()
-        x, y = chip_xy(win_w=p.size[0], win_h=p.size[1], timeline_h=TIMELINE_HEIGHT)
-        track_x0, track_x1 = SPEAKER_W, CHIP_W - PAD
-        halfway = x + (track_x0 + track_x1) / 2
-
-        p.pointer.press(*self._uv(p.size, halfway, y + CHIP_H // 2))
-        p.pointer.drag(*self._uv(p.size, halfway, y + CHIP_H // 2))
-        p.pointer.drag(*self._uv(p.size, x + track_x1 + 40, y + CHIP_H // 2))
-        p.pointer.release()
-        p.pointer.drag(*self._uv(p.size, halfway, y + CHIP_H // 2))
-
-        assert p.posted == ["audio_set_volume|50", "audio_set_volume|100"]
-
-    def test_a_press_on_the_scrubber_seeks_the_video(self):
+    def test_a_press_that_lands_on_no_button_asks_for_nothing(self):
+        """Neither the scrubber nor the volume is here any more; each rides on the
+        player it belongs to, so a press off the buttons reaches nothing."""
         p = self._pointer()
         width, height = p.size
-        x0, x1 = bar_track_x(width)
-        px = (x0 + x1) / 2
 
-        p.pointer.press(*self._uv(p.size, px, height - TIMELINE_HEIGHT // 2))
+        p.pointer.press(*self._uv(p.size, width - 2, height - 2))
 
-        assert p.seeks == [pytest.approx(time_at(px, win_w=width, duration_ms=10_000.0))]
-        assert 4_000 < p.seeks[0] < 6_000
         assert p.posted == []
-
-    def test_a_clip_has_no_scrubber_to_seek(self):
-        p = self._pointer(scrubber=None)
-        width, height = p.size
-
-        p.pointer.press(*self._uv(p.size, width // 2, height - 2))
-
-        assert p.seeks == []
 
     def test_a_readouts_bar_is_held_and_dragged(self):
         p = self._pointer()

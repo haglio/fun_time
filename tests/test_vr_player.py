@@ -32,22 +32,34 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
-from fun_time_vr.console_panel import NOTICE_STRIP_HEIGHT
+from fun_time_vr.console_panel import NOTICE_STRIP_HEIGHT, PANEL_WIDTH_DEG
 from fun_time_vr.cover import VR_SHUTDOWN_PHASES, VR_STARTUP_PHASES
-from fun_time_vr.layout import DEFAULT_LAYOUT, LANDSCAPE, PANEL, PORTRAIT, read_layout
+from fun_time_vr.furniture import control_size
+from fun_time_vr.layout import (
+    DEFAULT_LAYOUT,
+    LANDSCAPE,
+    PANEL,
+    PORTRAIT,
+    PRIMARY,
+    read_layout,
+)
 from fun_time_vr.player import (
     VrSettings,
     _CoverUnit,
+    _GenauUnit,
     _HangingScreen,
     _LayoutKeeper,
+    _main_slot_screen,
     _MainUnit,
     _PanelUnit,
+    _pointable_screens,
     _SatelliteUnit,
     _scene_is_up,
     _VideoUnit,
     build_parser,
 )
 from fun_time_vr.pointer import PRESS, RELEASE, SURFACE, Frame, Hover, PressEvent
+from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.scene import Placement
 
 
@@ -152,7 +164,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, lambda _name: 0)
+    unit = _MainUnit(manifest, vr, lambda _name: 0, placement=DEFAULT_LAYOUT[PRIMARY])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.nau_cmd_file)
@@ -174,7 +186,13 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     out — and the sixth, the dashboard's command file, shared with the desktop."""
     manifest = _manifest_for_a_vr_session(tmp_path)
 
-    unit = _SatelliteUnit(side, manifest, lambda _name: 0, placement=DEFAULT_LAYOUT[side])
+    vr = VrSettings(
+        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+        audio_device="", compositor_layers=False,
+    )
+
+    unit = _SatelliteUnit(
+        side, manifest, lambda _name: 0, vr=vr, placement=DEFAULT_LAYOUT[side])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.side_file(side, "cmd"))
@@ -206,7 +224,9 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     unit._chip_shown = None
     # A target that already holds pixels; the GL half is the integration
     # suite's, and overlay_furniture reads only these three fields of it.
-    unit.target = SimpleNamespace(ready=True, width=width, height=height)
+    unit.target = SimpleNamespace(ready=True, width=width, height=height,
+                                 aspect=width / height)
+    unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
     return unit, player
 
 
@@ -308,7 +328,12 @@ def test_a_satellite_hangs_where_the_layout_says(tmp_path, faked_collaborators):
     manifest = _manifest_for_a_vr_session(tmp_path)
     moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
 
-    unit = _SatelliteUnit("portrait", manifest, lambda _name: 0, placement=moved)
+    vr = VrSettings(
+        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+        audio_device="", compositor_layers=False,
+    )
+
+    unit = _SatelliteUnit("portrait", manifest, lambda _name: 0, vr=vr, placement=moved)
 
     assert unit.screen.placement == moved
 
@@ -344,6 +369,19 @@ class TestTheLayoutKeeper:
         assert read_layout(path)[PORTRAIT] == moved
 
 
+class _FakePanelTexture:
+    """A FrameTexture with real numbers where the panel does arithmetic on them."""
+
+    ready = True
+    aspect = 280 / 120
+
+    def upload(self, pixels):
+        self.uploaded = pixels
+
+    def close(self):
+        pass
+
+
 class TestThePanelUnderThePointer:
     def _unit(self, tmp_path):
         seeks: list[float] = []
@@ -354,6 +392,8 @@ class TestThePanelUnderThePointer:
                 speed=1.25,
             ),
             drive_gate=SimpleNamespace(readout=lambda published: published),
+            target=SimpleNamespace(ready=True, aspect=16 / 9),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
         )
         genau = SimpleNamespace(role=SimpleNamespace(
             console_hud=ConsoleHud(
@@ -366,11 +406,11 @@ class TestThePanelUnderThePointer:
         ))
         command_file = tmp_path / "dashboard_cmd.txt"
         event_log = tmp_path / "event_log.jsonl"
-        with patch("fun_time_vr.player.FrameTexture"):
-            unit = _PanelUnit(primary, genau, placement=DEFAULT_LAYOUT[PANEL],
-                              dashboard_cmd_file=command_file, event_log=event_log)
+        with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
+            unit = _PanelUnit(primary, genau, dashboard_cmd_file=command_file,
+                              event_log=event_log)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
-                               event_log=event_log)
+                               event_log=event_log, primary=primary)
 
     def _uv_of(self, unit, action: str) -> tuple[float, float]:
         """A button's middle in the PANEL's pixels: the painter places its buttons
@@ -417,6 +457,28 @@ class TestThePanelUnderThePointer:
         p.unit.pump(threading.Event(), 0.0)
 
         assert not np.array_equal(np.asarray(p.unit._image), plain)
+
+    def test_the_console_rides_under_the_main_player_wherever_it_goes(self, tmp_path):
+        """Docked the way a satellite's HUD is docked, rather than placed: and
+        re-placed every frame, not only the ones that repaint it, so it cannot lag
+        the player it belongs to -- which is what left its old handle dragging
+        an empty rectangle around for seconds at a time."""
+        p = self._unit(tmp_path)
+        p.unit.pump(threading.Event(), 0.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            p.unit.render_latest_frame()
+            docked = p.unit.screen.placement
+
+            p.primary.screen.placement = Placement(
+                azimuth_deg=-40.0, elevation_deg=12.0, width_deg=200.0)
+            p.unit.render_latest_frame()
+            followed = p.unit.screen.placement
+
+        assert docked.azimuth_deg == DEFAULT_LAYOUT[PRIMARY].azimuth_deg
+        assert docked.elevation_deg < 0.0  # under the picture, never over it
+        assert followed.azimuth_deg == -40.0
+        assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
+        assert followed.width_deg == docked.width_deg == PANEL_WIDTH_DEG
 
 
 # --- The cover the roles arrive and leave under ---------------------------
@@ -668,3 +730,122 @@ def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
                if isinstance(n, ast.Call) and ast.unparse(n.func) == "cover_seen.note"]
 
     assert ast.unparse(note) == "cover_seen.note(covered and session.focused)"
+
+class TestTheMainSlotUnderThePointer:
+    """The main player moves and zooms by the same handles the satellites do, so
+    it is one of the screens the pointer is handed — but only while what fills
+    the slot is a flat screen with edges to take hold of."""
+
+    def _units(self, **overrides):
+        settings = dict(
+            picture=True, displayed=True, projection=FLAT,
+            showing=False, clip=True, clip_projection=FLAT,
+        ) | overrides
+        primary = SimpleNamespace(
+            target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9),
+            role=SimpleNamespace(
+                displayed=settings["displayed"], projection=settings["projection"]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        )
+        genau = SimpleNamespace(
+            texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
+            role=SimpleNamespace(
+                showing=settings["showing"], projection=settings["clip_projection"]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        )
+        return primary, genau
+
+    def test_the_primary_offers_both_handles(self):
+        screen = _main_slot_screen(*self._units())
+
+        assert (screen.name, screen.movable, screen.resizable) == (PRIMARY, True, True)
+        assert screen.placement == DEFAULT_LAYOUT[PRIMARY]
+        assert screen.aspect == 16 / 9
+
+    def test_genaus_clip_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
+        """It hangs in the same slot, at its own shape — so the handles stay
+        under the hand through a switch into video mode and back."""
+        screen = _main_slot_screen(*self._units(showing=True))
+
+        assert screen.name == PRIMARY
+        assert screen.aspect == 4 / 3
+
+    @pytest.mark.parametrize("state", [
+        {"projection": EQUIRECT_180_SBS},
+        {"showing": True, "clip_projection": EQUIRECT_180_SBS},
+        {"picture": False},
+        {"displayed": False},
+        {"showing": True, "clip": False},
+    ])
+    def test_a_slot_with_no_flat_screen_in_it_offers_nothing_to_take_hold_of(self, state):
+        """A wrapped video has no edges, and a slot still waiting for its first
+        frame has no picture; either way a grab there would take hold of nothing."""
+        assert _main_slot_screen(*self._units(**state)) is None
+
+    def test_the_main_slot_is_listed_under_the_screens_that_overlap_it(self):
+        """It is drawn first and it is the biggest, so a satellite tucked over its
+        edge — and the console under them all — has to win the ray.  The console
+        is pressed, never dragged: it rides on the main player now."""
+        satellite = SimpleNamespace(
+            side=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
+        )
+        panel = SimpleNamespace(
+            texture=SimpleNamespace(ready=True, aspect=1.3),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        )
+
+        screens = _pointable_screens(*self._units(), [satellite], panel)
+
+        assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
+        console = screens[-1]
+        assert (console.pressable, console.movable, console.resizable) == (True, False, False)
+
+
+class TestTheClipsOwnControls:
+    """Genau is handed finished pictures rather than decoding its own, so its
+    scrubber and volume slider are blended into the picture -- same places, same
+    size, as every player that has an mpv underneath to paint them into."""
+
+    def _unit(self, *, played=5, of=20, volume=70, muted=False):
+        unit = _GenauUnit.__new__(_GenauUnit)
+        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
+        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
+        unit._volume_painter = VolumeHudPainter()
+        unit._control_size = None
+        unit._scrubber_shown = unit._chip_shown = None
+        unit._bar = unit._chip = None
+        return unit
+
+    def test_the_clip_comes_back_with_its_controls_on_it(self):
+        unit = self._unit()
+        clip = np.zeros((360, 640, 3), dtype=np.uint8)
+
+        furnished = unit._furnished(clip)
+
+        assert clip.max() == 0  # the engine's own picture, untouched
+        assert furnished[-2].max() > 0  # a scrubber along the lower edge
+        assert furnished[:200].max() == 0  # and nothing over the picture itself
+
+    def test_the_bitmaps_are_repainted_only_when_what_they_show_moves(self):
+        unit = self._unit()
+        clip = np.zeros((360, 640, 3), dtype=np.uint8)
+
+        unit._furnished(clip)
+        bar, chip = unit._bar, unit._chip
+        unit._furnished(clip)
+
+        assert unit._bar is bar and unit._chip is chip
+
+        unit.role = SimpleNamespace(playhead=(19, 20), volume=70, muted=False)
+        unit._furnished(clip)
+
+        assert unit._bar is not bar
+        assert unit._chip is chip
+
+    def test_the_press_coordinates_are_the_ones_it_drew_at(self):
+        unit = self._unit()
+
+        unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
+
+        assert unit._control_size == control_size(DEFAULT_LAYOUT[PRIMARY].width_deg, 640 / 360)

@@ -11,6 +11,7 @@ from __future__ import annotations
 import logging
 import threading
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -371,3 +372,40 @@ class TestTheDesktopsClipsAreBrowsedToo:
 
         assert (tmp_path / "desktop" / "weird" / "scene one.mp4").is_file()
         assert not (tmp_path / "weird" / "scene one.mp4").exists()
+
+
+class TestThePlayheadItPublishes:
+    """What the clip's bar draws.  It counts UP while the frame that is on screen
+    counts DOWN: player_core shows a clip from its last frame back, so a cursor
+    drawn straight off that index walked backwards as the motion went on."""
+
+    def _role(self, index, count):
+        role = GenauRole.__new__(GenauRole)
+        role._renderer = SimpleNamespace(
+            current_frame_index=index,
+            current_clip_entry=lambda: None if count is None else {"frames": [0] * count},
+        )
+        return role
+
+    def test_it_counts_up_across_the_clip(self):
+        assert self._role(19, 20).playhead == (0, 20)
+        assert self._role(12, 20).playhead == (7, 20)
+        assert self._role(0, 20).playhead == (19, 20)
+
+    def test_nothing_to_draw_before_a_clip_is_up(self):
+        assert self._role(None, None).playhead == (0, 0)
+
+
+class TestSeekingFromTheBar:
+    """A squeeze on the clip's bar reaches player_core's own seek, which puts the
+    device where the press asked -- the frame being a picture of where it is."""
+
+    def test_it_hands_the_fraction_straight_to_the_engine(self):
+        role = GenauRole.__new__(GenauRole)
+        asked: list[float] = []
+        role._controller = SimpleNamespace(seek_the_clip=asked.append)
+
+        role.seek(0.25)
+        role.seek(0.9)
+
+        assert asked == [0.25, 0.9]

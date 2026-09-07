@@ -182,11 +182,14 @@ class TestTheHandles:
         assert self._at(0.0, 1.0 + self._DV / 2) == MOVE
         assert self._at(0.5, 1.0 + self._DV * 1.5) is None
 
-    def test_the_lower_corners_resize_it(self):
-        assert self._at(1.0 - self._DU / 4, self._DV / 4) == RESIZE
-        assert self._at(1.0 + self._DU / 4, -self._DV / 4) == RESIZE
-        assert self._at(-self._DU / 4, -self._DV / 4) == RESIZE
-        assert self._at(0.5, -self._DV / 4) is None
+    def test_the_lower_corners_resize_it_from_clear_of_the_picture(self):
+        """Diagonally outside each lower corner rather than straddling it, so the
+        scrubber along the picture's lower edge keeps the whole of that edge."""
+        assert self._at(1.0 + self._DU / 2, -self._DV / 2) == RESIZE
+        assert self._at(-self._DU / 2, -self._DV / 2) == RESIZE
+        assert self._at(1.0 - self._DU / 4, self._DV / 4) == SURFACE
+        assert self._at(0.5, -self._DV / 2) is None
+        assert self._at(1.0 + self._DU / 2, self._DV / 4) is None
 
     def test_a_handle_is_the_same_size_on_every_screen_whatever_its_shape(self):
         """HANDLE_DEG of arc each way, so a tall thin portrait offers the same
@@ -246,32 +249,81 @@ class TestAGrab:
 
         assert grab.dragged_to(_on_the_cylinder(-175.0, 0.0)).azimuth_deg == pytest.approx(150.0)
 
-    def _corner(self, placement: Placement) -> SurfacePoint:
-        """The lower-right corner of *placement*, where a resize is grabbed."""
-        half_arc = placement.width_deg / 2
-        half_height = RADIUS * math.radians(placement.width_deg) / self._ASPECT / 2
-        return _on_the_cylinder(placement.azimuth_deg + half_arc, _lift(placement) - half_height)
+    def _half_height(self, width_deg: float) -> float:
+        return RADIUS * math.radians(width_deg) / self._ASPECT / 2
 
-    def test_pulling_a_corner_twice_as_far_from_the_center_doubles_the_width(self):
-        corner = self._corner(_A_SCREEN)
-        grab = Grab(RESIZE, _A_SCREEN, start=corner)
-        twice = _on_the_cylinder(
-            _A_SCREEN.azimuth_deg + 2 * (corner.azimuth_deg - _A_SCREEN.azimuth_deg),
-            _lift(_A_SCREEN) + 2 * (corner.y - _lift(_A_SCREEN)),
+    def _corner(self, placement: Placement, side: float) -> SurfacePoint:
+        """A lower corner of *placement* (+1 right, -1 left): a resize handle."""
+        return _on_the_cylinder(
+            placement.azimuth_deg + side * placement.width_deg / 2,
+            _lift(placement) - self._half_height(placement.width_deg),
         )
 
-        grown = grab.dragged_to(twice)
+    def _upper(self, placement: Placement, side: float) -> tuple[float, float]:
+        """An upper corner as (azimuth, y): what a resize on the other side pins.
+        The azimuth is read round the cylinder, so a screen past a half turn
+        wide names its corner where the corner is rather than 360 degrees away."""
+        around = placement.azimuth_deg + side * placement.width_deg / 2
+        return ((around + 180.0) % 360.0 - 180.0,
+                _lift(placement) + self._half_height(placement.width_deg))
 
-        assert grown.width_deg == pytest.approx(2 * _A_SCREEN.width_deg)
-        assert grown.azimuth_deg == _A_SCREEN.azimuth_deg
-        assert grown.elevation_deg == _A_SCREEN.elevation_deg
+    def _grabbed_corner_at(self, anchor, side: float, width_deg: float) -> SurfacePoint:
+        """Where the dragged corner belongs once the screen is *width_deg* wide,
+        with *anchor* held: straight down the picture's own diagonal from it, at
+        an azimuth read off the cylinder like any other -- so within a half turn."""
+        azimuth, y = anchor
+        around = (azimuth + side * width_deg + 180.0) % 360.0 - 180.0
+        return _on_the_cylinder(around, y - 2 * self._half_height(width_deg))
 
-    def test_a_resize_stops_at_the_smallest_and_largest_a_screen_may_be(self):
-        grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN))
+    @pytest.mark.parametrize("side", [1.0, -1.0])
+    def test_a_corner_grows_the_screen_away_from_the_one_across_from_it(self, side):
+        anchor = self._upper(_A_SCREEN, -side)
+        grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, side), aspect=self._ASPECT)
+        wider = 2 * _A_SCREEN.width_deg
 
-        assert grab.dragged_to(_on_the_cylinder(_A_SCREEN.azimuth_deg, _lift(_A_SCREEN))
-                               ).width_deg == MIN_WIDTH_DEG
-        assert grab.dragged_to(_on_the_cylinder(140.0, -30.0)).width_deg == MAX_WIDTH_DEG
+        grown = grab.dragged_to(self._grabbed_corner_at(anchor, side, wider))
+
+        assert grown.width_deg == pytest.approx(wider)
+        assert self._upper(grown, -side) == pytest.approx(anchor)
+
+    def test_the_two_corners_carry_the_screen_opposite_ways(self):
+        """Each pins the corner across from it, so the same growth from the left
+        handle and from the right leaves the picture in different places — which
+        is the whole reason for two handles rather than one."""
+        wider = 2 * _A_SCREEN.width_deg
+        pulled = {}
+        for side in (1.0, -1.0):
+            anchor = self._upper(_A_SCREEN, -side)
+            grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, side),
+                        aspect=self._ASPECT)
+            pulled[side] = grab.dragged_to(self._grabbed_corner_at(anchor, side, wider))
+
+        assert pulled[1.0].width_deg == pytest.approx(pulled[-1.0].width_deg)
+        assert pulled[-1.0].azimuth_deg < _A_SCREEN.azimuth_deg < pulled[1.0].azimuth_deg
+
+    @pytest.mark.parametrize("side", [1.0, -1.0])
+    def test_a_corner_carries_on_past_the_half_turn_that_used_to_reverse_it(self, side):
+        """A screen exactly 180 degrees wide puts its two lower corners half a turn
+        apart, where the short way round the cylinder reverses: the width read off
+        it collapsed to MIN_WIDTH_DEG and the picture vanished out of the headset
+        mid-drag.  The width already reached says which way round was meant."""
+        anchor = self._upper(_A_SCREEN, -side)
+        grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, side), aspect=self._ASPECT)
+        targets = [120.0, 170.0, 179.0, 181.0, 240.0, 359.0]
+
+        placements = [grab.dragged_to(self._grabbed_corner_at(anchor, side, target))
+                      for target in targets]
+
+        assert [p.width_deg for p in placements] == pytest.approx(targets)
+        assert self._upper(placements[-1], -side) == pytest.approx(anchor)
+
+    def test_a_resize_stops_at_the_smallest_and_the_full_wrap(self):
+        anchor = self._upper(_A_SCREEN, -1.0)
+        grab = Grab(RESIZE, _A_SCREEN, start=self._corner(_A_SCREEN, 1.0), aspect=self._ASPECT)
+
+        pushed_past = _on_the_cylinder(anchor[0] - 20.0, anchor[1] + 1.0)
+        assert grab.dragged_to(pushed_past).width_deg == MIN_WIDTH_DEG
+        assert grab.dragged_to(_on_the_cylinder(144.0, -30.0)).width_deg == MAX_WIDTH_DEG
 
 
 class TestTheTrigger:
@@ -317,7 +369,7 @@ def _hands(right=None, left=None, *, right_trigger=0.0, left_trigger=0.0):
 
 _LANDSCAPE = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
                     movable=True, resizable=True)
-_PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, movable=True, pressable=True)
+_PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
 _SCENE = [_LANDSCAPE, _PANEL]
 
 
@@ -371,15 +423,24 @@ class TestThePointerOverTheScene:
         assert released.settled
         assert released.moved["landscape"].azimuth_deg == pytest.approx(43.0, abs=1e-4)
 
-    def test_a_squeeze_on_a_corner_resizes_the_screen(self):
+    def test_a_squeeze_on_a_corner_grows_the_screen_off_the_opposite_one(self):
+        """The screen's own aspect has to reach the grab for this to land: it is
+        what turns the pointer's reach into a width, and the anchor into a place."""
+        placement = _LANDSCAPE.placement
+        top_left = (placement.azimuth_deg - placement.width_deg / 2,
+                    _lift(placement)
+                    + RADIUS * math.radians(placement.width_deg) / _LANDSCAPE.aspect / 2)
         pointer = Pointer()
 
-        held = self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 1.0, 0.0), right_trigger=1.0))
-        assert held.hover.handle == RESIZE
-
+        du, dv = handle_extent(placement, _LANDSCAPE.aspect)
+        held = self._frame(pointer, _hands(
+            right=_aim_at_uv(_LANDSCAPE, 1.0 + du / 2, -dv / 2), right_trigger=1.0))
         dragged = self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 1.25, -0.25), right_trigger=1.0))
-        assert dragged.moved["landscape"].width_deg == pytest.approx(1.5 * 28.0)
-        assert dragged.moved["landscape"].azimuth_deg == 38.0
+
+        assert held.hover.handle == RESIZE
+        grown = dragged.moved["landscape"]
+        assert grown.width_deg == pytest.approx(1.25 * 28.0)
+        assert grown.azimuth_deg == pytest.approx(top_left[0] + grown.width_deg / 2)
 
     def test_a_squeeze_on_the_panel_presses_it_and_the_drag_and_release_follow(self):
         pointer = Pointer()
@@ -510,17 +571,19 @@ class TestWhatIsDrawnForThePointer:
         assert bar[:, 1].max() - bar[:, 1].min() == pytest.approx(
             RADIUS * math.radians(HANDLE_DEG), abs=1e-6)
 
-    def test_the_corner_squares_straddle_the_lower_corners(self):
+    def test_the_corner_squares_sit_just_clear_of_the_lower_corners(self):
+        """Outside the picture rather than straddling it, so the scrubber along
+        its lower edge is not a quarter covered at each end."""
         strips = handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=True)
         screen = surface_vertices(_A_SCREEN, aspect=16 / 9)
+        handle = RADIUS * math.radians(HANDLE_DEG)
 
         left, right = strips[RESIZE]
-        assert (left[:, 1].max() + left[:, 1].min()) / 2 == pytest.approx(screen[:, 1].min(), abs=1e-6)
+        assert left[:, 1].max() == pytest.approx(screen[:, 1].min(), abs=1e-6)
+        assert left[:, 1].max() - left[:, 1].min() == pytest.approx(handle, abs=1e-6)
         left_azimuths, right_azimuths = _column_azimuths(left), _column_azimuths(right)
-        assert (left_azimuths[0] + left_azimuths[-1]) / 2 == pytest.approx(
-            _A_SCREEN.azimuth_deg - 14.0, abs=1e-4)
-        assert (right_azimuths[0] + right_azimuths[-1]) / 2 == pytest.approx(
-            _A_SCREEN.azimuth_deg + 14.0, abs=1e-4)
+        assert left_azimuths[-1] == pytest.approx(_A_SCREEN.azimuth_deg - 14.0, abs=1e-4)
+        assert right_azimuths[0] == pytest.approx(_A_SCREEN.azimuth_deg + 14.0, abs=1e-4)
         assert right_azimuths[-1] - right_azimuths[0] == pytest.approx(HANDLE_DEG, abs=1e-4)
 
     def test_a_screen_that_cannot_be_resized_shows_no_corners(self):

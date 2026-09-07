@@ -30,7 +30,14 @@ from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.player_status import read_nau_status
 from fun_time.runtime_flow import apply_mode_switch
 from fun_time.satellite_control import read_satellite_status
-from fun_time_vr.layout import LANDSCAPE, LAYOUT_FILENAME, PORTRAIT, read_layout
+from fun_time_vr.layout import (
+    DEFAULT_LAYOUT,
+    LANDSCAPE,
+    LAYOUT_FILENAME,
+    PORTRAIT,
+    PRIMARY,
+    read_layout,
+)
 from fun_time_vr.orchestrator import build_vr_manifest
 
 from .integration_support import (
@@ -139,9 +146,10 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
     renderer = SceneRenderer()
     layout = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address)
+    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address, placement=layout[PRIMARY])
     satellites = [
-        vrp._SatelliteUnit(side, manifest, glfw.get_proc_address, placement=layout[side])
+        vrp._SatelliteUnit(
+            side, manifest, glfw.get_proc_address, vr=vr, placement=layout[side])
         for side in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
@@ -385,7 +393,8 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     assert window, "hidden GL window could not be created"
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address)
+    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address,
+                         placement=DEFAULT_LAYOUT[PRIMARY])
     stop = threading.Event()
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),

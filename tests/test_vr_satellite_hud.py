@@ -3,17 +3,17 @@ and what a press or a hover on either screen does."""
 from __future__ import annotations
 
 import json
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
 from player_core.satellite_hud import MARGIN
 from player_core.timeline import TIMELINE_HEIGHT
+from player_core.volume import CHIP_H, SPEAKER_W, VolumeHud, chip_xy
 
-from fun_time_vr.console_panel import PANEL_WIDTH_PX
-from fun_time_vr.layout import DEFAULT_LAYOUT, PANEL
+from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_DEG, PANEL_WIDTH_PX
 from fun_time_vr.satellite_hud import (
     HUD,
-    HUD_DEG_PER_PX,
     PICTURE,
     HudSurface,
     SatellitePointer,
@@ -76,49 +76,68 @@ _HUD_SIZE = (200, 100)
 
 class TestAPressOnASatellite:
     def _pointer(self):
-        hud, seeks = _FakeHud(), []
-        pointer = SatellitePointer(hud=hud, seek=seeks.append, duration_ms=lambda: 10_000.0)
-        return pointer, hud, seeks
+        hud, seeks, levels = _FakeHud(), [], []
+        volume = VolumeHud(volume=70, muted=True)
+        pointer = SatellitePointer(
+            hud=hud, seek=seeks.append, duration_ms=lambda: 10_000.0,
+            volume=lambda: volume, mute=lambda muted: levels.append(("mute", muted)),
+            set_volume=lambda level: levels.append(("level", level)),
+        )
+        return SimpleNamespace(pointer=pointer, hud=hud, seeks=seeks, levels=levels)
 
     def test_a_press_on_the_hud_reaches_its_map_at_the_inset_the_desktop_draws_it_at(self):
-        pointer, hud, seeks = self._pointer()
+        p = self._pointer()
 
-        pointer.press(HUD, 0.25, 0.5, size=_HUD_SIZE)
+        p.pointer.press(HUD, 0.25, 0.5, size=_HUD_SIZE)
 
-        assert hud.presses == [(50 + MARGIN, 50 + MARGIN)]
-        assert seeks == []
+        assert p.hud.presses == [(50 + MARGIN, 50 + MARGIN)]
+        assert p.seeks == []
 
     def test_a_press_on_the_pictures_scrubber_seeks_the_clip(self):
-        pointer, hud, seeks = self._pointer()
+        p = self._pointer()
         width, height = _PICTURE_SIZE
         v = 1 - (height - TIMELINE_HEIGHT // 2) / height
 
-        pointer.press(PICTURE, 0.5, v, size=_PICTURE_SIZE)
+        p.pointer.press(PICTURE, 0.5, v, size=_PICTURE_SIZE)
 
-        assert seeks == [pytest.approx(time_at(320, win_w=width, duration_ms=10_000.0))]
-        assert hud.presses == []
+        assert p.seeks == [pytest.approx(time_at(320, win_w=width, duration_ms=10_000.0))]
+        assert p.hud.presses == []
+
+    def test_a_press_on_the_chip_reaches_the_satellites_own_volume(self):
+        """It has sound of its own in VR now, as it does on the desktop, and the
+        speaker is told the state the player is actually in."""
+        p = self._pointer()
+        x, y = chip_xy(win_w=_PICTURE_SIZE[0], win_h=_PICTURE_SIZE[1],
+                       timeline_h=TIMELINE_HEIGHT)
+        speaker = ((x + SPEAKER_W // 2 + 0.5) / _PICTURE_SIZE[0],
+                   1 - (y + CHIP_H // 2 + 0.5) / _PICTURE_SIZE[1])
+
+        p.pointer.press(PICTURE, *speaker, size=_PICTURE_SIZE)
+
+        assert p.levels == [("mute", True)]
+        assert p.seeks == []
 
     def test_a_press_on_the_picture_itself_does_nothing(self):
-        pointer, hud, seeks = self._pointer()
+        p = self._pointer()
 
-        pointer.press(PICTURE, 0.5, 0.5, size=_PICTURE_SIZE)
+        p.pointer.press(PICTURE, 0.5, 0.5, size=_PICTURE_SIZE)
 
-        assert seeks == [] and hud.presses == []
+        assert p.seeks == [] and p.hud.presses == [] and p.levels == []
 
     def test_hovering_the_hud_names_the_button_under_the_pointer(self):
-        pointer, hud, _seeks = self._pointer()
+        p = self._pointer()
 
-        pointer.hover(HUD, (0.25, 0.5), size=_HUD_SIZE)
+        p.pointer.hover(HUD, (0.25, 0.5), size=_HUD_SIZE)
 
-        assert hud.motions == [(50 + MARGIN, 50 + MARGIN)]
+        assert p.hud.motions == [(50 + MARGIN, 50 + MARGIN)]
 
     def test_a_pointer_off_the_hud_leaves_no_tooltip(self):
-        pointer, hud, _seeks = self._pointer()
+        p = self._pointer()
 
-        pointer.hover(HUD, None, size=_HUD_SIZE)
-        pointer.hover(PICTURE, (0.5, 0.5), size=_PICTURE_SIZE)
+        p.pointer.hover(HUD, None, size=_HUD_SIZE)
+        p.pointer.hover(PICTURE, (0.5, 0.5), size=_PICTURE_SIZE)
 
-        assert hud.motions == [(-1, -1), (-1, -1)]
+        assert p.hud.motions == [(-1, -1), (-1, -1)]
 
 
 _A_PANEL = {
@@ -140,7 +159,11 @@ class TestThePressReachesTheDesktopsOwnMap:
         surface = HudSurface()
         hud = HudOverlay(hud_file=hud_file, command_file=command_file, player=surface)
         hud.tick(video="scene one")
-        pointer = SatellitePointer(hud=hud, seek=lambda _ms: None, duration_ms=lambda: 1.0)
+        pointer = SatellitePointer(
+            hud=hud, seek=lambda _ms: None, duration_ms=lambda: 1.0,
+            volume=VolumeHud, mute=lambda _muted: None,
+            set_volume=lambda _level: None,
+        )
         return hud, surface, pointer, command_file
 
     @staticmethod
@@ -177,5 +200,5 @@ def test_the_hud_hangs_at_the_consoles_own_pixel_scale():
     """A HUD pixel subtends what a console pixel does, so the two read at one
     size whatever the video's resolution -- scaled to the picture's pixels a
     HUD under a 1080p satellite was a few degrees wide and unpressable."""
-    assert pytest.approx(DEFAULT_LAYOUT[PANEL].width_deg / PANEL_WIDTH_PX) == HUD_DEG_PER_PX
-    assert 300 * HUD_DEG_PER_PX > 20.0
+    assert pytest.approx(PANEL_WIDTH_DEG / PANEL_WIDTH_PX) == DEG_PER_PX
+    assert 300 * DEG_PER_PX > 20.0

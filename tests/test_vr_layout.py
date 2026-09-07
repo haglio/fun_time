@@ -10,9 +10,10 @@ from fun_time_vr.layout import (
     LANDSCAPE,
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
-    PANEL,
     PORTRAIT,
+    PRIMARY,
     clamp_placement,
+    clamp_width,
     read_layout,
     write_layout,
 )
@@ -20,6 +21,11 @@ from fun_time_vr.scene import PRIMARY_WIDTH_DEG, Placement
 
 
 class TestTheDefaults:
+    def test_the_primary_is_one_of_the_movable_screens_hanging_dead_ahead(self):
+        """It moves and zooms by the same handles the satellites do, so it is in
+        the same dict — starting where it has always sat, level and straight on."""
+        assert DEFAULT_LAYOUT[PRIMARY] == Placement(0.0, 0.0, PRIMARY_WIDTH_DEG)
+
     def test_the_satellites_flank_the_primary_landscape_left_portrait_right(self):
         """The sides a desktop session puts them on, so the room reads the same
         in the headset as it does on the monitors."""
@@ -45,17 +51,10 @@ class TestTheDefaults:
     def test_the_satellites_ride_above_the_horizon(self):
         assert DEFAULT_LAYOUT[LANDSCAPE].elevation_deg > 0
 
-    def test_the_panel_hangs_above_the_primarys_top_edge(self):
-        """A 16:9 primary spanning PRIMARY_WIDTH_DEG is this tall; the panel's
-        center sits above its edge, so it covers neither the picture nor the
-        action, which sits low in an immersive one."""
-        primary_half_height_deg = PRIMARY_WIDTH_DEG / (16 / 9) / 2
-
-        assert primary_half_height_deg < DEFAULT_LAYOUT[PANEL].elevation_deg
-        assert DEFAULT_LAYOUT[PANEL].azimuth_deg == 0
-
-    def test_the_panel_is_narrower_than_the_primary(self):
-        assert DEFAULT_LAYOUT[PANEL].width_deg < PRIMARY_WIDTH_DEG / 2
+    def test_only_the_screens_a_controller_places_are_in_here(self):
+        """The console docks under the main player rather than being placed, so
+        it is not one of these -- and a file naming it is ignored, not obeyed."""
+        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE}
 
 
 class TestTheRememberedLayout:
@@ -66,7 +65,7 @@ class TestTheRememberedLayout:
         path = tmp_path / "vr_layout.json"
         moved = {
             **DEFAULT_LAYOUT,
-            PANEL: Placement(azimuth_deg=-20.0, elevation_deg=25.5, width_deg=30.0),
+            LANDSCAPE: Placement(azimuth_deg=-20.0, elevation_deg=25.5, width_deg=30.0),
         }
 
         assert write_layout(path, moved)
@@ -82,30 +81,39 @@ class TestTheRememberedLayout:
     def test_a_screen_the_file_does_not_name_or_names_badly_keeps_its_default(self, tmp_path):
         path = tmp_path / "vr_layout.json"
         path.write_text(json.dumps({
-            PANEL: {"azimuth_deg": 5.0, "elevation_deg": 20.0, "width_deg": 24.0},
+            LANDSCAPE: {"azimuth_deg": 5.0, "elevation_deg": 20.0, "width_deg": 24.0},
             PORTRAIT: {"azimuth_deg": "sideways"},
             "basement": {"azimuth_deg": 0.0, "elevation_deg": -60.0, "width_deg": 10.0},
         }), encoding="utf-8")
 
         layout = read_layout(path)
 
-        assert layout[PANEL] == Placement(5.0, 20.0, 24.0)
+        assert layout[LANDSCAPE] == Placement(5.0, 20.0, 24.0)
         assert layout[PORTRAIT] == DEFAULT_LAYOUT[PORTRAIT]
-        assert layout[LANDSCAPE] == DEFAULT_LAYOUT[LANDSCAPE]
+        assert layout[PRIMARY] == DEFAULT_LAYOUT[PRIMARY]
         assert "basement" not in layout
+
+    def test_a_zoomed_and_moved_primary_comes_back_next_session(self, tmp_path):
+        path = tmp_path / "vr_layout.json"
+        zoomed = Placement(azimuth_deg=-12.0, elevation_deg=-4.0, width_deg=210.0)
+
+        assert write_layout(path, {**DEFAULT_LAYOUT, PRIMARY: zoomed})
+
+        assert read_layout(path)[PRIMARY] == zoomed
 
     def test_a_remembered_placement_is_held_within_the_scene(self, tmp_path):
         """A hand-edited file cannot hang a screen at the viewer's back, at the
         zenith, or too small to grab."""
         path = tmp_path / "vr_layout.json"
         path.write_text(json.dumps({
-            PANEL: {"azimuth_deg": 200.0, "elevation_deg": 89.0, "width_deg": 1.0},
-            PORTRAIT: {"azimuth_deg": -200.0, "elevation_deg": -89.0, "width_deg": 400.0},
+            LANDSCAPE: {"azimuth_deg": 200.0, "elevation_deg": 89.0, "width_deg": 1.0},
+            PORTRAIT: {"azimuth_deg": -200.0, "elevation_deg": -89.0, "width_deg": 4000.0},
         }), encoding="utf-8")
 
         layout = read_layout(path)
 
-        assert layout[PANEL] == Placement(AZIMUTH_LIMIT_DEG, ELEVATION_LIMIT_DEG, MIN_WIDTH_DEG)
+        assert layout[LANDSCAPE] == Placement(
+            AZIMUTH_LIMIT_DEG, ELEVATION_LIMIT_DEG, MIN_WIDTH_DEG)
         assert layout[PORTRAIT] == Placement(
             -AZIMUTH_LIMIT_DEG, -ELEVATION_LIMIT_DEG, MAX_WIDTH_DEG)
 
@@ -118,5 +126,12 @@ class TestTheLimits:
     def test_the_limits_keep_a_screen_in_front_and_off_the_poles(self):
         assert 90 < AZIMUTH_LIMIT_DEG < 180
         assert 45 < ELEVATION_LIMIT_DEG < 90
-        assert 0 < MIN_WIDTH_DEG < DEFAULT_LAYOUT[PANEL].width_deg
-        assert PRIMARY_WIDTH_DEG <= MAX_WIDTH_DEG < 180
+        assert 0 < MIN_WIDTH_DEG < DEFAULT_LAYOUT[PORTRAIT].width_deg
+
+    def test_a_screen_may_be_pulled_up_to_a_full_wrap_and_no_further(self):
+        """Every screen shares one ceiling, and it is the geometry's rather than
+        a taste in sizes: at a full turn a screen closes on itself, and past that
+        screen_uv can no longer tell one of its edges from the other."""
+        assert MAX_WIDTH_DEG == 360.0
+        assert clamp_width(4000.0) == MAX_WIDTH_DEG
+        assert clamp_width(PRIMARY_WIDTH_DEG * 4) == PRIMARY_WIDTH_DEG * 4

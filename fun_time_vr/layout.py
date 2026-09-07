@@ -6,12 +6,13 @@ import logging
 from dataclasses import fields
 from pathlib import Path
 
-from .scene import Placement
+from .scene import PRIMARY_PLACEMENT, Placement
 
 logger = logging.getLogger(__name__)
 
 _FIELDS = tuple(field.name for field in fields(Placement))
 
+PRIMARY = "primary"
 PORTRAIT = "portrait"
 LANDSCAPE = "landscape"
 PANEL = "panel"
@@ -19,25 +20,32 @@ LAYOUT_FILENAME = "vr_layout.json"
 
 # Sides as on the desktop: landscape left of the main player, portrait right.  Tuned on
 # the first headset run — satellites flush beside the primary sat in the peripheral
-# vision, so they tuck inward over its edges and ride a little high, and the panel hangs
-# above its top edge, out of the action.
+# vision, so they tuck inward over its edges and ride a little high.
 DEFAULT_LAYOUT: dict[str, Placement] = {
+    PRIMARY: PRIMARY_PLACEMENT,
     LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
     PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
-    PANEL: Placement(azimuth_deg=0.0, elevation_deg=32.0, width_deg=24.0),
 }
 
 AZIMUTH_LIMIT_DEG = 150.0
 ELEVATION_LIMIT_DEG = 75.0
 MIN_WIDTH_DEG = 10.0
-MAX_WIDTH_DEG = 90.0
+MAX_WIDTH_DEG = 360.0  # a full turn: past it screen_uv cannot tell the edges apart
+
+
+def clamp_width(width_deg: float) -> float:
+    return max(MIN_WIDTH_DEG, min(MAX_WIDTH_DEG, width_deg))
+
+
+def clamp_elevation(elevation_deg: float) -> float:
+    return max(-ELEVATION_LIMIT_DEG, min(ELEVATION_LIMIT_DEG, elevation_deg))
 
 
 def clamp_placement(placement: Placement) -> Placement:
     return Placement(
         azimuth_deg=max(-AZIMUTH_LIMIT_DEG, min(AZIMUTH_LIMIT_DEG, placement.azimuth_deg)),
-        elevation_deg=max(-ELEVATION_LIMIT_DEG, min(ELEVATION_LIMIT_DEG, placement.elevation_deg)),
-        width_deg=max(MIN_WIDTH_DEG, min(MAX_WIDTH_DEG, placement.width_deg)),
+        elevation_deg=clamp_elevation(placement.elevation_deg),
+        width_deg=clamp_width(placement.width_deg),
     )
 
 

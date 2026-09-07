@@ -196,6 +196,20 @@ class GenauRole:
     def muted(self) -> bool:
         return self._muted
 
+    def seek(self, fraction: float) -> None:
+        """Put the clip *fraction* along its bar, and the device where that is."""
+        self._controller.seek_the_clip(fraction)
+
+    @property
+    def playhead(self) -> tuple[int, int]:
+        """How far through the clip the hand has taken it, of how far there is to
+        go -- counted UP, unlike the frame on screen (display_index_for_phase)."""
+        entry = self._renderer.current_clip_entry()
+        frames = entry.get("frames") if entry else None
+        count = len(frames) if frames else 0
+        index = self._renderer.current_frame_index
+        return (0 if index is None else max(0, count - 1 - index), count)
+
     # ------------------------------------------------------------------ turns
 
     def refresh(self) -> None:
