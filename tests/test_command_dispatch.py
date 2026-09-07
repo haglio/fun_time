@@ -1372,6 +1372,27 @@ def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
     assert new_state.portrait_nav_anchor == ""
 
 
+@pytest.mark.parametrize("command", ["main_next", "main_prev", "main_lock"])
+def test_a_main_player_command_leaves_both_satellite_anchors_alone(
+        tmp_path: Path, command: str):
+    """Only the player a command names may end its own keyboard navigation.
+
+    The main player has no anchor of its own, and every one of its commands was
+    dropping the LANDSCAPE satellite's — an old binary helper read "not
+    portrait" as landscape, and the main player inherited the landscape half.
+    So a map frozen on that screen re-homed on a key press aimed at another one
+    (bug 71).
+    """
+    config = _make_config(tmp_path)
+    state = _make_state(portrait_nav_anchor="C:/vids/portrait/anchor.mp4",
+                        landscape_nav_anchor="C:/vids/landscape/anchor.mp4")
+
+    new_state, _ops = dispatch_command(command, state, config)
+
+    assert new_state.landscape_nav_anchor == "C:/vids/landscape/anchor.mp4"
+    assert new_state.portrait_nav_anchor == "C:/vids/portrait/anchor.mp4"
+
+
 def test_landscape_nav_sets_the_active_side(tmp_path: Path):
     """A landscape nav key (Shift+WASD) makes landscape the active side, so a
     later bare command ("lock", "next") resolves to it."""
