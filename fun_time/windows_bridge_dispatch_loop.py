@@ -13,13 +13,17 @@ import time
 from dataclasses import replace
 from pathlib import Path
 
-from app_support.file_channel import consume_command_file
+from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
 
 from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
 from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
-from .dashboard_actions import HELP_REFERENCE_COMMANDS
+from .dashboard_actions import (
+    HELP_REFERENCE,
+    HELP_REFERENCE_COMMANDS,
+    REFERENCE_OPEN_FILENAME,
+)
 from .dashboard_bridge import write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
@@ -367,8 +371,9 @@ class DispatchLoopRunner:
             self._handle_handoff(cmd)
             return
         if cmd in HELP_REFERENCE_COMMANDS:
-            # Pure dashboard-UI action: the press above tells the dashboard to
-            # toggle/close the hotkeys/voice popup — nothing to dispatch here.
+            # A dashboard-UI action: the press above tells a desktop dashboard,
+            # the flag tells a headset, and there is nothing to dispatch.
+            self._toggle_reference(cmd)
             return
         if cmd == "omniminimize":
             self._handle_omniminimize()
@@ -554,6 +559,13 @@ class DispatchLoopRunner:
         hb = self.config.broker_heartbeat_file
         return hb is not None and is_broker_heartbeat_fresh(hb)
 
+    def _toggle_reference(self, cmd: str) -> None:
+        """Publish whether the reference is up, for a surface that reads files:
+        ``help_reference`` toggles it, ``help_reference_close`` shuts it."""
+        path = Path(self.config.state_dir) / REFERENCE_OPEN_FILENAME
+        toggling = cmd == HELP_REFERENCE
+        write_flag(path, toggling and not read_flag(path, default=False))
+
     def _handle_voice_toggle(self, cmd: str) -> None:
         """Mute or toggle voice control, then refresh the dashboard."""
         if self.voice_controller is None:
@@ -669,19 +681,12 @@ class DispatchLoopRunner:
             self._browse_lock.release()
 
     def _browse_library_inner(self) -> None:
-        # Browsing keeps everything playing — it must NOT enter OmniPause (a
-        # pause here once stranded the satellites and voice frozen).  All the
-        # browser needs is to not be buried under the always-on-top windows, so
-        # drop the topmost bands for its duration and restore them after —
-        # playback and voice are never touched.  Under OmniPause the bands are
-        # already down and must stay down (restoring them would strand windows
-        # on top mid-pause), so only manage them when not paused.
-        #
-        # The hotkeys go the same way, for the browser's sake: they are global
-        # and they *consume* the press, so the arrows would move the portrait
-        # satellite instead of the selection.  Suspending hands the keyboard to
-        # the browser; under OmniPause they are already suspended and the pause
-        # owns that hold, so it is left to release it.
+        # Browsing keeps everything playing -- it must NOT enter OmniPause (a
+        # pause here once stranded the satellites and voice frozen).  The browser
+        # needs only not to be buried under the always-on-top windows and not to
+        # lose its arrow keys to the global hotkeys, so the bands drop and the
+        # keys suspend for its duration.  Under OmniPause both are already down
+        # and the pause owns that hold, so it is left to release it.
         manage_session = not self.state.omni_paused
 
         if manage_session:

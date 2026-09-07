@@ -89,8 +89,7 @@ class _Section:
     merge_scopes: bool = False
 
 
-#: The four ways to address a satellite action: name a side, name both, or name
-#: none and reach whatever was last navigated.
+#: The four ways to address a satellite action.
 _SCOPES = ("portrait", "landscape", "both", "active")
 
 _SPOKEN_COMMANDS = frozenset(VOICE_COMMANDS.values())

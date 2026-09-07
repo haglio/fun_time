@@ -42,6 +42,7 @@ from pathlib import Path
 
 import numpy as np
 from app_support import ports
+from app_support.file_channel import read_flag
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
@@ -55,6 +56,7 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
+from fun_time.dashboard_actions import REFERENCE_OPEN_FILENAME
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.manifest import LaunchManifest
@@ -111,6 +113,7 @@ from .layout import (
     PANEL,
     PORTRAIT,
     PRIMARY,
+    REFERENCE,
     read_layout,
     write_layout,
 )
@@ -138,6 +141,12 @@ from .pointer import (
     head_position,
     laser_vertices,
     surface_pixel,
+)
+from .reference_panel import (
+    REFERENCE_WIDTH_PX,
+    ReferencePointer,
+    paint_reference,
+    reference_height,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
 from .roles import UNIMPLEMENTED_NAU_VERBS, MainRole
@@ -775,6 +784,22 @@ class _Presses:
                 return
 
 
+def _upload_and_rehang(unit) -> None:
+    """Upload a painted panel if it changed, and re-hang it whether or not it did.
+
+    Rehanging only alongside an upload left a dragged panel's mesh where the drag
+    started until something repainted it, and then it jumped; a video screen
+    never showed it, uploading a frame every tick.
+    """
+    with unit._lock:
+        image = unit._image
+    if image is not None and image is not unit._uploaded:
+        unit.texture.upload(np.asarray(image))
+        unit._uploaded = image
+    if unit.texture.ready:
+        unit.screen.rehang(unit.texture.aspect)
+
+
 class _PanelUnit:
     """The console, docked under the main player as a satellite's HUD is docked
     under its picture: painted and pressed on the pump thread, uploaded on the
@@ -902,13 +927,51 @@ class _DashUnit:
         self._key = key
 
     def render_latest_frame(self) -> None:
-        with self._lock:
-            image = self._image
-        if image is None or image is self._uploaded:
+        _upload_and_rehang(self)
+
+    def close(self) -> None:
+        self.texture.close()
+        self.screen.close()
+
+
+class _ReferenceUnit:
+    """The hotkeys and voice reference, up while the session says it is -- its
+    own screen, as the desktop's is its own popup rather than part of the bar."""
+
+    def __init__(self, *, placement: Placement, state_dir: Path) -> None:
+        self._flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
+        self._pointer = ReferencePointer()
+        self._presses = _Presses(REFERENCE)
+        self._lock = threading.Lock()
+        self._image = None
+        self._key = None
+        self._uploaded = None
+        self.texture = FrameTexture()
+        self.screen = _HangingScreen(placement)
+
+    @property
+    def showing(self) -> bool:
+        return self._pointer.state.open
+
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        size = (REFERENCE_WIDTH_PX, reference_height())
+        for event in self._presses.drain():
+            if event.kind == PRESS:
+                self._pointer.press(*surface_pixel(event.u, event.v, size))
+        self._pointer.showing(read_flag(self._flag, default=False))
+        state = self._pointer.state
+        if not state.open or state == self._key:
             return
-        self.texture.upload(np.asarray(image))
-        self._uploaded = image
-        self.screen.rehang(self.texture.aspect)
+        image = paint_reference(state)
+        with self._lock:
+            self._image = image
+        self._key = state
+
+    def render_latest_frame(self) -> None:
+        _upload_and_rehang(self)
 
     def close(self) -> None:
         self.texture.close()
@@ -1242,7 +1305,7 @@ def _main_slot_screen(primary: _MainUnit, genau: _GenauUnit) -> Screen | None:
 
 def _pointable_screens(
     primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
-    panel: _PanelUnit, dash: _DashUnit,
+    panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit,
 ) -> list[Screen]:
     main = _main_slot_screen(primary, genau)
     screens = [main] if main is not None else []  # first, so the rest win the overlap
@@ -1254,12 +1317,16 @@ def _pointable_screens(
         if unit.hud_ready:
             screens.append(Screen(hud_screen_name(unit.side), unit.hud_screen.placement,
                                   unit.hud_texture.aspect, pressable=True))
-    if panel.texture.ready:
+    if panel.texture.ready:  # pressed, never dragged: it rides on the main player
         screens.append(Screen(
             PANEL, panel.screen.placement, panel.texture.aspect, pressable=True))
-    if dash.texture.ready:
-        screens.append(Screen(DASH, dash.screen.placement, dash.texture.aspect,
-                              movable=True, pressable=True))
+    hangings = [(DASH, dash)]
+    if reference.showing:  # nothing to point at while it is down
+        hangings.append((REFERENCE, reference))
+    for name, hanging in hangings:
+        if hanging.texture.ready:
+            screens.append(Screen(name, hanging.screen.placement, hanging.texture.aspect,
+                                  movable=True, pressable=True))
     return screens
 
 
@@ -1271,6 +1338,7 @@ def _draw_eyes(
     satellites: list[_SatelliteUnit],
     panel: _PanelUnit,
     dash: _DashUnit,
+    reference: _ReferenceUnit,
     pointing: _PointerDrawing,
     views,
     mode: int | None,
@@ -1323,7 +1391,8 @@ def _draw_eyes(
                     satellite.hud_screen.mesh, satellite.hud_texture.texture, view_proj32,
                     blend=True,
                 )
-        for hanging in (panel, dash):
+        showing = [panel, dash] + ([reference] if reference.showing else [])
+        for hanging in showing:
             if hanging.texture.ready and hanging.screen.ready:
                 renderer.draw_screen(
                     hanging.screen.mesh, hanging.texture.texture, view_proj32, blend=True)
@@ -1480,13 +1549,15 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
     )
+    reference = _ReferenceUnit(placement=layout[REFERENCE], state_dir=state_dir)
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
-    units = [primary, genau, *satellites, panel, dash, cover]
+    units = [primary, genau, *satellites, panel, dash, reference, cover]
     pumped = [notices, *units, keeper]
     hanging = {unit.side: (unit.screen,) for unit in satellites} | {
-        PRIMARY: (primary.screen, genau.screen), DASH: (dash.screen,)}
+        PRIMARY: (primary.screen, genau.screen), DASH: (dash.screen,),
+        REFERENCE: (reference.screen,)}
     pointer = Pointer()
     pointing = _PointerDrawing()
     use_layers = vr.compositor_layers
@@ -1571,7 +1642,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
                     math.radians(scene_pitch_deg)
                 )
-                screens = _pointable_screens(primary, genau, satellites, panel, dash)
+                screens = _pointable_screens(
+                    primary, genau, satellites, panel, dash, reference)
                 frame = pointer.frame(
                     session.hands,
                     head=head_position([
@@ -1588,7 +1660,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if frame.settled:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own
-                             *satellites, panel, dash):
+                             *satellites, panel, dash, reference):
                     unit.point(frame)
                 pointing.update(frame, screens)
                 mode = immersive_mode(primary.role.projection)
@@ -1612,8 +1684,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(
-                    session, renderer, primary, genau, satellites, panel, dash, pointing,
-                    views, mode, scene_rotation,
+                    session, renderer, primary, genau, satellites, panel, dash, reference,
+                    pointing, views, mode, scene_rotation,
                     in_scene=in_scene,
                 )
             t4 = time.perf_counter()

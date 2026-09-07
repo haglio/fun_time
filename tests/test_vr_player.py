@@ -44,6 +44,7 @@ from fun_time_vr.layout import (
     PANEL,
     PORTRAIT,
     PRIMARY,
+    REFERENCE,
     read_layout,
 )
 from fun_time_vr.notices import NoticeBoard
@@ -817,8 +818,11 @@ class TestTheMainSlotUnderThePointer:
 
         dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
+        reference = SimpleNamespace(showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
+                                    screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]))
 
-        screens = _pointable_screens(*self._units(), [satellite], panel, dash)
+        screens = _pointable_screens(
+            *self._units(), [satellite], panel, dash, reference)
 
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
@@ -909,7 +913,7 @@ class TestEveryHangingScreenIsDrawn:
         )
         return [SimpleNamespace(fov=fov, pose=pose)]
 
-    def _draw(self):
+    def _draw(self, *, showing: bool = False):
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
@@ -924,8 +928,10 @@ class TestEveryHangingScreenIsDrawn:
             screen=SimpleNamespace(ready=False, mesh="genau"),
         )
         panel, dash = _hanging("panel"), _hanging("dash")
+        reference = _hanging("reference")
+        reference.showing = showing
         _draw_eyes(
-            session, renderer, primary, genau, [], panel, dash,
+            session, renderer, primary, genau, [], panel, dash, reference,
             SimpleNamespace(draw=lambda *_a: None), self._views(), None,
             np.eye(4, dtype=np.float64), in_scene={PRIMARY, PORTRAIT, LANDSCAPE},
         )
@@ -936,6 +942,13 @@ class TestEveryHangingScreenIsDrawn:
 
     def test_the_dashboard_reaches_them_too(self):
         assert "dash" in self._draw().screens
+
+    def test_the_reference_reaches_them_while_it_is_up(self):
+        assert "reference" in self._draw(showing=True).screens
+
+    def test_and_stays_out_of_them_while_it_is_down(self):
+        """It covers the picture, so it is drawn only while it is asked for."""
+        assert "reference" not in self._draw(showing=False).screens
 
 
 
@@ -979,7 +992,7 @@ class TestTheDashUnderThePointer:
 
 
 class TestWhatThePointerCanReach:
-    def _screens(self, tmp_path):
+    def _screens(self, tmp_path, *, reference_showing=False):
         with patch("fun_time_vr.player.FrameTexture"):
             dash = _DashUnit(
                 placement=DEFAULT_LAYOUT[DASH],
@@ -1002,11 +1015,22 @@ class TestWhatThePointerCanReach:
             role=SimpleNamespace(showing=False, projection=FLAT),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
         )
-        return {s.name: s
-                for s in _pointable_screens(primary, genau, [], panel, dash)}
+        reference = SimpleNamespace(
+            showing=reference_showing,
+            texture=SimpleNamespace(ready=True, aspect=1.7),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
+        )
+        return {s.name: s for s in _pointable_screens(
+            primary, genau, [], panel, dash, reference)}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)
+
+    def test_the_reference_joins_them_only_while_it_is_up(self, tmp_path):
+        """Nothing to point at on a panel that is not there, and its handle
+        would sit in the scene with no panel under it."""
+        assert REFERENCE not in self._screens(tmp_path)
+        assert REFERENCE in self._screens(tmp_path, reference_showing=True)
 
     def test_it_can_be_pressed_and_dragged(self, tmp_path):
         """Movable is what gives a screen the bar it is dragged by; without it

@@ -51,6 +51,16 @@ SOURCE_PORTRAIT = "portrait"
 SOURCE_LANDSCAPE = "landscape"
 SOURCE_DASH = "dash"
 SOURCE_SYSTEM = "system"
+# What each window is called on a filter button, where the full word will not
+# fit: the log panel's row of them, and the same row in the headset.
+SOURCE_LABELS: dict[str, str] = {
+    "main": "Main",
+    "portrait": "Sat",
+    "landscape": "Land",
+    "dash": "Dash",
+    "system": "Sys",
+}
+
 SOURCES: tuple[str, ...] = (
     SOURCE_MAIN,
     SOURCE_PORTRAIT,

@@ -288,19 +288,14 @@ def build_voice_commands(
     # command's own two words are order-agnostic too ("loop action" == "action
     # loop").
     _SATELLITE_GROUP_ACTIONS: dict[str, tuple[str, ...]] = {
-        # "loop actions"/"loop seeds" are the grid's names; the singular/reversed
-        # forms and "loop scene(s)" (scene == action) are kept as equivalents.
+        # "loop actions"/"loop seeds" are the grid's names; the singular and
+        # reversed forms and "loop scene(s)" are kept as equivalents.  Two lock
+        # scopes are aliases here, every satellite playlist running repeat-all:
+        # "lock seed" IS the action loop and "lock type" IS the seed loop.
         #
-        # Two of the grid's lock scopes are aliases here: because every satellite
-        # playlist runs repeat-all, "lock seed" (hold the seed, its acts vary) IS the
-        # action loop and "lock type" (the seed family) IS the seed loop.
-        #
-        # The scope named "all" is NOT among them.  "lock all" and "loop all" once
-        # meant the repeat-one lock and the whole unfiltered browse, reading "all" as
-        # everything the clip is pinned by — but the room's other "all" means all
-        # *players* ("all f mode"), and no listener can tell the two senses apart.
-        # They were second spellings of what "lock" and "reset" already say, so they
-        # went rather than being disambiguated.
+        # The scope named "all" is NOT among them: the room's other "all" means
+        # all *players* ("all f mode"), no listener can tell the senses apart,
+        # and they were second spellings of what "lock" and "reset" already say.
         "action_loop": ("action loop", "loop action", "loop actions", "loop scene", "loop scenes", "lock seed"),
         "seed_loop": ("seed loop", "loop seed", "loop seeds", "lock type"),
         # "more seeds" / "widen (the) net" widens cycle-seed's reach on demand until
@@ -380,15 +375,12 @@ def build_voice_commands(
         commands[f"main {_action_word}"] = f"main_{_action}"
         commands[f"{_action_word} main"] = f"main_{_action}"
 
-    # F-mode, per player, sayable by naming it in either order like the rest of
-    # the grid: "both" drives the two satellites, "main" the main player, "all"
-    # every player -- the F key.  Bare, it reaches the player last addressed,
-    # exactly as bare "lock" and "next" do; reading it as the whole room instead
-    # made a spoken "f mode" answer "enabled" on a room that already looked
-    # narrowed, one player having been turned off by name hours earlier.
-    #
-    # ``_FMODE_PHRASES`` pairs each phrase with the per-player suffix and the
-    # all-players command, spelled differently for the toggle alone.
+    # F-mode, per player, sayable in either order like the rest of the grid:
+    # "both" drives the satellites, "main" the main player, "all" every one --
+    # the F key.  Bare it reaches the player last addressed, as bare "lock" and
+    # "next" do; reading it as the whole room made a spoken "f mode" answer
+    # "enabled" on a room that already looked narrowed.  ``_FMODE_PHRASES``
+    # pairs each phrase with its per-player suffix and all-players command.
     _FMODE_PHRASES: dict[str, tuple[str, str]] = {
         "f mode": ("fmode", "fmode_toggle"),
         "f mode on": ("fmode_on", "fmode_on"),

@@ -13,6 +13,7 @@ from fun_time_vr.layout import (
     MIN_WIDTH_DEG,
     PORTRAIT,
     PRIMARY,
+    REFERENCE,
     clamp_placement,
     clamp_width,
     read_layout,
@@ -55,7 +56,7 @@ class TestTheDefaults:
     def test_only_the_screens_a_controller_places_are_in_here(self):
         """The console docks under the main player rather than being placed, so
         it is not one of these -- and a file naming it is ignored, not obeyed."""
-        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, DASH}
+        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, DASH, REFERENCE}
 
 
 class TestTheRememberedLayout:
