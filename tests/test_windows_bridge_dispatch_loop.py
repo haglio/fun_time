@@ -14,7 +14,12 @@ from app_support.threading_utils import wait_until
 
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, WindowOp
-from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
+from fun_time.manifest import (
+    LaunchManifest,
+    build_windows_bridge_manifest,
+    write_manifest_data,
+    write_windows_bridge_manifest,
+)
 from fun_time.media_metadata import normalize_path_key
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
@@ -2611,3 +2616,33 @@ class TestASessionThatHostsNoOrigenerator:
         runner.tick()
 
         assert runner.state.satellites_mode == "origenerator"
+
+
+class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
+    """Two of the session's paths were worked out from a neighbour's, so the
+    writer that owns the layout had no say in them: the state directory was
+    dashboard_state_file's parent, and the notice channel was nau_status_file
+    with the name swapped.  Both are keys now, and a manifest that says
+    something else is believed."""
+
+    def _manifest(self, cfg_factory, tmp_path, **overrides):
+        data = build_windows_bridge_manifest(load_config(cfg_factory()))
+        data["commands"].update(overrides)
+        return LaunchManifest.read(write_manifest_data(data, tmp_path / "manifest.ini"))
+
+    def test_the_state_dir_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+        manifest = self._manifest(
+            cfg_factory, tmp_path,
+            state_dir=str(tmp_path / "elsewhere"),
+            dashboard_state_file=str(tmp_path / "somewhere" / "dashboard_state.ini"))
+
+        assert build_bridge_config_from_manifest(manifest).state_dir == tmp_path / "elsewhere"
+
+    def test_the_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
+        manifest = self._manifest(
+            cfg_factory, tmp_path,
+            nau_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
+            nau_status_file=str(tmp_path / "somewhere" / "nau_status.txt"))
+
+        assert build_bridge_config_from_manifest(manifest).nau_notice_file == (
+            tmp_path / "elsewhere" / "notices.txt")

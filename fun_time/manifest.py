@@ -97,6 +97,8 @@ def build_windows_bridge_manifest(
             "audio_volume_file": str(config.audio_volume_file),
             "dashboard_state_file": str(config.paths.state_dir / "dashboard_state.ini"),
             "dashboard_cmd_file": str(config.paths.state_dir / "dashboard_cmd.txt"),
+            "state_dir": str(config.paths.state_dir),
+            "nau_notice_file": str(config.nau_notice_file),
             "origenerator_cmd_file": str(config.origenerator_cmd_file),
             "origenerator_paused_file": str(config.origenerator_paused_file),
             "origenerator_status_file": str(config.origenerator_status_file),
@@ -233,6 +235,8 @@ class CommandFiles:
     audio_volume_file: str
     dashboard_state_file: str
     dashboard_cmd_file: str
+    state_dir: str
+    nau_notice_file: str
     origenerator_status_file: str
     # The five a reader has always defaulted rather than demanded, kept
     # defaulted so this parse refuses nothing today's readers accept.
