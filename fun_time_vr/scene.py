@@ -1,15 +1,13 @@
 """The geometry of one screen in the VR scene: where a picture hangs, and the
 curved patch that carries it.
 
-Every screen is a gently curved patch of one cylinder around the viewer (a
-flat 2D video reads better with a slight wrap at this scale), built here as
+Every screen is a patch of one cylinder around the viewer, built here as
 triangle-strip vertices for the renderer to draw.  Immersive projections
 (equirect/fisheye) don't use these patches at all — they fill the view from a
 shader — so this module is the whole of the "windowed" layout.
 
-The satellites draw after (so over) the primary, which is what keeps them
-visible when a VR video wraps the entire hemisphere at their back — and is also
-why they may overlap the main player's edges.
+The satellites draw after (so over) the primary, which keeps them visible when a
+VR video wraps the hemisphere at their back, and lets them overlap its edges.
 """
 from __future__ import annotations
 
@@ -83,15 +81,12 @@ def quad_layer_placement(
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float], tuple[float, float]]:
     """Pose and size for the flat compositor quad standing in for a screen.
 
-    When the runtime composites a screen as an ``XrCompositionLayerQuad``, the
-    gently-curved patch flattens to its tangent plane: same center point on
-    the cylinder, yaw-only orientation facing the viewer (matching the
-    untilted columns of :func:`surface_vertices`), and a width chosen so the
-    flat quad subtends exactly the placement's width from the origin — the
-    sagitta of a curve this gentle is centimeters, so the swap reads identical
-    in the headset.  Returns ``(position, orientation_xyzw, (width, height))``
-    in the reference space's meters, height from *aspect* as ever.
-
+    The curved patch flattens to its tangent plane: same center point on the
+    cylinder, yaw-only orientation facing the viewer (matching the untilted
+    columns of :func:`surface_vertices`), and a width subtending exactly the
+    placement's width from the origin — which stands in for the curve only
+    while :func:`fits_a_quad_layer` holds.  Returns ``(position,
+    orientation_xyzw, (width, height))`` in the reference space's meters.
     """
     if aspect <= 0:
         raise ValueError(f"aspect must be positive, got {aspect}")
@@ -109,6 +104,13 @@ def quad_layer_placement(
     orientation = _quat_multiply(scene, orientation)
     width = 2.0 * radius * math.tan(math.radians(placement.width_deg) / 2.0)
     return position, orientation, (width, width / aspect)
+
+
+QUAD_LAYER_LIMIT_DEG = 180.0  # where the half-angle tangent above runs away
+
+
+def fits_a_quad_layer(placement: Placement) -> bool:
+    return placement.width_deg < QUAD_LAYER_LIMIT_DEG
 
 
 def attached_below(

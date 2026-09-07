@@ -46,12 +46,19 @@ class SatelliteVolume:
         if self._live and hit_part(cx, cy) == "track":
             self._apply("track", cx)
 
+    def toggle_mute(self) -> None:
+        if self._live:
+            self._set(replace(self._hud, muted=not self._hud.muted))
+
+    def set_level(self, volume: int) -> None:
+        if self._live:  # reaching for the slider lifts the mute, as Windows' mixer does
+            self._set(VolumeHud(volume=volume, muted=False))
+
     def _apply(self, part: str, cx: int) -> None:
         if part == "mute":
-            self._set(replace(self._hud, muted=not self._hud.muted))
+            self.toggle_mute()
         else:
-            # Reaching for the slider lifts the mute, as the Windows mixer does.
-            self._set(VolumeHud(volume=volume_at(cx), muted=False))
+            self.set_level(volume_at(cx))
 
     def _set(self, hud: VolumeHud) -> None:
         # Both, always: muted and turned-all-the-way-down look the same drawn.

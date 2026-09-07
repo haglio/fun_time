@@ -1,7 +1,7 @@
 """The main console, hanging in the headset -- what to put on it.
 
-The desktop paints it onto the main player's window; baked into an immersive
-video it would warp with it, so here it is a small screen of its own.
+The desktop paints it onto the main player's window.  Baked into an immersive
+video it would warp with it, down at the nadir, so here it is a screen of its own.
 """
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 
-import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from player_core.console import tooltip_at
 from player_core.console_hud import (
@@ -19,30 +18,26 @@ from player_core.console_hud import (
     hud_xy,
     with_playback_speed,
 )
-from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
-from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
 from shared_ui.palette import AMBER, BG_PRIMARY, GREEN, RED, TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.mode_plan import nau_displays
-from satellite.pointer import time_at
 
 from .notices import KEPT, Notice
 from .pointer import surface_pixel
 
-# Pixels across, held: the screen keeps one size between the modes and across
-# titles -- its angular width is fixed, so a bitmap that changed width would
-# rescale it all.
+# Pixels across, held: the screen keeps one size between the modes (the genau
+# rows are narrower) and across titles (elided), so its bitmap never rescales.
 PANEL_WIDTH_PX = 280
-
-_ROW_GAP = 6
+PANEL_WIDTH_DEG = 24.0  # its fixed angular width; it docks under the main player
+DEG_PER_PX = PANEL_WIDTH_DEG / PANEL_WIDTH_PX  # every control in the scene, one size
 
 # Segoe UI Bold, the face every HUD here is read at a glance in, at 9pt.
 _NOTICE_FONT_PX = 12
 _NOTICE_ROW_H = 15
 _NOTICE_PAD = 4
 
-# Held, the way the furniture row below is.
+# Held: one height whether or not anything is on it, so the panel never resizes.
 NOTICE_STRIP_HEIGHT = KEPT * _NOTICE_ROW_H + _NOTICE_PAD
 
 # fun_time.log_panel's own mapping.
@@ -143,62 +138,33 @@ def panel_hud(
     )
 
 
-def _rgba(bgra: np.ndarray) -> Image.Image:
-    return Image.fromarray(np.ascontiguousarray(bgra[:, :, [2, 1, 0, 3]]), "RGBA")
-
-
 def paint_panel(
     painter,
     hud: ConsoleHud,
     *,
-    scrubber: tuple[float, float] | None,
-    chip: VolumeHud,
-    chip_painter,
     hover: tuple[int, int] | None = None,
     notices: Sequence[Notice] = (),
 ) -> Image.Image:
-    """The console with the announcement strip over it and the furniture row
-    under it: the scrubber, given ``(position_ms, duration_ms)`` (None for a clip,
-    which loops -- the row keeps its height), and the chip at its right end."""
+    """The console with the announcement strip over it, and nothing else: every
+    player draws its own scrubber and volume slider over its own picture."""
     console_rgba, console_size = painter.rgba(hud, hover=hover)
     console = Image.frombytes("RGBA", console_size, console_rgba)
-    chip_image = _rgba(chip_painter.bgra(chip))
-    width = console.width
-    row_h = max(TIMELINE_HEIGHT, chip_image.height)
-    strip = paint_notices(notices, width)
-    height = strip.height + console.height + _ROW_GAP + row_h
-    panel = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    strip = paint_notices(notices, console.width)
+    panel = Image.new("RGBA", (console.width, strip.height + console.height), (0, 0, 0, 0))
     panel.alpha_composite(strip, (0, 0))
     panel.alpha_composite(console, (0, strip.height))
-    row_top = strip.height + console.height + _ROW_GAP
-    if scrubber is not None:
-        position_ms, duration_ms = scrubber
-        bar = _rgba(progress_bar_bgra(position_ms, duration_ms, None, width))
-        panel.alpha_composite(bar, (0, height - bar.height))
-    x, y = chip_xy(win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
-    panel.alpha_composite(chip_image, (max(0, x), max(row_top, y)))
     return panel
 
 
 class PanelPointer:
-    def __init__(
-        self, painter: ConsolePainter, *, post: Callable[[str], None],
-        seek: Callable[[float], None],
-    ) -> None:
+    def __init__(self, painter: ConsolePainter, *, post: Callable[[str], None]) -> None:
         self._painter = painter
         self._post = post
-        self._seek = seek
         self._size = (1, 1)
-        self._scrubber: tuple[float, float] | None = None
-        self._chip = VolumeHud()
-        self._sliding_volume = False
-        self._asked_volume = ""
         self._tip: tuple[str, tuple[int, int]] | None = None
 
-    def painted(
-        self, size: tuple[int, int], *, scrubber: tuple[float, float] | None, chip: VolumeHud,
-    ) -> None:
-        self._size, self._scrubber, self._chip = size, scrubber, chip
+    def painted(self, size: tuple[int, int]) -> None:
+        self._size = size
 
     def _pixel(self, u: float, v: float) -> tuple[int, int]:
         return surface_pixel(u, v, self._size)
@@ -208,40 +174,17 @@ class PanelPointer:
         px, py = self._pixel(u, v)
         return px, py - NOTICE_STRIP_HEIGHT
 
-    def _chip_part(self, px: int, py: int) -> tuple[str, int]:
-        width, height = self._size
-        cx, cy = chip_local(px, py, win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
-        return hit_part(cx, cy), cx
-
-    def _slide_volume(self, cx: int) -> None:
-        command = f"audio_set_volume|{volume_at(cx)}"
-        if command != self._asked_volume:
-            self._asked_volume = command
-            self._post(command)
-
     def press(self, u: float, v: float) -> None:
         self.release()
-        px, py = self._pixel(u, v)
-        part, cx = self._chip_part(px, py)
-        if part == "mute":
-            self._post("audio_unmute" if self._chip.muted else "audio_mute")
-        elif part == "track":
-            self._sliding_volume = True
-            self._slide_volume(cx)
-        elif self._scrubber is not None and py >= self._size[1] - TIMELINE_HEIGHT:
-            self._seek(time_at(px, win_w=self._size[0], duration_ms=self._scrubber[1]))
-        else:
-            left, top = hud_xy()
-            _, cy = self._console_pixel(u, v)
-            command = self._painter.press_at(px + left, cy + top)
-            if command:
-                self._post(command)
+        px, py = self._console_pixel(u, v)
+        left, top = hud_xy()
+        command = self._painter.press_at(px + left, py + top)
+        if command:
+            self._post(command)
 
     def drag(self, u: float, v: float) -> None:
-        px, py = self._pixel(u, v)
-        if self._sliding_volume:
-            self._slide_volume(self._chip_part(px, py)[1])
-        elif self._painter.holding:
+        if self._painter.holding:
+            px, py = self._pixel(u, v)
             left, top = hud_xy()
             _, cy = self._console_pixel(u, v)
             command = self._painter.drag_to(px + left, cy + top)
@@ -250,7 +193,6 @@ class PanelPointer:
 
     def release(self) -> None:
         self._painter.release()
-        self._sliding_volume, self._asked_volume = False, ""
 
     def tooltip_anchor(self, uv: tuple[float, float] | None) -> tuple[int, int] | None:
         """The tooltip's anchor, in the CONSOLE's pixels -- where its buttons are."""

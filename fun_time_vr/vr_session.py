@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import ctypes
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import glfw
@@ -67,17 +68,17 @@ def _either_hand(input_path: str) -> tuple[str, ...]:
 
 CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "/interaction_profiles/oculus/touch_controller": {
-        TILT: ("/user/hand/right/input/thumbstick/y",),
+        TILT: _either_hand("thumbstick/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
     },
     "/interaction_profiles/valve/index_controller": {
-        TILT: ("/user/hand/right/input/thumbstick/y",),
+        TILT: _either_hand("thumbstick/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
     },
     "/interaction_profiles/htc/vive_controller": {
-        TILT: ("/user/hand/right/input/trackpad/y",),
+        TILT: _either_hand("trackpad/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
     },
@@ -94,6 +95,12 @@ _ACTION_TYPES = {
 }
 _LOCATED = xr.SpaceLocationFlags.ORIENTATION_VALID_BIT | xr.SpaceLocationFlags.POSITION_VALID_BIT
 _NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
+
+
+def strongest(axes: Iterable[float]) -> float:
+    """The hand actually pushing: the bigger deflection of the two, sign kept.
+    The runtime's own rule left the left stick answering in a single direction."""
+    return max(axes, key=abs, default=0.0)
 
 
 def views_are_renderable(view_state_flags: int) -> bool:
@@ -239,7 +246,7 @@ class VRSession:
                     xr.ActionCreateInfo(
                         action_name=name,
                         action_type=action_type,
-                        subaction_paths=hand_paths if name != TILT else None,
+                        subaction_paths=hand_paths,
                         localized_action_name=name.replace("_", " ").title(),
                     ),
                 )
@@ -275,7 +282,7 @@ class VRSession:
                 xr.SessionActionSetsAttachInfo(action_sets=[self._action_set]),
             )
             self._actions_attached = True
-            logger.info("Controllers bound: the right stick tilts, either hand points and squeezes")
+            logger.info("Controllers bound: either hand tilts, points and squeezes")
         except Exception:
             logger.warning(
                 "No controller input: the verbs still tilt the scene", exc_info=True
@@ -294,11 +301,8 @@ class VRSession:
                     ],
                 ),
             )
-            tilt = xr.get_action_state_float(
-                self._session,
-                xr.ActionStateGetInfo(action=self._actions[TILT], subaction_path=0),
-            )
-            self.thumbstick_y = tilt.current_state if tilt.is_active else 0.0
+            self.thumbstick_y = strongest(
+                self._tilt_axis(path) for path in self._hand_paths.values())
             self.hands = {
                 hand: self._hand_input(hand, path, display_time)
                 for hand, path in self._hand_paths.items()
@@ -306,6 +310,13 @@ class VRSession:
         except xr.ResultException:
             self.thumbstick_y = 0.0  # a sleeping controller is not a dead frame loop
             self.hands = _NO_HANDS
+
+    def _tilt_axis(self, path: xr.Path) -> float:
+        tilt = xr.get_action_state_float(
+            self._session,
+            xr.ActionStateGetInfo(action=self._actions[TILT], subaction_path=path),
+        )
+        return tilt.current_state if tilt.is_active else 0.0
 
     def _hand_input(self, hand: str, path: xr.Path, display_time: int) -> HandInput:
         aim = None

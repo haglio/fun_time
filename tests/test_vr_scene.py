@@ -8,9 +8,11 @@ import pytest
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
     PRIMARY_WIDTH_DEG,
+    QUAD_LAYER_LIMIT_DEG,
     RADIUS,
     Placement,
     attached_below,
+    fits_a_quad_layer,
     quad_layer_placement,
     surface_vertices,
 )
@@ -82,6 +84,13 @@ class TestSurfaceVertices:
         # The middle of the arc bows away from the chord between the edges.
         assert z[len(z) // 2] < z[0]
         assert z[len(z) // 2] == pytest.approx(-RADIUS, abs=1e-5)
+
+    def test_a_screen_wider_than_a_half_turn_has_no_flat_stand_in(self):
+        """2R*tan(w/2) runs away at a half turn and inverts past it, so a screen
+        pulled that wide has to stay in the projection layer instead."""
+        assert fits_a_quad_layer(Placement(0.0, 0.0, PRIMARY_WIDTH_DEG))
+        assert not fits_a_quad_layer(Placement(0.0, 0.0, QUAD_LAYER_LIMIT_DEG))
+        assert not fits_a_quad_layer(Placement(0.0, 0.0, 300.0))
 
     def test_degenerate_aspect_is_rejected(self):
         with pytest.raises(ValueError):

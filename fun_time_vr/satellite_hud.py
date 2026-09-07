@@ -6,18 +6,13 @@ from collections.abc import Callable
 
 import numpy as np
 from player_core.satellite_hud import MARGIN
-from player_core.timeline import TIMELINE_HEIGHT
 
-from satellite.pointer import time_at
-
-from .console_panel import PANEL_WIDTH_PX
-from .layout import DEFAULT_LAYOUT, PANEL
+from .furniture import FurniturePointer
 from .pointer import surface_pixel
 
 PICTURE = "picture"
 HUD = "hud"
 HUD_GAP_DEG = 0.6
-HUD_DEG_PER_PX = DEFAULT_LAYOUT[PANEL].width_deg / PANEL_WIDTH_PX
 
 
 def hud_screen_name(side: str) -> str:
@@ -61,17 +56,27 @@ class HudSurface:
 class SatellitePointer:
     def __init__(
         self, *, hud, seek: Callable[[float], None], duration_ms: Callable[[], float],
+        volume, mute: Callable[[bool], None], set_volume: Callable[[int], None],
     ) -> None:
         self._hud = hud
-        self._seek = seek
         self._duration_ms = duration_ms
+        self._volume = volume
+        self._furniture = FurniturePointer(seek=seek, mute=mute, set_volume=set_volume)
 
     def press(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
-        px, py = surface_pixel(u, v, size)
         if kind == HUD:
+            px, py = surface_pixel(u, v, size)
             self._hud.press(px + MARGIN, py + MARGIN)
-        elif py >= size[1] - TIMELINE_HEIGHT:
-            self._seek(time_at(px, win_w=size[0], duration_ms=self._duration_ms()))
+        else:
+            self._furniture.press(
+                u, v, size=size, duration_ms=self._duration_ms(), muted=self._volume().muted)
+
+    def drag(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
+        if kind != HUD:
+            self._furniture.drag(u, v, size=size, duration_ms=self._duration_ms())
+
+    def release(self) -> None:
+        self._furniture.release()
 
     def hover(self, kind: str, uv: tuple[float, float] | None, *, size: tuple[int, int]) -> None:
         if kind == HUD and uv is not None:
