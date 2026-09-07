@@ -64,12 +64,11 @@ class CancelOption:
     Startup's carries one; shutdown's carries none — nothing is left to abort —
     so that cover never takes the focus either."""
 
-    hint: str
-    """Shown under the bar until the key is pressed."""
+    hint: str  # shown under the bar until the key is pressed
 
     pending: str
-    """The status line holds this from the keypress onward, so a step message
-    still in flight cannot flip it back to business as usual."""
+    """Held from the keypress on, so a step message still in flight cannot flip
+    the line back to business as usual."""
 
     request: Callable[[], None]
     """Asks the orchestrator to stop."""
@@ -81,9 +80,7 @@ class CancelOption:
 
 
 @dataclass(frozen=True)
-class _Content:
-    """The three widgets the cover writes to as it runs."""
-
+class _Content:  # the three widgets the cover writes to as it runs
     status_label: tk.Label
     progress_var: tk.DoubleVar
     hint_label: tk.Label
@@ -108,9 +105,8 @@ def _apply_theme(root: tk.Tk) -> None:
 
 def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
                    hint: str) -> _Content:
-    """The panel in the middle: icon, wordmark, status, bar, hint.  Centred on
-    the main player's monitor, not the virtual desktop's midpoint, which may
-    fall between two of them."""
+    """The panel in the middle, centred on the main player's monitor rather
+    than the virtual desktop's midpoint, which may fall between two."""
     frame = ttk.Frame(root, padding=24, style="FunTime.TFrame")
     origin_x, origin_y = origin
     frame.place(

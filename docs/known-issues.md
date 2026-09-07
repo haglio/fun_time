@@ -18,9 +18,11 @@
     reason — the moment between `launch.vbs` and the cover's first paint shows
     the user's desktop — it is just much shorter there, because starting a
     tkinter window is not starting a VR runtime.
-  - What IS ours in that stretch is already handled: the cover's progress file
-    is written before the player is launched, so the bar is where the launch
-    actually is from the very first frame the headset can show.
+  - What IS ours in that stretch is already handled: the cover goes up before
+    the players are built rather than after (the compositor holds that frame
+    through the seconds of mpv bring-up), and its progress file is written
+    before the player is launched, so the bar is where the launch actually is
+    from the very first frame the headset can show.
 
 ## FunTimeVR: What a VR Session Does Not Launch
 

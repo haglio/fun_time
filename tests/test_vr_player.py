@@ -517,6 +517,32 @@ class TestTheCoverUnit:
         unit.settled()
         assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
+    def test_an_idle_state_dir_wants_no_cover_at_all(self, tmp_path, cover_graphics):
+        """A player run with no orchestrator -- the integration suite -- must
+        not be held at bring-up waiting for a cover that is not coming."""
+        assert not _CoverUnit(tmp_path).wanted
+
+    def test_a_launch_in_progress_wants_one(self, tmp_path, cover_graphics):
+        PhaseProgress(tmp_path / PROGRESS_FILENAME,
+                      phases=VR_STARTUP_PHASES).advance("players")
+
+        assert _CoverUnit(tmp_path).wanted
+
+    def test_the_anchor_is_let_go_when_the_cover_does(self, tmp_path, cover_graphics):
+        """So the closing cover hangs where the viewer is by then, not where
+        the loading one was, a whole session earlier."""
+        progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
+        progress.advance("players")
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+        assert unit.anchor.heading(1.2) == pytest.approx(1.2)
+
+        progress.finish()
+        unit.pump(threading.Event(), 0.0)
+        unit.render_latest_frame()
+
+        assert unit.anchor.heading(2.9) == pytest.approx(2.9)
+
     def test_the_player_ending_on_its_own_raises_its_own_closing_cover(
             self, tmp_path, cover_graphics):
         """Its window was closed, so nobody is going to write a shutdown file —
@@ -569,3 +595,23 @@ class TestWhenTheRoomIsUp:
         room["primary"] = SimpleNamespace(target=_picture(False))
 
         assert _scene_is_up(**room)
+
+
+def test_the_cover_goes_up_before_the_players_are_built():
+    """Built first and shown after, it was on screen for the tail of a launch
+    that had already finished -- which is why none of it was ever seen."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    calls = {}
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            calls.setdefault(ast.unparse(node.func), node.lineno)
+
+    assert calls["_CoverUnit"] < calls["_MainUnit"]
+    assert calls["_raise_the_cover"] < calls["_MainUnit"]
+    assert calls["_raise_the_cover"] < calls["_SatelliteUnit"]
+    assert calls["_raise_the_cover"] < calls["_PanelUnit"]

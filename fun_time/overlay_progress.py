@@ -6,10 +6,9 @@ ends in the headset — and each watches a progress file in the state dir for ho
 far the orchestrator has got.  This module is that channel: the file names, the
 phases, and the writer on the orchestrator's side.
 
-Esc reaches an orchestrator two ways — a cover's own binding, which needs the
-focus, and the hotkey script's hook, which does not and so still works once
-something else has taken it — so a cover follows the FLAG, not a keypress, and
-stays up reading "Cancelling..." until the teardown finishes.
+Esc reaches an orchestrator two ways — a cover's binding, which needs the focus,
+and the hotkey script's hook, which does not — so a cover follows the FLAG, not
+a keypress, and stays up reading "Cancelling..." until the teardown finishes.
 """
 from __future__ import annotations
 
@@ -92,19 +91,15 @@ def loading_cover_is_up(state_dir: Path) -> bool:
     The file exists for the duration of startup, so its presence answers this.
     Distinct from :func:`startup_still_building`, which goes False one phase
     earlier: a window that must be IN PLACE when the cover lifts asks that one,
-    anything seen THROUGH the cover asks this one.
-    """
+    anything seen THROUGH the cover asks this one."""
     return (Path(state_dir) / PROGRESS_FILENAME).exists()
 
 
 def startup_still_building(state_dir: Path) -> bool:
     """True while startup is still assembling the room, so a companion window of
-    the session's own must stay out of the cover's way.
-
-    Goes False one phase EARLY, at the final weightless phase with the cover
-    still up: a companion that waited for the lift would arrive late on a room
-    that was supposed to be finished.  A missing file answers False.
-    """
+    the session's own must stay out of the cover's way.  Goes False one phase
+    EARLY, at the final weightless phase with the cover still up: a companion
+    that waited for the lift would arrive late on a finished room."""
     path = Path(state_dir) / PROGRESS_FILENAME
     try:
         progress = parse_progress(path.read_text(encoding="utf-8"))
@@ -116,8 +111,8 @@ def startup_still_building(state_dir: Path) -> bool:
 
 @dataclass(frozen=True)
 class Phase:
-    """One reported step: what to call it, and how much of the bar it spans.
-    What a weight measures is each sequence's own business."""
+    """One reported step: what to call it, and how much of the bar it spans;
+    what a weight measures is each sequence's own business."""
 
     key: str
     message: str
@@ -204,9 +199,7 @@ class PhaseProgress:
         self._progress_file.write_text("DONE", encoding="utf-8")
 
 
-class NullProgress:
-    """Silent no-op progress reporter for integration mode."""
-
+class NullProgress:  # silent no-op reporter, for integration mode
     cancelled = False
 
     def advance(self, phase: str) -> None:
