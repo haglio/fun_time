@@ -60,7 +60,11 @@ pytestmark = [
 # A fabricated stand-in for the hosted app: parses the --fun-time contract
 # loosely, boots the way the real one does — a short-lived splash wearing the
 # app's caption FIRST (the twin that once got cached as the app), then the
-# main window, parked (iconified) and topmost — and exits on QUIT.
+# main window, parked (iconified) and topmost — and exits on QUIT.  It
+# publishes the status file too, from the same poll and only once booted, which
+# is what the real app's Fun Time bridge does and what the session's reveal now
+# waits on: a stub that stayed silent there would hold every launch here for
+# the full boot budget.
 _STUB_MAIN = textwrap.dedent(
     """
     import argparse
@@ -74,16 +78,20 @@ _STUB_MAIN = textwrap.dedent(
         for field in ("x", "y", "width", "height"):
             parser.add_argument(f"--{side}_{field}", type=int, default=0)
     parser.add_argument("--command-file")
+    parser.add_argument("--status-file")
     args, _rest = parser.parse_known_args()
 
     root = tk.Tk()
     root.withdraw()  # the main window arrives only after the "boot"
+
+    booted = False
 
     splash = tk.Toplevel(root)
     splash.title("Origenerator")  # the caption twin the session must survive
     splash.geometry("200x80+10+10")
 
     def finish_boot():
+        global booted
         splash.destroy()
         root.title("Origenerator")
         root.geometry(
@@ -91,6 +99,7 @@ _STUB_MAIN = textwrap.dedent(
         root.attributes("-topmost", True)
         root.deiconify()
         root.iconify()  # boots parked, like the real app
+        booted = True  # only now does the real app's bridge start publishing
 
     shows = {}
 
@@ -115,6 +124,17 @@ _STUB_MAIN = textwrap.dedent(
             show.destroy()
         shows.clear()
 
+    def publish_status():
+        if not args.status_file or not booted:
+            return
+        lines = []
+        for side in ("portrait", "landscape"):
+            lines.append(f"{side}_active={'1' if side in shows else '0'}")
+            lines.append(f"{side}_video=")
+            lines.append(f"{side}_locked=0")
+        Path(args.status_file).write_text(
+            "".join(f"{line}\\n" for line in lines), encoding="utf-8")
+
     def poll():
         command_file = Path(args.command_file) if args.command_file else None
         if command_file is not None and command_file.exists():
@@ -131,6 +151,7 @@ _STUB_MAIN = textwrap.dedent(
                 open_shows()
             if "CLOSE_SHOWS" in verbs:
                 close_shows()
+        publish_status()
         root.after(150, poll)
 
     root.after(3000, finish_boot)

@@ -4,10 +4,9 @@ The main slot's modes (:mod:`fun_time.mode_plan`) decide which player owns the
 secondary monitor's shared rect; this axis decides what the whole satellite
 side shows.  In ``video`` mode it is the session as ever: the Random Favs
 Browser and the two satellite players.  In ``origenerator`` mode the hosted
-Origenerator sits over the RFB's rect, and the slideshows it opens land over
-the satellite players — so the players keep playing until a show actually
-covers one, and the covered one pauses while it is covered (the dispatch loop
-reads that off Origenerator's status file).
+Origenerator sits over the RFB's rect and the shows it opens cover the two
+players, which keep playing underneath.  Which regions it has filled is what
+its status file says, and startup holds the loading screen on that.
 
 Like the main modes, switching is cheap and total: nothing is torn down.  The
 Origenerator process runs for the whole session (parked while in video mode),

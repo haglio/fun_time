@@ -32,11 +32,13 @@ from fun_time.window_layout import (
 from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from fun_time.windows_bridge_sequencer import (
     NAU_LOAD_TIMEOUT_S,
+    ORIGENERATOR_BOOT_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     _maybe_launch_random_favs_browser,
     _resolve_satellite_hwnds,
     _wait_for_nau_loaded,
     _wait_for_players_drawing,
+    _wait_for_the_hosted_app,
     release_the_players,
     run_startup_sequence,
 )
@@ -170,6 +172,24 @@ def _fake_nau(**kwargs):
     """
     Path(kwargs["status_file"]).write_text("video=this_session.mp4\n", encoding="utf-8")
     return NAU_PID
+
+
+ORIGENERATOR_PID = 91
+
+
+def _fake_origenerator(**kwargs):
+    """The hosted app, launched and up: both regions occupied in its status file.
+
+    Written for the same reason ``_fake_nau`` writes Nau's — the overlay is
+    held on this file now — and written full, since a status saying the app
+    answers but shows nothing is what holds a session in origenerator mode.
+    """
+    Path(kwargs["status_file"]).write_text(
+        "portrait_active=1\nportrait_video=\nportrait_locked=0\n"
+        "landscape_active=1\nlandscape_video=\nlandscape_locked=0\n",
+        encoding="utf-8",
+    )
+    return ORIGENERATOR_PID
 
 
 def test_phase_result_files_are_unique_per_launch(tmp_path, monkeypatch):
@@ -1035,6 +1055,7 @@ class TestNauGatesTheReveal:
             "companions",
             "players",
             f"wait-for-nau:{cfg.nau_status_file}",
+            "origenerator",
             "windows",
             "finalizing",
         ]
@@ -1397,14 +1418,18 @@ class TestOrigeneratorLaunch:
 
 
 class TestOrigeneratorUnderTheOverlay:
-    def test_a_resumed_origenerator_session_restores_the_window_before_the_reveal(
-        self, cfg_factory, tmp_path
-    ):
-        """The loading screen exists so the room is set up before it is seen —
-        the hosted window used to pop up seconds after the reveal.  A session
-        opening in origenerator mode now holds the overlay for that window,
-        restores it under the curtain, and carries the mode out so the
-        post-overlay pass bands it over the RFB."""
+    """The curtain stays up until the hosted app is ready, whatever the mode.
+
+    Three rounds of "it still isn't ready when the loading screen goes away"
+    came from timing the reveal on things that are not readiness: first nothing
+    at all (the window arrived in front of him after the reveal), then the
+    window (which is built before the regions are filled, and says nothing
+    about a video-mode session whose "generator mode" then went unanswered for
+    twenty seconds).  The signal is the app's own status file, which it writes
+    from its poll of the session's channels.
+    """
+
+    def _hosted(self, cfg_factory, tmp_path, *, satellites_mode: str = "video"):
         from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 
         cfg = load_config(cfg_factory({"paths": {
@@ -1413,17 +1438,35 @@ class TestOrigeneratorUnderTheOverlay:
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        write_shared_state(shared_state_path(tmp_path),
-                           BridgeState(satellites_mode="origenerator"))
+        if satellites_mode != "video":
+            write_shared_state(shared_state_path(tmp_path),
+                               BridgeState(satellites_mode=satellites_mode))
+        return cfg, manifest_path
 
-        with _sequencer_stubs(launch_origenerator=dict(return_value=91), find_window_for_process=dict(return_value=7171), restore_window=dict()) as stubs:
+    def test_a_resumed_origenerator_session_restores_the_window_before_the_reveal(
+        self, cfg_factory, tmp_path
+    ):
+        """The loading screen exists so the room is set up before it is seen —
+        the hosted window used to pop up seconds after the reveal.  A session
+        opening in origenerator mode holds the overlay for that window,
+        restores it under the curtain, and carries the mode out so the
+        post-overlay pass bands it over the RFB."""
+        cfg, manifest_path = self._hosted(
+            cfg_factory, tmp_path, satellites_mode="origenerator")
+
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator), find_window_for_process=dict(return_value=7171), restore_window=dict(), _wait_for_the_hosted_app=dict(wraps=windows_bridge_sequencer._wait_for_the_hosted_app)) as stubs:
             resolve = stubs.find_window_for_process
             restore = stubs.restore_window
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
 
-        resolve.assert_called_with(91, "Origenerator")
+        # On the app's own status file, and holding out for the shows: the
+        # window it restores below is built several seconds before they open.
+        waited = stubs._wait_for_the_hosted_app.call_args
+        assert waited.args[0] == Path(cfg.origenerator_status_file)
+        assert waited.kwargs["shows"] is True
+        resolve.assert_called_with(ORIGENERATOR_PID, "Origenerator")
         restore.assert_called_once_with(7171, activate=False)
         assert result.satellites_mode == "origenerator"
         assert result.role_hwnds["origenerator"] == 7171
@@ -1433,23 +1476,30 @@ class TestOrigeneratorUnderTheOverlay:
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(
             encoding="utf-8").split() == ["OPEN_SHOWS"]
 
-    def test_a_player_mode_session_never_waits_on_the_hosted_boot(
+    def test_a_player_mode_session_waits_for_the_app_but_leaves_it_parked(
         self, cfg_factory, tmp_path
     ):
-        cfg = load_config(cfg_factory({"paths": {
-            "origenerator_dir": str(tmp_path / "origenerator"),
-        }}))
-        manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
+        """Video mode waits for the app to ANSWER and no further.
 
-        with _sequencer_stubs(launch_origenerator=dict(return_value=91), find_window_for_process=dict(), restore_window=dict()) as stubs:
+        It waits because the hosted app is a child of every session, parked or
+        not, and a room revealed while one is still booting is a room that
+        looks finished and cannot answer "generator mode" for another twenty
+        seconds.  It waits no further because there is nothing of the app to
+        see in this mode: the window stays parked, and parked is the mode's own
+        state rather than a window to place.
+        """
+        cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator), find_window_for_process=dict(), restore_window=dict(), _wait_for_the_hosted_app=dict(wraps=windows_bridge_sequencer._wait_for_the_hosted_app)) as stubs:
             resolve = stubs.find_window_for_process
             restore = stubs.restore_window
             result = run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
 
+        waited = stubs._wait_for_the_hosted_app.call_args
+        assert waited.args[0] == Path(cfg.origenerator_status_file)
+        assert waited.kwargs["shows"] is False
         resolve.assert_not_called()   # the parked window is the mode's own state
         restore.assert_not_called()
         assert result.satellites_mode == "video"
@@ -1459,24 +1509,137 @@ class TestOrigeneratorUnderTheOverlay:
         # would fill the regions of a session that opened in video mode.
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
 
+    def test_a_session_without_a_hosted_app_waits_for_nothing(
+        self, cfg_factory, tmp_path
+    ):
+        """No checkout configured, no wait — and the phase is still reported,
+        because the bar is built from a table the walk has to fire in full."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        progress = _TrackingProgress()
+
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_the_hosted_app=dict()) as stubs:
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path,
+                progress=progress, hide_windows=True,
+            )
+
+        stubs._wait_for_the_hosted_app.assert_not_called()
+        assert "origenerator" in progress.phases
+
     def test_a_stranded_verb_is_cleared_before_the_hosted_app_can_read_it(
         self, cfg_factory, tmp_path
     ):
-        cfg = load_config(cfg_factory({"paths": {
-            "origenerator_dir": str(tmp_path / "origenerator"),
-        }}))
-        manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
+        cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
         (cfg.paths.state_dir / "origenerator_cmd.txt").write_text(
             "PORTRAIT_NEXT\n", encoding="utf-8")  # last session's, never drained
 
-        with _sequencer_stubs(launch_origenerator=dict(return_value=91)):
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
 
         assert (cfg.paths.state_dir / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""
+
+    def test_a_boot_that_never_answers_still_reveals(self, cfg_factory, tmp_path, caplog):
+        """A stalled hosted app does not get to keep the desktop, and this is
+        also where a wait rewritten to watch a clock would be caught: the
+        suite's frozen ``monotonic`` never reaches a deadline, so a clocked
+        loop here hangs the run instead of ending it.
+        """
+        cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
+
+        with caplog.at_level(logging.WARNING), _sequencer_stubs(
+            launch_origenerator=dict(return_value=ORIGENERATOR_PID),  # publishes nothing
+        ):
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        assert result.origenerator_pid == ORIGENERATOR_PID
+        assert "Origenerator was not answering" in caplog.text
+
+    def test_last_sessions_status_cannot_answer_this_sessions_wait(
+        self, cfg_factory, tmp_path
+    ):
+        """The stale-file trap Nau's wait already names, on this file too: a
+        status left by the last session says both regions are up before this
+        app has drawn anything, so the reveal it releases is the bug.
+        """
+        cfg, manifest_path = self._hosted(cfg_factory, tmp_path)
+        status_file = Path(cfg.origenerator_status_file)
+        status_file.parent.mkdir(parents=True, exist_ok=True)
+        status_file.write_text("portrait_active=1\nlandscape_active=1\n", encoding="utf-8")
+        seen: dict = {}
+
+        def capture(**kwargs):
+            seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
+            return _fake_origenerator(**kwargs)
+
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
+            )
+
+        assert seen["stale_at_launch"] is False
+
+
+class TestWaitingForTheHostedApp:
+    """What the curtain is actually held on: the app's status file.
+
+    Its WINDOW is not the signal, for the same reason Nau's caption is not
+    Nau's — it is built at the end of a boot whose last act opens a gallery,
+    and in origenerator mode the region shows arrive several seconds after it.
+    """
+
+    def _progress(self, *, cancelled: bool = False):
+        return SimpleNamespace(cancelled=cancelled)
+
+    def test_the_file_existing_is_enough_for_a_video_mode_session(self, tmp_path):
+        status = tmp_path / "origenerator_status.txt"
+        status.write_text("portrait_active=0\nlandscape_active=0\n", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+            assert _wait_for_the_hosted_app(
+                status, self._progress(), shows=False) is True
+
+    def test_origenerator_mode_waits_for_both_regions_to_be_occupied(self, tmp_path):
+        """A window is up and the app is answering, and the room is still not
+        ready: the mode means both regions playing, and one still empty is the
+        black rectangle he watched fill itself in after the reveal."""
+        status = tmp_path / "origenerator_status.txt"
+        status.write_text("portrait_active=1\nlandscape_active=0\n", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+            assert _wait_for_the_hosted_app(
+                status, self._progress(), shows=True, timeout_s=1.0) is False
+
+            status.write_text("portrait_active=1\nlandscape_active=1\n", encoding="utf-8")
+            assert _wait_for_the_hosted_app(
+                status, self._progress(), shows=True) is True
+
+    def test_a_boot_that_never_arrives_gives_up_rather_than_wedging_startup(self, tmp_path):
+        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+            assert _wait_for_the_hosted_app(
+                tmp_path / "never.txt", self._progress(), shows=False, timeout_s=1.0,
+            ) is False
+
+    def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self, tmp_path):
+        """The longest stretch of startup is the likeliest one for Esc to be
+        pressed during, and the overlay covering it says it can be."""
+        with patch("fun_time.windows_bridge_sequencer.time.sleep") as slept:
+            with pytest.raises(StartupCancelled):
+                _wait_for_the_hosted_app(
+                    tmp_path / "never.txt", self._progress(cancelled=True), shows=False)
+
+        slept.assert_not_called()
+
+    def test_the_wait_for_the_hosted_app_cannot_outlast_the_overlay(self):
+        """This phase writes the progress file once, at its start, and the
+        overlay takes itself down when that file has gone STALE_TIMEOUT_S
+        without changing.  Both of the phase's waits run under that one write:
+        the boot, then the window resolve that follows a boot which timed out.
+        """
+        assert ORIGENERATOR_BOOT_TIMEOUT_S + WINDOW_RESOLVE_TIMEOUT_S < STALE_TIMEOUT_S
 
 
 class TestWaitingForThePlayersToDraw:

@@ -592,8 +592,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
     # are blacked and held for the whole mode and the shows cover them on
     # purpose, so a loop that re-promotes a "buried" player buries the show
     # instead — for its full twelve seconds, which is a picture and then a black
-    # rectangle, on a session that opened in the mode.  A show not up yet
-    # resolves to 0 and is skipped; the next re-band adopts it.
+    # rectangle, on a session that opened in the mode.
     owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
     _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
     portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())
@@ -614,12 +613,10 @@ def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
     blacked and held for the whole mode, so "the player is covered" is the
     normal state there rather than a burial to undo.
 
-    A callable rather than a pair, because the shows arrive on the hosted app's
-    own schedule -- it opens them once it has a library to open them with,
-    which can be after this session has revealed.  Resolved once up front, a
-    show that was not up yet answered 0, was never settled, and stayed under
-    the player promoted a moment earlier: a picture, and then a black rectangle
-    wearing the satellite's own HUD.
+    A callable rather than a pair: a show can still arrive mid-settle where
+    the hosted boot outran the reveal's wait for it, and one resolved as 0 up
+    front was never settled — it stayed under the player promoted a moment
+    earlier, a picture and then a black rectangle wearing the player's own HUD.
     """
     hosted = bool(result.origenerator_pid) and result.satellites_mode == "origenerator"
 

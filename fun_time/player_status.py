@@ -173,6 +173,37 @@ def read_genau_status(path: Path) -> GenauStatus:
         return GenauStatus()
 
 
+@dataclass(frozen=True)
+class OrigeneratorStatus:
+    """What the hosted Origenerator has on its two regions: the occupancy
+    flags alone, which is all startup's wait for the shows reads."""
+
+    portrait_active: bool = False
+    landscape_active: bool = False
+
+    @property
+    def shows_are_up(self) -> bool:
+        """Both regions occupied — what origenerator mode means, complete."""
+        return self.portrait_active and self.landscape_active
+
+
+def read_origenerator_status(path: Path) -> OrigeneratorStatus | None:
+    """The hosted app's published status, or None when it has published none —
+    None rather than a default snapshot because the file EXISTING is the signal
+    startup waits on, written from a poll that turns only once the app's window
+    is built."""
+    if not path.exists():
+        return None
+    try:
+        values = read_key_values(path)
+    except (OSError, ValueError):
+        return None
+    return OrigeneratorStatus(
+        portrait_active=_status_bool(values, "portrait_active"),
+        landscape_active=_status_bool(values, "landscape_active"),
+    )
+
+
 def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
     age = stamp_age(path, now)
     return age is not None and age < max_age_seconds
