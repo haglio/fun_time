@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import xr
 
-from fun_time_vr.vr_session import VRSession, views_are_renderable
+from fun_time_vr.vr_session import VRSession, views_are_renderable, views_are_tracked
 
 
 def test_a_fully_tracked_view_is_renderable():
@@ -36,6 +36,25 @@ def test_an_unlocated_view_is_not_renderable():
     which is a zero-width frustum and a division by zero in the projection."""
     assert views_are_renderable(0) is False
     assert views_are_renderable(xr.ViewStateFlags.POSITION_VALID_BIT) is False
+
+
+def test_renderable_is_not_the_same_question_as_tracked():
+    """The distinction the loading panel turned on: a VALID orientation is a
+    last-known or predicted pose, good enough to draw from and useless for
+    deciding where a thing has to be so that he sees it.  Placed off a merely
+    valid pose, the panel sat at the reference space's forward while he was
+    facing somewhere else, and he reported no loading screen at all."""
+    valid_only = xr.ViewStateFlags.ORIENTATION_VALID_BIT
+
+    assert views_are_renderable(valid_only) is True
+    assert views_are_tracked(valid_only) is False
+    assert views_are_tracked(valid_only | xr.ViewStateFlags.ORIENTATION_TRACKED_BIT) is True
+
+
+def test_an_untracked_view_is_still_worth_drawing():
+    """Waiting for TRACKED to draw would put the runtime's own environment back
+    over a session that has a perfectly good pose to render from."""
+    assert views_are_renderable(xr.ViewStateFlags.ORIENTATION_VALID_BIT) is True
 
 
 class _SessionStateEvents:

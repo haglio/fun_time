@@ -70,6 +70,7 @@ class MainRole:
             raise ValueError(f"primary playlist is empty: {playlist_file}")
         self._index = 0
         self._paused = start_paused
+        self._held_at: float | None = None  # see set_paused
         self._speed = 1.0
         self._tcode_enabled = True
         self._locked = True
@@ -221,6 +222,16 @@ class MainRole:
             return
         self._paused = paused
         self._player.set_paused(paused)
+        # Un-pausing is a request, not a picture; the device led it on every reveal.
+        self._held_at = None if paused else self._player.position_ms
+
+    def _the_picture_is_moving(self) -> bool:
+        if self._held_at is None:
+            return True
+        if self._player.position_ms == self._held_at:
+            return False
+        self._held_at = None
+        return True
 
     def tick(self, now: float) -> None:
         """One turn of the pump: step off the end of an unlocked video, then
@@ -228,6 +239,8 @@ class MainRole:
         while unscripted, silent while paused or handed to the Robot Hand."""
         self._step_at_eof()
         if self._paused or not self._tcode_enabled:
+            return
+        if not self._the_picture_is_moving():
             return
         if self._funscript is not None:
             self._driver.update(

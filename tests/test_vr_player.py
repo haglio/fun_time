@@ -1026,6 +1026,11 @@ def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
                if isinstance(n, ast.Assign)
                and ast.unparse(n.targets[0]) == "cover.awaiting_wearer"]
 
+    (settled,) = [n for n in ast.walk(tree)
+                  if isinstance(n, ast.Assign)
+                  and ast.unparse(n.targets[0]) == "cover.anchor_settled"]
+    assert ast.unparse(settled.value) == "cover_seen.dwelt and session.views_tracked"
+
     assert ast.unparse(told.value).replace("(", "").replace(")", "") == (
         "room_is_up and not session.focused"
     )

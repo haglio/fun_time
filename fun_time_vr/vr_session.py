@@ -107,6 +107,11 @@ def views_are_renderable(view_state_flags: int) -> bool:
     return bool(view_state_flags & xr.ViewStateFlags.ORIENTATION_VALID_BIT)
 
 
+def views_are_tracked(view_state_flags: int) -> bool:
+    # Following a head, not merely valid -- VALID can be a guessed pose.
+    return bool(view_state_flags & xr.ViewStateFlags.ORIENTATION_TRACKED_BIT)
+
+
 class VRSession:
     """The OpenXR instance, session, reference space, and per-eye swapchains."""
 
@@ -117,6 +122,7 @@ class VRSession:
         self._session = None
         self._space = None
         self._session_state = xr.SessionState.UNKNOWN
+        self.views_tracked = False  # per frame_begin: does this pose follow him
         self._session_begun = False
         self.swapchains: list[SwapchainInfo] = []
         self.quad_swapchains: dict[int, SwapchainInfo] = {}
@@ -473,8 +479,9 @@ class VRSession:
             )
             if views_are_renderable(view_state.view_state_flags):
                 views = list(views_raw)
-            else:
-                should_render = False
+            self.views_tracked = bool(views) and views_are_tracked(
+                view_state.view_state_flags)
+            should_render = bool(views)
             self._note_view_locatability(bool(views))
 
         return should_render, frame_state.predicted_display_time, views

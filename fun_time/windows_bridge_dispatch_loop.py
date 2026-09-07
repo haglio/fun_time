@@ -17,6 +17,7 @@ from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
 
 from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
+from .broker_control import PARK_CMD, write_broker_command
 from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import (
@@ -434,6 +435,9 @@ class DispatchLoopRunner:
             notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM)
             return
         logger.info("Handing this session over to %s", target.app_name)
+        if self.config.broker_cmd_file is not None:
+            # Here, not in the session being started: its park was 2s later.
+            write_broker_command(self.config.broker_cmd_file, PARK_CMD)
         request_handoff(self.config.state_dir, target)
         self.ahk_cmd_file.write_text("exit", encoding="utf-8")
 

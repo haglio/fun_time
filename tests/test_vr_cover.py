@@ -485,11 +485,12 @@ class TestWhereTheCoverHangs:
 
         assert anchor.heading(2.9) == pytest.approx(0.0)
 
-    def test_it_follows_him_until_he_is_at_the_lenses(self):
+    def test_it_follows_him_until_the_panel_has_been_read(self):
         """Latched on the first frame drawn, the heading is whatever pose the
-        runtime had then -- and it answers ORIENTATION_VALID with a predicted
-        one long before it is following a head.  The panel sat where he was
-        not looking, and the loading screen he never saw was there all along."""
+        runtime had then -- his run placed it at 0 degrees, the reference
+        space's forward, while he was facing somewhere else.  It follows his
+        head until the panel has actually been in front of him, so wherever he
+        looks it is there; then it holds still to be read."""
         anchor = CoverAnchor()
 
         assert anchor.heading(1.2, settled=False) == pytest.approx(1.2)

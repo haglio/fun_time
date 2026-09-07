@@ -370,6 +370,37 @@ class TestTCode:
         assert driver.updates == []
         assert driver.parks == 0
 
+    def test_unpausing_holds_the_device_until_the_picture_moves(self, role_parts):
+        """Un-pausing is a request, not a picture: mpv takes frames to start
+        presenting, and the device led it by that much every time a session was
+        revealed -- which is what he felt as the OSR2 starting before the video."""
+        role, driver, player = role_parts.role, role_parts.driver, role_parts.player
+        role.set_paused(True)
+        role.set_paused(False)
+
+        role.tick(now=1.0)
+        assert driver.updates == []
+        assert driver.parks == 0
+
+        player.position_ms += 40
+        role.tick(now=1.1)
+
+        assert driver.updates or driver.parks
+
+    def test_a_picture_that_has_moved_once_is_not_asked_again(self, role_parts):
+        """The gate is the resume's own edge, not a per-tick liveness check: a
+        video legitimately still between frames must not stop the device."""
+        role, driver, player = role_parts.role, role_parts.driver, role_parts.player
+        role.set_paused(True)
+        role.set_paused(False)
+        player.position_ms += 40
+        role.tick(now=1.0)
+        drove = len(driver.updates) + driver.parks
+
+        role.tick(now=1.1)  # the same position, one tick later
+
+        assert len(driver.updates) + driver.parks > drove
+
     def test_navigation_resets_the_driver_edge_gate(self, role_parts):
         role, driver = role_parts.role, role_parts.driver
         resets_at_start = driver.resets
