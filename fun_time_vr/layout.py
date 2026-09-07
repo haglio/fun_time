@@ -26,8 +26,9 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
     PRIMARY: PRIMARY_PLACEMENT,
     LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
     PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
-    # Off to the left and low, beside the room rather than in it.
-    DASH: Placement(azimuth_deg=-62.0, elevation_deg=-12.0, width_deg=40.0),
+    # Above the main player and clear of the console: a wide panel anywhere
+    # lower covers a satellite.
+    DASH: Placement(azimuth_deg=0.0, elevation_deg=52.0, width_deg=40.0),
 }
 
 AZIMUTH_LIMIT_DEG = 150.0
