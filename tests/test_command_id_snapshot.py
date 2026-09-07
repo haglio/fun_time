@@ -104,6 +104,8 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "browse_library",
     "clipper_save",
     "enter_omnipause",
+    "enter_vr",
+    "exit_vr",
     "fmode_off",
     "fmode_on",
     "fmode_toggle",

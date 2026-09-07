@@ -52,6 +52,7 @@ from .session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
     resume_main_loop,
+    resume_main_video,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
@@ -468,17 +469,18 @@ def start_core_session(
             metadata_root=regen_metadata_root,
         )
     elif not playlist_fits_sources(nau_playlist, main_sources):
-        # Resumed from FunTimeVR, whose main rotation merges the VR library
-        # into this one's: its playlist is still in the state dir both apps
-        # share, and honoring it puts VR videos on the desktop's primary monitor, which
-        # must never play them.  Rebuild the main player from this session's own
-        # library alone; the satellites' playlists come from the same dirs in
-        # either app, so their resume stands.  Under the order it is coming back
-        # in, like its F-mode: the state carried forward has to describe the file
-        # this writes, not the one it replaced.
+        # FunTimeVR left this playlist, and its VR videos must never reach the
+        # primary monitor: rebuild from this app's library, under the order and
+        # F-mode being carried forward, then rotate back onto the clip that was
+        # on screen.  (The satellites' dirs are the same in either app, so their
+        # resume stands.)
         build_main_playlist(nau_playlist, main_sources, f_mode=carried.main_f_mode,
                             recent=carried.main_latest)
-        logger.info("Resumed playlists; rebuilt the main player's, which held another app's videos")
+        logger.info(
+            "Resumed playlists; rebuilt the main player's around the video it was on"
+            if resume_main_video(nau_playlist, nau_status.video)
+            else "Resumed playlists; rebuilt the main player's, which held another app's videos"
+        )
     # Which of the two ran is the difference between the clips of the last
     # session and three new ones, so the log says outright which you are getting.
     logger.info(

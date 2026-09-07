@@ -951,6 +951,71 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     assert "rebuilt the main player's" in caplog.text
 
 
+def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
+    tmp_path: Path, caplog
+):
+    """Saying "exit VR" over a clip the desktop can play keeps it playing.
+
+    FunTimeVR's rotation is the VR library merged with this one's, so the video
+    on screen is often one of this app's own — the playlist has to be rebuilt
+    all the same (the rest of it is foreign), and then rotated back onto that
+    video.  Rebuilding alone is what dropped the main player while both
+    satellites came back untouched (docs/entering-vr.md)."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_dir = kwargs["state_dir"]
+    left_on = _seed_resumable_session(kwargs)
+    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_clip.parent.mkdir(parents=True, exist_ok=True)
+    vr_clip.write_bytes(b"")
+    nau_playlist = state_dir / "nau_playlist.tsv"
+    watching = left_on["nau"][1]
+    nau_playlist.write_text(f"{vr_clip}\n{watching}\n", encoding="utf-8")
+    (state_dir / "nau_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
+            start_core_session(**kwargs)
+
+    rebuilt = nau_playlist.read_text(encoding="utf-8").splitlines()
+    assert rebuilt[0].split("\t")[0] == watching
+    assert str(vr_clip) not in [line.split("\t")[0] for line in rebuilt]
+    assert "around the video it was on" in caplog.text
+
+
+def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path: Path):
+    """The loop follows the clip: it is queued only when the main player really
+    did come back onto the video it was cut from, and after a crossing that is
+    exactly when the rebuild could be rotated onto it."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_dir = kwargs["state_dir"]
+    left_on = _seed_resumable_session(kwargs)
+    vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
+    vr_clip.parent.mkdir(parents=True, exist_ok=True)
+    vr_clip.write_bytes(b"")
+    watching = left_on["nau"][1]
+    (state_dir / "nau_playlist.tsv").write_text(
+        f"{vr_clip}\n{watching}\n", encoding="utf-8"
+    )
+    (state_dir / "nau_status.txt").write_text(
+        f"video={watching}\nstate=looping\nloop_in_ms=1000\nloop_out_ms=4000\n",
+        encoding="utf-8",
+    )
+
+    with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
+        "fun_time.windows_bridge_startup.ensure_broker"
+    ), patch("fun_time.windows_bridge_startup.seed_startup_states"), patch(
+        "fun_time.windows_bridge_startup.prepare_random_favs_browser_manifest"
+    ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
+        start_core_session(**kwargs)
+
+    queued = Path(kwargs["nau_cmd_file"]).read_text(encoding="utf-8")
+    assert "SET_LOOP 1000 4000" in queued
+
+
 def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     """A prior session's OmniPause can strand "1" in the satellite paused files;
     seed_startup_states does not touch them and nothing else clears them, so a

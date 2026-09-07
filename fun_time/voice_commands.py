@@ -93,6 +93,15 @@ def build_voice_commands(
     commands: dict[str, str] = {
         "quit": "quit",
         "exit": "quit",
+        # Into the headset and back out (docs/entering-vr.md).  No key and no
+        # pin, so the phrase IS the way in.  Two spellings apiece: the model has
+        # "vr" AND the letters, and which it hears is not something to bet a
+        # one-way door on.  "exit vr" does not collide with the bare "exit" —
+        # whole utterances match, as for "filter off"/"filter".
+        "enter vr": "enter_vr",
+        "enter v r": "enter_vr",
+        "exit vr": "exit_vr",
+        "exit v r": "exit_vr",
         "pause": "pause",
         "play": "play",
         # Synonyms for "play"/resume.
@@ -591,6 +600,9 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("un retract", "unretract"),
     ("o s r two", "OSR2"),
     ("oh es are two", "OSR2"),
+    # Spaced form first: after the joined rewrite it is no longer there to match.
+    ("v r", "VR"),
+    ("vr", "VR"),
 )
 
 

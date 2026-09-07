@@ -24,7 +24,6 @@ from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
-from app_support.win32 import set_shortcut_app_user_model_id
 
 from fun_time.branch_session import apply_genau_dirs_to_sys_path
 
@@ -58,7 +57,7 @@ from fun_time.orchestrator import (
     ensure_runtime_files,
     require_dir,
     signal_startup_resolved,
-    taskbar_pin_dir,
+    stamp_shortcut_aumid,
     validate_config,
 )
 from fun_time.overlay_progress import (
@@ -75,7 +74,9 @@ from fun_time.player_status import read_nau_status
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_environment import SessionEnvironment
+from fun_time.session_handoff import clear_handoff_request, hand_over_if_asked
 from fun_time.session_resume import (
+    resume_main_video,
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
@@ -83,7 +84,6 @@ from fun_time.session_resume import (
 from fun_time.shared_state import shared_state_path
 from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from fun_time.win32_process import get_process_creation_time
-from fun_time.win32_taskbar import VR_APP_USER_MODEL_ID
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -157,27 +157,6 @@ def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
     return any(
         is_vr_video(video, vr_dirs) for video, _funscript in read_playlist(playlist_file)
     )
-
-
-def is_vr_pin(stem: str) -> bool:
-    """"Fun Time VR" and its copies -- never the desktop's "Fun Time", another app."""
-    return stem.strip().lower().startswith("fun time vr")
-
-
-def stamp_vr_shortcut_aumid() -> None:
-    """Stamp the VR session's identity on its pin, so the VR player's window
-    lights that button; logged and never fatal when it cannot."""
-    pin_dir = taskbar_pin_dir()
-    if not pin_dir.is_dir():
-        return
-    for lnk in pin_dir.glob("*.lnk"):
-        if not is_vr_pin(lnk.stem):
-            continue
-        try:
-            set_shortcut_app_user_model_id(str(lnk), VR_APP_USER_MODEL_ID)
-            logger.info("Stamped AppUserModelID on %s", lnk)
-        except OSError as exc:
-            logger.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
 
 
 def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
@@ -283,10 +262,13 @@ def stock_the_playlists(
     resumed: bool,
     main_f_mode: bool,
     main_recent: bool,
+    main_video: str = "",
 ) -> None:
     """The three playlists a VR session opens on: built fresh with nothing to
     resume, else left alone -- but a primary carried over from a desktop session
-    holds no VR video and is rebuilt from the merged sources."""
+    holds no VR video, and is rebuilt from the merged sources and rotated back
+    onto *main_video*, the clip that was on screen (resume_main_video).
+    """
     nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
     if not resumed:
         build_all_playlists(
@@ -304,7 +286,11 @@ def stock_the_playlists(
             nau_playlist, manifest.media.nau_library_sources,
             f_mode=main_f_mode, recent=main_recent,
         )
-        logger.info("Resumed playlists; rebuilt the main player's, which held no VR video")
+        logger.info(
+            "Resumed playlists; rebuilt the main player's around the video it was on"
+            if resume_main_video(nau_playlist, main_video)
+            else "Resumed playlists; rebuilt the main player's, which held no VR video"
+        )
     else:
         logger.info("Resumed last session's playlists")
 
@@ -459,10 +445,11 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
         landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
         nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
+        nau_status = read_nau_status(Path(commands.nau_status_file))
         resumed = resume_playlists([
             (portrait_playlist, read_satellite_status(Path(commands.portrait_status_file)).video),
             (landscape_playlist, read_satellite_status(Path(commands.landscape_status_file)).video),
-            (nau_playlist, read_nau_status(Path(commands.nau_status_file)).video),
+            (nau_playlist, nau_status.video),
         ])
         # And the state that session was in: F-mode, each side's filter, order and
         # lock, any group loop, the sound level.  The dispatch loop opens on this
@@ -492,6 +479,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             resumed=resumed,
             main_f_mode=carried.main_f_mode,
             main_recent=carried.main_latest,
+            main_video=nau_status.video,
         )
 
         # --- The children: the audio companion, then the VR player ---
@@ -658,18 +646,22 @@ def main(argv: list[str] | None = None) -> int:
 
     logger.info("Loaded config from %s", config.config_path)
     ensure_runtime_files(config)
+    clear_handoff_request(config.paths.state_dir)
     validate_config(config)
     validate_vr_config(config)
-    # Only the session the pin launches relabels it -- the desktop's rule.
+    # One app, one button: a VR session lights Fun Time's.  Only a session on
+    # the installed config relabels the pin -- the desktop's rule.
     if config.config_path == DEFAULT_CONFIG_PATH:
-        stamp_vr_shortcut_aumid()
+        stamp_shortcut_aumid()
 
     if args.check:
         logger.info("Config validation succeeded")
         return 0
 
     signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
-    return run_vr_bridge(config, env)
+    exit_code = run_vr_bridge(config, env)
+    hand_over_if_asked(config, logger)  # last: the relay waits on this process's mutex
+    return exit_code
 
 
 if __name__ == "__main__":

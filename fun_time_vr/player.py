@@ -59,7 +59,7 @@ from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_p
 from fun_time.manifest import LaunchManifest
 from fun_time.player_status import genau_status_path, read_genau_status
 from fun_time.project_paths import PROJECT_VR_ICON
-from fun_time.win32_taskbar import VR_APP_USER_MODEL_ID
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from satellite.hud_overlay import HudOverlay
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
@@ -845,9 +845,9 @@ def main(argv: list[str] | None = None) -> int:
     # which is appended to per line so several processes can share it.
     _log_into_the_event_log(Path(manifest.commands.dashboard_cmd_file).parent)
     vr = VrSettings.read(args.manifest)
-    # Before any window exists: the VR session is its own app on the taskbar.
+    # Before any window exists: one app, one pinned button (win32_taskbar).
     try:
-        set_app_user_model_id(VR_APP_USER_MODEL_ID)
+        set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:
         logger.debug("Could not claim the taskbar identity", exc_info=True)
 
