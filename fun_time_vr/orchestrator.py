@@ -120,8 +120,9 @@ VR_PLAYER_MODULE = "fun_time_vr.player"
 # auto-start alone may take 45s, though a healthy launch answers in seconds.
 PLAYER_READY_TIMEOUT_S = 120.0
 
-# And for the room under it: that first status is a role having PICKED a video.
-SCENE_READY_TIMEOUT_S = 20.0
+# And for the room under it: that first status is a role having PICKED a video,
+# and the cover has to have been seen (cover.COVER_DWELL_S) besides.
+SCENE_READY_TIMEOUT_S = 35.0
 
 # Named, not __name__: started with `-m`, where __name__ is "__main__".
 logger = logging.getLogger("fun_time_vr.orchestrator")
@@ -253,7 +254,7 @@ def _wait_for_player(
 def _wait_for_the_room(
     marker_file: Path, player: subprocess.Popen, progress: ProgressReporter | None = None,
 ) -> bool:
-    """Until the player says every picture the session opens with is up.  Never
+    """Until the player says the room is up and its cover has been seen.  Never
     fatal: the player caps its own wait, so holding a launch on a missing marker
     is worse than revealing one blank screen.  A checkpoint too."""
     deadline = time.monotonic() + SCENE_READY_TIMEOUT_S

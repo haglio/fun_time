@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
 
 # Shorter than the desktop's: no browser, no Origenerator, no windows.  The
 # cover cannot appear before the player holds an OpenXR session, well into
-# "players", so the tail of that phase is what it opens on.
+# "players" -- the tail of that phase is what it opens on.
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
@@ -50,8 +50,8 @@ VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
     Phase("players", "Closing players...", 1.0),
 )
 
-# Startup's matches the orchestrator's patience with the player: that whole
-# wait is one phase, so nothing writes for the length of it.
+# Startup's matches the orchestrator's patience with the player: one phase, so
+# nothing writes for the length of it.
 STARTUP_STALE_TIMEOUT_S = 120.0
 SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
@@ -64,9 +64,7 @@ _SHUTDOWN = "shutdown"
 
 
 @dataclass(frozen=True)
-class Cover:
-    """What the cover says now; *closing* is teardown's."""
-
+class Cover:  # what the cover says now; *closing* is teardown's
     status: str
     fraction: float
     hint: str = ""
@@ -75,9 +73,9 @@ class Cover:
 
 class CoverWatcher:
     """What the cover should show, read off the orchestrator's progress files.
-    Polled from the player's file-channel worker, never its frame loop.  None
-    means show the scene: no end running, DONE, or a file gone stale -- a
-    headset must never be left under a panel that will never move."""
+    Polled from the player's worker, never its frame loop.  None means show the
+    scene: no end running, DONE, or a file gone stale -- a headset must never be
+    left under a panel that will never move."""
 
     def __init__(
         self, state_dir: str | Path, *, clock: Callable[[], float] = time.monotonic,
@@ -168,9 +166,38 @@ class CoverWatcher:
 
 # The player's answer to "is the room on screen?", which a desktop orchestrator
 # sees for itself.  The grace caps it -- an empty satellite playlist never gets
-# a texture, and the reveal may be late but never absent.
+# a texture -- and is long because what it mostly waits out is the headset being
+# picked up: a launch is over in six seconds, and nobody is wearing it by then.
+# The dwell is how long the panel must be in front of a WORN headset before the
+# room may be revealed; without one the loading screen was over before anyone
+# had it on, which is what its first verifications saw: nothing at all.
 SCENE_READY_FILENAME = "vr_scene_ready.flag"
-SCENE_READY_GRACE_S = 8.0
+SCENE_READY_GRACE_S = 25.0
+COVER_DWELL_S = 2.0
+
+
+class CoverSeen:
+    """Whether the cover has been in front of the viewer long enough to read.
+    Fed the frames that reached a WORN headset, not the ones submitted: with the
+    views unlocatable or the headset on the desk, nothing is shown."""
+
+    def __init__(
+        self,
+        *,
+        dwell_s: float = COVER_DWELL_S,
+        clock: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._dwell_s = dwell_s
+        self._clock = clock
+        self._first: float | None = None
+
+    def note(self, shown: bool) -> None:  # starts the clock on the first one
+        if shown and self._first is None:
+            self._first = self._clock()
+
+    @property
+    def dwelt(self) -> bool:
+        return self._first is not None and self._clock() - self._first >= self._dwell_s
 
 
 def scene_ready_file(state_dir: str | Path) -> Path:
@@ -180,7 +207,7 @@ def scene_ready_file(state_dir: str | Path) -> Path:
 class SceneReady:
     """Watches the room fill in under the cover, and says once when it has.
     Without it the reveal lands on the player's first STATUS write: a role
-    having PICKED a video, a second or so before the pictures do."""
+    having PICKED a video, a second before the pictures land."""
 
     def __init__(
         self,
@@ -249,9 +276,9 @@ COVER_WIDTH_DEG = 40.0  # wider than the console's 24: that is glanced at
 class CoverAnchor:
     """Where the cover hangs: the heading the viewer had when it went up, held
     until it comes down.  Head-locked it turns with the eyes and reads as glued
-    to the lenses; held to one heading it is a panel out in the world, to be
-    looked at or away from.  Captured rather than fixed at the scene's forward,
-    so it arrives in front of whoever raised it."""
+    to the lenses; held to one heading it is out in the world.  Captured, not
+    fixed at the scene's forward, so it arrives in front of whoever raised
+    it."""
 
     def __init__(self) -> None:
         self._yaw: float | None = None
@@ -287,8 +314,7 @@ def _clear_color(hex_color: str) -> tuple[float, float, float, float]:
 COVER_CLEAR = _clear_color(BG)
 
 
-def _font(filename: str, size: int) -> ImageFont.FreeTypeFont:
-    """A missing face degrades to a plain cover, never a raise."""
+def _font(filename: str, size: int) -> ImageFont.FreeTypeFont:  # never raises
     try:
         return ImageFont.truetype(filename, size)
     except OSError:
@@ -300,7 +326,7 @@ def _icon_image() -> Image.Image | None:
         icon = Image.open(PROJECT_VR_ICON)
         return icon.resize((_ICON_PX, _ICON_PX), Image.LANCZOS).convert("RGBA")
     except (OSError, ValueError):
-        return None  # not there, or not an image: come up plain
+        return None  # not there, or not an image: plain
 
 
 def _text_height(font: ImageFont.FreeTypeFont, text: str) -> int:
@@ -345,7 +371,7 @@ def paint_cover(cover: Cover, *, size: tuple[int, int] = COVER_SIZE_PX) -> Image
 def _centered(draw, center_x: int, top: int, text: str, font, fill: str) -> None:
     if not text:
         return
-    # Ink-top anchored, so measured and drawn positions agree.
+    # Ink-top anchored, so measured and drawn agree.
     draw.text((center_x - font.getlength(text) / 2, top - font.getbbox(text)[1]),
               text, font=font, fill=fill)
 
