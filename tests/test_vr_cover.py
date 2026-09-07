@@ -22,6 +22,7 @@ from fun_time.overlay_progress import (
     PhaseProgress,
     StartupCancelled,
 )
+from fun_time.session_handoff import hold_the_headset, release_the_headset
 from fun_time_vr.cover import (
     CANCEL_HINT,
     CANCELLING_STATUS,
@@ -29,6 +30,7 @@ from fun_time_vr.cover import (
     COVER_CLEAR,
     COVER_DWELL_S,
     COVER_SIZE_PX,
+    HELD_STATUS,
     SCENE_READY_FILENAME,
     SCENE_READY_GRACE_S,
     SHUTDOWN_STALE_TIMEOUT_S,
@@ -212,6 +214,44 @@ class TestWhatTheCoverShows:
         assert cover is not None
         assert cover.closing
         assert cover.status == CLOSING_STATUS
+
+
+class TestTheHeldCover:
+    """A hold outlives the session that asked for it, so nothing is writing its
+    progress file -- and the staleness rule that protects every other cover
+    would take this one down mid-crossing (docs/entering-vr.md)."""
+
+    def test_a_hold_puts_the_crossing_panel_up_with_no_progress_file_at_all(
+        self, tmp_path: Path,
+    ):
+        hold_the_headset(tmp_path, stop_runtime=False)
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == HELD_STATUS
+        assert cover.closing is True
+
+    def test_it_outranks_whatever_the_teardown_file_still_says(self, tmp_path: Path):
+        """The teardown that raised it has ended; its last phase would otherwise
+        go on reading "Closing players..." for the whole crossing."""
+        watcher = CoverWatcher(tmp_path)
+        PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
+                      phases=VR_SHUTDOWN_PHASES).advance("players")
+        assert watcher.read().status != HELD_STATUS
+
+        hold_the_headset(tmp_path, stop_runtime=False)
+
+        assert watcher.read().status == HELD_STATUS
+
+    def test_releasing_it_hands_the_view_back(self, tmp_path: Path):
+        hold_the_headset(tmp_path, stop_runtime=False)
+        watcher = CoverWatcher(tmp_path)
+        assert watcher.read() is not None
+
+        release_the_headset(tmp_path)
+
+        assert watcher.read() is None
 
 
 class TestGivingUp:

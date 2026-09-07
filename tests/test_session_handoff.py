@@ -23,11 +23,17 @@ from fun_time.session_handoff import (
     drop_crossing_cover,
     hand_over_if_asked,
     handoff_request_path,
+    headset_hold_asked,
+    headset_hold_stops_the_runtime,
+    headset_is_held,
+    hold_the_headset,
     last_lines_of,
     launch_crossing_cover,
     pending_handoff,
     raise_crossing_cover,
+    release_the_headset,
     report_a_failed_crossing,
+    report_the_headset_held,
     request_handoff,
     run,
     start_the_session,
@@ -131,6 +137,61 @@ class TestTheCoverThatSpansTheCrossing:
         assert crossing_progress_path(
             config.paths.state_dir
         ).read_text(encoding="utf-8").strip() == "DONE"
+
+
+class TestTheHeadsetHold:
+    """The headset's half of a crossing: a handshake, because the arriving
+    desktop session claims the channels the held player was driving."""
+
+    def test_the_hold_carries_whether_to_stop_the_runtime(self, tmp_path: Path):
+        """The orchestrator is the only thing that knows, and it exits first."""
+        hold_the_headset(tmp_path, stop_runtime=True)
+        assert headset_hold_asked(tmp_path) is True
+        assert headset_hold_stops_the_runtime(tmp_path) is True
+
+        hold_the_headset(tmp_path, stop_runtime=False)
+        assert headset_hold_stops_the_runtime(tmp_path) is False
+
+    def test_the_player_answers_only_once_it_has_let_go(self, tmp_path: Path):
+        hold_the_headset(tmp_path, stop_runtime=False)
+        assert headset_is_held(tmp_path) is False
+
+        report_the_headset_held(tmp_path)
+
+        assert headset_is_held(tmp_path) is True
+
+    def test_a_new_hold_never_reads_the_last_one_s_answer(self, tmp_path: Path):
+        """One stale ack and the outgoing session would walk away from a player
+        that had not stopped writing the files the next one is claiming."""
+        hold_the_headset(tmp_path, stop_runtime=False)
+        report_the_headset_held(tmp_path)
+
+        hold_the_headset(tmp_path, stop_runtime=False)
+
+        assert headset_is_held(tmp_path) is False
+
+    def test_releasing_it_is_what_ends_the_hold(self, tmp_path: Path):
+        hold_the_headset(tmp_path, stop_runtime=True)
+        report_the_headset_held(tmp_path)
+
+        release_the_headset(tmp_path)
+
+        assert headset_hold_asked(tmp_path) is False
+        assert headset_is_held(tmp_path) is False
+
+    def test_nothing_is_held_where_no_hold_was_asked(self, tmp_path: Path):
+        assert headset_hold_asked(tmp_path) is False
+        assert headset_hold_stops_the_runtime(tmp_path) is False
+        release_the_headset(tmp_path)  # and asking again is safe
+
+    def test_a_crossing_that_never_happened_lets_the_headset_go(self, config):
+        hold_the_headset(config.paths.state_dir, stop_runtime=False)
+        with patch.object(session_handoff, "wait_for_the_session_to_let_go",
+                          return_value=False), \
+             patch.object(session_handoff, "report_a_failed_crossing"):
+            assert run(DESKTOP, config) == 1
+
+        assert headset_hold_asked(config.paths.state_dir) is False
 
 
 class TestWhichSessionIsWhich:

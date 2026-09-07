@@ -129,11 +129,32 @@ raises and drops it. A relay whose crossing failed drops it too, so a session
 that never arrived does not leave the monitors covered; the cover's own
 staleness timeout is the backstop for a relay that died outright.
 
-What is NOT covered is the headset on the way out: the VR cover is drawn by the
-VR player, and the player is the last thing the teardown kills. Holding it past
-that would mean keeping the player alive — and its roles hold the very status
-and command files the arriving desktop session claims — so the headset shows the
-runtime's own environment for the few seconds until Fun Time is up.
+### The headset's half
+
+The headset's cover is drawn by the VR player, and the player is the last thing
+a teardown kills -- so leaving the headset covered means keeping the player
+alive past its own session. Its roles hold the very status and command files the
+arriving desktop session claims, which is why the hold is a handshake rather
+than a delay:
+
+1. The VR teardown writes `vr_headset_hold.flag`, carrying whether this session
+   started the VR runtime -- the orchestrator is the only thing that knows, and
+   it is about to exit.
+2. The player breaks its frame loop, stops both worker threads and closes every
+   unit but the cover. Only then does it answer with `vr_headset_held.flag`.
+3. The orchestrator waits for that answer before letting go. Without it, it
+   closes the player exactly as it always did -- a hold that cannot be taken is
+   never worth a session that will not start.
+4. The player keeps presenting the cover, which reads "Returning to Fun Time..."
+   and is exempt from the staleness rule the others obey: nothing is writing its
+   progress file, because the session that would have is gone.
+5. The arriving desktop session deletes the flag at its reveal, the moment the
+   room is on its monitors. The player then closes its XR session and, if the
+   flag said so, stops the runtime.
+
+A relay whose crossing failed releases the hold too, and the player gives up on
+its own after three minutes: a headset under a panel forever is worse than the
+runtime's own view.
 
 ## The taskbar
 
@@ -143,3 +164,27 @@ so the headset session lights the button you already have. `launch_vr.vbs` stays
 as the direct way to start a VR session on the installed config, and as one of
 the launchers `tests/test_launch_smoke.py` reads to decide what to import-check;
 it is simply not something to pin any more.
+
+## What each cover waits on
+
+Every cover reads a progress file and gives up on one that stops moving, so
+that a headset or a monitor is never left under a panel nothing will ever take
+down. The timeouts differ because what they are waiting out differs:
+
+- **The VR startup cover** (`STARTUP_STALE_TIMEOUT_S`, 120s) matches the
+  orchestrator's own patience with the player: startup's last phase writes
+  nothing for the length of it, and the cover cannot appear at all before the
+  player holds an OpenXR session, well into "Waiting for players...".
+- **The VR shutdown cover** (20s) covers a teardown that is over in seconds.
+- **A held cover** is exempt: nothing is writing its file, because the session
+  that would have is gone.
+- **The crossing cover** on the monitors allows minutes, because a crossing
+  takes them and its own relay bounds it far shorter.
+
+`SceneReady` is a different question — whether the room is on screen, which a
+desktop orchestrator sees for itself and a headset cannot report. Its grace
+(25s) mostly waits out the headset being picked up: a launch is over in six
+seconds and nobody is wearing it by then. The dwell (2s) is how long the cover
+must be in front of a WORN headset before the room may be revealed; without one
+the loading screen was over before anyone had it on, which is what its first
+verifications saw — nothing at all.

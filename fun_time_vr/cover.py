@@ -30,11 +30,11 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.session_handoff import headset_hold_asked
 
 logger = logging.getLogger(__name__)
 
-# Shorter than the desktop's: no browser, no Origenerator, no windows.  It
-# cannot appear before the player holds an OpenXR session, well into "players".
+# Shorter than the desktop's: no browser, no Origenerator, no windows.
 VR_STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("companions", "Launching companions...", 0.6),
@@ -49,14 +49,14 @@ VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
     Phase("players", "Closing players...", 1.0),
 )
 
-# Startup's matches the orchestrator's patience with the player: one phase, so
-# nothing writes for the length of it.
+# What each waits on, and why they differ: docs/entering-vr.md.
 STARTUP_STALE_TIMEOUT_S = 120.0
 SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
 CANCEL_HINT = "Press Esc to cancel"  # through the hook, which needs no focus
 CANCELLING_STATUS = "Cancelling..."
 CLOSING_STATUS = VR_SHUTDOWN_PHASES[0].message
+HELD_STATUS = "Returning to Fun Time..."  # exempt from staleness: see the doc
 
 _STARTUP = "startup"
 _SHUTDOWN = "shutdown"
@@ -79,6 +79,7 @@ class CoverWatcher:
         self, state_dir: str | Path, *, clock: Callable[[], float] = time.monotonic,
     ) -> None:
         state_dir = Path(state_dir)
+        self.state_dir = state_dir
         self.startup_file = state_dir / PROGRESS_FILENAME
         self.shutdown_file = state_dir / SHUTDOWN_PROGRESS_FILENAME
         self.cancel_file = state_dir / CANCEL_FILENAME
@@ -96,6 +97,8 @@ class CoverWatcher:
 
     def read(self) -> Cover | None:
         """This tick's cover, or None to show the scene."""
+        if headset_hold_asked(self.state_dir):
+            return Cover(status=HELD_STATUS, fraction=1.0, closing=True)
         # Teardown outranks startup, whatever its file still says.
         shutdown = self._read_end(
             self.shutdown_file, key=_SHUTDOWN,
@@ -166,11 +169,8 @@ class CoverWatcher:
 
 # The player's answer to "is the room on screen?", which a desktop orchestrator
 # sees for itself.  The grace caps it -- an empty satellite playlist never gets
-# a texture -- and is long because what it mostly waits out is the headset being
-# picked up: a launch is over in six seconds, and nobody is wearing it by then.
-# The dwell is how long the panel must be in front of a WORN headset before the
-# room may be revealed; without one the loading screen was over before anyone
-# had it on, which is what its first verifications saw: nothing at all.
+# a texture -- and the dwell is the cover's time in front of a WORN headset
+# before the room may be revealed (docs/entering-vr.md).
 SCENE_READY_FILENAME = "vr_scene_ready.flag"
 SCENE_READY_GRACE_S = 25.0
 COVER_DWELL_S = 2.0

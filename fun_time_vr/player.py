@@ -59,6 +59,11 @@ from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_p
 from fun_time.manifest import LaunchManifest
 from fun_time.player_status import genau_status_path, read_genau_status
 from fun_time.project_paths import PROJECT_VR_ICON
+from fun_time.session_handoff import (
+    headset_hold_asked,
+    headset_hold_stops_the_runtime,
+    report_the_headset_held,
+)
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from satellite.hud_overlay import HudOverlay
 from satellite.runtime import apply_command as apply_satellite_command
@@ -169,9 +174,8 @@ CONTROLLER_DEADZONE = 0.1
 # at ~20Hz, so 30Hz loses no responsiveness.
 PUMP_HZ = 30.0
 
-# How long session bring-up tolerates a cold-started runtime whose graphics
-# device is still coming up (see _run's retry loop), and how often it retries.
-# Well inside the orchestrator's 120s first-status timeout.
+# How long bring-up tolerates a cold runtime whose graphics device is still
+# coming up, and how often it retries; inside the orchestrator's 120s.
 SESSION_BRINGUP_TIMEOUT_S = 60.0
 SESSION_BRINGUP_RETRY_S = 2.0
 
@@ -816,6 +820,8 @@ class _PanelUnit:
 
 class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     def __init__(self, state_dir: Path) -> None:
+        self._state_dir = state_dir
+        self.holding = False  # render-thread-read, set on the pump's refresh
         self._watcher = CoverWatcher(state_dir)
         self._lock = threading.Lock()
         self._pending: tuple[object, bool] | None = None  # (image, closing)
@@ -847,6 +853,7 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
 
     def refresh(self) -> None:
         """Re-read the progress files and repaint if what they say has moved."""
+        self.holding = headset_hold_asked(self._state_dir)
         cover = self._watcher.read()
         if cover == self._cover:
             return
@@ -1254,6 +1261,30 @@ def _raise_the_cover(session, renderer: SceneRenderer, cover: _CoverUnit) -> Non
         time.sleep(0.005)
 
 
+# Past this no session is coming (docs/entering-vr.md).
+HEADSET_HOLD_TIMEOUT_S = 180.0
+
+
+def _hold_the_headset(
+    session, renderer: SceneRenderer, cover: _CoverUnit, state_dir: Path,
+) -> None:
+    """Cover the headset until the next session releases it; safe because
+    every channel is closed first."""
+    report_the_headset_held(state_dir)
+    deadline = time.monotonic() + HEADSET_HOLD_TIMEOUT_S
+    try:
+        while session.running and time.monotonic() < deadline:
+            if not headset_hold_asked(state_dir):
+                return
+            session.poll_events()
+            if not session.session_ready:
+                return  # nothing is being presented; there is nothing to hold
+            cover.refresh()
+            _present_the_cover(session, renderer, cover)
+    except Exception:
+        logger.debug("Could not hold the headset's cover", exc_info=True)
+
+
 def _cover_the_teardown(session, renderer: SceneRenderer, cover: _CoverUnit) -> None:
     """Raise the closing cover and hold it while this process comes apart.  The
     ordinary quit asks through the shutdown progress file; this is the other way
@@ -1367,6 +1398,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             session.poll_events()
             if session.window_close_requested():
                 break
+            if cover.holding:
+                break  # the session is crossing over; the teardown holds it up
 
             if not session.session_ready:
                 # The pump thread keeps every channel live while the headset
@@ -1489,12 +1522,20 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         # Only to settle the file channels — player_core.mpv_gate makes the closes safe.
         pump_thread.join(timeout=2.0)
         genau_thread.join(timeout=2.0)
+        held = headset_hold_asked(state_dir)
+        stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
         for unit in pumped:
-            unit.close()
+            if not (held and unit is cover):  # it is all the hold has left to show
+                unit.close()
+        if held:
+            _hold_the_headset(session, renderer, cover, state_dir)
+            cover.close()
         pointing.close()
         renderer.close()
         session.close()
         logger.info("Shutdown complete")
+        if stop_runtime:  # the orchestrator that knew this exited under the hold
+            vr_runtime.stop_runtime()
     return 0
 
 

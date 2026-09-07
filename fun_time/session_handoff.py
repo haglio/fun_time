@@ -31,6 +31,10 @@ HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
 # What the monitors read while the room changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
+
+HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
+HEADSET_HELD_NAME = "vr_headset_held.flag"
+_STOP_RUNTIME = "stop_runtime"
 _CROSSING_MESSAGES = {"vr": "Entering VR...", "desktop": "Returning to Fun Time..."}
 
 # Teardown is seconds, so this expires only on a session wedged holding the
@@ -92,17 +96,13 @@ def clear_handoff_request(state_dir: str | Path) -> None:
 
 
 def pending_handoff(state_dir: str | Path) -> HandoffTarget | None:
-    """The crossing this session is ending for, WITHOUT taking it -- asked by
-    a teardown, which looks different when the room is changing shape."""
+    """The crossing this session is ending for, WITHOUT taking it."""
     return _read_request(state_dir, take=False)
 
 
 def take_handoff_request(state_dir: str | Path) -> HandoffTarget | None:
-    """The crossing this session was asked for, taken off the disk as it is read.
-
-    Unreadable or unrecognized reads as no request, and a session with no
-    request ends normally.
-    """
+    """The crossing this session was asked for, taken off the disk as it is
+    read.  Unreadable or unrecognized reads as no request at all."""
     return _read_request(state_dir, take=True)
 
 
@@ -119,6 +119,42 @@ def _read_request(state_dir: str | Path, *, take: bool) -> HandoffTarget | None:
     if target is None and key:
         logger.warning("Ignoring unrecognized handoff request %r", key)
     return target
+
+
+def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
+    """Cover the headset past this session; *stop_runtime* rides along
+    because the player outlives the orchestrator that knows the answer."""
+    (Path(state_dir) / HEADSET_HELD_NAME).unlink(missing_ok=True)
+    (Path(state_dir) / HEADSET_HOLD_NAME).write_text(
+        _STOP_RUNTIME if stop_runtime else "", encoding="utf-8",
+    )
+
+
+def headset_hold_asked(state_dir: str | Path) -> bool:
+    return (Path(state_dir) / HEADSET_HOLD_NAME).exists()
+
+
+def headset_hold_stops_the_runtime(state_dir: str | Path) -> bool:
+    try:
+        return (Path(state_dir) / HEADSET_HOLD_NAME).read_text(
+            encoding="utf-8").strip() == _STOP_RUNTIME
+    except OSError:
+        return False
+
+
+def report_the_headset_held(state_dir: str | Path) -> None:
+    """The player's answer: every channel let go of, only the cover left."""
+    (Path(state_dir) / HEADSET_HELD_NAME).write_text("", encoding="utf-8")
+
+
+def headset_is_held(state_dir: str | Path) -> bool:
+    return (Path(state_dir) / HEADSET_HELD_NAME).exists()
+
+
+def release_the_headset(state_dir: str | Path) -> None:
+    """Let a held player go: the room it covered for is on screen."""
+    for name in (HEADSET_HOLD_NAME, HEADSET_HELD_NAME):
+        (Path(state_dir) / name).unlink(missing_ok=True)
 
 
 def crossing_progress_path(state_dir: str | Path) -> Path:
@@ -191,8 +227,8 @@ def start_the_session(
     state_dir: str | Path,
     config_path: str | Path,
 ) -> subprocess.Popen:
-    """Launch *target*'s orchestrator as its own ``.vbs`` does.  The stale
-    marker goes first: the outgoing session's would vouch for this launch."""
+    """Launch *target*'s orchestrator as its own ``.vbs`` does, clearing the
+    stale marker the outgoing session would otherwise vouch with."""
     (Path(state_dir) / target.ready_marker).unlink(missing_ok=True)
     # Named as launch.vbs names it: a session entered by voice is as findable
     # in the task list as one entered by clicking.
@@ -256,9 +292,9 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
 
 
 def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
-    """Report a crossing that did not happen, and uncover the monitors: their
-    cover is waiting for a session that is not coming."""
+    """Report a crossing that did not happen, and uncover what was waiting."""
     drop_crossing_cover(state_dir)
+    release_the_headset(state_dir)
     report_a_failed_crossing(reason, log_file)
     return 1
 
