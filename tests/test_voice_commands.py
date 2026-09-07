@@ -49,11 +49,19 @@ class TestTheSpokenCrossing:
         them it hears the sound as is not something to bet a one-way door on."""
         assert VOICE_COMMANDS[phrase] == command
 
-    def test_saying_exit_vr_is_not_saying_exit(self):
-        """The grammar matches whole utterances, which is what lets these sit
-        beside a bare "exit" that quits — but only while both stay listed."""
-        assert VOICE_COMMANDS["exit"] == "quit"
-        assert VOICE_COMMANDS["exit vr"] == "exit_vr"
+    def test_no_phrase_a_crossing_starts_with_is_a_command_of_its_own(self):
+        """The rule the first spoken "exit VR" bought: both it and a bare "exit"
+        were whole phrases in the grammar, the shorter scored better, and the
+        session ended instead of leaving the headset.  "enter VR" was never at
+        risk because no bare "enter" was there to win."""
+        crossings = [p for p, c in VOICE_COMMANDS.items() if c in ("enter_vr", "exit_vr")]
+        assert crossings
+        for phrase in crossings:
+            first, _, rest = phrase.partition(" ")
+            assert rest, phrase
+            assert first not in VOICE_COMMANDS, (
+                f"{first!r} is a command on its own, so {phrase!r} will lose to it"
+            )
 
     @pytest.mark.parametrize(
         ("phrase", "shown"),
@@ -72,14 +80,13 @@ class TestTheSpokenCrossing:
 
 
 class TestVoiceCommands:
-    def test_exit_is_a_synonym_for_quit(self):
-        assert VOICE_COMMANDS["exit"] == "quit"
+    def test_quit_is_the_word_that_quits(self):
         assert VOICE_COMMANDS["quit"] == "quit"
+        assert "exit" not in VOICE_COMMANDS
 
     def test_contains_all_static_phrases(self):
         static_phrases = {
             "quit": "quit",
-            "exit": "quit",
             "pause": "pause",
             "play": "play",
             "go now": "genau_activate",

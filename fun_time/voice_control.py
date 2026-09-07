@@ -74,7 +74,7 @@ def _source_for_heard_text(text: str) -> str:
 # Omnipause suspends the AHK hotkeys wholesale and exempts exactly three: Esc,
 # which resumes, Ctrl+Alt+Q, which quits, and Shift+Esc, which retracts the OSR2
 # (``#SuspendExempt`` in windows_bridge_hotkeys.ahk).  Voice mirrors those three
-# and adds nothing — "play" resumes, "quit"/"exit" quits, "relief omnipause"
+# and adds nothing — "play" resumes, "quit" quits, "relief omnipause"
 # retracts, and that last one has to reach a room that is ALREADY paused, because
 # a paused session can still have the device on the user.  Nothing else a paused
 # room says reaches the dispatch loop.  Widening this set is the owner's call --
