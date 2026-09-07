@@ -7,11 +7,22 @@ from pathlib import Path
 
 @dataclass(frozen=True)
 class ChromeShortcut:
-    """A resolved Chrome shortcut: target, start-in directory, baked-in args."""
-
     target: str
     work_dir: str
     args: str
+
+    def command_line(self, *arguments: str) -> str:
+        """This shortcut's launch, plus *arguments*, as one command line.
+
+        Its own ``args`` are spliced in verbatim: what a .lnk bakes in is
+        command-line text already, so quoting it would change what Chrome hears.
+        """
+        parts = [subprocess.list2cmdline([self.target])]
+        if self.args.strip():
+            parts.append(self.args.strip())
+        if arguments:
+            parts.append(subprocess.list2cmdline(arguments))
+        return " ".join(parts)
 
 
 @dataclass(frozen=True)
@@ -42,15 +53,6 @@ def read_random_favs_browser_manifest(path: str | Path) -> RandomFavsBrowserMani
     return RandomFavsBrowserManifest(profile_dir=profile_dir, urls=urls)
 
 
-def _command_opening(shortcut: ChromeShortcut) -> str:
-    """The quoted target plus the shortcut's own arguments."""
-    cmd = _quote(shortcut.target)
-    existing_args = shortcut.args.strip()
-    if existing_args:
-        cmd += f" {existing_args}"
-    return cmd
-
-
 def build_random_favs_browser_launch_plan(
     manifest_path: str | Path, *, shortcut: ChromeShortcut
 ) -> RandomFavsBrowserLaunchPlan:
@@ -58,18 +60,15 @@ def build_random_favs_browser_launch_plan(
     if not shortcut.target or not manifest.urls:
         return RandomFavsBrowserLaunchPlan(should_launch=False, cmd="", work_dir="")
 
-    cmd = _command_opening(shortcut)
     lowered = shortcut.args.strip().lower()
+    arguments = []
     if manifest.profile_dir and "--profile-directory" not in lowered:
-        cmd += f" --profile-directory={_quote(manifest.profile_dir)}"
+        arguments.append(f"--profile-directory={manifest.profile_dir}")
     if "--new-window" not in lowered:
-        cmd += " --new-window"
-
-    for url in manifest.urls:
-        cmd += f" {_quote(url)}"
+        arguments.append("--new-window")
     return RandomFavsBrowserLaunchPlan(
         should_launch=True,
-        cmd=cmd,
+        cmd=shortcut.command_line(*arguments, *manifest.urls),
         work_dir=shortcut.work_dir,
     )
 
@@ -84,20 +83,11 @@ def launch_random_favs_browser(
 
 
 def build_open_rfb_tab_command(*, urls: list[str], shortcut: ChromeShortcut) -> str:
-    """Build ONE Chrome command opening every URL as a tab in the RFB profile:
-    launching chrome.exe once per URL in quick succession races its singleton
-    and silently drops tabs (the "lock both" bug)."""
-    cmd = _command_opening(shortcut)
-    for url in urls:
-        cmd += f" {_quote(url)}"
-    return cmd
+    """ONE Chrome command opening every URL as a tab in the RFB profile."""
+    return shortcut.command_line(*urls)
 
 
 def open_rfb_tab(*, urls: list[str], shortcut: ChromeShortcut) -> None:
     """Open one or more URLs as tabs in the RFB Chrome window, in one launch."""
     cmd = build_open_rfb_tab_command(urls=urls, shortcut=shortcut)
     subprocess.Popen(cmd, cwd=shortcut.work_dir)
-
-
-def _quote(value: str) -> str:
-    return f'"{value}"'
