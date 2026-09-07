@@ -18,52 +18,6 @@ def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
     assert load_dashboard_snapshot(tmp_path / "missing.ini") is None
 
 
-def test_load_dashboard_snapshot_reads_a_window_section_no_writer_emits(tmp_path: Path):
-    # Deliberately hand-rolled: the reader still restores a persisted geometry
-    # from a [window] section, and nothing in the family writes one — see the
-    # note in CHANGELOG.md.  Sections it no longer parses are here too, to pin
-    # that an older, richer export still loads rather than raising.
-    snapshot_file = tmp_path / "dashboard_state.ini"
-    snapshot_file.write_text(
-        "\n".join(
-            [
-                "[osr2]",
-                "mode=auto",
-                "[main]",
-                "mode=nau",
-                "path=demo-main.mp4",
-                "locked=0",
-                "[window]",
-                "x=100",
-                "y=200",
-                "width=300",
-                "height=400",
-            ]
-        ),
-        encoding="utf-8",
-    )
-
-    snapshot = load_dashboard_snapshot(snapshot_file)
-
-    assert snapshot is not None
-    assert snapshot.window.x == 100
-    assert snapshot.window.y == 200
-    assert snapshot.window.width == 300
-    assert snapshot.window.height == 400
-
-
-def test_the_writers_own_export_reads_back_with_a_zero_window(tmp_path: Path):
-    """The writer emits no [window] section; the reader answers zeros for it,
-    not a crash — which is what leaves the geometry restore unreachable."""
-    snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file)
-
-    snapshot = load_dashboard_snapshot(snapshot_file)
-
-    assert snapshot is not None
-    assert snapshot.window.width == 0
-
-
 def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
     write_dashboard_snapshot(snapshot_file, omni_paused=True)

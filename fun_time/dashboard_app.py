@@ -517,7 +517,6 @@ def write_dashboard_command(path: Path, action_id: str) -> None:
 
 def apply_dashboard_window_geometry(
     window: QWidget,
-    snapshot: DashboardSnapshot | None,
     scene: DashboardScene,
     *,
     launch_geometry: DashboardLaunchGeometry | None = None,
@@ -528,13 +527,7 @@ def apply_dashboard_window_geometry(
             launch_geometry.width, launch_geometry.height,
         )
         return
-    if snapshot is None or snapshot.window.width <= 0 or snapshot.window.height <= 0:
-        window.resize(scene.width, scene.height)
-        return
-    window.setGeometry(
-        snapshot.window.x, snapshot.window.y,
-        snapshot.window.width, snapshot.window.height,
-    )
+    window.resize(scene.width, scene.height)
 
 
 PRESS_FLASH_S = 0.2
@@ -743,7 +736,7 @@ class DashboardWindow(QMainWindow):
         # fight the omniminimize — leave it minimized until the user restores it.
         # While deferred for loading it is hidden; don't touch it until reveal.
         if not self.isMinimized() and not self._reveal.deferred:
-            apply_dashboard_window_geometry(self, snapshot, scene, launch_geometry=self._launch_geometry)
+            apply_dashboard_window_geometry(self, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
 
     def _on_action(self, action_id: str) -> None:
