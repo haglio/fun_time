@@ -17,6 +17,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app_support.json_store import locked_update
+
 
 def normalize_path_key(path: str) -> str:
     return path.strip().lower()
@@ -143,40 +145,35 @@ WRONG_ACTION_FIELD = "wrong_action"
 def reject_action(video_path: str | Path, metadata_root: str | Path | None) -> str:
     """Strike the act out of *video_path*'s sidecar; return the act that went.
 
-    Returns ``""`` — and writes nothing — when the clip has no sidecar or its
-    sidecar records no act: there is nothing to be wrong about.  Everything else
-    the sidecar holds (the prompts, the seed, the source image) is left alone.
+    Writes nothing, and answers ``""``, for a clip with no sidecar, a sidecar
+    recording no act, and a document this app cannot parse -- which is somebody
+    else's record, not ours to replace.  Everything else on it is left alone.
+
+    The read and the write hold the document's own lock, the one Evolver's
+    pipeline takes on the same name: without it whichever wrote second erased
+    what the other had just put in (bug 8).
     """
     json_path = metadata_path_for(video_path, metadata_root)
     if json_path is None:
         return ""
-    payload = load_metadata(json_path)
-    video = payload.get("video")
-    if not isinstance(video, dict):
-        return ""
-    action = str(video.pop("action", "") or "").strip()
-    if not action:
-        return ""
-    video[WRONG_ACTION_FIELD] = action
-    _write_sidecar(json_path, payload)
-    return action
+    struck = ""
 
+    def strike_the_act_out(payload: dict) -> dict | None:
+        nonlocal struck
+        video = payload.get("video")
+        if not isinstance(video, dict):
+            return None
+        struck = str(video.pop("action", "") or "").strip()
+        if not struck:
+            return None
+        video[WRONG_ACTION_FIELD] = struck
+        return payload
 
-def _write_sidecar(json_path: Path, payload: dict) -> None:
-    """Replace the sidecar whole: written beside it and renamed over it.
-
-    Evolver's pipeline and a live session both read this file, and a write in
-    place left it empty for the length of the write -- a reader landing there
-    took the blank for the sidecar.  A rename within a directory is atomic; a
-    write is not.
-    """
-    tmp = json_path.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
     try:
-        os.replace(tmp, json_path)
-    except OSError:
-        tmp.unlink(missing_ok=True)
-        raise
+        locked_update(json_path, strike_the_act_out)
+    except ValueError:
+        return ""
+    return struck
 
 
 def _norm_text(value: object) -> str:

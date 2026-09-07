@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
+import threading
 from pathlib import Path
 
 import pytest
+from app_support.json_store import locked_update
 
 from fun_time.media_metadata import (
     action_group_items,
@@ -655,7 +658,7 @@ def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
     def refuse(_src, _dst):
         raise OSError("the rename was refused")
 
-    monkeypatch.setattr("fun_time.media_metadata.os.replace", refuse)
+    monkeypatch.setattr(os, "replace", refuse)
     with pytest.raises(OSError):
         reject_action(paths["clip"], metadata_root)
     assert sidecar.read_text(encoding="utf-8") == before
@@ -663,6 +666,56 @@ def test_reject_action_replaces_the_sidecar_whole(tmp_path: Path, monkeypatch):
     monkeypatch.undo()
     assert reject_action(paths["clip"], metadata_root) == "Alpha"
     assert [p.name for p in sidecar.parent.iterdir()] == [sidecar.name]
+
+
+def test_reject_action_waits_for_evolvers_writer_and_strikes_what_it_left(tmp_path: Path):
+    """Bug 8's lost update: Evolver's pass and this rejection reach one sidecar.
+
+    The pass holds the document's lock while it stamps a watch onto it; the
+    rejection waits, then strikes the act out of what the pass left rather than
+    out of the document it read before waiting -- which is how the stamp used to
+    disappear a moment after it landed.
+    """
+    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
+    sidecar = metadata_path_for(paths["clip"], metadata_root)
+    inside = threading.Event()
+    let_go = threading.Event()
+
+    def stamp_a_watch(payload: dict) -> dict:
+        inside.set()
+        let_go.wait(5)
+        return {**payload, "watch": {"weight": 2.0}}
+
+    pipeline = threading.Thread(
+        target=locked_update, args=(sidecar, stamp_a_watch), daemon=True)
+    pipeline.start()
+    assert inside.wait(5)
+    struck: list[str] = []
+    viewer = threading.Thread(
+        target=lambda: struck.append(reject_action(paths["clip"], metadata_root)),
+        daemon=True)
+    viewer.start()
+    let_go.set()
+    pipeline.join(5)
+    viewer.join(5)
+
+    payload = load_metadata(sidecar)
+    assert struck == ["Alpha"]
+    assert payload["video"]["wrong_action"] == "Alpha"
+    assert "action" not in payload["video"]
+    assert payload["watch"] == {"weight": 2.0}, "the pass's stamp survives the rejection"
+
+
+def test_reject_action_leaves_a_sidecar_it_cannot_read_as_a_document(tmp_path: Path):
+    """Several apps own this file, so one that cannot be parsed is left exactly
+    as it is: striking an act out of a document we cannot read would mean
+    writing our own over somebody else's record."""
+    _media_root, metadata_root, paths = _write_library(tmp_path, {"clip": _t2v("Alpha", "1")})
+    sidecar = metadata_path_for(paths["clip"], metadata_root)
+    sidecar.write_text("[not a document]", encoding="utf-8")
+
+    assert reject_action(paths["clip"], metadata_root) == ""
+    assert sidecar.read_text(encoding="utf-8") == "[not a document]"
 
 
 def test_reject_action_is_a_no_op_when_there_is_no_act(tmp_path: Path):
