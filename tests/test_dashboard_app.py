@@ -12,6 +12,8 @@ from shared_ui.colors import BLUE
 
 from fun_time import load_config
 from fun_time.dashboard_actions import (
+    ENTER_VR,
+    FMODE_TOGGLE,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
@@ -30,6 +32,7 @@ from fun_time.dashboard_app import (
     write_dashboard_command,
 )
 from fun_time.dashboard_layout import (
+    GROUP_GAP,
     Rect,
     compute_dashboard_bar_layout,
     dashboard_window_height,
@@ -85,14 +88,27 @@ def _fill(scene, rect):
 
 
 def test_the_bar_carries_only_what_belongs_to_no_player():
-    """Quit, pause everything, the reference popup, and the microphone.  Anything
-    about a particular player — the broker and F-mode included — is on that
-    player's HUD."""
+    """Quit, pause everything, the reference popup, and the microphone — then the
+    room's own F-mode and the way across to the headset, each in a group of its
+    own.  Anything about ONE player, the broker and that player's own F-mode
+    included, is on that player's HUD."""
     scene = _scene()
 
     assert [action for action, _rect in scene.actions] == [
         QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
+        FMODE_TOGGLE, ENTER_VR,
     ]
+
+
+def test_the_two_room_controls_each_stand_in_a_group_of_their_own():
+    """The four before them are the session's own chrome; F-mode reaches into all
+    three players and Enter VR ends the session altogether, so neither reads as a
+    fifth or sixth of the four."""
+    layout = compute_dashboard_bar_layout()
+
+    assert layout.fmode_button.x - (layout.voice_panel.x + layout.voice_panel.width) == GROUP_GAP
+    assert (layout.enter_vr_button.x
+            - (layout.fmode_button.x + layout.fmode_button.width)) == GROUP_GAP
 
 
 def test_the_bar_is_only_as_wide_as_its_own_buttons():

@@ -59,9 +59,9 @@ def client_rect_filling_frame(
 
 # --- the control bar ---------------------------------------------------------
 # What is on the bar is the handful of controls that belong to no player: quit,
-# pause everything, the reference popup, and the microphone.  Anything about a
-# particular player is on that player's own HUD, which is why the bar is not
-# arranged like the room.
+# pause everything, the reference popup, the microphone, the room's F-mode and
+# the way across to the headset.  Anything about a particular player is on that
+# player's own HUD, which is why the bar is not arranged like the room.
 
 # The family's own button square and the gap between two of them, so a control
 # here is the same object a control in Origenerator's bank is.  Both were this
@@ -94,19 +94,25 @@ class DashboardBarLayout:
     omnipause_button: Rect
     help_button: Rect
     voice_panel: Rect
+    fmode_button: Rect
+    enter_vr_button: Rect
 
     @property
     def content_width(self) -> int:
         """How wide the bar's own buttons run — the width it takes in its row,
         leaving the rest to the log's filter controls beside it."""
-        return self.voice_panel.x + self.voice_panel.width + PAD
+        return self.enter_vr_button.x + self.enter_vr_button.width + PAD
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
-    """The control bar, laid out left to right at its natural size: the app's own
-    name and mark, then the four controls in one run.  The microphone is one of
-    them rather than a light off to the side, which read as adrift once F-mode
-    left for the players' own HUDs."""
+    """The control bar, laid out left to right at its natural size.
+
+    The app's own name and mark lead, then the session's own four in one run —
+    the microphone among them rather than a light set off to the side, which read
+    as something adrift from the bar rather than part of it.  Then two in groups
+    of their own: an F-mode that reaches all three players, and the one control
+    that crosses to the other session rather than acting inside this one.
+    """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
 
@@ -121,6 +127,11 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         buttons.append(Rect(x, PAD, BUTTON, BUTTON))
         x += BUTTON + GAP
 
+    x += GROUP_GAP - GAP
+    fmode_button = Rect(x, PAD, BUTTON, BUTTON)
+    x += BUTTON + GROUP_GAP
+    enter_vr_button = Rect(x, PAD, BUTTON, BUTTON)
+
     return DashboardBarLayout(
         height=height,
         app_icon=app_icon,
@@ -129,15 +140,12 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         omnipause_button=buttons[1],
         help_button=buttons[2],
         voice_panel=buttons[3],
+        fmode_button=fmode_button,
+        enter_vr_button=enter_vr_button,
     )
 
 
 def dashboard_window_height() -> int:
-    """How tall the dashboard window stands: the bar, then the log under it.
-
-    It used to be as tall as a scale drawing of the taller monitor, with the log
-    squeezed into the strip beside that drawing.  Without the drawing the log
-    takes the full width and the window is a fraction of the height, which the
-    Random Favs Browser below it inherits.
-    """
+    """How tall the dashboard window stands: the bar, then the log under it,
+    which the Random Favs Browser below it inherits."""
     return compute_dashboard_bar_layout().height + LOG_HEIGHT

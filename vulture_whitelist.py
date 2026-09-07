@@ -31,6 +31,8 @@ _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
 set_window_icon  # win32; the VR session's window asks for it, a scan of its own
 draw_nothing_at_all  # win32; the VR session's window asks for it too
+_.remove_overlay  # satellite.hud_overlay.HudOverlay.close, on the VR HudSurface; a scan of its own
+VR_APP_USER_MODEL_ID  # win32_taskbar; read by fun_time_vr, a scan of its own
 _.current_funscript  # MainRole; player_core's drive gate reads it off the role
 # The headset hold's channel: written by fun_time_vr's orchestrator and read by
 # its player, each a scan of its own.
