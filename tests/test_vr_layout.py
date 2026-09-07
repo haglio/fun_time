@@ -11,6 +11,7 @@ from fun_time_vr.layout import (
     LANDSCAPE,
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
+    PANEL,
     PORTRAIT,
     PRIMARY,
     REFERENCE,
@@ -54,9 +55,9 @@ class TestTheDefaults:
         assert DEFAULT_LAYOUT[LANDSCAPE].elevation_deg > 0
 
     def test_only_the_screens_a_controller_places_are_in_here(self):
-        """The console docks under the main player rather than being placed, so
-        it is not one of these -- and a file naming it is ignored, not obeyed."""
-        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, DASH, REFERENCE}
+        """The console is one of them now: a video that wraps the viewer leaves
+        no picture to dock it under, so a handle of its own places it there."""
+        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, PANEL, DASH, REFERENCE}
 
 
 class TestTheRememberedLayout:
