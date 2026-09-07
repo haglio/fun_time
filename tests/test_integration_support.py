@@ -27,6 +27,8 @@ from tests.integration.integration_support import (
     isolate_shared_resources,
     readable_at_speed,
     sample_library_clips,
+    stall_per_transition,
+    window_is_quiet,
 )
 
 BROKER_TCODE_PORT = 50557
@@ -425,3 +427,45 @@ def test_a_sample_skips_the_clips_the_drive_cannot_serve_at_speed(monkeypatch, c
 def test_a_sample_fails_saying_so_when_too_few_clips_read_at_speed():
     with pytest.raises(AssertionError, match="read at speed"):
         sample_library_clips(["a.mp4", "b.mp4"], 2, desc="clips", readable=lambda clip: False)
+
+
+def test_a_window_whose_median_hides_a_stall_is_not_quiet():
+    """The settle gate the VR pipeline test runs on.
+
+    Its old form asked only for a median under budget, and a machine still
+    tearing a session down answers that: measured on this machine, a probe
+    window came in at a 9.5ms median with a 428ms frame inside it, was taken
+    for settled, and the sample that followed blew the guard — reported as
+    the pipeline pacing the loop when the pipeline was never asked."""
+    quiet = [1.0] * 120
+    hiding_a_stall = [1.0] * 80 + [40.0] * 39 + [428.0]
+
+    assert window_is_quiet(quiet, budget_ms=11.1)
+    assert not window_is_quiet(hiding_a_stall, budget_ms=11.1)
+    assert sorted(hiding_a_stall)[len(hiding_a_stall) // 2] < 11.1, (
+        "the window this rejects is one a median gate accepts"
+    )
+
+
+def test_a_quiet_window_tolerates_the_odd_frame():
+    """One frame in a hundred over budget is a machine, not a regression: the
+    gate is the 90th percentile, so a handful of stray frames never fails it
+    while a window that is over budget most of the time always does."""
+    assert window_is_quiet([1.0] * 115 + [50.0] * 5, budget_ms=11.1)
+    assert not window_is_quiet([1.0] * 50 + [50.0] * 70, budget_ms=11.1)
+
+
+def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
+    """What the clip-transition guard judges.
+
+    The regression it guards stalled EVERY transition for hundreds of
+    milliseconds, so the honest question is what a transition typically
+    costs.  Judging the single worst frame instead put the guard on the one
+    statistic machine noise owns: a run whose four transitions cost 79, 91,
+    92 and 628ms is a machine hiccup on one pass, not a pipeline that stalls
+    on every clip change."""
+    noise_on_one_pass = [[1.0, 78.7], [1.0, 90.6], [1.0, 91.7], [1.0, 628.0]]
+    stalls_every_pass = [[1.0, 640.0], [1.0, 647.0], [1.0, 651.0], [1.0, 660.0]]
+
+    assert stall_per_transition(noise_on_one_pass) < 150.0
+    assert stall_per_transition(stalls_every_pass) > 150.0
