@@ -513,7 +513,7 @@ class TestBeingSeen:
         clock.now += COVER_DWELL_S
         assert seen.dwelt
 
-    def test_a_headset_taken_off_mid_dwell_does_not_restart_it(self):
+    def test_a_headset_taken_off_after_the_dwell_does_not_restart_it(self):
         """Its wearer looked; asking them to look again from zero would hold a
         launch on a glance."""
         clock = _Clock()
@@ -523,4 +523,24 @@ class TestBeingSeen:
         clock.now += COVER_DWELL_S
         seen.note(False)
 
+        assert seen.dwelt
+
+    def test_a_gap_before_the_dwell_is_done_starts_it_over(self):
+        """The dwell is time the cover was THERE.  Timed from the first frame
+        alone it counted the gap between that frame and the frame loop --
+        seconds in which the runtime had put its own environment back and the
+        cover was on screen for none of it."""
+        clock = _Clock()
+        seen = CoverSeen(clock=clock)
+
+        seen.note(True)                     # the one frame _raise_the_cover gets
+        clock.now += COVER_DWELL_S - 0.1    # the gap: units built, nothing submitted
+        seen.note(False)
+        clock.now += 1.0
+
+        assert not seen.dwelt
+
+        seen.note(True)                     # the loop, drawing it for real
+        clock.now += COVER_DWELL_S
+        seen.note(True)
         assert seen.dwelt

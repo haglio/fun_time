@@ -191,9 +191,12 @@ class CoverSeen:
         self._clock = clock
         self._first: float | None = None
 
-    def note(self, shown: bool) -> None:  # starts the clock on the first one
-        if shown and self._first is None:
-            self._first = self._clock()
+    def note(self, shown: bool) -> None:  # a blank frame restarts an unfinished dwell
+        if shown:
+            if self._first is None:
+                self._first = self._clock()
+        elif not self.dwelt:
+            self._first = None
 
     @property
     def dwelt(self) -> bool:
@@ -235,6 +238,8 @@ class SceneReady:
         if not ready:
             logger.warning("Some of the room is still blank after %.0fs; revealing anyway",
                            self._grace_s)
+        else:
+            logger.info("Room up and the cover read after %.1fs", now - self._started)
         self._reported = True
         try:
             self._file.write_text("", encoding="utf-8")

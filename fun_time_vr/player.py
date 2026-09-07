@@ -425,9 +425,9 @@ class _MainUnit(_VideoUnit):
         self.cmd_file = Path(commands.nau_cmd_file)
         self.paused_file = Path(commands.nau_paused_file)
         metadata_raw = manifest.regen.metadata_root.strip()
-        driver = FunscriptTCodeDriver(
-            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port)
-        )
+        driver = FunscriptTCodeDriver(_SaysWhenItFirstMoves(
+            UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main",
+        ))
         self.role = MainRole(
             player=self.player,
             driver=driver,
@@ -719,7 +719,9 @@ class _GenauUnit:
             drive_file=genau_state / "genau_drive.txt",
             console_file=Path(commands.nau_console_file),
             notifier=GenauNotifier(vr.notify_host, vr.notify_port),
-            tcode_sink=UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port),
+            tcode_sink=_SaysWhenItFirstMoves(
+                UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau",
+            ),
             stop_event=stop,
             # Genau's own resume: the clip it was left showing, off its last status.
             start_clip=read_genau_status(genau_status_path(genau_state)).clip or None,
@@ -1402,9 +1404,25 @@ def _draw_cover(session, renderer: SceneRenderer, cover: _CoverUnit, views) -> N
         session.release_eye_framebuffer(eye_index)
 
 
+class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of the log
+    def __init__(self, sink, role: str) -> None:
+        self._sink = sink
+        self._role = role
+        self._said = False
+
+    def send(self, command: str) -> None:
+        if not self._said:
+            self._said = True
+            logger.info("First T-Code from the %s role: %s", self._role, command)
+        self._sink.send(command)
+
+    def close(self) -> None:
+        self._sink.close()
+
+
 def _scene_is_up(primary, genau, satellites: Sequence, panel) -> bool:
-    """Whether every picture the session opens with has been RENDERED, not
-    merely sized (``has_picture``, never ``ready``); the main slot counts once."""
+    """Every picture the session opens with RENDERED, not merely sized
+    (``has_picture``, never ``ready``); the main slot counts once."""
     main = genau.texture if genau.role.showing else primary.target
     return bool(
         main.has_picture
@@ -1707,6 +1725,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     scene_yaw = 0.0
     scene_rotation = np.eye(4, dtype=np.float32)
     last_frame_time = time.monotonic()
+    cover_up_at: float | None = None
+    cover_down_said = False
     pump_thread = start_daemon_thread(
         target=_pump_channels, args=(pumped, stop, perf), name="file-channels",
     )
@@ -1760,6 +1780,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 # No quads: the runtime composites those OVER our layer, so a
                 # screen submitted as one shows through the cover.
                 covered = True
+                if cover_up_at is None:
+                    cover_up_at = now
+                    logger.info("Cover drawing to the headset")
                 project = True
                 t3 = time.perf_counter()
                 _draw_cover(session, renderer, cover, views)
@@ -1834,6 +1857,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             session.frame_end(display_time, views, project=project, quads=quads)
             t5 = time.perf_counter()
             cover_seen.note(covered and session.focused)
+            if cover_up_at is not None and not covered and not cover_down_said:
+                cover_down_said = True
+                logger.info("Cover down after %.1fs on screen", now - cover_up_at)
             if covered or not should_render:
                 cover.settled()
             glfw.poll_events()
