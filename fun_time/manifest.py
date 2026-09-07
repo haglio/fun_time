@@ -21,9 +21,9 @@ from .nau_console import nau_console_path
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
 
-def build_windows_bridge_manifest(config) -> dict[str, dict[str, str]]:
+def build_windows_bridge_manifest(
+        config, *, dashboard_enabled: bool = True) -> dict[str, dict[str, str]]:
     layout = config.layout
-    dashboard_enabled = os.environ.get("FUN_TIME_DISABLE_DASHBOARD") != "1"
     return {
         "runtime": {
             "config_path": str(config.config_path),
@@ -142,9 +142,11 @@ def write_manifest_data(data: dict[str, dict[str, str]], destination: Path) -> P
     return destination
 
 
-def write_windows_bridge_manifest(config, destination: Path | None = None) -> Path:
+def write_windows_bridge_manifest(
+        config, destination: Path | None = None, *, dashboard_enabled: bool = True) -> Path:
     manifest_path = destination or (config.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME)
-    return write_manifest_data(build_windows_bridge_manifest(config), manifest_path)
+    return write_manifest_data(
+        build_windows_bridge_manifest(config, dashboard_enabled=dashboard_enabled), manifest_path)
 
 
 class ManifestKeyMissing(LookupError):  # not KeyError: str() must be the message, not its repr()

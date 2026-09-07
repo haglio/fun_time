@@ -29,6 +29,7 @@ from app_support.win32 import mutex_name, set_shortcut_app_user_model_id, try_ac
 
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
+from .session_environment import SessionEnvironment
 from .single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
 from .win32_taskbar import APP_USER_MODEL_ID
 from .windows_bridge_orchestrator import run_session
@@ -79,8 +80,9 @@ def validate_config(config) -> None:
 
 
 
-def run_windows_bridge(config, logger) -> int:
-    manifest_path = write_windows_bridge_manifest(config)
+def run_windows_bridge(config, logger, env: SessionEnvironment) -> int:
+    manifest_path = write_windows_bridge_manifest(
+        config, dashboard_enabled=env.dashboard_enabled)
     hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
 
     logger.info("Launching Python-orchestrated Windows bridge using config %s", config.config_path)
@@ -91,6 +93,7 @@ def run_windows_bridge(config, logger) -> int:
         hotkey_script=str(hotkey_script),
         state_dir=config.paths.state_dir,
         project_dir=config.project_dir,
+        env=env,
     )
     logger.info("Windows bridge exited with code %s", exit_code)
     return exit_code
@@ -169,12 +172,13 @@ def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> N
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
+    env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
     # A worktree's own answer to "which Origenerator does this session host" —
     # the counterpart of the genau override applied at the top of this module,
     # for the same reason: the machine's one config must not be repointed at an
     # unlanded branch for every session on the machine.
-    config = apply_origenerator_dir_override(config)
+    config = apply_origenerator_dir_override(config, integration=env.integration)
     logger = configure_logging("fun_time.orchestrator", config.log_file("orchestrator"), console=True)
     install_exception_logging(logger)
 
@@ -210,7 +214,7 @@ def main(argv: list[str] | None = None) -> int:
     # Every child below is named as it is launched; this one process cannot be,
     # because it is the one doing the naming -- see prepare_orchestrator_launcher.
     prepare_orchestrator_launcher()
-    return run_windows_bridge(config, logger)
+    return run_windows_bridge(config, logger, env)
 
 
 if __name__ == "__main__":

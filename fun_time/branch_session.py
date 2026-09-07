@@ -272,7 +272,7 @@ def _apply_origenerator_checkout_override(raw: dict, state_dir: Path) -> None:
     raw.setdefault("paths", {})["origenerator_dir"] = lines[0] if lines else ""
 
 
-def apply_origenerator_dir_override(config):
+def apply_origenerator_dir_override(config, *, integration: bool = False):
     """This checkout's origenerator override, applied to a loaded config.
 
     The branch-config generator runs the PRIMARY checkout's copy of this
@@ -281,15 +281,8 @@ def apply_origenerator_dir_override(config):
     this at launch instead, resolving the file against its own checkout.  A
     no-op wherever the override file does not exist, which is every ordinary
     session.
-
-    Never in an integration run: the run's config decides what it hosts —
-    isolation strips the key so nothing is hosted, and the origenerator-mode
-    test then names its own fabricated stub.  This override once out-ranked
-    both, and every session the suite launched from a worktree carrying the
-    file quietly hosted the REAL app instead: the machine's one ComfyUI,
-    booted on the hidden desktop by a test run.
     """
-    if os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1":
+    if integration:
         return config
     override = config_module.PROJECT_DIR / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME
     try:

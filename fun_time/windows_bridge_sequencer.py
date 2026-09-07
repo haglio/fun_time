@@ -11,7 +11,6 @@ import configparser
 import ctypes
 import ctypes.wintypes
 import logging
-import os
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -37,6 +36,7 @@ from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
 from .satellites_mode import ORIGENERATOR_MODE, VIDEO_MODE
+from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .shared_state import read_shared_state, shared_state_path
 from .win32 import (
     disable_window_transitions,
@@ -301,6 +301,7 @@ def run_startup_sequence(
     progress: ProgressReporter | None = None,
     hide_windows: bool = False,
     cover_hwnd: int = 0,
+    env: SessionEnvironment = ORDINARY_SESSION,
 ) -> StartupResult:
     """Run the full startup sequence, returning all PIDs and the layout plan.
 
@@ -327,6 +328,7 @@ def run_startup_sequence(
             hide_windows=hide_windows,
             cover_hwnd=cover_hwnd,
             launched=launched,
+            env=env,
         )
     except StartupCancelled as cancelled:
         cancelled.launched_pids = launched.pids
@@ -661,16 +663,17 @@ def _launch_core_media(
 _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
-def _position_windows_now(plan: WindowLayoutPlan, main_mode: str) -> dict[str, int]:
+def _position_windows_now(plan: WindowLayoutPlan, main_mode: str, *,
+                          env: SessionEnvironment) -> dict[str, int]:
     """Phase 2, on the path with no cover: place and band every window at once.
 
     No progress reporting here: this is the integration path, and the loading
     screen (with the reporter that drives it) belongs to the other one.
     """
-    skip_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
+    activate = not env.integration
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
-    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=not skip_activate)
-    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=not skip_activate)
+    _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=activate)
+    _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=activate)
     logger.info("Core windows positioned")
 
     role_hwnds = apply_startup_window_state(
@@ -700,8 +703,6 @@ def _launch_the_companions(
         dashboard_module=m.modules.dashboard_module,
         dashboard_enabled=m.dashboard_enabled,
         dashboard_log_file=state_dir / "dashboard.log",
-        # The HUD rides the dashboard's enable gate so integration's
-        # FUN_TIME_DISABLE_DASHBOARD keeps both always-on-top overlays off.
         windows_bridge_manifest_path=str(manifest_path),
         dashboard_x=plan.dashboard.x,
         dashboard_y=plan.dashboard.y,
@@ -895,6 +896,7 @@ def _run_startup_phases(
     hide_windows: bool,
     cover_hwnd: int,
     launched: _LaunchedChildren,
+    env: SessionEnvironment,
 ) -> StartupResult:
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
@@ -910,11 +912,11 @@ def _run_startup_phases(
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}
     if not hide_windows:
-        role_hwnds = _position_windows_now(plan, core.main_mode)
+        role_hwnds = _position_windows_now(plan, core.main_mode, env=env)
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
-    rfb_hwnd = _maybe_launch_random_favs_browser(m.random_favs_browser, plan)
+    rfb_hwnd = _maybe_launch_random_favs_browser(m.random_favs_browser, plan, env=env)
     launched.rfb_hwnd = rfb_hwnd
 
     # --- Phase 3: Launch UI companions ---
@@ -1137,6 +1139,8 @@ def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
 def _maybe_launch_random_favs_browser(
     settings: RandomFavsBrowserSettings,
     plan: WindowLayoutPlan,
+    *,
+    env: SessionEnvironment,
 ) -> int:
     """Launch the Random Favs Browser if enabled and position it.
 
@@ -1173,8 +1177,8 @@ def _maybe_launch_random_favs_browser(
 
     # Position the browser window
     rect = plan.random_favs_browser
-    no_activate = os.environ.get("FUN_TIME_RUN_INTEGRATION") == "1"
-    move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height, activate=not no_activate)
+    move_window(new_hwnd, rect.x, rect.y, rect.width, rect.height,
+                activate=not env.integration)
 
     # The RFB's static topmost flag is applied by Phase 4's
     # apply_startup_window_state; nothing window-related to do here.
