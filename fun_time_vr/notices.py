@@ -27,7 +27,7 @@ TOAST_SECONDS = 2.2
 KEPT_RECORDS = 400
 
 # Which screen a notice flashes over: the two satellites have their own, and
-# everything else belongs to the primary, the desktop's own fallback.
+# everything else is the primary's, the desktop's own fallback.
 _SCREENS = {SOURCE_PORTRAIT: SOURCE_PORTRAIT, SOURCE_LANDSCAPE: SOURCE_LANDSCAPE}
 
 

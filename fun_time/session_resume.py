@@ -21,27 +21,23 @@ from .shared_state import BridgeState, read_shared_state, write_shared_state
 
 PlaylistEntries = list[tuple[Path, Path | None]]
 
-# What a reopened session does NOT come back believing.  Everything else does,
-# because most of it is what shaped the playlist files that were just resumed —
-# each player's own F-mode and each side's filter decide which clips are in
-# them, Latest fixes their order, and a group loop IS the group written out as
-# the playlist — and the rest is what the session was simply *left* in: the
-# sound level and each side's lock are how you had it set, and there is no more
-# reason for them to reset overnight than there is for the clip on screen to.
+# What a reopened session does NOT come back believing.  Everything else does:
+# most of it shaped the playlist files just resumed, and the rest is what the
+# session was simply *left* in, with no more reason to reset overnight than the
+# clip on screen has.
 #
 # Three of those have a live counterpart to re-assert, since none lives in a
 # file a new process reads: the level is seeded to both audio sinks at startup
 # (see fun_time.audio_volume.publish_audio_level), each lock is queued back to
 # its satellite (:func:`resume_satellite_locks`), and the main slot's mode is
-# what startup seeds the two main-slot players and their windows for (see
+# what startup seeds its two players and their windows for (see
 # fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
 # These five are dropped because nothing carries them into the new session:
 # OmniPause's flags are cleared before the players launch, Genau reshuffles its
-# clips folder at every launch, whichever player was last addressed is a fact
-# about the session that ended, and a keyboard-navigation selection was never a
-# thing you could leave running.
+# clips at every launch, whichever player was last addressed is a fact about the
+# session that ended, and a keyboard selection was never a thing to leave.
 NOT_RESUMED = frozenset({
     "omni_paused",
     "active_side",

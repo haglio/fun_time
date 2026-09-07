@@ -1,9 +1,7 @@
-"""The hotkeys and voice reference, hanging in the headset.
-
-The desktop's is an HTML popup; a player process has no browser, so the same
-sections (:func:`fun_time.command_reference.build_reference_sections`) are
-painted one at a time, with two controls that walk them.
-"""
+"""The hotkeys and voice reference, hanging in the headset: the desktop's is an
+HTML popup and a player process has no browser, so the same sections
+(:func:`fun_time.command_reference.build_reference_sections`) are painted one at
+a time, with two controls that walk them."""
 from __future__ import annotations
 
 from dataclasses import dataclass, replace
@@ -95,7 +93,7 @@ def _fit(font, text: str, width: int) -> str:
 
 
 def paint_reference(state: ReferenceState) -> Image.Image:
-    """One section: its title, the heads, and a row per command."""
+    """One section: its title, the heads, a row per command."""
     height = reference_height()
     panel = Image.new("RGBA", (REFERENCE_WIDTH_PX, height), (*BG_PRIMARY, 240))
     draw = ImageDraw.Draw(panel)
