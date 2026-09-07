@@ -428,18 +428,16 @@ class TestTheProjectsOwnPaths:
         assert CONFIG_ROOT is PROJECT_DIR
 
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
-        """Five of the six copies; `satellite.app` keeps its own, and its
-        comment says why.  Read from the source, because three of the five are
-        uses rather than bindings and an alias would not show them."""
+        """`satellite.app` keeps its own, and its comment says why.  Read from
+        the source, because some are uses rather than bindings and an alias
+        would not show them.  FunTimeVR's session is not among them: its window
+        is never shown, so it wears no icon at all."""
         import ast
 
         from fun_time.project_paths import PROJECT_DIR
 
-        # FunTimeVR's window wears the V, so it asks for the other constant --
-        # still project_paths', still not a path it spells itself.
         wants = {
             "fun_time/process_identity.py": "PROJECT_ICON",
-            "fun_time_vr/vr_session.py": "PROJECT_VR_ICON",
             "fun_time/overlay_window.py": "PROJECT_ICON",
             "fun_time/dashboard_app.py": "PROJECT_ICON",
         }

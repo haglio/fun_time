@@ -223,10 +223,6 @@ _WIN32_REACHES = {
     # A fourth enumeration walk with its own hoisted handle and its own
     # prototype; folding it into win32._first_window is its own change.
     "fun_time/windows_bridge_sequencer.py": 9,
-    # An icon handed to a window: belongs under a named call the way the
-    # dashboard's chrome now is.  The error popup beside it is gone --
-    # FunTimeVR says it through shared_ui.alert.
-    "fun_time_vr/vr_session.py": 4,
 }
 
 # What counts as reaching it.
