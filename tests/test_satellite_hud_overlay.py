@@ -180,15 +180,44 @@ def test_a_loop_button_click_posts_at_once(tmp_path: Path, panel: Path):
     assert _commands(tmp_path) == ["portrait_seed_loop"]
 
 
-def test_a_press_outside_the_panel_posts_nothing(tmp_path: Path, panel: Path):
+def test_a_press_outside_the_panel_posts_nothing_and_is_refused(
+        tmp_path: Path, panel: Path):
+    """Refused rather than merely silent: what the HUD does not take is a press
+    on the picture, and the run loop has its own answer for one."""
     player = FakeSatellitePlayer()
     overlay = _overlay(tmp_path, panel, player)
     overlay.tick()
 
-    overlay.press(2, 2)          # inside the window, outside the HUD's inset
-    overlay.press(2000, 2000)    # far off the panel
+    taken = [
+        overlay.press(2, 2),          # inside the window, outside the HUD's inset
+        overlay.press(2000, 2000),    # far off the panel
+    ]
 
+    assert taken == [False, False]
     assert _commands(tmp_path) == []
+
+
+def test_a_press_on_the_panel_s_own_background_is_the_hud_s(tmp_path: Path, panel: Path):
+    """The slab is one surface: a press between its controls posts nothing and
+    is still the HUD's, not the picture's."""
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+    overlay.tick()
+    _x, _y, bgra = player.overlays[overlay.overlay_id]
+    height, width = bgra.shape[:2]
+
+    taken = overlay.press(MARGIN + width - 1, MARGIN + height - 1)
+
+    assert taken is True
+    assert _commands(tmp_path) == []
+
+
+def test_no_panel_on_screen_takes_no_press(tmp_path: Path):
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, tmp_path / "absent.json", player)
+    overlay.tick()
+
+    assert overlay.press(MARGIN + 2, MARGIN + 2) is False
 
 
 def test_hovering_a_button_redraws_with_its_tooltip(tmp_path: Path, panel: Path):

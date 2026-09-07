@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import math
+from dataclasses import replace
 
 import numpy as np
 import pytest
@@ -370,6 +371,8 @@ def _hands(right=None, left=None, *, right_trigger=0.0, left_trigger=0.0):
 _LANDSCAPE = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
                     movable=True, resizable=True)
 _PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
+_WRAPPED = Screen("primary", Placement(0.0, 0.0, 72.0), aspect=16 / 9,
+                  pressable=True, immersive=True)
 _SCENE = [_LANDSCAPE, _PANEL]
 
 
@@ -470,6 +473,45 @@ class TestThePointerOverTheScene:
         assert pressed.hover.handle == SURFACE
         assert pressed.events == dragged.events == ()
         assert pressed.moved == dragged.moved == {}
+
+    def test_a_squeeze_where_a_wrapped_picture_is_all_there_is_presses_it(self):
+        """A VR180 or 360 main player is round the viewer rather than hanging in
+        the scene, so it has no rectangle to aim at — it is what a squeeze lands
+        on wherever no hanging screen is, reported at its middle since there is
+        no point on it to give."""
+        frame = self._frame(Pointer(), _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
+                            screens=[_WRAPPED, _PANEL])
+
+        assert frame.events == (PressEvent(PRESS, "primary", 0.5, 0.5),)
+
+    def test_a_screen_hanging_in_front_of_the_wrap_still_takes_its_own_presses(self):
+        frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_PANEL, 0.25, 0.75),
+                                              right_trigger=1.0),
+                            screens=[_WRAPPED, _PANEL])
+
+        assert frame.events[0].screen == "panel"
+
+    def test_the_wrap_is_never_hovered_and_takes_nothing_but_a_press(self):
+        """A cursor on it would follow the ray everywhere, saying nothing about
+        what is under it — and there is nothing out there to hold or to drag."""
+        pointer = Pointer()
+        away = _hands(right=_aim_at(140.0, -0.6))
+        scene = [_WRAPPED, _PANEL]
+
+        resting = self._frame(pointer, away, screens=scene)
+        held = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
+                           screens=scene)
+        released = self._frame(pointer, away, screens=scene)
+
+        assert resting.hover is None and held.hover is None
+        assert resting.events == released.events == ()
+        assert held.events == (PressEvent(PRESS, "primary", 0.5, 0.5),)
+
+    def test_a_wrap_that_is_not_pressable_takes_nothing(self):
+        frame = self._frame(Pointer(), _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
+                            screens=[replace(_WRAPPED, pressable=False), _PANEL])
+
+        assert frame.events == ()
 
     def test_the_hand_that_squeezes_takes_the_pointer_and_keeps_it(self):
         pointer = Pointer()

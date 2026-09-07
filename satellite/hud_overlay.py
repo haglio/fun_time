@@ -63,6 +63,7 @@ class HudOverlay:
         self._hover_tip = ""
         self._hover_pos = (0, 0)
         self._shown = False
+        self._panel_size: tuple[int, int] | None = None  # the slab's, while it shows
         self.targets: HudTargets = _EMPTY_TARGETS
 
     @property
@@ -115,14 +116,15 @@ class HudOverlay:
             if command:
                 self._post(command)
 
-    def press(self, x: int, y: int) -> None:
-        """A left-click at window coordinates ``(x, y)``."""
-        if self._clicks is None:
-            return
+    def press(self, x: int, y: int) -> bool:
+        """A left-click at window coordinates ``(x, y)``; whether the slab took it."""
+        if self._clicks is None or not self._covers(x, y):
+            return False
         command = self._clicks.press(self.targets, *self._local(x, y), now=self._clock())
         if command:
             self._post(command)
             self._draw()  # a loop button lights up before fun_time answers
+        return True
 
     def motion(self, x: int, y: int) -> None:
         """The cursor moved to window coordinates ``(x, y)``."""
@@ -135,9 +137,16 @@ class HudOverlay:
         self._draw()
 
     def close(self) -> None:
+        self._panel_size = None
         if self._shown:
             self._player.remove_overlay(self.overlay_id)
             self._shown = False
+
+    def _covers(self, x: int, y: int) -> bool:
+        if self._panel_size is None:
+            return False
+        width, height = self._panel_size
+        return MARGIN <= x < MARGIN + width and MARGIN <= y < MARGIN + height
 
     def _local(self, x: int, y: int) -> tuple[int, int]:
         """Window coordinates as panel-local ones — the HUD sits at a fixed inset
@@ -171,6 +180,8 @@ class HudOverlay:
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )
         self.targets = rendered.targets
+        height, width = rendered.bgra.shape[:2]
+        self._panel_size = (width, height)
         self._player.overlay(self.overlay_id, MARGIN, MARGIN, rendered.bgra)
         self._shown = True
 

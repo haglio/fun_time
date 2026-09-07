@@ -265,6 +265,7 @@ class Screen:
     movable: bool = False
     resizable: bool = False
     pressable: bool = False
+    immersive: bool = False  # wrapped round the viewer: no rectangle, so no hover
 
 
 @dataclass(frozen=True)
@@ -303,12 +304,19 @@ class Frame:
 
 def _hover_at(point: SurfacePoint, screens: Sequence[Screen]) -> tuple[Screen, Hover] | None:
     for screen in reversed(screens):
+        if screen.immersive:
+            continue  # no rectangle to be over; see _wrapped_around below
         u, v = screen_uv(point, screen.placement, screen.aspect)
         handle = handle_at(u, v, screen.placement, aspect=screen.aspect,
                            resizable=screen.resizable)
         if handle == SURFACE or (handle is not None and screen.movable):
             return screen, Hover(screen.name, handle, u, v)
     return None
+
+
+def _wrapped_around(screens: Sequence[Screen]) -> Screen | None:
+    return next((screen for screen in screens
+                 if screen.immersive and screen.pressable), None)
 
 
 class Pointer:
@@ -343,7 +351,7 @@ class Pointer:
             return self._pressing_on(ray, point, edge)
         under = _hover_at(point, screens) if point is not None else None
         if under is None:
-            return Frame(ray=ray, point=point)
+            return self._over_the_wrap(ray, point, screens, edge)
         screen, hover = under
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
             self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
@@ -353,6 +361,13 @@ class Pointer:
             return Frame(ray=ray, point=point, hover=hover,
                          events=(PressEvent(PRESS, screen.name, hover.u, hover.v),))
         return Frame(ray=ray, point=point, hover=hover)
+
+    def _over_the_wrap(self, ray: Ray, point: SurfacePoint | None,
+                       screens: Sequence[Screen], edge: str | None) -> Frame:
+        """Nothing hanging in the scene is under the ray, so a wrapped picture is."""
+        wrapped = _wrapped_around(screens) if edge == PRESS else None
+        events = () if wrapped is None else (PressEvent(PRESS, wrapped.name, 0.5, 0.5),)
+        return Frame(ray=ray, point=point, events=events)
 
     def _blind(self, edge: str | None) -> Frame:
         if edge != RELEASE:

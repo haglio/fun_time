@@ -5,7 +5,7 @@ tcode, heatmap, record or version cycling.  mpv renders the video into a
 pygame/SDL window; fun_time positions that window by HWND after launch and drives
 playback through the command + paused files, reading back the status file.  Three
 things are composited on top: the lock HUD from the panel fun_time publishes, the
-scrubber and the volume chip — the last two taking this loop's own mouse events.
+scrubber and the volume chip — they and the picture take this loop's mouse events.
 
 A shell: the control logic it drives lives in satellite.session,
 satellite.runtime, satellite.pointer, satellite.volume and
@@ -132,12 +132,13 @@ def _run(args, playlist: list[Path]) -> int:
         else None
     )
     # The scrubber and the volume chip, drawn from the shared engine and taking
-    # presses like Nau's: the bar seeks, the chip sets this player's own sound.
-    # Missing beside Nau's is only the funscript heatmap, which needs a script a
-    # satellite's clips do not carry.
+    # presses like Nau's: the bar seeks, the chip sets this player's own sound,
+    # and the picture asks fun_time to pause or resume the room.  Missing beside
+    # Nau's is only the heatmap, which needs a script a satellite's clips lack.
     volume = SatelliteVolume(player, live=not audio_muted(args))
     volume_painter = VolumeHudPainter()
-    pointer = Pointer(session=session, volume=volume, hud=hud)
+    pointer = Pointer(session=session, volume=volume, hud=hud,
+                      dashboard_cmd_file=args.dashboard_cmd_file)
     # The window size the blackout frame was last composited for, or None while
     # the video shows — the frame is re-made only when the size moves.
     blackout_size: tuple[int, int] | None = None
@@ -153,14 +154,10 @@ def _run(args, playlist: list[Path]) -> int:
         # landed in; the sequencer can move this one between passes.
         win_w, win_h = pygame.display.get_window_size()
         for ev in pygame.event.get():
-            # No key here ends this player: the session ends as a whole,
-            # through Ctrl+Alt+Q, which the bridge turns into the teardown that
-            # takes these processes down with it.  See CLAUDE.md, "Standing
-            # rules".
-            #
-            # The window's own close is the same thing arriving by another road —
-            # Alt+F4, the taskbar, the system menu — and it is asked of the
-            # session rather than answered here (satellite.session_quit).
+            # No key here ends this player: the session ends as a whole, through
+            # Ctrl+Alt+Q, which the bridge turns into the teardown that takes
+            # these processes down with it (CLAUDE.md, "Standing rules").  The
+            # window's own close is that same ask; see player_core.session_quit.
             if ev.type == pygame.QUIT:
                 if quit_gesture(args.dashboard_cmd_file):
                     stop_event.set()

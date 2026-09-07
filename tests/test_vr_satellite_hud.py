@@ -76,14 +76,16 @@ _HUD_SIZE = (200, 100)
 
 class TestAPressOnASatellite:
     def _pointer(self):
-        hud, seeks, levels = _FakeHud(), [], []
+        hud, seeks, levels, asked = _FakeHud(), [], [], []
         volume = VolumeHud(volume=70, muted=True)
         pointer = SatellitePointer(
             hud=hud, seek=seeks.append, duration_ms=lambda: 10_000.0,
             volume=lambda: volume, mute=lambda muted: levels.append(("mute", muted)),
             set_volume=lambda level: levels.append(("level", level)),
+            picture=lambda: asked.append("omnipause_toggle"),
         )
-        return SimpleNamespace(pointer=pointer, hud=hud, seeks=seeks, levels=levels)
+        return SimpleNamespace(pointer=pointer, hud=hud, seeks=seeks, levels=levels,
+                               asked=asked)
 
     def test_a_press_on_the_hud_reaches_its_map_at_the_inset_the_desktop_draws_it_at(self):
         p = self._pointer()
@@ -117,12 +119,15 @@ class TestAPressOnASatellite:
         assert p.levels == [("mute", True)]
         assert p.seeks == []
 
-    def test_a_press_on_the_picture_itself_does_nothing(self):
+    def test_a_press_on_the_picture_itself_asks_the_room_to_pause(self):
+        """The map hangs as a screen of its own here, so the picture is only the
+        controls along its edges and, everywhere else, the room's own pause."""
         p = self._pointer()
 
         p.pointer.press(PICTURE, 0.5, 0.5, size=_PICTURE_SIZE)
 
         assert p.seeks == [] and p.hud.presses == [] and p.levels == []
+        assert p.asked == ["omnipause_toggle"]
 
     def test_hovering_the_hud_names_the_button_under_the_pointer(self):
         p = self._pointer()
