@@ -844,8 +844,10 @@ class TestTheCoverUnit:
 # --- What the cover is held for -------------------------------------------
 
 
-def _picture(ready):
-    return SimpleNamespace(ready=ready)
+def _picture(painted):
+    """A texture that is always sized, and holds a picture only when *painted*
+    -- the two states the room gate has to tell apart."""
+    return SimpleNamespace(ready=True, has_picture=painted)
 
 
 def _room(*, main=True, portrait=True, landscape=True, panel=True, genau_showing=False):
@@ -868,6 +870,35 @@ class TestWhenTheRoomIsUp:
         """Revealed here, that one arrives in the open a moment later — and the
         console among them, because a room with no controls in it is not up."""
         assert not _scene_is_up(**_room(**{blank: False}))
+
+    def test_a_sized_texture_is_not_a_picture(self):
+        """A video target is ready the moment mpv reports the clip's
+        dimensions, a frame or more before it presents anything -- so the room
+        read as up almost as soon as the loop began, the cover came off in a
+        blink nobody saw, and the OSR2 was released onto black."""
+        room = _room()
+        room["primary"] = SimpleNamespace(target=SimpleNamespace(
+            ready=True, has_picture=False,
+        ))
+
+        assert not _scene_is_up(**room)
+
+    def test_a_target_is_marked_painted_where_it_is_painted(self):
+        """The other half of that contract, pinned in the source because the
+        render call itself needs a GL context: the flag the gate reads is set
+        on the same branch that hands mpv the framebuffer, never beside the
+        ``ensure`` that only sizes it."""
+        import ast
+        import inspect
+
+        from fun_time_vr.player import _VideoUnit
+
+        body = ast.parse(inspect.getsource(_VideoUnit.render_latest_frame).lstrip())
+        (branch,) = [n for n in ast.walk(body)
+                     if isinstance(n, ast.If) and "has_new_frame" in ast.unparse(n.test)]
+        painted = "self.target.painted = True"
+        assert painted in ast.unparse(branch)
+        assert painted not in ast.unparse(body).split("if")[0]
 
     def test_the_main_slot_counts_once_wherever_the_scene_is(self):
         """In genau mode the clip player has the scene and the video waits

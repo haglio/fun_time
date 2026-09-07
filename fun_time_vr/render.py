@@ -188,6 +188,7 @@ class RenderTarget:
     def __init__(self) -> None:
         self.width = 0
         self.height = 0
+        self.painted = False  # ``ready`` is only sized; this is drawn-into
         self.texture = int(GL.glGenTextures(1))
         self.fbo = int(GL.glGenFramebuffers(1))
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
@@ -201,6 +202,7 @@ class RenderTarget:
         if width <= 0 or height <= 0 or (width, height) == (self.width, self.height):
             return
         self.width, self.height = width, height
+        self.painted = False  # a freshly sized texture holds nothing yet
         GL.glBindTexture(GL.GL_TEXTURE_2D, self.texture)
         GL.glTexImage2D(
             GL.GL_TEXTURE_2D, 0, GL.GL_RGBA8, width, height, 0,
@@ -218,7 +220,11 @@ class RenderTarget:
 
     @property
     def ready(self) -> bool:
-        return self.width > 0
+        return self.width > 0  # allocated: hangable, not yet a picture
+
+    @property
+    def has_picture(self) -> bool:
+        return self.painted  # mpv reports the size frames before it presents
 
     @property
     def aspect(self) -> float:
@@ -267,6 +273,8 @@ class FrameTexture:
     @property
     def ready(self) -> bool:
         return self.width > 0
+
+    has_picture = ready  # sized only by upload: the same question here
 
     @property
     def aspect(self) -> float:
