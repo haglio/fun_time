@@ -75,7 +75,7 @@ def paint_toast(message: str, level: int, *, max_width: int, size: int) -> Image
 
 
 def toast_placement(banner: Image.Image, width: int, height: int) -> tuple[int, int]:
-    """Its top-left: centered across the top, never off a narrow picture's left."""
+    """Centered across the top, never off a narrow picture's left edge."""
     return max(0, (width - banner.width) // 2), round(height * TOP_MARGIN_FRACTION)
 
 

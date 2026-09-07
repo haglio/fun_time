@@ -6,8 +6,7 @@ Every other player here runs with audio off instead (see route_audio).
 """
 from __future__ import annotations
 
-# Long enough that a slow open is not a stall, short enough that a session does
-# not spend a minute on one frame before anything is said.
+# A slow open is not a stall; a minute on one frame said nothing at all.
 STALL_SECONDS = 6.0
 
 STALLED = "stalled"

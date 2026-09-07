@@ -152,13 +152,13 @@ def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> Non
     draw.text((x, rect.y + 3), text, font=font, fill=(*ink, 255))
 
 
-def _arrow_down(size: int) -> Image.Image:  # the family's chevron, turned
-    return glyph_image("chevron_right", size, TEXT_MUTED).rotate(90, expand=False)
+def _arrow_down(size: int) -> Image.Image:
+    """The family's chevron turned DOWN -- Pillow rotates counter-clockwise, so
+    the sign is what decides which way it ends up."""
+    return glyph_image("chevron_right", size, TEXT_MUTED).rotate(-90, expand=False)
 
 
-def _paint_dial(panel: Image.Image, draw, state: DashState, font) -> None:
-    """The closed field: bordered, the level in it, the arrow at its right --
-    ``shared_ui.chrome``'s button rules, drawn."""
+def _paint_dial(panel, draw, state: DashState, font) -> None:  # chrome's field
     rect = dial_rect()
     _slab(draw, rect, BG_BUTTON, border=BORDER_SUBTLE)
     _label(draw, rect, verbosity_name(state.verbosity), font, TEXT_PRIMARY, left=True)
@@ -170,8 +170,8 @@ def _paint_dial(panel: Image.Image, draw, state: DashState, font) -> None:
 
 
 def _paint_open_list(draw, state: DashState, font) -> None:
-    """The list under it, as ``shared_ui.chrome``'s menu rules dress a popup:
-    its own ground inside one border, the current row in the dropdown blue."""
+    """The list, as chrome's menu rules dress a popup: its own ground inside one
+    border, the row it is on in the dropdown blue."""
     stops = dial_stops()
     rects = list(stops.values())
     frame = Rect(rects[0].x, rects[0].y, rects[0].width,
@@ -188,8 +188,7 @@ def _paint_open_list(draw, state: DashState, font) -> None:
         _label(draw, rect, name, font, TEXT_PRIMARY, left=True)
 
 
-def _chip(draw, rect: Rect, label: str, *, on: bool, font) -> None:
-    """A word-button: one ground always, the setting carried by the label."""
+def _chip(draw, rect: Rect, label: str, *, on: bool, font) -> None:  # one ground
     _slab(draw, rect, BG_BUTTON)
     _label(draw, rect, label, font, TEXT_PRIMARY if on else TEXT_MUTED)
 
