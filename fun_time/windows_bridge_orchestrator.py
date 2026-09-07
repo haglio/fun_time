@@ -250,20 +250,15 @@ def _shutdown_children(
             kill_recorded_child(children[key])
 
 
-# How long teardown holds for the closing screen to report itself painted.  A
-# fresh python + tkinter process is up in well under a second; the rest is slack
-# for a loaded machine, and it is a ceiling nobody normally pays.
+# A fresh python + tkinter process is up in well under a second; the rest is
+# slack for a loaded machine, and a ceiling nobody normally pays.
 CLOSING_SCREEN_READY_TIMEOUT_S = 5.0
 
 
 def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
-    """Block until the cover is painted over every monitor.
-
-    Killing before then defeats the whole point of it — the windows would be
-    seen going out one at a time, which is what the screen exists to hide.  Two
-    ways out besides the flag: the screen died, so no flag is ever coming; or it
-    is taking so long that waiting costs more than the flicker would.
-    """
+    """Block until the cover is painted over every monitor.  Two ways out
+    besides the flag: the screen died, so none is coming; or waiting has come to
+    cost more than the flicker would."""
     deadline = time.monotonic() + CLOSING_SCREEN_READY_TIMEOUT_S
     while time.monotonic() < deadline:
         if ready_file.exists():
@@ -282,13 +277,8 @@ def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
 def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressReporter]:
     """Cover every monitor while the session comes down, then uncover it.
 
-    Yields the reporter the teardown steps report through.  The cover is up and
-    painted before the body runs and comes down only once the body has finished,
-    so the moment between "quit" and an empty desktop shows one panel instead of
-    the windows going out one at a time.
-
-    Disabled for an integration run, which has no eyes on it — the same reason
-    such a run skips the loading screen.
+    Yields the reporter the teardown steps report through: up and painted before
+    the body runs, down once it has finished.  Off for an integration run.
     """
     if not enabled:
         yield NullProgress()
@@ -328,7 +318,7 @@ def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressRepor
 _CANCELLED_EXIT_CODE = 0
 
 
-def _stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
+def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
     """Bring the hotkey script down through its own mailbox, then insist.
 
     ``exit`` is what every other end of a session uses, and it lets AHK release
@@ -360,16 +350,12 @@ def _cancel_startup(
 ) -> int:
     """Tear down a startup the user aborted from the loading screen, then exit.
 
-    Kills every child launched so far and closes the browser window *before*
-    bringing the overlay down, so nothing half-started ever flashes into view.
-    These children were launched seconds ago, so their PIDs are still theirs —
-    no creation-time pinning is needed the way a deferred teardown needs it.
-
-    The hotkey script goes first: it is up from the start of a launch now, and
-    it is what read the Esc that got us here.
+    Kills every child so far and closes the browser *before* the overlay comes
+    down; these were launched seconds ago, so their PIDs are still theirs.  The
+    hotkey script first: it is what read the Esc that got us here.
     """
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(pids))
-    _stop_hotkey_script(ahk_proc, ahk_cmd_file)
+    stop_hotkey_script(ahk_proc, ahk_cmd_file)
     for pid in pids:
         kill_process_tree(pid)
     close_window(rfb_hwnd)
@@ -742,11 +728,8 @@ def start_hud_priming(
 @dataclass(frozen=True)
 class _Cover:
     """The loading screen, or the absence of one on the path without a curtain.
-
-    Its window is resolved as it opens rather than at the reveal: the startup
-    phases raise windows of their own long before then, and each one lands over
-    the cover until it is put back (see ``keep_the_cover_up``).
-    """
+    Its window is resolved as it opens, not at the reveal: startup's phases
+    raise windows long before then (``keep_the_cover_up``)."""
 
     process: subprocess.Popen | None
     progress: ProgressReporter
@@ -818,20 +801,15 @@ def _reveal_the_room(
     The sequencer already positioned every window in phase 4; what is left is
     the sorting phase 4 deliberately left off, then the cover, then the players.
     """
-    # Hold the loading screen until the HUD's group indexes are primed, so
-    # Fun Time isn't revealed with the maps still blank.  Capped so a slow
-    # library scan can't wedge startup — the maps just fill in late.
+    # Held until the HUD's group indexes are primed, so Fun Time is not
+    # revealed with the maps blank.  Capped: a slow scan fills in late instead.
     if hud_publisher is not None and not hud_primed.wait(timeout=HUD_PRIME_TIMEOUT_S):
         logger.warning("HUD indexes not primed after %.0fs; revealing anyway",
                        HUD_PRIME_TIMEOUT_S)
-    # Band the room and settle its z-order UNDER the curtain.  Phase 4
-    # deliberately left the bands off (each promotion inserts above the
-    # overlay), so at this moment nothing of the session is topmost at all:
-    # revealing here is revealing players sitting under whatever was on
-    # those monitors, climbing over it a second later — and in origenerator
-    # mode the RFB showing through until its host was promoted over it.
-    # The overlay goes back on top after every promotion, so what the
-    # curtain hides is the sorting rather than the result.
+    # Band the room and settle its z-order UNDER the curtain.  Phase 4 left the
+    # bands off (each promotion inserts above the overlay), so nothing of the
+    # session is topmost yet: revealing here would show players sitting under
+    # whatever was on those monitors, climbing over it a second later.
     role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=cover.hwnd)
 
     cover.progress.finish()
@@ -1077,12 +1055,9 @@ def run_session(
         logger.info("Pre-wrote suspend_hotkeys for integration test run")
 
     # --- The hotkey script, up before the session it drives ---
-    # Esc has to reach us from the cover onward, and AHK's hotkeys are the only
-    # keys here that do not care which window holds the focus: they hook the
-    # keyboard rather than wait their turn in a window's message queue.  The
-    # loading screen's own Esc binding needs the focus, and something else taking
-    # it mid-launch is exactly what left a launch uncancellable.  The script holds
-    # its other keys until the pids file below says the session is up.
+    # Esc has to reach us from the cover onward, and AHK's hooks are the only
+    # keys here that do not care which window holds the focus (see
+    # overlay_progress).  The script holds its other keys until the pids file.
     command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
     ahk_proc = subprocess.Popen(command, cwd=project_dir)

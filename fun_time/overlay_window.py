@@ -1,14 +1,9 @@
 """The cover Fun Time puts over every monitor while its windows are changing.
 
 A session's windows arrive one at a time and leave the same way, so both ends
-of one raise a cover and do the work under it.  The window is borderless and
-always on top; it reads how far the work has got from a progress file the
-orchestrator writes, and closes itself when that file says DONE — and ONLY
-then, never on a full bar, which comes seconds earlier while the room is still
-being put in z-order.
-
-Startup's cover offers a way out and shutdown's does not — see ``CancelOption``
-for that difference and for the reason it is the only one.
+raise a cover and work under it.  Borderless and always on top; it closes on
+:mod:`overlay_progress`'s DONE — never on a full bar, which comes seconds
+earlier while the room is still being put in z-order.
 """
 from __future__ import annotations
 
@@ -41,49 +36,33 @@ ICON_DISPLAY_SIZE = 128
 
 
 def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
-    """Load an ICO file and return an RGBA PIL Image resized to *size* x *size*.
-
-    Returns ``None`` if the file is missing or Pillow is unavailable.
-    """
+    """An ICO as an RGBA PIL Image at *size*, or None without the file or
+    Pillow."""
     try:
         from PIL import Image
 
         img = Image.open(ico_path)
-        # Pick the largest available icon (256x256 in our ICO) then
-        # high-quality downsample to the requested display size.
-        img = img.resize((size, size), Image.LANCZOS)
+        img = img.resize((size, size), Image.LANCZOS)  # largest, then downsample
         return img.convert("RGBA")
     except (ImportError, OSError):
-        # No Pillow, no such file, or a file that is not an image (PIL's
-        # UnidentifiedImageError is an OSError).
-        return None
+        return None  # PIL's UnidentifiedImageError is an OSError
 
 
 POLL_MS = 200
 
-# How often the cover takes the top of the topmost band back (see
-# _stay_on_top).  Separate from POLL_MS, and much shorter, because they answer
-# different questions: how stale the bar may be, versus how long another window
-# may sit over the cover.  This number IS that second answer — at 200ms it was
-# a fifth of a second of a player through the scrim per raise, plainly visible;
-# a frame of it is not.
-#
-# Re-asserted through SetWindowPos on our own HWND rather than Tk's
-# ``-topmost``: the style is still set (being pushed down within the band does
-# not clear WS_EX_TOPMOST), so Tk has nothing to change and may do nothing at
-# all.  What is needed is the re-insertion, which only SetWindowPos gives.
+# How long another window may sit over the cover -- not POLL_MS, which is how
+# stale the bar may be.  At 200ms it was a fifth of a second of a player through
+# the scrim per raise.  Re-asserted through SetWindowPos on our own HWND, not
+# Tk's ``-topmost``: WS_EX_TOPMOST is still set, so Tk may do nothing; only
+# SetWindowPos re-inserts.
 TOPMOST_POLL_MS = 16
 
 
 @dataclass(frozen=True)
 class CancelOption:
-    """The Esc affordance an overlay offers, and the words that go with it.
-
-    Startup's cover carries one: a session that is still assembling can still be
-    called off.  Shutdown's carries none — by the time the windows are going
-    away there is nothing left to abort — so that overlay also never takes the
-    keyboard focus, and the last thing the user typed at goes on owning it.
-    """
+    """The Esc affordance a cover offers, and the words that go with it.
+    Startup's carries one; shutdown's carries none — nothing is left to abort —
+    so that cover never takes the focus either."""
 
     hint: str
     """Shown under the bar until the key is pressed."""
@@ -93,16 +72,12 @@ class CancelOption:
     still in flight cannot flip it back to business as usual."""
 
     request: Callable[[], None]
-    """Asks the orchestrator to stop.  The cover stays up until the orchestrator
-    answers, so nothing half-built is ever revealed."""
+    """Asks the orchestrator to stop."""
 
     requested: Callable[[], bool]
-    """True once a cancel has been asked for by any route.  Esc reaches the
-    orchestrator two ways — this window's own binding, and the hotkey script's
-    global hook, which is the one that still works when something else has taken
-    the focus — so the words below follow the request rather than the keypress.
-    Without this, an Esc the hook caught left the cover reading "Press Esc to
-    cancel" right through the teardown it had just started."""
+    """True once a cancel has been asked for by ANY route (:mod:`overlay_progress`
+    has the two).  Without it, an Esc the hotkey hook caught left the cover
+    reading "Press Esc to cancel" through the teardown it had started."""
 
 
 @dataclass(frozen=True)
@@ -133,11 +108,9 @@ def _apply_theme(root: tk.Tk) -> None:
 
 def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
                    hint: str) -> _Content:
-    """The panel in the middle: icon, wordmark, status, bar, hint.
-
-    Centred on the main player's monitor, not on the virtual desktop's
-    midpoint, which may fall between two of them.
-    """
+    """The panel in the middle: icon, wordmark, status, bar, hint.  Centred on
+    the main player's monitor, not the virtual desktop's midpoint, which may
+    fall between two of them."""
     frame = ttk.Frame(root, padding=24, style="FunTime.TFrame")
     origin_x, origin_y = origin
     frame.place(
@@ -152,15 +125,12 @@ def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
             from PIL import ImageTk
 
             icon_label = tk.Label(frame, bg=BG)
-            # On the label, which is what keeps the PhotoImage from being
-            # collected out from under the icon it is drawing.
+            # On the label: what keeps the PhotoImage from being collected.
             icon_label.image = ImageTk.PhotoImage(icon_img)
             icon_label.configure(image=icon_label.image)
             icon_label.pack(pady=(0, 12))
         except (ImportError, tk.TclError):
-            # Pillow without its Tk extension, or a Tk that will not take the
-            # image: the cover comes up plain rather than not at all.
-            pass
+            pass  # no Tk extension, or a Tk that refuses it: come up plain
 
     tk.Label(frame, text="Fun Time", font=(FACE, 18, "bold italic"),
              fg=WORDMARK_MAGENTA, bg=BG).pack(pady=(0, 10))
@@ -207,8 +177,8 @@ class OverlayWindow:
         self._root.overrideredirect(True)
         self._root.configure(bg=BG)
 
-        # The fallback is asked for OUT here, not inside the failure path where
-        # a Tk not answering either raised again with nothing left to catch it.
+        # Out here, not in the failure path, where a Tk not answering raised
+        # again with nothing left to catch it.
         desktop = virtual_desktop_rect()
         if desktop is None:
             desktop = MonitorInfo(
@@ -228,12 +198,9 @@ class OverlayWindow:
         )
 
         if cancel is not None:
-            # Esc anywhere on the overlay asks the orchestrator to stop.  The
-            # focus is taken so the key lands here rather than on whatever the
-            # session put up last.  It is not the only route — the hotkey script
-            # hooks the same key and needs no focus at all — so this is the
-            # binding that works when the cover has the focus, not the one the
-            # cancel rests on.
+            # The focus is taken so Esc lands here rather than on whatever the
+            # session put up last.  Not the route the cancel rests on, though;
+            # see CancelOption.requested.
             self._root.bind("<Escape>", self._on_escape)
             self._root.focus_force()
 
@@ -241,16 +208,10 @@ class OverlayWindow:
         self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
 
     def _stay_on_top(self) -> None:
-        """Take the top of the topmost band back, and keep taking it.
-
-        See TOPMOST_POLL_MS: every window a session raises lands above this one,
-        and this is the only thing that puts it back.  Our own window, so the
-        call goes straight through rather than onto the stalled-window guard's
-        worker thread — it cannot block on anything but ourselves.
-
-        The handle is looked up by this window's own title, and only once:
-        ``winfo_id`` on a Tk toplevel is not reliably the top-level HWND.
-        """
+        """Take the top of the topmost band back, and keep taking it: every
+        window a session raises lands above this one.  Our own window, so the
+        call skips the stalled-window guard.  The handle is looked up by title,
+        once -- ``winfo_id`` is not reliably the top-level HWND."""
         if not self._hwnd:
             self._hwnd = find_window_by_title(self._title, exact=True)
         if self._hwnd:
@@ -270,11 +231,8 @@ class OverlayWindow:
             pass
 
     def _hold_status(self) -> None:
-        """Say we are cancelling, and go on saying it.
-
-        A step message still in flight would otherwise flip the line back to
-        business as usual while the teardown runs.
-        """
+        """Say we are cancelling, and go on saying it: a step message still in
+        flight would otherwise flip the line back while the teardown runs."""
         if self._cancel is None:
             return
         self._status_held = True
@@ -286,8 +244,7 @@ class OverlayWindow:
 
     def _poll(self) -> None:
         # A cancel the hotkey script asked for on our behalf: the flag is on
-        # disk and no key ever reached this window, so the words are picked up
-        # here.  (Staying on top is _stay_on_top's much faster timer's job.)
+        # disk and no key ever reached this window.
         if self._cancel is not None and not self._status_held:
             try:
                 if self._cancel.requested():
@@ -304,8 +261,7 @@ class OverlayWindow:
                     self._root.destroy()
                     return
 
-                # A torn write is not a step: keep the bar and the words where
-                # the last readable line left them rather than snapping to zero.
+                # A torn write is not a step: hold the last readable line.
                 if not progress.malformed:
                     if progress.total > 0:
                         self._content.progress_var.set(
@@ -315,9 +271,8 @@ class OverlayWindow:
 
                 self._last_modified = mtime
 
-            # Staleness check: if the file hasn't changed in stale_timeout_s,
-            # the orchestrator died holding the cover up.  Close rather than
-            # leave the whole desktop under a panel that will never move.
+            # Unmoved for stale_timeout_s: the orchestrator died holding the
+            # cover up.  Never leave the desktop under a panel that will not go.
             if self._last_modified > 0:
                 age = time.time() - self._last_modified
                 if age > self._stale_timeout_s:
@@ -334,12 +289,9 @@ class OverlayWindow:
 
     def run(self, on_shown: Callable[[], None] | None = None) -> None:
         """Show the cover and hold it until the progress file says otherwise.
-
-        ``update()`` returns only once Tk has created the window, shown it, and
-        served its first paint, so *on_shown* runs when the cover is genuinely
-        on screen — a caller that must not act until it is there (shutdown, with
-        windows to kill) has a signal it can trust to within a frame.
-        """
+        ``update()`` returns only once Tk has created, shown and first painted
+        the window, so *on_shown* fires when the cover is genuinely on screen --
+        a signal teardown can hold its first kill on."""
         self._root.update()
         if on_shown is not None:
             on_shown()

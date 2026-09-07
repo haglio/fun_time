@@ -182,14 +182,10 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
     Genau's transparent HUD above Nau's video in video mode, and the policy says so
     outright ("Genau is promoted last").
 
-    *beneath* is the loading overlay, when this runs under it.  Each promotion
-    inserts at the top of the band and so lands OVER that overlay; left there
-    until the overlay's own 200ms poll re-asserted itself, every window in this
-    walk flashed through the cover on its way past.  Putting the cover back after
-    each one closes that to a single SetWindowPos — the cover is the top of the
-    band again before the next window is promoted under it.  Only promotions need
-    it: a demotion drops out of the topmost band entirely, which is already below
-    the cover.
+    *beneath* is the loading overlay, when this runs under it: every promotion
+    lands over it, so the cover goes back after each one (see
+    :func:`keep_the_cover_up`).  Only promotions need it -- a demotion drops out
+    of the topmost band entirely, already below the cover.
     """
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
@@ -237,10 +233,9 @@ def apply_startup_window_state(
     """Set the full window state for the mode the session opens in: bands, then
     visibility.
 
-    *beneath* is the loading overlay when this runs under one, and is what keeps
-    the cover on top across the walk — see :func:`apply_topmost_bands`.  Zero
-    when there is no cover: the integration path, which has nothing to hide
-    under, and the re-band after the cover has gone.
+    *beneath* is the loading overlay when this runs under one, and keeps the
+    cover on top across the walk (:func:`apply_topmost_bands`).  Zero without a
+    cover: the integration path, and the re-band after the cover has gone.
     """
     role_hwnds = _startup_role_hwnds(
         portrait_hwnd=portrait_hwnd,

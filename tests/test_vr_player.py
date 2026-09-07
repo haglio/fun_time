@@ -24,14 +24,23 @@ from fun_time.manifest import (
     LaunchManifest,
     write_manifest_data,
 )
+from fun_time.overlay_progress import (
+    PROGRESS_FILENAME,
+    SHUTDOWN_PROGRESS_FILENAME,
+    SHUTDOWN_READY_FILENAME,
+    PhaseProgress,
+)
+from fun_time_vr.cover import VR_SHUTDOWN_PHASES, VR_STARTUP_PHASES
 from fun_time_vr.layout import DEFAULT_LAYOUT, LANDSCAPE, PANEL, PORTRAIT, read_layout
 from fun_time_vr.player import (
     VrSettings,
+    _CoverUnit,
     _HangingScreen,
     _LayoutKeeper,
     _MainUnit,
     _PanelUnit,
     _SatelliteUnit,
+    _scene_is_up,
     _VideoUnit,
     build_parser,
 )
@@ -268,6 +277,13 @@ class _FakeMesh:
     def upload(self, vertices):
         self.uploads.append(vertices)
 
+    @property
+    def ready(self):
+        return bool(self.uploads)
+
+    def close(self):
+        pass
+
 
 def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
     screen = _HangingScreen(DEFAULT_LAYOUT[LANDSCAPE])
@@ -379,3 +395,177 @@ class TestThePanelUnderThePointer:
         p.unit.pump(threading.Event(), 0.0)
 
         assert not np.array_equal(np.asarray(p.unit._image), plain)
+
+
+# --- The cover the roles arrive and leave under ---------------------------
+
+
+class _FakeTexture:
+    """A GL texture stand-in: the two numbers a hanging screen reads off one."""
+
+    def __init__(self):
+        self.uploads = []
+        self.texture = 7
+
+    def upload(self, pixels):
+        self.uploads.append(pixels)
+
+    @property
+    def ready(self):
+        return bool(self.uploads)
+
+    aspect = 16 / 10
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def cover_graphics():
+    """The cover's texture and mesh, recorded rather than made — everything else
+    about it is files and Pillow, which run anywhere."""
+    with patch("fun_time_vr.player.FrameTexture", _FakeTexture),             patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+        yield
+
+
+class TestTheCoverUnit:
+    def test_an_idle_state_dir_shows_the_scene(self, tmp_path, cover_graphics):
+        unit = _CoverUnit(tmp_path)
+
+        unit.render_latest_frame()
+
+        assert not unit.showing
+        assert not unit.closing
+
+    def test_a_launch_in_progress_is_covered_from_the_first_frame(
+            self, tmp_path, cover_graphics):
+        """Painted on the way in rather than on the worker's first turn: the
+        loop's very first renderable frame is already one the cover has to be
+        on, and a tick of scene before it is a tick of the room in the open."""
+        PhaseProgress(tmp_path / PROGRESS_FILENAME,
+                      phases=VR_STARTUP_PHASES).advance("players")
+
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+
+        assert unit.showing
+        assert len(unit.texture.uploads) == 1
+
+    def test_the_bitmap_is_uploaded_once_per_change_not_per_frame(
+            self, tmp_path, cover_graphics):
+        progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
+        progress.advance("players")
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+        unit.render_latest_frame()
+        assert len(unit.texture.uploads) == 1
+
+        progress.advance("finalizing")
+        unit.pump(threading.Event(), 0.0)
+        unit.render_latest_frame()
+
+        assert len(unit.texture.uploads) == 2
+
+    def test_done_hands_the_headset_back(self, tmp_path, cover_graphics):
+        progress = PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=VR_STARTUP_PHASES)
+        progress.advance("finalizing")
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+        assert unit.showing
+
+        progress.finish()
+        unit.pump(threading.Event(), 0.0)
+        unit.render_latest_frame()
+
+        assert not unit.showing
+
+    def test_the_ready_flag_waits_for_a_closing_cover(self, tmp_path, cover_graphics):
+        """Teardown holds its first kill for this flag, so a loading cover
+        dropping it would hand back a promise about the wrong panel."""
+        PhaseProgress(tmp_path / PROGRESS_FILENAME,
+                      phases=VR_STARTUP_PHASES).advance("players")
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+
+        unit.settled()
+
+        assert not (tmp_path / SHUTDOWN_READY_FILENAME).exists()
+
+    def test_a_painted_closing_cover_reports_itself(self, tmp_path, cover_graphics):
+        PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
+                      phases=VR_SHUTDOWN_PHASES).advance("controls")
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+        assert unit.closing
+
+        unit.settled()
+
+        assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
+
+    def test_a_closing_cover_answers_teardown_before_a_frame_is_drawn(
+            self, tmp_path, cover_graphics):
+        """The frame loop may never get another frame — the runtime may have
+        ended the session already — and teardown is holding its first kill on
+        this.  Painted is enough; drawn is a bonus."""
+        PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME,
+                      phases=VR_SHUTDOWN_PHASES).advance("controls")
+
+        unit = _CoverUnit(tmp_path)
+
+        assert unit.closing
+        assert not unit.showing  # nothing uploaded yet
+        unit.settled()
+        assert (tmp_path / SHUTDOWN_READY_FILENAME).exists()
+
+    def test_the_player_ending_on_its_own_raises_its_own_closing_cover(
+            self, tmp_path, cover_graphics):
+        """Its window was closed, so nobody is going to write a shutdown file —
+        and its own units are about to go down one at a time."""
+        unit = _CoverUnit(tmp_path)
+        unit.render_latest_frame()
+        assert not unit.showing
+
+        unit.closing_now()
+        unit.refresh()
+        unit.render_latest_frame()
+
+        assert unit.showing
+        assert unit.closing
+
+
+# --- What the cover is held for -------------------------------------------
+
+
+def _picture(ready):
+    return SimpleNamespace(ready=ready)
+
+
+def _room(*, main=True, portrait=True, landscape=True, panel=True, genau_showing=False):
+    return dict(
+        primary=SimpleNamespace(target=_picture(main)),
+        genau=SimpleNamespace(texture=_picture(main),
+                              role=SimpleNamespace(showing=genau_showing)),
+        satellites=[SimpleNamespace(target=_picture(portrait)),
+                    SimpleNamespace(target=_picture(landscape))],
+        panel=SimpleNamespace(texture=_picture(panel)),
+    )
+
+
+class TestWhenTheRoomIsUp:
+    def test_every_picture_present_is_a_room(self):
+        assert _scene_is_up(**_room())
+
+    @pytest.mark.parametrize("blank", ["main", "portrait", "landscape", "panel"])
+    def test_one_screen_still_blank_is_not(self, blank):
+        """Revealed here, that one arrives in the open a moment later — and the
+        console among them, because a room with no controls in it is not up."""
+        assert not _scene_is_up(**_room(**{blank: False}))
+
+    def test_the_main_slot_counts_once_wherever_the_scene_is(self):
+        """In genau mode the clip player has the scene and the video waits
+        paused under it, so asking the video for a picture would hold the
+        cover over a room that is finished."""
+        room = _room(genau_showing=True)
+        room["primary"] = SimpleNamespace(target=_picture(False))
+
+        assert _scene_is_up(**room)

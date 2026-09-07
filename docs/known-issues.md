@@ -1,5 +1,27 @@
 # Known Issues
 
+## FunTimeVR: The First Seconds Of A Launch Are Not Covered
+
+- Status: Deferred (2026-09-07)
+- Symptom: Between double-clicking Fun Time VR and the cover appearing, the
+  headset shows the VR runtime's own environment — its home or void, however
+  long the runtime takes to answer (a cold PimaxXR auto-start can be 45s).
+- Scope:
+  - Only that stretch. From the cover's first frame onward the loading cover
+    hides the whole of the room assembling, and the closing cover hides the
+    whole of the teardown.
+- Notes:
+  - It cannot be covered from here. An OpenXR app owns no compositor layer
+    until it has a session, so before `xrBeginSession` there is nothing this
+    process can submit and nothing it can draw on; whatever the headset shows
+    then is the runtime's, not ours. The desktop has the same gap for the same
+    reason — the moment between `launch.vbs` and the cover's first paint shows
+    the user's desktop — it is just much shorter there, because starting a
+    tkinter window is not starting a VR runtime.
+  - What IS ours in that stretch is already handled: the cover's progress file
+    is written before the player is launched, so the bar is where the launch
+    actually is from the very first frame the headset can show.
+
 ## FunTimeVR: What a VR Session Does Not Launch
 
 - Status: Deferred

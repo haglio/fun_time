@@ -686,3 +686,306 @@ class TestTheAudioCompanionInVr:
 
         assert calls["launch_audio_companion"] < calls["launch_vr_player"]
         assert "for child in children.values():" in source
+
+
+class TestTheHeadsetsCover:
+    """The orchestrator's half of the cover: the files it writes, the order it
+    kills in, and the wait it holds the first kill for.  The panel itself is a
+    surface of the player -- see tests/test_vr_cover.py."""
+
+    def test_a_stale_cancel_flag_cannot_abort_the_next_launch(self, tmp_path):
+        """One left by a session that was called off would raise at this
+        launch's first checkpoint, before the user had touched anything."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+        from fun_time_vr.orchestrator import _Cover
+
+        stale = tmp_path / CANCEL_FILENAME
+        stale.write_text("cancel\n", encoding="utf-8")
+
+        cover = _Cover(tmp_path)
+
+        assert not stale.exists()
+        assert not cover.progress.cancelled
+
+    def test_clearing_writes_no_done(self, tmp_path):
+        """DONE is how a finished launch uncovers a room worth seeing.  The
+        paths that clear without one have nothing to reveal, and the cover comes
+        down with the player instead."""
+        from fun_time_vr.orchestrator import _Cover
+
+        cover = _Cover(tmp_path)
+        cover.progress.advance("players")
+
+        cover.clear()
+
+        assert not cover.progress_file.exists()
+        assert not cover.cancel_file.exists()
+
+    def test_the_hotkey_script_is_up_before_the_player(self):
+        """Esc is the only way to call a launch off from inside a headset, and
+        AHK's hook is the only route that does not need a window's focus -- so
+        the script has to be up before there is anything to cancel."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+
+        assert calls["subprocess.Popen"] < calls["launch_vr_player"]
+        # And the pids file, which is what takes the script's startup hold off,
+        # is written only once there is a session for its keys to drive.
+        assert calls["launch_vr_player"] < calls["write_pids_file"]
+
+    def test_the_players_are_released_after_the_cover_comes_down(self):
+        """Released before it and the first seconds of a video play under a
+        panel nobody can see through."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+
+        assert calls["progress.finish"] < calls["release_the_players"]
+
+
+class TestCancellingALaunch:
+    def _cancel(self, tmp_path, monkeypatch, children):
+        from fun_time_vr import orchestrator
+
+        order: list = []
+        monkeypatch.setattr(orchestrator, "stop_hotkey_script",
+                            lambda _proc, _file: order.append("hotkeys"))
+        monkeypatch.setattr(orchestrator, "kill_recorded_child",
+                            lambda child: order.append(child.pid))
+        cover = orchestrator._Cover(tmp_path)
+        cover.progress.advance("players")
+        cover.cancel_file.write_text("cancel\n", encoding="utf-8")
+
+        code = orchestrator._cancel_vr_startup(
+            children=children, ahk_proc=None, ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            cover=cover, runtime_was_up=True,
+        )
+        return code, order, cover
+
+    def test_the_player_is_killed_last_whatever_order_it_was_recorded_in(
+            self, tmp_path, monkeypatch):
+        """It is the thing wearing the "Cancelling..." panel: every other child
+        goes while that is still in front of the eyes, so nothing half-started
+        is ever revealed."""
+        from fun_time.windows_bridge_orchestrator import ChildProcess
+
+        children = {
+            "vr_player_pid": ChildProcess(pid="player", created_at=1),
+            "audio_pid": ChildProcess(pid="audio", created_at=1),
+        }
+
+        _code, order, _cover = self._cancel(tmp_path, monkeypatch, children)
+
+        assert order == ["hotkeys", "audio", "player"]
+
+    def test_it_leaves_no_files_behind_and_reads_as_a_clean_exit(
+            self, tmp_path, monkeypatch):
+        code, _order, cover = self._cancel(tmp_path, monkeypatch, {})
+
+        assert code == 0
+        assert not cover.progress_file.exists()
+        assert not cover.cancel_file.exists()
+
+
+class _AlivePlayer:
+    def __init__(self, alive=True):
+        self._alive = alive
+
+    def poll(self):
+        return None if self._alive else 0
+
+
+class TestTheClosingCover:
+    def test_teardown_holds_its_first_kill_until_the_cover_is_painted(self, tmp_path):
+        """The player reports the panel painted by dropping the desktop's own
+        ready flag; until then, killing anything would show the very thing the
+        cover exists to hide."""
+        from fun_time.overlay_progress import (
+            SHUTDOWN_PROGRESS_FILENAME,
+            SHUTDOWN_READY_FILENAME,
+            parse_progress,
+        )
+        from fun_time_vr.cover import CLOSING_STATUS
+        from fun_time_vr.orchestrator import _closing_cover
+
+        (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
+        seen = []
+
+        with _closing_cover(tmp_path, _AlivePlayer(), enabled=True) as shutdown:
+            seen.append(parse_progress(
+                (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8")).message)
+            shutdown.advance("players")
+
+        # The opening phase was on disk before the body ran, so the player had
+        # something to read from its first poll.
+        assert seen == [CLOSING_STATUS]
+        assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
+        assert not (tmp_path / SHUTDOWN_READY_FILENAME).exists()
+
+    def test_a_flag_from_a_previous_session_cannot_vouch_for_this_one(self, tmp_path):
+        """It would let this teardown start with nothing yet covering the view."""
+        from fun_time.overlay_progress import SHUTDOWN_READY_FILENAME
+        from fun_time_vr.orchestrator import _closing_cover
+
+        stale = tmp_path / SHUTDOWN_READY_FILENAME
+        stale.write_text("", encoding="utf-8")
+        cleared = []
+
+        with _closing_cover(tmp_path, _AlivePlayer(alive=False), enabled=True):
+            cleared.append(stale.exists())
+
+        assert cleared == [False]
+
+    def test_a_session_the_player_ended_gets_no_cover(self, tmp_path):
+        """Nothing is left that can put a picture in the headset -- and nothing
+        left to hide either, the cut to the runtime's own environment having
+        already happened."""
+        from fun_time.overlay_progress import SHUTDOWN_PROGRESS_FILENAME
+        from fun_time_vr.orchestrator import _closing_cover
+
+        with _closing_cover(tmp_path, _AlivePlayer(alive=False), enabled=False) as shutdown:
+            shutdown.advance("players")
+
+        assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_the_player_is_the_last_child_teardown_kills(self):
+        """It wears the cover, so it goes after everything it was hiding."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        kills = [ast.unparse(n) for n in sorted(
+            (n for n in ast.walk(tree)
+             if isinstance(n, ast.Call) and ast.unparse(n.func) == "kill_recorded_child"),
+            key=lambda n: n.lineno)]
+
+        assert kills[-1] == "kill_recorded_child(children['vr_player_pid'])"
+        assert "kill_recorded_child(children['audio_pid'])" in kills
+
+
+class TestWaitingForTheRoom:
+    """The cover comes down when the pictures are up, not when the first status
+    line is written -- that one says a role picked a video, which is a second or
+    so before any of it reaches the headset."""
+
+    def test_the_marker_landing_ends_the_wait(self, tmp_path):
+        from fun_time_vr.cover import scene_ready_file
+        from fun_time_vr.orchestrator import _wait_for_the_room
+
+        marker = scene_ready_file(tmp_path)
+        marker.write_text("", encoding="utf-8")
+
+        assert _wait_for_the_room(marker, _AlivePlayer())
+
+    def test_a_player_that_died_is_not_waited_for(self, tmp_path):
+        from fun_time_vr.cover import scene_ready_file
+        from fun_time_vr.orchestrator import _wait_for_the_room
+
+        assert not _wait_for_the_room(scene_ready_file(tmp_path), _AlivePlayer(alive=False))
+
+    def test_the_cap_gives_up_rather_than_hangs(self, tmp_path, monkeypatch):
+        from fun_time_vr import orchestrator
+        from fun_time_vr.cover import scene_ready_file
+
+        monkeypatch.setattr(orchestrator, "SCENE_READY_TIMEOUT_S", 0.0)
+
+        assert not orchestrator._wait_for_the_room(
+            scene_ready_file(tmp_path), _AlivePlayer())
+
+    def test_a_room_that_never_reported_is_revealed_rather_than_failed(self):
+        """The player caps its own wait, so a marker missing by now means
+        something stranger than a slow decode -- and holding a launch on it
+        would be worse than a room with one screen still blank.  The answer is
+        deliberately dropped: nothing downstream may branch on it."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        (call,) = [n for n in ast.walk(tree)
+                   if isinstance(n, ast.Call) and ast.unparse(n.func) == "_wait_for_the_room"]
+        discarded = [n for n in ast.walk(tree)
+                     if isinstance(n, ast.Expr) and n.value is call]
+
+        assert discarded, "the launch branches on a wait that is meant to be advisory"
+
+    def test_the_room_is_waited_for_before_the_cover_comes_down(self):
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+
+        assert calls["_wait_for_player"] < calls["_wait_for_the_room"]
+        assert calls["_wait_for_the_room"] < calls["progress.finish"]
+
+    def test_a_previous_sessions_marker_cannot_vouch_for_this_one(self):
+        """It would say the room was up before a frame of it existed."""
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        source = inspect.getsource(orchestrator.run_vr_bridge)
+
+        assert "room_ready_file.unlink(missing_ok=True)" in source
+        assert source.index("room_ready_file.unlink") < source.index("launch_vr_player(")
+
+
+class TestEscDuringTheLongWait:
+    """The phase a cold headset spends a minute or two in.  A cancel that only
+    landed at the far end of it would be a way out arriving after the thing it
+    was meant to call off."""
+
+    class _Cancelled:
+        cancelled = True
+
+        def advance(self, phase):
+            pass
+
+        def finish(self):
+            pass
+
+    def test_the_wait_for_the_player_gives_up_at_once(self, tmp_path):
+        from fun_time.overlay_progress import StartupCancelled
+        from fun_time_vr.orchestrator import _wait_for_player
+
+        with pytest.raises(StartupCancelled):
+            _wait_for_player(tmp_path / "nau_status.txt", _AlivePlayer(), self._Cancelled())
+
+    def test_the_wait_for_the_room_gives_up_at_once(self, tmp_path):
+        from fun_time.overlay_progress import StartupCancelled
+        from fun_time_vr.cover import scene_ready_file
+        from fun_time_vr.orchestrator import _wait_for_the_room
+
+        with pytest.raises(StartupCancelled):
+            _wait_for_the_room(scene_ready_file(tmp_path), _AlivePlayer(), self._Cancelled())
+
+    def test_both_waits_are_handed_the_reporter_that_carries_the_flag(self):
+        """Passed nothing they are plain waits, so a call site that forgot it is
+        a phase Esc cannot reach."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        waits = [ast.unparse(n) for n in ast.walk(tree)
+                 if isinstance(n, ast.Call)
+                 and ast.unparse(n.func) in ("_wait_for_player", "_wait_for_the_room")]
+
+        assert len(waits) == 2
+        assert all(call.endswith(", progress)") for call in waits), waits
