@@ -12,7 +12,13 @@ from dataclasses import replace
 import numpy as np
 from PIL import Image
 from player_core.console import tooltip_at
-from player_core.console_hud import ConsoleHud, ConsolePainter, ModeHud, hud_xy
+from player_core.console_hud import (
+    ConsoleHud,
+    ConsolePainter,
+    ModeHud,
+    hud_xy,
+    with_playback_speed,
+)
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
 
@@ -42,6 +48,7 @@ def panel_hud(
     loading: str | None,
     drive_gate,
     f_mode: bool = False,
+    playback_speed: float = 1.0,
 ) -> ConsoleHud:
     """The engine's console re-said for the mode: the video's name on top and
     the funscript folded into the readout by *drive_gate*
@@ -65,6 +72,7 @@ def panel_hud(
         hud,
         modes=ModeHud(video=title, f_mode=f_mode and nau_displays(hud.console.mode)),
         drive=drive,
+        console=with_playback_speed(hud.console, playback_speed),
     )
 
 

@@ -54,9 +54,10 @@ class FakeGate:
 
 
 def _hud(engine, *, gate=None, video_title="feature", clip_title="scene one", loading=None,
-         f_mode=False):
+         f_mode=False, playback_speed=1.0):
     return panel_hud(engine, video_title=video_title, clip_title=clip_title,
-                     loading=loading, drive_gate=gate or FakeGate(), f_mode=f_mode)
+                     loading=loading, drive_gate=gate or FakeGate(), f_mode=f_mode,
+                     playback_speed=playback_speed)
 
 
 class TestWhatThePanelNames:
@@ -79,7 +80,27 @@ class TestWhatThePanelNames:
     def test_the_room_under_the_top_line_is_the_engines(self):
         engine = _engine_console("video")
 
-        assert _hud(engine).console is engine.console
+        assert _hud(engine).console == replace(engine.console, playback_speed=1.0)
+
+    def test_the_rate_on_the_row_is_the_primarys_not_the_engines(self):
+        """The row draws ConsoleModel.playback_speed, and the console the panel
+        composes is Genau's engine's, where that field never leaves its default
+        -- so the primary's rate has to be folded in or the readout says 1x
+        however the video is actually playing."""
+        hud = _hud(_engine_console("video"), playback_speed=1.5)
+
+        assert hud.console.playback_speed == 1.5
+
+    def test_the_rate_is_folded_in_in_genau_mode_too(self):
+        """The rate belongs to the video, which waits paused under the clip and
+        resumes at it -- so it is carried whether or not Genau is covering it,
+        even though the genau console draws the clip seconds row instead."""
+        hud = _hud(_engine_console("genau"), playback_speed=0.5)
+
+        assert hud.console.playback_speed == 0.5
+
+    def test_the_rate_survives_having_no_engine_console_at_all(self):
+        assert _hud(None, playback_speed=2.0).console.playback_speed == 2.0
 
     def test_with_no_engine_console_the_panel_still_names_what_is_playing(self):
         """The broker has the room: no console of Genau's own, but a panel."""
