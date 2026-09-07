@@ -280,18 +280,26 @@ COVER_WIDTH_DEG = 40.0  # wider than the console's 24: that is glanced at
 
 
 class CoverAnchor:
-    """Where the cover hangs: the heading the viewer had when it went up, held
-    until it comes down.  Head-locked it turns with the eyes and reads as glued
-    to the lenses; held to one heading it is out in the world.  Captured, not
-    fixed at the scene's forward, so it arrives in front of whoever raised
-    it."""
+    """Where the cover hangs: one heading, so it holds still as the head turns.
+
+    Latched on the first frame drawn it was whatever pose the runtime had then,
+    and ORIENTATION_VALID is answered with a predicted pose long before one
+    follows a head -- so the panel sat where he was not looking and he called
+    it no loading screen.  It follows him until he is at the lenses (*settled*).
+    """
 
     def __init__(self) -> None:
         self._yaw: float | None = None
 
-    def heading(self, yaw: float) -> float:  # takes *yaw* only if none is held
+    def heading(self, yaw: float, *, settled: bool = True) -> float:
+        if not settled:
+            return yaw  # still finding him; hang it wherever he is looking now
         if self._yaw is None:
             self._yaw = yaw
+        return self._yaw
+
+    @property
+    def held(self) -> float | None:
         return self._yaw
 
     def release(self) -> None:

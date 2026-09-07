@@ -485,6 +485,28 @@ class TestWhereTheCoverHangs:
 
         assert anchor.heading(2.9) == pytest.approx(0.0)
 
+    def test_it_follows_him_until_he_is_at_the_lenses(self):
+        """Latched on the first frame drawn, the heading is whatever pose the
+        runtime had then -- and it answers ORIENTATION_VALID with a predicted
+        one long before it is following a head.  The panel sat where he was
+        not looking, and the loading screen he never saw was there all along."""
+        anchor = CoverAnchor()
+
+        assert anchor.heading(1.2, settled=False) == pytest.approx(1.2)
+        assert anchor.heading(2.9, settled=False) == pytest.approx(2.9)
+        assert anchor.held is None
+
+        assert anchor.heading(-0.4, settled=True) == pytest.approx(-0.4)
+        assert anchor.heading(2.9, settled=True) == pytest.approx(-0.4)
+
+    def test_what_it_holds_is_readable_so_the_log_can_say_where_it_went(self):
+        anchor = CoverAnchor()
+        assert anchor.held is None
+
+        anchor.heading(1.2)
+
+        assert anchor.held == pytest.approx(1.2)
+
 
 class TestBeingSeen:
     """A launch is over in six seconds and the headset is still on the desk;
