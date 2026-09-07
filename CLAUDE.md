@@ -117,20 +117,28 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   `git pull --ff-only origin main`; the running app self-updates the same way.
   The primary is only ever fast-forwarded — never reset or merged-into.
 - **A red required check** (`.github/workflows/merge-gate.yml`) can't land.
-- **A PR that sits with green checks is CONFLICTED, not un-armed — poll
-  `mergeStateStatus`, never `autoMergeRequest`.** Auto-merge arms itself six
-  seconds after the PR opens (`.github/workflows/auto-merge.yml`) and nothing
-  takes it back off, so "it never armed" is never the answer; `gh pr view N
-  --json autoMergeRequest` reads null once the queue has the PR, which is the
-  reading that invites that wrong conclusion. What actually stalls a landing
-  here is another agent's PR merging first and leaving yours `DIRTY`: the queue
-  will not take a PR it cannot merge cleanly, so it waits, armed, forever. So
-  wait on `until [ "$(gh pr view N --json mergeStateStatus --jq
-  .mergeStateStatus)" = DIRTY ] || [ merged ]` rather than on MERGED alone, and
-  rebase the moment it turns — the repo lands several agents' work an hour, so
-  losing that race is ordinary, and only noticing it is not. Re-arming does
-  nothing; on 2026-09-07 it bought twenty minutes of silence and a wrong report
-  to him about what had gone wrong.
+- **A PR sitting with green checks has stalled in one of two ways, and only
+  `isInMergeQueue` tells them apart.** `mergeStateStatus` reads `CLEAN` and
+  `autoMergeRequest` reads null in BOTH, which is what invites a wrong
+  diagnosis and a wrong report to him — ask GitHub directly instead: `gh api
+  graphql -f query='{repository(owner:"haglio",name:"fun_time"){pullRequest(
+  number:N){isInMergeQueue mergeStateStatus}}}'`.
+  **In the queue, turning `DIRTY`:** another agent's PR merged first and yours
+  no longer merges cleanly, so the queue waits, armed, forever. Rebase the
+  moment it turns, and do not re-arm — re-arming does nothing, and on
+  2026-09-07 bought twenty minutes of silence. The repo lands several agents'
+  work an hour, so losing that race is ordinary and only failing to notice it
+  is not.
+  **Not in the queue, still `CLEAN`:** you force-pushed after the PR opened.
+  GitHub drops auto-merge on a force-push, and `.github/workflows/auto-merge.yml`
+  fires only on `opened`/`ready_for_review`/`reopened`, so nothing re-arms it and
+  the PR sits green and idle for good. `gh pr merge N --auto --merge` puts it
+  back (it warns that the queue owns the strategy, and enqueues anyway). Every
+  rebase after the PR opens lands here — which is every branch that took a round
+  of his feedback; cost an hour on 2026-09-07.
+  So wait on `until [ merged ] || [ "$(gh pr view N --json mergeStateStatus
+  --jq .mergeStateStatus)" = DIRTY ]` rather than on MERGED alone, and read
+  `isInMergeQueue` the first time that wait runs long with nothing changed.
 
 - **Get his eyes on the branch before the PR — leave him a shortcut.** He runs Fun
   Time from the primary checkout, which only moves when `main` does, so a branch
