@@ -55,6 +55,7 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
+from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.manifest import LaunchManifest
 from fun_time.player_status import genau_status_path, read_genau_status
@@ -92,6 +93,7 @@ from .cover import (
     paint_cover,
     scene_ready_file,
 )
+from .dash_panel import DASH_WIDTH_PX, DashPointer, dash_height, paint_dash
 from .furniture import (
     FurniturePointer,
     chip_state,
@@ -103,6 +105,7 @@ from .furniture import (
 from .genau_role import GenauRole, run_ticks
 from .genau_settings import GenauSettings
 from .layout import (
+    DASH,
     LANDSCAPE,
     LAYOUT_FILENAME,
     PANEL,
@@ -857,6 +860,60 @@ class _PanelUnit:
         self.screen.close()
 
 
+class _DashUnit:
+    """The dashboard, hanging in the scene: painted and pressed like the console."""
+
+    def __init__(self, *, placement: Placement, dashboard_cmd_file: Path,
+                 notices: NoticeBoard, dashboard_state_file: Path) -> None:
+        self._notices = notices
+        self._state_file = dashboard_state_file
+        self._pointer = DashPointer(
+            post=lambda command: append_command(dashboard_cmd_file, command))
+        self._presses = _Presses(DASH)
+        self._lock = threading.Lock()
+        self._image = None
+        self._key = None
+        self._uploaded = None
+        self.texture = FrameTexture()
+        self.screen = _HangingScreen(placement)
+
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        size = (DASH_WIDTH_PX, dash_height())
+        for event in self._presses.drain():
+            if event.kind == PRESS:
+                self._pointer.press(*surface_pixel(event.u, event.v, size))
+        # The same snapshot the desktop's own bar reads.
+        snapshot = load_dashboard_snapshot(self._state_file)
+        self._pointer.session_state(
+            omni_paused=snapshot is not None and snapshot.omni_paused,
+            voice_active=snapshot is None or snapshot.voice_active,
+        )
+        records = self._notices.records
+        key = (self._pointer.state, records)
+        if key == self._key:
+            return
+        image = paint_dash(self._pointer.state, records)
+        with self._lock:
+            self._image = image
+        self._key = key
+
+    def render_latest_frame(self) -> None:
+        with self._lock:
+            image = self._image
+        if image is None or image is self._uploaded:
+            return
+        self.texture.upload(np.asarray(image))
+        self._uploaded = image
+        self.screen.rehang(self.texture.aspect)
+
+    def close(self) -> None:
+        self.texture.close()
+        self.screen.close()
+
+
 class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
@@ -1410,13 +1467,19 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         primary, genau, dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
     )
+    dash = _DashUnit(
+        placement=layout[DASH],
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+        notices=notices,
+        dashboard_state_file=Path(commands.dashboard_state_file),
+    )
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
-    units = [primary, genau, *satellites, panel, cover]
+    units = [primary, genau, *satellites, panel, dash, cover]
     pumped = [notices, *units, keeper]
     hanging = {unit.side: (unit.screen,) for unit in satellites} | {
-        PRIMARY: (primary.screen, genau.screen)}
+        PRIMARY: (primary.screen, genau.screen), DASH: (dash.screen,)}
     pointer = Pointer()
     pointing = _PointerDrawing()
     use_layers = vr.compositor_layers

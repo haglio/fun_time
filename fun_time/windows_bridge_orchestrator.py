@@ -633,19 +633,12 @@ def _fix_post_loading_windows(result: StartupResult, *,
     keep_the_cover_up(overlay_hwnd)
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
-    # target's own thread, and the satellites are at their busiest exactly now
-    # (first clips decoding), so a promotion can time out through the stalled-
-    # window guard and leave the player under whatever the user had on that
-    # monitor — a maximized Chrome sat over the landscape player until the
-    # next full re-band.  Walk the real z-order and re-promote whoever is
-    # still buried, for a few seconds, until both players are frontmost.
-    #
-    # Settled on whoever OWNS each satellite rect in this mode.  In origenerator
-    # mode that is the hosted app's region shows, not the players: the players
-    # are blacked and held for the whole mode and the shows cover them on
-    # purpose, so a loop that re-promotes a "buried" player buries the show
-    # instead — for its full twelve seconds, which is a picture and then a black
-    # rectangle, on a session that opened in the mode.
+    # target's own thread, the satellites are at their busiest now, and a
+    # promotion that times out leaves the player under whatever was on that
+    # monitor.  So walk the real z-order for a few seconds and re-promote whoever
+    # is still buried -- settled on whoever OWNS each satellite rect in this
+    # mode, since in origenerator mode the hosted app's shows cover the players
+    # on purpose and re-promoting a "buried" player would bury the show.
     owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
     _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
     portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())

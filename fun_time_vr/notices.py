@@ -24,6 +24,9 @@ KEPT = 3
 # the picture rather than beside it.
 TOAST_SECONDS = 2.2
 
+# How much of the stream the dash can reach back through.
+KEPT_RECORDS = 400
+
 # Which screen a notice flashes over: the two satellites have their own, and
 # everything else belongs to the primary, the desktop's own fallback.
 _SCREENS = {SOURCE_PORTRAIT: SOURCE_PORTRAIT, SOURCE_LANDSCAPE: SOURCE_LANDSCAPE}
@@ -47,18 +50,23 @@ class NoticeBoard:
     clock, so a wall-clock stamp and a monotonic pump are never subtracted."""
 
     def __init__(self, event_log: Path | str, *, seconds: float = NOTICE_SECONDS,
-                 kept: int = KEPT, toast_seconds: float = TOAST_SECONDS) -> None:
+                 kept: int = KEPT, toast_seconds: float = TOAST_SECONDS,
+                 kept_records: int = KEPT_RECORDS) -> None:
         self._path = Path(event_log)
         self._seconds = seconds
         self._kept = kept
         self._toast_seconds = toast_seconds
+        self._kept_records = kept_records
         self._lines: list[Notice] = []
         self._toasts: dict[str, Notice] = {}
+        self._records: list = []
         _, self._offset = read_events(self._path, 0)
 
     def pump(self, _stop, now: float) -> None:
         """Take what was written since the last call; drop what has faded."""
         records, self._offset = read_events(self._path, self._offset)
+        # The dash filters the whole stream itself, so everything is kept.
+        self._records = (self._records + records)[-self._kept_records:]
         for record in records:
             if not is_announcement(record):
                 continue
@@ -79,3 +87,8 @@ class NoticeBoard:
     def toast(self, screen: str) -> Notice | None:
         """What is flashing over *screen* right now, if anything."""
         return self._toasts.get(screen)
+
+    @property
+    def records(self) -> tuple:
+        """The session's whole stream, unfiltered, oldest first."""
+        return tuple(self._records)
