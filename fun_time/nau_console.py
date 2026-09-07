@@ -88,11 +88,10 @@ def console_payload(
     order is the orchestrator's, set by a spoken word or a key it owns, and
     neither player can tell which way round the browse it is walking was built.
 
-    ``f_mode`` is the main player's own F-mode — its playlist narrowed to the videos
-    that have a funscript.  Nau is told the flag directly too (``SET_F_MODE``, for
-    its status line), but the console's button has to light off what the
-    orchestrator holds, exactly as the satellites' do: the flag is set from three
-    places at once and only one of them is the player.
+    ``f_mode`` is the main player's own F-mode.  Nau is told the flag directly too
+    (``SET_F_MODE``, for its status line), but the console's button has to light
+    off what the orchestrator holds, exactly as the satellites' do: the flag is
+    set from three places at once and only one of them is the player.
     """
     return {
         "mode": mode,

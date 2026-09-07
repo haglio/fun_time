@@ -17,7 +17,12 @@ from fun_time.branch_session import STATE_DIRNAME, _apply_genau_checkout_overrid
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
 from fun_time.event_log import EventRecord, event_log_path, read_events
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
-from fun_time.modes import build_mirrored_funscript_path, has_matching_funscript
+from fun_time.modes import (
+    LIBRARY_MARKER,
+    SCRIPTS_MARKER,
+    has_handcrafted_funscript,
+    matching_funscript,
+)
 from fun_time.notice_overlay import is_announcement
 from fun_time.player_status import (
     NauStatus,
@@ -736,7 +741,7 @@ def build_integration_config(tmp_path: Path) -> Path:
     # point the genau config's Nau dirs at the copied test library — otherwise it
     # would scan the real one. Mirrors the videos->scripts layout that
     # _link_primary_samples writes the funscripts into.
-    scripts_root = Path(str(primary_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
+    scripts_root = Path(str(primary_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER))
     nau_clips_dir = integration_root / "nau_clips"
     nau_clips_dir.mkdir(parents=True, exist_ok=True)
     genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
@@ -833,10 +838,14 @@ def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> lis
         for candidate in source_root.rglob("*"):
             if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
                 continue
-            if has_matching_funscript(str(candidate)):
+            if has_handcrafted_funscript(str(candidate)):
                 candidates.append((candidate, source_root))
     if not candidates:
-        raise FileNotFoundError("Could not find a main-library video with a matching funscript for integration config")
+        raise FileNotFoundError(
+            "Could not find a main-library video with a hand-authored funscript for "
+            "integration config — F-mode plays those, so a session built without one "
+            "would come up empty"
+        )
     chosen = sample_library_clips(
         candidates, min(count, len(candidates)), desc="funscripted main-library clips")
     targets: list[Path] = []
@@ -849,12 +858,13 @@ def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> lis
         target = dest_dir / relative_video
         target.parent.mkdir(parents=True, exist_ok=True)
         _safe_link(candidate, target)
-        mirrored = Path(build_mirrored_funscript_path(str(candidate)))
-        if mirrored.exists():
-            temp_mirrored_root = Path(str(dest_dir).replace("\\videos\\videos\\", "\\videos\\scripts\\scripts\\"))
+        mirrored = matching_funscript(str(candidate))
+        if mirrored:
+            temp_mirrored_root = Path(
+                str(dest_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER))
             mirrored_dest = (temp_mirrored_root / relative_video).with_suffix(".funscript")
             mirrored_dest.parent.mkdir(parents=True, exist_ok=True)
-            _safe_link(mirrored, mirrored_dest)
+            _safe_link(Path(mirrored), mirrored_dest)
         targets.append(target)
     return targets
 

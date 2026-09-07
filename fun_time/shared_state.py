@@ -62,10 +62,9 @@ class BridgeState:
     # Origenerator over the RFB and its shows over the players.
     satellites_mode: str = STARTUP_SATELLITES_MODE
     # Whether each player is in F-mode, held per player because it is set per
-    # player: each HUD carries its own button, and only the bare "f mode" (and the
-    # F key) still reaches all three at once.  It narrows the satellites to the
-    # favorites and the main player to the videos that have a funscript, so which
-    # player it is on genuinely changes what it means.
+    # player: each HUD carries its own button, only the bare "f mode" (and the F
+    # key) still reaches all three, and it narrows each to something different
+    # (``runtime_flow.MAIN_PLAYER``).
     main_f_mode: bool = False
     portrait_f_mode: bool = False
     landscape_f_mode: bool = False

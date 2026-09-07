@@ -66,10 +66,9 @@ class ModeSwitchFlowResult:
     log_message: str
 
 
-# The three players F-mode can be set on, each with its own flag.  It means a
-# different narrowing on each — the satellites drop to the favorites, the main player
-# to the videos that have a funscript — which is exactly why it is worth setting
-# one player at a time.
+# The three players F-mode can be set on, each with its own flag, because it means
+# a different narrowing on each: the satellites drop to the favorites, the main
+# player to the videos a person hand-wrote a funscript for.
 MAIN_PLAYER = "main"
 PORTRAIT_PLAYER = "portrait"
 LANDSCAPE_PLAYER = "landscape"
@@ -134,8 +133,8 @@ def apply_main_fmode(
 ) -> None:
     """Rebuild the main player's playlist under *enabled* and hand it to Nau.
 
-    F-mode narrows the main player to the videos that have a funscript beside them —
-    the OSR2 has something to follow for every clip that comes up.
+    F-mode narrows the main player to the videos a person hand-wrote a funscript
+    for — the OSR2 follows a script someone meant, not one a bulk run inferred.
 
     ``start_at_top`` is the reorder's, and means here exactly what it means for a
     satellite (see :func:`apply_satellite_filter`): Nau keeps the video on screen

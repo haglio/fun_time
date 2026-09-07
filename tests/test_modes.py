@@ -9,13 +9,16 @@ from fun_time.media_metadata import load_metadata, metadata_path_for
 from fun_time.modes import (
     SatelliteBuild,
     build_all_playlists,
+    build_generated_marker_path,
     build_main_playlist_paths,
     build_mirrored_funscript_path,
     build_satellite_playlist_paths,
     build_satellite_playlists,
     collect_video_files,
+    has_handcrafted_funscript,
     has_matching_funscript,
     is_favorite_path,
+    matching_funscript,
     order_paths,
     read_favs_content,
     shuffle_paths,
@@ -26,6 +29,14 @@ from fun_time.modes import (
 def _lines(playlist: Path) -> list[str]:
     """The lines of a playlist file a build just wrote."""
     return playlist.read_text(encoding="utf-8").splitlines()
+
+
+def _mark_generated(video: Path) -> Path:
+    """Record that a bulk run wrote *video*'s funscript, the way the library does."""
+    marker = Path(build_generated_marker_path(str(video)))
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.touch()
+    return marker
 
 
 def _touch_with_mtime(path: Path, mtime: float) -> None:
@@ -80,15 +91,23 @@ def test_build_mirrored_funscript_path_uses_video_path_directly(tmp_path: Path):
 
 
 def test_build_primary_playlist_paths_filters_to_funscripted_items_in_f_mode(tmp_path: Path):
+    """F-mode keeps the hand-scripted video and drops the bulk-scripted one.
+
+    The bulk run is what made "has a funscript" stop meaning anything: ``b`` has
+    a script too, and is exactly what F-mode is now for excluding.
+    """
     source_root = tmp_path / "videos" / "videos" / "primary"
     first = source_root / "a.mp4"
     second = source_root / "b.mp4"
+    third = source_root / "c.mp4"
     first.parent.mkdir(parents=True)
-    first.write_text("x", encoding="utf-8")
-    second.write_text("x", encoding="utf-8")
-    mirrored = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "a.funscript"
-    mirrored.parent.mkdir(parents=True, exist_ok=True)
-    mirrored.write_text("{}", encoding="utf-8")
+    for video in (first, second, third):
+        video.write_text("x", encoding="utf-8")
+    scripts_root = tmp_path / "videos" / "scripts" / "scripts" / "primary"
+    scripts_root.mkdir(parents=True, exist_ok=True)
+    for name in ("a", "b"):
+        (scripts_root / f"{name}.funscript").write_text("{}", encoding="utf-8")
+    _mark_generated(second)
 
     paths = build_main_playlist_paths(str(source_root), True, rng=random.Random(1))
 
@@ -225,7 +244,7 @@ def test_build_mirrored_funscript_path_returns_empty_when_no_marker():
     assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
 
 
-def test_has_matching_funscript_needs_only_the_video_path(tmp_path: Path):
+def test_has_handcrafted_funscript_needs_only_the_video_path(tmp_path: Path):
     """The mirrored tree is derivable from the clip's own path, so nothing has to
     be told where the scripts live."""
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
@@ -233,8 +252,49 @@ def test_has_matching_funscript_needs_only_the_video_path(tmp_path: Path):
     script.parent.mkdir(parents=True)
     script.write_text("script", encoding="utf-8")
 
+    assert has_handcrafted_funscript(str(video))
+    assert not has_handcrafted_funscript(r"C:\other\path\clip.mp4")
+
+
+def test_a_marked_script_still_drives_the_video_it_is_out_of_f_mode_for(tmp_path: Path):
+    """Marking is subtractive: the script still pairs, F-mode alone reads the mark.
+
+    Which is the whole point of marking beside the script rather than moving it —
+    this video still drives the OSR2, and F-mode never brings it up.
+    """
+    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
+    script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("script", encoding="utf-8")
+    _mark_generated(video)
+
+    assert matching_funscript(str(video)) == str(script)
     assert has_matching_funscript(str(video))
-    assert not has_matching_funscript(r"C:\other\path\clip.mp4")
+    assert not has_handcrafted_funscript(str(video))
+
+
+def test_an_unmarked_library_keeps_the_f_mode_it_had(tmp_path: Path):
+    """Nothing marked means every scripted video is still F-mode's, so the
+    marking can be filled in after the code lands rather than with it."""
+    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
+    script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("script", encoding="utf-8")
+
+    assert has_handcrafted_funscript(str(video))
+
+
+def test_a_marker_without_a_script_is_not_f_modes_either(tmp_path: Path):
+    """A mark outliving its deleted script cannot promote an unscripted video."""
+    video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
+    _mark_generated(video)
+
+    assert not has_handcrafted_funscript(str(video))
+
+
+def test_the_marker_path_is_empty_off_the_library(tmp_path: Path):
+    assert build_generated_marker_path(r"C:\other\path\clip.mp4") == ""
+    assert matching_funscript(r"C:\other\path\clip.mp4") is None
 
 
 # --- read_favs_content / is_favorite_path edge cases ---

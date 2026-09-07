@@ -355,8 +355,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
             ),
             _Row(
-                "F-Mode on the main player alone — play only the videos that "
-                "have a funscript",
+                "F-Mode on the main player alone — play only the hand-scripted "
+                "videos",
                 (),
                 ("main_fmode", "main_fmode_on", "main_fmode_off"),
             ),

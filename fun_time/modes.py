@@ -48,13 +48,29 @@ def collect_video_files(source_spec: str) -> list[str]:
     return files
 
 
-def build_mirrored_funscript_path(video_path: str) -> str:
+# A third mirror of the video tree, beside ``scripts`` and Evolver's ``metadata``:
+# which funscripts a bulk run wrote rather than a person, which nothing else on disk
+# records.  It marks beside the script, so ``scripts`` stays the one complete tree.
+LIBRARY_MARKER = "\\videos\\videos\\"
+SCRIPTS_MARKER = "\\videos\\scripts\\scripts\\"
+GENERATED_MARKER = "\\videos\\scripts\\generated\\"
+GENERATED_SUFFIX = ".generated"
+
+
+def _mirrored_path(video_path: str, marker: str, suffix: str) -> str:
     normalized = str(Path(video_path))
-    marker = "\\videos\\videos\\"
-    if marker not in normalized:
+    if LIBRARY_MARKER not in normalized:
         return ""
-    mirrored = normalized.replace(marker, "\\videos\\scripts\\scripts\\", 1)
-    return str(Path(mirrored).with_suffix(".funscript"))
+    mirrored = normalized.replace(LIBRARY_MARKER, marker, 1)
+    return str(Path(mirrored).with_suffix(suffix))
+
+
+def build_mirrored_funscript_path(video_path: str) -> str:
+    return _mirrored_path(video_path, SCRIPTS_MARKER, ".funscript")
+
+
+def build_generated_marker_path(video_path: str) -> str:
+    return _mirrored_path(video_path, GENERATED_MARKER, GENERATED_SUFFIX)
 
 
 def matching_funscript(video_path: str) -> str | None:
@@ -65,6 +81,14 @@ def matching_funscript(video_path: str) -> str | None:
 
 def has_matching_funscript(video_path: str) -> bool:
     return matching_funscript(video_path) is not None
+
+
+def has_handcrafted_funscript(video_path: str) -> bool:
+    """Whether a person wrote *video_path*'s funscript — what F-mode plays."""
+    if not has_matching_funscript(video_path):
+        return False
+    marker = build_generated_marker_path(video_path)
+    return not (marker and Path(marker).exists())
 
 
 def read_favs_content(favs_file: Path) -> str:
@@ -123,7 +147,7 @@ def build_main_playlist_paths(main_sources: str, f_mode: bool, *,
     """
     files = collect_video_files(main_sources)
     if f_mode:
-        files = [full_path for full_path in files if has_matching_funscript(full_path)]
+        files = [full_path for full_path in files if has_handcrafted_funscript(full_path)]
     return order_paths(files, recent=recent, rng=rng)
 
 
