@@ -1141,6 +1141,10 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     """
     if command not in _ORIGENERATOR_TRANSPORT and command not in _ORIGENERATOR_SPEECH:
         return False
+    return hosting_origenerator(state, config)
+
+
+def hosting_origenerator(state: BridgeState, config: BridgeConfig) -> bool:
     return (config.origenerator_enabled
             and origenerator_shows(state.satellites_mode)
             and config.origenerator_cmd_file is not None)
@@ -1468,6 +1472,14 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
     return state, [WindowOp(op="save_clip")]
 
 
+def _filter_the_shows_enhanced(state: BridgeState, config: BridgeConfig,
+                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if not hosting_origenerator(state, config):
+        return state, []
+    write_satellite_command(config.origenerator_cmd_file, "FILTER_ENHANCED")
+    return state, []
+
+
 def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
                                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """The hosted app's phrases arrive in video mode too (its vocabulary is
@@ -1548,6 +1560,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_robot_hand_hold, cmd) for cmd in HOLD_CENTERS})
     handlers["robot_hand_release"] = _robot_hand_release
     handlers["clipper_save"] = _save_clip
+    handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})
     return handlers

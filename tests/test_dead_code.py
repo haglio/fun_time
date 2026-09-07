@@ -119,14 +119,17 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
-# 6919 since 2026-09-06, when the sidecar writer took the family's lock and the
-# paragraph explaining its hand-rolled rename went with the rename.  6922
-# earlier the same day, when the library browser's own additions went in as
-# names and tests rather than docstrings.  6925 since 2026-09-03: the commits main took between the last ratchet and the
+# 6917 since 2026-09-06, when the bug wave's two new dispatch functions went in
+# under their own names, and the anchor fix's paragraph shrank to the sentence
+# left true.  6919 the same day, when the sidecar writer took the family's lock
+# and the paragraph explaining its hand-rolled rename went with the rename.
+# 6922 earlier that day, when the library browser's own additions went in as
+# names and tests rather than docstrings.  6923 earlier the same day, when the
+# VR pointer landed with less prose than it found.  6925 since 2026-09-03: the commits main took between the last ratchet and the
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 6919
+MAX_PROSE_LINES = 6917
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

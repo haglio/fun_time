@@ -29,8 +29,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
 # a player's own surface as a literal string in that player's repo.  The three
 # minimize buttons live on the HUDs (player_core / Nau's console); the speed
-# pair is Genau's console's own ± marks beside its drive readout.
+# pair is Genau's console's own ± marks beside its drive readout; the enhanced
+# filter is the switch the console draws over a hosted Origenerator's shows,
+# which the room hears as "enhanced only" rather than under this id.
 HUD_ONLY_COMMAND_IDS = (
+    "genau_filter_enhanced",
     "landscape_minimize",
     "main_minimize",
     "portrait_minimize",
@@ -307,7 +310,8 @@ def test_the_command_id_set_is_exactly_the_snapshot():
 
 def test_the_snapshot_is_sorted_and_duplicate_free():
     """Sorted so a diff of this file reads as the id it adds or removes."""
-    assert list(EXPECTED_COMMAND_IDS[5:]) == sorted(set(EXPECTED_COMMAND_IDS[5:]))
+    rest = EXPECTED_COMMAND_IDS[len(HUD_ONLY_COMMAND_IDS):]
+    assert list(rest) == sorted(set(rest))
     assert list(HUD_ONLY_COMMAND_IDS) == sorted(set(HUD_ONLY_COMMAND_IDS))
     assert len(set(EXPECTED_COMMAND_IDS)) == len(EXPECTED_COMMAND_IDS)
 

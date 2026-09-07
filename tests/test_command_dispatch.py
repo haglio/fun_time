@@ -3956,6 +3956,27 @@ class TestOrigeneratorTransport:
                 command = VOICE_COMMANDS[f"{side} {phrase}"]
                 assert routes_to_origenerator(command, state, config), command
 
+    def test_the_consoles_enhanced_filter_reaches_the_hosted_shows(self, tmp_path):
+        """The shared console draws an enhanced-only switch over a hosted show
+        and posts genau_filter_enhanced for it.  Nothing here answered that verb,
+        so the button lit and the shows played on unchanged (bug 90)."""
+        config = _origenerator_config(tmp_path)
+        state = BridgeState(satellites_mode="origenerator")
+
+        state, _ = dispatch_command("genau_filter_enhanced", state, config)
+
+        assert _origenerator_cmds(config) == ["FILTER_ENHANCED"]
+
+    def test_the_enhanced_filter_is_dropped_where_no_show_is_hosted(self, tmp_path):
+        """In video mode the satellites are players, which have no enhancements
+        to narrow to: the verb goes nowhere rather than onto a channel nothing
+        is draining."""
+        config = _origenerator_config(tmp_path)
+
+        dispatch_command("genau_filter_enhanced", BridgeState(), config)
+
+        assert _origenerator_cmds(config) == []
+
     def test_player_mode_routes_nothing_to_origenerator(self, tmp_path):
         config = _origenerator_config(tmp_path)
         state, _ = dispatch_command("portrait_next", BridgeState(), config)
