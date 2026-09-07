@@ -43,3 +43,22 @@ jobs:
         cp "$dll" "$pydir/mpv-2.dll"
         echo "$pydir" >> "$GITHUB_PATH"
         python -c "import app_support, player_core, shared_ui, mpv; print('imports OK')"
+
+  # What the machine this is developed on would say. It runs 3.14 and the gate
+  # runs 3.12, and the two evaluate annotations differently (PEP 649), so a
+  # branch can be green here and fail to collect there. On `push` only: never on
+  # a pull request and never in the queue, so this reads without gating and
+  # nothing here can hold up a landing. It skips the libmpv fetch: what it is
+  # reading is the interpreter, and the players it would exercise need a GPU.
+  next-python:
+    if: github.event_name == 'push'
+    uses: haglio/.github/.github/workflows/merge-gate.yml@main
+    with:
+      siblings: "app_support shared_ui player_core"
+      python-version: "3.14"
+      extras: "dev,windows"
+      timeout-minutes: 15
+      qt-platform: offscreen
+      sdl-video: dummy
+      sdl-audio: dummy
+      reverse: false
