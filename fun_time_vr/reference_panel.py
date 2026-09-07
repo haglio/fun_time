@@ -71,8 +71,7 @@ def page_of(state: ReferenceState) -> int:  # held inside the list, however far
     return state.page % total if total else 0
 
 
-def reference_height() -> int:
-    """Tall enough for the longest section, so walking them never resizes it."""
+def reference_height() -> int:  # the longest section's, so walking never resizes
     longest = max((len(section.rows) for section in sections()), default=0)
     return _HEAD_H + _ROW_H * (longest + 2) + _PAD
 
@@ -140,8 +139,7 @@ def paint_reference(state: ReferenceState) -> Image.Image:
     return panel
 
 
-class ReferencePointer:
-    """A press: the two controls walk the sections, and the rest is a page."""
+class ReferencePointer:  # the two controls walk it; the rest is a page
 
     def __init__(self, state: ReferenceState | None = None) -> None:
         self.state = state or ReferenceState()
@@ -155,8 +153,7 @@ class ReferencePointer:
                 return action
         return None
 
-    def showing(self, open_: bool) -> None:
-        """What the session says; a fresh open starts at the front."""
+    def showing(self, open_: bool) -> None:  # a fresh open starts at the front
         if open_ and not self.state.open:
             self.state = ReferenceState(open=True, page=0)
         else:
