@@ -159,7 +159,16 @@ runtime's own view.
 ## The taskbar
 
 There is one pinned button now, and one `AppUserModelID` under it
-(`fun_time.win32_taskbar`). The VR player's windows claim Fun Time's identity,
+(`fun_time.win32_taskbar`).
+
+Windows lights that button while at least one visible top-level window carries
+the id, and a VR session has none to give it: everything it draws is in the
+headset, and the GL context's own window is a blank square nobody wants on the
+desktop. So that window is created invisible and then shown *minimized* —
+`SW_SHOWMINNOACTIVE`, in one step, so it is never painted on screen on the way
+down. A minimized window is still a visible one as far as the taskbar is
+concerned, which is the whole trick: the pin says Fun Time is running for as
+long as the headset session is, and nothing sits on the monitors. The VR player's windows claim Fun Time's identity,
 so the headset session lights the button you already have. `launch_vr.vbs` stays
 as the direct way to start a VR session on the installed config, and as one of
 the launchers `tests/test_launch_smoke.py` reads to decide what to import-check;

@@ -50,6 +50,8 @@ WS_EX_APPWINDOW = 0x00040000
 WS_EX_TOOLWINDOW = 0x00000080
 SW_HIDE = 0
 SW_SHOW = 5
+IMAGE_ICON, LR_LOADFROMFILE, WM_SETICON = 1, 0x10, 0x80
+ICON_SMALL, ICON_BIG = 0, 1
 GW_HWNDNEXT = 2  # next window DOWN the z-order (GetWindow relationship)
 
 # Declare argtypes so ctypes passes HWND parameters as 64-bit pointers.
@@ -514,9 +516,21 @@ def minimize_window(hwnd: int, *, activate: bool = True) -> None:
     )
 
 
+def set_window_icon(hwnd: int, icon_path: str | Path) -> None:
+    """Give a window the icon Alt+Tab draws -- WM_SETICON, GLFW's losing."""
+    try:
+        for which, side in ((ICON_SMALL, 16), (ICON_BIG, 32)):
+            handle = _user32.LoadImageW(
+                None, str(icon_path), IMAGE_ICON, side, side, LR_LOADFROMFILE)
+            if handle:
+                _user32.SendMessageW(hwnd, WM_SETICON, which, handle)
+    except OSError:
+        logger.debug("Could not set the window icon", exc_info=True)
+
+
 def hide_window(hwnd: int) -> None:
-    """Take a window off the screen entirely, where minimizing leaves it one
-    Alt+Tab from being back on it.  Through :func:`_without_hanging`."""
+    """Take a window off the screen, where minimizing leaves it one Alt+Tab
+    from being back on it.  Through :func:`_without_hanging`."""
     _without_hanging(_user32.ShowWindow, hwnd, SW_HIDE, what=f"hide_window({hwnd})")
 
 
