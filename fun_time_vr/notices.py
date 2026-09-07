@@ -61,8 +61,7 @@ class NoticeBoard:
         self._records: list = []
         _, self._offset = read_events(self._path, 0)
 
-    def pump(self, _stop, now: float) -> None:
-        """Take what was written since the last call; drop what has faded."""
+    def pump(self, _stop, now: float) -> None:  # take the new, drop the faded
         records, self._offset = read_events(self._path, self._offset)
         # The dash filters the whole stream itself, so everything is kept.
         self._records = (self._records + records)[-self._kept_records:]

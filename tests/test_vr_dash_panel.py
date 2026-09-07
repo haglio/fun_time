@@ -4,6 +4,7 @@ from __future__ import annotations
 import logging
 
 import numpy as np
+from shared_ui.palette import BG_BUTTON, BG_TERTIARY, BLUE
 from shared_ui.spacing import BUTTON_ICON, BUTTON_SIZE
 
 from fun_time.dashboard_actions import (
@@ -192,6 +193,74 @@ class TestTheDial:
     def test_it_names_its_stop(self):
         assert verbosity_name(LEVELS_BY_NAME["NOTICE"]) == "NOTICE"
         assert verbosity_name(logging.ERROR) == "ERROR"
+
+
+class TestItLooksLikeADropdown:
+    """It was a word-button that happened to open a list, drawn like the window
+    filters beside it -- nothing about it said "this one drops down"."""
+
+    def _column(self, image, x: int):
+        return np.asarray(image)[:, x, :3]
+
+    def test_the_closed_field_wears_an_arrow(self):
+        """The mark every dropdown carries, and the family's own chevron turned
+        down rather than one drawn here to look like it."""
+        rect = dash_actions()[VERBOSITY_CHIP]
+        painted = np.asarray(paint_dash(DashState(), []))
+        right = painted[rect.y:rect.y + rect.height,
+                        rect.x + rect.width - 20:rect.x + rect.width - 2, :3]
+        ground = np.asarray(BG_BUTTON, dtype=right.dtype)
+
+        assert not np.all(right == ground)
+
+    def test_the_field_is_bordered_where_a_filter_button_is_not(self):
+        painted = np.asarray(paint_dash(DashState(), []))
+        dial, chip = dash_actions()[VERBOSITY_CHIP], dash_actions()[SOURCE_MAIN]
+        mid = dial.y + dial.height // 2
+
+        dial_edge = painted[mid, dial.x, :3]
+        chip_edge = painted[mid, chip.x, :3]
+
+        assert not np.array_equal(dial_edge, chip_edge)
+
+    def test_the_level_reads_from_the_left_as_a_field_does(self):
+        """Centered is how a button labels itself; a field's value starts at its
+        left edge, which is what puts the arrow on its own at the other end."""
+        rect = dash_actions()[VERBOSITY_CHIP]
+        painted = np.asarray(paint_dash(DashState(verbosity=logging.ERROR), []))
+        rows = painted[rect.y + 2:rect.y + rect.height - 2,
+                       rect.x:rect.x + rect.width // 2, :3]
+
+        assert not np.all(rows == np.asarray(BG_BUTTON, dtype=rows.dtype))
+
+    def test_the_open_list_marks_the_chosen_row_in_blue(self):
+        """The blue a dropdown marks its rows with, the same one
+        shared_ui.chrome gives every menu in the family."""
+        painted = np.asarray(paint_dash(
+            DashState(verbosity=logging.ERROR, dial_open=True), []))
+        chosen = dial_stops()[f"{VERBOSITY_STOP}ERROR"]
+        band = painted[chosen.y + chosen.height // 2,
+                       chosen.x + 2:chosen.x + chosen.width - 2, :3]
+
+        assert (band == np.asarray(BLUE, dtype=band.dtype)).all(axis=1).any()
+
+    def test_the_row_that_is_not_chosen_is_not(self):
+        painted = np.asarray(paint_dash(
+            DashState(verbosity=logging.ERROR, dial_open=True), []))
+        other = dial_stops()[f"{VERBOSITY_STOP}DEBUG"]
+        band = painted[other.y + other.height // 2,
+                       other.x + 2:other.x + other.width - 2, :3]
+
+        assert not (band == np.asarray(BLUE, dtype=band.dtype)).all(axis=1).any()
+
+    def test_the_list_sits_on_the_ground_a_menu_sits_on(self):
+        """Its own ground inside one border, not the panel's -- so it reads as a
+        popup over the log rather than a gap torn in it."""
+        painted = np.asarray(paint_dash(DashState(dial_open=True), []))
+        row = dial_stops()[f"{VERBOSITY_STOP}INFO"]
+        pixel = painted[row.y + row.height // 2, row.x + row.width - 4, :3]
+
+        assert np.array_equal(pixel, np.asarray(BG_TERTIARY, dtype=pixel.dtype))
 
 
 class TestWhatItDraws:

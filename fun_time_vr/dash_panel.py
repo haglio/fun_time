@@ -17,11 +17,12 @@ from shared_ui.palette import (
     BG_PRIMARY,
     BG_TERTIARY,
     BLUE,
+    BORDER_SUBTLE,
     MAGENTA,
     TEXT_MUTED,
     TEXT_PRIMARY,
 )
-from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
+from shared_ui.spacing import BUTTON_ICON, BUTTON_PAD_H_TIGHT, BUTTON_RADIUS
 
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
@@ -47,7 +48,8 @@ _PAD = 10
 _CHIP_H = 20
 _CHIP_GAP = 6
 _CHIP_W = 46
-_DIAL_W = 74
+_DIAL_W = 92  # the name and the arrow beside it
+_ARROW_PX = 10
 _ROW_H = 16
 _FONT_PX = 13
 _SMALL_PX = 11
@@ -135,17 +137,55 @@ def dash_height() -> int:
     return _chips_top() + _CHIP_H + _CHIP_GAP + LOG_ROWS * _ROW_H + _PAD
 
 
-def _slab(draw, rect: Rect, ground) -> None:
+def _slab(draw, rect: Rect, ground, *, border=None) -> None:
     draw.rounded_rectangle(
         (rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1),
         radius=BUTTON_RADIUS, fill=(*ground, 255),
+        outline=None if border is None else (*border, 255),
     )
 
 
-def _label(draw, rect: Rect, text: str, font, ink) -> None:
+def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> None:
     length = font.getlength(text)
-    draw.text((rect.x + max(2, round((rect.width - length) / 2)), rect.y + 3),
-              text, font=font, fill=(*ink, 255))
+    x = (rect.x + BUTTON_PAD_H_TIGHT if left
+         else rect.x + max(2, round((rect.width - length) / 2)))
+    draw.text((x, rect.y + 3), text, font=font, fill=(*ink, 255))
+
+
+def _arrow_down(size: int) -> Image.Image:  # the family's chevron, turned
+    return glyph_image("chevron_right", size, TEXT_MUTED).rotate(90, expand=False)
+
+
+def _paint_dial(panel: Image.Image, draw, state: DashState, font) -> None:
+    """The closed field: bordered, the level in it, the arrow at its right --
+    ``shared_ui.chrome``'s button rules, drawn."""
+    rect = dial_rect()
+    _slab(draw, rect, BG_BUTTON, border=BORDER_SUBTLE)
+    _label(draw, rect, verbosity_name(state.verbosity), font, TEXT_PRIMARY, left=True)
+    panel.alpha_composite(
+        _arrow_down(_ARROW_PX),
+        (rect.x + rect.width - _ARROW_PX - BUTTON_PAD_H_TIGHT,
+         rect.y + (rect.height - _ARROW_PX) // 2),
+    )
+
+
+def _paint_open_list(draw, state: DashState, font) -> None:
+    """The list under it, as ``shared_ui.chrome``'s menu rules dress a popup:
+    its own ground inside one border, the current row in the dropdown blue."""
+    stops = dial_stops()
+    rects = list(stops.values())
+    frame = Rect(rects[0].x, rects[0].y, rects[0].width,
+                 rects[-1].y + rects[-1].height - rects[0].y)
+    _slab(draw, frame, BG_TERTIARY, border=BORDER_SUBTLE)
+    for action, rect in stops.items():
+        name = action[len(VERBOSITY_STOP):]
+        chosen = LEVELS_BY_NAME[name] == state.verbosity
+        if chosen:
+            draw.rectangle(
+                (rect.x + 1, rect.y, rect.x + rect.width - 2, rect.y + rect.height - 1),
+                fill=(*BLUE, 255),
+            )
+        _label(draw, rect, name, font, TEXT_PRIMARY, left=True)
 
 
 def _chip(draw, rect: Rect, label: str, *, on: bool, font) -> None:
@@ -180,7 +220,7 @@ def paint_dash(state: DashState, records) -> Image.Image:
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
         )
 
-    _chip(draw, dial_rect(), verbosity_name(state.verbosity), on=True, font=small)
+    _paint_dial(panel, draw, state, small)
     for source, rect in source_chips(_chips_top()).items():
         _chip(draw, rect, SOURCE_LABELS.get(source, source), on=source in state.sources,
               font=small)
@@ -192,11 +232,7 @@ def paint_dash(state: DashState, records) -> Image.Image:
                   font=small, fill=(*level_color(record.level), 255))
 
     if state.dial_open:
-        for action, rect in dial_stops().items():
-            name = action[len(VERBOSITY_STOP):]
-            _slab(draw, rect, BG_TERTIARY)
-            _label(draw, rect, name, small,
-                   TEXT_PRIMARY if LEVELS_BY_NAME[name] == state.verbosity else TEXT_MUTED)
+        _paint_open_list(draw, state, small)
     return panel
 
 
