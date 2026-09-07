@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fun_time.mode_plan import (
     STARTUP_MAIN_MODE,
     build_mode_switch_plan,

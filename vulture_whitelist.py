@@ -6,6 +6,7 @@ whatever is given that name next: tests/test_dead_code.py asserts every entry
 here still answers a report, and an entry may only be added with the reason it
 answers one.
 """
+from __future__ import annotations
 
 # --- Called by a framework, not by us ---
 _.do_GET  # http.server dispatches by getattr
