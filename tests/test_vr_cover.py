@@ -8,6 +8,7 @@ the two ends had drifted apart.
 """
 from __future__ import annotations
 
+import os
 import re
 from pathlib import Path
 
@@ -236,6 +237,26 @@ class TestGivingUp:
 
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
         progress.advance("players")
+        watcher.read()
+        clock.now += STARTUP_STALE_TIMEOUT_S - 1
+
+        assert watcher.read() is not None
+
+    def test_two_steps_inside_one_filesystem_tick_still_restart_it(
+            self, tmp_path: Path):
+        """A runner fast enough to write both steps within one timestamp tick
+        gives them the same mtime, and a clock keyed on mtime never restarted --
+        so the cover came down mid-launch, on a session that was moving fine."""
+        clock = _Clock()
+        progress = _startup_writer(tmp_path)
+        progress.advance("services")
+        watcher = CoverWatcher(tmp_path, clock=clock)
+        watcher.read()
+        stamped = (tmp_path / PROGRESS_FILENAME).stat()
+
+        clock.now += STARTUP_STALE_TIMEOUT_S - 1
+        progress.advance("players")
+        os.utime(tmp_path / PROGRESS_FILENAME, (stamped.st_atime, stamped.st_mtime))
         watcher.read()
         clock.now += STARTUP_STALE_TIMEOUT_S - 1
 

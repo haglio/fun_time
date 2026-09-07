@@ -44,7 +44,6 @@ class NoticeStrip:
         del self._lines[:-self._kept]
 
     @property
-    def lines(self) -> tuple[Notice, ...]:
-        """What to draw, oldest first."""
+    def lines(self) -> tuple[Notice, ...]:  # oldest first
         return tuple(self._lines)
 
