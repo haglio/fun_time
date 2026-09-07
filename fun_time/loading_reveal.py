@@ -1,11 +1,9 @@
 """The panel's wait under the loading cover, and how it comes out of it.
 
 The panel is topmost, so one that simply came up would flash above the cover.
-It is realized without ever being shown, and reveals itself UNDER the cover
-(:func:`win32.insert_below`) as startup reaches its last phase — not when the
-cover goes, which is a second or more later.
-
-No Qt: the window arrives as something with a ``show``.
+It is realized without being shown and reveals itself UNDER the cover
+(:func:`win32.insert_below`) at startup's last phase, not when the cover goes a
+second or more later.  No Qt: it arrives as something with a ``show``.
 """
 from __future__ import annotations
 
@@ -30,11 +28,8 @@ class Showable(Protocol):
 
 class LoadingReveal:
     """Whether the panel is still waiting, and what happens when it stops.
-
-    Built before the native window exists, because the answer it reads decides
-    more than this window: the notice feed starts held from the same answer, and
-    two reads of the progress file could disagree.
-    """
+    Built before the native window exists: the notice feed starts held from the
+    same answer, and two reads of the progress file could disagree."""
 
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
@@ -44,12 +39,8 @@ class LoadingReveal:
         self._window: Showable | None = None
 
     def attach(self, hwnd: int, window: Showable) -> None:
-        """Take the realized window, and put it in the state startup needs.
-
-        Deferred, it is hidden outright: a hidden window renders nothing, so
-        there is no flash and no minimize animation to see.  Otherwise it is
-        shown at once.
-        """
+        """Take the realized window and put it in the state startup needs;
+        deferred, it is hidden outright, so no flash and no animation."""
         self._hwnd, self._window = hwnd, window
         if self.deferred:
             hide_own_window(hwnd)

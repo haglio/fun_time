@@ -1,10 +1,15 @@
-"""What the overlays read, and what the orchestrator writes for them.
+"""What the covers read, and what an orchestrator writes for them.
 
-Both ends of a session put a cover over the screen — ``loading_screen`` while
-the windows arrive, ``closing_screen`` while they go — and both watch a progress
-file in the state dir for how far along the orchestrator has got.  This module
-is that channel: the file names, the phases each end walks through, and the
-writer on the orchestrator's side.
+Both ends of a session put a cover up — ``loading_screen`` while the windows
+arrive, ``closing_screen`` while they go, and :mod:`fun_time_vr.cover` for both
+ends in the headset — and each watches a progress file in the state dir for how
+far the orchestrator has got.  This module is that channel: the file names, the
+phases, and the writer on the orchestrator's side.
+
+Esc reaches an orchestrator two ways — a cover's own binding, which needs the
+focus, and the hotkey script's hook, which does not and so still works once
+something else has taken it — so a cover follows the FLAG, not a keypress, and
+stays up reading "Cancelling..." until the teardown finishes.
 """
 from __future__ import annotations
 
@@ -28,12 +33,9 @@ SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 
 @dataclass(frozen=True)
 class Progress:
-    """One line of the progress file, parsed.
-
-    *malformed* is the difference between "nothing written yet" and "wrote
-    something we could not read".  Both used to arrive as step 0 of 1, which a
-    reader could only take for a genuine first phase.
-    """
+    """One line of the progress file, parsed.  *malformed* separates "nothing
+    written yet" from "wrote something we could not read"; both used to arrive
+    as step 0 of 1, which reads as a genuine first phase."""
 
     step: int = 0
     total: int = 1
@@ -60,25 +62,22 @@ def parse_progress(text: str) -> Progress:
 
 
 def cancel_file_for(progress_file: str | Path) -> Path:
-    """The cancel flag that pairs with *progress_file* (its sibling in the
-    state dir).  Both the loading screen and the orchestrator derive the path
-    this way, so they always agree on it."""
+    """The cancel flag pairing with *progress_file*, its sibling in the state
+    dir.  Every end derives it this way, so none has to be told."""
     return Path(progress_file).with_name(CANCEL_FILENAME)
 
 
 def ready_file_for(progress_file: str | Path) -> Path:
-    """The ready flag that pairs with a shutdown *progress_file*.  Derived the
-    way the cancel flag is, so the closing screen and the orchestrator agree on
-    it without passing it around."""
+    """The ready flag pairing with a shutdown *progress_file*, derived the way
+    the cancel flag is."""
     return Path(progress_file).with_name(SHUTDOWN_READY_FILENAME)
 
 
 class StartupCancelled(Exception):
     """Raised out of a progress checkpoint when the user cancels startup.
 
-    Carries what the sequencer had launched by the time it unwound, so the
-    orchestrator can tear those children down.  The sequencer fills these in as
-    it re-raises; a checkpoint raises it bare.
+    Carries what had been launched when it unwound, so the orchestrator can tear
+    those children down; the sequencer fills these in as it re-raises.
     """
 
     def __init__(self, launched_pids: list[int] | None = None, rfb_hwnd: int = 0) -> None:
@@ -90,11 +89,10 @@ class StartupCancelled(Exception):
 def loading_cover_is_up(state_dir: Path) -> bool:
     """Whether the startup cover is still on the screen.
 
-    The orchestrator writes ``startup_progress.txt`` for the duration of startup
-    and deletes it once the cover's process is gone, so its presence answers
-    this.  Distinct from :func:`startup_still_building`, which goes False one
-    phase earlier: a window that must be IN PLACE when the cover lifts asks that
-    one, and anything that would be seen THROUGH the cover asks this one.
+    The file exists for the duration of startup, so its presence answers this.
+    Distinct from :func:`startup_still_building`, which goes False one phase
+    earlier: a window that must be IN PLACE when the cover lifts asks that one,
+    anything seen THROUGH the cover asks this one.
     """
     return (Path(state_dir) / PROGRESS_FILENAME).exists()
 
@@ -103,17 +101,9 @@ def startup_still_building(state_dir: Path) -> bool:
     """True while startup is still assembling the room, so a companion window of
     the session's own must stay out of the cover's way.
 
-    The orchestrator writes ``startup_progress.txt`` in the state dir for the
-    duration of startup, so its presence is the cue.  This goes False one phase
-    EARLY, though — at the final (weightless) phase, while the cover is still
-    up — and that is the point: a companion that waits for the cover to come
-    down shows itself AFTER the reveal, which is the user watching a window
-    arrive late on a room that was supposed to be finished.  Told here instead,
-    it puts itself on screen under the cover and is already in place when the
-    cover lifts.
-
-    A missing file answers False too: no startup is running, so nothing is
-    waiting on one.
+    Goes False one phase EARLY, at the final weightless phase with the cover
+    still up: a companion that waited for the lift would arrive late on a room
+    that was supposed to be finished.  A missing file answers False.
     """
     path = Path(state_dir) / PROGRESS_FILENAME
     try:
@@ -126,27 +116,18 @@ def startup_still_building(state_dir: Path) -> bool:
 
 @dataclass(frozen=True)
 class Phase:
-    """One reported step of a sequence: what to call it, and how much of the bar
-    it spans.  What a weight measures is each sequence's own business — see the
-    phase tuples below."""
+    """One reported step: what to call it, and how much of the bar it spans.
+    What a weight measures is each sequence's own business."""
 
     key: str
     message: str
     weight: float
 
 
-# The startup sequence as the loading screen sees it, in order.  Each phase
-# carries its typical duration, and the bar advances by TIME rather than by step
-# count: an equal share per step parked it at 83% through the one phase that
-# waits on other processes while four sub-second phases split the rest.
-#
-# The durations are read off state/event_log.jsonl (its entries bracket the first
-# three phases) and off a timed satellite launch (0.47s to its window).  They set
-# the SHAPE of the bar, so being a few tenths stale costs a little smoothness and
-# nothing else.  The last phase is weightless so the bar reads full while it runs:
-# it is the one the room is banded and settled in, under the cover, and the cover
-# comes down on DONE at the end of it (see ``startup_still_building``, which reads
-# that full bar as the companions' cue to show themselves while they still can).
+# The startup sequence as the loading screen sees it, in order.  The bar
+# advances by TIME rather than step count: an equal share per step parked it at
+# 83% through the one phase that waits on other processes.  The last is
+# weightless so the bar reads full while the room is settled under the cover.
 STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
@@ -159,11 +140,9 @@ STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("finalizing", "Finalizing...", 0.0),
 )
 
-# The teardown as the closing screen sees it.  These weights are NOT seconds:
-# a taskkill returns when Windows says so, and the whole sequence is over in a
-# couple of seconds, so there is nothing here worth timing and the bar simply
-# walks the steps.  No weightless phase ends this one — the orchestrator writes
-# DONE once the last child is gone.
+# The teardown as the closing screen sees it.  NOT seconds: a taskkill returns
+# when Windows says so, so the bar walks the steps.  No weightless phase ends
+# this one -- the orchestrator writes DONE once the last child is gone.
 SHUTDOWN_PHASES: tuple[Phase, ...] = (
     # The screen opens on this one, so its wording is the screen's own opening
     # status — anything else would read as a flicker on the first poll.
@@ -183,13 +162,9 @@ class ProgressReporter(Protocol):
 
 
 class PhaseProgress:
-    """Writes progress updates to a file for an overlay to read.
-
-    Each ``advance`` names the phase being entered.  Given a cancel file it is
-    also a cancellation checkpoint: if the overlay has dropped that flag, the
-    phase is aborted before it runs by raising ``StartupCancelled``.  Only
-    startup passes one — a teardown has nothing left to call off.
-    """
+    """Writes progress updates to a file for a cover to read.  Each ``advance``
+    names the phase entered, and with a cancel file is a checkpoint too: a
+    dropped flag aborts the phase before it runs.  Startup alone passes one."""
 
     def __init__(
         self,
@@ -210,10 +185,8 @@ class PhaseProgress:
         if self.cancelled:
             raise StartupCancelled()
         entered = self._phase_index(phase)
-        # Hundredths of a unit: the overlay reads two integers.  The position is
-        # the work ALREADY done, so only a weightless final phase can put it
-        # on the total — and the total is what tells the screen to close, so
-        # reporting a phase's own weight as it starts would shut the cover early.
+        # Hundredths of a unit: the cover reads two integers.  The position is
+        # work ALREADY done, so only a weightless final phase reaches the total.
         done = round(sum(p.weight for p in self._phases[:entered]) * 100)
         total = round(sum(p.weight for p in self._phases) * 100)
         self._progress_file.write_text(

@@ -342,13 +342,15 @@ class SceneRenderer:
 
         self._fullscreen_vao = GL.glGenVertexArrays(1)
 
-    def begin_eye(self) -> None:
-        """Reset the state the mpv render contexts may have left."""
+    def begin_eye(self, clear: tuple[float, float, float, float] = (0.0, 0.0, 0.0, 1.0)) -> None:
+        """Reset the state the mpv render contexts may have left.  *clear* is
+        what the eye is wiped to: black for the scene, whose screens hang in a
+        void, and its own ground for a cover, which fills the field of view."""
         GL.glDisable(GL.GL_DEPTH_TEST)
         GL.glDisable(GL.GL_BLEND)
         GL.glDisable(GL.GL_SCISSOR_TEST)
         GL.glDisable(GL.GL_CULL_FACE)
-        GL.glClearColor(0.0, 0.0, 0.0, 1.0)
+        GL.glClearColor(*clear)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
     def draw_immersive(self, mode: int, texture: int, inv_view_proj: np.ndarray, eye: int) -> None:
