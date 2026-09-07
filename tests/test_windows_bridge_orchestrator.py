@@ -22,6 +22,7 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
+from fun_time.session_handoff import VR, crossing_progress_path, request_handoff
 from fun_time.shared_state import BridgeState
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
@@ -965,12 +966,15 @@ class TestClosingScreenLifecycle:
     one: raised before the first kill, dropped after the last."""
 
     def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
-             env: SessionEnvironment = ORDINARY_SESSION):
+             env: SessionEnvironment = ORDINARY_SESSION, crossing=None):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
+        if crossing is not None:
+            state_dir.mkdir(parents=True, exist_ok=True)
+            request_handoff(state_dir, crossing)
 
         fake_ahk_proc = MagicMock()
         fake_ahk_proc.wait.return_value = 0
@@ -978,13 +982,16 @@ class TestClosingScreenLifecycle:
         fake_overlay_proc.wait.return_value = 0
 
         def fake_popen(cmd, **kwargs):
-            if "closing_screen" in str(cmd):
+            for module, progress in (
+                ("closing_screen", state_dir / SHUTDOWN_PROGRESS_FILENAME),
+                ("transition_screen", crossing_progress_path(state_dir)),
+            ):
+                if module not in str(cmd):
+                    continue
                 events.append("cover_up")
                 if ready:
-                    # What the real closing screen does the moment it is painted.
-                    ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).write_text(
-                        "", encoding="utf-8"
-                    )
+                    # What a real cover does the moment it is painted.
+                    ready_file_for(progress).write_text("", encoding="utf-8")
                 return fake_overlay_proc
             if "loading_screen" in str(cmd):
                 return fake_overlay_proc
@@ -1065,6 +1072,30 @@ class TestClosingScreenLifecycle:
         # Nothing of the shutdown channel is left for the next session.
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not ready_file_for(state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_a_crossing_wears_the_transition_cover_and_leaves_it_standing(
+        self, cfg_factory, tmp_path,
+    ):
+        """The whole point of it: this session's cover has to outlive this
+        session, or the monitors go bare while the other one starts up
+        (docs/entering-vr.md).  The arriving session writes the DONE."""
+        events: list[str] = []
+
+        state_dir = self._run(cfg_factory, tmp_path, events=events, crossing=VR)
+
+        assert events[0] == "cover_up"
+        progress = crossing_progress_path(state_dir)
+        assert progress.exists(), "the crossing cover was never raised"
+        assert progress.read_text(encoding="utf-8").strip() != "DONE"
+        assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_an_ordinary_quit_still_takes_its_own_cover_down(self, cfg_factory, tmp_path):
+        events: list[str] = []
+
+        state_dir = self._run(cfg_factory, tmp_path, events=events)
+
+        assert not crossing_progress_path(state_dir).exists()
+        assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path):
         """An integration run has no eyes on it and no desktop of its own to

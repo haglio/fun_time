@@ -42,6 +42,13 @@ from .overlay_progress import (
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
+from .session_handoff import (
+    HandoffTarget,
+    crossing_progress_path,
+    drop_crossing_cover,
+    launch_crossing_cover,
+    pending_handoff,
+)
 from .shared_state import shared_state_path
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
@@ -274,44 +281,57 @@ def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
 
 
 @contextlib.contextmanager
-def _closing_screen(state_dir: Path, *, enabled: bool) -> Iterator[ProgressReporter]:
+def _closing_screen(
+    state_dir: Path, *, enabled: bool, crossing: HandoffTarget | None = None,
+) -> Iterator[ProgressReporter]:
     """Cover every monitor while the session comes down, then uncover it.
 
     Yields the reporter the teardown steps report through: up and painted before
     the body runs, down once it has finished.  Off for an integration run.
+
+    *crossing* is the session this one is ending FOR: the cover then says so,
+    and is left standing for the arriving session (docs/entering-vr.md).
     """
     if not enabled:
         yield NullProgress()
         return
 
-    progress_file = state_dir / SHUTDOWN_PROGRESS_FILENAME
+    progress_file = (
+        crossing_progress_path(state_dir) if crossing is not None
+        else state_dir / SHUTDOWN_PROGRESS_FILENAME
+    )
     ready_file = ready_file_for(progress_file)
     # A flag left by a previous session would let this teardown start with
     # nothing yet covering the screen.
     ready_file.unlink(missing_ok=True)
-    progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES)
-    # Written before the screen is launched so it has something to read from its
-    # first poll, and so its staleness clock starts here rather than never.
-    progress.advance("controls")
-    proc = subprocess.Popen(
-        [
+    if crossing is not None:
+        progress: ProgressReporter = NullProgress()  # the wording is the crossing's
+        proc = launch_crossing_cover(state_dir, crossing)
+    else:
+        progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES)
+        # Written before the screen is launched so it has something to read from
+        # its first poll, and so its staleness clock starts here, not never.
+        progress.advance("controls")
+        proc = subprocess.Popen([
             NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
-        ],
-    )
-    logger.info("Closing screen launched (pid=%d)", proc.pid)
+        ])
+    logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
     try:
         yield progress
     finally:
-        progress.finish()
-        try:
-            proc.wait(timeout=3.0)
-        except subprocess.TimeoutExpired:
-            proc.kill()
-            logger.warning("Closing screen did not exit, killed")
-        progress_file.unlink(missing_ok=True)
-        ready_file.unlink(missing_ok=True)
+        if crossing is None:
+            progress.finish()
+            try:
+                proc.wait(timeout=3.0)
+            except subprocess.TimeoutExpired:
+                proc.kill()
+                logger.warning("Closing screen did not exit, killed")
+            progress_file.unlink(missing_ok=True)
+            ready_file.unlink(missing_ok=True)
+        else:
+            logger.info("Leaving the cover up for %s", crossing.app_name)
 
 
 # Cancelling from the loading screen is a clean, user-initiated exit.
@@ -786,6 +806,8 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
     else:
         logger.warning("The loading cover's window did not appear; startup "
                        "will show through whatever it raises")
+    # Handed over here, not at the reveal, which it would sit on top of.
+    drop_crossing_cover(state_dir)
     return _Cover(loading_proc, PhaseProgress(progress_file, cancel_file=cancel_file),
                   overlay_hwnd, progress_file, cancel_file)
 
@@ -980,7 +1002,8 @@ def _run_until_the_hotkeys_exit(
     finally:
         # The cover goes up first and stays up through everything below: the
         # controls stopping, the browser closing, and every child being killed.
-        with _closing_screen(state_dir, enabled=show_overlays) as shutdown_progress:
+        with _closing_screen(state_dir, enabled=show_overlays,
+                             crossing=pending_handoff(state_dir)) as shutdown_progress:
             if voice_controller is not None:
                 voice_controller.stop()
             if voice_thread is not None:

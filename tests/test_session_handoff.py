@@ -19,9 +19,14 @@ from fun_time.session_handoff import (
     STARTUP_TIMEOUT_S,
     VR,
     clear_handoff_request,
+    crossing_progress_path,
+    drop_crossing_cover,
     hand_over_if_asked,
     handoff_request_path,
     last_lines_of,
+    launch_crossing_cover,
+    pending_handoff,
+    raise_crossing_cover,
     report_a_failed_crossing,
     request_handoff,
     run,
@@ -49,6 +54,15 @@ class TestTheRequestFile:
         assert not handoff_request_path(tmp_path).exists()
         assert take_handoff_request(tmp_path) is None
 
+    def test_a_teardown_may_read_the_request_without_spending_it(self, tmp_path: Path):
+        """The teardown has to know the room is changing shape rather than
+        closing; the orchestrator still has to find the request afterwards."""
+        request_handoff(tmp_path, VR)
+
+        assert pending_handoff(tmp_path) is VR
+        assert pending_handoff(tmp_path) is VR
+        assert take_handoff_request(tmp_path) is VR
+
     def test_a_session_nobody_asked_to_cross_reads_as_none(self, tmp_path: Path):
         assert take_handoff_request(tmp_path) is None
 
@@ -67,6 +81,56 @@ class TestTheRequestFile:
         for target in (DESKTOP, VR):
             request_handoff(tmp_path, target)
             assert handoff_request_path(tmp_path).read_text(encoding="utf-8").strip() == target.key
+
+
+class TestTheCoverThatSpansTheCrossing:
+    """Raised by the session leaving, taken down by the one arriving -- the one
+    thing a closing screen cannot do, and why the monitors went bare between
+    them (docs/entering-vr.md)."""
+
+    @pytest.mark.parametrize(
+        ("target", "says"), [(VR, "Entering VR"), (DESKTOP, "Returning to Fun Time")],
+    )
+    def test_it_names_the_session_being_waited_for(self, tmp_path: Path, target, says):
+        raise_crossing_cover(tmp_path, target)
+
+        assert says in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
+
+    def test_dropping_it_is_what_the_cover_reads_as_finished(self, tmp_path: Path):
+        raise_crossing_cover(tmp_path, VR)
+
+        drop_crossing_cover(tmp_path)
+
+        assert crossing_progress_path(tmp_path).read_text(encoding="utf-8").strip() == "DONE"
+
+    def test_an_ordinary_startup_drops_nothing_and_leaves_nothing(self, tmp_path: Path):
+        """Every desktop startup asks; a DONE written where no cover was raised
+        would leave a file for the next session to read as one."""
+        drop_crossing_cover(tmp_path)
+
+        assert not crossing_progress_path(tmp_path).exists()
+
+    def test_it_is_launched_as_the_transition_screen_over_that_file(self, tmp_path: Path):
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            launch_crossing_cover(tmp_path, VR)
+
+        command = popen.call_args.args[0]
+        assert command[1:] == [
+            "-m", "fun_time.transition_screen", str(crossing_progress_path(tmp_path)),
+        ]
+
+    def test_a_crossing_that_never_happened_uncovers_the_monitors(self, config):
+        """The cover is waiting for a session that is not coming, and its own
+        staleness timeout is minutes long."""
+        raise_crossing_cover(config.paths.state_dir, VR)
+        with patch.object(session_handoff, "wait_for_the_session_to_let_go",
+                          return_value=False), \
+             patch.object(session_handoff, "report_a_failed_crossing"):
+            assert run(VR, config) == 1
+
+        assert crossing_progress_path(
+            config.paths.state_dir
+        ).read_text(encoding="utf-8").strip() == "DONE"
 
 
 class TestWhichSessionIsWhich:
