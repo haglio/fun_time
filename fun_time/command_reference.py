@@ -321,6 +321,14 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
+            _Row(
+                "Shape of what plays, in the headset: \"VR only\", \"flat only\" "
+                "(or \"2D only\") or \"flat and VR\" — the console's own pair of "
+                "buttons reaches a fourth state, neither, which plays nothing",
+                (),
+                ("main_projection_vr", "main_projection_flat",
+                 "main_projection_both", "main_projection_none"),
+            ),
             _Row("Shuffle main — reshuffle it (cancels Latest; keeps F-mode)", (),
                  ("main_shuffle",)),
             _Row(

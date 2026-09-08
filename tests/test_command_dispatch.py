@@ -3738,6 +3738,75 @@ def test_a_main_reorder_in_video_mode_still_reaches_nau(tmp_path, monkeypatch):
     assert not config.genau_cmd_file.exists()
 
 
+def _vr_config(tmp_path):
+    """A session whose rotation holds both shapes, as the headset's does."""
+    config = _make_config(tmp_path)
+    config.vr_library_dirs = str(tmp_path / "primary" / "vr")
+    return config
+
+
+def test_a_shape_press_narrows_the_browse_and_rebuilds_the_playlist(tmp_path, monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+
+    state, ops = dispatch_command("main_projection_vr", _make_state(), _vr_config(tmp_path))
+
+    assert (state.main_plays_vr, state.main_plays_flat) == (True, False)
+    assert calls[-1]["shapes"].plays_flat is False
+    assert ops[0].op == "notice" and ops[0].key == "VR only"
+
+
+def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path, monkeypatch):
+    """A rebuild reshuffles, and this must not become a second "shuffle main"."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+
+    _state, ops = dispatch_command(
+        "main_projection_both", _make_state(), _vr_config(tmp_path))
+
+    assert calls == [] and ops == []
+
+
+def test_neither_shape_is_reachable_and_says_so(tmp_path, monkeypatch):
+    """Degenerate -- it plays nothing -- but it is what the second press on the
+    last lit button asks for, so nothing here refuses it."""
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
+
+    state, ops = dispatch_command(
+        "main_projection_none", _make_state(), _vr_config(tmp_path))
+
+    assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
+    assert ops[0].key == "No videos left"
+
+
+def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypatch):
+    """Every session outside the headset: no VR library among its sources, so
+    narrowing to either half would leave the player with nothing or with what it
+    already had.  Its console draws no buttons for it either."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+
+    state, ops = dispatch_command("main_projection_vr", _make_state(), _make_config(tmp_path))
+
+    assert state.main_plays_vr is True and state.main_plays_flat is True
+    assert calls == [] and ops == []
+
+
+def test_main_reset_puts_both_shapes_back(tmp_path, monkeypatch):
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+
+    state, _ops = dispatch_command(
+        "main_reset", _make_state(main_plays_flat=False), _vr_config(tmp_path))
+
+    assert (state.main_plays_vr, state.main_plays_flat) == (True, True)
+    assert calls[-1]["shapes"].plays_flat is True
+
+
 def test_main_reset_drops_the_length_mode_and_f_mode_together(tmp_path, monkeypatch):
     """"reset" means for the main player what it means for a satellite: drop
     everything narrowing what it plays.  Two things do — the length mode, which

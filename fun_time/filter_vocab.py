@@ -9,14 +9,11 @@ command reference and tests can import it cheaply — the same reason
 
 The act vocabulary is content, not logic, so it lives in a JSON overlay
 (``content.local.json``, git-ignored) with a committed ``content.example.json``
-placeholder — the recognizer behaves the same whichever is loaded.  Some spoken
-forms deliberately differ from the query they match: a word the small speech
-model does not know is voiced with in-vocabulary words while the command keeps
-the real query (the same trick the mode commands use, "genau" for "go now").
-Queries stay lowercase; a single query substring-matches every ``video.action``
-that contains it — the recorded act alone, never the generation prompts around
-it (see :func:`fun_time.media_metadata.filter_haystack` for what reading those
-cost).
+placeholder.  Some spoken forms deliberately differ from the query they match: a
+word the small speech model does not know is voiced with in-vocabulary words
+while the command keeps the real query.  Queries stay lowercase, and one
+substring-matches every ``video.action`` containing it — the recorded act alone,
+never the generation prompts around it.
 """
 from __future__ import annotations
 

@@ -7,12 +7,18 @@ def build_dashboard_snapshot_text(
     *,
     omni_paused: bool = False,
     voice_active: bool = True,
+    f_mode: bool = False,
+    in_vr: bool = False,
 ) -> str:
     return (
         "[omnipause]\n"
         f"active={'1' if omni_paused else '0'}\n"
         "[voice]\n"
         f"active={'1' if voice_active else '0'}\n"
+        "[fmode]\n"
+        f"active={'1' if f_mode else '0'}\n"
+        "[session]\n"
+        f"vr={'1' if in_vr else '0'}\n"
     )
 
 
@@ -50,11 +56,15 @@ def write_dashboard_snapshot(
     *,
     omni_paused: bool = False,
     voice_active: bool = True,
+    f_mode: bool = False,
+    in_vr: bool = False,
 ) -> bool:
     path = Path(output_file)
     text = build_dashboard_snapshot_text(
         omni_paused=omni_paused,
         voice_active=voice_active,
+        f_mode=f_mode,
+        in_vr=in_vr,
     )
     if _read_existing_snapshot(path) == text:
         return False

@@ -14,7 +14,7 @@ from urllib.request import url2pathname
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
 from fun_time.loopback_server import omnipause_url
-from fun_time.modes import SatelliteBuild
+from fun_time.modes import SatelliteBuild, VideoShapes
 from fun_time.players import Player
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_slot import SatelliteSlot
@@ -635,6 +635,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         landscape=SatelliteBuild(sources=kwargs["landscape"].sources),
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
+        main_shapes=VideoShapes(),
         metadata_root=tmp_path / "metadata",
     )
     # The two native satellites are launched with OUR python (the player ships
@@ -903,7 +904,8 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
         _run_start_core_session(kwargs)
 
     rebuild.assert_called_once_with(
-        state_dir / "nau_playlist.tsv", kwargs["main_sources"], f_mode=True, recent=True
+        state_dir / "nau_playlist.tsv", kwargs["main_sources"], f_mode=True, recent=True,
+        shapes=VideoShapes(),
     )
 
 

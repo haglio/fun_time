@@ -178,6 +178,10 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     """
     manifest = build_windows_bridge_manifest(config, dashboard_enabled=dashboard_enabled)
     manifest["media"]["nau_library_sources"] = vr_main_sources(config)
+    # Which half of that merged rotation is the VR half, so the main player's
+    # browse can be narrowed to one shape or the other.
+    manifest["media"]["vr_library_dirs"] = "|".join(
+        str(path) for path in config.vr.library_dirs)
     manifest["runtime"]["origenerator_dir"] = ""  # nothing here hosts one, so no such mode
     manifest["executables"]["origenerator_python_exe"] = ""  # nor a python to run it with
     manifest["vr"] = {

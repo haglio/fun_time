@@ -53,16 +53,13 @@ MANAGED_ROLES: tuple[str, ...] = (
 def role_topmost(role: str, main_mode: str, satellites_mode: str = VIDEO_MODE) -> bool:
     """Whether *role*'s window belongs in the TOPMOST band in these modes.
 
-    Nau is mode-dependent, because it shares a rect with Genau — and so is the
-    Random Favs Browser, which shares its own with the hosted app's main
-    window: each is topmost only in the modes where it shows something, and
-    the hidden slot-mate stays out of the band entirely.  Genau is in the band
-    in both modes and promoted last, so it lands ABOVE Nau — the display in
-    genau mode, the HUD layer over the video in video mode.  The origenerator
-    trio shares rects the same way — with the RFB and the two players — so it
-    rides *satellites_mode* exactly as Nau rides *main_mode*.  Every other
-    managed window owns its own rect, overlaps nothing, and is unconditionally
-    topmost.
+    Nau is mode-dependent, sharing a rect with Genau, and so is the Random Favs
+    Browser, which shares its own with the hosted app's main window: each is
+    topmost only where it shows something, and the hidden slot-mate stays out of
+    the band.  Genau is in the band in both modes and promoted last, so it lands
+    ABOVE Nau.  The origenerator trio shares rects the same way, so it rides
+    *satellites_mode* as Nau rides *main_mode*.  Every other managed window owns
+    its own rect and is unconditionally topmost.
     """
     if role == "nau":
         return nau_displays(main_mode)

@@ -53,16 +53,12 @@ class DeviceArbiter:
         """In video mode, route the OSR2 to the funscript or the Robot Hand,
         moment to moment.
 
-        The hand and a funscript both feed the broker's one UDP T-Code inlet, so
-        only one may drive at a time.  The funscript drives while it is actively
-        scripting (``has_funscript`` and not ``funscript_resting``); the hand
-        drives the unscripted stretches — a video without a funscript, or a
-        funscript's quiet lead-in and interior gaps.  Each handoff sets both
-        levers: Nau's T-Code on + the hand paused for the funscript, or Nau's
-        T-Code off (so its gap drift can't fight) + the hand resumed for the
-        hand.  It is edge-triggered, so it fires once per handoff, not every
-        tick.  Outside video mode (or under omnipause) the remembered state is
-        cleared so re-entry re-asserts the driver.
+        The funscript drives while it is actively scripting (``has_funscript``
+        and not ``funscript_resting``); the hand drives the unscripted stretches.
+        Each handoff sets both levers: Nau's T-Code on + the hand paused for the
+        funscript, or Nau's T-Code off (so its gap drift can't fight) + the hand
+        resumed.  Edge-triggered, so it fires once per handoff; outside video
+        mode, or paused, the remembered state is cleared so re-entry re-asserts.
 
         The handoff itself is not smoothed here, and nothing waits for the
         motion: whoever takes the device walks it from where it is to where it

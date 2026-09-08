@@ -109,15 +109,13 @@ class VoiceControlConfig:
 class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
-    ``library_dirs`` joins the main rotation alongside ``nau_library_dirs``
-    (the VR-mastered videos live in their own branch of the library);
+    ``library_dirs`` joins the main rotation alongside ``nau_library_dirs``;
     ``clips_dir`` is the VR180 clips genau mode browses in the headset, together
-    with the desktop's flat ``paths.clips_dir`` (alone, when unset); ``audio_device`` routes the main
-    player's sound to the headset by substring match; the T-Code endpoint is
-    the broker's UDP inlet, the same one Nau and Genau send to.  ``compositor_layers`` hands flat screens to the runtime's
-    compositor as quad layers; off by default because the bundled "Pimax
-    OpenXR 0.1.0" runtime accepts quad layers in xrEndFrame and then never
-    composites them — screens submitted that way simply don't appear.
+    with the desktop's flat ``paths.clips_dir``; ``audio_device`` routes the main
+    player's sound to the headset by substring match; the T-Code endpoint is the
+    broker's UDP inlet.  ``compositor_layers`` hands flat screens to the runtime
+    as quad layers — off by default because the bundled "Pimax OpenXR 0.1.0"
+    accepts them in xrEndFrame and then never composites them.
     """
 
     library_dirs: tuple[Path, ...] = ()

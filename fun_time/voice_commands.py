@@ -169,6 +169,15 @@ def build_voice_commands(
         "version": "nau_cycle_version",
         "shorts": "nau_length_shorts",
         "full length": "nau_length_full",
+        # Which shape of video the main player may reach, in the headset, where
+        # the rotation holds both.  "mixed" is taken by the length above, so the
+        # both-shapes phrase names the shapes instead; neither shape gets no
+        # phrase at all, being a browse with nothing in it.
+        "vr only": "main_projection_vr",
+        "flat only": "main_projection_flat",
+        "two d only": "main_projection_flat",
+        "flat and vr": "main_projection_both",
+        "vr and flat": "main_projection_both",
         # The unfiltered library Nau opens in, and so the way back out of either
         # half.  "main reset" contains this and goes further, dropping F-mode too (see
         # the main-player grid below); this is the narrow gesture of the pair.
@@ -353,15 +362,11 @@ def build_voice_commands(
     # The main (Nau) player joins the grid for navigation, its lock and reset —
     # "main next" / "next main" (either order) — since it has no weird, and its one
     # cycle axis is "version" above rather than the satellites' action/seed.  It is
-    # only ever "main": "primary" was a synonym here, and is not one any more, because
-    # in this room "primary" names a monitor — the primary and the secondary — and one
-    # word cannot be both a screen and a player.  Bare "next"/"previous"/"lock"/
-    # "unlock" also reach it whenever it was the last player addressed (the active side
-    # resolves to it then).  A lock means here what it means on a satellite: hold the
-    # video on screen, where unlocked its end walks the playlist.  "reset" means what
-    # it means for a satellite — drop whatever is narrowing the playlist, back to the
-    # default browse — which for Nau is leaving any compilation and any length filter
-    # for the mixed library, and dropping F-mode with them.
+    # only ever "main": in this room "primary" names a monitor, and one word cannot
+    # be both a screen and a player.  Bare "next"/"previous"/"lock"/"unlock" also
+    # reach it whenever it was the last player addressed.  Lock and reset mean what
+    # they mean on a satellite — hold what is on screen, and drop whatever is
+    # narrowing the browse.
     _MAIN_ACTIONS = {"next": "next", "previous": "prev",
                      "lock": "lock_on", "unlock": "lock_off",
                      # Its own command rather than a bare "length mixed" forward:
@@ -525,16 +530,11 @@ VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 
 # Commands that flash their own outcome, so the generic "I heard you" echo must
-# not stack a second toast on top.  The clip and funscript jumps report from
-# Nau (where they landed, or "full video not available" / "no funscripting
-# ahead"); F-mode reports from the dispatch, which alone knows whether the toggle
-# turned it on (green) or off (red) — and by owning the toast there, the F key and
-# the dashboard flash it too, not just voice.  The two judgements of the clip on
-# screen are that same shape: only the dispatch knows whether "weird" demoted a
-# favorite ("Unfavorited") or condemned an ordinary clip ("Marked weird"), and
-# only it knows which act "wrong action" struck ("Action removed: Alpha") or that
-# there was none to strike.  Echoing either phrase back would say neither, so
-# every spelling of both is listed — any of them can be what voice hands over.
+# not stack a second toast on top.  The clip and funscript jumps report from Nau,
+# where they landed or could not; the rest report from the dispatch, which alone
+# knows which way a toggle went or which act a judgement struck — and by owning
+# the toast there, the keys and the buttons flash it too, not just voice.  Every
+# spelling of each is listed, any of them being what voice hands over.
 SELF_REPORTING_COMMANDS = frozenset({
     "nau_compilation",
     "nau_full_vid",
@@ -590,6 +590,7 @@ _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     # Spaced form first: after the joined rewrite it is no longer there to match.
     ("v r", "VR"),
     ("vr", "VR"),
+    ("two d", "2D"),
 )
 
 

@@ -121,6 +121,16 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     assert _payload(mode="genau", latest=True, genau_latest=False)["latest"] is False
 
 
+def test_the_panel_says_which_shapes_of_video_the_browse_may_reach():
+    """Two flags with a third answer: None where the rotation holds one shape,
+    which is every session outside the headset, and the console then draws no pair
+    of buttons for a choice there is none to make."""
+    assert _payload()["plays_vr"] is None and _payload()["plays_flat"] is None
+
+    headset = _payload(plays_vr=True, plays_flat=False)
+    assert (headset["plays_vr"], headset["plays_flat"]) == (True, False)
+
+
 class TestTheReadoutTheWordLeaves:
     """The panel this module publishes and the drive readout a press lands on,
     joined up.

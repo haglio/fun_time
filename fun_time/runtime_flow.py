@@ -16,6 +16,7 @@ from .modes import (
     PLAYLIST_LANDSCAPE,
     PLAYLIST_NAU,
     PLAYLIST_PORTRAIT,
+    VideoShapes,
     build_main_playlist_paths,
     build_one_satellite_playlist,
     build_playlist_file_path,
@@ -125,20 +126,23 @@ def apply_main_fmode(
     nau_cmd_file: str | Path,
     recent: bool = False,
     start_at_top: bool = False,
+    shapes: VideoShapes | None = None,
 ) -> None:
     """Rebuild the main player's playlist under *enabled* and hand it to Nau.
+
+    The one place the main player's playlist is rewritten while a session runs,
+    so everything narrowing it rides here: F-mode, the browse order, and the
+    headset's shape filter.
 
     F-mode narrows the main player to the videos a person hand-wrote a funscript
     for — the OSR2 follows a script someone meant, not one a bulk run inferred.
 
-    ``start_at_top`` is the reorder's, and means here exactly what it means for a
-    satellite (see :func:`apply_satellite_filter`): Nau keeps the video on screen
-    across a reload whenever the new list still holds it — which a reorder's
-    always does, since it filters nothing out — so a newest-first rebuild would
-    otherwise apply only *after* the video playing and the new arrivals would
-    never come up.  An F-mode change wants the opposite and does not ask.
+    ``start_at_top`` is the reorder's, and means here what it means for a
+    satellite: Nau keeps the video on screen across a reload whenever the new list
+    still holds it — which a reorder's always does — so a newest-first rebuild
+    would otherwise apply only after it, and the new arrivals never come up.
     """
-    paths = build_main_playlist_paths(main_sources, enabled, recent=recent)
+    paths = build_main_playlist_paths(main_sources, enabled, recent=recent, shapes=shapes)
     write_nau_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_NAU), paths)
     # Queued in order — the reload first, the flag with it, the jump last so it
     # lands on the list the reload has just taken.  Nau's HUD has no other way
@@ -200,6 +204,7 @@ def apply_fmode(
     favs_file: str | Path,
     state_dir: str | Path,
     main_recent: bool = False,
+    main_shapes: VideoShapes | None = None,
     nau_cmd_file: str | Path,
     satellites: Mapping[Player, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
@@ -219,6 +224,7 @@ def apply_fmode(
             recent=main_recent,
             state_dir=state_dir,
             nau_cmd_file=nau_cmd_file,
+            shapes=main_shapes,
         )
     for player, which in ((PORTRAIT_PLAYER, Player.PORTRAIT),
                           (LANDSCAPE_PLAYER, Player.LANDSCAPE)):

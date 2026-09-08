@@ -12,13 +12,14 @@ def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
     """A section nobody reads is republished on every sync tick, forever.
 
     The dashboard in its own process is the only reader of this file in the
-    family, and it asks for exactly two things -- whether the room is
-    omnipaused and whether voice is listening.
+    family, and it asks for exactly four things -- whether the room is
+    omnipaused, whether voice is listening, whether every player is in F-mode,
+    and whether this session is the headset's.
     """
     parser = configparser.ConfigParser()
     parser.read_string(build_dashboard_snapshot_text())
 
-    assert set(parser.sections()) == {"omnipause", "voice"}
+    assert set(parser.sections()) == {"omnipause", "voice", "fmode", "session"}
 
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
@@ -29,6 +30,10 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "active=0\n"
         "[voice]\n"
         "active=1\n"
+        "[fmode]\n"
+        "active=0\n"
+        "[session]\n"
+        "vr=0\n"
     )
 
 

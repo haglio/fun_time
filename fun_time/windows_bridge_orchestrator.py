@@ -557,16 +557,12 @@ def _fix_post_loading_windows(result: StartupResult, *,
     session this pass would otherwise promote Nau over Genau and un-park it, one
     pass after the sequencer parked it.
 
-    ``overlay_hwnd`` is the loading screen's own window when this runs UNDER
-    the curtain, which is where it belongs: the bands are the last thing that
-    decides what the reveal looks like, so applying them afterwards is watching
-    the room sort itself out — the players arriving under whatever was already
-    on those monitors and climbing over it a second later, and in origenerator
-    mode the RFB showing through until its host was promoted over it.  Handed
-    the overlay, this keeps it on top across the pass (``HWND_TOPMOST`` inserts
-    at the top of the band, so each promotion lands over it until it is put
-    back) and leaves it out of the "is this player buried?" test, which it
-    covers by design.
+    ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
+    curtain, which is where it belongs: the bands decide what the reveal looks
+    like, so applying them afterwards is watching the room sort itself out.
+    Handed the overlay, this keeps it on top across the pass (``HWND_TOPMOST``
+    inserts at the top of the band, so each promotion lands over it until it is
+    put back) and leaves it out of the "is this player buried?" test.
     """
     dash_hwnd = 0
     if result.dashboard_pid:

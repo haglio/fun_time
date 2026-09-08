@@ -32,7 +32,7 @@ from .filter_vocab import decode_filter_command
 from .lock import build_discard_plan, build_lock_toggle_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, nau_displays
-from .modes import is_favorite_path, read_favs_content
+from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .player_status import (
     genau_status_path,
@@ -438,6 +438,25 @@ _REORDER_COMMANDS: dict[str, tuple[Player, bool]] = {
     "landscape_shuffle": (Player.LANDSCAPE, False),
 }
 
+# Which shapes of video the main player's browse may reach.  One verb per state
+# rather than a toggle each: the console's pair of buttons has four states
+# between them, and a press names the state it asks for.
+_PROJECTION_COMMANDS: dict[str, tuple[bool, bool]] = {
+    "main_projection_both": (True, True),
+    "main_projection_vr": (True, False),
+    "main_projection_flat": (False, True),
+    "main_projection_none": (False, False),
+}
+
+# What each is called where it is flashed.
+_PROJECTION_LABELS: dict[tuple[bool, bool], str] = {
+    (True, True): "2D + VR",
+    (True, False): "VR only",
+    (False, True): "2D only",
+    (False, False): "No videos left",
+}
+
+
 # The same two orders as Genau answers to, keyed by ``recent``.  Every other
 # player is handed a rewritten playlist file; Genau owns its own sequence and
 # rescans its clips folder for itself, so its order crosses as a verb.
@@ -834,6 +853,7 @@ def _dispatch_fmode(
         players=changed,
         enabled=enabled,
         main_recent=state.main_latest,
+        main_shapes=main_video_shapes(state, config),
         main_sources=config.main_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
@@ -915,6 +935,7 @@ def _dispatch_main_reorder(
             state_dir=config.state_dir,
             nau_cmd_file=config.nau_cmd_file,
             start_at_top=True,
+            shapes=main_video_shapes(state, config),
         )
     else:
         state = replace(state, genau_latest=recent)
@@ -923,6 +944,44 @@ def _dispatch_main_reorder(
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: main player (%s)", label, "nau" if on_nau else "genau")
     return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
+
+
+def main_video_shapes(state: BridgeState, config: BridgeConfig) -> VideoShapes:
+    """The shape filter the main player's next rebuild runs under."""
+    return VideoShapes(vr_dirs=config.vr_library_dirs,
+                       plays_vr=state.main_plays_vr,
+                       plays_flat=state.main_plays_flat)
+
+
+def _dispatch_main_projection(
+    plays_vr: bool, plays_flat: bool, state: BridgeState, config: BridgeConfig
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Narrow the main player's browse to a shape of video, or widen it back.
+
+    A rebuild, so it goes the way F-mode's does.  Asking for the state already
+    running rebuilds nothing: a reorder is what reshuffles, and this must not
+    become a second way to do it.  Ignored where the rotation holds one shape.
+    """
+    shapes = main_video_shapes(state, config)
+    if not shapes.offered:
+        logger.info("No VR library in this session; shape filter ignored")
+        return state, []
+    if (shapes.plays_vr, shapes.plays_flat) == (plays_vr, plays_flat):
+        return state, []
+    state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
+    apply_main_fmode(
+        enabled=state.main_f_mode,
+        main_sources=config.main_sources,
+        recent=state.main_latest,
+        state_dir=config.state_dir,
+        nau_cmd_file=config.nau_cmd_file,
+        shapes=main_video_shapes(state, config),
+    )
+    label = _PROJECTION_LABELS[(plays_vr, plays_flat)]
+    logger.info("Main player shapes: %s", label)
+    return state, [WindowOp(
+        op="notice", key=label, source=SOURCE_MAIN,
+        level=FAILED_NOTICE_LEVEL if not (plays_vr or plays_flat) else NOTICE)]
 
 
 def _dispatch_main_reset(
@@ -937,18 +996,24 @@ def _dispatch_main_reset(
     slot; the F-mode flag is ours and is cleared whoever is showing, exactly as
     "main f mode off" clears it.
 
-    The playlist is only rebuilt when F-mode was actually on.  A reset has never
-    reshuffled the main player — "shuffle main" is the command that does — so a
-    reset pressed with nothing narrowed must not throw away the browse either.
+    The headset's shape filter goes with them, being one more thing narrowing
+    what the main player may reach.
+
+    The playlist is only rebuilt when something was actually narrowing it.  A
+    reset has never reshuffled the main player — "shuffle main" is the command
+    that does — so a reset pressed with nothing narrowed must not throw away the
+    browse either.
     """
-    if state.main_f_mode:
-        state = replace(state, main_f_mode=False)
+    narrowed = state.main_f_mode or not (state.main_plays_vr and state.main_plays_flat)
+    if narrowed:
+        state = replace(state, main_f_mode=False, main_plays_vr=True, main_plays_flat=True)
         apply_main_fmode(
             enabled=False,
             main_sources=config.main_sources,
             recent=state.main_latest,
             state_dir=config.state_dir,
             nau_cmd_file=config.nau_cmd_file,
+            shapes=main_video_shapes(state, config),
         )
     if nau_displays(state.main_mode):
         append_command(config.nau_cmd_file, _NAU_CMD_MAP["nau_length_mixed"])
@@ -1419,6 +1484,12 @@ def _reset(players: tuple[Player, ...], state: BridgeState, config: BridgeConfig
     return _dispatch_reset(players, state, config)
 
 
+def _main_projection(plays_vr: bool, plays_flat: bool, state: BridgeState,
+                     config: BridgeConfig,
+                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    return _dispatch_main_projection(plays_vr, plays_flat, state, config)
+
+
 def _main_reset(state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return _dispatch_main_reset(state, config)
@@ -1535,6 +1606,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, (which, recent) in _REORDER_COMMANDS.items()})
     handlers.update({cmd: partial(_reset, players)
                      for cmd, players in _RESET_SIDES.items()})
+    handlers.update({cmd: partial(_main_projection, plays_vr, plays_flat)
+                     for cmd, (plays_vr, plays_flat) in _PROJECTION_COMMANDS.items()})
     handlers[MAIN_RESET] = _main_reset
     handlers.update({cmd: partial(_set_filter, players, "")
                      for cmd, players in _NO_FILTER_SIDES.items()})

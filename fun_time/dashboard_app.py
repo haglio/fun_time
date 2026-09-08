@@ -15,6 +15,7 @@ from shared_ui.colors import (
     BG_PRIMARY,
     BLUE,
     BORDER_SUBTLE,
+    GREEN,
     MAGENTA,
     TEXT_PRIMARY,
 )
@@ -27,6 +28,7 @@ from fun_time.config import LayoutConfig
 from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
     ENTER_VR,
+    EXIT_VR,
     FMODE_TOGGLE,
     HELP_REFERENCE,
     HELP_REFERENCE_CLOSE,
@@ -207,6 +209,7 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     VOICE_TOGGLE: "Voice",
     FMODE_TOGGLE: "F-Mode on every player",
     ENTER_VR: "Enter VR — end this session and open FunTimeVR",
+    EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
 }
 OMNIPAUSE_RESUME_TOOLTIP = "Play everything"
 
@@ -227,6 +230,13 @@ def build_dashboard_scene(
     along the top of the window.
     """
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
+    # The room's F-mode lights the green this family spends on the favorites and
+    # the funscripts, exactly as each player's own switch does on its own HUD.
+    room_f_mode = snapshot is not None and snapshot.f_mode
+    fmode_fill = GREEN if room_f_mode else COLOR_PANEL
+    # Which way the crossing goes: out of the headset while you are in it.
+    in_vr = snapshot is not None and snapshot.in_vr
+    vr_action = EXIT_VR if in_vr else ENTER_VR
 
     omni_paused = snapshot is not None and snapshot.omni_paused
     omnipause_mark = "play" if omni_paused else "pause"
@@ -247,8 +257,8 @@ def build_dashboard_scene(
         DashboardRectItem(layout.omnipause_button, fill=_press_fill(COLOR_PANEL, OMNIPAUSE_TOGGLE)),
         DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
         DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
-        DashboardRectItem(layout.fmode_button, fill=_press_fill(COLOR_PANEL, FMODE_TOGGLE)),
-        DashboardRectItem(layout.enter_vr_button, fill=_press_fill(COLOR_PANEL, ENTER_VR)),
+        DashboardRectItem(layout.fmode_button, fill=_press_fill(fmode_fill, FMODE_TOGGLE)),
+        DashboardRectItem(layout.vr_button, fill=_press_fill(COLOR_PANEL, vr_action)),
     )
     # The app-name lockup, styled like the loading screen: bold italic, wordmark tone.
     # Built fresh (not via the cached make_font) so setItalic cannot leak into
@@ -274,8 +284,8 @@ def build_dashboard_scene(
         # app's letters say which app rather than what the button does.
         DashboardImageItem(marks.mark("fmode", layout.fmode_button, QColor(MAGENTA)),
                            layout.fmode_button),
-        DashboardImageItem(marks.mark("headset", layout.enter_vr_button),
-                           layout.enter_vr_button),
+        DashboardImageItem(marks.mark("headset_off" if in_vr else "headset",
+                                      layout.vr_button), layout.vr_button),
     )
     tooltips = dict(_ACTION_TOOLTIPS)
     if omni_paused:
@@ -286,7 +296,7 @@ def build_dashboard_scene(
         (HELP_REFERENCE, layout.help_button),
         (VOICE_TOGGLE, layout.voice_panel),
         (FMODE_TOGGLE, layout.fmode_button),
-        (ENTER_VR, layout.enter_vr_button),
+        (vr_action, layout.vr_button),
     )
     return DashboardScene(
         width=width,

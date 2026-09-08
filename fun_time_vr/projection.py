@@ -17,6 +17,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from fun_time.media_metadata import load_metadata, metadata_path_for
+from fun_time.vr_videos import VR_FILENAME_TOKENS, is_vr_video
 
 logger = logging.getLogger(__name__)
 
@@ -36,31 +37,24 @@ PROJECTIONS: tuple[str, ...] = (
     EQUIRECT_360,
 )
 
-# Filename tokens that name a projection outright, checked lowercased and in
-# order (a fisheye master often carries "180" too, so fisheye must win).
-_FILENAME_HINTS: tuple[tuple[str, str], ...] = (
-    ("mkx200", MKX200_SBS),
-    ("fisheye", FISHEYE_190_SBS),
-    ("rf52", FISHEYE_190_SBS),
-    ("_360", EQUIRECT_360),
-    ("_180", EQUIRECT_180_SBS),
-    ("180_", EQUIRECT_180_SBS),
+# Which projection each of the tokens that name one stands for, read in the
+# order they are listed there.  The tokens themselves live beside the predicate
+# that only asks whether a name carries one, so a mastering cannot be known to
+# the filter and unknown to the renderer.
+_HINT_PROJECTIONS: dict[str, str] = {
+    "mkx200": MKX200_SBS,
+    "fisheye": FISHEYE_190_SBS,
+    "rf52": FISHEYE_190_SBS,
+    "_360": EQUIRECT_360,
+    "_180": EQUIRECT_180_SBS,
+    "180_": EQUIRECT_180_SBS,
+}
+_FILENAME_HINTS: tuple[tuple[str, str], ...] = tuple(
+    (token, _HINT_PROJECTIONS[token]) for token in VR_FILENAME_TOKENS
 )
 
 _SIDECAR_BLOCK = "vr"
 _PROJECTION_FIELD = "projection"
-
-
-def is_vr_video(video_path: str | Path, vr_dirs: Sequence[Path | str]) -> bool:
-    """Whether a video lives in one of the configured VR library dirs."""
-    path = Path(video_path)
-    for root in vr_dirs:
-        try:
-            path.relative_to(Path(root))
-        except ValueError:
-            continue
-        return True
-    return False
 
 
 def default_projection(video_path: str, vr_dirs: Sequence[Path | str]) -> str:

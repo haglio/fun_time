@@ -1,11 +1,10 @@
 """What the main console shows about the room, and the file it reaches on.
 
 The player on the main slot knows what it is playing.  It does not know which
-mode the slot is in, what has the OSR2, whether Genau may take it over, whether
-the broker is up, or which player a bare command would reach — all of that is the
-orchestrator's.  So this is what has to reach the player for its console to be
-drawable: a small JSON panel, published the way each satellite's map is (see
-:mod:`fun_time.hud_transport`), and read back by ``nau.console``.
+mode the slot is in, what has the OSR2, whether the broker is up, or which player
+a bare command would reach — all of that is the orchestrator's.  So this is what
+reaches the player for its console to be drawable: a small JSON panel, published
+the way each satellite's map is, and read back by ``nau.console``.
 """
 from __future__ import annotations
 
@@ -33,12 +32,10 @@ def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
     Only a Nau that is *on screen* can be driving: ``funscript_driving`` is read
     off Nau's status file, which describes the video Nau is parked on whether or
     not it is playing, and in genau mode Nau is paused off screen with the last
-    scripted video it showed still in that file.  Asked without the mode, it
-    answered "funscript" through a whole genau-mode session — and "funscript" is
-    the console's word for "something other than the Robot Hand has the device",
-    which dims every ± mark and every draggable band on the drive readout.  So
-    the hand's own controls went dead whenever the video Nau happened to be
-    parked on had a script, and a press on one of them posted nothing at all.
+    scripted video it showed still in that file.  Asked without the mode it said
+    "funscript" all through a genau-mode session, which is the console's word for
+    "something other than the Robot Hand has the device" — so every ± mark and
+    draggable band on the drive readout went dead.
     """
     if osr2_mode == "off":
         return OSR2_OFF
@@ -62,6 +59,8 @@ def console_payload(
     f_mode: bool = False,
     latest: bool = False,
     genau_latest: bool = False,
+    plays_vr: bool | None = None,
+    plays_flat: bool | None = None,
 ) -> dict:
     """The console panel as the main player parses it.
 
@@ -91,6 +90,9 @@ def console_payload(
     (``SET_F_MODE``, for its status line), but the console's button has to light
     off what the orchestrator holds, exactly as the satellites' do: the flag is
     set from three places at once and only one of them is the player.
+
+    The two shape flags are the same for the headset's filter, with a third
+    answer: None where the rotation holds one shape, which draws no pair at all.
     """
     return {
         "mode": mode,
@@ -107,6 +109,8 @@ def console_payload(
         "locked": nau_locked if nau_displays(mode) else genau.locked,
         "cruise": genau.cruise_active,
         "shape": genau.shape,
+        "plays_vr": plays_vr,
+        "plays_flat": plays_flat,
     }
 
 

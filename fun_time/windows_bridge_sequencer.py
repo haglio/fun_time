@@ -448,6 +448,7 @@ def _launch_the_satellites(
         nau_status_file=m.commands.nau_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         main_sources=m.media.nau_library_sources,
+        vr_library_dirs=m.media.vr_library_dirs,
         favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),
