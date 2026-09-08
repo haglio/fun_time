@@ -2,35 +2,12 @@
 one chord that ends a session."""
 from __future__ import annotations
 
-from pathlib import Path
-
 from fun_time.overlay_progress import CANCEL_FILENAME
-
-_SCRIPT = Path(__file__).resolve().parents[1] / "windows_bridge_hotkeys.ahk"
-
-
-def _script_text() -> str:
-    return _SCRIPT.read_text(encoding="utf-8")
-
-
-def _function_body(name: str) -> str:
-    """The source of one AHK function, up to its closing brace.
-
-    The script is not importable and has no test harness of its own, so what
-    can be checked here is its text.  Reading a whole function rather than
-    grepping the file keeps an assertion about one function from passing on a
-    line that happens to sit in another.
-    """
-    text = _script_text()
-    for line in text.splitlines():
-        if line.startswith(f"{name}(") and line.endswith("{"):
-            start = text.index(f"\n{line}\n")
-            return text[start:text.index("\n}\n", start)]
-    raise AssertionError(f"the script defines no function named {name}")
+from tests.ahk_script import function_source, script_text
 
 
 def _suspend_exempt_block() -> str:
-    text = _script_text()
+    text = script_text()
     return text.split("#SuspendExempt true", 1)[1].split("#SuspendExempt false", 1)[0]
 
 
@@ -40,7 +17,7 @@ def test_script_suppresses_the_tray_icon():
     The directive is the only thing between this process and an icon in the
     notification area, so dropping the line silently puts it back.
     """
-    assert "#NoTrayIcon" in _script_text()
+    assert "#NoTrayIcon" in script_text()
 
 
 def test_script_builds_no_tray_menu():
@@ -50,7 +27,7 @@ def test_script_builds_no_tray_menu():
     complaint, so the menu could sit here indefinitely as code that runs and
     reaches no one.
     """
-    text = _script_text()
+    text = script_text()
     for call in ("TraySetIcon", "A_IconTip", "A_TrayMenu"):
         assert call not in text, f"{call} dresses a tray icon the script does not show"
 
@@ -69,10 +46,10 @@ def test_ctrl_alt_q_ends_the_whole_session():
     ``exit`` in the AHK mailbox rather than pressing anything, so it exercises
     the teardown and never the chord that is supposed to start it.
     """
-    assert "^!q::EndSession()" in _script_text(), (
+    assert "^!q::EndSession()" in script_text(), (
         "nothing binds Ctrl+Alt+Q to ending the session"
     )
-    assert "ExitApp()" in _function_body("EndSession"), (
+    assert "ExitApp()" in function_source("EndSession"), (
         "the chord no longer exits the script, so nothing releases the orchestrator"
     )
 
@@ -92,15 +69,14 @@ def test_the_letter_hotkeys_yield_while_origenerator_has_the_keyboard():
     are bare letters, so while it is focused the keyboard is its — except the
     exempt trio (quit and the omnipause pair), which are session gestures
     wherever the focus sits and must stay above the gate."""
-    text = _script_text()
+    text = script_text()
     gate = text.index("#HotIf !OrigeneratorHasKeyboard()")
     gate_close = text.index("#HotIf", gate + 1)
     # Exact-title matching, never the script's substring mode: "Origenerator"
     # appears in plenty of other window titles (an Explorer at the checkout, a
     # terminal on a branch), and a substring match killed every hotkey while
     # one of those was focused.
-    assert 'title = "Origenerator"' in text
-    assert "WinGetTitle" in text
+    assert 'WinGetTitle("A") = "Origenerator"' in text
     for exempt in ("^!q::", "Esc::QueueCommand", "+Esc::QueueCommand"):
         assert text.index(exempt) < gate, exempt
     for gated in ('x::QueueCommand("satellites_toggle")',
@@ -117,9 +93,9 @@ def test_the_region_shows_do_not_gate_the_hotkeys():
     included.  A show has no text field, so only the main window (the typing
     app) may take the keyboard away; gating on the show captions left a
     focused slideshow answering its own arrows instead of the side's."""
-    text = _script_text()
-    assert 'title = "Origenerator Portrait"' not in text
-    assert 'title = "Origenerator Landscape"' not in text
+    gate = function_source("OrigeneratorHasKeyboard")
+    assert '"Origenerator Portrait"' not in gate
+    assert '"Origenerator Landscape"' not in gate
 
 
 class TestStartupPhase:
@@ -136,7 +112,7 @@ class TestStartupPhase:
         what left a launch uncancellable."""
         assert "Esc::PauseOrCancelStartup()" in _suspend_exempt_block()
 
-        body = _function_body("PauseOrCancelStartup")
+        body = function_source("PauseOrCancelStartup")
         assert 'RequestStartupCancel("cancel")' in body
         assert 'QueueCommand("omnipause_toggle")' in body
 
@@ -150,20 +126,20 @@ class TestStartupPhase:
         takes the monitors back and the orchestrator cannot tell them apart any
         other way: crossing over leaves a session-end marker of its own, so
         reading THAT made every Esc look like a quit."""
-        assert 'RequestStartupCancel("quit")' in _function_body("EndSession")
+        assert 'RequestStartupCancel("quit")' in function_source("EndSession")
 
     def test_the_flag_it_drops_is_the_one_the_orchestrator_watches(self):
         """Two processes drop this flag — this script and the loading screen —
         and the orchestrator's progress checkpoints watch for one name.  Nothing
         else pins the AHK-side spelling to the Python-side constant."""
-        assert f'"\\{CANCEL_FILENAME}"' in _script_text(), (
+        assert f'"\\{CANCEL_FILENAME}"' in script_text(), (
             f"the script does not drop {CANCEL_FILENAME}, so its Esc cancels nothing"
         )
 
     def test_the_keys_that_drive_a_session_are_held_until_there_is_one(self):
         """Queued at the loading screen they would go into a file no dispatch
         loop is draining yet, to be acted on whenever one starts."""
-        body = _function_body("QueueCommand")
+        body = function_source("QueueCommand")
         held = body.index("if (StartupPhase)")
         assert held < body.index("AppendWithRetry"), (
             "QueueCommand writes before it checks the startup hold"
@@ -174,7 +150,7 @@ class TestStartupPhase:
         Polled rather than announced down the command mailbox: that mailbox is
         one slot with several writers, and a handover lost there would leave
         every hotkey dead for the rest of the session."""
-        body = _function_body("WatchStartup")
+        body = function_source("WatchStartup")
         assert "FileExist(PIDS_FILE_PATH)" in body
         assert "StartupPhase := false" in body
 
@@ -183,14 +159,14 @@ class TestStartupPhase:
         During a launch the focus may well be on an app of the user's own — that
         is the premise of the whole change — so what they type there has to reach
         it rather than vanish into a script with nothing to do with it."""
-        assert "\nSuspend true\n" in _script_text(), (
+        assert "\nSuspend true\n" in script_text(), (
             "the script does not start suspended, so it eats keys during a launch"
         )
-        assert "Suspend false" in _function_body("WatchStartup")
+        assert "Suspend false" in function_source("WatchStartup")
 
     def test_a_suspend_anything_else_set_survives_the_handover(self):
         """An integration run pre-writes suspend_hotkeys and OmniPause suspends
         mid-session.  Releasing the startup hold must not undo either — the flag
         is what says the hold is still ours to let go of."""
-        assert "StartupSuspended := false" in _function_body("ProcessAhkCommand")
-        assert "if (StartupSuspended)" in _function_body("WatchStartup")
+        assert "StartupSuspended := false" in function_source("ProcessAhkCommand")
+        assert "if (StartupSuspended)" in function_source("WatchStartup")
