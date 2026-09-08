@@ -101,7 +101,6 @@ from fun_time.windows_bridge_dispatch_loop import (
     build_bridge_config_from_manifest,
 )
 from fun_time.windows_bridge_orchestrator import (
-    SESSION_END_MARKER,
     ChildProcess,
     add_dispatch_file_handler,
     close_a_kept_origenerator,
@@ -342,11 +341,11 @@ class _Cover:
         self.cancel_file.unlink(missing_ok=True)
 
 
-def _cancel_was_a_quit(state_dir: Path) -> bool:
-    marker = Path(state_dir) / SESSION_END_MARKER
-    asked = marker.exists()
-    marker.unlink(missing_ok=True)
-    return asked
+def _cancel_was_a_quit(cancel_file: Path) -> bool:
+    try:
+        return "quit" in cancel_file.read_text(encoding="utf-8").split()
+    except OSError:
+        return False  # the flag's own word; a crossing's exit leaves a marker too
 
 
 def _cancel_vr_startup(
@@ -364,7 +363,8 @@ def _cancel_vr_startup(
     the Esc.  Then the monitors: the crossing cover is always on top, and this
     exit left it over an empty machine -- a reboot."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
-    say_the_crossing_is_cancelled(state_dir)  # before a teardown of some seconds
+    quitting = _cancel_was_a_quit(cover.cancel_file)  # before cover.clear() takes it
+    say_the_crossing_is_cancelled(state_dir)  # a teardown of seconds looks like nothing
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     player = children.get("vr_player_pid")
     for key, child in children.items():
@@ -374,7 +374,7 @@ def _cancel_vr_startup(
         kill_recorded_child(player)
     _release_vr_runtime(runtime_was_up)
     cover.clear()
-    if _cancel_was_a_quit(state_dir):
+    if quitting:
         logger.info("Cancelled by the quit chord; taking the monitors back")
         drop_crossing_cover(state_dir)  # nothing is coming to do it for us
     else:

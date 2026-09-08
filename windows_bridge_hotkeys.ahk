@@ -239,20 +239,20 @@ SC034::QueueCommand("genau_next_clip")
 ; hooks nothing.
 EndSession() {
     global StartupPhase
-    ; Marked FIRST either way: mid-startup the quit chord and Esc both arrive at
-    ; the orchestrator as the one cancel flag, and this is what tells them
-    ; apart -- Esc means "put me back", this means "end everything".  Without it
-    ; the quit chord silently became a cancel and he was handed back to a
-    ; session he had asked to leave.
-    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
     if (StartupPhase) {
-        RequestStartupCancel()
+        ; Mid-startup this cannot exit: the orchestrator is still building a
+        ; session that has to come down first.  The word in the flag is what
+        ; tells the two keys apart there -- Esc means "put me back", this means
+        ; "end everything" -- and the session-end marker cannot, a crossing
+        ; having already left one of its own.
+        RequestStartupCancel("quit")
         return
     }
-    ; The marker above is also what keeps an unexpected death distinguishable:
-    ; everything else the orchestrator sees is identical either way -- the
-    ; script exits, the closing screen goes up, the session comes down with
-    ; code 0 -- so without it "it crashed" could not be checked at all.
+    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
+    ; Marked because everything the orchestrator sees from here is identical
+    ; whether this was asked for or not: the script exits, the closing screen
+    ; goes up, the session comes down with code 0.  Without it a session that
+    ; died on its own reads exactly like one the user quit.
     ExitApp()
 }
 
@@ -269,19 +269,20 @@ MarkSessionEnd(reason) {
 PauseOrCancelStartup() {
     global StartupPhase
     if (StartupPhase) {
-        RequestStartupCancel()
+        RequestStartupCancel("cancel")
         return
     }
     QueueCommand("omnipause_toggle")
 }
 
-RequestStartupCancel() {
+RequestStartupCancel(reason) {
     global STARTUP_CANCEL_FILE
     ; The cover stays up until the orchestrator has torn down whatever it had
-    ; launched, so nothing half-started is ever revealed.  A second press costs
-    ; one more line in a file that is only ever tested for existence.
-    if AppendWithRetry("cancel`n", STARTUP_CANCEL_FILE)
-        Log("Startup cancel requested")
+    ; launched, so nothing half-started is ever revealed.  *reason* is "cancel"
+    ; or "quit"; a second press costs one more line, and any "quit" among them
+    ; is what the orchestrator reads.
+    if AppendWithRetry(reason . "`n", STARTUP_CANCEL_FILE)
+        Log("Startup cancel requested (" . reason . ")")
     else
         Log("Could not drop the startup cancel flag")
 }
