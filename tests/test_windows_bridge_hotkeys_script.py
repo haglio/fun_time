@@ -137,15 +137,20 @@ class TestStartupPhase:
         assert "Esc::PauseOrCancelStartup()" in _suspend_exempt_block()
 
         body = _function_body("PauseOrCancelStartup")
-        assert "RequestStartupCancel()" in body
+        assert 'RequestStartupCancel("cancel")' in body
         assert 'QueueCommand("omnipause_toggle")' in body
 
     def test_the_quit_chord_calls_it_off_too_rather_than_exiting(self):
         """Exiting mid-launch would leave the orchestrator building a session it
         has been told to end and only take that session down once it was fully
         up — and it would take Esc's cancel with it, since a script that has
-        exited hooks nothing."""
-        assert "RequestStartupCancel()" in _function_body("EndSession")
+        exited hooks nothing.
+
+        It says which key asked, because the two mean opposite things about who
+        takes the monitors back and the orchestrator cannot tell them apart any
+        other way: crossing over leaves a session-end marker of its own, so
+        reading THAT made every Esc look like a quit."""
+        assert 'RequestStartupCancel("quit")' in _function_body("EndSession")
 
     def test_the_flag_it_drops_is_the_one_the_orchestrator_watches(self):
         """Two processes drop this flag — this script and the loading screen —

@@ -918,12 +918,13 @@ class TestCancellingALaunch:
                             lambda child: order.append(child.pid))
         cover = orchestrator._Cover(tmp_path)
         cover.progress.advance("players")
-        cover.cancel_file.write_text("cancel\n", encoding="utf-8")
+        cover.cancel_file.write_text(
+            "quit\n" if by_quit_chord else "cancel\n", encoding="utf-8")
         # The monitors as the crossing left them: a full-screen window belonging
-        # to the session that has already gone.
+        # to the session that has already gone.  And the marker a crossing's own
+        # exit leaves, which is why the flag's word is what decides.
         raise_crossing_cover(tmp_path, orchestrator.DESKTOP)
-        if by_quit_chord:
-            (tmp_path / SESSION_END_MARKER).write_text("quit\n", encoding="utf-8")
+        (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
 
         code = orchestrator._cancel_vr_startup(
             state_dir=tmp_path, children=children, ahk_proc=None,
@@ -956,6 +957,18 @@ class TestCancellingALaunch:
         assert not cover.progress_file.exists()
         assert not cover.cancel_file.exists()
 
+    def test_a_crossings_own_exit_marker_is_not_read_as_a_quit(
+            self, tmp_path, monkeypatch):
+        """Crossing over ends the session he left through the hotkey script's
+        command channel, which stamps the session-end marker -- so reading THAT
+        made every Esc look like the quit chord and took his monitors instead of
+        handing them back.  The word in the cancel flag is the one that knows."""
+        from fun_time.session_handoff import DESKTOP, pending_handoff
+
+        self._cancel(tmp_path, monkeypatch, {})  # marker present, flag says cancel
+
+        assert pending_handoff(tmp_path) == DESKTOP
+
     def test_esc_hands_the_monitors_back_to_the_session_he_came_from(
             self, tmp_path, monkeypatch):
         """The crossing cover belongs to a process that has already gone.  Left
@@ -985,15 +998,11 @@ class TestCancellingALaunch:
         """Esc means "not this, put me back"; the quit chord means "end
         everything", and nothing is coming to drop the cover for us."""
         from fun_time.session_handoff import crossing_progress_path, pending_handoff
-        from fun_time.windows_bridge_orchestrator import SESSION_END_MARKER
 
         self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
 
         assert pending_handoff(tmp_path) is None
         assert "DONE" in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
-        assert not (tmp_path / SESSION_END_MARKER).exists(), (
-            "removed, or the next session reads this one's quit as its own"
-        )
 
 
 class _AlivePlayer:

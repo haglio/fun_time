@@ -65,11 +65,10 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     every asked-for END goes through MarkSessionEnd, so one that does NOT is
     exactly the unexpected one.
 
-    Two of the three ways out exit the script.  The third does not: mid-startup
-    the quit chord cannot exit, because the orchestrator is still building a
-    session that has to be torn down first -- it asks startup to unwind, and the
-    marker is what tells the orchestrator that unwind was a quit rather than an
-    Esc, which mean opposite things about who takes the monitors back.
+    Mid-startup the quit chord cannot exit -- the orchestrator is still building
+    a session that has to come down first -- so it asks startup to unwind and
+    says "quit" in the cancel flag instead.  Not through this marker: crossing
+    over leaves one of those too, so reading it made every Esc look like a quit.
     """
     from pathlib import Path
 
@@ -85,5 +84,4 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     ]
     assert len(callers) == 2  # the quit chord, and the command channel's exit
     for index in callers:
-        after = "\n".join(lines[index:index + 12])
-        assert "ExitApp" in after or "RequestStartupCancel" in after
+        assert any("ExitApp" in line for line in lines[index:index + 6])
