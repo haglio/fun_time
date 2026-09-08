@@ -899,6 +899,36 @@ def test_the_cover_goes_up_before_the_players_are_built():
     assert calls["_raise_the_cover"] < calls["_PanelUnit"]
 
 
+def test_the_dashboard_is_drawn_whichever_video_is_in_the_slot():
+    """It is drawn from one list with the console, on its own readiness -- so no
+    branch can leave it out of the eyes while a flat video plays."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._draw_eyes))
+    (showing,) = [node for node in ast.walk(tree)
+                  if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "showing"]
+
+    assert ast.unparse(showing.value).startswith("[panel, dash]")
+
+
+def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
+    """Out of `units` it is never painted or uploaded, and a room with no
+    dashboard in it is a room with no buttons."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    (units,) = [node for node in ast.walk(tree)
+                if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "units"]
+
+    assert "dash" in ast.unparse(units.value)
+
+
 def test_the_reveal_waits_for_the_cover_to_have_been_seen():
     """The room being drawable is not the same as anyone having had the headset
     on while it was covered."""
@@ -1320,7 +1350,28 @@ class TestWhereTheDashboardHangs:
         return dash
 
     def test_it_keeps_its_own_place_while_a_picture_is_in_the_slot(self, tmp_path):
+        """A flat video's dashboard is where the session left it, and where it
+        always was: the console docking under it is the wrapped case alone."""
         assert self._placed(tmp_path).screen.placement == DEFAULT_LAYOUT[DASH]
+
+    def test_a_flat_video_does_not_move_it_with_the_console(self, tmp_path):
+        """The console rides under the picture there, and the dashboard rides
+        nothing: dragging the player must leave the dashboard alone."""
+        dash = self._placed(tmp_path)
+
+        dash._primary.screen.placement = Placement(
+            azimuth_deg=-40.0, elevation_deg=-25.0, width_deg=90.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            dash.render_latest_frame()
+
+        assert dash.screen.placement == DEFAULT_LAYOUT[DASH]
+
+    def test_a_flat_video_still_offers_it_to_the_pointer(self, tmp_path):
+        """Drawn but unreachable is the same as gone: it is the only thing in
+        the room carrying the buttons a controller can press."""
+        screens = TestWhatThePointerCanReach()._screens(tmp_path)
+
+        assert screens[DASH].pressable and screens[DASH].movable
 
     def test_it_takes_the_pairs_place_while_it_carries_the_console(self, tmp_path):
         assert self._placed(tmp_path, wrapped=True).screen.placement == DEFAULT_LAYOUT[PANEL]
