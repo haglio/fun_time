@@ -100,6 +100,36 @@ def test_a_crossing_has_no_process_that_forgets_to_say_so():
         assert "keep_the_crossing_cover(" in inspect.getsource(func), func.__qualname__
 
 
+def test_a_crossing_file_nobody_tidied_is_not_a_crossing():
+    """His state dir still holds ``1/2|Cancelling...`` from the run that
+    stranded him.  Only the cover deletes that file, so a crossing that ended
+    without one leaks it -- and a startup that reads it as a return builds an
+    UNCANCELLABLE loading screen, for that session and every session after."""
+    from fun_time.session_handoff import (
+        COVER_STALE_S,
+        crossing_progress_path,
+        drop_crossing_cover,
+        keep_the_crossing_cover,
+        returning_from_a_crossing,
+    )
+
+    with tempfile.TemporaryDirectory() as state_dir:
+        progress = crossing_progress_path(state_dir)
+        progress.write_text("1/2|Cancelling...", encoding="utf-8")
+        assert returning_from_a_crossing(state_dir)  # a cover IS standing
+
+        os.utime(progress, (time.time() - COVER_STALE_S - 1,) * 2)
+        assert not returning_from_a_crossing(state_dir)
+
+        # Nor does the session that handed over keep the leak looking alive.
+        drop_crossing_cover(state_dir)
+        keep_the_crossing_cover(state_dir)
+        time.sleep(0.3)
+        os.utime(progress, (time.time() - COVER_STALE_S - 1,) * 2)
+        time.sleep(0.3)
+        assert not returning_from_a_crossing(state_dir)
+
+
 def test_a_child_log_that_cannot_be_opened_does_not_stop_the_child():
     """The specific way it stranded him: the relay bringing Fun Time back opened
     its log first, the file was locked, and the process died before it had done

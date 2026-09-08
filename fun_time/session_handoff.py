@@ -17,6 +17,7 @@ from app_support.win32 import is_mutex_held, mutex_name
 
 from fun_time.child_log import open_child_log
 from fun_time.config import load_config
+from fun_time.overlay_progress import parse_progress
 from fun_time.process_identity import NAMER
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 
@@ -28,7 +29,8 @@ HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
 # What the monitors read while the room changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
-COVER_HEARTBEAT_S = 1.0  # against transition_screen.STALE_TIMEOUT_S
+COVER_HEARTBEAT_S = 1.0  # how often a session says the crossing is under way
+COVER_STALE_S = 20.0  # and how long it may stop saying before the cover is gone
 KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 
 HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
@@ -188,7 +190,11 @@ def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
 
 
 def returning_from_a_crossing(state_dir: str | Path) -> bool:
-    return crossing_progress_path(state_dir).exists()  # the other's cover stands
+    path = crossing_progress_path(state_dir)
+    try:  # a cover file left over made every LATER startup read as a return
+        return time.time() - path.stat().st_mtime < COVER_STALE_S
+    except OSError:
+        return False
 
 
 def keep_the_crossing_cover(state_dir: str | Path) -> None:
@@ -199,10 +205,11 @@ def keep_the_crossing_cover(state_dir: str | Path) -> None:
 
     def beat() -> None:
         while True:
-            try:
-                os.utime(path, None)
+            try:  # not past DONE: a file the cover never tidied is not a crossing
+                if not parse_progress(path.read_text(encoding="utf-8")).done:
+                    os.utime(path, None)
             except OSError:
-                pass  # no crossing under way, or its cover has just been dropped
+                pass  # no crossing under way
             time.sleep(COVER_HEARTBEAT_S)
 
     start_daemon_thread(target=beat, name="crossing-cover")

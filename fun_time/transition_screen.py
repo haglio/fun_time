@@ -11,9 +11,10 @@ from pathlib import Path
 
 from .overlay_progress import ready_file_for
 from .overlay_window import OverlayWindow
+from .session_handoff import COVER_STALE_S
 
 WINDOW_TITLE = "Fun Time Transition"  # distinct: an exact-title lookup resolves one
-STALE_TIMEOUT_S = 20.0  # a crossing that never arrives; 180 read as a dead machine
+STALE_TIMEOUT_S = COVER_STALE_S  # a crossing that never arrives; 180 read as dead
 DISMISS_HINT = "Press Esc to dismiss"
 
 
