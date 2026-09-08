@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import logging
+import os
 import subprocess
 import sys
 import time
@@ -11,6 +12,7 @@ from pathlib import Path
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import is_mutex_held, mutex_name
 
 from fun_time.child_log import open_child_log
@@ -26,6 +28,7 @@ HANDOFF_REQUEST_NAME = "session_handoff.txt"
 
 # What the monitors read while the room changes shape.
 CROSSING_PROGRESS_NAME = "crossing_progress.txt"
+COVER_HEARTBEAT_S = 1.0  # against transition_screen.STALE_TIMEOUT_S
 KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 
 HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
@@ -188,6 +191,23 @@ def returning_from_a_crossing(state_dir: str | Path) -> bool:
     return crossing_progress_path(state_dir).exists()  # the other's cover stands
 
 
+def keep_the_crossing_cover(state_dir: str | Path) -> None:
+    """Say the crossing is still under way, once a second, for this process's
+    life.  The cover takes ITSELF down when this stops -- its one way out that
+    needs nobody else alive -- and a crossing outlasts that timeout."""
+    path = crossing_progress_path(state_dir)
+
+    def beat() -> None:
+        while True:
+            try:
+                os.utime(path, None)
+            except OSError:
+                pass  # no crossing under way, or its cover has just been dropped
+            time.sleep(COVER_HEARTBEAT_S)
+
+    start_daemon_thread(target=beat, name="crossing-cover")
+
+
 def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
     path = crossing_progress_path(state_dir)
     if path.exists():
@@ -324,6 +344,7 @@ def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
 
 def run(target: HandoffTarget, config) -> int:
     state_dir = config.paths.state_dir
+    keep_the_crossing_cover(state_dir)  # the middle of the three
     log_file = state_dir / target.launcher_log
     if not wait_for_the_session_to_let_go(
         mutex_name(MUTEX_ORCHESTRATOR, config.instance_id)

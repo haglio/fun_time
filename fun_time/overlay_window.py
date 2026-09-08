@@ -157,6 +157,8 @@ class OverlayWindow:
         status: str,
         stale_timeout_s: float,
         cancel: CancelOption | None = None,
+        dismissable: bool = False,
+        hint: str = "",
     ) -> None:
         self._progress_file = progress_file
         self._stale_timeout_s = stale_timeout_s
@@ -190,7 +192,7 @@ class OverlayWindow:
 
         self._content = _build_content(
             self._root, origin=(vx, vy), status=status,
-            hint=cancel.hint if cancel else "",
+            hint=cancel.hint if cancel else hint,
         )
 
         if cancel is not None:
@@ -198,6 +200,9 @@ class OverlayWindow:
             # session put up last.  Not the route the cancel rests on, though;
             # see CancelOption.requested.
             self._root.bind("<Escape>", self._on_escape)
+            self._root.focus_force()
+        elif dismissable:  # one only somebody else can remove traps the monitors
+            self._root.bind("<Escape>", lambda _e: self._root.destroy())
             self._root.focus_force()
 
         self._root.after(POLL_MS, self._poll)

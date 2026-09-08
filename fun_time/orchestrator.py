@@ -30,7 +30,11 @@ from app_support.win32 import mutex_name, set_shortcut_app_user_model_id, try_ac
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
 from .session_environment import SessionEnvironment
-from .session_handoff import clear_handoff_request, hand_over_if_asked
+from .session_handoff import (
+    clear_handoff_request,
+    hand_over_if_asked,
+    keep_the_crossing_cover,
+)
 from .single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
 from .win32_taskbar import APP_USER_MODEL_ID
 from .windows_bridge_orchestrator import run_session
@@ -188,6 +192,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     logger.info("Loaded config from %s", config.config_path)
+    keep_the_crossing_cover(config.paths.state_dir)  # a crossing at either end
     ensure_runtime_files(config)
     clear_handoff_request(config.paths.state_dir)
     validate_config(config)

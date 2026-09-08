@@ -8,6 +8,7 @@ be able to diagnose one that dies.
 """
 from __future__ import annotations
 
+import os
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -35,9 +36,12 @@ def open_child_log(
     cannot grow one forever.
     """
     path = Path(log_file)
-    path.parent.mkdir(parents=True, exist_ok=True)
-    _roll_oversize_log(path, max_bytes)
-    handle = path.open("ab")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        _roll_oversize_log(path, max_bytes)
+        handle = path.open("ab")
+    except OSError:  # locked or full: raising killed the relay mid-crossing
+        return open(os.devnull, "ab")  # noqa: SIM115 - the caller owns the handle
     banner = f"===== {time.strftime('%Y-%m-%d %H:%M:%S')} launch: {' '.join(str(a) for a in argv)}\n"
     handle.write(banner.encode("utf-8", errors="replace"))
     handle.flush()

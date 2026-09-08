@@ -81,6 +81,7 @@ from fun_time.session_handoff import (
     hand_over_if_asked,
     headset_is_held,
     hold_the_headset,
+    keep_the_crossing_cover,
     launch_crossing_cover,
     pending_handoff,
     release_the_headset,
@@ -357,11 +358,8 @@ def _cancel_vr_startup(
     cover: _Cover,
     runtime_was_up: bool,
 ) -> int:
-    """Tear down a launch the user called off from the headset, then exit.
-    The player is killed LAST because it wears the cover, so the rest goes while
-    "Cancelling..." is in front of the eyes; the hotkey script first, having read
-    the Esc.  Then the monitors: the crossing cover is always on top, and this
-    exit left it over an empty machine -- a reboot."""
+    """Tear down a launch the user called off, then exit.  The player goes LAST
+    (it wears the cover) and the hotkey script first; then the monitors."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
     quitting = _cancel_was_a_quit(cover.cancel_file)  # before cover.clear() takes it
     say_the_crossing_is_cancelled(state_dir)  # a teardown of seconds looks like nothing
@@ -715,6 +713,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     logger.info("Loaded config from %s", config.config_path)
+    keep_the_crossing_cover(config.paths.state_dir)  # a crossing at either end
     ensure_runtime_files(config)
     clear_handoff_request(config.paths.state_dir)
     validate_config(config)
