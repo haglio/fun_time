@@ -104,8 +104,14 @@ Esc::PauseOrCancelStartup()
 ; global on purpose — quitting and the omnipause pair are session gestures,
 ; wherever the focus sits.
 OrigeneratorHasKeyboard() {
-    title := WinGetTitle("A")
-    return (title = "Origenerator")
+    ; WinGetTitle throws where Windows names no foreground window — one being
+    ; destroyed, a handover between two apps, the secure desktop in front — and
+    ; a #HotIf expression has no call site to catch it, so AutoHotkey puts up an
+    ; error dialog per key pressed.  Nothing focused is not Origenerator focused.
+    try
+        return (WinGetTitle("A") = "Origenerator")
+    catch
+        return false
 }
 #HotIf !OrigeneratorHasKeyboard()
 

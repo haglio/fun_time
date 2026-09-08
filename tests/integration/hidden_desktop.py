@@ -322,6 +322,40 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     return pi
 
 
+def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0) -> int:
+    """Run *argv* on a desktop of its own, made empty, and return its exit code.
+
+    ``GetForegroundWindow`` answers NULL where there is no window to name, and a
+    desktop with nothing on it is the one state that guarantees it — which is
+    what makes this the harness for anything that has to survive being asked
+    which window has the focus.  The job object is what ends a run that stops on
+    a dialog instead of exiting, since nobody can reach one here to dismiss it.
+    """
+    desktop = f"{HIDDEN_DESKTOP_NAME}Empty{os.getpid()}"
+    hdesk = _user32.CreateDesktopW(desktop, None, None, 0, GENERIC_ALL, None)
+    if not hdesk:
+        raise ctypes.WinError(ctypes.get_last_error())
+    try:
+        job = create_run_job()
+        try:
+            pi = _launch_on_desktop(subprocess.list2cmdline(argv), desktop, str(_repo_root()), job)
+            try:
+                if _kernel32.WaitForSingleObject(pi.hProcess, int(timeout_seconds * 1000)) != 0:
+                    raise TimeoutError(
+                        f"{argv[0]} was still running {timeout_seconds:g}s after it was "
+                        "started on an empty desktop"
+                    )
+                code = wt.DWORD()
+                _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
+                return int(code.value)
+            finally:
+                _close_process_handles(pi)
+        finally:
+            close_run_job(job)
+    finally:
+        _user32.CloseDesktop(hdesk)
+
+
 def _announce_waiting(seconds: float) -> None:
     print(f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
           f"waiting for it to finish ({seconds:.0f}s elapsed)",
