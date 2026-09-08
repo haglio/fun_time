@@ -13,7 +13,8 @@ from .overlay_progress import ready_file_for
 from .overlay_window import OverlayWindow
 
 WINDOW_TITLE = "Fun Time Transition"  # distinct: an exact-title lookup resolves one
-STALE_TIMEOUT_S = 180.0  # the backstop for a relay that died outright
+STALE_TIMEOUT_S = 20.0  # a crossing that never arrives; 180 read as a dead machine
+DISMISS_HINT = "Press Esc to dismiss"
 
 
 def main() -> None:
@@ -27,6 +28,8 @@ def main() -> None:
         title=WINDOW_TITLE,
         status="Changing over...",
         stale_timeout_s=STALE_TIMEOUT_S,
+        dismissable=True,
+        hint=DISMISS_HINT,
     ).run(on_shown=lambda: ready_file_for(progress_file).write_text("", encoding="utf-8"))
     # Nobody else is left to tidy: the session that raised it has exited.
     progress_file.unlink(missing_ok=True)
