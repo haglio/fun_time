@@ -33,10 +33,6 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # filter is the switch the console draws over a hosted Origenerator's shows,
 # which the room hears as "enhanced only" rather than under this id.
 HUD_ONLY_COMMAND_IDS = (
-    # The dashboard's own way across to the headset: a button and nothing else,
-    # since a phrase or a hotkey that ends the session by surprise is not what
-    # anybody wants near a chord that already does.
-    "enter_vr",
     "genau_filter_enhanced",
     "landscape_minimize",
     "main_minimize",
@@ -173,6 +169,10 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_nudge_next",
     "main_nudge_prev",
     "main_prev",
+    "main_projection_both",
+    "main_projection_flat",
+    "main_projection_none",
+    "main_projection_vr",
     "main_reset",
     "main_shuffle",
     "main_video_activate",

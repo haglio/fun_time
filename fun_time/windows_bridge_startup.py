@@ -23,6 +23,7 @@ from .mode_plan import STARTUP_MAIN_MODE, hud_verb, nau_display_verb
 from .modes import (
     PLAYLIST_NAU,
     SatelliteBuild,
+    VideoShapes,
     build_all_playlists,
     build_main_playlist,
     build_playlist_file_path,
@@ -361,14 +362,11 @@ def reset_satellite_paused_states(
     """Seed both satellite paused flags for the mode the session opens in.
 
     Unlike the genau/audio/nau flags, the satellite paused files are outside
-    ``seed_startup_states``' scope and nothing else clears them.  A ``"1"`` left
-    stranded by a prior session's OmniPause would make this session's satellites
-    read paused and never play (frozen at position 0), so both are written
-    before they launch.  In video mode that write is ``"0"`` — a satellite
-    comes up playing.  A session RESUMED into origenerator mode comes up with
-    them ``"1"`` instead: the regions are the hosted app's for the whole mode,
-    and the players are black and paused underneath exactly as the mode switch
-    would have left them.
+    ``seed_startup_states``' scope and nothing else clears them: a ``"1"`` left
+    stranded by a prior session's OmniPause would freeze this session's
+    satellites at position 0.  Video mode writes ``"0"`` and a satellite comes up
+    playing; a session resumed into origenerator mode writes ``"1"``, the regions
+    being the hosted app's for the whole mode.
     """
     paused = "1" if satellites_mode == "origenerator" else "0"
     for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
@@ -395,6 +393,7 @@ def start_core_session(
     landscape: SatelliteSlot,
     nau_status_file: str | Path,
     main_sources: str,
+    vr_library_dirs: str = "",
     favs_file: str | Path,
     state_dir: str | Path,
     result_file: str | Path,
@@ -443,6 +442,12 @@ def start_core_session(
     # It is read before the flags below are seeded, because several of them are
     # what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
+    # The shape filter comes back with the rest of the session's state, so a
+    # headset reopened on "VR only" opens on the VR videos rather than on
+    # everything with the buttons still saying otherwise.
+    carried_shapes = VideoShapes(vr_dirs=vr_library_dirs,
+                                 plays_vr=carried.main_plays_vr,
+                                 plays_flat=carried.main_plays_flat)
     seed_startup_states(
         genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
         genau_cmd_file, nau_cmd_file=nau_cmd_file,
@@ -460,6 +465,7 @@ def start_core_session(
             landscape=SatelliteBuild(sources=landscape.sources),
             favs_file=Path(favs_file),
             state_dir=state_path,
+            main_shapes=carried_shapes,
             metadata_root=regen_metadata_root,
         )
     elif not playlist_fits_sources(nau_playlist, main_sources):
@@ -469,7 +475,7 @@ def start_core_session(
         # on screen.  (The satellites' dirs are the same in either app, so their
         # resume stands.)
         build_main_playlist(nau_playlist, main_sources, f_mode=carried.main_f_mode,
-                            recent=carried.main_latest)
+                            recent=carried.main_latest, shapes=carried_shapes)
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"
             if resume_main_video(nau_playlist, nau_status.video)

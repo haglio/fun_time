@@ -131,8 +131,14 @@ class TestTheRowOfItsOwn:
         picture = control_size(PANEL_WIDTH_DEG, PANEL_WIDTH_PX / 400)
         halfway_down = TIMELINE_HEIGHT / 2  # from the lower edge, in both
 
+        # Asked where each control actually is, rather than at fractions that
+        # slide off it the moment the panel is resized.
+        on_each = (_on_the_scrubber(self._SIZE)[0],
+                   _on_the_chip("mute", self._SIZE)[0],
+                   _on_the_chip("volume", self._SIZE)[0])
+
         found = set()
-        for u in (0.05, 0.3, 0.55, 0.62, 0.75, 0.99):
+        for u in (0.05, 0.3, 0.99, *on_each):
             on_the_row = furniture_at(u, halfway_down / self._SIZE[1], size=self._SIZE)
             in_the_picture = furniture_at(u, halfway_down / picture[1], size=picture)
             assert (u, on_the_row) == (u, in_the_picture)

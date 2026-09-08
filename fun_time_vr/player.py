@@ -1,9 +1,9 @@
 """The VR player process: the session's four players composited into one
 OpenXR scene.
 
-The desktop session runs Nau, Genau and two satellite processes, each owning
-a window; an OpenXR runtime gives the headset to a single rendering process,
-so in VR all four are surfaces of this one — :class:`fun_time_vr.roles.MainRole`,
+The desktop session runs Nau, Genau and two satellite processes, each owning a
+window; an OpenXR runtime gives the headset to a single rendering process, so in
+VR all four are surfaces of this one — :class:`fun_time_vr.roles.MainRole`,
 :class:`fun_time_vr.genau_role.GenauRole` on a thread of its own, and the
 satellite package's own session against offscreen players.  Each keeps its
 desktop sibling's whole contract — the playlist/command/paused/status file

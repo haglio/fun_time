@@ -75,6 +75,10 @@ class BridgeState:
     main_latest: bool = False
     portrait_latest: bool = False
     landscape_latest: bool = False
+    # Which shapes of video the main player's browse may reach: VR masters, flat
+    # ones, or both -- the only answer outside the headset, holding one shape.
+    main_plays_vr: bool = True
+    main_plays_flat: bool = True
     # Genau's own, kept apart from ``main_latest`` even though the two players
     # share the main slot: ``main_latest`` describes the playlist file we built
     # for Nau, and a Genau reorder rewrites nothing of Nau's.  One flag for both
@@ -172,6 +176,8 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
         "portrait_filter": state.portrait_filter,
         "landscape_filter": state.landscape_filter,
         "main_latest": "1" if state.main_latest else "0",
+        "main_plays_vr": "1" if state.main_plays_vr else "0",
+        "main_plays_flat": "1" if state.main_plays_flat else "0",
         "genau_latest": "1" if state.genau_latest else "0",
         "portrait_latest": "1" if state.portrait_latest else "0",
         "landscape_latest": "1" if state.landscape_latest else "0",
@@ -237,6 +243,10 @@ def read_shared_state(state_file: Path) -> BridgeState | None:
         portrait_filter=s.get("portrait_filter", ""),
         landscape_filter=s.get("landscape_filter", ""),
         main_latest=s.get("main_latest", "0") == "1",
+        # Defaulted ON, unlike every flag around them: reading an absent shape
+        # filter as off would open a session with nothing to play.
+        main_plays_vr=s.get("main_plays_vr", "1") == "1",
+        main_plays_flat=s.get("main_plays_flat", "1") == "1",
         genau_latest=s.get("genau_latest", "0") == "1",
         portrait_latest=s.get("portrait_latest", "0") == "1",
         landscape_latest=s.get("landscape_latest", "0") == "1",

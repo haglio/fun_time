@@ -133,12 +133,11 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
 
     ``active_next``/``active_prev`` follow the last player navigated — main
     (Nau, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
-    reach the main player too, meaning there what they mean on a satellite: hold the
-    video on screen, or let the playlist walk on.  So does ``active_no_loop``, but
-    meaning the loop *it* has: Nau's A-B loop, where on a satellite the same phrase
-    ends a group loop.  The rest (weird, cycle) exist only on the satellites, so
-    while the main player is active they resolve to nothing — returned unchanged, which
-    is a no-op downstream.  Every non-``active_`` command passes through unchanged.
+    reach the main player too, meaning there what they mean on a satellite.  So
+    does ``active_no_loop``, but meaning the loop *it* has: Nau's A-B loop, where
+    on a satellite the same phrase ends a group loop.  The rest (weird, cycle)
+    exist only on the satellites and resolve to nothing while the main player is
+    active.  Every non-``active_`` command passes through unchanged.
     """
     if not command.startswith("active_"):
         return command
@@ -277,15 +276,12 @@ class DispatchLoopRunner:
         # once that entry is on the current, now-video mode.
         self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused)
 
-        # Dashboard commands (may be multiple if queued by rapid hotkey
-        # presses).  Each raw line yields a command plus, for a spoken one, when
-        # the utterance began; the command is then bound to concrete side
-        # command(s): a side-agnostic "active_*" command (voice "lock", "next",
-        # ...) resolves to whichever satellite was most recently addressed — by
-        # voice or by keyboard nav — and a "both_*" command expands into its
-        # Portrait + Landscape pair.
-        # Buffer RFB opens across the whole batch so a "both" lock's two tabs
-        # open in one Chrome launch (see _flush_rfb_tabs).
+        # Dashboard commands, several at once under rapid hotkey presses.  Each
+        # raw line yields a command plus, for a spoken one, when the utterance
+        # began; an "active_*" command then resolves onto the player most
+        # recently addressed and a "both_*" one expands into its pair.  RFB opens
+        # are buffered across the batch so a "both" lock's two tabs open in one
+        # Chrome launch (see _flush_rfb_tabs).
         self._batching_rfb = True
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
@@ -533,6 +529,9 @@ class DispatchLoopRunner:
                 str(self.config.dashboard_state_file),
                 omni_paused=self.state.omni_paused,
                 voice_active=voice_active,
+                f_mode=(self.state.main_f_mode and self.state.portrait_f_mode
+                        and self.state.landscape_f_mode),
+                in_vr=self.config.vr_main_player,
             )
         except OSError as exc:
             now = time.monotonic()
@@ -889,6 +888,7 @@ def build_bridge_config_from_manifest(
         state_dir=Path(commands.state_dir),
         loopback_port=manifest.loopback_port,
         main_sources=manifest.media.nau_library_sources,
+        vr_library_dirs=manifest.media.vr_library_dirs,
         python_exe=manifest.executables.python_exe,
         portrait_sources=manifest.media.portrait_dirs,
         landscape_sources=manifest.media.landscape_dirs,

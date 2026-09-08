@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
+from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_playlist"
@@ -134,20 +135,46 @@ def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = N
     return shuffle_paths(paths, rng=rng)
 
 
+@dataclass(frozen=True)
+class VideoShapes:
+    """Which shapes of video the main player's browse may reach, and where the
+    VR masters live.  Both and no VR dirs is every session outside the headset,
+    whose sources hold nothing of the other shape, and narrows nothing.
+    """
+
+    vr_dirs: str = ""
+    plays_vr: bool = True
+    plays_flat: bool = True
+
+    @property
+    def offered(self) -> bool:
+        """Whether this session has both shapes to choose between — which is what
+        puts the pair of buttons on the console."""
+        return bool(source_roots(self.vr_dirs))
+
+    def keep(self, paths: list[str]) -> list[str]:
+        return keep_shapes(paths, vr_dirs=source_roots(self.vr_dirs),
+                           plays_vr=self.plays_vr, plays_flat=self.plays_flat)
+
+
 def build_main_playlist_paths(main_sources: str, f_mode: bool, *,
                               recent: bool = False,
-                              rng: random.Random | None = None) -> list[str]:
-    """The main player's playlist, in the browse order it is in.
+                              rng: random.Random | None = None,
+                              shapes: VideoShapes | None = None) -> list[str]:
+    """The main player's playlist, narrowed as the session asks and in its order.
 
     *recent* is Latest — newest-first — and its absence is Shuffle, the same two
     orders a satellite browses in and the same words on the HUD.  The main player
     had only the shuffle: a video that arrived an hour ago was somewhere in a
     thousand-clip rotation with no way to ask for it, while either satellite could
     be told "latest".
+
     """
     files = collect_video_files(main_sources)
     if f_mode:
         files = [full_path for full_path in files if has_handcrafted_funscript(full_path)]
+    if shapes is not None:
+        files = shapes.keep(files)
     return order_paths(files, recent=recent, rng=rng)
 
 
@@ -383,7 +410,8 @@ def build_satellite_playlists(
 
 
 def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
-                        recent: bool = False) -> None:
+                        recent: bool = False,
+                        shapes: VideoShapes | None = None) -> None:
     """Build and write the main player's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
@@ -396,7 +424,8 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
     write_nau_playlist_file(
-        playlist_file, build_main_playlist_paths(main_sources, f_mode, recent=recent))
+        playlist_file,
+        build_main_playlist_paths(main_sources, f_mode, recent=recent, shapes=shapes))
 
 
 def build_all_playlists(
@@ -408,6 +437,7 @@ def build_all_playlists(
     state_dir: Path,
     main_f_mode: bool = False,
     main_recent: bool = False,
+    main_shapes: VideoShapes | None = None,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
@@ -428,5 +458,6 @@ def build_all_playlists(
     )
     write_nau_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_NAU),
-        build_main_playlist_paths(main_sources, main_f_mode, recent=main_recent, rng=rng),
+        build_main_playlist_paths(main_sources, main_f_mode, recent=main_recent,
+                                  rng=rng, shapes=main_shapes),
     )

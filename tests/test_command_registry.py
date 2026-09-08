@@ -42,6 +42,10 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "genau_clip_seconds_down",
     "genau_clip_seconds_up",
+    # Neither shape of video: the browse with nothing in it.  The reference
+    # names it, but no phrase asks for it -- it takes a second, deliberate press
+    # on a shape button that is already the only one lit.
+    "main_projection_none",
     "nau_record_tap",
 }
 
@@ -90,10 +94,14 @@ def _loop_branch_ids() -> frozenset[str]:
         elif isinstance(comparator, ast.Tuple):
             ids.update(element.value for element in comparator.elts)
         elif isinstance(comparator, ast.Name):
-            table = getattr(windows_bridge_dispatch_loop, comparator.id, None)
-            assert table is not None, f"the loop branches on an unresolvable {comparator.id}"
-            assert all(isinstance(entry, str) for entry in table), ast.dump(node)
-            ids.update(table)
+            # A branch that reaches for a constant rather than repeating a
+            # literal — one spelling, two files.  dashboard_actions holds the
+            # ids the bar posts; the loop's own module holds the tables that
+            # group several of them under one branch.
+            named = getattr(dashboard_actions, comparator.id,
+                            getattr(windows_bridge_dispatch_loop, comparator.id, None))
+            assert named is not None, ast.dump(node)
+            ids.update({named} if isinstance(named, str) else named)
         else:  # pragma: no cover - a new branch shape must be classified here
             raise AssertionError(f"unrecognized _handle_command comparison: {ast.dump(node)}")
     return frozenset(ids)

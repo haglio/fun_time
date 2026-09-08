@@ -107,7 +107,7 @@ def test_the_two_room_controls_each_stand_in_a_group_of_their_own():
     layout = compute_dashboard_bar_layout()
 
     assert layout.fmode_button.x - (layout.voice_panel.x + layout.voice_panel.width) == GROUP_GAP
-    assert (layout.enter_vr_button.x
+    assert (layout.vr_button.x
             - (layout.fmode_button.x + layout.fmode_button.width)) == GROUP_GAP
 
 

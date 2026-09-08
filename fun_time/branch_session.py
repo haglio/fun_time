@@ -1,49 +1,28 @@
 """Run a real session out of a branch worktree, so work can be judged before it lands.
 
-Fun Time runs from the primary checkout, and that checkout only moves when
-``main`` does — so a branch waiting on a pull request is code the user cannot
-see, run or judge.  This is the third option between parking the branch and
-landing it unverified: point a real session at the unlanded worktree, on the
-real library, on the real monitors, first.
+Fun Time runs from the primary checkout, which only moves when ``main`` does, so
+a branch waiting on a pull request is code the user cannot see or judge.  The
+project's CLAUDE.md says how an agent hands one over (``--shortcut``, then
+``--remove-shortcut`` once it lands); this is what such a session IS.
 
-The user is never asked to find a branch.  An agent with something to show runs
-``python -m fun_time.branch_session --shortcut`` from its worktree, which leaves
-a ``Verify <branch>.lnk`` in the primary checkout — the folder he keeps open —
-and tells him that filename.  He double-clicks it; the branch is already baked
-in.  ``launch_branch.vbs`` is the launcher every one of those shortcuts points
-at, and is not run on its own.  Once the work lands, the same agent runs
-``--remove-shortcut`` to take its file back out again: what is sitting in that
-folder should be what is waiting on him, and nothing else.
+**It replaces the live one; it never runs beside it.**  Nearly everything a
+session touches is one-per-machine with no per-directory version — the
+``#SingleInstance Force`` hotkey shell, the three UDP endpoints and the loopback
+port, the microphone, the broker holding the OSR2's serial port, the monitors.
+The integration suite escapes all of that on a hidden desktop with those
+endpoints stripped; a session being watched on the real screen cannot.  So
+rather than isolate them, two sessions are made impossible: the generated config
+carries the live session's ``instance_id``, so both take the *same*
+single-instance mutex and whichever starts second is refused.
 
-**A branch session replaces the live one; it never runs beside it.**  Nearly
-everything a session touches is one-per-machine with no per-directory version:
-the AHK hotkey shell is ``#SingleInstance Force`` and would evict the live
-one's, the three UDP endpoints and the loopback port are fixed, there is one
-microphone, one broker holding the OSR2's serial port, and one set of monitors
-to be fullscreen on.  The integration suite escapes all of that by running on a
-hidden desktop with those endpoints stripped
-(``tests.integration.integration_support.isolate_shared_resources``); a
-verification session cannot, because being watched on the real screen is the
-entire point of it.
-
-So rather than isolate them, two sessions are made impossible: the generated
-config carries the live session's ``instance_id``, so both take the *same*
-single-instance mutex and whichever starts second is refused with Fun Time's own
-"already running" message.  That holds in either order — including the user
-double-clicking the taskbar icon while a branch session is up.
-
-What a branch session does get of its own is ``state/``: its command files,
-playlists, logs, thumbnails and resume point live inside the worktree, so a
-half-finished branch cannot corrupt what the live session reads back.
-Everything else is deliberately the real thing — the real library, the real
-``favs.csv``, the real broker and device — because a verification run on
-fixtures verifies fixtures.
-
-The broker's own files are the exception inside that exception.  They live in
-``state/`` too, but they belong to ``../broker``, which opens them from one
-directory named in its own config and never learns a session moved — so they
-stay pinned to the primary's (``paths.broker_state_dir``) while everything else
-in ``state/`` moves into the worktree.
+What a branch session does get of its own is ``state/`` — command files,
+playlists, logs, thumbnails, resume point — so a half-finished branch cannot
+corrupt what the live session reads back.  Everything else is deliberately the
+real thing, because a verification run on fixtures verifies fixtures.  The
+broker's files are the exception inside that exception: they live in ``state/``
+but belong to ``../broker``, which opens them from one directory named in its
+own config and never learns a session moved, so they stay pinned to the
+primary's (``paths.broker_state_dir``).
 """
 from __future__ import annotations
 
@@ -220,16 +199,11 @@ def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
     """Let a worktree say for itself which checkout of ../genau its session runs.
 
     ``paths.genau_project_dirs`` answers a per-SESSION question — Nau and Genau
-    are launched with these directories in front of their venv's install, so this
-    is which checkout of that repo they are — but it could only be said in the
-    machine's one ``fun_time_config.json``, which every session on the machine
-    reads.  So an agent judging a genau branch wrote its worktree there, and that
-    pin then reached the user's ordinary ``launch.vbs`` session and every *other*
-    agent's branch session too, each of them silently running an unlanded branch
-    of another repo.  Nothing took it back out either: the launcher it pairs with
-    has ``--remove-shortcut`` and this had no counterpart at all.  It cost a whole
-    round trip when a fun_time branch could not show a console button that had
-    landed in genau, because the pinned checkout predated it.
+    are launched with these directories in front of their venv's install — but it
+    could only be said in the machine's one ``fun_time_config.json``, which every
+    session reads.  A pin written there for one agent's genau branch reached the
+    user's ordinary session and every other agent's, each silently running an
+    unlanded branch of another repo, and nothing ever took it back out.
 
     A file in the worktree's own state dir answers it per session instead: one
     absolute path per line, ``#`` comments and blank lines ignored.  Present, it

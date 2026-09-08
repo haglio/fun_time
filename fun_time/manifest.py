@@ -52,6 +52,8 @@ def build_windows_bridge_manifest(
         },
         "media": {
             "nau_library_sources": "|".join(str(path) for path in config.paths.nau_library_dirs),
+            # Which sources hold VR masters — none out here.  FunTimeVR's own.
+            "vr_library_dirs": "",
             "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
             "landscape_dirs": "|".join(str(path) for path in config.paths.landscape_dirs),
             "weird_dir": str(config.paths.weird_dir),
@@ -194,6 +196,8 @@ class MediaSources:
     favs_file: str
     genau_clips: str
     genau_audio: str
+    # Defaulted, so this parse refuses no manifest a reader accepts today.
+    vr_library_dirs: str = ""
 
 
 @dataclass(frozen=True)

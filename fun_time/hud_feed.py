@@ -12,7 +12,7 @@ from pathlib import Path
 from .bridge_records import BridgeConfig
 from .hud_transport import HudPublisher
 from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
-from .modes import is_favorite_path, read_favs_content
+from .modes import is_favorite_path, read_favs_content, source_roots
 from .nau_console import console_payload
 from .player_status import (
     genau_status_path,
@@ -108,12 +108,16 @@ class HudFeed:
         # up, and which player a bare command reaches — none of which the player
         # can see for itself.
         nau = read_nau_status(self.config.nau_status_file)
+        shapes_offered = bool(source_roots(self.config.vr_library_dirs))
         self.publisher.publish_payload("nau", console_payload(
             mode=state.main_mode,
             active=state.active_side == Player.MAIN,
             f_mode=state.main_f_mode,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
+            # None where the rotation holds one shape: the pair is the headset's.
+            plays_vr=state.main_plays_vr if shapes_offered else None,
+            plays_flat=state.main_plays_flat if shapes_offered else None,
             osr2_mode=self.osr2_mode(),
             funscript_driving=nau.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)

@@ -94,13 +94,15 @@ class DashboardBarLayout:
     help_button: Rect
     voice_panel: Rect
     fmode_button: Rect
-    enter_vr_button: Rect
+    # The way across to the other session — Enter VR out here, Exit VR in
+    # there.  One button either way, since you can only be in one of them.
+    vr_button: Rect
 
     @property
     def content_width(self) -> int:
         """How wide the bar's own buttons run — the width it takes in its row,
         leaving the rest to the log's filter controls beside it."""
-        return self.enter_vr_button.x + self.enter_vr_button.width + PAD
+        return self.vr_button.x + self.vr_button.width + PAD
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
@@ -129,7 +131,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     x += GROUP_GAP - GAP
     fmode_button = Rect(x, PAD, BUTTON, BUTTON)
     x += BUTTON + GROUP_GAP
-    enter_vr_button = Rect(x, PAD, BUTTON, BUTTON)
+    vr_button = Rect(x, PAD, BUTTON, BUTTON)
 
     return DashboardBarLayout(
         height=height,
@@ -140,7 +142,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         help_button=buttons[2],
         voice_panel=buttons[3],
         fmode_button=fmode_button,
-        enter_vr_button=enter_vr_button,
+        vr_button=vr_button,
     )
 
 
