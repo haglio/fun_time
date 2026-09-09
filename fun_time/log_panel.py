@@ -147,14 +147,15 @@ from shared_ui.colors import (
     RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_PAD_H_TIGHT,
-    BUTTON_PAD_V,
     BUTTON_RADIUS,
+    BUTTON_SIZE_HUD,
 )
 
 # Short labels for the source toggles so the whole control strip fits one row.
@@ -272,6 +273,8 @@ class LogPanelWidget(QWidget):
         # the frame cost on this style, and a width guessed at from the text plus
         # a constant came up short enough to elide "WARNING" to "WARN".
         self._verbosity.setMinimumWidth(self._verbosity.sizeHint().width())
+        # As tall as the buttons beside it, or the row reads as two rows.
+        self._verbosity.setFixedHeight(BUTTON_SIZE_HUD)
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
         controls.addWidget(self._verbosity)
@@ -283,32 +286,29 @@ class LogPanelWidget(QWidget):
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
-            # A word-button keeps one ground always, the way Scripture's and
-            # Evolver's rows are drawn: the lighter on-ground says "this square
-            # is engaged", and a word-button is not a thing you engage -- which
-            # source is shown is the label's own brightness.  Font, metrics and
-            # shape stay Qt's; only the colors are ours, because Qt paints a
-            # checked button in the default palette's highlight otherwise.
+            # The face the console's mode buttons wear, these being the same
+            # object: blue and bright on, resting ground and muted off, a step
+            # lighter under the pointer.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+            button.setFixedHeight(BUTTON_SIZE_HUD)
             button.setStyleSheet(
                 "QToolButton {"
-                f" color: {TEXT_PRIMARY.name()};"
+                f" color: {TEXT_MUTED.name()};"
                 f" background: {BG_BUTTON.name()};"
                 f" border: none; border-radius: {BUTTON_RADIUS}px;"
-                f" padding: {BUTTON_PAD_V}px {BUTTON_PAD_H_TIGHT}px; }}"
-                f" QToolButton:!checked {{ color: {TEXT_MUTED.name()}; }}"
+                f" padding: 0px {BUTTON_PAD_H_TIGHT}px; }}"
+                f" QToolButton:hover {{ background: {hovered(BG_BUTTON).name()}; }}"
+                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
+                f" background: {BLUE.name()}; }}"
+                f" QToolButton:checked:hover {{ background: {hovered(BLUE).name()}; }}"
             )
-            # Auto-raise is what a QToolBar does to the buttons it holds, and it
-            # is the whole difference between Scripture's flat row and the framed
-            # buttons a bare QToolButton draws for itself.
+            # Auto-raise is what a QToolBar does: a flat row, not framed ones.
             button.setAutoRaise(True)
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
             self._source_buttons[source] = button
-        # No trailing stretch: `self.controls` is placed by the dashboard, up in
-        # the top bar and right-justified there, so it must be exactly as wide as
-        # its own row — not added to this widget's own layout, which now holds
-        # only the list.
+        # No trailing stretch: the dashboard places `self.controls` in the top
+        # bar, right-justified, so it must be exactly as wide as its own row.
 
         self._list = QListWidget(self)
         self._list.setFont(make_font(FONT_UI, SIZE_SMALL))

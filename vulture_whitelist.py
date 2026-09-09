@@ -10,6 +10,7 @@ from __future__ import annotations
 
 # --- Called by a framework, not by us ---
 _.do_GET  # http.server dispatches by getattr
+_.leaveEvent  # Qt calls it when the pointer leaves the dashboard bar
 _.paintEvent  # Qt event override
 _.mouseMoveEvent  # Qt event override
 _.optionxform  # ConfigParser hook, set to keep key case

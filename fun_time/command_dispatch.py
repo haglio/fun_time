@@ -195,6 +195,7 @@ _NAU_CMD_MAP = {
     "nau_length_shorts": "SET_LENGTH_MODE shorts",
     "nau_length_full": "SET_LENGTH_MODE full",
     "nau_length_mixed": "SET_LENGTH_MODE mixed",
+    "nau_length_none": "SET_LENGTH_MODE none",
     "nau_compilation": "PLAY_COMPILATION",
     "nau_end_compilation": "END_COMPILATION",
     "nau_full_vid": "PLAY_FULL_VID",
@@ -969,14 +970,19 @@ def _dispatch_main_projection(
     if (shapes.plays_vr, shapes.plays_flat) == (plays_vr, plays_flat):
         return state, []
     state = replace(state, main_plays_vr=plays_vr, main_plays_flat=plays_flat)
-    apply_main_fmode(
-        enabled=state.main_f_mode,
-        main_sources=config.main_sources,
-        recent=state.main_latest,
-        state_dir=config.state_dir,
-        nau_cmd_file=config.nau_cmd_file,
-        shapes=main_video_shapes(state, config),
-    )
+    if not (plays_vr or plays_flat):
+        # Nothing to rebuild from, so the video on screen is held instead: a
+        # state you can see, where an empty list would look like a no-op.
+        append_command(config.nau_cmd_file, _MAIN_LOCK_COMMANDS["main_lock_on"])
+    else:
+        apply_main_fmode(
+            enabled=state.main_f_mode,
+            main_sources=config.main_sources,
+            recent=state.main_latest,
+            state_dir=config.state_dir,
+            nau_cmd_file=config.nau_cmd_file,
+            shapes=main_video_shapes(state, config),
+        )
     label = _PROJECTION_LABELS[(plays_vr, plays_flat)]
     logger.info("Main player shapes: %s", label)
     return state, [WindowOp(

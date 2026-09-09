@@ -1046,6 +1046,7 @@ class _DashUnit:
         self._pointer.session_state(
             omni_paused=snapshot is not None and snapshot.omni_paused,
             voice_active=snapshot is None or snapshot.voice_active,
+            f_mode=snapshot is not None and snapshot.f_mode,
         )
         records = self._notices.records
         key = (self._pointer.state, records)

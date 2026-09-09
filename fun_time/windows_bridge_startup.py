@@ -837,6 +837,7 @@ def launch_ui_companions(
     config_path: str | Path,
     audio_folder: str | Path,
     result_file: str | Path,
+    project_dirs: str | None = None,
 ) -> None:
     python_exe = str(python_exe)
     windows_bridge_manifest_path = str(windows_bridge_manifest_path)
@@ -871,15 +872,19 @@ def launch_ui_companions(
             "--rfb-height",
             str(rfb_height),
         ]
+        # The named checkouts reach the dashboard too: the one child launched
+        # without them, so a shared_ui branch never showed on the bar.
         if dashboard_log_file is not None:
             with open_child_log(dashboard_log_file, dashboard_cmd) as log:
                 dashboard_proc = subprocess.Popen(
                     dashboard_cmd, stdout=log, stderr=subprocess.STDOUT,
+                    **genau_project_kwargs(project_dirs),
                     **subprocess_window_kwargs(),
                 )
         else:
             dashboard_proc = subprocess.Popen(
-                dashboard_cmd, **subprocess_window_kwargs())
+                dashboard_cmd, **genau_project_kwargs(project_dirs),
+                **subprocess_window_kwargs())
         dashboard_pid = dashboard_proc.pid
 
     audio_proc = launch_audio_companion(

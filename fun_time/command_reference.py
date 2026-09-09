@@ -334,10 +334,11 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Length of what plays: \"mixed\" (the default, everything), "
                 "\"shorts\", or \"full length\" — \"mixed\" leaves any "
-                "compilation with it",
+                "compilation with it; the console's own pair reaches a fourth "
+                "state, neither, which holds the video on screen",
                 ("T",),
                 ("nau_toggle_length", "nau_length_shorts", "nau_length_full",
-                 "nau_length_mixed"),
+                 "nau_length_mixed", "nau_length_none"),
             ),
             _Row(
                 "Reset the main player — back to the mixed library (leaving any "

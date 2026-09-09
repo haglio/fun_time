@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 from shared_ui.palette import BG_BUTTON, BG_TERTIARY, BLUE
-from shared_ui.spacing import BUTTON_ICON, BUTTON_SIZE
+from shared_ui.spacing import BUTTON_ICON, BUTTON_SIZE_HUD
 
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
@@ -88,7 +88,7 @@ class TestItIsTheDesktopsBar:
         same mark inside it, whichever app is drawing it."""
         rect = dash_actions()[QUIT_BUTTON]
 
-        assert rect.width == rect.height == BUTTON_SIZE
+        assert rect.width == rect.height == BUTTON_SIZE_HUD
         assert min(BUTTON_ICON, rect.width) == BUTTON_ICON
 
     def test_a_row_reads_the_way_the_log_panel_writes_it(self):

@@ -79,14 +79,14 @@ def test_client_rect_filling_frame_insets_by_the_chrome():
 
 
 def test_the_bar_uses_the_familys_button_metrics():
-    """A control here is the same object a control in Origenerator's bank is.
-    Both were this bar's own numbers, which is what left four apps on one screen
-    reading as four different kinds of chrome."""
-    from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE
+    """A control here is the same object a control on a player's HUD is -- the
+    HUDs' square, since the bar sits directly above them on the same screen and
+    two sizes of one control, one above the other, read as two kinds of chrome."""
+    from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
 
     from fun_time.dashboard_layout import BUTTON, GAP
 
-    assert BUTTON == BUTTON_SIZE
+    assert BUTTON == BUTTON_SIZE_HUD
     assert GAP == BUTTON_GAP
 
 
