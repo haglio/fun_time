@@ -22,8 +22,16 @@ from shared_ui.palette import (
     MAGENTA,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    hovered,
 )
-from shared_ui.spacing import BUTTON_ICON, BUTTON_PAD_H_TIGHT, BUTTON_RADIUS
+from shared_ui.spacing import (
+    BUTTON_GAP,
+    BUTTON_ICON,
+    BUTTON_PAD_H_TIGHT,
+    BUTTON_RADIUS,
+    BUTTON_SIZE_HUD,
+    BUTTON_WORD_W,
+)
 
 from fun_time.dashboard_actions import (
     EXIT_VR,
@@ -48,9 +56,9 @@ from .console_panel import level_color
 DASH_WIDTH_PX = 560
 
 _PAD = 10
-_CHIP_H = 20
+_CHIP_H = BUTTON_SIZE_HUD
 _CHIP_GAP = 6
-_CHIP_W = 46
+_CHIP_W = BUTTON_WORD_W
 _DIAL_W = 92  # the name and the arrow beside it
 _ARROW_PX = 10
 _ROW_H = 16
@@ -123,9 +131,8 @@ def dial_stops() -> dict[str, Rect]:
     }
 
 
-# Every control the bar carries, named by the field it sits in and read off
-# :class:`DashboardBarLayout`, so a button added to the desktop's bar appears
-# here too -- a hand-written list of four lost the F-mode and the way back out.
+# Every control the bar carries, read off :class:`DashboardBarLayout` so one
+# added there appears here too -- a list of four lost F-mode and the way out.
 _BAR_CONTROLS: tuple[tuple[str, str], ...] = (
     (QUIT_BUTTON, "quit_button"),
     (OMNIPAUSE_TOGGLE, "omnipause_button"),
@@ -151,7 +158,8 @@ def dash_height() -> int:
     return _chips_top() + _CHIP_H + _CHIP_GAP + LOG_ROWS * _ROW_H + _PAD
 
 
-def _slab(draw, rect: Rect, ground, *, border=None) -> None:
+def _slab(draw, rect: Rect, ground, *, border=BORDER_SUBTLE) -> None:
+    """A rounded slab on a subtle edge, the shape the desktop's bar draws."""
     draw.rounded_rectangle(
         (rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1),
         radius=BUTTON_RADIUS, fill=(*ground, 255),
@@ -172,13 +180,14 @@ def _arrow_down(size: int) -> Image.Image:
     return glyph_image("chevron_right", size, TEXT_MUTED).rotate(-90, expand=False)
 
 
-def _paint_dial(panel, draw, state: DashState, font) -> None:  # chrome's field
+def _paint_dial(panel, draw, state: DashState, font,
+                hover: tuple[int, int] | None = None) -> None:  # chrome's field
     rect = dial_rect()
-    _slab(draw, rect, BG_BUTTON, border=BORDER_SUBTLE)
+    _slab(draw, rect, hovered(BG_BUTTON) if _on(rect, hover) else BG_BUTTON)
     _label(draw, rect, verbosity_name(state.verbosity), font, TEXT_PRIMARY, left=True)
     panel.alpha_composite(
         _arrow_down(_ARROW_PX),
-        (rect.x + rect.width - _ARROW_PX - BUTTON_PAD_H_TIGHT,
+        (rect.x + rect.width - _ARROW_PX - BUTTON_GAP,
          rect.y + (rect.height - _ARROW_PX) // 2),
     )
 
@@ -202,13 +211,24 @@ def _paint_open_list(draw, state: DashState, font) -> None:
         _label(draw, rect, name, font, TEXT_PRIMARY, left=True)
 
 
-def _chip(draw, rect: Rect, label: str, *, on: bool, font) -> None:  # one ground
-    _slab(draw, rect, BG_BUTTON)
+def _chip(draw, rect: Rect, label: str, *, on: bool, font, ground=None) -> None:
+    _slab(draw, rect, ground if ground is not None else (BLUE if on else BG_BUTTON))
     _label(draw, rect, label, font, TEXT_PRIMARY if on else TEXT_MUTED)
 
 
-def paint_dash(state: DashState, records) -> Image.Image:
-    """The bar, the filter row, the visible log rows, and the open dial over them."""
+def _on(rect: Rect, point: tuple[int, int] | None) -> bool:  # is the ray on it
+    if point is None:
+        return False
+    x, y = point
+    return rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height
+
+
+def paint_dash(state: DashState, records,
+               hover: tuple[int, int] | None = None) -> Image.Image:
+    """The bar, the filter row, the log rows, the dial; *hover* lights one."""
+    def ground(rect: Rect, color):
+        return hovered(color) if _on(rect, hover) else color
+
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
@@ -223,25 +243,25 @@ def paint_dash(state: DashState, records) -> Image.Image:
         HELP_REFERENCE: "question",
         VOICE_TOGGLE: "mic",
         FMODE_TOGGLE: "fmode",
-        EXIT_VR: "headset_off",
+        EXIT_VR: "monitor",  # in here the crossing goes back to the desktop
     }
-    # The two grounds that say something, as on every other surface here.
     grounds = {VOICE_TOGGLE: (BLUE, state.voice_active),
                FMODE_TOGGLE: (GREEN, state.f_mode)}
     for action, mark in marks.items():
         rect = actions[action]
         color, on = grounds.get(action, (BG_BUTTON, False))
-        _slab(draw, rect, color if on else BG_BUTTON)
+        _slab(draw, rect, ground(rect, color if on else BG_BUTTON))
         size = min(BUTTON_ICON, min(rect.width, rect.height))
         panel.alpha_composite(
             glyph_image(mark, size, MAGENTA if action == FMODE_TOGGLE else TEXT_PRIMARY),
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
         )
 
-    _paint_dial(panel, draw, state, small)
+    _paint_dial(panel, draw, state, small, hover=hover)
     for source, rect in source_chips(_chips_top()).items():
-        _chip(draw, rect, SOURCE_LABELS.get(source, source), on=source in state.sources,
-              font=small)
+        on = source in state.sources
+        _chip(draw, rect, SOURCE_LABELS.get(source, source), on=on,
+              font=small, ground=ground(rect, BLUE if on else BG_BUTTON))
 
     rows = [r for r in records if state.accepts(r)][-LOG_ROWS:]
     top = _chips_top() + _CHIP_H + _CHIP_GAP

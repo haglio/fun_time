@@ -149,13 +149,13 @@ from shared_ui.colors import (
     TEXT_PRIMARY,
     hovered,
 )
-from shared_ui.fonts import FONT_UI, SIZE_SMALL, make_font
+from shared_ui.fonts import FONT_UI, SIZE_SMALL, SIZE_TINY, make_font
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import (
     BUTTON_GAP,
-    BUTTON_PAD_H_TIGHT,
     BUTTON_RADIUS,
     BUTTON_SIZE_HUD,
+    BUTTON_WORD_W,
 )
 
 # Short labels for the source toggles so the whole control strip fits one row.
@@ -273,8 +273,19 @@ class LogPanelWidget(QWidget):
         # the frame cost on this style, and a width guessed at from the text plus
         # a constant came up short enough to elide "WARNING" to "WARN".
         self._verbosity.setMinimumWidth(self._verbosity.sizeHint().width())
-        # As tall as the buttons beside it, or the row reads as two rows.
+        # As tall as the buttons beside it.  Qt frames and pads a combo box,
+        # so the height comes back in the sheet as well as being fixed here.
+        self._verbosity.setFont(make_font(FONT_UI, SIZE_TINY))
         self._verbosity.setFixedHeight(BUTTON_SIZE_HUD)
+        self._verbosity.setStyleSheet(
+            "QComboBox {"
+            f" color: {TEXT_PRIMARY.name()};"
+            f" background: {BG_BUTTON.name()};"
+            " border: none; padding: 0px 4px;"
+            f" border-radius: {BUTTON_RADIUS}px; }}"
+            f" QComboBox:hover {{ background: {hovered(BG_BUTTON).name()}; }}"
+            " QComboBox::drop-down { border: none; width: 14px; }"
+        )
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
         controls.addWidget(self._verbosity)
@@ -290,13 +301,15 @@ class LogPanelWidget(QWidget):
             # object: blue and bright on, resting ground and muted off, a step
             # lighter under the pointer.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            button.setFixedHeight(BUTTON_SIZE_HUD)
+            # The family's word-button: what a console's Video/Genau pair is.
+            button.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
+            button.setFixedSize(BUTTON_WORD_W, BUTTON_SIZE_HUD)
             button.setStyleSheet(
                 "QToolButton {"
                 f" color: {TEXT_MUTED.name()};"
                 f" background: {BG_BUTTON.name()};"
-                f" border: none; border-radius: {BUTTON_RADIUS}px;"
-                f" padding: 0px {BUTTON_PAD_H_TIGHT}px; }}"
+                " border: none; padding: 0px;"
+                f" border-radius: {BUTTON_RADIUS}px; }}"
                 f" QToolButton:hover {{ background: {hovered(BG_BUTTON).name()}; }}"
                 f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
                 f" background: {BLUE.name()}; }}"
@@ -307,8 +320,7 @@ class LogPanelWidget(QWidget):
             button.toggled.connect(self._on_sources_changed)
             controls.addWidget(button)
             self._source_buttons[source] = button
-        # No trailing stretch: the dashboard places `self.controls` in the top
-        # bar, right-justified, so it must be exactly as wide as its own row.
+        # No trailing stretch: the dashboard right-justifies this row.
 
         self._list = QListWidget(self)
         self._list.setFont(make_font(FONT_UI, SIZE_SMALL))

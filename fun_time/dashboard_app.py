@@ -222,10 +222,8 @@ def build_dashboard_scene(
     marks: MarkCache,
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
-    """The control bar: the app's mark, then the session's four in one run, then
-    the two that reach past it — the room's F-mode and the way into VR.  Nothing
-    here stands for one player, which is why it simply runs along the top.
-    """
+    """The control bar: the app's mark, the session's four, then the two that
+    reach past it.  Nothing here stands for one player."""
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
     # The room's F-mode lights the green this family spends on the favorites and
     # the funscripts, exactly as each player's own switch does on its own HUD.
@@ -239,10 +237,8 @@ def build_dashboard_scene(
     omnipause_mark = "play" if omni_paused else "pause"
 
     def _press_fill(fill: QColor, action_id: str) -> QColor:
-        """The ground a control sits on, lighter while it is being pressed.  A
-        control already wearing a state color lightens THAT, so a pressed voice
-        panel stays blue rather than turning gray.
-        """
+        """Lighter while it is being pressed -- a control already wearing a
+        state color lightens THAT, so a pressed mic stays blue."""
         if action_id not in pressed_actions:
             return fill
         return BG_BUTTON_ACTIVE if fill == COLOR_PANEL else lighten_color(fill)
@@ -279,7 +275,8 @@ def build_dashboard_scene(
         # app's letters say which app rather than what the button does.
         DashboardImageItem(marks.mark("fmode", layout.fmode_button, QColor(MAGENTA)),
                            layout.fmode_button),
-        DashboardImageItem(marks.mark("headset_off" if in_vr else "headset",
+        # What the press takes you TO: a monitor back, a headset in.
+        DashboardImageItem(marks.mark("monitor" if in_vr else "headset",
                                       layout.vr_button), layout.vr_button),
     )
     tooltips = dict(_ACTION_TOOLTIPS)

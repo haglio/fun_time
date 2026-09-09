@@ -226,15 +226,18 @@ class TestItLooksLikeADropdown:
 
         assert apex > open_end  # the point is below the two arms
 
-    def test_the_field_is_bordered_where_a_filter_button_is_not(self):
+    def test_every_control_wears_the_same_bordered_slab(self):
+        """This panel is a copy of the desktop's bar, and the bar draws every
+        control on a rounded slab with a subtle edge.  Drawn bare here, the two
+        read as different apps a head-turn apart."""
+        from shared_ui.palette import BORDER_SUBTLE
+
         painted = np.asarray(paint_dash(DashState(), []))
         dial, chip = dash_actions()[VERBOSITY_CHIP], dash_actions()[SOURCE_MAIN]
-        mid = dial.y + dial.height // 2
 
-        dial_edge = painted[mid, dial.x, :3]
-        chip_edge = painted[mid, chip.x, :3]
-
-        assert not np.array_equal(dial_edge, chip_edge)
+        for rect in (dial, chip):
+            edge = painted[rect.y + rect.height // 2, rect.x, :3]
+            assert np.array_equal(edge, np.array(BORDER_SUBTLE)), rect
 
     def test_the_level_reads_from_the_left_as_a_field_does(self):
         """Centered is how a button labels itself; a field's value starts at its

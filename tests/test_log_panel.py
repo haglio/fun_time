@@ -308,31 +308,31 @@ def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
     assert panel.controls.layout().spacing() == BUTTON_GAP
 
 
-def test_the_source_toggles_are_left_to_the_style(panel_factory):
-    """The font, the metrics and the shape are Qt's, as Scripture's toolbar
-    leaves its own -- every hand-drawn imitation of that row got the font wrong.
-
-    Only the colors are ours, and they have to be: Scripture's buttons do not
-    toggle, so Qt has no dark answer for "checked" and paints it in the default
-    palette's bright highlight -- a color this family uses nowhere.
+def test_the_source_toggles_are_the_familys_word_button(panel_factory):
+    """The same object a console's Video/Genau pair is, at the same size in the
+    same label type.  Left to Qt's own measurement they came out taller and set
+    larger than the buttons a foot below them on the same screen, which is the
+    inconsistency between a Qt window and a drawn HUD this family keeps paying
+    for -- so the size and the type are the family's here, and only the shape
+    and the toggling stay Qt's.
     """
     from PyQt6.QtCore import Qt
-    from PyQt6.QtWidgets import QApplication
     from shared_ui.colors import BG_BUTTON, TEXT_PRIMARY
+    from shared_ui.fonts import SIZE_TINY
+    from shared_ui.spacing import BUTTON_SIZE_HUD, BUTTON_WORD_W
 
     panel = panel_factory(["Clip saved"])
 
     for button in panel._source_buttons.values():
-        assert button.font() == QApplication.font(), "given a font of our own"
-        assert button.minimumWidth() == 0 and button.maximumWidth() > 1000,             "pinned to a width again"
+        assert button.width() == BUTTON_WORD_W
+        assert button.height() == BUTTON_SIZE_HUD
+        assert button.font().pointSize() == SIZE_TINY
         assert button.autoRaise()
         assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextOnly
         assert button.isCheckable()
 
         sheet = button.styleSheet()
         assert BG_BUTTON.name() in sheet and TEXT_PRIMARY.name() in sheet
-        assert "font" not in sheet, "the font is Qt's, not ours"
-        assert "width" not in sheet, "the width is Qt's, not ours"
 
 
 def test_a_word_button_wears_the_consoles_mode_face(panel_factory):
