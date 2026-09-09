@@ -85,9 +85,8 @@ def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | 
     )
 
 
-# A bare number in brackets at the end of a name is how a download names the
-# third DIFFERENT video of a set, and Evolver records one family id for every
-# name that begins the same way.
+# A bare number in brackets at the end of a name is how a download names a
+# DIFFERENT video of a set; Evolver gives every such name one family id.
 _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
