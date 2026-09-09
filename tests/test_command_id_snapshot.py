@@ -184,6 +184,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "nau_funscript_jump",
     "nau_length_full",
     "nau_length_mixed",
+    "nau_length_none",
     "nau_length_shorts",
     "nau_loop_cancel",
     "nau_next_funscripted",

@@ -734,6 +734,7 @@ def _launch_the_companions(
         config_path=m.runtime.config_path,
         audio_folder=m.media.genau_audio,
         result_file=str(ui_result_file),
+        project_dirs=m.runtime.genau_project_dirs,
     )
     ui_pids = _read_result_pids(ui_result_file)
     launched.pids.extend([ui_pids["dashboard_pid"], ui_pids["audio_pid"]])

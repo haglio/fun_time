@@ -18,6 +18,7 @@ from shared_ui.colors import (
     GREEN,
     MAGENTA,
     TEXT_PRIMARY,
+    hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
@@ -200,8 +201,7 @@ REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 _BUTTON_RADIUS = BUTTON_RADIUS
 
 # Every control in the bar names itself on hover.  Omnipause names the act the
-# press will take rather than the state it is in, the way its mark does: paused,
-# it shows a play triangle and offers to resume.
+# press takes rather than the state it is in, as its mark does.
 _ACTION_TOOLTIPS: dict[str, str] = {
     QUIT_BUTTON: "Quit",
     OMNIPAUSE_TOGGLE: "Pause everything",
@@ -223,11 +223,8 @@ def build_dashboard_scene(
     pressed_actions: frozenset[str] = frozenset(),
 ) -> DashboardScene:
     """The control bar: the app's mark, then the session's four in one run, then
-    the two that reach past it — the room's F-mode and the way into VR.
-
-    Nothing here stands for one player: what a player is doing is on that
-    player's own HUD, which is why the bar has no shape to keep and simply runs
-    along the top of the window.
+    the two that reach past it — the room's F-mode and the way into VR.  Nothing
+    here stands for one player, which is why it simply runs along the top.
     """
     voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
     # The room's F-mode lights the green this family spends on the favorites and
@@ -242,11 +239,9 @@ def build_dashboard_scene(
     omnipause_mark = "play" if omni_paused else "pause"
 
     def _press_fill(fill: QColor, action_id: str) -> QColor:
-        """The ground a control sits on, lighter while it is being pressed.
-
-        One rule across the family: a control that is on comes forward onto
-        BG_BUTTON_ACTIVE.  A control already wearing a state color lightens THAT
-        instead, so a pressed voice panel stays blue rather than turning gray.
+        """The ground a control sits on, lighter while it is being pressed.  A
+        control already wearing a state color lightens THAT, so a pressed voice
+        panel stays blue rather than turning gray.
         """
         if action_id not in pressed_actions:
             return fill
@@ -328,6 +323,8 @@ class DashboardWidget(QWidget):
         super().__init__(parent)
         self.marks = MarkCache()
         self._scene: DashboardScene | None = None
+        # Which control the pointer is over, so it can be drawn one step lighter.
+        self._hovered: Rect | None = None
         self.setMouseTracking(True)
 
     def set_scene(self, scene: DashboardScene) -> None:
@@ -350,10 +347,10 @@ class DashboardWidget(QWidget):
 
         for item in scene.rects:
             # Rounded, on a subtle edge: the shape Origenerator's toolbar buttons
-            # have. Square-cornered with a lighter outline, these read as panels
-            # rather than as the same kind of button the other apps offer.
+            # have.  Square-cornered they read as panels rather than buttons.
             p.setPen(QPen(item.outline, 1))
-            p.setBrush(QBrush(item.fill))
+            p.setBrush(QBrush(hovered(item.fill) if item.rect == self._hovered
+                              else item.fill))
             p.drawRoundedRect(
                 QRectF(item.rect.x + 0.5, item.rect.y + 0.5,
                        item.rect.width - 1, item.rect.height - 1),
@@ -400,11 +397,26 @@ class DashboardWidget(QWidget):
             return
         pos = event.position()
         x, y = int(pos.x()), int(pos.y())
+        self._set_hovered(next(
+            (rect for _action, rect in scene.actions
+             if rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height),
+            None))
         for rect, text in scene.hover_texts:
             if rect.x <= x < rect.x + rect.width and rect.y <= y < rect.y + rect.height:
                 QToolTip.showText(self.mapToGlobal(event.position().toPoint()), text, self)
                 return
         QToolTip.hideText()
+
+    def leaveEvent(self, event: object) -> None:
+        self._set_hovered(None)
+
+    def _set_hovered(self, rect: Rect | None) -> None:
+        """Remember which control the pointer is on, repainting when it moves.
+        Only on a change: a repaint per pixel crossed is a repaint for nothing.
+        """
+        if rect != self._hovered:
+            self._hovered = rect
+            self.update()
 
 
 class ReferenceDialog(QDialog):

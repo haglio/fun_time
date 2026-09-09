@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE
+from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
 
 
 @dataclass(frozen=True)
@@ -62,11 +62,9 @@ def client_rect_filling_frame(
 # reference popup, the microphone, the room's F-mode, the way into VR.  Anything
 # about ONE player is on that player's HUD, so the bar is not arranged like the room.
 
-# The family's own button square and the gap between two of them, so a control
-# here is the same object a control in Origenerator's bank is.  Both were this
-# bar's own numbers, which is what left four apps on one screen looking like
-# four different kinds of chrome.
-BUTTON = BUTTON_SIZE
+# The family's own button square and gap, the HUDs' size: the bar sits directly
+# above them on one screen, and two sizes of one control read as two chromes.
+BUTTON = BUTTON_SIZE_HUD
 GAP = BUTTON_GAP
 GROUP_GAP = 22       # between the app's own lockup and the controls
 PAD = 10             # inset from the bar's edges
@@ -108,11 +106,10 @@ class DashboardBarLayout:
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
     """The control bar, laid out left to right at its natural size.
 
-    The app's own name and mark lead, then the session's own four in one run —
-    the microphone among them rather than a light set off to the side, which read
-    as adrift from the bar.  Then two in groups of their own: an F-mode reaching
-    all three players, and the control that ends the session rather than acting
-    inside it.
+    The app's name and mark lead, then the session's own four in one run — the
+    microphone among them rather than a light adrift beside them.  Then two in
+    groups of their own: an F-mode reaching all three players, and the control
+    that crosses to the other session rather than acting inside this one.
     """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering

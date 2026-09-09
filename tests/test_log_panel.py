@@ -335,21 +335,20 @@ def test_the_source_toggles_are_left_to_the_style(panel_factory):
         assert "width" not in sheet, "the width is Qt's, not ours"
 
 
-def test_a_word_button_keeps_one_ground_however_it_is_toggled(panel_factory):
-    """A word-button is a different animal from the square icon buttons.
-
-    The lighter on-ground is what says "this square is engaged"; a row of words
-    like Scripture's and Evolver's is drawn one way and stays that way, and
-    giving these a second grey is exactly what stopped them matching that row.
-    Which source is being shown is carried by the label, bright or muted.
-    """
-    from shared_ui.colors import BG_BUTTON_ACTIVE, TEXT_MUTED
+def test_a_word_button_wears_the_consoles_mode_face(panel_factory):
+    """These are the same object the console's Video/Genau pair is: a word you
+    turn on.  On is the family's blue with the bright label, off the resting
+    ground with the muted one, and either goes one step lighter under the
+    pointer -- the one hover rule this family has."""
+    from shared_ui.colors import BG_BUTTON, BLUE, TEXT_MUTED, TEXT_PRIMARY, hovered
 
     panel = panel_factory(["Clip saved"])
     sheet = panel._source_buttons["system"].styleSheet()
 
-    assert BG_BUTTON_ACTIVE.name() not in sheet, "it took the square buttons' on-ground"
-    assert "background" not in sheet.split("QToolButton:!checked")[-1]
+    assert f"background: {BG_BUTTON.name()}" in sheet
     assert TEXT_MUTED.name() in sheet
+    checked = sheet.split("QToolButton:checked {")[-1]
+    assert BLUE.name() in checked and TEXT_PRIMARY.name() in checked
+    assert hovered(BG_BUTTON).name() in sheet and hovered(BLUE).name() in sheet
 
 

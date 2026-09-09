@@ -18,6 +18,7 @@ from shared_ui.palette import (
     BG_TERTIARY,
     BLUE,
     BORDER_SUBTLE,
+    GREEN,
     MAGENTA,
     TEXT_MUTED,
     TEXT_PRIMARY,
@@ -25,6 +26,8 @@ from shared_ui.palette import (
 from shared_ui.spacing import BUTTON_ICON, BUTTON_PAD_H_TIGHT, BUTTON_RADIUS
 
 from fun_time.dashboard_actions import (
+    EXIT_VR,
+    FMODE_TOGGLE,
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
@@ -72,6 +75,9 @@ def _font(px: int) -> ImageFont.FreeTypeFont:
 class DashState:  # what the bar shows, and what the log is filtered to
     omni_paused: bool = False
     voice_active: bool = False
+    # The room's own F-mode, so the bar's F lights here exactly as it does on
+    # the desktop's.
+    f_mode: bool = False
     verbosity: int = LEVELS_BY_NAME["NOTICE"]
     sources: frozenset[str] = frozenset(SOURCES)
     dial_open: bool = False
@@ -117,16 +123,24 @@ def dial_stops() -> dict[str, Rect]:
     }
 
 
+# Every control the bar carries, named by the field it sits in and read off
+# :class:`DashboardBarLayout`, so a button added to the desktop's bar appears
+# here too -- a hand-written list of four lost the F-mode and the way back out.
+_BAR_CONTROLS: tuple[tuple[str, str], ...] = (
+    (QUIT_BUTTON, "quit_button"),
+    (OMNIPAUSE_TOGGLE, "omnipause_button"),
+    (HELP_REFERENCE, "help_button"),
+    (VOICE_TOGGLE, "voice_panel"),
+    (FMODE_TOGGLE, "fmode_button"),
+    (EXIT_VR, "vr_button"),  # in here, the crossing goes the other way
+)
+
+
 def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
     """Every pressable rect, by its action; the list's stops only while open."""
     bar = compute_dashboard_bar_layout()
-    actions = {
-        QUIT_BUTTON: bar.quit_button,
-        OMNIPAUSE_TOGGLE: bar.omnipause_button,
-        HELP_REFERENCE: bar.help_button,
-        VOICE_TOGGLE: bar.voice_panel,
-        VERBOSITY_CHIP: dial_rect(),
-    }
+    actions = {action: getattr(bar, field) for action, field in _BAR_CONTROLS}
+    actions[VERBOSITY_CHIP] = dial_rect()
     actions.update(source_chips(_chips_top()))
     if dial_open:  # over the log, and pressed before anything under it
         actions = dial_stops() | actions
@@ -208,14 +222,19 @@ def paint_dash(state: DashState, records) -> Image.Image:
         OMNIPAUSE_TOGGLE: "play" if state.omni_paused else "pause",
         HELP_REFERENCE: "question",
         VOICE_TOGGLE: "mic",
+        FMODE_TOGGLE: "fmode",
+        EXIT_VR: "headset_off",
     }
+    # The two grounds that say something, as on every other surface here.
+    grounds = {VOICE_TOGGLE: (BLUE, state.voice_active),
+               FMODE_TOGGLE: (GREEN, state.f_mode)}
     for action, mark in marks.items():
         rect = actions[action]
-        _slab(draw, rect,
-              BLUE if (action == VOICE_TOGGLE and state.voice_active) else BG_BUTTON)
+        color, on = grounds.get(action, (BG_BUTTON, False))
+        _slab(draw, rect, color if on else BG_BUTTON)
         size = min(BUTTON_ICON, min(rect.width, rect.height))
         panel.alpha_composite(
-            glyph_image(mark, size, TEXT_PRIMARY),
+            glyph_image(mark, size, MAGENTA if action == FMODE_TOGGLE else TEXT_PRIMARY),
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
         )
 
@@ -236,8 +255,8 @@ def paint_dash(state: DashState, records) -> Image.Image:
 
 
 class DashPointer:
-    """A press, turned into what the desktop's bar does: the four controls post
-    its commands, the dial and the window buttons change only what this shows."""
+    """A press, turned into what the desktop's bar does: the bar's controls post
+    its commands, the dial changes only what this shows."""
 
     def __init__(self, *, post, state: DashState | None = None) -> None:
         self._post = post
@@ -271,7 +290,8 @@ class DashPointer:
             self.state = replace(self.state, dial_open=False)
             self._post(action)
 
-    def session_state(self, *, omni_paused: bool, voice_active: bool) -> None:
+    def session_state(self, *, omni_paused: bool, voice_active: bool,
+                      f_mode: bool = False) -> None:
         """The session's half; the filters stay this panel's."""
-        self.state = replace(
-            self.state, omni_paused=omni_paused, voice_active=voice_active)
+        self.state = replace(self.state, omni_paused=omni_paused,
+                             voice_active=voice_active, f_mode=f_mode)

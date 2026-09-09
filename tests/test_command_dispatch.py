@@ -3769,16 +3769,22 @@ def test_asking_for_the_shapes_already_running_rebuilds_nothing(tmp_path, monkey
     assert calls == [] and ops == []
 
 
-def test_neither_shape_is_reachable_and_says_so(tmp_path, monkeypatch):
+def test_neither_shape_holds_the_video_instead_of_rebuilding(tmp_path, monkeypatch):
     """Degenerate -- it plays nothing -- but it is what the second press on the
-    last lit button asks for, so nothing here refuses it."""
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
+    last lit button asks for, so nothing refuses it.  There is no list to build,
+    so the video on screen is locked: a state you can see and undo, where an
+    empty playlist would look like a filter that did nothing."""
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+    config = _vr_config(tmp_path)
 
-    state, ops = dispatch_command(
-        "main_projection_none", _make_state(), _vr_config(tmp_path))
+    state, ops = dispatch_command("main_projection_none", _make_state(), config)
 
     assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
     assert ops[0].key == "No videos left"
+    assert calls == []
+    assert "LOCK_ON" in config.nau_cmd_file.read_text(encoding="utf-8")
 
 
 def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypatch):

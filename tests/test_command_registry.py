@@ -42,10 +42,11 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "genau_clip_seconds_down",
     "genau_clip_seconds_up",
-    # Neither shape of video: the browse with nothing in it.  The reference
-    # names it, but no phrase asks for it -- it takes a second, deliberate press
-    # on a shape button that is already the only one lit.
+    # Neither shape of video, and neither length: the browse with nothing in
+    # it.  The reference names both, but no phrase asks for either -- each takes
+    # a second, deliberate press on the button that is already the only one lit.
     "main_projection_none",
+    "nau_length_none",
     "nau_record_tap",
 }
 
