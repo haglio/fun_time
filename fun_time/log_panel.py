@@ -273,8 +273,8 @@ class LogPanelWidget(QWidget):
         # the frame cost on this style, and a width guessed at from the text plus
         # a constant came up short enough to elide "WARNING" to "WARN".
         self._verbosity.setMinimumWidth(self._verbosity.sizeHint().width())
-        # As tall as the buttons beside it.  Qt frames and pads a combo box,
-        # so the height comes back in the sheet as well as being fixed here.
+        # As tall as the buttons beside it: Qt frames and pads a combo box, so
+        # the height comes back in the sheet as well as being fixed here.
         self._verbosity.setFont(make_font(FONT_UI, SIZE_TINY))
         self._verbosity.setFixedHeight(BUTTON_SIZE_HUD)
         self._verbosity.setStyleSheet(

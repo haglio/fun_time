@@ -114,6 +114,7 @@ from fun_time.windows_bridge_orchestrator import (
 from fun_time.windows_bridge_sequencer import release_the_players
 from fun_time.windows_bridge_startup import (
     ensure_broker,
+    genau_project_kwargs,
     launch_audio_companion,
     reap_orphaned_satellites,
     reset_satellite_paused_states,
@@ -211,11 +212,17 @@ def validate_vr_config(config) -> None:
 
 
 def launch_vr_player(
-    *, python_exe: str | Path, manifest_path: Path, log_file: Path
+    *, python_exe: str | Path, manifest_path: Path, log_file: Path,
+    project_dirs: str | None = None,
 ) -> subprocess.Popen:
+    """Start the process that IS this session's four players.  *project_dirs*
+    has to reach it: it draws every HUD and both panels out of ``player_core``
+    and ``shared_ui``, and would otherwise run the landed copies."""
     command = [str(python_exe), "-m", VR_PLAYER_MODULE, "--manifest", str(manifest_path)]
     with open_child_log(log_file, command) as log:
-        return subprocess.Popen(command, stdout=log, stderr=log, **hidden_subprocess_kwargs())
+        return subprocess.Popen(command, stdout=log, stderr=log,
+                                **genau_project_kwargs(project_dirs),
+                                **hidden_subprocess_kwargs())
 
 
 def _wait_for_session_end(ahk_proc, player, *, poll_s: float = 0.5) -> str:
@@ -547,6 +554,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             python_exe=manifest.executables.python_exe,
             manifest_path=manifest_path,
             log_file=state_dir / "vr_player.log",
+            project_dirs=manifest.runtime.genau_project_dirs,
         )
         logger.info("VR player launched (pid=%d)", player.pid)
         children["vr_player_pid"] = ChildProcess(

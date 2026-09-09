@@ -275,7 +275,6 @@ def build_dashboard_scene(
         # app's letters say which app rather than what the button does.
         DashboardImageItem(marks.mark("fmode", layout.fmode_button, QColor(MAGENTA)),
                            layout.fmode_button),
-        # What the press takes you TO: a monitor back, a headset in.
         DashboardImageItem(marks.mark("monitor" if in_vr else "headset",
                                       layout.vr_button), layout.vr_button),
     )

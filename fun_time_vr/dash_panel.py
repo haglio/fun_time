@@ -131,8 +131,7 @@ def dial_stops() -> dict[str, Rect]:
     }
 
 
-# Every control the bar carries, read off :class:`DashboardBarLayout` so one
-# added there appears here too -- a list of four lost F-mode and the way out.
+# Read off :class:`DashboardBarLayout`, so a control added there appears here.
 _BAR_CONTROLS: tuple[tuple[str, str], ...] = (
     (QUIT_BUTTON, "quit_button"),
     (OMNIPAUSE_TOGGLE, "omnipause_button"),
