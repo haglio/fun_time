@@ -1049,10 +1049,12 @@ class _DashUnit:
             f_mode=snapshot is not None and snapshot.f_mode,
         )
         records = self._notices.records
-        key = (self._pointer.state, records)
+        aim = self._presses.hover
+        hover = surface_pixel(*aim[1], size) if aim is not None else None
+        key = (self._pointer.state, records, hover)
         if key == self._key:
             return
-        image = paint_dash(self._pointer.state, records)
+        image = paint_dash(self._pointer.state, records, hover)
         with self._lock:
             self._image = image
         self._key = key

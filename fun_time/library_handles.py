@@ -14,6 +14,7 @@ stands alone as its own handle.
 """
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -84,8 +85,18 @@ def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | 
     )
 
 
+# A bare number in brackets at the end of a name is how a download names the
+# third DIFFERENT video of a set, and Evolver records one family id for every
+# name that begins the same way.
+_COPY_INDEX = re.compile(r"\(\d+\)")
+
+
 def _recorded_group(video: str, metadata_root: Path | None) -> str | None:
-    """The version family Evolver recorded for *video*, or None if it has none."""
+    """The version family Evolver recorded for *video*, split by its copy index.
+    The id anchors the family -- the only thing that can pair a hand-renamed
+    re-encode with its original -- and the number refines it, so "(2)" stays
+    with "(2)_topaz" while "(2)" and "(3)" come apart.
+    """
     sidecar = metadata_path_for(video, metadata_root)
     if sidecar is None:
         return None
@@ -93,7 +104,10 @@ def _recorded_group(video: str, metadata_root: Path | None) -> str | None:
     if not isinstance(version, dict):
         return None
     group = version.get("group")
-    return str(group) if group else None
+    if not group:
+        return None
+    found = _COPY_INDEX.findall(Path(video).stem)
+    return f"{group} {found[-1]}" if found else str(group)
 
 
 def _file_size(video: str) -> int:

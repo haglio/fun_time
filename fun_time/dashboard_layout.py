@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
+from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_SIZE_HUD
 
 
 @dataclass(frozen=True)
@@ -66,7 +66,7 @@ def client_rect_filling_frame(
 # above them on one screen, and two sizes of one control read as two chromes.
 BUTTON = BUTTON_SIZE_HUD
 GAP = BUTTON_GAP
-GROUP_GAP = 22       # between the app's own lockup and the controls
+GROUP_GAP = BUTTON_GROUP_GAP  # between one group of controls and the next
 PAD = 10             # inset from the bar's edges
 APP_ICON = 24
 APP_TITLE_W = 108
@@ -104,12 +104,9 @@ class DashboardBarLayout:
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
-    """The control bar, laid out left to right at its natural size.
-
-    The app's name and mark lead, then the session's own four in one run — the
-    microphone among them rather than a light adrift beside them.  Then two in
-    groups of their own: an F-mode reaching all three players, and the control
-    that crosses to the other session rather than acting inside this one.
+    """The control bar, laid out left to right at its natural size: the app's
+    name and mark, the session's own four in one run, then two in groups of
+    their own — the room's F-mode, and the crossing to the other session.
     """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering

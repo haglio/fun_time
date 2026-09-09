@@ -872,8 +872,6 @@ def launch_ui_companions(
             "--rfb-height",
             str(rfb_height),
         ]
-        # The named checkouts reach the dashboard too: the one child launched
-        # without them, so a shared_ui branch never showed on the bar.
         if dashboard_log_file is not None:
             with open_child_log(dashboard_log_file, dashboard_cmd) as log:
                 dashboard_proc = subprocess.Popen(

@@ -95,6 +95,32 @@ def test_files_sharing_a_recorded_version_group_become_one_handle(tmp_path: Path
     assert set(handles[0].versions) == {str(trimmed), str(processed)}
 
 
+def test_a_bracketed_number_splits_a_recorded_family(tmp_path: Path):
+    """Evolver records one family id for every file whose name begins the same
+    way, so a downloaded set arrived as one handle: five scenes showing as one,
+    with four of them reachable only by cycling versions inside a video they are
+    no version of.  The id still anchors the family; the number refines it."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    names = ("jane doe - example studio.mp4",
+             "jane doe - example studio (2).mp4",
+             "jane doe - example studio (2)_topaz.mp4",
+             "jane doe - example studio (3).mp4")
+    for name in names:
+        _sidecar(metadata, _video(videos, f"0 unsorted/{name}"), library_root,
+                 "jane doe - example studio")
+
+    handles = build_library_handles(str(videos), metadata)
+
+    assert [handle.title for handle in handles] == [
+        "jane doe - example studio",
+        "jane doe - example studio (2)",
+        "jane doe - example studio (3)",
+    ]
+    paired = next(h for h in handles if h.title.endswith("(2)"))
+    assert len(paired.versions) == 2
+
+
 def test_handles_are_alphabetical_regardless_of_case_or_folder(tmp_path: Path):
     videos, metadata = _library(tmp_path)
     library_root = tmp_path / "videos" / "videos"
