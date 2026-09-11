@@ -64,17 +64,18 @@ This file now controls:
 
 - executable paths
 - media/library paths
-- serial and UDP ports
-- Genau playback defaults
+- the audio companion's and the VR player's network endpoints
 - monitor/layout ratios used by the Python window layout
 
-Useful sections:
+Every section `fun_time/config.py` reads. The first three are required and the rest optional:
 
 - `paths`
-- `vlc`
 - `layout`
-- `genau`
 - `audio_companion`
+- `random_favs_browser`
+- `voice_control`
+- `regen`
+- `vr`
 
 For the satellite AI libraries, Fun Time can now read either a single folder or multiple folders:
 
@@ -98,17 +99,7 @@ Example:
 }
 ```
 
-`genau.shuffle_on_load` defaults to `true`, which randomizes clip order once at load time.
-
-To disable shuffle and use filesystem order:
-
-```json
-{
-  "genau": {
-    "shuffle_on_load": false
-  }
-}
-```
+Genau's playback settings — `shuffle_on_load` among them — are read out of Genau's own config file, the one `paths.genau_config_path` names, and never out of this one.
 
 The layout values that used to be hard-coded in AutoHotkey now live under `layout`.
 
