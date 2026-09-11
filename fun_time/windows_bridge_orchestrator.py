@@ -22,6 +22,7 @@ from pathlib import Path
 from player_core.file_channel import append_command
 
 from .append_only import append_line
+from .child_log import no_child_log
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
 from .hud_transport import HudPublisher
@@ -48,6 +49,10 @@ from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
 from .satellites_mode import CLOSE_SHOWS, origenerator_shows
+from .session_end import (
+    mark_session_end,
+    session_end_marker_path,
+)
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     HandoffTarget,
@@ -161,19 +166,11 @@ def write_pids_file(path: Path, children: dict[str, ChildProcess]) -> None:
         parser.write(fp)
 
 
-SESSION_END_MARKER = "session_end.txt"
-
-
 def _describe_session_end(state_dir: Path, exit_code: int) -> str:
-    """In one phrase, what ended the session -- read from the marker the quit
-    chord leaves, then removed so the next session starts with none.
-
-    An unexpected end is worth saying loudly precisely because everything else
-    about it looks ordinary: the same closing screen, the same exit code, the
-    same "AHK exited" line.  Without this the only evidence a session died on
-    its own was the user noticing it was gone.
-    """
-    marker = state_dir / SESSION_END_MARKER
+    """In one phrase, what ended the session: the marker whatever asked leaves
+    (:mod:`fun_time.session_end`), read and removed -- said loudly when nothing
+    did, since every other sign of such an end looks ordinary."""
+    marker = session_end_marker_path(state_dir)
     try:
         reason = marker.read_text(encoding="utf-8").strip()
     except OSError:
@@ -369,7 +366,7 @@ def _closing_screen(
         proc = subprocess.Popen([
             NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
-        ])
+        ], **no_child_log())
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
     try:
@@ -400,6 +397,7 @@ def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
     launch it was hooked into and go on swallowing every key it binds — Esc
     above all — with nothing left to hand them to.
     """
+    mark_session_end(ahk_cmd_file.parent, "the launch was called off")
     try:
         ahk_cmd_file.write_text("exit", encoding="utf-8")
     except OSError:
@@ -816,7 +814,7 @@ def clear_last_sessions_leftovers(
     dashboard_cmd_file = Path(commands.dashboard_cmd_file)
     for stale in (ahk_cmd_file, pids_file, dashboard_cmd_file,
                   dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
-                  Path(commands.dashboard_state_file)):
+                  Path(commands.dashboard_state_file), session_end_marker_path(state_dir)):
         stale.unlink(missing_ok=True)
 
 
@@ -837,6 +835,7 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
             NAMER.named_exe(sys.executable, "LoadingScreen"),
             "-m", "fun_time.loading_screen", str(progress_file),
         ],
+        **no_child_log(),
     )
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
     overlay_hwnd = wait_for_window_by_title(
@@ -1158,7 +1157,7 @@ def run_session(
     # overlay_progress).  The script holds its other keys until the pids file.
     command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    ahk_proc = subprocess.Popen(command, cwd=project_dir)
+    ahk_proc = subprocess.Popen(command, cwd=project_dir, **no_child_log())
 
     # The lock HUD's model is built here and published for each satellite player
     # to draw into its own video.  It rides the dashboard's enable gate, so an

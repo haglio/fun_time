@@ -17,7 +17,7 @@ from player_core.file_channel import append_command
 
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
-from .child_log import open_child_log
+from .child_log import no_child_log, open_child_log
 from .config import load_config
 from .mode_plan import STARTUP_MAIN_MODE, hud_verb, main_player_display_verb
 from .modes import (
@@ -177,6 +177,7 @@ def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
     subprocess.Popen(
         ["wscript.exe", str(broker_tray_launcher)],
         cwd=broker_tray_launcher.parent,
+        **no_child_log(),
         **broker_launch_kwargs(),
     )
 
@@ -603,7 +604,8 @@ def launch_genau(
     if start_clip:
         cmd.extend(["--start-clip", start_clip])
     proc = subprocess.Popen(
-        cmd, **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
+        cmd, **no_child_log(),
+        **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
 
 
@@ -702,7 +704,7 @@ def launch_origenerator(
     )
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=origenerator_dir, project_dirs=project_dirs)
-    proc = subprocess.Popen(cmd, **kwargs)
+    proc = subprocess.Popen(cmd, **no_child_log(), **kwargs)
     return proc.pid
 
 
@@ -806,7 +808,7 @@ def launch_audio_companion(
     ]
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
-    return subprocess.Popen(cmd, **subprocess_window_kwargs())
+    return subprocess.Popen(cmd, **no_child_log(), **subprocess_window_kwargs())
 
 
 def launch_ui_companions(
@@ -872,7 +874,8 @@ def launch_ui_companions(
                 )
         else:
             dashboard_proc = subprocess.Popen(
-                dashboard_cmd, **genau_project_kwargs(project_dirs),
+                dashboard_cmd, **no_child_log(),
+                **genau_project_kwargs(project_dirs),
                 **subprocess_window_kwargs())
         dashboard_pid = dashboard_proc.pid
 

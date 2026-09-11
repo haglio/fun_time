@@ -15,7 +15,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import is_mutex_held, mutex_name
 
-from fun_time.child_log import open_child_log
+from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import load_config
 from fun_time.overlay_progress import parse_progress
 from fun_time.process_identity import NAMER
@@ -227,7 +227,7 @@ def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subpr
     return subprocess.Popen([
         NAMER.named_exe(sys.executable, "TransitionScreen"),
         "-m", "fun_time.transition_screen", str(progress_file),
-    ])
+    ], **no_child_log())
 
 
 def drop_crossing_cover(state_dir: str | Path) -> None:

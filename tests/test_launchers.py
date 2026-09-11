@@ -10,8 +10,10 @@ anywhere says why.
 """
 from __future__ import annotations
 
+import contextlib
 import subprocess
 import tempfile
+import time
 from pathlib import Path
 
 import pytest
@@ -28,9 +30,9 @@ def _text(name: str) -> str:
 # parametrized — the same block used to be hand-written three times and free
 # to drift apart.
 _LAUNCHER_SENTINELS = {
-    "launch.vbs": ("launcher.log", "launcher.ready", "launcher.exited"),
-    "launch_vr.vbs": ("vr_launcher.log", "vr_launcher.ready", "vr_launcher.exited"),
-    "launch_branch.vbs": ("launcher.log", "launcher.ready", "launcher.exited"),
+    "launch.vbs": ("launcher", "launcher.ready", "launcher.exited"),
+    "launch_vr.vbs": ("vr_launcher", "vr_launcher.ready", "vr_launcher.exited"),
+    "launch_branch.vbs": ("launcher", "launcher.ready", "launcher.exited"),
 }
 
 
@@ -44,12 +46,12 @@ def test_every_launcher_holds_the_hidden_launch_safeguards(name: str):
     writes it the moment the child returns, unconditionally — ``&``, never
     ``&&`` — so a crash is reacted to at once instead of waiting out the
     timeout); and the failure dialog that shows the log's tail."""
-    log, ready, exited = _LAUNCHER_SENTINELS[name]
+    stem, ready, exited = _LAUNCHER_SENTINELS[name]
     text = _text(name)
 
     assert ".venv\\Scripts\\python.exe" in text
     assert "where " not in text  # no PATH search to fall back to
-    assert log in text
+    assert f'LaunchLogIn(stateDir, "{stem}")' in text
     assert ready in text
     assert exited in text
     assert "2>&1 & type nul >" in text
@@ -108,7 +110,7 @@ def test_branch_launcher_watches_the_worktrees_sentinels_not_the_primarys():
     for name in ("launcher", "vr_launcher"):
         assert f'readyFile = fso.BuildPath(stateDir, "{name}.ready")' in text
         assert f'exitedFlag = fso.BuildPath(stateDir, "{name}.exited")' in text
-        assert f'launchLog = fso.BuildPath(stateDir, "{name}.log")' in text
+        assert f'launchLog = LaunchLogIn(stateDir, "{name}")' in text
 
 
 def test_branch_launcher_aims_at_the_headset_when_the_shortcut_says_so():
@@ -175,6 +177,107 @@ def test_windows_launcher_still_launches_before_any_session_has_named_it():
     assert r'pythonExe = fso.BuildPath(scriptDir, ".venv\Scripts\python.exe")' in text
     # No copying here — the launcher only ever consumes what a session left.
     assert "CopyFile" not in text
+
+
+# The launch log is the one file a launch cannot do without, and the one thing
+# that can already be held when a launch starts: see tests/test_child_output.py
+# for how a stray child of a dead session comes to hold it, and what it cost.
+_LAUNCH_LOG_STEMS = {
+    "launch.vbs": "launcher",
+    "launch_vr.vbs": "vr_launcher",
+    "launch_branch.vbs": "launcher",
+}
+
+
+@pytest.mark.parametrize("name", sorted(_LAUNCH_LOG_STEMS))
+def test_every_launcher_appends_to_its_log_rather_than_erasing_it(name: str):
+    """The failed launch's traceback is the only record of why a click did
+    nothing, and the retry that follows seconds later used to erase it: the
+    redirect truncated.  Appending keeps both, and the banner LaunchLogIn
+    stamps is what tells them apart."""
+    text = _text(name)
+
+    appending = '>> """ & launchLog'
+    assert appending in text
+    assert '" > """ & launchLog' not in text  # nothing truncating it
+    assert "LaunchLogIn(stateDir" in text
+
+
+@pytest.mark.parametrize("name", sorted(_LAUNCH_LOG_STEMS))
+def test_a_held_log_costs_a_name_and_not_the_launch(name: str, tmp_path: Path):
+    """A child of an earlier session that outlived it holds the launch log, and
+    Windows lets nobody else write it.  Redirecting into it anyway fails inside
+    cmd, before python runs: no window, no log line anywhere, nothing to see at
+    all -- the launch that takes two clicks.  So the launcher takes the next
+    free name instead."""
+    stem = _LAUNCH_LOG_STEMS[name]
+    held = tmp_path / f"{stem}.log"
+
+    with _held_by_a_stray_child(held):
+        chosen = Path(_launch_log_chosen_by(name, tmp_path, stem))
+        assert chosen.name == f"{stem}-2.log"
+
+    assert Path(_launch_log_chosen_by(name, tmp_path, stem)).name == f"{stem}.log"
+
+
+@contextlib.contextmanager
+def _held_by_a_stray_child(log: Path):
+    """Hold *log* the way cmd's redirect does -- exclusively, from another
+    process -- for the length of the block."""
+    stray = subprocess.Popen(
+        f'cmd /c ping -n 30 127.0.0.1 > "{log}"',
+        stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+    )
+    try:
+        _wait_until(lambda: log.exists() and not _can_append(log))
+        yield
+    finally:
+        # The tree, not the one process: killing cmd alone leaves ping holding
+        # the inherited handle, which is the whole phenomenon under test.
+        subprocess.run(
+            ["taskkill", "/T", "/F", "/PID", str(stray.pid)],
+            capture_output=True, check=False,
+        )
+        stray.wait(timeout=10)
+        _wait_until(lambda: _can_append(log))
+
+
+def _can_append(path: Path) -> bool:
+    try:
+        path.open("ab").close()
+    except OSError:
+        return False
+    return True
+
+
+def _wait_until(condition, timeout_s: float = 10.0) -> None:
+    deadline = time.monotonic() + timeout_s
+    while time.monotonic() < deadline and not condition():
+        time.sleep(0.05)
+
+
+def _launch_log_chosen_by(name: str, state_dir: Path, stem: str) -> str:
+    """The log the launcher would redirect into, asked of the launcher itself.
+
+    VBScript hoists its functions, so a driver prepended to the real file can
+    call LaunchLogIn and quit before a single one of the launcher's own
+    statements runs -- the same trick the compile check above uses."""
+    driver = "\r\n".join([
+        'Set fso = CreateObject("Scripting.FileSystemObject")',
+        "WScript.Echo LaunchLogIn(WScript.Arguments(0), WScript.Arguments(1))",
+        "WScript.Quit 0",
+        "",
+    ])
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / name
+        probe.write_text(driver + _text(name), encoding="utf-8")
+        result = subprocess.run(
+            ["cscript.exe", "//Nologo", str(probe), str(state_dir), stem],
+            capture_output=True, text=True, check=False,
+        )
+    assert result.returncode == 0, result.stdout + result.stderr
+    return result.stdout.strip()
 
 
 def test_the_launchers_compile():

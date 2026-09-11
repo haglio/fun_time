@@ -902,8 +902,8 @@ class TestTheHeadsetsCover:
 
 class TestCancellingALaunch:
     def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False):
+        from fun_time.session_end import SESSION_END_MARKER
         from fun_time.session_handoff import raise_crossing_cover
-        from fun_time.windows_bridge_orchestrator import SESSION_END_MARKER
         from fun_time_vr import orchestrator
 
         order: list = []

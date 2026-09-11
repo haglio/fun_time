@@ -37,7 +37,7 @@ apply_genau_dirs_to_sys_path()
 from player_core.playlist import read_playlist
 
 from fun_time.broker_control import PARK_CMD, write_broker_command
-from fun_time.child_log import open_child_log
+from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.manifest import (
     LaunchManifest,
@@ -477,7 +477,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         str(pids_file),
     ]
     logger.info("Launching AHK hotkey script: %s", " ".join(ahk_command))
-    ahk_proc = subprocess.Popen(ahk_command, cwd=config.project_dir)
+    ahk_proc = subprocess.Popen(
+        ahk_command, cwd=config.project_dir, **no_child_log())
 
     # --- The core-session bootstrap, minus the windows ---
     try:  # every ``advance`` below is a cancellation checkpoint too

@@ -270,6 +270,19 @@ MarkSessionEnd(reason) {
     AppendWithRetry(reason, STATE_DIR . "\session_end.txt", 3, 50)
 }
 
+; The same note, but never over one already there.  Everything that is not the
+; quit chord reaches this script through the command channel below, which can
+; say no more than that it was asked -- so a spoken "quit", a crossing to the
+; headset and the dashboard window's close box all read identically, and "what
+; ended that session?" had no answer.  Whatever asked writes its own phrase
+; before it sends the exit (fun_time\session_end.py); this keeps it.
+KeepOrMarkSessionEnd(reason) {
+    global STATE_DIR
+    if (FileExist(STATE_DIR . "\session_end.txt"))
+        return
+    MarkSessionEnd(reason)
+}
+
 ; Esc calls the launch off while the session is still assembling, and pauses it
 ; once it is up.
 PauseOrCancelStartup() {
@@ -375,7 +388,7 @@ ProcessAhkCommand() {
         Suspend false
         StartupSuspended := false
     } else if (action = "exit") {
-        MarkSessionEnd("an exit on the AHK command channel")
+        KeepOrMarkSessionEnd("an exit on the AHK command channel")
         ExitApp()
     }
 }

@@ -18,6 +18,7 @@ from player_core.file_channel import append_command
 
 from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
 from .broker_control import PARK_CMD, write_broker_command
+from .child_log import no_child_log
 from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, routes_to_origenerator
 from .dashboard_actions import (
@@ -37,6 +38,7 @@ from .player_status import is_broker_heartbeat_fresh, read_main_player_status
 from .players import Player
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
+from .session_end import mark_session_end
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
 from .shared_state import BridgeState, read_shared_state, write_shared_state
@@ -364,6 +366,12 @@ class DispatchLoopRunner:
             return
         self._send_press(cmd)
         if cmd == "quit":
+            # A mis-heard word used to read exactly like a deliberate click.
+            mark_session_end(
+                self.config.state_dir,
+                "the quit command, spoken" if spoken_at is not None
+                else "the quit command, pressed",
+            )
             self.ahk_cmd_file.write_text("exit", encoding="utf-8")
             return
         if cmd in HANDOFF_COMMANDS:
@@ -440,6 +448,8 @@ class DispatchLoopRunner:
         if self.config.broker_cmd_file is not None:
             write_broker_command(self.config.broker_cmd_file, PARK_CMD)  # 2s sooner
         request_handoff(self.config.state_dir, target)
+        mark_session_end(
+            self.config.state_dir, f"a crossing to {target.app_name}")
         self.ahk_cmd_file.write_text("exit", encoding="utf-8")
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
@@ -745,7 +755,7 @@ class DispatchLoopRunner:
 
     def _run_browser(self, command, **kwargs) -> None:
         """Run the browser, holding it while it is up so :meth:`stop` can end it."""
-        process = subprocess.Popen(command, **kwargs)
+        process = subprocess.Popen(command, **no_child_log(), **kwargs)
         self._browser_process = process
         try:
             process.wait()

@@ -18,7 +18,7 @@ End If
 ' exists. Overwritten each launch: it holds this launch's crash, not a history.
 stateDir = fso.BuildPath(scriptDir, "state")
 If Not fso.FolderExists(stateDir) Then fso.CreateFolder stateDir
-launchLog = fso.BuildPath(stateDir, "vr_launcher.log")
+launchLog = LaunchLogIn(stateDir, "vr_launcher")
 
 ' Two sentinels let the hidden launch report its own outcome -- FunTimeVR's own
 ' pair, so a desktop launch's leftovers can never vouch for a VR launch (and
@@ -29,7 +29,7 @@ exitedFlag = fso.BuildPath(stateDir, "vr_launcher.exited")
 If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
 If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
 
-cmd = "cmd /c cd /d """ & scriptDir & """ && """ & pythonExe & """ -m fun_time_vr.orchestrator > """ & launchLog & """ 2>&1 & type nul > """ & exitedFlag & """"
+cmd = "cmd /c cd /d """ & scriptDir & """ && """ & pythonExe & """ -m fun_time_vr.orchestrator >> """ & launchLog & """ 2>&1 & type nul > """ & exitedFlag & """"
 shell.Run cmd, 0, False
 
 ' Watch the sentinels. A good launch drops readyFile within a second or two; a
@@ -57,6 +57,64 @@ If Not started Then
   If Len(tail) > 0 Then msg = msg & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
   MsgBox msg, vbCritical, "FunTimeVR"
 End If
+
+' The first of <name>.log, <name>-2.log ... that opens for writing, and a banner
+' in it naming this launch.
+'
+' The redirect below is cmd's, and cmd holds the file it redirects into for as
+' long as the session runs -- Windows lets nobody else write it meanwhile. So
+' does every child of that session launched without a redirect of its own,
+' because an unset stdout is an INHERITED one: Chrome, the broker tray, an
+' Origenerator kept across a crossing. While one of those outlives its session
+' the file stays held, and a launch redirecting into it fails INSIDE cmd, before
+' python is run at all -- no window, no log line anywhere, not even the "already
+' running" refusal, which only the interpreter that never started could show. The
+' click does nothing, and the app comes up only once the stray has gone: the
+' launch that takes two clicks. So take the next free name rather than not
+' launch, and leave the held one to whatever is still writing into it.
+'
+' Appended to rather than overwritten, and banner-stamped, because the retry
+' used to erase the failed launch's traceback -- the one record of why the first
+' click did nothing. Rolled aside at a megabyte, as the app's own logs are.
+Function LaunchLogIn(dirPath, stem)
+  Dim i, candidate, ts
+  For i = 1 To 9
+    If i = 1 Then
+      candidate = fso.BuildPath(dirPath, stem & ".log")
+    Else
+      candidate = fso.BuildPath(dirPath, stem & "-" & i & ".log")
+    End If
+    RollIfOversize candidate
+    On Error Resume Next
+    Set ts = fso.OpenTextFile(candidate, 8, True)
+    If Err.Number = 0 Then
+      Err.Clear
+      On Error GoTo 0
+      ts.WriteLine "===== " & Now & " launch"
+      ts.Close
+      LaunchLogIn = candidate
+      Exit Function
+    End If
+    Err.Clear
+    On Error GoTo 0
+  Next
+  LaunchLogIn = fso.BuildPath(dirPath, stem & ".log")
+End Function
+
+' Move a log past a megabyte aside to <name>.1, keeping one generation.
+' Best-effort: a stray child still holding it makes Windows refuse the rename,
+' and housekeeping must never cost a launch.
+Sub RollIfOversize(path)
+  On Error Resume Next
+  If fso.FileExists(path) Then
+    If fso.GetFile(path).Size > 1000000 Then
+      If fso.FileExists(path & ".1") Then fso.DeleteFile path & ".1"
+      fso.MoveFile path, path & ".1"
+    End If
+  End If
+  Err.Clear
+  On Error GoTo 0
+End Sub
 
 ' Return the tail of a text file (up to maxLines non-blank-terminated lines),
 ' so the failure dialog can show the traceback that landed in the log without

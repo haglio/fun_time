@@ -1,14 +1,10 @@
-"""Where a launched child's stdout and stderr go.
-
-All that is left of what was ``runtime_support``: the CLI, logging, threading and
-subprocess scaffolding it held alongside this is now ``app_support``, and the
-command-file reader it carried had no caller at all. This is the one piece that
-is genuinely ours — it exists because *we* launch windowed children and have to
-be able to diagnose one that dies.
-"""
+"""Where a launched child's stdout and stderr go -- never left unset, because
+unset means INHERITED and what this process inherited is the launcher's redirect
+(``LaunchLogIn`` in launch.vbs; ``tests/test_child_output.py``)."""
 from __future__ import annotations
 
 import os
+import subprocess
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -17,6 +13,11 @@ from typing import IO
 # A child's crash log is near-empty in normal use (a line per clip), so a
 # megabyte spans days of sessions — matching the cap the app's own logs use.
 CHILD_LOG_MAX_BYTES = 1_000_000
+
+
+def no_child_log() -> dict:
+    # For a child that keeps a log of its own, or has no output worth keeping.
+    return {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
 
 
 def open_child_log(
