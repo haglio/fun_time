@@ -35,7 +35,7 @@ from fun_time.windows_bridge_startup import (
     launch_broker_tray,
     launch_core_apps,
     launch_genau,
-    launch_nau,
+    launch_main_player,
     launch_origenerator,
     launch_satellite,
     launch_ui_companions,
@@ -237,7 +237,7 @@ def test_reap_orphaned_satellites_is_scoped_to_the_satellite_module():
     """A crash or unclean close can strand the two satellite players; a second
     session then has four players racing two command/status file sets.  The
     startup reap clears them — scoped by command line to ``-m <satellite_module>``
-    so it can never reach Nau (``-m nau``), the orchestrator, or a path that merely
+    so it can never reach the main player (``-m main_player``), the orchestrator, or a path that merely
     contains the word — and it never throws."""
     with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
@@ -370,15 +370,15 @@ def _seed_startup_states(tmp_path: Path, **overrides):
     kwargs = dict(
         genau_paused_file=tmp_path / "genau_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
-        nau_paused_file=tmp_path / "nau_paused.txt",
+        main_player_paused_file=tmp_path / "main_player_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
-        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
     )
     kwargs.update(overrides)
     return seed_startup_states(
         kwargs.pop("genau_paused_file"), kwargs.pop("audio_paused_file"),
-        kwargs.pop("nau_paused_file"), kwargs.pop("audio_volume_file"),
+        kwargs.pop("main_player_paused_file"), kwargs.pop("audio_volume_file"),
         kwargs.pop("genau_cmd_file"), **kwargs,
     )
 
@@ -386,20 +386,20 @@ def _seed_startup_states(tmp_path: Path, **overrides):
 def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     genau_file = tmp_path / "genau_paused.txt"
     audio_file = tmp_path / "audio_paused.txt"
-    nau_file = tmp_path / "nau_paused.txt"
+    main_player_file = tmp_path / "main_player_paused.txt"
 
     _seed_startup_states(tmp_path)
 
-    # Genau parked, audio parked, Nau paused until the sequencer's reveal.
+    # Genau parked, audio parked, main player paused until the sequencer's reveal.
     assert genau_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
-    assert nau_file.read_text(encoding="utf-8") == "1"
+    assert main_player_file.read_text(encoding="utf-8") == "1"
 
 
 def test_seed_startup_states_puts_genaus_hud_up_for_a_fresh_session(tmp_path: Path):
     """A fresh session opens in video mode: Genau's window is the HUD layer over
-    Nau's video, and it is held (PAUSE, written whole as the channel's reset)
-    until the reveal.  Both players are told the mode, Nau by the mirror verb."""
+    The main player's video, and it is held (PAUSE, written whole as the channel's reset)
+    until the reveal.  Both players are told the mode, the main player by the mirror verb."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
     _seed_startup_states(tmp_path, genau_cmd_file=genau_cmd)
@@ -407,17 +407,17 @@ def test_seed_startup_states_puts_genaus_hud_up_for_a_fresh_session(tmp_path: Pa
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
     ]
-    assert _nau_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
-def _nau_verbs(tmp_path: Path) -> list[str]:
-    """What is queued for Nau, one verb per line as it drains them."""
-    return (tmp_path / "nau_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
+def _main_player_verbs(tmp_path: Path) -> list[str]:
+    """What is queued for the main player, one verb per line as it drains them."""
+    return (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").split("\n")[:-1]
 
 
 def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session(tmp_path: Path):
     """A session left showing Genau has to come back showing Genau: its window
-    is the display rather than the HUD layer, and Nau blanks — the same verbs a
+    is the display rather than the HUD layer, and the main player blanks — the same verbs a
     live switch says, seeded before either player launches instead of sent to
     a running one, and without the switch's RESUME (the reveal hands that
     over)."""
@@ -428,7 +428,7 @@ def test_seed_startup_states_hands_the_primary_slot_to_genau_for_a_genau_session
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "HUD_OFF", "SET_VOLUME 100 0",
     ]
-    assert _nau_verbs(tmp_path) == ["DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_player_verbs(tmp_path) == ["DISPLAY_OFF", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
@@ -441,7 +441,7 @@ def test_seed_startup_states_holds_every_player_for_the_reveal(tmp_path: Path):
 
         assert (tmp_path / "genau_paused.txt").read_text(encoding="utf-8") == "1", mode
         assert (tmp_path / "audio_paused.txt").read_text(encoding="utf-8") == "1", mode
-        assert (tmp_path / "nau_paused.txt").read_text(encoding="utf-8") == "1", mode
+        assert (tmp_path / "main_player_paused.txt").read_text(encoding="utf-8") == "1", mode
 
 
 def _genau_play_verb(tmp_path: Path) -> str | None:
@@ -466,7 +466,7 @@ def test_seed_startup_states_holds_genau_off_the_osr2_for_the_reveal(tmp_path: P
 
 
 def test_seed_startup_states_puts_genaus_hud_up_for_a_video_session(tmp_path: Path):
-    """Video mode is both players at once: Genau's transparent HUD over Nau's
+    """Video mode is both players at once: Genau's transparent HUD over the main player's
     video, which each of them has to be told about."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
@@ -475,7 +475,7 @@ def test_seed_startup_states_puts_genaus_hud_up_for_a_video_session(tmp_path: Pa
     assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "HUD_ON", "SET_VOLUME 100 0",
     ]
-    assert _nau_verbs(tmp_path)[:1] == ["DISPLAY_ON"]
+    assert _main_player_verbs(tmp_path)[:1] == ["DISPLAY_ON"]
 
 
 def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path):
@@ -487,11 +487,11 @@ def test_seed_startup_states_opens_a_fresh_session_at_full_volume(tmp_path: Path
     _seed_startup_states(tmp_path, audio_volume_file=volume_file)
 
     assert read_volume(volume_file) == MAX_VOLUME
-    assert _nau_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
+    assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 0"]
 
 
 def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: Path):
-    """Nau and the audio companion each launch unattenuated and neither reads a
+    """the main player and the audio companion each launch unattenuated and neither reads a
     level it already has, so seeding is the only way a resumed session comes up
     as loud as it was left."""
     volume_file = tmp_path / "audio_volume.txt"
@@ -499,12 +499,12 @@ def test_seed_startup_states_seeds_the_level_the_session_was_left_at(tmp_path: P
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40)
 
     assert read_volume(volume_file) == 40
-    assert _nau_verbs(tmp_path)[1] == "SET_VOLUME 40 0"
+    assert _main_player_verbs(tmp_path)[1] == "SET_VOLUME 40 0"
 
 
 def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
     """Genau draws the primary display's volume chip in the mode it owns the
-    screen, so it is told the level like Nau is — in every mode, not only its own,
+    screen, so it is told the level like the main player is — in every mode, not only its own,
     or the chip it draws is wrong for as long as it takes the first "quieter"."""
     genau_cmd = tmp_path / "genau_cmd.txt"
 
@@ -512,29 +512,29 @@ def test_seed_startup_states_tells_genau_the_level_too(tmp_path: Path):
 
     verbs = genau_cmd.read_text(encoding="utf-8").splitlines()
     assert verbs[-1] == "SET_VOLUME 40 1"
-    assert verbs[-1] == _nau_verbs(tmp_path)[-2], "the two players are told the same"
+    assert verbs[-1] == _main_player_verbs(tmp_path)[-2], "the two players are told the same"
 
 
 def test_seed_startup_states_seeds_a_mute_as_silence_and_as_a_mute(tmp_path: Path):
     """The companion is only asked to be quiet, so a mute reaches it as zero;
-    Nau also draws the control, so it gets the level and the flag and can say
+    The main player also draws the control, so it gets the level and the flag and can say
     muted rather than turned all the way down."""
     volume_file = tmp_path / "audio_volume.txt"
 
     _seed_startup_states(tmp_path, audio_volume_file=volume_file, volume=40, muted=True)
 
     assert read_volume(volume_file) == 0
-    assert _nau_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
+    assert _main_player_verbs(tmp_path)[1] == "SET_VOLUME 40 1"
 
 
-def test_seed_startup_states_tells_nau_whether_f_mode_is_on(tmp_path: Path):
-    """The playlist Nau is handed has already been narrowed and a list of
+def test_seed_startup_states_tells_main_player_whether_f_mode_is_on(tmp_path: Path):
+    """The playlist the main player is handed has already been narrowed and a list of
     scripted videos looks like any other, so its HUD can only know from being
     told — and it is told alongside the level, not instead of it: both verbs
     have to survive on a channel nothing has drained yet."""
     _seed_startup_states(tmp_path, f_mode=True)
 
-    assert _nau_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 1"]
+    assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
 
 def _start_core_session_kwargs(tmp_path: Path) -> dict:
@@ -552,9 +552,9 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         genau_paused_file=tmp_path / "genau_paused.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
-        nau_paused_file=tmp_path / "nau_paused.txt",
+        main_player_paused_file=tmp_path / "main_player_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        nau_cmd_file=state_dir / "nau_cmd.txt",
+        main_player_cmd_file=state_dir / "main_player_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
         portrait=SatelliteSlot(
@@ -577,7 +577,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
             playlist_file=state_dir / "landscape_playlist.tsv",
             rect=WindowRect(x=1664, y=0, width=896, height=1392),
         ),
-        nau_status_file=state_dir / "nau_status.txt",
+        main_player_status_file=state_dir / "main_player_status.txt",
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
@@ -613,15 +613,15 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     )
     # Startup leaves a live broker alone, only starting one when none answers.
     ensure.assert_called_once_with(state_dir / "broker_heartbeat.txt", None)
-    # Seeded at what this session opens on — full volume, F-mode off, on Nau,
+    # Seeded at what this session opens on — full volume, F-mode off, on the main player,
     # with no session to come back to.
     seed.assert_called_once_with(
         tmp_path / "genau_paused.txt",
         tmp_path / "audio_paused.txt",
-        tmp_path / "nau_paused.txt",
+        tmp_path / "main_player_paused.txt",
         tmp_path / "audio_volume.txt",
         tmp_path / "genau_cmd.txt",
-        nau_cmd_file=state_dir / "nau_cmd.txt",
+        main_player_cmd_file=state_dir / "main_player_cmd.txt",
         volume=MAX_VOLUME,
         muted=False,
         f_mode=False,
@@ -644,7 +644,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
     # The whole launch bundle travels as the two slots — each side's file
     # quartet, log, playlist, rect and HUD file in one value — plus the shared
     # settings.  project_dirs names the sibling checkouts, because the
-    # satellites import player_core like Genau and Nau do.
+    # satellites import player_core like Genau and the main player do.
     launch.assert_called_once_with(
         python_exe="fun_time_python.exe",
         satellite_module="satellite",
@@ -668,7 +668,7 @@ def _seed_resumable_session(kwargs: dict) -> dict[str, list[str]]:
     sources = {
         "portrait": kwargs["portrait"].sources,
         "landscape": kwargs["landscape"].sources,
-        "nau": kwargs["main_sources"].split("|")[0],
+        "main_player": kwargs["main_sources"].split("|")[0],
     }
     left_on = {}
     for name, source_dir in sources.items():
@@ -731,7 +731,7 @@ def _run_start_core_session(kwargs: dict) -> str:
 
 def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tmp_path: Path):
     """Which player owns the big display is a thing you set, so leaving the
-    session on Genau and reopening on Nau is an overnight reset like any other.
+    session on Genau and reopening on the main player is an overnight reset like any other.
     The mode is also handed back to the caller, because the windows have to be
     parked to match it and only the sequencer holds their handles."""
     kwargs = _start_core_session_kwargs(tmp_path)
@@ -747,24 +747,24 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     assert kwargs["genau_cmd_file"].read_text(encoding="utf-8").splitlines() == [
         "PAUSE", "HUD_OFF", "SET_VOLUME 100 0",
     ]
-    assert kwargs["nau_paused_file"].read_text(encoding="utf-8") == "1"
+    assert kwargs["main_player_paused_file"].read_text(encoding="utf-8") == "1"
 
 
 def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp_path: Path):
     """A loop is a range inside one video, held in the mpv process that just
-    died, so it is re-sent the way a satellite's lock is — waiting in Nau's
-    command file before Nau launches, over the video the resume put at the top
+    died, so it is re-sent the way a satellite's lock is — waiting in the main player's
+    command file before the main player launches, over the video the resume put at the top
     of the main player's playlist."""
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
-    (kwargs["state_dir"] / "nau_status.txt").write_text(
-        f"video={left_on['nau'][1]}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+    (kwargs["state_dir"] / "main_player_status.txt").write_text(
+        f"video={left_on['main_player'][1]}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
     _run_start_core_session(kwargs)
 
-    assert "SET_LOOP 2000 4000" in kwargs["nau_cmd_file"].read_text(
+    assert "SET_LOOP 2000 4000" in kwargs["main_player_cmd_file"].read_text(
         encoding="utf-8"
     ).splitlines()
 
@@ -775,14 +775,14 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     would loop three seconds of a video the user never marked."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
-    (kwargs["state_dir"] / "nau_status.txt").write_text(
+    (kwargs["state_dir"] / "main_player_status.txt").write_text(
         f"video={tmp_path / 'deleted.mp4'}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
     _run_start_core_session(kwargs)
 
-    assert "SET_LOOP" not in kwargs["nau_cmd_file"].read_text(encoding="utf-8")
+    assert "SET_LOOP" not in kwargs["main_player_cmd_file"].read_text(encoding="utf-8")
 
 
 def test_start_core_session_opens_a_fresh_session_in_video_mode(tmp_path: Path):
@@ -816,15 +816,15 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     assert state.side(Player.PORTRAIT).loop == "seed"
     assert state.side(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
-    # state, but Nau's own HUD can only know F-mode from being told — so it is
+    # state, but the main player's own HUD can only know F-mode from being told — so it is
     # told, or the main player is the one display that comes back saying nothing.
-    assert "SET_F_MODE 1" in kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()
+    assert "SET_F_MODE 1" in kwargs["main_player_cmd_file"].read_text(encoding="utf-8").splitlines()
 
 
 def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path: Path):
     """The level lives in the bridge, not in anything the players read on their
     own, so it reaches this session only by being seeded — to the audio
-    companion as the audible level, and to Nau as the level plus the mute it
+    companion as the audible level, and to the main player as the level plus the mute it
     draws over it."""
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
@@ -837,7 +837,7 @@ def test_start_core_session_comes_up_at_the_sound_level_it_was_left_at(tmp_path:
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.volume, state.muted) == (40, True)
     assert read_volume(kwargs["audio_volume_file"]) == 0
-    assert kwargs["nau_cmd_file"].read_text(encoding="utf-8").splitlines()[1] == (
+    assert kwargs["main_player_cmd_file"].read_text(encoding="utf-8").splitlines()[1] == (
         "SET_VOLUME 40 1"
     )
 
@@ -886,8 +886,8 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
     vr_clip.write_bytes(b"")
-    (state_dir / "nau_playlist.tsv").write_text(
-        f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
+    (state_dir / "main_player_playlist.tsv").write_text(
+        f"{vr_clip}\n{left_on['main_player'][0]}\n", encoding="utf-8"
     )
     write_shared_state(
         shared_state_path(state_dir), BridgeState(main_f_mode=True, main_latest=True)
@@ -897,7 +897,7 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
         _run_start_core_session(kwargs)
 
     rebuild.assert_called_once_with(
-        state_dir / "nau_playlist.tsv", kwargs["main_sources"], f_mode=True, recent=True
+        state_dir / "main_player_playlist.tsv", kwargs["main_sources"], f_mode=True, recent=True
     )
 
 
@@ -916,11 +916,11 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
     vr_clip.write_bytes(b"")
-    nau_playlist = state_dir / "nau_playlist.tsv"
-    nau_playlist.write_text(
-        f"{vr_clip}\n{left_on['nau'][0]}\n", encoding="utf-8"
+    main_player_playlist = state_dir / "main_player_playlist.tsv"
+    main_player_playlist.write_text(
+        f"{vr_clip}\n{left_on['main_player'][0]}\n", encoding="utf-8"
     )
-    (state_dir / "nau_status.txt").write_text(f"video={vr_clip}\n", encoding="utf-8")
+    (state_dir / "main_player_status.txt").write_text(f"video={vr_clip}\n", encoding="utf-8")
     left_browsing_vr_only = BridgeState(main_plays_vr=True, main_plays_flat=False)
     write_shared_state(shared_state_path(state_dir), left_browsing_vr_only)
 
@@ -936,8 +936,8 @@ def test_start_core_session_rebuilds_a_primary_playlist_left_by_another_app(
 
     # The main player comes back from this session's own library, and the foreign
     # video is gone from it.
-    rebuilt = nau_playlist.read_text(encoding="utf-8").splitlines()
-    assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["nau"])
+    rebuilt = main_player_playlist.read_text(encoding="utf-8").splitlines()
+    assert sorted(line.split("\t")[0] for line in rebuilt) == sorted(left_on["main_player"])
     # The satellites keep the resume; nothing rebuilt all three.
     build.assert_not_called()
     for name in ("portrait", "landscape"):
@@ -963,10 +963,10 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
     vr_clip.write_bytes(b"")
-    nau_playlist = state_dir / "nau_playlist.tsv"
-    watching = left_on["nau"][1]
-    nau_playlist.write_text(f"{vr_clip}\n{watching}\n", encoding="utf-8")
-    (state_dir / "nau_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
+    main_player_playlist = state_dir / "main_player_playlist.tsv"
+    watching = left_on["main_player"][1]
+    main_player_playlist.write_text(f"{vr_clip}\n{watching}\n", encoding="utf-8")
+    (state_dir / "main_player_status.txt").write_text(f"video={watching}\n", encoding="utf-8")
 
     with patch("fun_time.windows_bridge_startup.reap_orphaned_satellites"), patch(
         "fun_time.windows_bridge_startup.ensure_broker"
@@ -976,7 +976,7 @@ def test_start_core_session_keeps_the_clip_when_it_leaves_the_headset(
         with caplog.at_level("INFO", logger="fun_time.windows_bridge_startup"):
             start_core_session(**kwargs)
 
-    rebuilt = nau_playlist.read_text(encoding="utf-8").splitlines()
+    rebuilt = main_player_playlist.read_text(encoding="utf-8").splitlines()
     assert rebuilt[0].split("\t")[0] == watching
     assert str(vr_clip) not in [line.split("\t")[0] for line in rebuilt]
     assert "around the video it was on" in caplog.text
@@ -992,11 +992,11 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     vr_clip = tmp_path / "vr_library" / "headset scene.mp4"
     vr_clip.parent.mkdir(parents=True, exist_ok=True)
     vr_clip.write_bytes(b"")
-    watching = left_on["nau"][1]
-    (state_dir / "nau_playlist.tsv").write_text(
+    watching = left_on["main_player"][1]
+    (state_dir / "main_player_playlist.tsv").write_text(
         f"{vr_clip}\n{watching}\n", encoding="utf-8"
     )
-    (state_dir / "nau_status.txt").write_text(
+    (state_dir / "main_player_status.txt").write_text(
         f"video={watching}\nstate=looping\nloop_in_ms=1000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
@@ -1008,7 +1008,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
     ), patch("fun_time.windows_bridge_startup.launch_core_apps"):
         start_core_session(**kwargs)
 
-    queued = Path(kwargs["nau_cmd_file"]).read_text(encoding="utf-8")
+    queued = Path(kwargs["main_player_cmd_file"]).read_text(encoding="utf-8")
     assert "SET_LOOP 1000 4000" in queued
 
 
@@ -1066,7 +1066,7 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
     """Opening Fun Time sends the OSR2 home before anything slow begins.
 
-    Startup runs long — two native players decode their first frames while Nau
+    Startup runs long — two native players decode their first frames while the main player
     and Genau scan their libraries — and wherever the last session left the
     device is where it would sit for all of it.  So the park is queued at the
     very top, ahead of the launches that make the wait.  The broker reads its
@@ -1145,8 +1145,8 @@ def test_launch_genau_forwards_command_and_paused_files():
     assert "--paused-file" in command
     idx = command.index("--paused-file")
     assert command[idx + 1] == "state/genau_paused.txt"
-    # Where Genau publishes the readout Nau draws in Video mode.  Named by us, because
-    # Genau resolving it from its own config put it in a directory Nau never read.
+    # Where Genau publishes the readout the main player draws in Video mode.  Named by us, because
+    # Genau resolving it from its own config put it in a directory the main player never read.
     assert "--drive-file" in command
     idx = command.index("--drive-file")
     assert command[idx + 1] == "state/genau_drive.txt"
@@ -1190,7 +1190,7 @@ def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
     assert "--start-clip" not in popen.call_args.args[0]
 
 
-def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
+def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1198,13 +1198,13 @@ def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_nau(
-            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+        launch_main_player(
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "nau.log",
-            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            log_file=tmp_path / "main_player.log",
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
             metadata_dir="C:/videos/metadata",
         )
 
@@ -1213,7 +1213,7 @@ def test_launch_nau_forwards_metadata_dir_when_given(tmp_path: Path):
     assert command[command.index("--metadata-dir") + 1] == "C:/videos/metadata"
 
 
-def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
+def test_launch_main_player_omits_metadata_dir_when_absent(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1221,21 +1221,21 @@ def test_launch_nau_omits_metadata_dir_when_absent(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_nau(
-            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+        launch_main_player(
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "nau.log",
-            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            log_file=tmp_path / "main_player.log",
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
     assert "--metadata-dir" not in popen.call_args.args[0]
 
 
-def test_launch_nau_hands_it_fun_times_icon(tmp_path: Path):
-    """Nau's window is one of Fun Time's, so it wears Fun Time's icon — the
-    launcher's to say, since the icon is not Nau's own."""
+def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
+    """the main player's window is one of Fun Time's, so it wears Fun Time's icon — the
+    launcher's to say, since the icon is not the main player's own."""
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1243,13 +1243,13 @@ def test_launch_nau_hands_it_fun_times_icon(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_nau(
-            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+        launch_main_player(
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "nau.log",
-            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            log_file=tmp_path / "main_player.log",
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
     command = popen.call_args.args[0]
@@ -1313,15 +1313,15 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
-    def test_nau_is_told_who_it_belongs_to(self, tmp_path: Path):
+    def test_main_player_is_told_who_it_belongs_to(self, tmp_path: Path):
         command = self._launched(
-            launch_nau,
-            python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+            launch_main_player,
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "nau.log",
-            nau_x=0, nau_y=0, nau_width=100, nau_height=100,
+            log_file=tmp_path / "main_player.log",
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
         assert self._identity(command) == APP_USER_MODEL_ID
@@ -1342,7 +1342,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
 
 
 class TestGenauCheckout:
-    """Which checkouts Genau and Nau are run out of.
+    """Which checkouts Genau and the main player are run out of.
 
     Every package they import — their own, and ``player_core`` under them —
     resolves through the genau venv's editable installs, which name the primary
@@ -1366,13 +1366,13 @@ class TestGenauCheckout:
                     **overrides)
 
     @staticmethod
-    def _nau(tmp_path: Path, **overrides):
-        return dict(python_exe="python.exe", nau_module="nau", config_path="cfg.json",
+    def _main_player(tmp_path: Path, **overrides):
+        return dict(python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
                     playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
                     status_file="status", console_file="console.json",
                     drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-                    log_file=tmp_path / "nau.log",
-                    nau_x=0, nau_y=0, nau_width=100, nau_height=100, **overrides)
+                    log_file=tmp_path / "main_player.log",
+                    main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100, **overrides)
 
     @staticmethod
     def _path(popen) -> list[str]:
@@ -1388,15 +1388,15 @@ class TestGenauCheckout:
 
         assert self._path(popen)[0] == str(checkout)
 
-    def test_nau_follows_genau_onto_the_same_checkouts(self, tmp_path: Path):
-        """Nau ships in that repo too, so it must not stay on the primary while
+    def test_main_player_follows_genau_onto_the_same_checkouts(self, tmp_path: Path):
+        """the main player ships in that repo too, so it must not stay on the primary while
         its housemate moves — the two would be running different code."""
         checkout = tmp_path / "worktree"
         checkout.mkdir()
 
         with self._popen() as popen, patch(
                 "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}):
-            launch_nau(**self._nau(tmp_path, project_dirs=str(checkout)))
+            launch_main_player(**self._main_player(tmp_path, project_dirs=str(checkout)))
 
         assert self._path(popen)[0] == str(checkout)
 
@@ -1434,39 +1434,39 @@ class TestGenauCheckout:
         assert "env" not in popen.call_args.kwargs
 
 
-def test_launch_nau_sends_child_output_to_its_own_log(tmp_path: Path):
-    """Nau is the satellites' twin — the same mpv player under the same windowed
+def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
+    """the main player is the satellites' twin — the same mpv player under the same windowed
     ``pythonw`` — so it needs the same place to leave a traceback when it dies."""
     class FakeProc:
         pid = 43
 
-    log_file = tmp_path / "nau.log"
+    log_file = tmp_path / "main_player.log"
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
     ):
-        launch_nau(
+        launch_main_player(
             python_exe="pythonw.exe",
-            nau_module="nau",
+            main_player_module="main_player",
             config_path="cfg.json",
-            playlist_file="state/nau_playlist.tsv",
-            command_file="state/nau_cmd.txt",
-            paused_file="state/nau_paused.txt",
-            status_file="state/nau_status.txt",
-            console_file="state/nau_console.json",
+            playlist_file="state/main_player_playlist.tsv",
+            command_file="state/main_player_cmd.txt",
+            paused_file="state/main_player_paused.txt",
+            status_file="state/main_player_status.txt",
+            console_file="state/main_player_console.json",
             drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
             log_file=log_file,
-            nau_x=100, nau_y=200, nau_width=300, nau_height=400,
+            main_player_x=100, main_player_y=200, main_player_width=300, main_player_height=400,
         )
 
     stream = popen.call_args.kwargs["stdout"]
     assert popen.call_args.kwargs["stderr"] is stream
     assert Path(stream.name) == log_file
     assert stream.closed
-    assert "-m nau" in log_file.read_text(encoding="utf-8")
+    assert "-m main_player" in log_file.read_text(encoding="utf-8")
 
 
-def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
+def test_launch_main_player_starts_process_and_returns_pid(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1474,22 +1474,22 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
     with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(43)) as popen, patch(
         "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={"creationflags": 1}
     ):
-        pid = launch_nau(
+        pid = launch_main_player(
             python_exe="python.exe",
-            nau_module="nau",
+            main_player_module="main_player",
             config_path="cfg.json",
-            playlist_file="state/nau_playlist.tsv",
-            command_file="state/nau_cmd.txt",
-            paused_file="state/nau_paused.txt",
-            status_file="state/nau_status.txt",
-            console_file="state/nau_console.json",
+            playlist_file="state/main_player_playlist.tsv",
+            command_file="state/main_player_cmd.txt",
+            paused_file="state/main_player_paused.txt",
+            status_file="state/main_player_status.txt",
+            console_file="state/main_player_console.json",
             drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
-            log_file=tmp_path / "nau.log",
-            nau_x=100,
-            nau_y=200,
-            nau_width=300,
-            nau_height=400,
+            log_file=tmp_path / "main_player.log",
+            main_player_x=100,
+            main_player_y=200,
+            main_player_width=300,
+            main_player_height=400,
         )
 
     assert pid == 43
@@ -1497,19 +1497,19 @@ def test_launch_nau_starts_process_and_returns_pid(tmp_path: Path):
     assert popen.call_args.args[0] == [
         "python.exe",
         "-m",
-        "nau",
+        "main_player",
         "--config",
         "cfg.json",
         "--playlist",
-        "state/nau_playlist.tsv",
+        "state/main_player_playlist.tsv",
         "--command-file",
-        "state/nau_cmd.txt",
+        "state/main_player_cmd.txt",
         "--paused-file",
-        "state/nau_paused.txt",
+        "state/main_player_paused.txt",
         "--status-file",
-        "state/nau_status.txt",
+        "state/main_player_status.txt",
         "--console-file",
-        "state/nau_console.json",
+        "state/main_player_console.json",
         "--drive-file",
         "state/genau_drive.txt",
         "--dashboard-cmd-file",
@@ -1745,7 +1745,7 @@ def test_build_satellite_launch_command_leaves_the_audio_switchable():
 
 
 def test_build_satellite_launch_command_passes_no_config_flag():
-    # The satellite CLI takes no --config (unlike Nau); it is fully specified by
+    # The satellite CLI takes no --config (unlike the main player); it is fully specified by
     # the file quartet and geometry, so none must be forwarded.
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
@@ -1945,7 +1945,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
 
             assert self._launched_exe(popen) == f"FunTime-{role}.exe"
 
-    def test_nau_and_genau(self, tmp_path: Path):
+    def test_main_player_and_genau(self, tmp_path: Path):
         class FakeProc:
             pid = 10
 
@@ -1964,9 +1964,9 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc()) as popen, patch(
             "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
         ):
-            launch_nau(
+            launch_main_player(
                 python_exe=self._interpreter(tmp_path),
-                nau_module="nau",
+                main_player_module="main_player",
                 config_path=tmp_path / "genau.json",
                 playlist_file="playlist.tsv",
                 command_file="cmd.txt",
@@ -1975,10 +1975,10 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 console_file="console.json",
                 drive_file="drive.txt",
                 dashboard_cmd_file="dash.txt",
-                log_file=tmp_path / "nau.log",
-                nau_x=0, nau_y=0, nau_width=1, nau_height=1,
+                log_file=tmp_path / "main_player.log",
+                main_player_x=0, main_player_y=0, main_player_width=1, main_player_height=1,
             )
-        assert self._launched_exe(popen) == "FunTime-Nau.exe"
+        assert self._launched_exe(popen) == "FunTime-MainPlayer.exe"
 
     def test_the_hosted_origenerator(self, tmp_path: Path):
         class FakeProc:

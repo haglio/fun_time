@@ -47,8 +47,8 @@ from tests.role_window_fakes import (
     GENAU_HWND,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
-    NAU_HWND,
-    NAU_PID,
+    MAIN_PLAYER_HWND,
+    MAIN_PLAYER_PID,
     PORTRAIT_HWND,
     PORTRAIT_PID,
     RFB_HWND,
@@ -98,9 +98,9 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         genau_paused_file=tmp_path / "rh_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        nau_cmd_file=tmp_path / "nau_cmd.txt",
-        nau_paused_file=tmp_path / "nau_paused.txt",
-        nau_status_file=tmp_path / "nau_status.txt",
+        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_player_paused_file=tmp_path / "main_player_paused.txt",
+        main_player_status_file=tmp_path / "main_player_status.txt",
         dashboard_state_file=tmp_path / "dashboard_state.ini",
         broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
     )
@@ -136,7 +136,7 @@ def make_runner(tmp_path, *, config=None, **kwargs) -> DispatchLoopRunner:
     """
     windows = WindowRoles(
         pids=ChildPids(
-            nau=kwargs.pop("nau_pid", NAU_PID),
+            main_player=kwargs.pop("main_player_pid", MAIN_PLAYER_PID),
             portrait=kwargs.pop("portrait_pid", PORTRAIT_PID),
             landscape=kwargs.pop("landscape_pid", LANDSCAPE_PID),
             dashboard=kwargs.pop("dashboard_pid", DASHBOARD_PID),
@@ -407,11 +407,11 @@ class TestResolveActiveSideCommand:
         assert resolve_active_side_command("active_reset", 2) == "portrait_reset"
         assert resolve_active_side_command("active_reset", 3) == "landscape_reset"
 
-    def test_end_loop_on_the_primary_means_naus_own_loop(self):
+    def test_end_loop_on_the_primary_means_main_players_own_loop(self):
         """A side-agnostic phrase may mean a different thing on each player: on a
-        satellite "end loop" ends a group loop, on the main player it cancels Nau's A-B
+        satellite "end loop" ends a group loop, on the main player it cancels the main player's A-B
         loop.  The resolution is where that translation belongs."""
-        assert resolve_active_side_command("active_no_loop", 1) == "nau_loop_cancel"
+        assert resolve_active_side_command("active_no_loop", 1) == "main_player_loop_cancel"
         assert resolve_active_side_command("active_no_loop", 2) == "portrait_no_loop"
         assert resolve_active_side_command("active_no_loop", 3) == "landscape_no_loop"
 
@@ -526,8 +526,8 @@ class TestDispatchLoopRunner:
             assert sample.call_args.kwargs["paused"] is True
 
     def test_nudge_dispatches_to_command(self, tmp_path):
-        """Nau owns the main player in every mode it appears, so a nudge
-        dispatches to Nau's SEEK command (which stacks against its live clock)."""
+        """The main player answers a nudge in every mode it appears in, so a nudge
+        dispatches to the main player's SEEK command (which stacks against its live clock)."""
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("main_nudge_next", encoding="utf-8")
 
@@ -540,7 +540,7 @@ class TestDispatchLoopRunner:
 
     def test_omnipause_enter_via_tick_drops_topmost_on_all_managed_windows(self, tmp_path):
         """Entering omnipause frees the desktop: EVERY managed window leaves the
-        TOPMOST band — including Nau, which carries the topmost flag in video mode
+        TOPMOST band — including the main player, which carries the topmost flag in video mode
         and would otherwise stay stranded above the desktop."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         (tmp_path / "dashboard_cmd.txt").write_text("omnipause_toggle", encoding="utf-8")
@@ -554,15 +554,15 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is True
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
     def test_omnipause_leave_via_tick_restores_topmost_and_refocuses_primary_player(
         self, tmp_path,
     ):
         """Leaving omnipause in video mode gives every managed window its TOPMOST
-        bit back — Nau, which floats above the desktop again, and Genau, which
-        shares Nau's rect and is promoted last, so putting it back in the band
-        puts its HUD ABOVE Nau's video — and re-activates the window on top of
+        bit back — the main player, which floats above the desktop again, and Genau, which
+        shares the main player's rect and is promoted last, so putting it back in the band
+        puts its HUD ABOVE the main player's video — and re-activates the window on top of
         the main player, which is Genau's.
         """
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
@@ -581,7 +581,7 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert runner.state.omni_paused is False
-        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert {h for h, v in topmost_calls if v is True} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
         assert activated == [GENAU_HWND]
 
     def test_omnipause_toggle_updates_state_and_writes_shared_state(self, tmp_path):
@@ -618,7 +618,7 @@ class TestDispatchLoopRunner:
 
         assert "browse_library" in messages
         # Browsing must NOT enter OmniPause: the old flow paused the whole
-        # session for the browse and resumed only Nau, stranding the
+        # session for the browse and resumed only the main player, stranding the
         # satellites + voice frozen.  The browser opens with everything
         # still playing.
         assert runner.state.omni_paused is False
@@ -788,7 +788,7 @@ class TestDispatchLoopRunner:
     def test_omniminimize_minimizes_only_mode_visible_windows(self, tmp_path):
         """omniminimize minimizes the windows the current mode shows, without
         stealing focus — in video mode Genau's HUD among them.  (In genau mode
-        the hidden slot-mate, Nau, is NOT minimized: SW_MINIMIZE would drag a
+        the hidden slot-mate, the main player, is NOT minimized: SW_MINIMIZE would drag a
         hidden window back into view.)"""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -802,13 +802,13 @@ class TestDispatchLoopRunner:
             runner.tick()
 
         assert {h for h, _ in minimized} == {
-            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND, GENAU_HWND,
+            RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND, GENAU_HWND,
         }
         # Minimized without activation so focus isn't yanked between windows.
         assert all(kw.get("activate") is False for _, kw in minimized)
 
-    def test_omniminimize_in_hybrid_includes_nau_and_genau(self, tmp_path):
-        """Video mode shows Nau under Genau's HUD (Genau drives the OSR2)."""
+    def test_omniminimize_in_hybrid_includes_main_player_and_genau(self, tmp_path):
+        """Video mode shows the main player under Genau's HUD (Genau drives the OSR2)."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(main_mode="video")
         cmd_file = tmp_path / "dashboard_cmd.txt"
@@ -823,7 +823,7 @@ class TestDispatchLoopRunner:
 
         assert set(minimized) == {
             RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
-            NAU_HWND, GENAU_HWND,
+            MAIN_PLAYER_HWND, GENAU_HWND,
         }
 
     def test_omniminimize_skips_windows_that_are_not_found(self, tmp_path):
@@ -860,7 +860,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.set_always_on_top"), \
              patch("fun_time.role_windows.minimize_window", side_effect=lambda h, **kw: minimized.append(h)):
             runner.tick()
-            assert minimized == [], "Nau minimized before it could paint the black"
+            assert minimized == [], "the main player minimized before it could paint the black"
 
             # A tick inside the beat still leaves it up.
             clock.advance(MAIN_BLANK_SETTLE_S / 2)
@@ -870,13 +870,13 @@ class TestDispatchLoopRunner:
             # The settle elapses; the next tick parks it, without activation.
             clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
-            assert minimized == [NAU_HWND]
+            assert minimized == [MAIN_PLAYER_HWND]
 
             # And it is off the list: a later tick does not park it twice.
             clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
 
-        assert minimized == [NAU_HWND]
+        assert minimized == [MAIN_PLAYER_HWND]
 
     def test_switching_straight_back_never_minimizes_the_player(self, tmp_path):
         """A switch inside the settle window would otherwise minimize the very
@@ -898,7 +898,7 @@ class TestDispatchLoopRunner:
             clock.advance(MAIN_BLANK_SETTLE_S)
             runner.tick()
 
-        assert NAU_HWND not in minimized, "Nau owns the display again"
+        assert MAIN_PLAYER_HWND not in minimized, "the main player owns the display again"
         assert minimized == [], "and video mode parks nobody: both share the screen"
 
     def test_omnirestore_restores_exactly_the_minimized_windows(self, tmp_path):
@@ -974,10 +974,10 @@ class TestDispatchLoopRunner:
             assert minimized == [LANDSCAPE_HWND]
 
     def test_the_main_players_console_button_parks_the_window_holding_the_slot(self, tmp_path):
-        """Nau and Genau share the main rect, so which window the console's button
+        """The main player and Genau share the main rect, so which window the console's button
         reaches is the mode's business: Genau in genau mode, and in video mode
-        both, where Genau's HUD sits over Nau's video."""
-        for mode, wanted in (("genau", [GENAU_HWND]), ("video", [NAU_HWND, GENAU_HWND])):
+        both, where Genau's HUD sits over the main player's video."""
+        for mode, wanted in (("genau", [GENAU_HWND]), ("video", [MAIN_PLAYER_HWND, GENAU_HWND])):
             runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
             # Through the shared state file, which every tick re-reads over
             # whatever the runner is holding.
@@ -1043,7 +1043,7 @@ class TestDispatchLoopRunner:
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: restored.append(h)), \
              patch.object(runner.windows, "restore_all_topmost"), \
              patch.object(runner.windows, "restack_main_slot"):
-            # A switch to genau parks Nau, which the settle then flushes.
+            # A switch to genau parks the main player, which the settle then flushes.
             cmd_file.write_text("genau_activate", encoding="utf-8")
             runner.tick()
             clock.advance(MAIN_BLANK_SETTLE_S)
@@ -1055,7 +1055,7 @@ class TestDispatchLoopRunner:
             cmd_file.write_text("omnipause_toggle", encoding="utf-8")
             runner.tick()
 
-        assert NAU_HWND not in restored
+        assert MAIN_PLAYER_HWND not in restored
 
     def test_a_huds_minimize_button_says_nothing_to_ahk(self, tmp_path):
         """The op loop's fall-through writes an unrecognized op straight to the AHK
@@ -1373,7 +1373,7 @@ class TestOpenRfbTab:
 
 
 class TestModeSwitchVisibility:
-    """The two main-slot players (Nau and Genau) share one screen rect.
+    """The two main-slot players (the main player and Genau) share one screen rect.
     A mode switch swaps window VISIBILITY: the incoming player is shown and
     activated BEFORE the outgoing one hides, so focus never falls through to
     another application.
@@ -1412,28 +1412,28 @@ class TestModeSwitchVisibility:
         }[command]
         return calls
 
-    def test_genau_activate_shows_genau_before_hiding_nau(self, tmp_path):
+    def test_genau_activate_shows_genau_before_hiding_main_player(self, tmp_path):
         calls = self._run_mode_switch(
             tmp_path, from_mode="video", command="genau_activate",
         )
         assert calls == [
             ("show", GENAU_HWND),
             ("activate", GENAU_HWND),
-            ("hide", NAU_HWND),
+            ("hide", MAIN_PLAYER_HWND),
         ]
 
-    def test_main_video_activate_shows_nau_under_genaus_hud(self, tmp_path):
+    def test_main_video_activate_shows_main_player_under_genaus_hud(self, tmp_path):
         calls = self._run_mode_switch(
             tmp_path, from_mode="genau", command="main_video_activate",
         )
         assert calls == [
-            ("show", NAU_HWND),
+            ("show", MAIN_PLAYER_HWND),
             ("show", GENAU_HWND),
             ("activate", GENAU_HWND),
         ]
 
-    def test_video_to_genau_hides_nau(self, tmp_path):
-        """Video mode and Genau differ only in Nau's visibility, so the transition
+    def test_video_to_genau_hides_main_player(self, tmp_path):
+        """Video mode and Genau differ only in the main player's visibility, so the transition
         must still swap windows.  Regression — a guard that compared
         genau_active() instead of the mode missed this pair."""
         calls = self._run_mode_switch(
@@ -1442,7 +1442,7 @@ class TestModeSwitchVisibility:
         assert calls == [
             ("show", GENAU_HWND),
             ("activate", GENAU_HWND),
-            ("hide", NAU_HWND),
+            ("hide", MAIN_PLAYER_HWND),
         ]
 
     def test_activation_suppressed_during_integration_runs(self, tmp_path):
@@ -1454,7 +1454,7 @@ class TestModeSwitchVisibility:
         )
         assert calls == [
             ("show", GENAU_HWND),
-            ("hide", NAU_HWND),
+            ("hide", MAIN_PLAYER_HWND),
         ]
 
 
@@ -1465,30 +1465,30 @@ class TestResolveRole:
         otherwise a hidden slot-mate could never be shown again."""
         runner = make_runner(tmp_path)
 
-        # Nau is visible: the pid lookup finds it once, populating the cache.
+        # The main player is visible: the pid lookup finds it once, populating the cache.
         with patch("fun_time.role_windows.find_window_by_pid",
                    side_effect=lookup_pid):
-            assert runner.windows.hwnd("nau") == NAU_HWND
+            assert runner.windows.hwnd("main_player") == MAIN_PLAYER_HWND
 
-        # Nau is now minimized: the pid/title lookups are mocked to fail, but
+        # The main player is now minimized: the pid/title lookups are mocked to fail, but
         # the cache still answers, and a show_role op reaches the cached hwnd
         # (show_role restores rather than SW_SHOWs — the idle player is parked
         # by minimizing it, so bringing it back is a restore).
         shown: list[int] = []
-        show_op = WindowOp(op="show_role", key="nau")
+        show_op = WindowOp(op="show_role", key="main_player")
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", return_value=0), \
              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)), \
              patch("fun_time.windows_bridge_dispatch_loop.dispatch_command",
                    return_value=(runner.state, [show_op])):
-            assert runner.windows.hwnd("nau") == NAU_HWND
+            assert runner.windows.hwnd("main_player") == MAIN_PLAYER_HWND
             runner._dispatch("main_video_activate")
 
-        assert shown == [NAU_HWND]
+        assert shown == [MAIN_PLAYER_HWND]
 
 
 class TestBrowseLibrary:
-    """Tests for the browse_library command (the Nau "browse" feature).
+    """Tests for the browse_library command (the main player "browse" feature).
 
     Browsing must leave playback and voice alone — everything keeps playing
     while you pick.  The browser only needs the topmost bands dropped so it is
@@ -1499,7 +1499,7 @@ class TestBrowseLibrary:
         """The core regression: browsing must not pause the session.
 
         The bug — browse entered OmniPause, and picking a video resumed only
-        Nau, leaving the satellites + voice frozen (so "pause" was ignored with
+        The main player, leaving the satellites + voice frozen (so "pause" was ignored with
         "we're in omnipause").  Browsing keeps everything playing, so it never
         enters OmniPause and never leaves the session paused.
         """
@@ -1535,12 +1535,12 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         removed = {h for h, v in topmost_calls if not v}
-        assert removed == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert removed == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
     def test_browses_the_session_library_over_the_primary_display(self, tmp_path):
-        """The browse opens Fun Time's own library browser, filling Nau's rect.
+        """The browse opens Fun Time's own library browser, filling the main player's rect.
 
-        Nau's window is what the pick will play in, so the browser stands exactly
+        The main player's window is what the pick will play in, so the browser stands exactly
         where the video will be — and covers nothing else on either monitor.
         """
         config = make_config(tmp_path, python_exe=r"C:\python.exe")
@@ -1567,7 +1567,7 @@ class TestBrowseLibrary:
         """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
-        runner.config.nau_status_file.write_text(
+        runner.config.main_player_status_file.write_text(
             "video=C:/videos/big_batch/beta.mp4\n", encoding="utf-8",
         )
 
@@ -1615,8 +1615,8 @@ class TestBrowseLibrary:
 
         assert on_top.call_args_list == []
 
-    def test_sends_selected_file_to_nau_by_default(self, tmp_path):
-        """In video mode (the default) a selected file becomes a Nau PLAY_FILE
+    def test_sends_selected_file_to_main_player_by_default(self, tmp_path):
+        """In video mode (the default) a selected file becomes a main player PLAY_FILE
         command, paired with its mirrored funscript when one exists."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -1634,11 +1634,11 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=str(video)):
             runner._handle_browse_library()
 
-        command = runner.config.nau_cmd_file.read_text(encoding="utf-8")
+        command = runner.config.main_player_cmd_file.read_text(encoding="utf-8")
         assert command == f"PLAY_FILE {video}\t{mirrored}\n"
 
-    def test_sends_selected_file_to_nau_in_video_mode(self, tmp_path):
-        """Video mode displays Nau, so a selected file becomes a Nau PLAY_FILE
+    def test_sends_selected_file_to_main_player_in_video_mode(self, tmp_path):
+        """Video mode displays the main player, so a selected file becomes a main player PLAY_FILE
         command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
@@ -1650,11 +1650,11 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=r"C:\videos\movie.mp4"):
             runner._handle_browse_library()
 
-        assert runner.config.nau_cmd_file.read_text(
+        assert runner.config.main_player_cmd_file.read_text(
             encoding="utf-8") == "PLAY_FILE C:\\videos\\movie.mp4\n"
 
     def test_does_not_play_anything_on_cancel(self, tmp_path):
-        """When the user cancels the dialog, nothing is sent to Nau."""
+        """When the user cancels the dialog, nothing is sent to the main player."""
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
 
@@ -1664,11 +1664,11 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
-        assert not runner.config.nau_cmd_file.exists()
+        assert not runner.config.main_player_cmd_file.exists()
 
     def test_restores_topmost_after_the_pick(self, tmp_path):
         """After the pick, every managed window gets its topmost band back —
-        Nau and Genau's HUD over it included, so the video floats above the
+        The main player and Genau's HUD over it included, so the video floats above the
         desktop again."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False)
@@ -1683,9 +1683,9 @@ class TestBrowseLibrary:
             runner._handle_browse_library()
 
         restored = {h for h, v in topmost_calls if v}
-        assert restored == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert restored == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
-    def test_never_restores_nau_topmost_even_in_genau_mode(self, tmp_path):
+    def test_never_restores_main_player_topmost_even_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
         runner.state = BridgeState(omni_paused=False, main_mode="genau")
 
@@ -1698,12 +1698,12 @@ class TestBrowseLibrary:
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None):
             runner._handle_browse_library()
 
-        # genau mode: Nau is hidden and never joins the topmost band — it is
+        # genau mode: the main player is hidden and never joins the topmost band — it is
         # explicitly held non-topmost, never promoted.
         restored = {h for h, v in topmost_calls if v}
         assert restored == TOPMOST_HWNDS | {GENAU_HWND}
-        assert (NAU_HWND, False) in topmost_calls
-        assert NAU_HWND not in restored
+        assert (MAIN_PLAYER_HWND, False) in topmost_calls
+        assert MAIN_PLAYER_HWND not in restored
 
     def test_hands_the_keyboard_to_the_browser_and_takes_it_back(self, tmp_path):
         """The global hotkeys are suspended for the browse, then restored.
@@ -1766,7 +1766,7 @@ class TestBrowseLibrary:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
 
-        with patch("fun_time.role_windows.find_window_by_pid", return_value=NAU_HWND), \
+        with patch("fun_time.role_windows.find_window_by_pid", return_value=MAIN_PLAYER_HWND), \
              patch("fun_time.windows_bridge_dispatch_loop.window_rect", return_value=(0, 0, 800, 600)), \
              patch("fun_time.role_windows.set_always_on_top") as mock_topmost, \
              patch("fun_time.windows_bridge_dispatch_loop.browse_library", return_value=None) as mock_browse:
@@ -1776,11 +1776,11 @@ class TestBrowseLibrary:
         mock_browse.assert_called_once()
 
     def test_browses_unplaced_when_the_primary_display_cannot_be_found(self, tmp_path):
-        """With no Nau window to stand over, the browser picks its own place.
+        """With no main player window to stand over, the browser picks its own place.
 
-        find_window_by_title is stubbed too: _resolve_role("nau") falls back to it
+        find_window_by_title is stubbed too: _resolve_role("main_player") falls back to it
         when the pid lookup misses, and left live it would enumerate the real
-        desktop and return a stray HWND (a running Fun Time's Nau window) — a flake.
+        desktop and return a stray HWND (a running Fun Time's the main player window) — a flake.
         """
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=False)
@@ -1985,7 +1985,7 @@ class TestIdempotentVoiceCommands:
                    side_effect=lambda h, v: topmost_calls.append((h, v))):
             runner.tick()
 
-        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert {h for h, v in topmost_calls if v is False} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
     def test_enter_omnipause_noop_when_already_paused(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -2419,24 +2419,24 @@ class TestWatchTracking:
 
 class TestSeededRoleHwnds:
     def test_startup_seed_lets_hidden_windows_be_shown_again(self, tmp_path):
-        """A genau session's startup parks the idle main-slot window (Nau)
+        """A genau session's startup parks the idle main-slot window (the main player)
         BEFORE the dispatch loop ever resolves it; with the pid/title lookups
         mocked to fail, the runner must answer from the hwnds the startup
         sequencer seeded while everything was visible, or video mode could
-        never bring Nau back."""
+        never bring the main player back."""
         runner = make_runner(
             tmp_path,
-            role_hwnds={"genau": 6001, "nau": 2001},
+            role_hwnds={"genau": 6001, "main_player": 2001},
         )
         runner.state = BridgeState(main_mode="genau")
         shown: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
             assert runner.windows.hwnd("genau") == 6001
-            assert runner.windows.hwnd("nau") == 2001
+            assert runner.windows.hwnd("main_player") == 2001
             runner._dispatch("main_video_activate")
 
-        assert shown == [2001, 6001]  # video mode shows Nau then the Genau HUD
+        assert shown == [2001, 6001]  # video mode shows the main player then the Genau HUD
 
 
 class TestVideoModeFunscriptHandoff:
@@ -2675,7 +2675,7 @@ class TestASessionThatHostsNoOrigenerator:
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
     """Two of the session's paths were worked out from a neighbor's, so the
     writer that owns the layout had no say in them: the state directory was
-    dashboard_state_file's parent, and the notice channel was nau_status_file
+    dashboard_state_file's parent, and the notice channel was main_player_status_file
     with the name swapped.  Both are keys now, and a manifest that says
     something else is believed."""
 
@@ -2695,8 +2695,8 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
     def test_the_notice_channel_is_the_one_the_manifest_names(self, cfg_factory, tmp_path):
         manifest = self._manifest(
             cfg_factory, tmp_path,
-            nau_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
-            nau_status_file=str(tmp_path / "somewhere" / "nau_status.txt"))
+            main_player_notice_file=str(tmp_path / "elsewhere" / "notices.txt"),
+            main_player_status_file=str(tmp_path / "somewhere" / "main_player_status.txt"))
 
-        assert build_bridge_config_from_manifest(manifest).nau_notice_file == (
+        assert build_bridge_config_from_manifest(manifest).main_player_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")

@@ -13,18 +13,18 @@ from fun_time.window_roles import (
 class TestRoleTopmost:
     """The windows with their own rect are always topmost.  The two that SHARE
     the main player's rect are each topmost only while they are showing something —
-    in video mode that is both, with Genau's HUD stacked above Nau by promotion
+    in video mode that is both, with Genau's HUD stacked above the main player by promotion
     order, which is not this flag's job."""
 
-    def test_nau_is_topmost_whenever_it_displays(self):
-        # Nau owns the display in video mode, so it floats topmost there.
-        assert role_topmost("nau", "video") is True
-        # In genau mode Nau is hidden and stays out of the band.
-        assert role_topmost("nau", "genau") is False
+    def test_main_player_is_topmost_whenever_it_displays(self):
+        # The main player owns the display in video mode, so it floats topmost there.
+        assert role_topmost("main_player", "video") is True
+        # In genau mode the main player is hidden and stays out of the band.
+        assert role_topmost("main_player", "genau") is False
 
     def test_genau_is_topmost_in_both_modes(self):
         """Genau is promoted last, so being in the band at all puts it ABOVE
-        Nau — the display in genau mode, the HUD layer over the video in video
+        The main player — the display in genau mode, the HUD layer over the video in video
         mode."""
         assert role_topmost("genau", "genau") is True
         assert role_topmost("genau", "video") is True
@@ -36,11 +36,11 @@ class TestRoleTopmost:
 
     def test_visible_main_slot_roles_names_the_players_on_that_rect(self):
         """What anything acting on "the main player's window" has to reach: the
-        mode's own player, both in video mode where Genau's HUD sits over Nau's
+        mode's own player, both in video mode where Genau's HUD sits over the main player's
         video, and never the slot-mate the mode has parked — minimizing a hidden
         window is what drags it back into view."""
         assert visible_main_slot_roles("genau") == ("genau",)
-        assert visible_main_slot_roles("video") == ("nau", "genau")
+        assert visible_main_slot_roles("video") == ("main_player", "genau")
 
     def test_visible_main_slot_roles_agrees_with_the_band_policy(self):
         """Derived from role_topmost rather than listed again, so the two answers
@@ -51,11 +51,11 @@ class TestRoleTopmost:
 
     def test_role_groups_partition_the_managed_set(self):
         assert set(MANAGED_ROLES) == {
-            "rfb", "portrait", "landscape", "genau", "nau", "dashboard",
+            "rfb", "portrait", "landscape", "genau", "main_player", "dashboard",
             "origenerator", "origenerator_portrait", "origenerator_landscape",
         }
         assert set(FIXED_TOPMOST_ROLES) == {"rfb", "portrait", "landscape", "dashboard"}
-        assert set(MAIN_SLOT_ROLES) == {"nau", "genau"}
+        assert set(MAIN_SLOT_ROLES) == {"main_player", "genau"}
         assert set(ORIGENERATOR_ROLES) == {
             "origenerator", "origenerator_portrait", "origenerator_landscape",
         }
@@ -91,7 +91,7 @@ class TestOrigeneratorRoles:
         for satellites_mode in ("video", "origenerator"):
             assert role_topmost("portrait", "video", satellites_mode) is True
             assert role_topmost("dashboard", "video", satellites_mode) is True
-            assert role_topmost("nau", "genau", satellites_mode) is False
+            assert role_topmost("main_player", "genau", satellites_mode) is False
 
     def test_origenerator_roles_are_promoted_after_the_windows_they_cover(self):
         # HWND_TOPMOST inserts at the top of the band, so a later promotion

@@ -66,7 +66,7 @@ def test_a_run_that_merely_sweeps_the_directory_in_is_refused_too(pytestconfig):
     imported before the session starts.  A run that instead recurses in from
     ``tests`` imports that file partway through collection, long after
     sessionstart has passed, so nothing refused: the suite ran on the user's own
-    desktop and threw real players, a real Nau and a real AHK bridge over his
+    desktop and threw real players, a real main player and a real AHK bridge over his
     work.  That is what a config without the ``norecursedirs`` exclusion did.
 
     Reproduced here by dropping ``integration`` from that setting — the rest of

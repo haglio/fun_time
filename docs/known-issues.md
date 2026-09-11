@@ -39,10 +39,10 @@
     HUDs, a resumed origenerator mode pulled back to video, and the switch
     answered with "No Origenerator configured". Advertising it instead is what
     opened a VR session in a mode nothing was hosting.
-  - Nau verbs the VR main role does not implement: loop recording, version cycling,
+  - The main player verbs the VR main role does not implement: loop recording, version cycling,
     clip jumps, funscript jumps, length modes, compilations. They report unhandled,
     and the player logs each once rather than crashing. The list with a reason
-    per verb is `fun_time_vr.roles.UNIMPLEMENTED_NAU_VERBS`, and it is the only
+    per verb is `fun_time_vr.roles.UNIMPLEMENTED_MAIN_PLAYER_VERBS`, and it is the only
     place a control may be left dead in the headset:
     `tests/test_vr_control_parity.py` walks every hotkey and every spoken phrase
     through the real dispatch and holds each verb that lands to the vocabulary of
@@ -91,7 +91,7 @@
   - Several controller-side attempts were made to force topmost off during OmniPause.
   - Those attempts did not resolve the issue reliably enough to justify carrying more AHK-specific complexity while the Windows bridge is actively being reduced toward a thinner hotkey/window listener.
   - This should be revisited after more window-management responsibility has been extracted out of `windows_bridge.ahk`.
-- Resolution: Window management now lives entirely in the Python bridge, whose OmniPause pass (`_remove_all_topmost`) drops every topmost-flagged window. The last window that stayed pinned was Nau: startup blanket-promoted every window to topmost, but OmniPause consulted a per-role policy where Nau is intentionally non-topmost (it rides under Genau's HUD), so the un-topmost pass skipped it and never released it. Both sides now read one shared `ROLE_TOPMOST` policy (`fun_time/window_roles.py`), and startup applies each window's own flag instead of forcing all-topmost — so startup and OmniPause can no longer disagree. (MFP no longer exists.)
+- Resolution: Window management now lives entirely in the Python bridge, whose OmniPause pass (`_remove_all_topmost`) drops every topmost-flagged window. The last window that stayed pinned was the main player: startup blanket-promoted every window to topmost, but OmniPause consulted a per-role policy where the main player is intentionally non-topmost (it rides under Genau's HUD), so the un-topmost pass skipped it and never released it. Both sides now read one shared `ROLE_TOPMOST` policy (`fun_time/window_roles.py`), and startup applies each window's own flag instead of forcing all-topmost — so startup and OmniPause can no longer disagree. (MFP no longer exists.)
 
 ## Python Dashboard Text Rendering Is Ugly
 

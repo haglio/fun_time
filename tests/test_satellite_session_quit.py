@@ -8,7 +8,7 @@ every Windows window has — Alt+F4, the taskbar, the system menu — is asked o
 session instead of answered here.
 
 The close is the one that bit.  Opt+Cmd+Q on a Mac keyboard arrives as Alt+F4, so
-it took out Nau, then the portrait satellite, then the landscape one, a press at
+it took out the main player, then the portrait satellite, then the landscape one, a press at
 a time, while the dashboard, Genau and the audio companion carried on and the
 session had to be ended by voice.  The gesture itself is
 ``player_core.session_quit``'s, and tested there; what is here is that this

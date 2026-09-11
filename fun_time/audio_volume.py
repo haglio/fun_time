@@ -2,7 +2,7 @@
 
 The level is a percentage of each source's own volume: 100 leaves the media as
 it was mastered, 0 is silence.  The dispatch loop holds the authoritative value
-and writes it here; the Genau audio companion polls the file, and Nau is told
+and writes it here; the Genau audio companion polls the file, and the main player is told
 the same number over its own command channel.  Neither audio process may import
 the dispatcher (it drags in the whole media library), so the one-integer wire
 format lives in this leaf module that all three share.
@@ -35,12 +35,12 @@ def read_volume(path: Path) -> int:
 
 
 def publish_audio_level(
-    *, nau_cmd_file: Path, genau_cmd_file: Path, audio_volume_file: Path,
+    *, main_player_cmd_file: Path, genau_cmd_file: Path, audio_volume_file: Path,
     volume: int, muted: bool,
 ) -> None:
     """Put *volume* / *muted* on the main player's audio sinks and on both players.
 
-    Nau's mpv carries the video's sound; the Genau audio companion carries the
+    The main player's mpv carries the video's sound; the Genau audio companion carries the
     clip music.  Which one is audible depends on the mode, so both are told the
     same level every time and the bridge alone holds the authoritative value.
 
@@ -57,11 +57,11 @@ def publish_audio_level(
     them itself.
 
     A player's verb *joins* its queue rather than replacing it.  Startup seeds
-    more than one thing on Nau's channel — the level and whether F-mode is on —
-    before Nau is up to drain any of them, and a whole-file write would land
+    more than one thing on the main player's channel — the level and whether F-mode is on —
+    before the main player is up to drain any of them, and a whole-file write would land
     whichever went last and silently drop the other.
     """
     verb = f"SET_VOLUME {volume} {int(muted)}"
-    append_command(nau_cmd_file, verb)
+    append_command(main_player_cmd_file, verb)
     append_command(genau_cmd_file, verb)
     write_volume(audio_volume_file, MIN_VOLUME if muted else volume)

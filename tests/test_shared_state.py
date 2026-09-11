@@ -109,7 +109,7 @@ class TestSharedState:
         the same floor a fresh session opens on."""
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
-            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
+            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = main_player\n"
             "omni_paused = 0\n",
             encoding="utf-8",
         )
@@ -200,7 +200,7 @@ class TestSharedState:
         # A state file written before loops were tracked must still load.
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
-            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
+            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = main_player\n"
             "omni_paused = 0\n",
             encoding="utf-8",
         )
@@ -215,7 +215,7 @@ class TestSharedState:
         # A state file written before filters existed must still load.
         state_file = tmp_path / "shared_state.ini"
         state_file.write_text(
-            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = nau\n"
+            "[state]\nlocked2 = 0\nlocked3 = 0\nprimary_mode = main_player\n"
             "omni_paused = 0\n",
             encoding="utf-8",
         )
@@ -351,11 +351,11 @@ class TestTheSideLens:
 
 
 def test_a_state_saved_before_video_mode_comes_back_in_video_mode(tmp_path: Path):
-    """The main slot's nau and hybrid modes became the one video mode, and the
+    """The main slot's main_player and hybrid modes became the one video mode, and the
     satellites' player mode was renamed to match — a session that last ran
     under the old names has to come back in a mode the room still knows."""
     state_file = tmp_path / SHARED_STATE_FILENAME
-    for saved_main, saved_satellites in (("nau", "player"), ("hybrid", "player")):
+    for saved_main, saved_satellites in (("main_player", "player"), ("hybrid", "player")):
         write_shared_state(state_file, BridgeState())
         text = state_file.read_text(encoding="utf-8")
         text = text.replace("main_mode = video", f"main_mode = {saved_main}")
@@ -368,14 +368,14 @@ def test_a_state_saved_before_video_mode_comes_back_in_video_mode(tmp_path: Path
 
 
 def test_a_state_file_from_before_the_rename_comes_back_in_a_mode_that_exists(tmp_path: Path):
-    """The main slot's nau and hybrid modes became one video mode, and the
+    """The main slot's main_player and hybrid modes became one video mode, and the
     satellites' player mode was renamed to match.  A file saved then has to come
     back as the mode those are now: an unrecognized one used to answer False to
     every question and quietly park the players, and now build_mode_switch_plan
     refuses it outright, so a resumed session would not switch at all.
     """
     state_file = tmp_path / SHARED_STATE_FILENAME
-    for saved in ("nau", "hybrid"):
+    for saved in ("main_player", "hybrid"):
         write_shared_state(state_file, BridgeState(main_mode=saved))
         assert read_shared_state(state_file).main_mode == MAIN_VIDEO_MODE
 

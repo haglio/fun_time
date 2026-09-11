@@ -2,7 +2,7 @@
 
 Command ids are public surface: windows_bridge_hotkeys.ahk queues them, the
 player HUDs in player_core post them (``portrait_minimize``,
-``portrait_play_video|<path>``), Nau's console posts more, and the in-app
+``portrait_play_video|<path>``), the main player's console posts more, and the in-app
 reference prints them.  The command-registry restructure (audit item 33) may
 move where an id is *defined*, but no id may change spelling — this snapshot
 is the gate.  It unions every id the three in-repo surfaces name (the spoken
@@ -12,7 +12,7 @@ or console posts, and holds the result to one literal list.
 The act-filter ids (``filter_<scope>_<act>``) come from the content overlay,
 which differs per machine, so they are pinned by shape against
 :mod:`fun_time.filter_vocab` rather than by literal act names.  The numeric
-families (``robot_hand_amp_50``, ``nau_speed_150``, ...) are pinned by regenerating
+families (``robot_hand_amp_50``, ``main_player_speed_150``, ...) are pinned by regenerating
 them the way the vocabulary does.
 """
 from __future__ import annotations
@@ -28,7 +28,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 
 # Commands no spoken phrase, hotkey or reference row names: posted straight off
 # a player's own surface as a literal string in that player's repo.  The three
-# minimize buttons live on the HUDs (player_core / Nau's console); the speed
+# minimize buttons live on the HUDs (player_core / the main player's console); the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's shows,
 # which the room hears as "enhanced only" rather than under this id.
@@ -42,7 +42,7 @@ HUD_ONLY_COMMAND_IDS = (
 )
 
 # The argument-carrying forms, matched by prefix rather than listed whole: the
-# HUD thumbnail clicks and Nau's volume slider carry their payload after a "|".
+# HUD thumbnail clicks and the main player's volume slider carry their payload after a "|".
 PREFIXED_COMMAND_FORMS = (
     "audio_set_volume|",
     "landscape_lock_video|",
@@ -168,6 +168,24 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_next",
     "main_nudge_next",
     "main_nudge_prev",
+    "main_player_clip_jump",
+    "main_player_compilation",
+    "main_player_cycle_version",
+    "main_player_end_compilation",
+    "main_player_full_vid",
+    "main_player_funscript_jump",
+    "main_player_length_full",
+    "main_player_length_mixed",
+    "main_player_length_none",
+    "main_player_length_shorts",
+    "main_player_loop_cancel",
+    "main_player_next_funscripted",
+    "main_player_record_down",
+    "main_player_record_tap",
+    "main_player_record_up",
+    "main_player_speed_down",
+    "main_player_speed_up",
+    "main_player_toggle_length",
     "main_prev",
     "main_projection_both",
     "main_projection_flat",
@@ -176,24 +194,6 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "main_reset",
     "main_shuffle",
     "main_video_activate",
-    "nau_clip_jump",
-    "nau_compilation",
-    "nau_cycle_version",
-    "nau_end_compilation",
-    "nau_full_vid",
-    "nau_funscript_jump",
-    "nau_length_full",
-    "nau_length_mixed",
-    "nau_length_none",
-    "nau_length_shorts",
-    "nau_loop_cancel",
-    "nau_next_funscripted",
-    "nau_record_down",
-    "nau_record_tap",
-    "nau_record_up",
-    "nau_speed_down",
-    "nau_speed_up",
-    "nau_toggle_length",
     "omnipause_toggle",
     "origenerator_activate",
     "pause",
@@ -278,7 +278,7 @@ def _expected_numeric_ids() -> set[str]:
         for value in range(0, 101, 10)
     }
     ids |= {f"genau_clip_seconds_{value}" for value in range(1, 61)}
-    ids |= {f"nau_speed_{pct}" for pct in (25, 50, 75, 100, 125, 150, 175, 200)}
+    ids |= {f"main_player_speed_{pct}" for pct in (25, 50, 75, 100, 125, 150, 175, 200)}
     return ids
 
 
@@ -326,7 +326,7 @@ def test_the_snapshot_is_sorted_and_duplicate_free():
 def test_the_prefixed_forms_keep_their_spellings():
     """The payload-carrying prefixes are cross-repo surface too: the satellite
     HUDs build ``<side>_play_video|<path>`` / ``<side>_lock_video|<path>`` and
-    Nau's slider builds ``audio_set_volume|<level>`` in their own repos."""
+    The main player's slider builds ``audio_set_volume|<level>`` in their own repos."""
     assert PREFIXED_COMMAND_FORMS == (
         "audio_set_volume|",
         "landscape_lock_video|",

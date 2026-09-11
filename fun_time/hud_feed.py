@@ -12,14 +12,14 @@ from pathlib import Path
 from .bridge_records import BridgeConfig
 from .hud_transport import HudPublisher
 from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
+from .main_player_console import console_payload
 from .modes import is_favorite_path, read_favs_content, source_roots
-from .nau_console import console_payload
 from .player_status import (
     genau_status_path,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     read_genau_status,
-    read_nau_status,
+    read_main_player_status,
 )
 from .players import Player
 from .runtime_flow import read_flag_file
@@ -107,9 +107,9 @@ class HudFeed:
         # whichever player owns the slot, what has the OSR2, whether the broker is
         # up, and which player a bare command reaches — none of which the player
         # can see for itself.
-        nau = read_nau_status(self.config.nau_status_file)
+        main_player = read_main_player_status(self.config.main_player_status_file)
         shapes_offered = bool(source_roots(self.config.vr_library_dirs))
-        self.publisher.publish_payload("nau", console_payload(
+        self.publisher.publish_payload("main_player", console_payload(
             mode=state.main_mode,
             active=state.active_side == Player.MAIN,
             f_mode=state.main_f_mode,
@@ -119,16 +119,16 @@ class HudFeed:
             plays_vr=state.main_plays_vr if shapes_offered else None,
             plays_flat=state.main_plays_flat if shapes_offered else None,
             osr2_mode=self.osr2_mode(),
-            funscript_driving=nau.funscript_driving,
+            funscript_driving=main_player.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
             if self.config.broker_heartbeat_file else False,
-            # Nau's loop machine, so the record button on the console can show
+            # The main player's loop machine, so the record button on the console can show
             # which half of the gesture is running, and its lock, so the padlock
-            # can show whether the video is being held.  Both come back off Nau's
+            # can show whether the video is being held.  Both come back off the main player's
             # own status file, because in genau mode the player drawing that
             # console has neither to ask.
-            record=nau.state,
-            nau_locked=nau.locked,
+            record=main_player.state,
+            main_player_locked=main_player.locked,
             genau=read_genau_status(genau_status_path(self.config.state_dir)),
         ))
 
@@ -172,7 +172,7 @@ class HudFeed:
         """What the device is doing: "off" when nothing is on the wire at all,
         "auto" while Genau has claimed it, "controlled" otherwise.
 
-        Read by the dashboard's snapshot and by Nau's console — one rule, so the
+        Read by the dashboard's snapshot and by the main player's console — one rule, so the
         two cannot disagree about what has the OSR2.
 
         "Off" requires BOTH serial stamps stale.  The device only emits bytes in

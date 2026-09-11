@@ -3,7 +3,7 @@
 These guard the deterministic child-process cleanup that
 ``FunTimeIntegrationSession.stop()`` must perform.  ``stop()`` hard-terminates
 the orchestrator, so the orchestrator's own graceful ``_shutdown_children()``
-never runs and its children (the two satellites, plus Nau/Genau/dashboard/
+never runs and its children (the two satellites, plus main player/Genau/dashboard/
 audio) are orphaned.  The teardown must therefore kill them itself, by the
 exact processes recorded in ``bridge_pids.ini`` — PID *and* creation time, so a
 PID Windows has since recycled is recognized rather than shot.
@@ -57,7 +57,7 @@ def _the_users_config() -> tuple[dict, dict]:
         "genau": {"udp_host": "127.0.0.1", "udp_port": GENAU_INBOUND_PORT,
                   "notify_port": AUDIO_COMPANION_PORT, "status_hide_ms": 1200},
         # FunTimeVR's main player streams T-Code through this key — to the same
-        # broker inlet Nau and Genau use.
+        # broker inlet the main player and Genau use.
         "vr": {"library_dirs": [], "tcode_udp_port": BROKER_TCODE_PORT},
     }
     genau_config = {
@@ -67,7 +67,7 @@ def _the_users_config() -> tuple[dict, dict]:
             "notify_port": AUDIO_COMPANION_PORT,
             "tcode_udp_port": BROKER_TCODE_PORT,
         },
-        "nau": {"tcode_udp_port": BROKER_TCODE_PORT},
+        "main_player": {"tcode_udp_port": BROKER_TCODE_PORT},
     }
     return config, genau_config
 
@@ -125,7 +125,7 @@ def test_stop_taskkills_every_recorded_child(session):
     _write_bridge_pids(
         session,
         {
-            "nau_pid": ChildProcess(201, 2010),
+            "main_player_pid": ChildProcess(201, 2010),
             "portrait_pid": ChildProcess(202, 2020),   # satellite
             "landscape_pid": ChildProcess(203, 2030),  # satellite
             "dashboard_pid": ChildProcess(0, 0),       # disabled in integration — absent
@@ -209,7 +209,7 @@ def test_the_integration_config_never_shares_the_live_sessions_audio_port(isolat
 def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isolated_ports):
     """T-Code is the one output that reaches hardware, and it leaves by UDP.
 
-    Nau and Genau both stream to the broker's inlet, and the broker holds the
+    The main player and Genau both stream to the broker's inlet, and the broker holds the
     OSR2's serial port — one process, one device, for the whole machine.  A run
     that keeps the production inlet therefore drives the user's OSR2 while they
     are using it, and no amount of desktop or state-dir isolation touches that:
@@ -222,7 +222,7 @@ def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isola
     config, genau_config = isolated_ports
 
     assert genau_config["genau"]["tcode_udp_port"] != BROKER_TCODE_PORT
-    assert genau_config["nau"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
+    assert genau_config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
     # The VR main player is the third sender at that inlet; it moves with them.
     assert config["vr"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
 

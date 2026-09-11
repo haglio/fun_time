@@ -129,7 +129,7 @@ $f::QueueCommand("fmode_toggle")
 b::QueueCommand("broker_panel")
 
 \::QueueCommand("quarter_button")
-; Nau's library browser, on the key the retired nau mode had.
+; The main player's library browser, on the key the retired mode had.
 n::QueueCommand("browse_library")
 -::QueueCommand("main_nudge_prev")
 =::QueueCommand("main_nudge_next")
@@ -163,7 +163,7 @@ e::QueueCommand("landscape_loop")
 +d::QueueCommand("landscape_nav_right")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
-; The main slot's lock, reaching whichever player is showing: Nau's video
+; The main slot's lock, reaching whichever player is showing: the main player's video
 ; holds instead of walking the playlist, Genau's clip holds instead of moving on
 ; every few seconds.  The apostrophe sits beside the satellites' own lock keys on
 ; the home row, and gave up Save clip to take it — that moved one key left, to the
@@ -171,7 +171,7 @@ e::QueueCommand("landscape_loop")
 '::QueueCommand("main_lock")
 SC027::QueueCommand("clipper_save")
 
-; Nau loop recording: hold R to mark, release to loop, press again to cancel.
+; The main player loop recording: hold R to mark, release to loop, press again to cancel.
 ; The held flag suppresses key-repeat so only one RECORD_DOWN is queued.
 global RecordHeld := false
 r:: {
@@ -179,32 +179,32 @@ r:: {
     if RecordHeld
         return
     RecordHeld := true
-    QueueCommand("nau_record_down")
+    QueueCommand("main_player_record_down")
 }
 r up:: {
     global RecordHeld
     RecordHeld := false
-    QueueCommand("nau_record_up")
+    QueueCommand("main_player_record_up")
 }
 
-; Nau: cycle to another same-content version of the current video.
-v::QueueCommand("nau_cycle_version")
+; The main player: cycle to another same-content version of the current video.
+v::QueueCommand("main_player_cycle_version")
 
-; Nau: cycle the length of what plays — mixed (everything) / shorts / full-length.
-t::QueueCommand("nau_toggle_length")
+; The main player: cycle the length of what plays — mixed (everything) / shorts / full-length.
+t::QueueCommand("main_player_toggle_length")
 
 ; FunTimeVR: cycle the main player's video's projection (flat / 180 / fisheye /
-; MKX200 / 360), remembered per video.  Desktop Nau ignores the verb.
+; MKX200 / 360), remembered per video.  Desktop main player ignores the verb.
 p::QueueCommand("projection_cycle")
 
 ; FunTimeVR: re-zero the scene onto wherever the headset is facing now (the
-; runtime's own recenter menu doesn't reach this app).  Desktop Nau ignores it.
+; runtime's own recenter menu doesn't reach this app).  Desktop main player ignores it.
 z::QueueCommand("recenter_view")
 
 ; FunTimeVR: tilt the whole arrangement up and down, for watching from a
 ; recliner or flat on your back; Shift+Z stands it upright again beside Z's
 ; recenter.  The headset's right thumbstick does the same thing continuously —
-; these are for the desk.  Desktop Nau ignores all three.
+; these are for the desk.  Desktop main player ignores all three.
 PgUp::QueueCommand("tilt_up")
 PgDn::QueueCommand("tilt_down")
 +z::QueueCommand("tilt_reset")

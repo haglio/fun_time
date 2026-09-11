@@ -1,9 +1,9 @@
-"""The main player's role in the VR process: Nau's contract, in-process.
+"""The main player's role in the VR process: the desktop main player's contract, in-process.
 
-The nau file quartet — playlist, command file, paused flag, status file —
+The main player's file quartet — playlist, command file, paused flag, status file —
 spoken from inside the VR player: the verb subset the orchestrator sends,
-funscript→T-Code through the shared ``player_core`` driver, nau-shaped status
-fields, the headset's own verbs, and what UNIMPLEMENTED_NAU_VERBS refuses.
+funscript→T-Code through the shared ``player_core`` driver, the same status
+fields, the headset's own verbs, and what UNIMPLEMENTED_MAIN_PLAYER_VERBS refuses.
 """
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ from .projection import next_projection, resolve_projection, save_projection
 
 logger = logging.getLogger(__name__)
 
-# Nau's own steps and clamps (nau.runtime / nau.session), so the primary feels
+# The desktop main player's own steps and clamps (main_player.controls / main_player.session), so the primary feels
 # identical in and out of the headset.
 SEEK_STEP_MS = 10_000
 SPEED_STEP = 0.25
@@ -31,21 +31,21 @@ TILT_LIMIT_DEG = 90.0
 
 #: The only place a control may be left dead in VR: the parity suite holds every
 #: key and every phrase to this list or to a role that answers it.
-UNIMPLEMENTED_NAU_VERBS: dict[str, str] = {
-    "RECORD_DOWN": "loop recording needs Nau's loop machine",
-    "RECORD_UP": "loop recording needs Nau's loop machine",
-    "RECORD_TAP": "loop recording needs Nau's loop machine",
+UNIMPLEMENTED_MAIN_PLAYER_VERBS: dict[str, str] = {
+    "RECORD_DOWN": "loop recording needs the main player's loop machine",
+    "RECORD_UP": "loop recording needs the main player's loop machine",
+    "RECORD_TAP": "loop recording needs the main player's loop machine",
     "LOOP_CANCEL": "there is no A/B loop here to cancel",
     "SET_LOOP": "there is no A/B loop here to restore",
-    "CYCLE_VERSION": "version cycling needs Nau's same-content index",
-    "TOGGLE_LENGTH_MODE": "the length modes need Nau's duration cache",
-    "SET_LENGTH_MODE": "the length modes need Nau's duration cache",
+    "CYCLE_VERSION": "version cycling needs the main player's same-content index",
+    "TOGGLE_LENGTH_MODE": "the length modes need the main player's duration cache",
+    "SET_LENGTH_MODE": "the length modes need the main player's duration cache",
     "PLAY_COMPILATION": "a compilation is built from the length modes above",
     "END_COMPILATION": "a compilation is built from the length modes above",
-    "PLAY_FULL_VID": "the clip/full-video pair needs Nau's sidecar index",
-    "PLAY_CLIP_JUMP": "the clip/full-video pair needs Nau's sidecar index",
-    "JUMP_TO_FUNSCRIPT": "funscript navigation needs Nau's parsed-script window",
-    "NEXT_FUNSCRIPTED": "funscript navigation needs Nau's parsed-script window",
+    "PLAY_FULL_VID": "the clip/full-video pair needs the main player's sidecar index",
+    "PLAY_CLIP_JUMP": "the clip/full-video pair needs the main player's sidecar index",
+    "JUMP_TO_FUNSCRIPT": "funscript navigation needs the main player's parsed-script window",
+    "NEXT_FUNSCRIPTED": "funscript navigation needs the main player's parsed-script window",
 }
 
 
@@ -251,7 +251,7 @@ class MainRole:
 
     def _step_at_eof(self) -> None:
         """The end of the file, with nothing holding it: on to the next entry,
-        under Nau's own latch (``nau.session.advance``) against a second read."""
+        under the main player's own latch (``main_player.session.advance``) against a second read."""
         if self._paused or self._locked:
             return
         if not self._player.eof:
@@ -273,7 +273,7 @@ class MainRole:
         return taken
 
     def status_fields(self, handoff_touch_ms: int | None) -> dict[str, str]:
-        """Nau's own status contract, read by the dispatch loop as it reads Nau.
+        """The desktop main player's status contract, read by the dispatch loop the same way.
         *handoff_touch_ms* is where the console panel drew Genau's turn ending
         (None for none, published empty: zero is a real media time)."""
         return {

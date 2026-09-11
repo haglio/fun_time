@@ -160,15 +160,15 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     )
 
     # Each satellite gets a plain one-path-per-line playlist the native player
-    # reads; the main slot is Nau, which reads its own .tsv playlist.  One
+    # reads; the main slot is the main player, which reads its own .tsv playlist.  One
     # video from each source survives the favorites filter.
     assert _lines(state_dir / "portrait_playlist.tsv") == [str(portrait_video)]
     assert _lines(state_dir / "landscape_playlist.tsv") == [str(landscape_video)]
-    assert _lines(state_dir / "nau_playlist.tsv") == [f"{main_video}\t{mirrored}"]
+    assert _lines(state_dir / "main_player_playlist.tsv") == [f"{main_video}\t{mirrored}"]
     assert not (state_dir / "main_playlist.tsv").exists()
 
 
-def test_build_all_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: Path):
+def test_build_all_playlists_writes_main_player_playlist_with_funscript_pairs(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     primary_root.mkdir(parents=True)
     scripted_video = primary_root / "scripted.mp4"
@@ -190,7 +190,7 @@ def test_build_all_playlists_writes_nau_playlist_with_funscript_pairs(tmp_path: 
         rng=random.Random(1),
     )
 
-    assert sorted(_lines(state_dir / "nau_playlist.tsv")) == sorted([
+    assert sorted(_lines(state_dir / "main_player_playlist.tsv")) == sorted([
         f"{scripted_video}\t{mirrored}",
         f"{plain_video}",
     ])

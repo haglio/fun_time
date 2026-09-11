@@ -53,17 +53,17 @@ class BridgeConfig:
     genau_paused_file: Path
     audio_paused_file: Path
     audio_volume_file: Path
-    nau_cmd_file: Path
-    nau_paused_file: Path
-    nau_status_file: Path
+    main_player_cmd_file: Path
+    main_player_paused_file: Path
+    main_player_status_file: Path
     dashboard_state_file: Path
     # Where this session answers whether it is in OmniPause -- baked into the
     # landing page a lock opens, which polls it.
     loopback_port: int = LOOPBACK_PORT
-    # Where Nau publishes its one-shot notices (a clip jump with nowhere to go).
-    nau_notice_file: Path | None = None
-    # Which main player this session launched.  The nau file quartet is the
-    # MAIN PLAYER's channel, not Nau's: in a desktop session the reader is Nau,
+    # Where the main player publishes its one-shot notices (a clip jump with nowhere to go).
+    main_player_notice_file: Path | None = None
+    # Which main player this session launched.  The main_player file quartet is the
+    # MAIN PLAYER's channel, not the main player's: in a desktop session the reader is the main player,
     # and in a VR session it is fun_time_vr's in-process role, which speaks the
     # same contract plus the two verbs that need a projection and a heading.
     # Set by whichever orchestrator built this config, since that is the only

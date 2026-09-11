@@ -61,12 +61,12 @@ windows = [
 [tool.haglio]
 siblings = ["app_support", "player_core", "shared_ui"]
 
-# Three top-level packages share this repo — the orchestrator, the satellite
-# player it launches as `python -m satellite`, and the FunTimeVR variant.
-# Setuptools' automatic flat-layout discovery refuses more than one, so
-# declare them explicitly.
+# Four top-level packages share this repo — the orchestrator, the main player
+# and the satellite player it launches as `python -m main_player` and
+# `python -m satellite`, and the FunTimeVR variant.  Setuptools' automatic
+# flat-layout discovery refuses more than one, so declare them explicitly.
 [tool.setuptools.packages.find]
-include = ["fun_time*", "satellite*", "fun_time_vr*"]
+include = ["fun_time*", "main_player*", "satellite*", "fun_time_vr*"]
 
 # Only the syntax level, so a ruff run outside the suite reads the code the way
 # the venv and CI do.  The rules are not configured here on purpose: the
@@ -79,7 +79,7 @@ include = ["fun_time*", "satellite*", "fun_time_vr*"]
 # settings in a separate pytest.ini it silently selected a config with no
 # addopts, no testpaths and no norecursedirs: it dropped the sanitize plugin and
 # the timeout, and it swept tests/integration/ into an ordinary unit run — which
-# put the suite's real players, Nau and AHK bridge on the user's monitors, on
+# put the suite's real players, the main player and AHK bridge on the user's monitors, on
 # top of his work.  One file means the explicit `-c` and bare discovery cannot
 # disagree.  tests/test_pytest_config.py holds it here.
 [tool.pytest.ini_options]

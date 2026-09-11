@@ -59,8 +59,8 @@ def flow_files(tmp_path: Path) -> dict[str, Path]:
         "genau_paused_file": tmp_path / "genau_paused.txt",
         "audio_paused_file": tmp_path / "audio_paused.txt",
         "genau_cmd_file": tmp_path / "genau_cmd.txt",
-        "nau_paused_file": tmp_path / "nau_paused.txt",
-        "nau_cmd_file": tmp_path / "nau_cmd.txt",
+        "main_player_paused_file": tmp_path / "main_player_paused.txt",
+        "main_player_cmd_file": tmp_path / "main_player_cmd.txt",
         "broker_cmd_file": tmp_path / "broker_cmd.txt",
     }
 
@@ -71,47 +71,47 @@ def _mode_switch(files, *, current, target, omni_paused=False):
         target_mode=target,
         omni_paused=omni_paused,
         genau_cmd_file=files["genau_cmd_file"],
-        nau_paused_file=files["nau_paused_file"],
-        nau_cmd_file=files["nau_cmd_file"],
+        main_player_paused_file=files["main_player_paused_file"],
+        main_player_cmd_file=files["main_player_cmd_file"],
     )
 
 
-def _nau_cmds(files) -> list[str]:
-    """What the switch queued for Nau, one verb per line as it drains them."""
-    return files["nau_cmd_file"].read_text(encoding="utf-8").split("\n")[:-1]
+def _main_player_cmds(files) -> list[str]:
+    """What the switch queued for the main player, one verb per line as it drains them."""
+    return files["main_player_cmd_file"].read_text(encoding="utf-8").split("\n")[:-1]
 
 
-def test_video_to_genau_resumes_genau_and_parks_nau(flow_files):
+def test_video_to_genau_resumes_genau_and_parks_main_player(flow_files):
     result = _mode_switch(flow_files, current="video", target="genau")
 
     assert result.next_mode == "genau"
     assert result.is_transition is True
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_OFF\n"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
-    assert _nau_cmds(flow_files) == ["DISPLAY_OFF"]
+    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
+    assert _main_player_cmds(flow_files) == ["DISPLAY_OFF"]
 
 
-def test_genau_to_video_starts_nau_under_genaus_hud(flow_files):
+def test_genau_to_video_starts_main_player_under_genaus_hud(flow_files):
     # RESUME either way: the dispatch loop's arbiter takes the hand from here,
     # pausing it for the funscript's stretches on its next tick.
     result = _mode_switch(flow_files, current="genau", target="video")
 
     assert result.next_mode == "video"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\nHUD_ON\n"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
-    assert _nau_cmds(flow_files) == ["DISPLAY_ON"]
+    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
+    assert _main_player_cmds(flow_files) == ["DISPLAY_ON"]
 
 
-def test_a_mode_switch_leaves_the_paused_flags_and_naus_tcode_alone(flow_files):
+def test_a_mode_switch_leaves_the_paused_flags_and_main_players_tcode_alone(flow_files):
     """Genau and its audio run in both modes (the paused flags are OmniPause's
-    and the startup hold's), and the arbiter owns Nau's T-Code lever inside
+    and the startup hold's), and the arbiter owns the main player's T-Code lever inside
     video mode — so the switch touches neither."""
     for current, target in (("video", "genau"), ("genau", "video")):
         _mode_switch(flow_files, current=current, target=target)
 
     assert not flow_files["genau_paused_file"].exists()
     assert not flow_files["audio_paused_file"].exists()
-    assert "SET_TCODE_ENABLED 1" not in _nau_cmds(flow_files)
+    assert "SET_TCODE_ENABLED 1" not in _main_player_cmds(flow_files)
 
 
 def test_mode_switch_during_omnipause_no_side_effects(flow_files):
@@ -119,12 +119,12 @@ def test_mode_switch_during_omnipause_no_side_effects(flow_files):
 
     assert result.next_mode == "genau"
     assert result.is_transition is False
-    assert not flow_files["nau_paused_file"].exists(), "Omnipause must NOT write flag files"
+    assert not flow_files["main_player_paused_file"].exists(), "Omnipause must NOT write flag files"
     assert not flow_files["genau_cmd_file"].exists(), "Omnipause must NOT write cmd file"
-    assert not flow_files["nau_cmd_file"].exists()
+    assert not flow_files["main_player_cmd_file"].exists()
 
 
-def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
+def test_toggle_fmode_replaces_playlists_and_reloads_main_player(tmp_path: Path):
     primary_root = tmp_path / "videos" / "videos" / "primary"
     portrait_root = tmp_path / "portrait"
     landscape_root = tmp_path / "landscape"
@@ -146,7 +146,7 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
     state_dir = tmp_path / "state"
     portrait_cmd_file = tmp_path / "portrait_cmd.txt"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
-    nau_cmd_file = tmp_path / "nau_cmd.txt"
+    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
 
     result = apply_fmode(
         satellites={
@@ -158,20 +158,20 @@ def test_toggle_fmode_replaces_playlists_and_reloads_nau(tmp_path: Path):
         main_sources=str(primary_root),
         favs_file=favs_file,
         state_dir=state_dir,
-        nau_cmd_file=nau_cmd_file,
+        main_player_cmd_file=main_player_cmd_file,
     )
 
     assert result.players == FMODE_PLAYERS
     assert result.enabled is True
-    # Each satellite is told to re-read its playlist file; Nau reloads via its own
+    # Each satellite is told to re-read its playlist file; the main player reloads via its own
     # command file too.  All three playlist files are rewritten in place.
     assert portrait_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
     assert landscape_cmd_file.read_text(encoding="utf-8").splitlines() == ["RELOAD_PLAYLIST"]
-    # …and what else rides along on Nau's write is that test's business.
-    assert "RELOAD_PLAYLIST" in nau_cmd_file.read_text(encoding="utf-8").splitlines()
+    # …and what else rides along on the main player's write is that test's business.
+    assert "RELOAD_PLAYLIST" in main_player_cmd_file.read_text(encoding="utf-8").splitlines()
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert (state_dir / "landscape_playlist.tsv").exists()
-    assert (state_dir / "nau_playlist.tsv").exists()
+    assert (state_dir / "main_player_playlist.tsv").exists()
 
 
 def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Path):
@@ -187,7 +187,7 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
         (root / "clip.mp4").write_text("x", encoding="utf-8")
     state_dir = tmp_path / "state"
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
-    nau_cmd_file = tmp_path / "nau_cmd.txt"
+    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
 
     result = apply_fmode(
         satellites={
@@ -199,28 +199,28 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=state_dir,
-        nau_cmd_file=nau_cmd_file,
+        main_player_cmd_file=main_player_cmd_file,
     )
 
     assert result.players == (Player.PORTRAIT,)
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert not (state_dir / "landscape_playlist.tsv").exists()
-    assert not (state_dir / "nau_playlist.tsv").exists()
+    assert not (state_dir / "main_player_playlist.tsv").exists()
     assert not landscape_cmd_file.exists()
-    assert not nau_cmd_file.exists()
+    assert not main_player_cmd_file.exists()
 
 
-def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
-    """Nau cannot read F-mode off the playlist it is handed — a list of scripted
+def test_toggle_fmode_tells_main_player_the_flag_on_the_same_write_as_the_reload(tmp_path: Path):
+    """The main player cannot read F-mode off the playlist it is handed — a list of scripted
     videos looks like any other — so its HUD only knows because it is told: the
     flag is queued right after the reload it belongs to."""
     root = tmp_path / "videos" / "videos" / "primary"
     root.mkdir(parents=True)
     (root / "main.mp4").write_text("x", encoding="utf-8")
-    nau_cmd_file = tmp_path / "nau_cmd.txt"
+    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
 
     def told(enabled: bool) -> list[str]:
-        nau_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
+        main_player_cmd_file.unlink(missing_ok=True)   # each call reads its own queue
         apply_fmode(
             satellites={
                 Player.PORTRAIT: SatelliteFmodeInputs(
@@ -232,16 +232,16 @@ def test_toggle_fmode_tells_nau_the_flag_on_the_same_write_as_the_reload(tmp_pat
             enabled=enabled,
             main_sources=str(root),
             favs_file=tmp_path / "favs.csv", state_dir=tmp_path / "state",
-            nau_cmd_file=nau_cmd_file,
+            main_player_cmd_file=main_player_cmd_file,
         )
-        return nau_cmd_file.read_text(encoding="utf-8").splitlines()
+        return main_player_cmd_file.read_text(encoding="utf-8").splitlines()
 
     assert told(True) == ["RELOAD_PLAYLIST", "SET_F_MODE 1"]
     assert told(False) == ["RELOAD_PLAYLIST", "SET_F_MODE 0"]
 
 
 def test_the_main_player_can_be_started_at_the_top_of_the_new_list(tmp_path: Path):
-    """Nau keeps the video on screen across a reload whenever the new list still
+    """The main player keeps the video on screen across a reload whenever the new list still
     holds it — and a reorder, filtering nothing out, always does.  So "main latest"
     would rebuild newest-first and change nothing anyone could see: the new order
     applied only after the video playing, and the arrivals asked for never came up.
@@ -255,19 +255,19 @@ def test_the_main_player_can_be_started_at_the_top_of_the_new_list(tmp_path: Pat
     for path, mtime in ((old, 1000), (new, 2000)):
         path.write_text("x", encoding="utf-8")
         os.utime(path, (mtime, mtime))
-    # The head carries its funscript, exactly as the playlist line does: Nau drives
+    # The head carries its funscript, exactly as the playlist line does: the main player drives
     # the OSR2 off that column.
     script = tmp_path / "videos" / "scripts" / "scripts" / "primary" / "new.funscript"
     script.parent.mkdir(parents=True)
     script.write_text("{}", encoding="utf-8")
-    nau_cmd_file = tmp_path / "nau_cmd.txt"
+    main_player_cmd_file = tmp_path / "main_player_cmd.txt"
 
     apply_main_fmode(
         enabled=False, main_sources=str(root), recent=True, start_at_top=True,
-        state_dir=tmp_path / "state", nau_cmd_file=nau_cmd_file,
+        state_dir=tmp_path / "state", main_player_cmd_file=main_player_cmd_file,
     )
 
-    assert nau_cmd_file.read_text(encoding="utf-8").splitlines() == [
+    assert main_player_cmd_file.read_text(encoding="utf-8").splitlines() == [
         "RELOAD_PLAYLIST", "SET_F_MODE 0", f"PLAY_FILE {new}\t{script}",
     ]
 
@@ -300,7 +300,7 @@ def test_toggle_fmode_collapses_action_groups_with_provider_roots(tmp_path: Path
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
         regen_metadata_root=metadata_root,
     )
 
@@ -327,7 +327,7 @@ def test_toggle_fmode_preserves_recency_ordering(tmp_path: Path):
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
     )
 
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(p_new), str(p_old)]
@@ -468,7 +468,7 @@ def test_toggle_fmode_applies_per_satellite_metadata_filters(tmp_path: Path):
         main_sources="",
         favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state",
-        nau_cmd_file=tmp_path / "nau_cmd.txt",
+        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
         regen_metadata_root=metadata_root,
     )
 
@@ -604,14 +604,14 @@ def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
         genau_cmd_file=flow_files["genau_cmd_file"],
-        nau_paused_file=flow_files["nau_paused_file"],
+        main_player_paused_file=flow_files["main_player_paused_file"],
         broker_cmd_file=flow_files["broker_cmd_file"],
     )
 
     assert result.next_omni_paused is True
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "PARK"
     # Both satellites are frozen via their paused flag file — a paused native
@@ -631,14 +631,14 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
         genau_paused_file=flow_files["genau_paused_file"],
         audio_paused_file=flow_files["audio_paused_file"],
         genau_cmd_file=flow_files["genau_cmd_file"],
-        nau_paused_file=flow_files["nau_paused_file"],
+        main_player_paused_file=flow_files["main_player_paused_file"],
         broker_cmd_file=flow_files["broker_cmd_file"],
         relief=True,
     )
 
     assert result.next_omni_paused is True
     assert flow_files["broker_cmd_file"].read_text(encoding="utf-8") == "RETRACT"
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "1"
+    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
@@ -655,19 +655,19 @@ def _leave_omnipause(files, *, main_mode, broker=True):
         genau_paused_file=files["genau_paused_file"],
         audio_paused_file=files["audio_paused_file"],
         genau_cmd_file=files["genau_cmd_file"],
-        nau_paused_file=files["nau_paused_file"],
+        main_player_paused_file=files["main_player_paused_file"],
         broker_cmd_file=files["broker_cmd_file"] if broker else None,
     )
 
 
-def test_apply_leave_omnipause_in_video_mode_resumes_nau_and_lifts_the_hand(flow_files):
+def test_apply_leave_omnipause_in_video_mode_resumes_main_player_and_lifts_the_hand(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
-    flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
+    flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
 
     result = _leave_omnipause(flow_files, main_mode="video")
 
     assert result.next_omni_paused is False
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
+    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
     # The hand's flag lifts with everyone's; which of it and the funscript
     # drives is the arbiter's call on its next tick, so no RESUME is sent here.
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
@@ -686,14 +686,14 @@ def test_apply_leave_omnipause_in_video_mode_leaves_genaus_motion_to_the_arbiter
     once, which the user felt as the OSR2 fighting itself."""
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
-    flow_files["nau_paused_file"].write_text("1", encoding="utf-8")
+    flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
 
     _leave_omnipause(flow_files, main_mode="video")
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
-    # Video mode displays Nau, so Nau resumes too (Genau just drives the OSR2).
-    assert flow_files["nau_paused_file"].read_text(encoding="utf-8") == "0"
+    # Video mode displays the main player, so the main player resumes too (Genau just drives the OSR2).
+    assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
 
@@ -707,7 +707,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "RESUME\n"
-    assert not flow_files["nau_paused_file"].exists(), "Nau pause state untouched"
+    assert not flow_files["main_player_paused_file"].exists(), "the main player pause state untouched"
     # Both satellites are unfrozen regardless of the main video mode.
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"

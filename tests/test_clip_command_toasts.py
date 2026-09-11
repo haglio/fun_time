@@ -4,15 +4,15 @@ from fun_time.voice_commands import SELF_REPORTING_COMMANDS, VOICE_COMMANDS
 
 
 def test_the_clip_and_funscript_jumps_flash_their_own_outcome():
-    """Nau flashes the outcome of the clip and funscript jumps itself, so Fun
+    """The main player flashes the outcome of the clip and funscript jumps itself, so Fun
     Time must not also echo a green "I heard you" on top — that stacked a
     confirmation under a red correction.  (The old version of this test
     restated the constant's whole definition, comprehensions included, so any
     edit failed it and the fix was pasting the new value in; the family-wide
     containment checks are the tests below.)"""
     assert {
-        "nau_compilation", "nau_full_vid", "nau_clip_jump",
-        "nau_funscript_jump", "nau_next_funscripted",
+        "main_player_compilation", "main_player_full_vid", "main_player_clip_jump",
+        "main_player_funscript_jump", "main_player_next_funscripted",
     } <= SELF_REPORTING_COMMANDS
 
 

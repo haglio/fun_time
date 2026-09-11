@@ -116,18 +116,18 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
         description="Genau paused file to flip off (active)",
     )
     s.wait_until(
-        lambda: s.config.nau_paused_file.read_text(encoding="utf-8") == "1",
+        lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "1",
         timeout=12,
-        description="Nau paused file to flip on (inactive)",
+        description="the main player paused file to flip on (inactive)",
     )
 
     s.write_dashboard_command("main_video_activate")
     s.wait_for_new_log("Switched to video mode", timeout=12)
 
     s.wait_until(
-        lambda: s.config.nau_paused_file.read_text(encoding="utf-8") == "0",
+        lambda: s.config.main_player_paused_file.read_text(encoding="utf-8") == "0",
         timeout=12,
-        description="Nau paused file to flip back off (active)",
+        description="the main player paused file to flip back off (active)",
     )
     # Genau runs on in video mode — its HUD over the video, the Robot Hand
     # under it for the funscript's gaps — so its flag never flips back.
@@ -136,40 +136,40 @@ def test_fun_time_genau_toggle_flow(shared_integration_session: FunTimeIntegrati
 
 def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integration_session: FunTimeIntegrationSession):
     """The main-slot players share one screen rect, so a mode switch settles
-    which is on screen: in video mode both are restored — Nau's video with
-    Genau's HUD stacked above it, both topmost — and genau mode parks Nau
+    which is on screen: in video mode both are restored — the main player's video with
+    Genau's HUD stacked above it, both topmost — and genau mode parks the main player
     (minimized, never hidden — both keep a taskbar button all session, so both
     stay findable by title; is_window_minimized tells them apart)."""
     s = shared_integration_session
 
-    # video mode: Nau restored AND topmost (its video above the desktop), and
-    # Genau restored and topmost too, promoted after Nau so the HUD lands above
-    # the video.  The lookup is exact because 'Nau' is a substring of 'Genau'.
+    # video mode: the main player restored AND topmost (its video above the desktop), and
+    # Genau restored and topmost too, promoted after the main player so the HUD lands above
+    # the video.  Exact, so a caption merely containing the name cannot answer.
     s.wait_until(
-        lambda: find_window_by_title("Nau", exact=True) != 0,
+        lambda: find_window_by_title("Main Player", exact=True) != 0,
         timeout=12,
-        description="Nau window to exist in video mode",
+        description="the main player window to exist in video mode",
     )
-    nau_hwnd = find_window_by_title("Nau", exact=True)
+    main_player_hwnd = find_window_by_title("Main Player", exact=True)
     s.wait_until(
-        lambda: is_window_topmost(nau_hwnd) and not is_window_minimized(nau_hwnd),
+        lambda: is_window_topmost(main_player_hwnd) and not is_window_minimized(main_player_hwnd),
         timeout=5,
-        description="Nau to be restored and topmost in video mode",
+        description="the main player to be restored and topmost in video mode",
     )
     s.wait_until(
         lambda: (not is_window_minimized(find_window_by_title("Genau"))
                  and is_window_topmost(find_window_by_title("Genau"))),
         timeout=12,
-        description="Genau's HUD to be restored and topmost in video mode, above Nau",
+        description="Genau's HUD to be restored and topmost in video mode, above the main player",
     )
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
 
     s.wait_until(
-        lambda: is_window_minimized(find_window_by_title("Nau", exact=True)),
+        lambda: is_window_minimized(find_window_by_title("Main Player", exact=True)),
         timeout=12,
-        description="Nau window to minimize when Genau mode activates",
+        description="the main player window to minimize when Genau mode activates",
     )
     s.wait_until(
         lambda: not is_window_minimized(find_window_by_title("Genau")),
@@ -177,27 +177,27 @@ def test_fun_time_mode_switch_swaps_primary_slot_window_visibility(shared_integr
         description="Genau window to stay up as the display in genau mode",
     )
 
-    # Back to video mode: Nau is restored and reclaims the topmost band, Genau
+    # Back to video mode: the main player is restored and reclaims the topmost band, Genau
     # stays up as the HUD above it — BOTH in the topmost band, leaving the
     # session where it started.
     s.write_dashboard_command("main_video_activate")
     s.wait_for_new_log("Switched to video mode", timeout=12)
 
     s.wait_until(
-        lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
+        lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
         timeout=12,
-        description="Nau window to restore in video mode",
+        description="the main player window to restore in video mode",
     )
     s.wait_until(
-        lambda: is_window_topmost(find_window_by_title("Nau", exact=True)),
+        lambda: is_window_topmost(find_window_by_title("Main Player", exact=True)),
         timeout=5,
-        description="Nau to float topmost in video mode (video above the desktop)",
+        description="the main player to float topmost in video mode (video above the desktop)",
     )
     s.wait_until(
         lambda: (not is_window_minimized(find_window_by_title("Genau"))
                  and is_window_topmost(find_window_by_title("Genau"))),
         timeout=5,
-        description="Genau's HUD to be topmost in video mode, stacked above Nau",
+        description="Genau's HUD to be topmost in video mode, stacked above the main player",
     )
 
 
@@ -214,25 +214,25 @@ def test_fun_time_leaving_player_stays_up_long_enough_to_go_dark(
     s = shared_integration_session
     s.write_dashboard_command("main_video_activate")
     s.wait_until(
-        lambda: not is_window_minimized(find_window_by_title("Nau", exact=True)),
+        lambda: not is_window_minimized(find_window_by_title("Main Player", exact=True)),
         timeout=12,
-        description="Nau restored, so the switch away from it has something to hold",
+        description="the main player restored, so the switch away from it has something to hold",
     )
 
     started = time.monotonic()
     s.write_dashboard_command("genau_activate")
-    # Sampled rather than waited on: how LONG Nau stays up is the assertion, and
+    # Sampled rather than waited on: how LONG the main player stays up is the assertion, and
     # a log line read at 200 ms cannot see a 250 ms window.
     while time.monotonic() - started < 12:
-        if is_window_minimized(find_window_by_title("Nau", exact=True)):
+        if is_window_minimized(find_window_by_title("Main Player", exact=True)):
             break
         time.sleep(0.01)
     else:
-        raise AssertionError("Nau never minimized after switching to genau mode")
+        raise AssertionError("the main player never minimized after switching to genau mode")
     held = time.monotonic() - started
 
     assert held >= MAIN_BLANK_SETTLE_S, (
-        f"Nau was minimized after {held:.3f}s, inside the "
+        f"the main player was minimized after {held:.3f}s, inside the "
         f"{MAIN_BLANK_SETTLE_S}s it is given to paint its black"
     )
     s.write_dashboard_command("main_video_activate")
@@ -428,23 +428,23 @@ def test_fun_time_omnipause_freezes_the_satellites(
     s.wait_for_new_log("OmniPause: leaving", timeout=12)
 
 
-def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
-    """main_nudge_next/prev in video mode drive Nau's seek via its command
-    file, observed through Nau's published status position."""
+def test_fun_time_main_player_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):
+    """main_nudge_next/prev in video mode drive the main player's seek via its command
+    file, observed through the main player's published status position."""
     s = shared_integration_session
 
     # Let the orchestrator finish processing commands from prior tests.
     time.sleep(2.0)
-    # Ensure we're in video mode so Nau is the active display and its seek is
+    # Ensure we're in video mode so the main player is the active display and its seek is
     # observable in the published status.
     s.write_dashboard_command("main_video_activate")
     # Wait for a *loaded* video: a non-zero duration means mpv knows the
     # length, so a seek target won't be clamped to 0 by an as-yet-unknown
     # duration (which would make the forward seek a no-op).
     s.wait_until(
-        lambda: s.read_nau_status().video != "" and s.read_nau_duration_ms() > 0,
+        lambda: s.read_main_player_status().video != "" and s.read_main_player_duration_ms() > 0,
         timeout=15,
-        description="Nau to report a loaded video with a known duration",
+        description="the main player to report a loaded video with a known duration",
     )
 
     # The library is a random sample of real clips with mixed lengths, and a
@@ -453,19 +453,19 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
     # long enough for the seek assertions below.
     MIN_DURATION_MS = 25_000
     for _ in range(12):
-        if s.read_nau_duration_ms() >= MIN_DURATION_MS:
+        if s.read_main_player_duration_ms() >= MIN_DURATION_MS:
             break
-        prev_video = s.read_nau_status().video
+        prev_video = s.read_main_player_status().video
         s.write_dashboard_command("main_next")
         s.wait_until(
             lambda pv=prev_video: (
-                s.read_nau_status().video not in ("", pv)
-                and s.read_nau_duration_ms() > 0
+                s.read_main_player_status().video not in ("", pv)
+                and s.read_main_player_duration_ms() > 0
             ),
             timeout=15,
-            description="Nau to load the next video",
+            description="the main player to load the next video",
         )
-    duration = s.read_nau_duration_ms()
+    duration = s.read_main_player_duration_ms()
     assert duration >= MIN_DURATION_MS, (
         f"no sampled video long enough for a ±10s nudge test: duration={duration}"
     )
@@ -474,71 +474,71 @@ def test_fun_time_nau_nudge_seeks_playback(shared_integration_session: FunTimeIn
     # forward seek clamps at the duration and never advances. Nudge back until
     # there is comfortable forward headroom first.
     for _ in range(30):
-        if s.read_nau_status().position_ms <= duration - 15_000:
+        if s.read_main_player_status().position_ms <= duration - 15_000:
             break
         s.write_dashboard_command("main_nudge_prev")
         time.sleep(0.4)
 
-    before = s.read_nau_status().position_ms
+    before = s.read_main_player_status().position_ms
     assert before <= duration - 12_000, (
         f"could not create forward headroom: pos={before} duration={duration}"
     )
 
     s.write_dashboard_command("main_nudge_next")
     s.wait_until(
-        lambda: s.read_nau_status().position_ms >= before + 9_000,
+        lambda: s.read_main_player_status().position_ms >= before + 9_000,
         timeout=10,
-        description=f"Nau to jump forward ~10s after nudge (before={before}, duration={duration})",
+        description=f"the main player to jump forward ~10s after nudge (before={before}, duration={duration})",
     )
 
-    after_fwd = s.read_nau_status().position_ms
+    after_fwd = s.read_main_player_status().position_ms
     s.write_dashboard_command("main_nudge_prev")
     s.wait_until(
-        lambda: s.read_nau_status().position_ms <= after_fwd - 9_000,
+        lambda: s.read_main_player_status().position_ms <= after_fwd - 9_000,
         timeout=10,
-        description=f"Nau to jump back ~10s after nudge (after_fwd={after_fwd})",
+        description=f"the main player to jump back ~10s after nudge (after_fwd={after_fwd})",
     )
 
 
-def test_fun_time_nau_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
-    """The record gesture round-trips through Nau: record → looping → cancel,
-    observed through Nau's published loop state."""
+def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_session: FunTimeIntegrationSession):
+    """The record gesture round-trips through the main player: record → looping → cancel,
+    observed through the main player's published loop state."""
     s = shared_integration_session
     s.wait_until(
-        lambda: s.read_nau_status().video != "",
+        lambda: s.read_main_player_status().video != "",
         timeout=15,
-        description="Nau status file to report a current video",
+        description="the main player status file to report a current video",
     )
-    assert s.read_nau_status().state == "normal"
+    assert s.read_main_player_status().state == "normal"
 
-    s.write_dashboard_command("nau_record_tap")
+    s.write_dashboard_command("main_player_record_tap")
     s.wait_until(
-        lambda: s.read_nau_status().state == "recording",
+        lambda: s.read_main_player_status().state == "recording",
         timeout=10,
-        description="Nau to enter recording state",
+        description="the main player to enter recording state",
     )
 
-    s.write_dashboard_command("nau_record_tap")
+    s.write_dashboard_command("main_player_record_tap")
     s.wait_until(
-        lambda: s.read_nau_status().state == "looping",
+        lambda: s.read_main_player_status().state == "looping",
         timeout=10,
-        description="Nau to enter looping state",
+        description="the main player to enter looping state",
     )
 
-    s.write_dashboard_command("nau_loop_cancel")
+    s.write_dashboard_command("main_player_loop_cancel")
     s.wait_until(
-        lambda: s.read_nau_status().state == "normal",
+        lambda: s.read_main_player_status().state == "normal",
         timeout=10,
-        description="Nau to return to normal state",
+        description="the main player to return to normal state",
     )
 
 
-def test_fun_time_video_mode_comes_back_to_the_video_nau_was_showing(shared_integration_session: FunTimeIntegrationSession):
-    """A round trip through genau mode hands Nau nothing new: the video it was
+def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(shared_integration_session: FunTimeIntegrationSession):
+    """A round trip through genau mode hands the main player nothing new: the video it was
     parked on is the one it resumes, and prev/next/nudge dispatch to it again
     just as before.
 
-    (The precise +10s Nau seek is covered by the nudge test above, which
+    (The precise +10s the main player seek is covered by the nudge test above, which
     exercises the identical dispatch path.)
 
     Must run before isolated-session tests (trash), whose teardown kills all
@@ -546,19 +546,19 @@ def test_fun_time_video_mode_comes_back_to_the_video_nau_was_showing(shared_inte
     """
     s = shared_integration_session
 
-    nau_video_before = s.read_nau_status().video
-    assert nau_video_before, "expected Nau to be playing before switching to genau"
+    main_player_video_before = s.read_main_player_status().video
+    assert main_player_video_before, "expected the main player to be playing before switching to genau"
 
     s.write_dashboard_command("genau_activate")
     s.wait_for_new_log("Switched to genau mode", timeout=12)
     s.write_dashboard_command("main_video_activate")
     s.wait_for_new_log("Switched to video mode", timeout=12)
 
-    # Nau is the display again and keeps playing its current video — no handoff.
+    # The main player is the display again and keeps playing its current video — no handoff.
     s.wait_until(
-        lambda: s.read_nau_status().video == nau_video_before,
+        lambda: s.read_main_player_status().video == main_player_video_before,
         timeout=12,
-        description="Nau to come back on the video it was showing",
+        description="the main player to come back on the video it was showing",
     )
 
     # A nudge in video mode reaches the normal dispatch path.
@@ -675,7 +675,7 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
     onto the video named there rather than building a fresh shuffle.  Only a real
     session proves it — the record has to survive the force-kill that ends one.
 
-    Nau carries the assertion because its library is the several-entry one, so
+    The main player carries the assertion because its library is the several-entry one, so
     the resumed playlist has to be an exact rotation of the last one — an order
     a rebuild would reproduce only by chance.
     """
@@ -683,7 +683,7 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
     config_path = build_integration_config(temp_root)
 
     first = FunTimeIntegrationSession(config_path)
-    playlist = first.config.nau_playlist_file
+    playlist = first.config.main_player_playlist_file
     try:
         first.start()
         opened_with = _videos(playlist)
@@ -691,20 +691,20 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         # every session does anyway — cannot pass this by accident.
         first.write_dashboard_command("main_next")
         first.wait_until(
-            lambda: first.read_nau_status().video not in ("", opened_with[0]),
+            lambda: first.read_main_player_status().video not in ("", opened_with[0]),
             timeout=20,
-            description="Nau to navigate off the first video",
+            description="the main player to navigate off the first video",
         )
         # Then freeze the session before closing it. Some of the main player library
-        # is seconds long, and a Nau that auto-advanced while the shutdown ran
+        # is seconds long, and a main player that auto-advanced while the shutdown ran
         # would leave a different video than the one read here.
         first.write_dashboard_command("omnipause_toggle")
         first.wait_until(
-            lambda: first.read_nau_status().paused,
+            lambda: first.read_main_player_status().paused,
             timeout=20,
-            description="Nau to freeze under OmniPause",
+            description="the main player to freeze under OmniPause",
         )
-        left_on = first.read_nau_status().video
+        left_on = first.read_main_player_status().video
         assert left_on != opened_with[0], "the session must close off the top of its playlist"
         first.quit_gracefully(timeout=15.0)
     finally:
@@ -723,9 +723,9 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
             + "\nreopened with:\n" + "\n".join(resumed)
         )
         second.wait_until(
-            lambda: second.read_nau_status().video == left_on,
+            lambda: second.read_main_player_status().video == left_on,
             timeout=20,
-            description="Nau to come back up on the video the last session ended on",
+            description="the main player to come back up on the video the last session ended on",
         )
     finally:
         second.stop()

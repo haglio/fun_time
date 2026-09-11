@@ -8,7 +8,7 @@ window of its own and no z-order to fight (see :mod:`player_core.satellite_hud`)
 This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.HudPanel`
 into the small JSON payload the player parses, and writes it only when it
 actually changed, so a player polling the file re-renders per clip change rather
-than per tick.  Nau's console (:mod:`fun_time.nau_console`) rides the same
+than per tick.  The main player's console (:mod:`fun_time.main_player_console`) rides the same
 publisher — a different panel, the same "write it whole, and only when it moved".
 """
 from __future__ import annotations
@@ -114,7 +114,7 @@ class HudPublisher:
     """Writes each player's HUD file, skipping unchanged panels.
 
     Named for what it publishes to rather than what it publishes: the satellites
-    take a map of clips and Nau takes its console, and both want the same
+    take a map of clips and the main player takes its console, and both want the same
     write-only-on-change, publish-whole treatment.
     """
 

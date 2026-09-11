@@ -28,8 +28,8 @@ from tests.role_window_fakes import (
     HOSTED_PORTRAIT_HWND,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
-    NAU_HWND,
-    NAU_PID,
+    MAIN_PLAYER_HWND,
+    MAIN_PLAYER_PID,
     PORTRAIT_HWND,
     PORTRAIT_PID,
     RFB_HWND,
@@ -42,7 +42,7 @@ from tests.role_window_fakes import (
 
 
 def make_windows(**overrides) -> WindowRoles:
-    pids = dict(nau=NAU_PID, portrait=PORTRAIT_PID,
+    pids = dict(main_player=MAIN_PLAYER_PID, portrait=PORTRAIT_PID,
                 landscape=LANDSCAPE_PID, dashboard=DASHBOARD_PID)
     pids.update(overrides.pop("pids", {}))
     return WindowRoles(pids=ChildPids(**pids), **overrides)
@@ -53,29 +53,29 @@ def test_the_windows_object_needs_only_the_pids_and_the_startup_seed():
     map over; hidden windows are invisible to the pid/title lookups, so that
     seed is the only way back to one.  Nothing else is needed to answer for a
     role, which is what lets these windows be reasoned about on their own."""
-    windows = WindowRoles(pids=ChildPids(nau=NAU_PID), role_hwnds={"nau": NAU_HWND})
+    windows = WindowRoles(pids=ChildPids(main_player=MAIN_PLAYER_PID), role_hwnds={"main_player": MAIN_PLAYER_HWND})
 
-    assert windows.hwnd("nau") == NAU_HWND
+    assert windows.hwnd("main_player") == MAIN_PLAYER_HWND
 
 
 class TestResolveRole:
-    def test_nau_falls_back_to_exact_title_when_pid_fails(self):
+    def test_main_player_falls_back_to_exact_title_when_pid_fails(self):
         """The venv pythonw launcher's PID differs from the interpreter that
         owns the SDL window, so resolution must fall back to an exact-title
-        lookup — exact because 'Nau' is a substring of 'Genau'."""
+        lookup — exact, so a caption merely containing the name cannot answer."""
         windows = make_windows()
 
         title_calls: list[tuple[str, bool]] = []
 
         def title_lookup(title, exact=False):
             title_calls.append((title, exact))
-            return 2002 if (title == "Nau" and exact) else 0
+            return 2002 if (title == "Main Player" and exact) else 0
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
              patch("fun_time.role_windows.find_window_by_title", side_effect=title_lookup):
-            hwnd = windows.hwnd("nau")
+            hwnd = windows.hwnd("main_player")
 
-        assert ("Nau", True) in title_calls, "must try the exact-title fallback"
+        assert ("Main Player", True) in title_calls, "must try the exact-title fallback"
         assert hwnd == 2002
 
     def test_dashboard_falls_back_to_title_when_pid_fails(self):
@@ -137,19 +137,19 @@ class TestParking:
         the frame or two that takes and the thumbnail keeps the video frame the
         player was sitting on, which is the whole thing the blanking is for."""
         clock = FakeClock()
-        windows = make_windows(clock=clock, role_hwnds={"nau": NAU_HWND})
+        windows = make_windows(clock=clock, role_hwnds={"main_player": MAIN_PLAYER_HWND})
 
         minimized: list[int] = []
         with patch("fun_time.role_windows.minimize_window",
                    side_effect=lambda h, **kw: minimized.append(h)):
-            windows.hide_after_settle("nau")
+            windows.hide_after_settle("main_player")
             windows.flush_pending_hides()
-            assert minimized == [], "Nau minimized before it could paint the black"
+            assert minimized == [], "the main player minimized before it could paint the black"
 
             clock.advance(MAIN_BLANK_SETTLE_S)
             windows.flush_pending_hides()
 
-        assert minimized == [NAU_HWND]
+        assert minimized == [MAIN_PLAYER_HWND]
 
 
 class TestTopmostBands:
@@ -171,27 +171,27 @@ class TestTopmostBands:
         return calls
 
     def test_remove_all_topmost_drops_every_managed_window(self):
-        """Omnipause enter frees the desktop entirely — Nau included, so it is
+        """Omnipause enter frees the desktop entirely — the main player included, so it is
         never left stranded on top."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "remove_all_topmost")
 
-        assert {h for h, on in calls if on is False} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert {h for h, on in calls if on is False} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
-    def test_restore_all_topmost_floats_nau_and_genaus_hud_in_video_mode(self):
-        """video mode: Nau reclaims the topmost band, above the desktop, and
+    def test_restore_all_topmost_floats_main_player_and_genaus_hud_in_video_mode(self):
+        """video mode: the main player reclaims the topmost band, above the desktop, and
         Genau's HUD is promoted after it, so it lands above the video."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "restore_all_topmost",
                                  main_mode="video", satellites_mode="video")
 
-        assert {h for h, on in calls if on is True} == TOPMOST_HWNDS | {NAU_HWND, GENAU_HWND}
+        assert {h for h, on in calls if on is True} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
-    def test_video_mode_promotes_nau_before_genau_so_the_hud_lands_on_top(self):
-        """video mode: Nau and Genau are BOTH topmost so the composite floats above
-        the desktop, and HWND_TOPMOST inserts at the TOP of the band — so Nau is
+    def test_video_mode_promotes_main_player_before_genau_so_the_hud_lands_on_top(self):
+        """video mode: the main player and Genau are BOTH topmost so the composite floats above
+        the desktop, and HWND_TOPMOST inserts at the TOP of the band — so the main player is
         promoted BEFORE Genau, which is what stacks the HUD over the video."""
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
@@ -200,8 +200,8 @@ class TestTopmostBands:
 
         promoted = [h for h, on in calls if on]
         assert {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
-                NAU_HWND, GENAU_HWND} <= set(promoted)
-        assert promoted.index(NAU_HWND) < promoted.index(GENAU_HWND)
+                MAIN_PLAYER_HWND, GENAU_HWND} <= set(promoted)
+        assert promoted.index(MAIN_PLAYER_HWND) < promoted.index(GENAU_HWND)
 
     def test_restore_all_topmost_leaves_the_browser_under_the_hosted_app(self):
         """His: the Random Favs Browser flashes over Origenerator for a moment
@@ -226,7 +226,7 @@ class TestTopmostBands:
             "promotion pushes it back down"
         )
         # Everything the mode really does show still comes back.
-        assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, NAU_HWND,
+        assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
                 HOSTED_HWND, HOSTED_PORTRAIT_HWND,
                 HOSTED_LANDSCAPE_HWND} <= set(promoted)
 

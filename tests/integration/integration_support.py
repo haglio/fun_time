@@ -26,8 +26,8 @@ from fun_time.modes import (
 )
 from fun_time.notice_overlay import is_announcement
 from fun_time.player_status import (
-    NauStatus,
-    read_nau_status,
+    MainPlayerStatus,
+    read_main_player_status,
 )
 from fun_time.process_identity import NAMER
 from fun_time.win32_process import get_process_image_name
@@ -76,7 +76,7 @@ INTEGRATION_CONFIG_NAME = "fun_time_integration_config.json"
 
 
 # The images the apps a session leaves actually run as: the two
-# satellites, Nau/Genau/the audio companion/the dashboard (each under its own
+# satellites, the main player/Genau/the audio companion/the dashboard (each under its own
 # ``FunTime-*`` copy of pythonw, or under plain pythonw where that copy could not
 # be made), and the AHK hotkey shell.  python.exe is deliberately absent — pytest
 # and the orchestrator both run as python.exe, and a reap that kills a pytest
@@ -192,15 +192,15 @@ class FunTimeIntegrationSession:
         """Read the Genau PID from the bridge pids file."""
         return self.read_child_pids()["genau_pid"]
 
-    def read_nau_status(self) -> NauStatus:
-        """Parse Nau's published status file."""
-        return read_nau_status(self.config.nau_status_file)
+    def read_main_player_status(self) -> MainPlayerStatus:
+        """Parse the main player's published status file."""
+        return read_main_player_status(self.config.main_player_status_file)
 
-    def read_nau_duration_ms(self) -> int:
-        """Nau's current video duration in ms (published, but not carried on
-        NauStatus, which only parses fields with production consumers).  A
+    def read_main_player_duration_ms(self) -> int:
+        """The main player's current video duration in ms (published, but not carried on
+        MainPlayerStatus, which only parses fields with production consumers).  A
         non-zero value means mpv has loaded the file and knows its length."""
-        path = self.config.nau_status_file
+        path = self.config.main_player_status_file
         if not path.exists():
             return 0
         for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
@@ -448,7 +448,7 @@ class FunTimeIntegrationSession:
 
         stop() hard-terminates the orchestrator with TerminateProcess, so the
         orchestrator's own graceful _shutdown_children() never runs and the
-        processes it launched (the two satellites, plus Nau/Genau/dashboard/
+        processes it launched (the two satellites, plus main player/Genau/dashboard/
         audio) are orphaned.  Kill them via the production kill_recorded_child,
         which taskkills a recorded PID only while its creation time still names
         the process the orchestrator launched — a child that has already died
@@ -577,7 +577,7 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
       meant for the user's.
     * The **broker's T-Code inlet** is the one output that reaches hardware.  The
       broker holds the OSR2's serial port, so a run that keeps the production
-      inlet drives the user's device while they are using it.  Nau and Genau move
+      inlet drives the user's device while they are using it.  The main player and Genau move
       to one sink together, so a run's stream stays watchable where it lands.
     """
     companion_port = _free_udp_port()
@@ -588,7 +588,7 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
 
     tcode_port = _sink_udp_port()
     genau_config["genau"]["tcode_udp_port"] = tcode_port
-    genau_config["nau"]["tcode_udp_port"] = tcode_port
+    genau_config["main_player"]["tcode_udp_port"] = tcode_port
     # The VR main player streams to the same broker inlet through fun_time's own
     # config (``vr.tcode_udp_port``), so it moves onto the run's sink with
     # them — set even when the section is absent, so a config written before
@@ -729,7 +729,7 @@ def build_integration_config(tmp_path: Path) -> Path:
         ensure_in_favs(favs_file, str(path.resolve()))
 
     config = json.loads(real.config_path.read_text(encoding="utf-8"))
-    config["paths"]["nau_library_dirs"] = [str(primary_dir)]
+    config["paths"]["main_player_library_dirs"] = [str(primary_dir)]
     config["paths"]["portrait_dirs"] = [str(portrait_dir)]
     config["paths"]["landscape_dirs"] = [str(landscape_dir)]
     config["paths"]["weird_dir"] = str(weird_dir)
@@ -738,18 +738,18 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["random_favs_browser"]["enabled"] = False
     apply_checkout_project_dirs(config)
 
-    # Nau builds its version-index / length-mode source from nau.videos_dir, so
-    # point the genau config's Nau dirs at the copied test library — otherwise it
+    # The main player builds its version-index / length-mode source from main_player.videos_dir, so
+    # point the genau config's the main player dirs at the copied test library — otherwise it
     # would scan the real one. Mirrors the videos->scripts layout that
     # _link_primary_samples writes the funscripts into.
     scripts_root = Path(str(primary_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER))
-    nau_clips_dir = integration_root / "nau_clips"
-    nau_clips_dir.mkdir(parents=True, exist_ok=True)
+    main_player_clips_dir = integration_root / "main_player_clips"
+    main_player_clips_dir.mkdir(parents=True, exist_ok=True)
     genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
-    genau_config.setdefault("nau", {})
-    genau_config["nau"]["videos_dir"] = str(primary_dir)
-    genau_config["nau"]["scripts_dir"] = str(scripts_root)
-    genau_config["nau"]["clips_dir"] = str(nau_clips_dir)
+    genau_config.setdefault("main_player", {})
+    genau_config["main_player"]["videos_dir"] = str(primary_dir)
+    genau_config["main_player"]["scripts_dir"] = str(scripts_root)
+    genau_config["main_player"]["clips_dir"] = str(main_player_clips_dir)
     isolate_shared_resources(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
@@ -860,7 +860,7 @@ def _read_head(path, size: int) -> None:
 
 def _link_primary_samples(real_config, dest_dir: Path, *, count: int = 5) -> list[Path]:
     candidates: list[tuple[Path, Path]] = []  # (candidate, source_root)
-    for source_root in real_config.paths.nau_library_dirs:
+    for source_root in real_config.paths.main_player_library_dirs:
         for candidate in source_root.rglob("*"):
             if candidate.suffix.lower() not in VIDEO_EXTENSIONS or not candidate.is_file():
                 continue

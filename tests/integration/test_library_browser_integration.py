@@ -228,7 +228,7 @@ def test_the_browse_opens_in_front_of_the_window_it_opens_over(tmp_path: Path, c
     here either way.  Only a real display can show the refusal.
     """
     config = load_config(cfg_factory())
-    library = config.paths.nau_library_dirs[0] / "batch_one"
+    library = config.paths.main_player_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)
@@ -287,7 +287,7 @@ def test_the_bridge_finds_an_open_browse_and_puts_it_back_on_top(
     in it.  Re-asserting the browse has to clear it again.
     """
     config = load_config(cfg_factory())
-    library = config.paths.nau_library_dirs[0] / "batch_one"
+    library = config.paths.main_player_library_dirs[0] / "batch_one"
     library.mkdir(parents=True, exist_ok=True)
     for name in ("alpha.mp4", "beta.mp4"):
         (library / name).write_bytes(b"\0" * 2048)

@@ -33,7 +33,7 @@ from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import matching_funscript, playlist_entry_line
-from .player_status import is_broker_heartbeat_fresh, read_nau_status
+from .player_status import is_broker_heartbeat_fresh, read_main_player_status
 from .players import Player
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
@@ -59,18 +59,18 @@ from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 logger = logging.getLogger(__name__)
 
 
-# What Nau's own notice levels mean here.  Nau has no palette — it names the kind
+# What the main player's own notice levels mean here.  The main player has no palette — it names the kind
 # of thing that happened and this side picks the color, the same way the ops
 # raised in :mod:`fun_time.command_dispatch` do.
-_NAU_NOTICE_LEVELS = {"error": FAILED_NOTICE_LEVEL, "favorite": FAVORITE}
+_MAIN_PLAYER_NOTICE_LEVELS = {"error": FAILED_NOTICE_LEVEL, "favorite": FAVORITE}
 
 
 
-def read_nau_notice(path) -> tuple[float, str, str]:
-    """Nau's latest one-shot notice as (sequence, level, message).
+def read_main_player_notice(path) -> tuple[float, str, str]:
+    """the main player's latest one-shot notice as (sequence, level, message).
 
-    Nau bumps the sequence whenever it raises one; (0, "", "") means there is
-    nothing to read. Only Nau knows whether a clip jump had a target, so this is
+    The main player bumps the sequence whenever it raises one; (0, "", "") means there is
+    nothing to read. Only the main player knows whether a clip jump had a target, so this is
     how "full video not available" reaches the overlay.
     """
     try:
@@ -105,16 +105,16 @@ def poll_dashboard_commands(cmd_file: Path) -> list[str]:
 HANDOFF_COMMANDS: dict[str, HandoffTarget] = {"enter_vr": VR, "exit_vr": DESKTOP}
 
 
-# The side-agnostic actions the main player (Nau) answers, and what it answers with.
+# The side-agnostic actions the main player (the main player) answers, and what it answers with.
 # Navigation is the same gesture on every player; "end loop" is the same *word* for
-# a different loop — Nau's A-B loop rather than a satellite's group loop.  A lock
+# a different loop — the main player's A-B loop rather than a satellite's group loop.  A lock
 # is the same thing on all three — repeat-one on what is on screen — so the bare
 # word reaches whichever was last addressed, the main player included.  So is
 # F-mode, though it narrows each player to something different.
 _MAIN_EQUIVALENTS = {
     "next": "main_next",
     "prev": "main_prev",
-    "no_loop": "nau_loop_cancel",
+    "no_loop": "main_player_loop_cancel",
     "lock_on": "main_lock_on",
     "lock_off": "main_lock_off",
     "fmode": "main_fmode",
@@ -135,9 +135,9 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
     ``active_next``/``active_prev`` follow the last player navigated — main
-    (Nau, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
+    (the main player, slot 1), portrait (2), or landscape (3).  ``active_lock_on``/``_off``
     reach the main player too, meaning there what they mean on a satellite.  So
-    does ``active_no_loop``, but meaning the loop *it* has: Nau's A-B loop, where
+    does ``active_no_loop``, but meaning the loop *it* has: the main player's A-B loop, where
     on a satellite the same phrase ends a group loop.  The rest (weird, cycle)
     exist only on the satellites and resolve to nothing while the main player is
     active.  Every non-``active_`` command passes through unchanged.
@@ -238,14 +238,14 @@ class DispatchLoopRunner:
         self._batching_rfb = False
         # Latch whatever is already on disk, so a notice left over from a
         # previous session does not flash the moment this one opens.
-        self._last_nau_notice_seq = read_nau_notice(
-            getattr(config, "nau_notice_file", None) or Path("nau_notice.txt")
+        self._last_main_player_notice_seq = read_main_player_notice(
+            getattr(config, "main_player_notice_file", None) or Path("main_player_notice.txt")
         )[0]
         self.voice_controller: VoiceController | None = None
         # Watch tracking ("breeding"): every player's current clip, sampled and
         # classified into completions and skips for the stats file.
         self.watch = WatchSampler(
-            nau_status_file=config.nau_status_file,
+            main_player_status_file=config.main_player_status_file,
             satellite_status_files={2: config.portrait_status_file,
                                     3: config.landscape_status_file},
             stats_file=watch_stats_path(config.state_dir),
@@ -253,8 +253,8 @@ class DispatchLoopRunner:
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in video mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
-            nau_status_file=config.nau_status_file,
-            nau_cmd_file=config.nau_cmd_file,
+            main_player_status_file=config.main_player_status_file,
+            main_player_cmd_file=config.main_player_cmd_file,
             genau_cmd_file=config.genau_cmd_file,
         )
 
@@ -265,7 +265,7 @@ class DispatchLoopRunner:
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
-        self._flash_nau_notice()
+        self._flash_main_player_notice()
 
         # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
@@ -325,24 +325,24 @@ class DispatchLoopRunner:
         else:
             self.voice_controller.unsuspend()
 
-    def _flash_nau_notice(self) -> None:
-        """Surface anything Nau has raised since the last tick, once.
+    def _flash_main_player_notice(self) -> None:
+        """Surface anything the main player has raised since the last tick, once.
 
-        Nau names the kind rather than the color: "error" for a request with
+        The main player names the kind rather than the color: "error" for a request with
         nowhere to go, "favorite" for one about a funscript — which is what green
         is kept for here — and anything else is an ordinary white notice.
         """
-        path = getattr(self.config, "nau_notice_file", None)
+        path = getattr(self.config, "main_player_notice_file", None)
         if path is None:
             return
-        seq, level, message = read_nau_notice(path)
-        if seq <= self._last_nau_notice_seq:
+        seq, level, message = read_main_player_notice(path)
+        if seq <= self._last_main_player_notice_seq:
             return
-        self._last_nau_notice_seq = seq
+        self._last_main_player_notice_seq = seq
         if message:
             notice(
                 logger, message, source="main",
-                level=_NAU_NOTICE_LEVELS.get(level, NOTICE),
+                level=_MAIN_PLAYER_NOTICE_LEVELS.get(level, NOTICE),
             )
 
     def _handle_command(self, cmd: str, spoken_at: float | None = None) -> None:
@@ -671,7 +671,7 @@ class DispatchLoopRunner:
         self._log_topmost_state("post-enter")
 
     def _handle_browse_library(self) -> None:
-        """Browse the library and play the pick in Nau, one browse at a time.
+        """Browse the library and play the pick in the main player, one browse at a time.
 
         Serialized on a lock: the browser is the user's window, not the dispatch
         loop's, so a second request while one is open would stack a second
@@ -698,22 +698,22 @@ class DispatchLoopRunner:
             self.ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
 
         try:
-            # Over Nau's own rect: the pick plays there, so the browse stands
+            # Over the main player's own rect: the pick plays there, so the browse stands
             # where the video will, and covers nothing else on either monitor.
-            nau_hwnd = self.windows.hwnd("nau")
+            main_player_hwnd = self.windows.hwnd("main_player")
             selected = browse_library(
                 self.manifest_path,
                 self.config.python_exe,
-                over=window_rect(nau_hwnd) if nau_hwnd else None,
-                playing=read_nau_status(self.config.nau_status_file).video,
+                over=window_rect(main_player_hwnd) if main_player_hwnd else None,
+                playing=read_main_player_status(self.config.main_player_status_file).video,
                 runner=self._run_browser,
             )
             if selected:
-                # Nau owns the main player; play the pick there, paired with its
+                # The main player owns the main player; play the pick there, paired with its
                 # funscript the same way a playlist line pairs one, so a browse
                 # pick and a playlist entry can never name a script differently.
                 entry = playlist_entry_line(selected, matching_funscript(selected))
-                append_command(self.config.nau_cmd_file, f"PLAY_FILE {entry}")
+                append_command(self.config.main_player_cmd_file, f"PLAY_FILE {entry}")
         finally:
             if manage_session:
                 self.windows.restore_all_topmost(
@@ -800,7 +800,7 @@ def _run_activate_role(runner: DispatchLoopRunner, op: WindowOp) -> None:
 
 
 def _run_restack_main(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    # Re-stack the overlapping Nau/Genau pair for the current mode.  Not
+    # Re-stack the overlapping main player/Genau pair for the current mode.  Not
     # integration-guarded: SetWindowPos(HWND_TOPMOST) uses SWP_NOACTIVATE, so
     # it changes only the z-band, never focus.
     runner.windows.restack_main_slot(runner.state.main_mode)
@@ -871,7 +871,7 @@ def build_bridge_config_from_manifest(
     """Build a BridgeConfig from the session's launch manifest.
 
     *vr_main_player* says the session hosts its main player inside the VR
-    scene rather than launching Nau.  The manifest cannot answer it — both
+    scene rather than launching the main player.  The manifest cannot answer it — both
     sessions build from the same one — so the orchestrator that knows says so.
     It answers for Origenerator too: the hosted app rides in the Random Favs
     Browser's Chrome window, which a VR session never launches, so a headset
@@ -892,7 +892,7 @@ def build_bridge_config_from_manifest(
         weird_dir=Path(manifest.media.weird_dir),
         state_dir=Path(commands.state_dir),
         loopback_port=manifest.loopback_port,
-        main_sources=manifest.media.nau_library_sources,
+        main_sources=manifest.media.main_player_library_sources,
         vr_library_dirs=manifest.media.vr_library_dirs,
         python_exe=manifest.executables.python_exe,
         portrait_sources=manifest.media.portrait_dirs,
@@ -902,10 +902,10 @@ def build_bridge_config_from_manifest(
         genau_paused_file=Path(commands.genau_paused_file),
         audio_paused_file=Path(commands.audio_paused_file),
         audio_volume_file=Path(commands.audio_volume_file),
-        nau_cmd_file=Path(commands.nau_cmd_file),
-        nau_paused_file=Path(commands.nau_paused_file),
-        nau_status_file=Path(commands.nau_status_file),
-        nau_notice_file=Path(commands.nau_notice_file),
+        main_player_cmd_file=Path(commands.main_player_cmd_file),
+        main_player_paused_file=Path(commands.main_player_paused_file),
+        main_player_status_file=Path(commands.main_player_status_file),
+        main_player_notice_file=Path(commands.main_player_notice_file),
         dashboard_state_file=Path(commands.dashboard_state_file),
         broker_cmd_file=Path(commands.broker_cmd_file),
         broker_heartbeat_file=Path(commands.broker_heartbeat_file),

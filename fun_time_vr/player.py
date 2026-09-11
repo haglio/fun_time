@@ -1,7 +1,7 @@
 """The VR player process: the session's four players composited into one
 OpenXR scene.
 
-The desktop session runs Nau, Genau and two satellite processes, each owning a
+The desktop session runs the main player, Genau and two satellite processes, each owning a
 window; an OpenXR runtime gives the headset to a single rendering process, so in
 VR all four are surfaces of this one — :class:`fun_time_vr.roles.MainRole`,
 :class:`fun_time_vr.genau_role.GenauRole` on a thread of its own, and the
@@ -153,7 +153,7 @@ from .reference_panel import (
     reference_height,
 )
 from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
-from .roles import UNIMPLEMENTED_NAU_VERBS, MainRole
+from .roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from .satellite_hud import (
     HUD,
     HUD_GAP_DEG,
@@ -423,8 +423,8 @@ class _MainUnit(_VideoUnit):
             placement,
         )
         commands = manifest.commands
-        self.cmd_file = Path(commands.nau_cmd_file)
-        self.paused_file = Path(commands.nau_paused_file)
+        self.cmd_file = Path(commands.main_player_cmd_file)
+        self.paused_file = Path(commands.main_player_paused_file)
         metadata_raw = manifest.regen.metadata_root.strip()
         driver = FunscriptTCodeDriver(_SaysWhenItFirstMoves(
             UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main",
@@ -432,7 +432,7 @@ class _MainUnit(_VideoUnit):
         self.role = MainRole(
             player=self.player,
             driver=driver,
-            playlist_file=Path(commands.nau_playlist_file),
+            playlist_file=Path(commands.main_player_playlist_file),
             metadata_root=Path(metadata_raw) if metadata_raw else None,
             vr_dirs=tuple(
                 vr.library_dirs
@@ -444,7 +444,7 @@ class _MainUnit(_VideoUnit):
         self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._status_writer = StatusWriter(
-            Path(commands.nau_status_file),
+            Path(commands.main_player_status_file),
             lambda role: role.status_fields(self.drive_gate.handoff_touch()),
         )
         self._volume_painter = VolumeHudPainter()
@@ -506,7 +506,7 @@ class _MainUnit(_VideoUnit):
                     self._unhandled.add(keyword)
                     logger.info(
                         "Verb the VR main role does not handle: %s (%s)", keyword,
-                        UNIMPLEMENTED_NAU_VERBS.get(keyword, "not a verb it knows at all"),
+                        UNIMPLEMENTED_MAIN_PLAYER_VERBS.get(keyword, "not a verb it knows at all"),
                     )
         self.role.tick(now)
         self._watch_progress(now)
@@ -718,7 +718,7 @@ class _GenauUnit:
             command_file=Path(commands.genau_cmd_file),
             paused_file=Path(commands.genau_paused_file),
             drive_file=genau_state / "genau_drive.txt",
-            console_file=Path(commands.nau_console_file),
+            console_file=Path(commands.main_player_console_file),
             notifier=GenauNotifier(vr.notify_host, vr.notify_port),
             tcode_sink=_SaysWhenItFirstMoves(
                 UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "genau",

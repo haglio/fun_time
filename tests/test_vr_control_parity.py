@@ -3,7 +3,7 @@
 A headset runs the same orchestrator, the same dispatch loop, the same AHK
 hotkey script and the same voice control as the desktop.  What differs is who
 is listening at the far end of each file channel: the main player is
-:class:`fun_time_vr.roles.MainRole` rather than Nau, Genau and both satellites
+:class:`fun_time_vr.roles.MainRole` rather than the main player, Genau and both satellites
 live inside the one VR process, and the windows the desktop's ops act on do not
 exist.  So a control can be perfectly routed and still be dead in the headset —
 which is exactly how the main-slot padlock and F-mode's status line came to be
@@ -14,7 +14,7 @@ every hotkey, every spoken phrase — through the real dispatch against a
 VR-shaped config, and holds each verb that lands to the vocabulary of whatever
 will actually read it in a VR session.  The only way to leave a control dead in
 the headset is to name it, with its reason, in
-:data:`fun_time_vr.roles.UNIMPLEMENTED_NAU_VERBS` or in one of the sets here.
+:data:`fun_time_vr.roles.UNIMPLEMENTED_MAIN_PLAYER_VERBS` or in one of the sets here.
 """
 from __future__ import annotations
 
@@ -31,7 +31,7 @@ from fun_time.mode_plan import MAIN_MODES
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
-from fun_time_vr.roles import UNIMPLEMENTED_NAU_VERBS, MainRole
+from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
 from tests.satellite_fakes import FakeSatellitePlayer
@@ -42,8 +42,8 @@ from tests.test_vr_roles import FakeDriver, FakePlayer
 # exactly as the desktop does — so they are drained here to be seen by the
 # sweep rather than checked verb by verb.
 _CHANNELS = (
-    "nau_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
-    "origenerator_cmd_file", "broker_cmd_file", "nau_paused_file",
+    "main_player_cmd_file", "genau_cmd_file", "portrait_cmd_file", "landscape_cmd_file",
+    "origenerator_cmd_file", "broker_cmd_file", "main_player_paused_file",
     "genau_paused_file", "audio_paused_file", "portrait_paused_file",
     "landscape_paused_file",
 )
@@ -106,9 +106,9 @@ def _vr_config(tmp_path: Path) -> BridgeConfig:
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        nau_cmd_file=state_dir / "nau_cmd.txt",
-        nau_paused_file=state_dir / "nau_paused.txt",
-        nau_status_file=state_dir / "nau_status.txt",
+        main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        main_player_paused_file=state_dir / "main_player_paused.txt",
+        main_player_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
         broker_cmd_file=state_dir / "broker_cmd.txt",
     )
@@ -181,7 +181,7 @@ def _sent_to(landed, channel: str) -> dict[str, str]:
 
 def _main_role(tmp_path: Path) -> MainRole:
     """A real main role on fakes — the vocabulary asked of the method itself."""
-    playlist = tmp_path / "nau_playlist.tsv"
+    playlist = tmp_path / "main_player_playlist.tsv"
     videos = tmp_path / "videos"
     videos.mkdir(exist_ok=True)
     first, second = videos / "one.mp4", videos / "two.mp4"
@@ -211,14 +211,14 @@ class TestTheMainPlayer:
         """
         role = _main_role(tmp_path)
         dead: dict[str, str] = {}
-        for verb, where in _sent_to(landed, "nau_cmd_file").items():
-            if verb in UNIMPLEMENTED_NAU_VERBS:
+        for verb, where in _sent_to(landed, "main_player_cmd_file").items():
+            if verb in UNIMPLEMENTED_MAIN_PLAYER_VERBS:
                 continue
             if not role.apply_command(_a_whole_line(verb), on_quit=lambda: None):
                 dead[verb] = where
         assert not dead, (
             "the VR main role answers none of these and none is a stated "
-            f"exception in UNIMPLEMENTED_NAU_VERBS: {dead}"
+            f"exception in UNIMPLEMENTED_MAIN_PLAYER_VERBS: {dead}"
         )
 
     def test_the_stated_exceptions_are_all_verbs_it_really_refuses(self, tmp_path):
@@ -229,16 +229,16 @@ class TestTheMainPlayer:
         """
         role = _main_role(tmp_path)
         answered = [
-            verb for verb in UNIMPLEMENTED_NAU_VERBS
+            verb for verb in UNIMPLEMENTED_MAIN_PLAYER_VERBS
             if role.apply_command(_a_whole_line(verb), on_quit=lambda: None)
         ]
         assert not answered, (
-            f"UNIMPLEMENTED_NAU_VERBS names verbs the role now answers: {answered}"
+            f"UNIMPLEMENTED_MAIN_PLAYER_VERBS names verbs the role now answers: {answered}"
         )
 
     def test_every_exception_says_why(self):
         """A bare list of dead verbs is a list nobody can act on later."""
-        for verb, reason in UNIMPLEMENTED_NAU_VERBS.items():
+        for verb, reason in UNIMPLEMENTED_MAIN_PLAYER_VERBS.items():
             assert reason.strip(), f"{verb} is excepted with no reason"
 
 

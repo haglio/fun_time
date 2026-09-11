@@ -15,7 +15,7 @@ from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 from .config import LayoutConfig, RegenConfig
-from .nau_console import nau_console_path
+from .main_player_console import main_player_console_path
 from .players import Player
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
@@ -38,7 +38,7 @@ def build_windows_bridge_manifest(
             "config_path": str(config.config_path),
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
-            # Where Genau and Nau are started from.  Empty means "wherever we
+            # Where Genau and the main player are started from.  Empty means "wherever we
             # are", resolving them through their venv's editable install; named,
             # another checkout of that repo runs instead.
             "genau_project_dirs": os.pathsep.join(
@@ -50,7 +50,7 @@ def build_windows_bridge_manifest(
         "executables": {
             # Two interpreters: ours runs everything this repo ships (the
             # dashboard, the audio companion, the satellite players), and
-            # genau's runs the apps that live in ../genau (Genau and Nau).
+            # genau's runs the apps that live in ../genau (Genau and the main player).
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
             # Origenerator has no venv; its deps live in a system install, so a
@@ -58,7 +58,7 @@ def build_windows_bridge_manifest(
             "origenerator_python_exe": str(config.paths.origenerator_python_exe or ""),
         },
         "media": {
-            "nau_library_sources": "|".join(str(path) for path in config.paths.nau_library_dirs),
+            "main_player_library_sources": "|".join(str(path) for path in config.paths.main_player_library_dirs),
             # Which sources hold VR masters — none out here.  FunTimeVR's own.
             "vr_library_dirs": "",
             "portrait_dirs": "|".join(str(path) for path in config.paths.portrait_dirs),
@@ -70,7 +70,7 @@ def build_windows_bridge_manifest(
         },
         "modules": {
             "genau_module": "genau",
-            "nau_module": "nau",
+            "main_player_module": "main_player",
             "satellite_module": "satellite",
             "audio_module": "fun_time.audio_companion_app",
             "dashboard_module": "fun_time.dashboard_app",
@@ -79,11 +79,11 @@ def build_windows_bridge_manifest(
             "genau_mode_file": str(config.genau_mode_file),
             "genau_cmd_file": str(config.genau_cmd_file),
             "genau_paused_file": str(config.genau_paused_file),
-            "nau_cmd_file": str(config.nau_cmd_file),
-            "nau_paused_file": str(config.nau_paused_file),
-            "nau_status_file": str(config.nau_status_file),
-            "nau_console_file": str(nau_console_path(config.paths.state_dir)),
-            "nau_playlist_file": str(config.nau_playlist_file),
+            "main_player_cmd_file": str(config.main_player_cmd_file),
+            "main_player_paused_file": str(config.main_player_paused_file),
+            "main_player_status_file": str(config.main_player_status_file),
+            "main_player_console_file": str(main_player_console_path(config.paths.state_dir)),
+            "main_player_playlist_file": str(config.main_player_playlist_file),
             **_side_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
             "broker_heartbeat_file": str(config.broker_heartbeat_file),
@@ -97,7 +97,7 @@ def build_windows_bridge_manifest(
             "dashboard_state_file": str(config.dashboard_state_file),
             "dashboard_cmd_file": str(config.dashboard_cmd_file),
             "state_dir": str(config.paths.state_dir),
-            "nau_notice_file": str(config.nau_notice_file),
+            "main_player_notice_file": str(config.main_player_notice_file),
             "origenerator_cmd_file": str(config.origenerator_cmd_file),
             "origenerator_paused_file": str(config.origenerator_paused_file),
             "origenerator_status_file": str(config.origenerator_status_file),
@@ -166,7 +166,7 @@ class RuntimePaths:
     config_path: str
     windows_bridge_log_file: str
     genau_config_path: str
-    # Where Genau and Nau are started from.  Empty means "wherever we are".
+    # Where Genau and the main player are started from.  Empty means "wherever we are".
     genau_project_dirs: str = ""
     # The Origenerator checkout the session hosts, or "" for a session with
     # no origenerator mode at all.
@@ -186,7 +186,7 @@ class Executables:
 class MediaSources:
     """[media]: the libraries and folders the players draw from."""
 
-    nau_library_sources: str
+    main_player_library_sources: str
     portrait_dirs: str
     landscape_dirs: str
     weird_dir: str
@@ -202,7 +202,7 @@ class ChildModules:
     """[modules]: what each child is launched as (``python -m <module>``)."""
 
     genau_module: str
-    nau_module: str
+    main_player_module: str
     satellite_module: str
     audio_module: str
     dashboard_module: str
@@ -215,11 +215,11 @@ class CommandFiles:
     genau_mode_file: str
     genau_cmd_file: str
     genau_paused_file: str
-    nau_cmd_file: str
-    nau_paused_file: str
-    nau_status_file: str
-    nau_console_file: str
-    nau_playlist_file: str
+    main_player_cmd_file: str
+    main_player_paused_file: str
+    main_player_status_file: str
+    main_player_console_file: str
+    main_player_playlist_file: str
     portrait_cmd_file: str
     portrait_paused_file: str
     portrait_status_file: str
@@ -237,7 +237,7 @@ class CommandFiles:
     dashboard_state_file: str
     dashboard_cmd_file: str
     state_dir: str
-    nau_notice_file: str
+    main_player_notice_file: str
     origenerator_status_file: str
     # The five a reader has always defaulted rather than demanded, kept
     # defaulted so this parse refuses nothing today's readers accept.

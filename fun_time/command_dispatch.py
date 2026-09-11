@@ -31,14 +31,14 @@ from .event_log import (
 from .filter_vocab import decode_filter_command
 from .lock import build_discard_plan, build_lock_toggle_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
-from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, nau_displays
+from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .player_status import (
     genau_status_path,
     read_genau_enabled,
     read_genau_status,
-    read_nau_status,
+    read_main_player_status,
 )
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
@@ -125,31 +125,31 @@ _GENAU_CMD_MAP = {
 
 
 # Speed control splits by which control said it: the console's ± marks move the
-# engine they sit next to (_GENAU_CMD_MAP, _SPEED_NAU_RELATIVE), while this bare
+# engine they sit next to (_GENAU_CMD_MAP, _SPEED_MAIN_PLAYER_RELATIVE), while this bare
 # pair — spoken, or J/L — carries no label and follows whichever engine holds
 # the OSR2 (see :func:`_speed_target` for the whole routing).
 _SPEED_BY_DRIVER = {
     "speed_down": "SPEED_DOWN",
     "speed_up": "SPEED_UP",
 }
-# The video's own playback rate, as opposed to the motion's — always Nau's.
-_SPEED_NAU_RELATIVE = {
-    "nau_speed_down": "SPEED_DOWN",
-    "nau_speed_up": "SPEED_UP",
+# The video's own playback rate, as opposed to the motion's — always the main player's.
+_SPEED_MAIN_PLAYER_RELATIVE = {
+    "main_player_speed_down": "SPEED_DOWN",
+    "main_player_speed_up": "SPEED_UP",
 }
 # An absolute video-speed set (min / max / a spoken multiplier) tunes whatever
-# Nau is showing, so it lands even during a Genau-driven stretch; Genau has no
+# The main player is showing, so it lands even during a Genau-driven stretch; Genau has no
 # multiplier, so that side is a no-op there.
 _SPEED_EXTREMES = {
-    # command -> (nau command, genau command)
+    # command -> (main_player command, genau command)
     "speed_min": ("SET_SPEED min", "SPEED 0"),
     "speed_max": ("SET_SPEED max", "SPEED 100"),
 }
 
 
-def _parse_nau_speed(command: str) -> str | None:
-    """'nau_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
-    prefix = "nau_speed_"
+def _parse_main_player_speed(command: str) -> str | None:
+    """'main_player_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
+    prefix = "main_player_speed_"
     if not command.startswith(prefix):
         return None
     try:
@@ -163,46 +163,46 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
     """Which engine a speed command drives.
 
     genau mode -> 'genau'.  Video mode runs both, so an engine-named command
-    goes where its name says — the video's rate to Nau, the one on screen —
-    while the unqualified nudge follows the OSR2: Nau's funscript while it is
+    goes where its name says — the video's rate to the main player, the one on screen —
+    while the unqualified nudge follows the OSR2: the main player's funscript while it is
     driving, else the Robot Hand.  The hand is paused for the whole of a
     scripted stretch, so a nudge sent there then reaches an engine that cannot
     move — and a hand held still (parked or retracted) has no motion to speed
     up either, so under a hold the nudge reaches the video as well.
     """
-    if not nau_displays(state.main_mode):
+    if not main_player_displays(state.main_mode):
         return "genau"
     if not by_driver:
-        return "nau"
-    if read_nau_status(config.nau_status_file).funscript_driving:
-        return "nau"
+        return "main_player"
+    if read_main_player_status(config.main_player_status_file).funscript_driving:
+        return "main_player"
     dials = _read_motion_dials(config)
     if dials is not None and held(dials):
-        return "nau"
+        return "main_player"
     return "genau"
 
 
-_NAU_CMD_MAP = {
-    "nau_record_down": "RECORD_DOWN",
-    "nau_record_up": "RECORD_UP",
-    "nau_record_tap": "RECORD_TAP",
-    "nau_loop_cancel": "LOOP_CANCEL",
-    "nau_cycle_version": "CYCLE_VERSION",
-    "nau_toggle_length": "TOGGLE_LENGTH_MODE",
-    "nau_length_shorts": "SET_LENGTH_MODE shorts",
-    "nau_length_full": "SET_LENGTH_MODE full",
-    "nau_length_mixed": "SET_LENGTH_MODE mixed",
-    "nau_length_none": "SET_LENGTH_MODE none",
-    "nau_compilation": "PLAY_COMPILATION",
-    "nau_end_compilation": "END_COMPILATION",
-    "nau_full_vid": "PLAY_FULL_VID",
-    "nau_clip_jump": "PLAY_CLIP_JUMP",
+_MAIN_PLAYER_CMD_MAP = {
+    "main_player_record_down": "RECORD_DOWN",
+    "main_player_record_up": "RECORD_UP",
+    "main_player_record_tap": "RECORD_TAP",
+    "main_player_loop_cancel": "LOOP_CANCEL",
+    "main_player_cycle_version": "CYCLE_VERSION",
+    "main_player_toggle_length": "TOGGLE_LENGTH_MODE",
+    "main_player_length_shorts": "SET_LENGTH_MODE shorts",
+    "main_player_length_full": "SET_LENGTH_MODE full",
+    "main_player_length_mixed": "SET_LENGTH_MODE mixed",
+    "main_player_length_none": "SET_LENGTH_MODE none",
+    "main_player_compilation": "PLAY_COMPILATION",
+    "main_player_end_compilation": "END_COMPILATION",
+    "main_player_full_vid": "PLAY_FULL_VID",
+    "main_player_clip_jump": "PLAY_CLIP_JUMP",
     # Funscript navigation: past this video's quiet stretch, or on to the next
     # video in the playlist that has a script at all (landing on its action).
-    # Only Nau can answer either — it holds the playlist's funscript column and
+    # Only the main player can answer either — it holds the playlist's funscript column and
     # the parsed script of what is playing.
-    "nau_funscript_jump": "JUMP_TO_FUNSCRIPT",
-    "nau_next_funscripted": "NEXT_FUNSCRIPTED",
+    "main_player_funscript_jump": "JUMP_TO_FUNSCRIPT",
+    "main_player_next_funscripted": "NEXT_FUNSCRIPTED",
 }
 
 
@@ -365,11 +365,11 @@ _RESET_SIDES: dict[str, tuple[Player, ...]] = {
 }
 
 # The main player's own reset — the same word, meaning for it what it means for a
-# satellite: drop whatever is narrowing the playlist.  What narrows Nau is its
+# satellite: drop whatever is narrowing the playlist.  What narrows the main player is its
 # length mode (and any compilation it is inside, which leaving the length mode
 # leaves too) and its F-mode.  It is a command of ours rather than a bare forward
-# to Nau because half of it is ours: the F-mode flag is the orchestrator's, set
-# from three places of which Nau is only one.
+# to the main player because half of it is ours: the F-mode flag is the orchestrator's, set
+# from three places of which the main player is only one.
 MAIN_RESET = "main_reset"
 
 # "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
@@ -403,7 +403,7 @@ _MINIMIZE_ROLES: dict[str, str] = {
     "landscape_minimize": "landscape",
 }
 
-# The main player's own console button (``nau.console``).  It names the *slot*
+# The main player's own console button (``main_player.console``).  It names the *slot*
 # rather than a window, because two players share that rect.
 MAIN_MINIMIZE = "main_minimize"
 
@@ -411,7 +411,7 @@ MAIN_MINIMIZE = "main_minimize"
 def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
     """The windows *command* asks to have parked, or None when it asks for none.
 
-    A satellite names its own window.  The main player names its slot, which Nau
+    A satellite names its own window.  The main player names its slot, which the main player
     and Genau share — so its button parks whichever of the pair the mode has on
     screen, and never the one the mode has already put away: minimizing a hidden
     window is what drags it back into view.
@@ -425,7 +425,7 @@ def _minimize_ops(command: str, main_mode: str) -> list[WindowOp] | None:
     return None
 
 # The two browse orderings, per player: Latest reloads newest-first, Shuffle
-# reshuffles.  The main player is 1 and reloads through Nau rather than through
+# reshuffles.  The main player is 1 and reloads through the main player rather than through
 # a satellite rebuild — the table only says which player and which order.
 _REORDER_COMMANDS: dict[str, tuple[Player, bool]] = {
     "main_latest": (Player.MAIN, True),
@@ -517,7 +517,7 @@ def _is_hud_nav_command(command: str) -> bool:
     return _parse_nav(command) is not None
 
 
-# The main slot's lock: repeat what is on screen, or let it move on — Nau's
+# The main slot's lock: repeat what is on screen, or let it move on — the main player's
 # video into the next playlist entry, Genau's clip into the next clip after its
 # interval.  Both players answer these three verbs and both open locked (the
 # routing is :func:`_main_lock`'s).  The toggle is the key and the button; the
@@ -544,7 +544,7 @@ _MAIN_SELECTING_COMMANDS = frozenset(
 def command_side(command: str) -> Player | None:
     """The player a command addresses, or None if it addresses no player.
 
-    The main (Nau) player is selected by its own next/prev navigation, by its
+    The main (the main player) player is selected by its own next/prev navigation, by its
     lock, and by naming its F-mode or its reset — everything it shares with a
     satellite.  It has no weird/cycle, so nothing else selects it.
     """
@@ -626,7 +626,7 @@ def dispatch_command(
 _VOLUME_STEPS = {"audio_volume_down": -VOLUME_STEP, "audio_volume_up": VOLUME_STEP}
 
 # ``audio_set_volume|<0-100>`` — an absolute level, which is what a slider asks
-# for where every other audio command asks for a step or a state.  Nau's volume
+# for where every other audio command asks for a step or a state.  The main player's volume
 # control is the one that sends it.
 SET_VOLUME_COMMAND = "audio_set_volume"
 
@@ -670,7 +670,7 @@ def _dispatch_audio(
     """Publish *state*'s sound level to both of the main player's audio sinks,
     and say on screen what it now is."""
     publish_audio_level(
-        nau_cmd_file=config.nau_cmd_file,
+        main_player_cmd_file=config.main_player_cmd_file,
         genau_cmd_file=config.genau_cmd_file,
         audio_volume_file=config.audio_volume_file,
         volume=state.volume,
@@ -705,7 +705,7 @@ def _dispatch_enter_omnipause(
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
-        nau_paused_file=config.nau_paused_file,
+        main_player_paused_file=config.main_player_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
         relief=relief,
@@ -728,7 +728,7 @@ def _dispatch_leave_omnipause(
         genau_paused_file=config.genau_paused_file,
         audio_paused_file=config.audio_paused_file,
         genau_cmd_file=config.genau_cmd_file,
-        nau_paused_file=config.nau_paused_file,
+        main_player_paused_file=config.main_player_paused_file,
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
         satellites_origenerator=origenerator_shows(state.satellites_mode),
@@ -750,31 +750,31 @@ def _dispatch_leave_omnipause(
 def _main_focus_ops() -> list[WindowOp]:
     """Re-activate the window on top of the main player (omnipause leave):
     Genau's in both modes — the display in genau mode, the HUD layer over
-    Nau's video in video mode."""
+    The main player's video in video mode."""
     return [WindowOp(op="activate_role", key="genau")]
 
 
 def _main_slot_ops(main_mode: str) -> list[WindowOp]:
     """Visibility + z-order ops for the main player-slot windows on a mode switch.
 
-    The two players (Nau and Genau) share one screen rect; exactly the mode's
+    The two players (the main player and Genau) share one screen rect; exactly the mode's
     player(s) are shown and the inactive slot-mate hidden.  The new window is
     shown and activated BEFORE the old one hides so focus never falls through
     to another application.  Finally the pair is re-stacked for the new mode
-    (``restack_main``): Nau topmost, with Genau's HUD above it in video mode.
-    Nau and Genau overlap, so their z-order is explicit — unlike every other
-    window, a plain topmost flag can't say "Genau above Nau, both on top."
+    (``restack_main``): the main player topmost, with Genau's HUD above it in video mode.
+    The main player and Genau overlap, so their z-order is explicit — unlike every other
+    window, a plain topmost flag can't say "Genau above the main player, both on top."
     """
     restack = WindowOp(op="restack_main")
     if main_mode == MAIN_GENAU_MODE:
         return [
             WindowOp(op="show_role", key="genau"),
             WindowOp(op="activate_role", key="genau"),
-            WindowOp(op="hide_role", key="nau"),
+            WindowOp(op="hide_role", key="main_player"),
             restack,
         ]
     return [
-        WindowOp(op="show_role", key="nau"),
+        WindowOp(op="show_role", key="main_player"),
         WindowOp(op="show_role", key="genau"),
         WindowOp(op="activate_role", key="genau"),
         restack,
@@ -857,7 +857,7 @@ def _dispatch_fmode(
         main_sources=config.main_sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        nau_cmd_file=config.nau_cmd_file,
+        main_player_cmd_file=config.main_player_cmd_file,
         satellites={
             player: SatelliteFmodeInputs(
                 sources=config.side(player).sources,
@@ -904,36 +904,36 @@ def _dispatch_main_reorder(
 
     To whichever player owns the main slot's screen, the split the lock makes (see
     ``_MAIN_LOCK_COMMANDS``) and for the same reason: a browse order is about
-    what you are looking at.  Sent to Nau regardless, "main latest" said in genau
+    what you are looking at.  Sent to the main player regardless, "main latest" said in genau
     mode rewrote a playlist for a player that was neither on screen nor playing,
     and Genau — the one actually showing — went on with the order it launched in.
 
     Both branches rescan as they go, which is most of what "latest" is for: a clip
     that arrived since is in no list until something looks again.
 
-    Nau's playlist is ours to write, so that branch rewrites the file and hands
-    Nau the same RELOAD_PLAYLIST an F-mode change gets, from the top of the new
-    order — a reorder filters nothing out, so Nau would otherwise keep the video
+    The main player's playlist is ours to write, so that branch rewrites the file and hands
+    The main player the same RELOAD_PLAYLIST an F-mode change gets, from the top of the new
+    order — a reorder filters nothing out, so the main player would otherwise keep the video
     on screen and carry on from wherever it now sits, the newest-first list
     applying only after it and the arrivals never coming up.  Genau has no
     playlist file at all; it owns its own sequence, so it is told the order and
     rescans its clips folder itself.
 
     Each player's order is remembered under its own flag.  ``main_latest``
-    describes the playlist file we built for Nau — a later F-mode rebuild reads it
+    describes the playlist file we built for the main player — a later F-mode rebuild reads it
     to reload the same way round — so recording a Genau reorder there would light
-    "Latest" over a Nau playlist nobody reordered.  ``genau_latest`` is Genau's,
+    "Latest" over a main player playlist nobody reordered.  ``genau_latest`` is Genau's,
     and both reach the console, which draws whichever player is showing.
     """
-    on_nau = nau_displays(state.main_mode)
-    if on_nau:
+    on_main_player = main_player_displays(state.main_mode)
+    if on_main_player:
         state = replace(state, main_latest=recent)
         apply_main_fmode(
             enabled=state.main_f_mode,
             main_sources=config.main_sources,
             recent=recent,
             state_dir=config.state_dir,
-            nau_cmd_file=config.nau_cmd_file,
+            main_player_cmd_file=config.main_player_cmd_file,
             start_at_top=True,
             shapes=main_video_shapes(state, config),
         )
@@ -942,7 +942,7 @@ def _dispatch_main_reorder(
         append_command(config.genau_cmd_file, _GENAU_ORDER_CMD[recent])
     # The order's own word alone, and self-reported — see _dispatch_reorder.
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
-    logger.info("%s: main player (%s)", label, "nau" if on_nau else "genau")
+    logger.info("%s: the main player (%s)", label, "main_player" if on_main_player else "genau")
     return state, [WindowOp(op="notice", key=label, source=SOURCE_MAIN)]
 
 
@@ -972,14 +972,14 @@ def _dispatch_main_projection(
     if not (plays_vr or plays_flat):
         # Nothing to rebuild from, so the video on screen is held instead: a
         # state you can see, where an empty list would look like a no-op.
-        append_command(config.nau_cmd_file, _MAIN_LOCK_COMMANDS["main_lock_on"])
+        append_command(config.main_player_cmd_file, _MAIN_LOCK_COMMANDS["main_lock_on"])
     else:
         apply_main_fmode(
             enabled=state.main_f_mode,
             main_sources=config.main_sources,
             recent=state.main_latest,
             state_dir=config.state_dir,
-            nau_cmd_file=config.nau_cmd_file,
+            main_player_cmd_file=config.main_player_cmd_file,
             shapes=main_video_shapes(state, config),
         )
     label = _PROJECTION_LABELS[(plays_vr, plays_flat)]
@@ -994,10 +994,10 @@ def _dispatch_main_reset(
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put the main player back to its defaults — the satellites' reset, over here.
 
-    Two things narrow what Nau plays, and both go: F-mode, whose playlist is
+    Two things narrow what the main player plays, and both go: F-mode, whose playlist is
     rebuilt wide again, and the length mode, back to mixed — which leaves any
     compilation with it, since a compilation is a playing set the length mode was
-    feeding.  The length verb is Nau's, so it is only sent while Nau owns the main
+    feeding.  The length verb is the main player's, so it is only sent while the main player owns the main
     slot; the F-mode flag is ours and is cleared whoever is showing, exactly as
     "main f mode off" clears it.
 
@@ -1017,11 +1017,11 @@ def _dispatch_main_reset(
             main_sources=config.main_sources,
             recent=state.main_latest,
             state_dir=config.state_dir,
-            nau_cmd_file=config.nau_cmd_file,
+            main_player_cmd_file=config.main_player_cmd_file,
             shapes=main_video_shapes(state, config),
         )
-    if nau_displays(state.main_mode):
-        append_command(config.nau_cmd_file, _NAU_CMD_MAP["nau_length_mixed"])
+    if main_player_displays(state.main_mode):
+        append_command(config.main_player_cmd_file, _MAIN_PLAYER_CMD_MAP["main_player_length_mixed"])
     logger.info("Reset main player")
     return state, [WindowOp(op="notice", key="Reset", source=SOURCE_MAIN)]
 
@@ -1300,8 +1300,8 @@ def _dispatch_mode_switch(
         target_mode=target_mode,
         omni_paused=state.omni_paused,
         genau_cmd_file=config.genau_cmd_file,
-        nau_paused_file=config.nau_paused_file,
-        nau_cmd_file=config.nau_cmd_file,
+        main_player_paused_file=config.main_player_paused_file,
+        main_player_cmd_file=config.main_player_cmd_file,
     )
     state = replace(state, main_mode=result.next_mode)
     if result.is_transition:
@@ -1357,21 +1357,21 @@ def _no_loop(player: Player, state: BridgeState, config: BridgeConfig,
     return no_loop(player, state, config)
 
 
-def _forward_to_nau(verb: str, state: BridgeState, config: BridgeConfig,
+def _forward_to_main_player(verb: str, state: BridgeState, config: BridgeConfig,
                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Nau owns the main player in video mode; in genau mode the paused Nau
+    """The main player owns the main slot in video mode; in genau mode the paused main player
     still navigates in the background, and its SEEK commands apply to a live
     local clock, so rapid nudges stack naturally."""
-    append_command(config.nau_cmd_file, verb)
+    append_command(config.main_player_cmd_file, verb)
     return state, []
 
 
-def _forward_to_nau_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
+def _forward_to_main_player_on_screen(verb: str, state: BridgeState, config: BridgeConfig,
                               _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Loop recording, versions and length only make sense while Nau owns the
+    """Loop recording, versions and length only make sense while the main player owns the
     main slot — video mode, not genau."""
-    if nau_displays(state.main_mode):
-        append_command(config.nau_cmd_file, verb)
+    if main_player_displays(state.main_mode):
+        append_command(config.main_player_cmd_file, verb)
     return state, []
 
 
@@ -1379,19 +1379,19 @@ def _forward_to_the_vr_main_player(verb: str, state: BridgeState, config: Bridge
                                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """A projection to walk and a heading to re-zero onto are things only the
     VR main player has, so a desktop session does not send these at all.  A
-    mode is the wrong question: Nau has no projection in any of them, and the
-    nau file quartet is the main player's channel, whoever that player is."""
+    mode is the wrong question: the main player has no projection in any of them, and the
+    main_player file quartet is the main player's channel, whoever that player is."""
     if config.vr_main_player:
-        append_command(config.nau_cmd_file, verb)
+        append_command(config.main_player_cmd_file, verb)
     return state, []
 
 
 def _main_lock(verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """To whichever player is showing, because the lock is about what is on
-    screen: Nau's video in video mode, Genau's clip in genau.  The same
+    screen: the main player's video in video mode, Genau's clip in genau.  The same
     split the speed controls make, and for the same reason."""
-    target = (config.nau_cmd_file if nau_displays(state.main_mode)
+    target = (config.main_player_cmd_file if main_player_displays(state.main_mode)
               else config.genau_cmd_file)
     append_command(target, verb)
     return state, []
@@ -1523,13 +1523,13 @@ def _genau_toggle_auto(state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _speed(nau_cmd: str | None, genau_cmd: str | None, by_driver: bool,
+def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
            state: BridgeState, config: BridgeConfig,
            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Send a speed command to the engine it drives (see :func:`_speed_target`)."""
     target = _speed_target(state, config, by_driver=by_driver)
-    if target == "nau" and nau_cmd is not None:
-        append_command(config.nau_cmd_file, nau_cmd)
+    if target == "main_player" and main_player_cmd is not None:
+        append_command(config.main_player_cmd_file, main_player_cmd)
     elif target == "genau" and genau_cmd is not None:
         append_command(config.genau_cmd_file, genau_cmd)
     return state, []
@@ -1584,10 +1584,10 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, player in _NO_LOOP_SIDES.items()})
     handlers.update({cmd: partial(_dispatch_lock_action, player)
                      for cmd, player in _LOCK_ACTION_SIDES.items()})
-    handlers["main_prev"] = partial(_forward_to_nau, "PREV")
-    handlers["main_next"] = partial(_forward_to_nau, "NEXT")
-    handlers["main_nudge_prev"] = partial(_forward_to_nau, "SEEK_BACK")
-    handlers["main_nudge_next"] = partial(_forward_to_nau, "SEEK_FWD")
+    handlers["main_prev"] = partial(_forward_to_main_player, "PREV")
+    handlers["main_next"] = partial(_forward_to_main_player, "NEXT")
+    handlers["main_nudge_prev"] = partial(_forward_to_main_player, "SEEK_BACK")
+    handlers["main_nudge_next"] = partial(_forward_to_main_player, "SEEK_FWD")
     handlers.update({cmd: partial(_main_lock, verb)
                      for cmd, verb in _MAIN_LOCK_COMMANDS.items()})
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
@@ -1595,8 +1595,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_player, "TILT_UP")
     handlers["tilt_down"] = partial(_forward_to_the_vr_main_player, "TILT_DOWN")
     handlers["tilt_reset"] = partial(_forward_to_the_vr_main_player, "TILT_RESET")
-    handlers.update({cmd: partial(_forward_to_nau_on_screen, verb)
-                     for cmd, verb in _NAU_CMD_MAP.items()})
+    handlers.update({cmd: partial(_forward_to_main_player_on_screen, verb)
+                     for cmd, verb in _MAIN_PLAYER_CMD_MAP.items()})
     handlers.update({cmd: partial(_set_muted, muted)
                      for cmd, muted in _MUTE_COMMANDS.items()})
     handlers.update({cmd: partial(_volume_step, step)
@@ -1625,9 +1625,9 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})
     handlers.update({cmd: partial(_speed, verb, None, False)
-                     for cmd, verb in _SPEED_NAU_RELATIVE.items()})
-    handlers.update({cmd: partial(_speed, nau_cmd, genau_cmd, False)
-                     for cmd, (nau_cmd, genau_cmd) in _SPEED_EXTREMES.items()})
+                     for cmd, verb in _SPEED_MAIN_PLAYER_RELATIVE.items()})
+    handlers.update({cmd: partial(_speed, main_player_cmd, genau_cmd, False)
+                     for cmd, (main_player_cmd, genau_cmd) in _SPEED_EXTREMES.items()})
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
     handlers.update({cmd: partial(_robot_hand_hold, cmd) for cmd in HOLD_CENTERS})
@@ -1696,13 +1696,13 @@ def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
     return _dispatch_set_filter(Player.for_scope(scope), query, state, config)
 
 
-def _parsed_nau_speed(command: str, state: BridgeState, config: BridgeConfig,
+def _parsed_main_player_speed(command: str, state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
-    """"nau_speed_<pct>" — an absolute video rate, Nau's alone."""
-    nau_cmd = _parse_nau_speed(command)
-    if nau_cmd is None:
+    """"main_player_speed_<pct>" — an absolute video rate, the main player's alone."""
+    main_player_cmd = _parse_main_player_speed(command)
+    if main_player_cmd is None:
         return None
-    return _speed(nau_cmd, None, False, state, config, _target_path)
+    return _speed(main_player_cmd, None, False, state, config, _target_path)
 
 
 def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,
@@ -1729,7 +1729,7 @@ _PARSED_FORMS = (
     _parsed_lock_video,
     _parsed_set_volume,
     _parsed_filter,
-    _parsed_nau_speed,
+    _parsed_main_player_speed,
     _parsed_numeric,
     _parsed_unresolved_active,
 )

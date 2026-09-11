@@ -9,7 +9,7 @@ def test_toggle_enters_omnipause_when_not_already_paused():
 
     assert plan.action == "enter"
     assert plan.next_omni_paused is True
-    assert plan.resume_nau_playback is False
+    assert plan.resume_main_player_playback is False
     assert plan.log_message == "OmniPause: entering"
 
 
@@ -18,16 +18,16 @@ def test_toggle_leaves_omnipause_when_already_paused():
 
     assert plan.action == "leave"
     assert plan.next_omni_paused is False
-    # Genau owns the display in genau mode, so there is no Nau playback to resume.
-    assert plan.resume_nau_playback is False
+    # Genau owns the display in genau mode, so there is no main player playback to resume.
+    assert plan.resume_main_player_playback is False
     assert plan.log_message == "OmniPause: leaving"
 
 
-def test_leave_video_mode_resumes_nau():
+def test_leave_video_mode_resumes_main_player():
     plan = build_omnipause_plan("leave", omni_paused=True, main_mode="video")
 
     assert plan.action == "leave"
-    assert plan.resume_nau_playback is True
+    assert plan.resume_main_player_playback is True
 
 
 def test_relief_enters_omnipause_but_retracts_the_osr2():

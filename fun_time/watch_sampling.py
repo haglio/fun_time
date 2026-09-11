@@ -10,13 +10,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from .command_dispatch import command_side
-from .player_status import read_nau_status
+from .player_status import read_main_player_status
 from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
 from .watch_stats import WatchTracker, record_watch_event
 
 # Twice a second: the cadence for sampling every player's current clip (both
-# satellites and the main Nau feed).  A satellite video switch is only ever
+# satellites and the main player feed).  A satellite video switch is only ever
 # bracketed by two samples, so this also bounds how far a back-dated command can
 # misplace a switch (the timeline halves it again by dating the switch to the
 # bracket's midpoint).  Skipped under OmniPause, where playback is frozen.
@@ -24,7 +24,7 @@ SAMPLE_INTERVAL_S = 0.5
 
 # Commands that count as the user navigating away from a video — the signal
 # that classifies an early departure as a skip rather than a neutral advance.
-# The main player (Nau) navigates with next/prev only; it has no lock/weird/cycle.
+# The main player navigates with next/prev only; it has no lock/weird/cycle.
 NAV_COMMANDS: dict[int, frozenset[str]] = {
     1: frozenset({"main_prev", "main_next"}),
     2: frozenset({"portrait_prev", "portrait_next", "portrait_cycle_action", "portrait_cycle_seed"}),
@@ -40,11 +40,11 @@ class WatchSampler:
     def __init__(
         self,
         *,
-        nau_status_file: Path,
+        main_player_status_file: Path,
         satellite_status_files: dict[int, Path],
         stats_file: Path,
     ) -> None:
-        self.nau_status_file = nau_status_file
+        self.main_player_status_file = main_player_status_file
         self.satellite_status_files = satellite_status_files
         self.stats_file = stats_file
         self._trackers: dict[int, WatchTracker] = {1: WatchTracker(), 2: WatchTracker(),
@@ -78,14 +78,14 @@ class WatchSampler:
                 record_watch_event(self.stats_file, video, event)
 
     def _sample_main(self) -> None:
-        """Sample the main Nau player's current video for watch tracking.
+        """Sample the main player's current video for watch tracking.
 
-        Nau publishes its playback to the status file; the watched fraction is
+        The main player publishes its playback to the status file; the watched fraction is
         position/duration.  A paused player, one with nothing loaded, or one
         whose duration is not yet known yields no usable sample, so those ticks
         are dropped rather than fed to the tracker.
         """
-        status = read_nau_status(self.nau_status_file)
+        status = read_main_player_status(self.main_player_status_file)
         if not status.video or status.paused or status.duration_ms <= 0:
             return
         fraction = status.position_ms / status.duration_ms

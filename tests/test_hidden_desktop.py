@@ -233,12 +233,12 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
 
 def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
     with patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
-         patch.object(sys, "argv", ["hidden_desktop", "-k", "nau"]):
+         patch.object(sys, "argv", ["hidden_desktop", "-k", "main_player"]):
         with pytest.raises(SystemExit) as exit_info:
             main()
 
     assert exit_info.value.code == 0
-    run.assert_called_once_with(["-k", "nau"])
+    run.assert_called_once_with(["-k", "main_player"])
 
 
 def _wait_until_dead(pid: int, timeout: float = 5.0) -> bool:

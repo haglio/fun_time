@@ -13,4 +13,5 @@ def test_the_ruff_config_is_the_familys():
 
 
 def test_ruff_finds_nothing():
-    assert_lint_is_clean(ROOT, ROOT / "fun_time", ROOT / "fun_time_vr", ROOT / "satellite", ROOT / "tests")
+    assert_lint_is_clean(ROOT, ROOT / "fun_time", ROOT / "main_player", ROOT / "fun_time_vr",
+                         ROOT / "satellite", ROOT / "tests")

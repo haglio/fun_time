@@ -2,7 +2,7 @@
 
 Fun Time is a Windows desktop setup that launches and coordinates:
 
-- Nau, a funscript video player for the main player's video library (lives in the separate `../genau` project, launched as `python -m nau`)
+- the main player, a funscript video player for the main library (this repo's `main_player` package, launched as `python -m main_player`)
 - two satellite players, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
@@ -12,8 +12,8 @@ It uses a serial broker for the OSR2 — the separate `../broker` project — th
 
 The main stack runs in one of two modes (startup mode is **video**):
 
-- in **Video mode**, Nau owns the main player and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (Nau sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
-- in **Genau mode** (OSR2 auto/free mode), Genau clips own the main player and the Robot Hand drives the OSR2 outright
+- in **Video mode**, the main player owns the main slot and plays the whole main library, with Genau's HUD as a see-through layer over it. The OSR2 goes to the video's funscript while it has action (the main player sends funscript-derived T-Code over UDP to the broker), and to the **Robot Hand** — the family's own motion generator, run from Genau's process — through the quiet stretches and for videos without a script
+- in **Genau mode** (OSR2 auto/free mode), Genau clips own the main slot and the Robot Hand drives the OSR2 outright
 
 ## Folder layout
 
@@ -32,10 +32,10 @@ Runtime state:
 - `state/genau_mode.txt`
 - `state/genau_paused.txt`
 - `state/genau_cmd.txt`
-- `state/nau_cmd.txt`
-- `state/nau_paused.txt`
-- `state/nau_status.txt`
-- `state/nau_playlist.tsv`
+- `state/main_player_cmd.txt`
+- `state/main_player_paused.txt`
+- `state/main_player_status.txt`
+- `state/main_player_playlist.tsv`
 - `state/audio_paused.txt`
 - `state/*.log`
 
@@ -84,14 +84,14 @@ For the satellite AI libraries, Fun Time can now read either a single folder or 
 
 If the list form is used, the portrait or landscape satellite gets all listed folders joined into one rotating source set.
 
-Nau's video library folders are configured with `paths.nau_library_dirs` (a list of one or more folders):
+The main player's video library folders are configured with `paths.main_player_library_dirs` (a list of one or more folders):
 
 Example:
 
 ```json
 {
   "paths": {
-    "nau_library_dirs": [
+    "main_player_library_dirs": [
       "C:/videos/set_a",
       "C:/videos/set_b"
     ]
@@ -106,15 +106,15 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 Monitor naming under `layout` now uses:
 
 - `primary_monitor` — the monitor that shows the landscape satellite, the dashboard, and the Random Favs Browser
-- `secondary_monitor` — the monitor that shows the portrait satellite and the shared main-player slot (Nau and Genau use the same rect)
+- `secondary_monitor` — the monitor that shows the portrait satellite and the shared main-player slot (the main player and Genau use the same rect)
 
 ## High-level architecture
 
 Serial / mode control:
 
 - the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
-- **Nau** — a funscript video player in the `../genau` project — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/nau_cmd.txt`, and publishes playback status to `state/nau_status.txt`.
-- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over Nau in video mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
+- **the main player** — this repo's `main_player` package — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
+- **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the main player in video mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
 
 See those projects for the serial parsing, COM-port recovery, and playback internals.
 
@@ -124,7 +124,7 @@ The main monitor's left column stacks the **Dashboard** across its top and the *
 
 The log panel is a widget inside the dashboard window — one window, not two — so it rides the dashboard's topmost band, minimize/restore and close. It tails `state/event_log.jsonl` and shows the **stream** of everything the session logs, filtered by a verbosity dial (`DEBUG`/`INFO`/`NOTICE`/`WARNING`/`ERROR`, default `NOTICE`) and by per-window toggles across one compact row. Both settings persist in `state/log_panel.ini`.
 
-The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a main-player notice over the Nau/Genau display) and then fade. They also land in the stream, colored by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
+The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar clip" — flash over the top-center of the player they concern (a portrait notice over the portrait satellite, a main-player notice over the main player/Genau display) and then fade. They also land in the stream, colored by level, so the panel is where you scroll back through them. The flash always fires regardless of the verbosity dial, which governs only the stream. Long lines in the stream **word-wrap** rather than being cut off, so the tail of a message (a video name, a phrase heard) is readable.
 
 Every recognized voice command flashes a **green confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. A command that hits a dead end ("No other seeds", "No action metadata") flashes **red** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in red — over the player the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the main player) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing.
 
@@ -138,7 +138,7 @@ Every recognized voice command flashes a **green confirmation** — the phrase i
 
 - Python (currently launched via Miniconda `pythonw.exe`)
 - Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), vosk + sounddevice (voice control), and Pillow / numpy / opencv-python.
-- Genau and Nau run out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau` and `python -m nau`.
+- Genau runs out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau`; the main player runs out of this project's venv like the satellites, launched as `python -m main_player`, and reads its library folders and device port from the `main_player` section of the genau config file (`paths.genau_config_path`).
 
 Install the declared dependencies into the project venv before first use.
 
@@ -184,9 +184,10 @@ What the branch session keeps to itself is `state/`, inside the worktree — its
 command files, playlists, logs, thumbnails and resume point. Everything else is
 the real thing on purpose. See `fun_time/branch_session.py`.
 
-Nau and Genau come out of `../genau`, and which checkout of it is a per-session
+Genau comes out of `../genau`, and which checkout of it is a per-session
 fact: `paths.genau_project_dirs` puts directories in front of that repo's own
-install, so a branch of *genau* can be judged the same way. That is per session
+install — and in front of every player's — so a branch of *genau* or of
+*player_core* can be judged the same way. That is per session
 and must be said per session — written into the machine's `fun_time_config.json`
 it reaches the ordinary `launch.vbs` session and every other agent's branch
 session too, each then silently running someone's unlanded branch of another
@@ -241,13 +242,13 @@ This README deliberately does not repeat the key table — open the **?** popup 
 
 The satellite voice commands can be spoken with or without naming a side. The side word always comes first, so naming one — "portrait lock", "landscape next" — acts on that player as always. Said **bare** — "lock", "unlock", "next", "previous", "weird", "wrong action", "action", "seed" — the command acts on the **active side**: whichever satellite you most recently touched, by voice *or* by keyboard. So if you were just navigating the portrait with `←`/`→`, a plain "lock" locks the portrait; switch to the landscape with `A`/`D` and "lock" now locks the landscape. The active side is remembered (persisted in the bridge's shared state) until the other side is addressed. Bare commands are voice-only — the keys stay side-specific.
 
-Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; Nau is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
+Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; the main player is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
 
 ### Modes
 
-The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in Nau, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
+The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the main player, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
 
-The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive Nau in every mode (in Genau mode the paused Nau still navigates in the background). The `'` clip-save key reads the current video/time from Nau's status file in video mode.
+The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in every mode (in Genau mode the paused main player still navigates in the background). The `'` clip-save key reads the current video/time from the main player's status file in video mode.
 
 Spoken, "video mode" puts both sides on their video players at once; "main video mode" and "satellite video mode" do one side, and "genau mode" (heard as "go now" — "genau" is not in the recognizer's vocabulary) or "origenerator mode" (heard as "generator mode") puts a side back.
 
@@ -266,7 +267,7 @@ So `\` opens Fun Time's own browser instead of a file dialog. It shows one tile
 per **video** rather than per file — every rendition of one video collapsed into
 a single *handle* — with a still off each, named after the video, and no stage
 folders anywhere. Arrow keys move the selection, typing jumps to a title,
-and Enter or a double-click plays it in Nau; the window's close button abandons
+and Enter or a double-click plays it in the main player; the window's close button abandons
 the browse. The global hotkeys are suspended for its duration so those keys
 reach it at all — they consume the press, and the arrows and every letter are
 already commands. Escape is the exception: it belongs to OmniPause and stays
@@ -283,7 +284,7 @@ belongs to the session — quitting Fun Time closes a browse still on screen,
 since the dispatch loop that launched it holds it until it ends.
 
 The grid is one you **walk**. It opens on the library's own folders — one tile
-per folder under a `nau_library_dirs` source, showing four of its videos laid out
+per folder under a `main_player_library_dirs` source, showing four of its videos laid out
 two by two (drawn at random, so a folder is never the same picture twice) and a
 count — and opening one shows what is in it: either the folders it was split
 into, or its videos. A tile at the head of every folder goes back up, and so
@@ -342,15 +343,15 @@ from make the same picture, and only one of them is cheap to open.
 
 ### Loop recording (video mode)
 
-Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows Nau's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
+Hold `R` to record: a red dot and a growing filmstrip of one thumbnail per recorded second appear on screen. Release to snap the loop to funscript base positions and start looping (amber loop icon). Press `R` again to cancel back to normal playback (play icon). A small corner icon always shows the main player's play/pause/record/loop state. Voice equivalents: "record", "loop", "cancel".
 
 ### Sound
 
-One level covers the whole main slot, because it has two audio sinks — Nau's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and Nau draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
+One level covers the whole main slot, because it has two audio sinks — the main player's video and the Genau audio companion — and which is audible depends on the mode. The bridge holds the level and the mute; the keys and voice step it, and the main player draws a **volume control** at the right-hand end of the row above its timeline: click the speaker to mute, click or drag the slider to set the level.
 
-A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on Nau's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
+A press there posts to the dashboard command file (`audio_set_volume|<0-100>`, `audio_mute`, `audio_unmute`) and the bridge answers on the main player's own channel, so the slider is never the authority — it shows what it asked for straight away, and the answer confirms or corrects it a tick later.
 
-The mute reaches the two sinks differently, which is why `SET_VOLUME` carries two numbers. The audio companion only has to be quiet, so it gets a plain zero. Nau also has to *draw* the level, and a zero cannot say whether you are muted or merely turned all the way down, nor what unmuting should return to — so it gets `SET_VOLUME <level> <muted>` and works the audible loudness out itself. That is why a muted control still shows its fill.
+The mute reaches the two sinks differently, which is why `SET_VOLUME` carries two numbers. The audio companion only has to be quiet, so it gets a plain zero. The main player also has to *draw* the level, and a zero cannot say whether you are muted or merely turned all the way down, nor what unmuting should return to — so it gets `SET_VOLUME <level> <muted>` and works the audible loudness out itself. That is why a muted control still shows its fill.
 
 ### OmniPause
 
@@ -359,7 +360,7 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 ### The satellites' scrubber and volume chip
 
-Each satellite draws the same two controls Nau does along the lower edge of its video — the scrubber and the volume chip — and, like Nau's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
+Each satellite draws the same two controls the main player does along the lower edge of its video — the scrubber and the volume chip — and, like the main player's, both answer a press. Clicking anywhere on the bar seeks the clip on screen, which is what a longer video in a satellite needed and had no way to ask for; the playlist does not move, so the prefetched next clip is still there when it plays out. On the chip, the speaker mutes and unmutes and the slider sets the level, dragging as well as clicking.
 
 A satellite **opens muted** whatever its clips carry — the room's sound is the main player's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that player's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
 
@@ -383,14 +384,14 @@ The alternative was worse than it sounds: a player that closed itself left the s
 
 F-Mode is **per player** — the main player, portrait and landscape each have their own — and setting one rebuilds that player's playlist immediately, rather than waiting for the next advance, then sends it `RELOAD_PLAYLIST`. A player that was not named is not rebuilt at all, so narrowing one side never reshuffles the other's queue. What it narrows to differs by player:
 
-- the main playlist (Nau) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
+- the main playlist (the main player) keeps only videos that have a matching `.funscript` at the mirrored path, where `videos\videos\…` maps to `videos\scripts\scripts\….funscript`
 - each satellite plays only items that are in its normal portrait/landscape pool *and* listed in `favs.csv`
 
 Every player carries its own F button in the first row of icons on its own HUD (the satellites' control band, the main console's transport row), with that player's reset button just past it; the dashboard has no F-mode control. The `F` key and a bare spoken "f mode" still reach all three at once — they turn F-Mode **on** unless every player is already in it, so the whole-room gesture can never leave half the room narrowed. Naming a player narrows just that one: "portrait f mode", "f mode landscape", "main f mode on", "both f mode off" — either word order, and `both` means the two satellites.
 
 `build_all_playlists` writes all three playlist files at startup (each player's F-Mode off, which is what a session with nothing to resume opens in); `apply_fmode` rebuilds the named players after that.
 
-Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and Nau's mode HUD carries it beside the length mode or compilation — Nau is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that player's panel.
+Because the narrowing is invisible in the playlist itself, every HUD says when it is on. Each satellite's status line carries `F-Mode` between the browse order and the act filter (`fun_time/lock_hud.py`), and the main player's mode HUD carries it beside the length mode or compilation — the main player is told over `SET_F_MODE`, since a playlist of scripted videos looks like any other. Each HUD's F button lights green off the same per-player flag, published with the rest of that player's panel.
 
 F-Mode is also one of the things a **reset** drops — see below.
 
@@ -399,11 +400,11 @@ F-Mode is also one of the things a **reset** drops — see below.
 "Reset" means the same thing on every player: drop everything narrowing what it plays, and it is a button on that player's own HUD (next to F-Mode in each satellite's control band and in the main console's transport row) as well as a spoken word. What "narrowing" covers differs by player, because what each has to narrow with does:
 
 - a satellite (`portrait_reset` / `landscape_reset` / `both reset`) releases its lock, clears its act filter, drops F-Mode, ends any group loop with the widened seed row and frozen map that rode on it, returns the browse to shuffled, and starts from the top of a freshly built playlist. `no filter` is the narrow counterpart — it drops the act filter and leaves the rest standing
-- the main player (`main_reset`, "main reset" / "reset main") returns Nau's length mode to mixed, which leaves any compilation with it, and drops F-Mode. Its playlist is only rebuilt when F-Mode was actually on: "shuffle main" is the command that reorders, so a reset with nothing narrowed must not throw away the browse you are in
+- the main player (`main_reset`, "main reset" / "reset main") returns the main player's length mode to mixed, which leaves any compilation with it, and drops F-Mode. Its playlist is only rebuilt when F-Mode was actually on: "shuffle main" is the command that reorders, so a reset with nothing narrowed must not throw away the browse you are in
 
-**A reset does nothing to a player that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. A satellite is skipped whole when none of the things a reset takes off is set (`_RESET_STATE_FIELDS` is the one list both the clearing and the check read, so a narrowing cannot be cleared by one and missed by the other); the main player's half is Nau's, which ignores a length mode it is already running unless a compilation is what needs leaving.
+**A reset does nothing to a player that is already in one.** Every rebuild after it reshuffles and lands on the new list's first entry, so a press with nothing to put back was the quickest way to keep changing what was playing — press it three times and see three videos. A satellite is skipped whole when none of the things a reset takes off is set (`_RESET_STATE_FIELDS` is the one list both the clearing and the check read, so a narrowing cannot be cleared by one and missed by the other); the main player's half is the main player's, which ignores a length mode it is already running unless a compilation is what needs leaving.
 
-The main player's is a command of ours rather than a bare `SET_LENGTH_MODE mixed` forwarded to Nau, because half of it is ours — the F-Mode flag is the orchestrator's, set from a HUD button, the `F` key and a spoken phrase, of which only the last reaches Nau at all. Bare "reset" reaches whichever player was last addressed, the main player included.
+The main player's is a command of ours rather than a bare `SET_LENGTH_MODE mixed` forwarded to the main player, because half of it is ours — the F-Mode flag is the orchestrator's, set from a HUD button, the `F` key and a spoken phrase, of which only the last reaches the main player at all. Bare "reset" reaches whichever player was last addressed, the main player included.
 
 ### Cycle action & cycle seed (satellites)
 
@@ -468,7 +469,7 @@ Written by the broker (the `../broker` project).
 
 Values:
 
-- `0` = Genau takeover not active (Nau owns playback)
+- `0` = Genau takeover not active (the main player owns playback)
 - `1` = Genau takeover active
 
 The audio companion and the Python dispatch loop both read this file as the authoritative source of whether Genau takeover is actually active.
@@ -502,16 +503,16 @@ runs on around it; `WEIRD` condemns the clip, moving the file to
 
 Genau (the `../genau` project) consumes and clears this file.
 
-### `nau_cmd.txt`
+### `main_player_cmd.txt`
 
-Written by the Python dispatch loop when Nau control commands are dispatched; Nau consumes and clears it.
+Written by the Python dispatch loop when the main player control commands are dispatched; the main player consumes and clears it.
 
-Commands (the full set `nau/runtime.py` answers to):
+Commands (the full set `main_player/controls.py` answers to):
 
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
 - `SPEED_UP` / `SPEED_DOWN` / `SET_SPEED min|max|<rate>`
-- `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; Nau derives the audible loudness (see "Sound")
+- `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; the main player derives the audible loudness (see "Sound")
 - `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
 - `LOOP_CANCEL`
 - `CYCLE_VERSION`
@@ -519,19 +520,19 @@ Commands (the full set `nau/runtime.py` answers to):
 - `RELOAD_PLAYLIST`
 - `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`
 - `PLAY_COMPILATION` / `END_COMPILATION` / `PLAY_FULL_VID` / `PLAY_CLIP_JUMP`
-- `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. Nau alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
+- `JUMP_TO_FUNSCRIPT` / `NEXT_FUNSCRIPTED` — funscript navigation: seek past this video's quiet stretch to where its scripting starts up again, or leave for the next scripted video in the playlist, landing where its action begins. The main player alone can answer either, holding both the playlist's funscript column and the parsed script of what is playing
 - `SET_TCODE_ENABLED 0|1`
-- `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and Nau cannot work out for itself; both drive what its HUD shows
-- `DISPLAY_ON` / `DISPLAY_OFF` — whether Nau owns the main player's rect, which is not whether it is playing: the idle main-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode Nau blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
+- `SET_F_MODE 0|1` / `SET_ACTIVE 0|1` — state only the orchestrator holds and the main player cannot work out for itself; both drive what its HUD shows
+- `DISPLAY_ON` / `DISPLAY_OFF` — whether the main player owns the main slot's rect, which is not whether it is playing: the idle main-slot player is minimized rather than closed (it keeps its taskbar button), so in Genau mode the main player blanks instead of sitting on the frame it was paused on. The same pair Genau gets, for the same reason
 - `QUIT`
 
-### `nau_paused.txt`
+### `main_player_paused.txt`
 
-Flag file — Nau's pause channel. Mode switches and OmniPause write it; Nau polls it every tick.
+Flag file — the main player's pause channel. Mode switches and OmniPause write it; the main player polls it every tick.
 
-### `nau_status.txt`
+### `main_player_status.txt`
 
-Written by Nau: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time in video mode) and by the dashboard.
+Written by the main player: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time in video mode) and by the dashboard.
 
 ### `watch_stats.json`
 
@@ -540,13 +541,13 @@ Per-video watch counts (`completions` / `skips` / `locks`) keyed by normalized p
 ### `library_browser_pick.txt`
 
 The video the library browser picked, written as it closes and consumed by the
-dispatch loop, which turns it into Nau's `PLAY_FILE`. The browser is a separate
+dispatch loop, which turns it into the main player's `PLAY_FILE`. The browser is a separate
 process (the bridge has no Qt event loop), so this is how the pick gets back.
 Cleared before every browse, so abandoning one never replays the last pick.
 
-### `nau_playlist.tsv`
+### `main_player_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also sends Nau `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also sends the main player `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
 
 ### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`
 
@@ -594,19 +595,19 @@ Windows serial ports are effectively single-owner, so exactly one process can ow
 With the broker:
 
 - the broker alone opens real `COM4`
-- Nau and Genau drive the OSR2 by sending T-Code to the broker over UDP; the broker forwards it and suppresses serial input while UDP flows
+- The main player and Genau drive the OSR2 by sending T-Code to the broker over UDP; the broker forwards it and suppresses serial input while UDP flows
 - Genau gets mode/timing info over localhost instead of serial
 
 (Historically, MultiFunPlayer sat on the other side of a `com0com` virtual serial pair from the broker; MFP and that pair are gone now that UDP T-Code is the only control path.)
 
-### Why Genau and Nau use local files for commands/mode
+### Why Genau and the main player use local files for commands/mode
 
 For this setup, file-based signaling turned out to be a reliable and simple way to let:
 
 - Python dispatch loop
 - broker
 - Genau
-- Nau
+- The main player
 
 coordinate mode, playback, and clip-switch commands without depending on focused windows.
 
@@ -639,14 +640,14 @@ If startup still fails, inspect:
 - `state/orchestrator.log`
 - `state/windows_bridge.log`
 
-### The OSR2 does not respond to Nau
+### The OSR2 does not respond to the main player
 
 Check:
 
 - broker is running
 - scheduled task `FunTime Genau Broker` is present and running (`Get-ScheduledTask -TaskName "FunTime Genau Broker"`)
 - OSR2 is still on `COM4`
-- the current video actually has a funscript (`state/nau_status.txt` shows `has_funscript`) — videos without one play with no OSR2 output by design
+- the current video actually has a funscript (`state/main_player_status.txt` shows `has_funscript`) — videos without one play with no OSR2 output by design
 - the broker's log (in `../broker`) for serial/COM-port errors
 
 ### Genau never appears
@@ -701,7 +702,7 @@ These are the files that define the working system:
 - `fun_time/dashboard_app.py`
 - `fun_time/audio_companion_app.py`
 
-The broker, Genau/Nau, and Clipper are separate projects: `../broker`, `../genau`, `../clipper`.
+The broker, Genau, and Clipper are separate projects: `../broker`, `../genau`, `../clipper`.
 
 ## Refactors completed
 

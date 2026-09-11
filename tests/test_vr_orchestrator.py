@@ -39,7 +39,7 @@ def config(tmp_path, monkeypatch):
           "paths": {
             "ahk_exe": "%(ahk)s",
             "python_exe": "%(python)s",
-            "nau_library_dirs": ["%(flat)s"],
+            "main_player_library_dirs": ["%(flat)s"],
             "portrait_dirs": ["%(flat)s"],
             "landscape_dirs": ["%(flat)s"],
             "weird_dir": "%(weird)s",
@@ -111,7 +111,7 @@ class TestVrManifest:
 
     def test_manifest_overrides_primary_sources_and_adds_the_vr_section(self, config):
         manifest = build_vr_manifest(config)
-        assert manifest["media"]["nau_library_sources"] == vr_main_sources(config)
+        assert manifest["media"]["main_player_library_sources"] == vr_main_sources(config)
         vr = manifest["vr"]
         assert vr["player_module"] == VR_PLAYER_MODULE
         assert vr["library_dirs"] == str(config.vr.library_dirs[0])
@@ -150,7 +150,7 @@ class TestVrManifest:
     def test_everything_else_is_the_desktop_manifest(self, config):
         manifest = build_vr_manifest(config)
         assert manifest["modules"]["satellite_module"] == "satellite"
-        assert Path(manifest["commands"]["nau_cmd_file"]).name == "nau_cmd.txt"
+        assert Path(manifest["commands"]["main_player_cmd_file"]).name == "main_player_cmd.txt"
 
 
 class TestNoOrigeneratorInVr:
@@ -253,7 +253,7 @@ class TestResumedMainPlaylist:
     checks before honoring the resume."""
 
     def test_a_desktop_playlist_reads_as_holding_no_vr(self, config, tmp_path):
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(
             f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
             f"{tmp_path / 'library' / '2D' / 'scene two.mp4'}\n",
@@ -264,7 +264,7 @@ class TestResumedMainPlaylist:
 
     def test_one_vr_entry_is_enough(self, config, tmp_path):
         vr_dir = tmp_path / "library" / "VR" / "finished"
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(
             f"{tmp_path / 'library' / '2D' / 'scene one.mp4'}\n"
             f"{vr_dir / 'scene three.mp4'}\t{tmp_path / 'scene three.funscript'}\n",
@@ -370,7 +370,7 @@ class TestWaitForPlayer:
     def test_the_first_status_write_is_ready(self, tmp_path):
         from fun_time_vr.orchestrator import _wait_for_player
 
-        status = tmp_path / "nau_status.txt"
+        status = tmp_path / "main_player_status.txt"
         status.write_text("video=C:\\v\\scene one.mp4\n", encoding="utf-8")
 
         assert _wait_for_player(status, self._Alive()) is True
@@ -381,7 +381,7 @@ class TestWaitForPlayer:
         from fun_time_vr.orchestrator import _wait_for_player
 
         with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
-            ready = _wait_for_player(tmp_path / "nau_status.txt", self._Dead())
+            ready = _wait_for_player(tmp_path / "main_player_status.txt", self._Dead())
 
         assert ready is False
         assert "exited during startup" in caplog.text
@@ -394,7 +394,7 @@ class TestWaitForPlayer:
 
         monkeypatch.setattr(orchestrator, "PLAYER_READY_TIMEOUT_S", 0.0)
         with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
-            ready = orchestrator._wait_for_player(tmp_path / "nau_status.txt", self._Alive())
+            ready = orchestrator._wait_for_player(tmp_path / "main_player_status.txt", self._Alive())
 
         assert ready is False
         assert "published no status" in caplog.text
@@ -509,8 +509,8 @@ class TestStockingThePlaylists:
             clip.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        nau_playlist = state / "nau_playlist.tsv"
-        nau_playlist.write_text(f"{flat_one}\n{flat_two}\n", encoding="utf-8")
+        main_player_playlist = state / "main_player_playlist.tsv"
+        main_player_playlist.write_text(f"{flat_one}\n{flat_two}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -523,7 +523,7 @@ class TestStockingThePlaylists:
             main_video=str(flat_two),
         )
 
-        entries = nau_playlist.read_text(encoding="utf-8").splitlines()
+        entries = main_player_playlist.read_text(encoding="utf-8").splitlines()
         assert entries[0].split("\t")[0] == str(flat_two)
         # …and the headset's own library is in the queue under it.
         assert any("finished" in entry for entry in entries)
@@ -539,8 +539,8 @@ class TestStockingThePlaylists:
         flat.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        nau_playlist = state / "nau_playlist.tsv"
-        nau_playlist.write_text(f"{flat}\n", encoding="utf-8")
+        main_player_playlist = state / "main_player_playlist.tsv"
+        main_player_playlist.write_text(f"{flat}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -553,7 +553,7 @@ class TestStockingThePlaylists:
             main_video=str(library / "2D" / "gone since.mp4"),
         )
 
-        entries = nau_playlist.read_text(encoding="utf-8").splitlines()
+        entries = main_player_playlist.read_text(encoding="utf-8").splitlines()
         assert entries and "gone since" not in entries[0]
 
     def test_a_playlist_that_already_holds_vr_is_left_exactly_as_it_was(
@@ -566,8 +566,8 @@ class TestStockingThePlaylists:
         vr_clip.write_bytes(b"")
         state = tmp_path / "state"
         state.mkdir(exist_ok=True)
-        nau_playlist = state / "nau_playlist.tsv"
-        nau_playlist.write_text(f"{vr_clip}\n", encoding="utf-8")
+        main_player_playlist = state / "main_player_playlist.tsv"
+        main_player_playlist.write_text(f"{vr_clip}\n", encoding="utf-8")
 
         stock_the_playlists(
             self._manifest(config, tmp_path),
@@ -580,7 +580,7 @@ class TestStockingThePlaylists:
             main_video=str(vr_clip),
         )
 
-        assert nau_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
+        assert main_player_playlist.read_text(encoding="utf-8") == f"{vr_clip}\n"
 
 
 class TestTheCrossingBackToTheDesktop:
@@ -1169,7 +1169,7 @@ class TestEscDuringTheLongWait:
         from fun_time_vr.orchestrator import _wait_for_player
 
         with pytest.raises(StartupCancelled):
-            _wait_for_player(tmp_path / "nau_status.txt", _AlivePlayer(), self._Cancelled())
+            _wait_for_player(tmp_path / "main_player_status.txt", _AlivePlayer(), self._Cancelled())
 
     def test_the_wait_for_the_room_gives_up_at_once(self, tmp_path):
         from fun_time.overlay_progress import StartupCancelled

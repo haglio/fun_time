@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import json
 
-from fun_time.nau_console import (
+from fun_time.main_player_console import (
     OSR2_AUTO,
     OSR2_FUNSCRIPT,
     OSR2_OFF,
@@ -16,7 +16,7 @@ from fun_time.player_status import GenauStatus
 
 def _payload(**overrides) -> dict:
     base = dict(mode="video", active=False, osr2_mode="controlled",
-                funscript_driving=False, broker=False, nau_locked=True,
+                funscript_driving=False, broker=False, main_player_locked=True,
                 genau=GenauStatus())
     base.update(overrides)
     return console_payload(**base)
@@ -46,8 +46,8 @@ class TestOsr2State:
             assert osr2_state(mode=mode, osr2_mode="controlled",
                               funscript_driving=False) == OSR2_ROBOT_HAND
 
-    def test_a_nau_parked_off_screen_cannot_claim_the_device(self):
-        """The reported bug: in genau mode Nau is paused off screen, but its
+    def test_a_main_player_parked_off_screen_cannot_claim_the_device(self):
+        """The reported bug: in genau mode the main player is paused off screen, but its
         status file still describes the scripted video it was last showing —
         so this said "funscript" while Genau had the device, which dims every
         control on the drive readout and refuses every press on it."""
@@ -71,29 +71,29 @@ class TestPayload:
         assert payload["cruise"] is True
         assert payload["shape"] == "sawtooth"
 
-    def test_carries_naus_loop_machine_for_the_record_button(self):
+    def test_carries_main_players_loop_machine_for_the_record_button(self):
         """The console is drawn in genau mode too, by a player with no loop machine
-        to ask — so where Nau is in the gesture rides here with the rest of the
+        to ask — so where the main player is in the gesture rides here with the rest of the
         room, and the record button can say which press comes next."""
         assert _payload(record="recording")["record"] == "recording"
         assert _payload()["record"] == "normal"
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
-        """One padlock on the console, so one flag: Nau's hold on its video where
-        Nau is on screen, Genau's hold on its clip where Genau is.  Publishing
+        """One padlock on the console, so one flag: the main player's hold on its video where
+        The main player is on screen, Genau's hold on its clip where Genau is.  Publishing
         both is what left video mode drawing two locks that meant different things."""
         held_clip = GenauStatus(locked=True)
         loose_clip = GenauStatus(locked=False)
 
-        assert _payload(mode="video", nau_locked=True, genau=loose_clip)["locked"] is True
-        assert _payload(mode="video", nau_locked=False, genau=held_clip)["locked"] is False
+        assert _payload(mode="video", main_player_locked=True, genau=loose_clip)["locked"] is True
+        assert _payload(mode="video", main_player_locked=False, genau=held_clip)["locked"] is False
 
-        assert _payload(mode="genau", nau_locked=False, genau=held_clip)["locked"] is True
-        assert _payload(mode="genau", nau_locked=True, genau=loose_clip)["locked"] is False
+        assert _payload(mode="genau", main_player_locked=False, genau=held_clip)["locked"] is True
+        assert _payload(mode="genau", main_player_locked=True, genau=loose_clip)["locked"] is False
 
     def test_genaus_own_arming_and_hold_are_no_longer_published(self):
         """They were two flags for one behavior, and the padlock they fed sat
-        beside Nau's on the same console."""
+        beside the main player's on the same console."""
         payload = _payload()
 
         assert "auto_advance" not in payload
@@ -102,17 +102,17 @@ class TestPayload:
 
 def test_the_panel_carries_the_main_players_browse_order():
     """Latest and Shuffle are the orchestrator's to set — a spoken word or a key it
-    owns — and Nau cannot tell which way round the playlist it was handed was built,
+    owns — and the main player cannot tell which way round the playlist it was handed was built,
     so the order rides the panel exactly as F-mode does."""
     assert _payload(latest=True)["latest"] is True
     assert _payload()["latest"] is False
 
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():
-    """One slot on the console, so one flag, resolved the way the padlock is: Nau's
-    playlist order where Nau is on screen, the order Genau last rescanned its clips
+    """One slot on the console, so one flag, resolved the way the padlock is: the main player's
+    playlist order where the main player is on screen, the order Genau last rescanned its clips
     folder in where Genau is.  They are separate flags because a Genau reorder
-    rewrites nothing of Nau's — reporting Nau's in genau mode said "Shuffle" at
+    rewrites nothing of the main player's — reporting the main player's in genau mode said "Shuffle" at
     someone who had just asked Genau for the latest."""
     assert _payload(mode="video", latest=True, genau_latest=False)["latest"] is True
     assert _payload(mode="video", latest=False, genau_latest=True)["latest"] is False
@@ -151,7 +151,7 @@ class TestTheReadoutTheWordLeaves:
         from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
         from player_core.drive_readout import DriveHud
 
-        panel = tmp_path / "nau_console.json"
+        panel = tmp_path / "main_player_console.json"
         panel.write_text(json.dumps(payload), encoding="utf-8")
         console = read_console(panel)
         assert console is not None
@@ -171,7 +171,7 @@ class TestTheReadoutTheWordLeaves:
         return left + x + w // 2, top + y + h // 2
 
     def test_genaus_marks_and_bands_answer_a_press_in_genau_mode(self, tmp_path):
-        """Even with the video Nau is parked on carrying a funscript: Nau is not
+        """Even with the video the main player is parked on carrying a funscript: the main player is not
         on screen there, so nothing of its is driving and Genau's controls are
         live.  This is the reported bug — 20 presses to move one level, because
         19 of them landed on a readout dimmed by a paused player's playlist."""

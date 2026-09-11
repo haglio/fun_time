@@ -50,11 +50,11 @@ class TestResumePlaylists:
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, c, a]
 
     def test_carries_the_funscript_column_through_the_rotation(self, tmp_path: Path):
-        """Nau's playlist pairs each video with the funscript that drives the
+        """The main player's playlist pairs each video with the funscript that drives the
         OSR2 through it; rewriting the file without that column would leave a
         resumed session silently unscripted."""
         a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b, f"{c}\tc.funscript"])
 
         resume_playlists([(playlist, c)])
@@ -80,7 +80,7 @@ class TestResumePlaylists:
 
         resumed = resume_playlists([
             (portrait, b),
-            (tmp_path / "nau_playlist.tsv", ""),
+            (tmp_path / "main_player_playlist.tsv", ""),
         ])
 
         assert resumed is False
@@ -187,7 +187,7 @@ class TestResumeSharedState:
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which player owns the big display is as much a thing you set as the
-        sound level, so leaving the session showing Genau and reopening on Nau
+        sound level, so leaving the session showing Genau and reopening on the main player
         is the same overnight reset.  Startup builds every session in video mode
         and then puts the carried mode on over the top (see
         :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
@@ -299,30 +299,30 @@ class TestResumeMainLoop:
     ride back in on a file the new player reads, and has to be re-sent."""
 
     def test_queues_the_range_the_primary_was_looping(self, tmp_path: Path):
-        nau_cmd = tmp_path / "nau_cmd.txt"
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
 
-        resume_main_loop(nau_cmd, (2000, 4000))
+        resume_main_loop(main_player_cmd, (2000, 4000))
 
-        assert nau_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
+        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["SET_LOOP 2000 4000"]
 
     def test_queues_nothing_when_there_was_no_loop(self, tmp_path: Path):
         """A main player that was not looping must be sent nothing at all: playing
         the video through is already what no loop means."""
-        nau_cmd = tmp_path / "nau_cmd.txt"
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
 
-        resume_main_loop(nau_cmd, None)
+        resume_main_loop(main_player_cmd, None)
 
-        assert not nau_cmd.exists()
+        assert not main_player_cmd.exists()
 
     def test_keeps_whatever_is_already_queued(self, tmp_path: Path):
         """Startup has already seeded this channel with the sound level and the
-        F-mode flag, and Nau has drained none of it yet."""
-        nau_cmd = tmp_path / "nau_cmd.txt"
-        nau_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
+        F-mode flag, and the main player has drained none of it yet."""
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
+        main_player_cmd.write_text("SET_VOLUME 40 0\n", encoding="utf-8")
 
-        resume_main_loop(nau_cmd, (2000, 4000))
+        resume_main_loop(main_player_cmd, (2000, 4000))
 
-        assert nau_cmd.read_text(encoding="utf-8").splitlines() == [
+        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == [
             "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
         ]
 
@@ -334,7 +334,7 @@ class TestPlaylistOpensOn:
 
     def test_the_clip_a_resumed_playlist_leads_with(self, tmp_path: Path):
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [b, a])
 
         assert playlist_opens_on(playlist, b) is True
@@ -343,14 +343,14 @@ class TestPlaylistOpensOn:
     def test_case_alone_is_not_a_different_clip(self, tmp_path: Path):
         """The playlist and the status file are written by different processes,
         and Windows hands the same file back in either case."""
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [str(tmp_path / "Sub" / "a.mp4")])
 
         assert playlist_opens_on(playlist, str(tmp_path / "sub" / "A.MP4")) is True
 
     def test_a_funscript_column_does_not_hide_the_video(self, tmp_path: Path):
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", b])
 
         assert playlist_opens_on(playlist, a) is True
@@ -370,7 +370,7 @@ class TestPlaylistFitsSources:
     def test_a_playlist_from_the_session_s_own_library_fits(self, tmp_path: Path):
         library = tmp_path / "library" / "2D"
         library.mkdir(parents=True)
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [
             str(library / "scene one.mp4"),
             str(library / "deeper" / "scene two.mp4"),
@@ -381,7 +381,7 @@ class TestPlaylistFitsSources:
     def test_one_video_from_another_library_is_enough_not_to_fit(self, tmp_path: Path):
         library = tmp_path / "library" / "2D"
         elsewhere = tmp_path / "library" / "VR" / "finished"
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [
             str(library / "scene one.mp4"),
             f"{elsewhere / 'headset scene.mp4'}\t{tmp_path / 'headset scene.funscript'}",
@@ -394,7 +394,7 @@ class TestPlaylistFitsSources:
         is this session's own."""
         first = tmp_path / "library" / "one"
         second = tmp_path / "library" / "two"
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [str(first / "scene one.mp4"), str(second / "scene two.mp4")])
 
         assert playlist_fits_sources(playlist, f"{first}|{second}") is True
@@ -403,7 +403,7 @@ class TestPlaylistFitsSources:
         """``.../library`` must not swallow ``.../library_vr`` beside it —
         matching on the raw string prefix is what would."""
         library = tmp_path / "library"
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [str(tmp_path / "library_vr" / "headset scene.mp4")])
 
         assert playlist_fits_sources(playlist, str(library)) is False
@@ -413,7 +413,7 @@ class TestPlaylistFitsSources:
         a player's playlist need not agree — a rebuild on that would throw away
         a good resume every launch."""
         library = tmp_path / "Library" / "2D"
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [str(tmp_path / "library" / "2d" / "scene one.mp4")])
 
         assert playlist_fits_sources(playlist, str(library)) is True
@@ -435,7 +435,7 @@ class TestResumeMainVideo:
 
     def test_the_rebuild_is_rotated_onto_the_clip_that_was_on_screen(self, tmp_path: Path):
         a, b, c = _clips(tmp_path, "a.mp4", "b.mp4", "c.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [a, b, c])
 
         assert resume_main_video(playlist, b) is True
@@ -449,7 +449,7 @@ class TestResumeMainVideo:
         rebuild, because the desktop cannot play it: that crossing opens on the
         rebuild's own first clip rather than on a path nothing can load."""
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [a, b])
 
         assert resume_main_video(playlist, str(tmp_path / "headset scene.mp4")) is False
@@ -460,7 +460,7 @@ class TestResumeMainVideo:
         """The main player drives the OSR2 off that column, so a crossing that
         dropped it would carry the video over and leave it unscripted."""
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [f"{a}\ta.funscript", f"{b}\tb.funscript"])
 
         assert resume_main_video(playlist, b) is True
@@ -473,7 +473,7 @@ class TestResumeMainVideo:
         """The playlist and the status file are written by different processes,
         and Windows hands the same path back in either case."""
         (tmp_path / "Scene One.mp4").write_bytes(b"")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [str(tmp_path / "b.mp4"), str(tmp_path / "Scene One.mp4")])
 
         assert resume_main_video(playlist, str(tmp_path / "scene one.mp4")) is True
@@ -484,7 +484,7 @@ class TestResumeMainVideo:
 
     def test_a_player_that_published_no_clip_leaves_the_rebuild_alone(self, tmp_path: Path):
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [a, b])
 
         assert resume_main_video(playlist, "") is False
@@ -495,7 +495,7 @@ class TestResumeMainVideo:
         """``resume_main_loop`` is queued only when the player really did come
         back onto the video the loop was cut from, which is what this decides."""
         a, b = _clips(tmp_path, "a.mp4", "b.mp4")
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         _write_playlist(playlist, [a, b])
 
         assert resume_main_video(playlist, b) is True

@@ -62,6 +62,7 @@ from .session_handoff import (
 )
 from .shared_state import shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
+from .state_file_names import take_up_the_retired_state_file_names
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from .win32 import (
@@ -101,7 +102,7 @@ logger = logging.getLogger(__name__)
 # recorded at startup and killed at shutdown by the same edit, so a child
 # cannot quietly outlive the session.
 _CHILD_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
-    ("players", ("nau_pid", "portrait_pid", "landscape_pid")),
+    ("players", ("main_player_pid", "portrait_pid", "landscape_pid")),
     ("companions", ("dashboard_pid", "genau_pid", "audio_pid", "origenerator_pid")),
 )
 
@@ -128,7 +129,7 @@ def identify_children(result: StartupResult) -> dict[str, ChildProcess]:
     """Pin each freshly-launched child PID to the process now holding it.
 
     Called seconds after launch, with startup having just driven the children
-    (the satellites' status files appeared, as did Nau's and Genau's windows), so
+    (the satellites' status files appeared, as did the main player's and Genau's windows), so
     the creation time read here is the one our child was born with.  Everything that
     kills a child later compares against it, and a PID Windows has since handed
     to someone else no longer matches.
@@ -528,13 +529,13 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
     another overlapping window (a user's own always-on-top app, or a
     promotion-order slip).  ``is_window_topmost`` cannot see that; only the
     real z-order can, so this walks it and names the covering window instead
-    of guessing.  Run for the satellites as well as Nau: "the landscape player
-    is under other windows on startup" was undiagnosable while only Nau's
+    of guessing.  Run for the satellites as well as the main player: "the landscape player
+    is under other windows on startup" was undiagnosable while only the main player's
     coverage was logged.
 
     *expected_over* is the one window that belongs above the target in every
-    mode — Genau's over Nau, which in video mode is the transparent HUD layer
-    over Nau's video and in genau mode is the display itself.  Warning on the
+    mode — Genau's over the main player, which in video mode is the transparent HUD layer
+    over the main player's video and in genau mode is the display itself.  Warning on the
     session's own by-design layering toasted every startup with a "covering"
     window that covers nothing you can see; anything else over the player
     still warns.  *ignore* is the loading
@@ -561,8 +562,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
     """Resolve every managed window, band it, and settle the z-order until each
     player is actually frontmost — returning the role hwnds it resolved.
 
-    For the mode the session actually opened in, not for nau: on a resumed genau
-    session this pass would otherwise promote Nau over Genau and un-park it, one
+    For the mode the session actually opened in, not for main_player: on a resumed genau
+    session this pass would otherwise promote the main player over Genau and un-park it, one
     pass after the sequencer parked it.
 
     ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
@@ -584,11 +585,11 @@ def _fix_post_loading_windows(result: StartupResult, *,
             dash_hwnd = wait_for_window_by_title(
                 "Fun Time", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
 
-    nau_hwnd = find_window_by_pid(result.nau_pid) or wait_for_window_by_title(
-        "Nau", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
+    main_player_hwnd = find_window_by_pid(result.main_player_pid) or wait_for_window_by_title(
+        "Main Player", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
     genau_hwnd = wait_for_window_by_title("Genau", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S)
-    # By title as well as pid, like Nau above: python_exe is the venv's pythonw
+    # By title as well as pid, like the main player above: python_exe is the venv's pythonw
     # SHIM, so the recorded satellite pid is the launcher's rather than the
     # interpreter that owns the SDL window, and the by-pid lookup finds
     # nothing.  This pass is the only banding the satellites get on a
@@ -625,7 +626,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         genau_hwnd=genau_hwnd,
-        nau_hwnd=nau_hwnd,
+        main_player_hwnd=main_player_hwnd,
         dashboard_hwnd=dash_hwnd,
         origenerator_hwnd=origenerator_hwnd,
         origenerator_portrait_hwnd=show_hwnds["origenerator_portrait"],
@@ -646,10 +647,10 @@ def _fix_post_loading_windows(result: StartupResult, *,
     owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
     _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
     portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())
-    # Genau's window sits over Nau on purpose in both modes — the transparent
+    # Genau's window sits over the main player on purpose in both modes — the transparent
     # HUD layer, or the display itself — so it is not a covering worth a
     # warning.
-    _log_window_obstruction("Nau", nau_hwnd, expected_over=genau_hwnd)
+    _log_window_obstruction("Main Player", main_player_hwnd, expected_over=genau_hwnd)
     _log_window_obstruction("Portrait satellite", portrait_owner, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_owner, ignore=overlay_hwnd)
     return role_hwnds
@@ -768,8 +769,8 @@ def start_hud_priming(
         {
             **{player.label: Path(manifest.commands.side_file(player.label, "hud"))
                for player in Player.SATELLITES},
-            # Nau's console rides the same publisher as the satellites' maps.
-            "nau": Path(manifest.commands.nau_console_file),
+            # The main player's console rides the same publisher as the satellites' maps.
+            "main_player": Path(manifest.commands.main_player_console_file),
         },
         cache_dir,
     )
@@ -898,7 +899,7 @@ def _reveal_the_room(
 
     # The cover is off the screen: NOW the players may run.  The phase walk
     # deliberately leaves this to us (see ``release_the_players``) — released
-    # with the phases, Nau's video and Genau's audio would have been running
+    # with the phases, the main player's video and Genau's audio would have been running
     # for the whole finishing pass, under a cover he cannot see or hear
     # through, and the opening seconds of the video would be gone by the time
     # it lifted.
@@ -1010,7 +1011,7 @@ def _start_the_dispatch_loop(
         ahk_cmd_file=ahk_cmd_file,
         windows=WindowRoles(
             pids=ChildPids(
-                nau=result.nau_pid,
+                main_player=result.main_player_pid,
                 portrait=result.portrait_pid,
                 landscape=result.landscape_pid,
                 dashboard=result.dashboard_pid,
@@ -1033,7 +1034,7 @@ def _start_the_dispatch_loop(
 
 def silence_the_players(commands: CommandFiles) -> None:
     for paused_file in (
-        commands.nau_paused_file, commands.audio_paused_file,
+        commands.main_player_paused_file, commands.audio_paused_file,
         commands.portrait_paused_file, commands.landscape_paused_file,
         commands.origenerator_paused_file,
     ):
@@ -1127,6 +1128,10 @@ def run_session(
     state_dir = Path(state_dir)
     project_dir = Path(project_dir)
 
+    # A session saved under the retired name is taken up under the new one,
+    # before anything opens a channel by its name.
+    take_up_the_retired_state_file_names(state_dir)
+
     # Before anything else logs, and before the dashboard launches the panel that
     # tails it: this session's event log starts empty and starts collecting.
     open_event_log(state_dir)
@@ -1200,8 +1205,8 @@ def run_session(
         )
 
     logger.info(
-        "Startup complete: nau=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
-        result.nau_pid, result.portrait_pid, result.landscape_pid,
+        "Startup complete: main_player=%d portrait=%d landscape=%d dashboard=%d genau=%d audio=%d",
+        result.main_player_pid, result.portrait_pid, result.landscape_pid,
         result.dashboard_pid, result.genau_pid, result.audio_pid,
     )
 

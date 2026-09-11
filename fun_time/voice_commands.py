@@ -160,15 +160,15 @@ def build_voice_commands(
         "browse": "browse_library",
         "clip": "clipper_save",
         "save clip": "clipper_save",
-        "record": "nau_record_down",
-        "loop": "nau_record_up",
-        "end loop": "nau_loop_cancel",
-        # Nau's other encodes of the same video.  The bare axis word cycles it, the
+        "record": "main_player_record_down",
+        "loop": "main_player_record_up",
+        "end loop": "main_player_loop_cancel",
+        # The main player's other encodes of the same video.  The bare axis word cycles it, the
         # way "action"/"seed" do on a satellite; the "cycle / next / change version"
         # verb forms come from the cycle-axis grid below.
-        "version": "nau_cycle_version",
-        "shorts": "nau_length_shorts",
-        "full length": "nau_length_full",
+        "version": "main_player_cycle_version",
+        "shorts": "main_player_length_shorts",
+        "full length": "main_player_length_full",
         # Which shape of video the main player may reach, in the headset, where
         # the rotation holds both.  "mixed" is taken by the length above, so the
         # both-shapes phrase names the shapes instead; neither shape gets no
@@ -178,24 +178,24 @@ def build_voice_commands(
         "two d only": "main_projection_flat",
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
-        # The unfiltered library Nau opens in, and so the way back out of either
+        # The unfiltered library the main player opens in, and so the way back out of either
         # half.  "main reset" contains this and goes further, dropping F-mode too (see
         # the main-player grid below); this is the narrow gesture of the pair.
-        "mixed": "nau_length_mixed",
+        "mixed": "main_player_length_mixed",
         # Clip navigation (Larkin-style clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
-        "compilation": "nau_compilation",
-        # …and back out of one, without having to name a length: Nau returns to
+        "compilation": "main_player_compilation",
+        # …and back out of one, without having to name a length: the main player returns to
         # whichever mode was feeding the playlist when it went in.
-        "end compilation": "nau_end_compilation",
-        "full video": "nau_full_vid",
-        "full vid": "nau_full_vid",
+        "end compilation": "main_player_end_compilation",
+        "full video": "main_player_full_vid",
+        "full vid": "main_player_full_vid",
         # Funscript navigation.  A scripted video is mostly not scripted — the action
         # comes in runs with quiet stretches between them — so one phrase skips the
         # stretch you are in and the other gives up on the video entirely for the next
         # one that has a script, landing on its action rather than at its top.
-        "jump to fun script": "nau_funscript_jump",
-        "next fun scripted": "nau_next_funscripted",
+        "jump to fun script": "main_player_funscript_jump",
+        "next fun scripted": "main_player_next_funscripted",
         # The phrases for the clip jump are library vocabulary, so they come from
         # the content overlay and are merged in below rather than written here.
         # Nothing in these words names an engine, so they follow whichever holds
@@ -206,9 +206,9 @@ def build_voice_commands(
         # Naming the playback pins the same nudge to the video no matter who has
         # the OSR2 — the one thing the bare pair above cannot say; the same pair
         # the console's playback arrows send.
-        "playback slow down": "nau_speed_down",
-        "playback speed down": "nau_speed_down",
-        "playback speed up": "nau_speed_up",
+        "playback slow down": "main_player_speed_down",
+        "playback speed down": "main_player_speed_down",
+        "playback speed up": "main_player_speed_up",
         "amp down": "robot_hand_amplitude_down",
         "amp up": "robot_hand_amplitude_up",
         "center down": "robot_hand_center_down",
@@ -246,7 +246,7 @@ def build_voice_commands(
     # they live in the content overlay (content.example.json documents the shape).
     if clip_jump_phrases is None:
         clip_jump_phrases = tuple(load_content()["clip_jump_phrases"])
-    commands.update(dict.fromkeys(clip_jump_phrases, "nau_clip_jump"))
+    commands.update(dict.fromkeys(clip_jump_phrases, "main_player_clip_jump"))
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
     # closes from any of them prefixed with "close".
@@ -314,7 +314,7 @@ def build_voice_commands(
         # it finds another subject doing the same act.
         "more_seeds": ("more seeds", "widen net", "widen the net"),
         # "no loop" / "loop off" ends any group loop, back to the browse.  ("end loop"
-        # joins them, but only sided — bare it belongs to Nau; see below.)
+        # joins them, but only sided — bare it belongs to the main player; see below.)
         "no_loop": ("no loop", "loop off"),
         # "no filter" drops just the filter, where "reset" puts the whole side back
         # to its defaults (lock, order, loop and all); "clear filter" and "show
@@ -337,7 +337,7 @@ def build_voice_commands(
 
     # "end loop" is side-agnostic like the rest of the grid: bare, it reaches the
     # player last addressed and means that player's own kind of loop — the dispatch
-    # loop resolves ``active_no_loop`` to Nau's A-B loop cancel on the main player, and to
+    # loop resolves ``active_no_loop`` to the main player's A-B loop cancel on the main player, and to
     # a satellite's group loop on portrait/landscape.
     commands["end loop"] = "active_no_loop"
     for _side in ("portrait", "landscape", "both"):
@@ -345,7 +345,7 @@ def build_voice_commands(
         commands[f"end loop {_side}"] = f"{_side}_no_loop"
 
     # Every cycle axis is sayable by its bare word — the satellite ones from the grid
-    # above, Nau's "version" from the literal map — and each also takes an explicit
+    # above, the main player's "version" from the literal map — and each also takes an explicit
     # verb up front: "cycle / next / change <axis>".  "scene" reads as "action".  The
     # satellite axes cycle the active side here; a side word already reaches a
     # specific satellite via the bare "portrait action" / "portrait seed" forms.
@@ -353,13 +353,13 @@ def build_voice_commands(
         "action": "active_cycle_action",
         "scene": "active_cycle_action",
         "seed": "active_cycle_seed",
-        "version": "nau_cycle_version",
+        "version": "main_player_cycle_version",
     }
     for _axis_word, _axis_cmd in _CYCLE_AXES.items():
         for _cycle_verb in ("cycle", "next", "change"):
             commands[f"{_cycle_verb} {_axis_word}"] = _axis_cmd
 
-    # The main (Nau) player joins the grid for navigation, its lock and reset —
+    # The main (the main player) player joins the grid for navigation, its lock and reset —
     # "main next" / "next main" (either order) — since it has no weird, and its one
     # cycle axis is "version" above rather than the satellites' action/seed.  It is
     # only ever "main": in this room "primary" names a monitor, and one word cannot
@@ -371,7 +371,7 @@ def build_voice_commands(
                      "lock": "lock_on", "unlock": "lock_off",
                      # Its own command rather than a bare "length mixed" forward:
                      # F-mode is half of what narrows the main player, and that flag
-                     # is the orchestrator's, not Nau's.
+                     # is the orchestrator's, not the main player's.
                      "reset": "reset",
                      # The two browse orderings, the satellites' own: "latest" reloads
                      # newest-first and "shuffle" reshuffles, each rescanning the
@@ -473,10 +473,10 @@ def build_voice_commands(
         for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
             commands[f"{_label} {_prefix}"] = f"{_cmd_prefix}_{_value}"
 
-    # Nau's video speed by spoken multiplier, routed to Nau (the video the user
-    # sees) when Nau drives the OSR2.  Encoded as percent-of-normal so the command
-    # name stays integer: "half speed" -> nau_speed_50 -> 0.5x.
-    _NAU_SPEED_MULTIPLIERS: dict[str, int] = {
+    # The main player's video speed by spoken multiplier, routed to the main player (the video the user
+    # sees) when the main player drives the OSR2.  Encoded as percent-of-normal so the command
+    # name stays integer: "half speed" -> main_player_speed_50 -> 0.5x.
+    _MAIN_PLAYER_SPEED_MULTIPLIERS: dict[str, int] = {
         "quarter speed": 25,
         "half speed": 50,
         "three quarter speed": 75,
@@ -484,23 +484,23 @@ def build_voice_commands(
         "one and a half speed": 150,
         "double speed": 200,
     }
-    for _phrase, _pct in _NAU_SPEED_MULTIPLIERS.items():
-        commands[_phrase] = f"nau_speed_{_pct}"
+    for _phrase, _pct in _MAIN_PLAYER_SPEED_MULTIPLIERS.items():
+        commands[_phrase] = f"main_player_speed_{_pct}"
 
     # The literal "speed <n> ex" form: "speed one ex" -> 1x, "speed one point five
     # ex" -> 1.5x, "speed point two five ex" -> 0.25x — every 0.25 stop.
-    _NAU_SPEED_SPOKEN: dict[str, int] = {
+    _MAIN_PLAYER_SPEED_SPOKEN: dict[str, int] = {
         "point two five": 25, "point five": 50, "point seven five": 75,
         "one": 100, "one point two five": 125, "one point five": 150,
         "one point seven five": 175, "two": 200,
     }
-    for _spoken, _pct in _NAU_SPEED_SPOKEN.items():
-        commands[f"speed {_spoken} ex"] = f"nau_speed_{_pct}"
+    for _spoken, _pct in _MAIN_PLAYER_SPEED_SPOKEN.items():
+        commands[f"speed {_spoken} ex"] = f"main_player_speed_{_pct}"
 
     # "reset speed" snaps the video back to 1x.
-    commands["reset speed"] = "nau_speed_100"
+    commands["reset speed"] = "main_player_speed_100"
 
-    # "min speed"/"max speed" drive whichever engine currently owns the OSR2 (Nau's
+    # "min speed"/"max speed" drive whichever engine currently owns the OSR2 (the main player's
     # video or Genau's motion); the amp/center extremes above stay Genau-only.
     commands["min speed"] = "speed_min"
     commands["max speed"] = "speed_max"
@@ -530,17 +530,17 @@ VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 
 # Commands that flash their own outcome, so the generic "I heard you" echo must
-# not stack a second toast on top.  The clip and funscript jumps report from Nau,
+# not stack a second toast on top.  The clip and funscript jumps report from the main player,
 # where they landed or could not; the rest report from the dispatch, which alone
 # knows which way a toggle went or which act a judgement struck — and by owning
 # the toast there, the keys and the buttons flash it too, not just voice.  Every
 # spelling of each is listed, any of them being what voice hands over.
 SELF_REPORTING_COMMANDS = frozenset({
-    "nau_compilation",
-    "nau_full_vid",
-    "nau_clip_jump",
-    "nau_funscript_jump",
-    "nau_next_funscripted",
+    "main_player_compilation",
+    "main_player_full_vid",
+    "main_player_clip_jump",
+    "main_player_funscript_jump",
+    "main_player_next_funscripted",
     *(
         f"{side}_{judgement}"
         for judgement in ("trash", "wrong_action")

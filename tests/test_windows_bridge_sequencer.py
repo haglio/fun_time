@@ -12,6 +12,7 @@ import pytest
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
 from fun_time.loading_screen import STALE_TIMEOUT_S
+from fun_time.main_player_console import main_player_console_path
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -19,11 +20,10 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
-from fun_time.nau_console import nau_console_path
 from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
 from fun_time.player_status import (
     genau_status_path,
-    read_nau_status,
+    read_main_player_status,
 )
 from fun_time.session_environment import SessionEnvironment
 from fun_time.shortcuts import Shortcut
@@ -32,12 +32,12 @@ from fun_time.window_layout import (
     WindowLayoutPlan,
 )
 from fun_time.windows_bridge_sequencer import (
-    NAU_LOAD_TIMEOUT_S,
+    MAIN_PLAYER_LOAD_TIMEOUT_S,
     ORIGENERATOR_BOOT_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     _maybe_launch_random_favs_browser,
     _resolve_satellite_hwnds,
-    _wait_for_nau_loaded,
+    _wait_for_main_player_loaded,
     _wait_for_players_drawing,
     _wait_for_the_hosted_app,
     release_the_players,
@@ -53,7 +53,7 @@ FAKE_MONITORS = [
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
 GENAU_PID = 60
-NAU_PID = 25
+MAIN_PLAYER_PID = 25
 
 # Main slot on the secondary monitor with conftest's main_top_ratio=0.727:
 # portrait height = int(3440 * 0.727) = 2500, main player height = 940.
@@ -70,7 +70,7 @@ def _make_manifest(cfg_factory, tmp_path):
 
 def _pause_every_player(m) -> list[Path]:
     """The three paused flags, all set — the state seed_startup_states leaves."""
-    flags = [Path(m.commands.nau_paused_file), Path(m.commands.genau_paused_file),
+    flags = [Path(m.commands.main_player_paused_file), Path(m.commands.genau_paused_file),
              Path(m.commands.audio_paused_file)]
     for flag in flags:
         flag.parent.mkdir(parents=True, exist_ok=True)
@@ -107,7 +107,7 @@ def _seed_paused_flags(manifest_path) -> dict[str, Path]:
     m.optionxform = str
     m.read(str(manifest_path), encoding="utf-8")
     flags = {}
-    for key in ("nau_paused_file", "genau_paused_file", "audio_paused_file"):
+    for key in ("main_player_paused_file", "genau_paused_file", "audio_paused_file"):
         path = Path(m["commands"][key])
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text("1", encoding="utf-8")
@@ -140,7 +140,7 @@ def _sequencer_stubs(**overrides):
     spec: dict[str, dict] = {
         "start_core_session": dict(side_effect=_fake_core),
         "launch_genau": dict(return_value=GENAU_PID),
-        "launch_nau": dict(side_effect=_fake_nau),
+        "launch_main_player": dict(side_effect=_fake_main_player),
         "launch_ui_companions": dict(side_effect=_fake_ui),
         "enumerate_monitors": dict(return_value=FAKE_MONITORS),
         "wait_for_window_by_title": dict(return_value=99999),
@@ -166,14 +166,14 @@ def _fake_ui(**kwargs):
     _write_result(kwargs["result_file"], UI_PIDS)
 
 
-def _fake_nau(**kwargs):
-    """Nau, launched: its status file appears once it has a video up.
+def _fake_main_player(**kwargs):
+    """the main player, launched: its status file appears once it has a video up.
 
     The overlay is held on exactly that file, so a fake that returned a pid and
     wrote nothing would leave every startup here waiting out the full budget.
     """
     Path(kwargs["status_file"]).write_text("video=this_session.mp4\n", encoding="utf-8")
-    return NAU_PID
+    return MAIN_PLAYER_PID
 
 
 ORIGENERATOR_PID = 91
@@ -182,7 +182,7 @@ ORIGENERATOR_PID = 91
 def _fake_origenerator(**kwargs):
     """The hosted app, launched and up: both regions occupied in its status file.
 
-    Written for the same reason ``_fake_nau`` writes Nau's — the overlay is
+    Written for the same reason ``_fake_main_player`` writes the main player's — the overlay is
     held on this file now — and written full, since a status saying the app
     answers but shows nothing is what holds a session in origenerator mode.
     """
@@ -243,7 +243,7 @@ class TestRunStartupSequence:
     def test_every_phases_pids_are_gathered_into_the_launch_result(self, cfg_factory, tmp_path):
         _cfg, result, _core, _ui = self._captured_launch(cfg_factory, tmp_path)
 
-        assert result.nau_pid == NAU_PID
+        assert result.main_player_pid == MAIN_PLAYER_PID
         assert result.portrait_pid == 30
         assert result.landscape_pid == 40
         assert result.dashboard_pid == 50
@@ -269,10 +269,10 @@ class TestRunStartupSequence:
             assert slot.status_file == str(state / f"{side}_status.txt")
             assert slot.log_file == tmp_path / f"{side}_satellite.log"
             assert slot.playlist_file == tmp_path / f"{side}_playlist.tsv"
-        # Nau's status file rides along too: startup resumes each player onto
-        # the video its status file names, and Nau is the third of the three.
-        assert core_called["nau_status_file"] == str(cfg.nau_status_file)
-        assert core_called["nau_paused_file"] == str(cfg.nau_paused_file)
+        # The main player's status file rides along too: startup resumes each player onto
+        # the video its status file names, and the main player is the third of the three.
+        assert core_called["main_player_status_file"] == str(cfg.main_player_status_file)
+        assert core_called["main_player_paused_file"] == str(cfg.main_player_paused_file)
 
     def test_the_satellites_launch_straight_into_their_layout_rects(self, cfg_factory, tmp_path):
         """mpv won't rescale on a later Win32 resize, so the sequencer threads
@@ -311,21 +311,21 @@ class TestRunStartupSequence:
             for key in ("rfb_x", "rfb_y", "rfb_width", "rfb_height")
         )
 
-    def test_launches_genau_and_nau_with_primary_media_rect(self, cfg_factory, tmp_path):
+    def test_launches_genau_and_main_player_with_primary_media_rect(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         genau_kwargs = {}
-        nau_kwargs = {}
+        main_player_kwargs = {}
 
         def capture_genau(**kwargs):
             genau_kwargs.update(kwargs)
             return GENAU_PID
 
-        def capture_nau(**kwargs):
-            nau_kwargs.update(kwargs)
-            return _fake_nau(**kwargs)
+        def capture_main_player(**kwargs):
+            main_player_kwargs.update(kwargs)
+            return _fake_main_player(**kwargs)
 
-        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_nau=dict(side_effect=capture_nau), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         # Genau receives its manifest file paths and the shared main-slot rect.
@@ -334,36 +334,36 @@ class TestRunStartupSequence:
         assert genau_kwargs["clips_folder"] == str(cfg.paths.clips_dir)
         # The drive readout is a channel between the two of them, so both are told
         # the same path.  Each resolving it for itself is how Video mode ended up with
-        # no readout at all: Genau wrote it beside its own config, Nau read ours.
-        assert genau_kwargs["drive_file"] == nau_kwargs["drive_file"]
+        # no readout at all: Genau wrote it beside its own config, the main player read ours.
+        assert genau_kwargs["drive_file"] == main_player_kwargs["drive_file"]
         assert {key: genau_kwargs[key] for key in ("genau_x", "genau_y", "genau_width", "genau_height")} == {
             f"genau_{axis}": value for axis, value in zip(("x", "y", "width", "height"), PRIMARY_MEDIA_RECT.values())
         }
 
-        # Nau is wired from the manifest [modules]/[commands] keys and the same rect.
-        assert nau_kwargs == {
+        # The main player is wired from the manifest [modules]/[commands] keys and the same rect.
+        assert main_player_kwargs == {
             "python_exe": str(cfg.paths.python_exe),
-            "nau_module": "nau",
+            "main_player_module": "main_player",
             "config_path": str(cfg.config_path),
-            "playlist_file": str(cfg.nau_playlist_file),
-            "command_file": str(cfg.nau_cmd_file),
-            "paused_file": str(cfg.nau_paused_file),
-            "status_file": str(cfg.nau_status_file),
-            # The console: the panel Fun Time publishes for Nau's HUD, Genau's
+            "playlist_file": str(cfg.main_player_playlist_file),
+            "command_file": str(cfg.main_player_cmd_file),
+            "paused_file": str(cfg.main_player_paused_file),
+            "status_file": str(cfg.main_player_status_file),
+            # The console: the panel Fun Time publishes for the main player's HUD, Genau's
             # readout for the section under it, and where a press goes back.
-            "console_file": str(nau_console_path(cfg.paths.state_dir)),
+            "console_file": str(main_player_console_path(cfg.paths.state_dir)),
             "drive_file": Path(cfg.genau_cmd_file).parent / "genau_drive.txt",
-            # Nau is the satellites' twin and gets the same crash log.
-            "log_file": tmp_path / "nau.log",
-            "nau_x": PRIMARY_MEDIA_RECT["x"],
-            "nau_y": PRIMARY_MEDIA_RECT["y"],
-            "nau_width": PRIMARY_MEDIA_RECT["width"],
-            "nau_height": PRIMARY_MEDIA_RECT["height"],
-            # This manifest has no regen.metadata_root, so Nau is left to
-            # group by name; launch_nau's --metadata-dir wiring is covered in
+            # The main player is the satellites' twin and gets the same crash log.
+            "log_file": tmp_path / "main_player.log",
+            "main_player_x": PRIMARY_MEDIA_RECT["x"],
+            "main_player_y": PRIMARY_MEDIA_RECT["y"],
+            "main_player_width": PRIMARY_MEDIA_RECT["width"],
+            "main_player_height": PRIMARY_MEDIA_RECT["height"],
+            # This manifest has no regen.metadata_root, so the main player is left to
+            # group by name; launch_main_player's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
             "metadata_dir": None,
-            # Where a press on Nau's volume control posts its command — the same
+            # Where a press on the main player's volume control posts its command — the same
             # file the dashboard and each satellite's HUD write to.
             "dashboard_cmd_file": str(cfg.paths.state_dir / "dashboard_cmd.txt"),
             # Which checkouts of ../genau and ../player_core to run — empty in
@@ -372,7 +372,7 @@ class TestRunStartupSequence:
         }
 
     def test_both_players_are_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
-        """Genau and Nau both ship in that repo, so a branch of it has to move
+        """Genau and the main player both ship in that repo, so a branch of it has to move
         the pair — one on the branch and one on the primary is two different
         codebases sharing a console."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
@@ -385,28 +385,28 @@ class TestRunStartupSequence:
         with Path(manifest_path).open("w", encoding="utf-8") as fp:
             manifest.write(fp)
         genau_kwargs: dict = {}
-        nau_kwargs: dict = {}
+        main_player_kwargs: dict = {}
 
         def capture_genau(**kwargs):
             genau_kwargs.update(kwargs)
             return GENAU_PID
 
-        def capture_nau(**kwargs):
-            nau_kwargs.update(kwargs)
-            return _fake_nau(**kwargs)
+        def capture_main_player(**kwargs):
+            main_player_kwargs.update(kwargs)
+            return _fake_main_player(**kwargs)
 
-        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_nau=dict(side_effect=capture_nau), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(launch_genau=dict(side_effect=capture_genau), launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert genau_kwargs["project_dirs"] == str(checkout)
-        assert nau_kwargs["project_dirs"] == str(checkout)
+        assert main_player_kwargs["project_dirs"] == str(checkout)
 
     def test_positions_satellite_windows_and_applies_topmost_policy(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
             "Genau": 6060,
-            "Nau": 2525,
+            "Main Player": 2525,
             "Portrait AI Player": 3030,
             "Landscape AI Player": 4040,
         }
@@ -421,28 +421,28 @@ class TestRunStartupSequence:
         assert {3030, 4040} <= moved_hwnds
 
         # video startup mode: the windows that own a rect are promoted to topmost,
-        # Nau (2525) included so it floats above the desktop like the main player
+        # The main player (2525) included so it floats above the desktop like the main player
         # always has, and Genau (6060) after it — promoted last, so being in the
-        # band puts its HUD over Nau's video.
+        # band puts its HUD over the main player's video.
         promoted = {h for h, on in topmost_calls if on}
         assert promoted == {3030, 4040, 2525, 6060}
 
-    def test_non_hidden_path_unpauses_nau(self, cfg_factory, tmp_path):
+    def test_non_hidden_path_unpauses_main_player(self, cfg_factory, tmp_path):
         """The no-loading-screen path (integration / normal without the
-        overlay) must still start Nau — the reveal that clears nau_paused
+        overlay) must still start the main player — the reveal that clears main_player_paused
         cannot live only in the hidden branch."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = configparser.ConfigParser()
         m.optionxform = str
         m.read(str(manifest_path), encoding="utf-8")
-        nau_paused = Path(m["commands"]["nau_paused_file"])
-        nau_paused.parent.mkdir(parents=True, exist_ok=True)
-        nau_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
+        main_player_paused = Path(m["commands"]["main_player_paused_file"])
+        main_player_paused.parent.mkdir(parents=True, exist_ok=True)
+        main_player_paused.write_text("1", encoding="utf-8")  # seeded paused at startup
 
         with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
 
-        assert nau_paused.read_text(encoding="utf-8").strip() == "0"
+        assert main_player_paused.read_text(encoding="utf-8").strip() == "0"
 
     def test_genau_is_launched_onto_the_clip_it_was_left_showing(self, cfg_factory, tmp_path):
         """Genau's status file is the only record of which clip was up — it
@@ -461,13 +461,13 @@ class TestRunStartupSequence:
 
         assert launch.call_args.kwargs["start_clip"] == "C:\\clips\\alpha.mp4"
 
-    def test_a_genau_session_parks_nau_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
-        """Reopening in genau mode: the session is still BUILT in video mode — Nau loads
+    def test_a_genau_session_parks_main_player_and_gives_genau_the_slot(self, cfg_factory, tmp_path):
+        """Reopening in genau mode: the session is still BUILT in video mode — the main player loads
         the main player's playlist and the overlay waits on it — but what is revealed
         is Genau, so the pair swaps which one is parked and which one floats."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
-            "Genau": 6060, "Nau": 2525,
+            "Genau": 6060, "Main Player": 2525,
             "Portrait AI Player": 3030, "Landscape AI Player": 4040,
         }
         topmost_calls: list[tuple] = []
@@ -482,25 +482,25 @@ class TestRunStartupSequence:
         # same policy and it runs from the orchestrator, out of reach of this.
         assert result.main_mode == "genau"
 
-    def test_a_genau_session_is_revealed_by_starting_genau_not_nau(self, cfg_factory, tmp_path):
+    def test_a_genau_session_is_revealed_by_starting_genau_not_main_player(self, cfg_factory, tmp_path):
         """The reveal starts whichever player owns the display, and only that
-        one: unpausing Nau regardless would put a video up under the parked
+        one: unpausing the main player regardless would put a video up under the parked
         window and hand the OSR2 two drivers at once."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "1"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_video_session_is_revealed_by_starting_both(self, cfg_factory, tmp_path):
-        """Video mode runs both: Nau's video with Genau's HUD over it."""
+        """Video mode runs both: the main player's video with Genau's HUD over it."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "video")
 
-        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "0"
+        assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
     def test_a_genau_session_hands_genau_the_osr2_at_the_reveal(self, cfg_factory, tmp_path):
@@ -534,24 +534,24 @@ class TestRunStartupSequence:
 
         assert genau_cmd.read_text(encoding="utf-8") == ""
 
-    def test_a_genau_session_leaves_nau_parked_at_the_reveal(self, cfg_factory, tmp_path):
-        """Genau's own mode: Nau stays held, so nothing plays into the minimized
+    def test_a_genau_session_leaves_main_player_parked_at_the_reveal(self, cfg_factory, tmp_path):
+        """Genau's own mode: the main player stays held, so nothing plays into the minimized
         window."""
         paused = _seed_paused_flags(_make_manifest(cfg_factory, tmp_path)[1])
 
         _run_revealing_sequence(_make_manifest(cfg_factory, tmp_path)[1], tmp_path, "genau")
 
-        assert paused["nau_paused_file"].read_text(encoding="utf-8").strip() == "1"
+        assert paused["main_player_paused_file"].read_text(encoding="utf-8").strip() == "1"
         assert paused["genau_paused_file"].read_text(encoding="utf-8").strip() == "0"
         assert paused["audio_paused_file"].read_text(encoding="utf-8").strip() == "0"
 
-    def test_video_mode_stacks_genau_over_nau_and_parks_neither(self, cfg_factory, tmp_path):
+    def test_video_mode_stacks_genau_over_main_player_and_parks_neither(self, cfg_factory, tmp_path):
         """Video mode is where both share the rect: Genau's transparent HUD sits
-        over Nau's video, which the topmost band expresses as promoting Nau
+        over the main player's video, which the topmost band expresses as promoting the main player
         first and Genau last."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         title_to_hwnd = {
-            "Genau": 6060, "Nau": 2525,
+            "Genau": 6060, "Main Player": 2525,
             "Portrait AI Player": 3030, "Landscape AI Player": 4040,
         }
         topmost_calls: list[tuple] = []
@@ -570,7 +570,7 @@ class _TrackingProgress:
     """A ProgressReporter that records the phases it is told, in order.
 
     Carries ``cancelled`` because the real reporter does and the sequencer reads
-    it — the wait for Nau polls it, so a double without it fails there rather
+    it — the wait for the main player polls it, so a double without it fails there rather
     than at the assertion.
     """
 
@@ -636,7 +636,7 @@ class TestTheOrderInsideTheStartupPhases:
             enumerate_monitors=dict(side_effect=note("layout", lambda **k: FAKE_MONITORS)),
             start_core_session=dict(side_effect=note("core", _fake_core)),
             launch_genau=dict(side_effect=note("genau", lambda **k: GENAU_PID)),
-            launch_nau=dict(side_effect=note("nau", _fake_nau)),
+            launch_main_player=dict(side_effect=note("main_player", _fake_main_player)),
             launch_ui_companions=dict(side_effect=note("companions", _fake_ui)),
         )
         stubs.update(extra_stubs or {})
@@ -659,13 +659,13 @@ class TestTheOrderInsideTheStartupPhases:
         assert order.index("layout") < order.index("core")
 
     def test_the_media_stack_is_up_before_the_ui_companions(self, cfg_factory, tmp_path):
-        """Genau and Nau are launched as early as possible so they can init
+        """Genau and the main player are launched as early as possible so they can init
         pygame, scan media and decode first frames while the rest of startup
         continues — which is only worth anything if the rest still follows."""
         order = self._sequence(cfg_factory, tmp_path)
 
         assert order.index("genau") < order.index("companions")
-        assert order.index("nau") < order.index("companions")
+        assert order.index("main_player") < order.index("companions")
 
     def test_the_browser_is_up_before_the_dashboard_that_opens_over_it(
             self, cfg_factory, tmp_path):
@@ -697,7 +697,7 @@ class TestTheOrderInsideTheStartupPhases:
 class TestRunStartupSequenceCancellation:
     def test_cancel_before_companions_reports_only_the_core_children(self, cfg_factory, tmp_path):
         """Cancelling at the layout checkpoint (2nd advance) has launched the
-        core stack — the satellites, Genau and Nau — but not the companions."""
+        core stack — the satellites, Genau and the main player — but not the companions."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         ui = MagicMock()
 
@@ -709,13 +709,13 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, GENAU_PID, NAU_PID}
+        assert set(exc.launched_pids) == {30, 40, GENAU_PID, MAIN_PLAYER_PID}
         assert exc.rfb_hwnd == 0
         ui.assert_not_called()
 
     def test_cancel_after_companions_reports_every_child_and_the_browser(self, cfg_factory, tmp_path):
         """Cancelling once companions are up reports the whole tree — satellites,
-        Genau, Nau, dashboard, audio — plus the Random Favs Browser hwnd."""
+        Genau, the main player, dashboard, audio — plus the Random Favs Browser hwnd."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         with _sequencer_stubs(_maybe_launch_random_favs_browser=dict(return_value=7777), wait_for_window_by_title=dict(return_value=88888)):
@@ -726,7 +726,7 @@ class TestRunStartupSequenceCancellation:
                 )
 
         exc = excinfo.value
-        assert set(exc.launched_pids) == {30, 40, GENAU_PID, NAU_PID, 50, 70}
+        assert set(exc.launched_pids) == {30, 40, GENAU_PID, MAIN_PLAYER_PID, 50, 70}
         assert exc.rfb_hwnd == 7777
 
 
@@ -795,7 +795,7 @@ class TestProgressReporting:
                 progress=NullProgress(),
             )
 
-        assert result.nau_pid == NAU_PID
+        assert result.main_player_pid == MAIN_PLAYER_PID
 
 
 class TestLoadingScreenStartup:
@@ -834,14 +834,14 @@ class TestLoadingScreenStartup:
         spawns the base interpreter as a CHILD — and the child owns the window.  So
         the launched pid never matches, and each poll on one runs its full timeout
         before the title lookup that was going to answer anyway.  The two
-        satellites and Nau together were 25 seconds of a 28-second loading screen.
+        satellites and the main player together were 25 seconds of a 28-second loading screen.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         title_to_hwnd = {
             "Portrait AI Player": 3030,
             "Landscape AI Player": 4040,
-            "Nau": 2525,
+            "Main Player": 2525,
             "Genau": 6060,
             "Fun Time": 5050,
         }
@@ -859,7 +859,7 @@ class TestLoadingScreenStartup:
         assert not hasattr(windows_bridge_sequencer, "find_window_by_pid")
         # And every managed window is still resolved, by caption alone.
         assert result.role_hwnds == {
-            "portrait": 3030, "landscape": 4040, "nau": 2525,
+            "portrait": 3030, "landscape": 4040, "main_player": 2525,
             "genau": 6060, "dashboard": 5050, "rfb": 0,
             # None hosted in this session, so neither its window nor either of
             # its region shows (which cover the players' rects, and are managed
@@ -880,7 +880,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
     """
 
     ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
-                  "nau": 55, "genau": 66}
+                  "main_player": 55, "genau": 66}
     COVER = 999
 
     def _calls(self, **kwargs):
@@ -888,7 +888,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
         with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
                    side_effect=lambda h, v: calls.append((h, v))):
             windows_bridge_sequencer.apply_topmost_bands(
-                dict(self.ROLE_HWNDS), "nau", **kwargs)
+                dict(self.ROLE_HWNDS), "main_player", **kwargs)
         return calls
 
     def test_the_cover_goes_back_on_top_after_every_promotion(self):
@@ -905,7 +905,7 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
 
     def test_the_walk_still_promotes_in_role_order(self):
         """Interleaving the cover must not disturb who ends up above whom: the
-        order of the promotions is what puts Genau's HUD over Nau's video."""
+        order of the promotions is what puts Genau's HUD over the main player's video."""
         banded = [h for h, on in self._calls(beneath=self.COVER)
                   if on and h != self.COVER]
         plain = [h for h, on in self._calls() if on]
@@ -929,11 +929,11 @@ class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
 
 
 class TestPhase4Reveal:
-    """Phase 4 (hide_windows only): play satellites, unpause Nau."""
+    """Phase 4 (hide_windows only): play satellites, unpause the main player."""
 
     def _run_hidden(self, manifest_path, tmp_path, *, title_to_hwnd=None, topmost_calls=None,
                     mode="video"):
-        title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060, "Nau": 2525}
+        title_map = title_to_hwnd or {"Fun Time": 5050, "Genau": 6060, "Main Player": 2525}
         # Both players reporting frames: the curtain waits for that before it
         # comes down (a satellite's window exists long before mpv has drawn
         # anything into it), so a run with no status files would hold it up.
@@ -974,14 +974,14 @@ class TestPhase4Reveal:
 
     def test_the_release_starts_the_players_the_mode_shows(self, cfg_factory, tmp_path):
         """And what the orchestrator calls once the cover is gone does start them:
-        Nau in video mode, with Genau and its audio alongside."""
+        The main player in video mode, with Genau and its audio alongside."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         m = LaunchManifest.read(manifest_path)
         _pause_every_player(m)
 
         release_the_players(m, "video")
 
-        assert Path(m.commands.nau_paused_file).read_text(encoding="utf-8").strip() == "0"
+        assert Path(m.commands.main_player_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.genau_paused_file).read_text(encoding="utf-8").strip() == "0"
         assert Path(m.commands.audio_paused_file).read_text(encoding="utf-8").strip() == "0"
 
@@ -1003,45 +1003,45 @@ class TestPhase4Reveal:
 
     def test_the_idle_slot_mate_is_still_parked_under_the_overlay(self, cfg_factory, tmp_path):
         """Visibility is settled under the overlay even though the bands are not:
-        minimizing Nau (a genau session's idle slot-mate) moves no window into
+        minimizing the main player (a genau session's idle slot-mate) moves no window into
         the topmost band, so it cannot flash."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         self._run_hidden(manifest_path, tmp_path, mode="genau")
 
-        NAU_HWND, GENAU_HWND = 2525, 6060
-        assert set(self._hide_calls) == {NAU_HWND}
+        MAIN_PLAYER_HWND, GENAU_HWND = 2525, 6060
+        assert set(self._hide_calls) == {MAIN_PLAYER_HWND}
         assert GENAU_HWND not in self._hide_calls
 
     def test_a_video_session_parks_nobody_under_the_overlay(self, cfg_factory, tmp_path):
         """Both main-slot players are on screen in video mode, Genau's HUD over
-        Nau's video, so there is no idle slot-mate to park."""
+        The main player's video, so there is no idle slot-mate to park."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
 
         self._run_hidden(manifest_path, tmp_path)
 
         assert self._hide_calls == []
 
-class TestNauGatesTheReveal:
-    """The overlay must not come down over Nau's own loading screen.
+class TestMainPlayerGatesTheReveal:
+    """The overlay must not come down over the main player's own loading screen.
 
-    Nau opens its window before it reads its library, so the caption lookup that
-    stood for "Nau is up" now answers while Nau is still loading and painting its
-    own progress bar.  Standalone, that screen is Nau's to show; inside Fun Time
+    The main player opens its window before it reads its library, so the caption lookup that
+    stood for "the main player is up" now answers while the main player is still loading and painting its
+    own progress bar.  Standalone, that screen is the main player's to show; inside Fun Time
     the wait belongs to Fun Time, and the phase named for it — "Waiting for
-    players..." — is where it goes.  Nau is the third player, and the only one
+    players..." — is where it goes.  The main player is the third player, and the only one
     still loading by then.
     """
 
-    def test_the_players_phase_covers_the_wait_for_nau(self, cfg_factory, tmp_path):
+    def test_the_players_phase_covers_the_wait_for_main_player(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
         events: list[str] = []
 
         def track_wait(status_file, *_args, **_kwargs):
-            events.append(f"wait-for-nau:{status_file}")
+            events.append(f"wait-for-main_player:{status_file}")
             return True
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_nau_loaded=dict(side_effect=track_wait)):
+        with _sequencer_stubs(wait_for_window_by_title=dict(return_value=88888), _wait_for_main_player_loaded=dict(side_effect=track_wait)):
             run_startup_sequence(
                 manifest_path=manifest_path,
                 state_dir=tmp_path,
@@ -1049,7 +1049,7 @@ class TestNauGatesTheReveal:
                 hide_windows=True,
             )
 
-        # Inside the players phase, and on Nau's own status file — not after
+        # Inside the players phase, and on the main player's own status file — not after
         # "windows", where the bar would sit under "Positioning windows..."
         # through a wait that positions nothing.
         assert events == [
@@ -1057,7 +1057,7 @@ class TestNauGatesTheReveal:
             "browser",
             "companions",
             "players",
-            f"wait-for-nau:{cfg.nau_status_file}",
+            f"wait-for-main_player:{cfg.main_player_status_file}",
             "origenerator",
             "windows",
             "finalizing",
@@ -1068,25 +1068,25 @@ class TestNauGatesTheReveal:
     ):
         """Dropping last session's status file is what makes the next one mean
         something — without it the wait ends at once on a video from a session
-        that is over.  But startup also resumes Nau onto the video that same file
-        names, so the drop has to fall between that read and Nau's launch.
+        that is over.  But startup also resumes the main player onto the video that same file
+        names, so the drop has to fall between that read and the main player's launch.
         """
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        status_file = Path(cfg.nau_status_file)
+        status_file = Path(cfg.main_player_status_file)
         status_file.parent.mkdir(parents=True, exist_ok=True)
         status_file.write_text("video=last_session.mp4\n", encoding="utf-8")
 
         seen: dict = {}
 
         def capture_core(**kwargs):
-            seen["resumed_onto"] = read_nau_status(Path(kwargs["nau_status_file"])).video
+            seen["resumed_onto"] = read_main_player_status(Path(kwargs["main_player_status_file"])).video
             _write_result(kwargs["result_file"], CORE_PIDS)
 
-        def capture_nau(**kwargs):
+        def capture_main_player(**kwargs):
             seen["stale_at_launch"] = Path(kwargs["status_file"]).exists()
-            return _fake_nau(**kwargs)
+            return _fake_main_player(**kwargs)
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core), launch_nau=dict(side_effect=capture_nau), wait_for_window_by_title=dict(return_value=88888)):
+        with _sequencer_stubs(start_core_session=dict(side_effect=capture_core), launch_main_player=dict(side_effect=capture_main_player), wait_for_window_by_title=dict(return_value=88888)):
             run_startup_sequence(
                 manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True,
             )
@@ -1101,7 +1101,7 @@ class TestNauGatesTheReveal:
         run longer than that guard would drop the overlay mid-wait and reveal the
         very loading screen it is waiting out.
         """
-        assert WINDOW_RESOLVE_TIMEOUT_S + NAU_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
+        assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_PLAYER_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
 
 FAKE_LAYOUT_CFG = LayoutConfig(
@@ -1252,46 +1252,46 @@ class TestResolveSatelliteHwnds:
         assert all(call.kwargs.get("exact") is True for call in by_title.call_args_list)
 
 
-class TestWaitForNauLoaded:
-    """Nau's window is not the signal that Nau is ready.
+class TestWaitForMainPlayerLoaded:
+    """the main player's window is not the signal that main player is ready.
 
-    Nau opens its window within half a second of launch and reads its library
+    The main player opens its window within half a second of launch and reads its library
     under it — one ffprobe per unprobed video on a cold cache, tens of seconds —
     painting its OWN loading screen into it meanwhile.  So a caption lookup
-    returns while Nau is still loading.  Its status file does not: Nau writes
+    returns while the main player is still loading.  Its status file does not: the main player writes
     that from its playback loop, once a video is up.
     """
 
-    def test_returns_once_nau_reports_a_video(self, tmp_path):
-        status_file = tmp_path / "nau_status.txt"
+    def test_returns_once_main_player_reports_a_video(self, tmp_path):
+        status_file = tmp_path / "main_player_status.txt"
 
-        def nau_finishes_loading(_seconds):
+        def main_player_finishes_loading(_seconds):
             status_file.write_text("video=clip.mp4\n", encoding="utf-8")
 
         # Absent on the first look, so it can only return by polling again.
         with sleeps_in(windows_bridge_sequencer) as slept:
-            slept.side_effect = nau_finishes_loading
-            assert _wait_for_nau_loaded(status_file, NullProgress()) is True
+            slept.side_effect = main_player_finishes_loading
+            assert _wait_for_main_player_loaded(status_file, NullProgress()) is True
 
-    def test_a_status_file_naming_no_video_is_not_a_loaded_nau(self, tmp_path):
-        """Nau writes its status whole, but a poll can catch that first write
+    def test_a_status_file_naming_no_video_is_not_a_loaded_main_player(self, tmp_path):
+        """the main player writes its status whole, but a poll can catch that first write
         half-done.  So the wait reads the video out rather than taking the file's
         mere existence for the signal, and an empty read keeps it waiting.
         """
-        status_file = tmp_path / "nau_status.txt"
+        status_file = tmp_path / "main_player_status.txt"
         status_file.write_text("", encoding="utf-8")
 
         with sleeps_in(windows_bridge_sequencer):
-            assert _wait_for_nau_loaded(
+            assert _wait_for_main_player_loaded(
                 status_file, NullProgress(), timeout_s=0.3,
             ) is False
 
-    def test_a_nau_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
-        """A crashed Nau must not wedge startup under an overlay forever: the
+    def test_a_main_player_that_never_loads_gives_the_desktop_up_rather_than_keep_it(self, tmp_path):
+        """A crashed main player must not wedge startup under an overlay forever: the
         wait is bounded, and past its budget the session is revealed without it.
         """
         with sleeps_in(windows_bridge_sequencer):
-            assert _wait_for_nau_loaded(
+            assert _wait_for_main_player_loaded(
                 tmp_path / "never.txt", NullProgress(), timeout_s=0.0,
             ) is False
 
@@ -1308,7 +1308,7 @@ class TestWaitForNauLoaded:
 
         with sleeps_in(windows_bridge_sequencer) as slept:
             with pytest.raises(StartupCancelled):
-                _wait_for_nau_loaded(tmp_path / "never.txt", Cancelled())
+                _wait_for_main_player_loaded(tmp_path / "never.txt", Cancelled())
 
         slept.assert_not_called()
 
@@ -1496,7 +1496,7 @@ class TestOrigeneratorUnderTheOverlay:
     def test_last_sessions_status_cannot_answer_this_sessions_wait(
         self, cfg_factory, tmp_path
     ):
-        """The stale-file trap Nau's wait already names, on this file too: a
+        """The stale-file trap the main player's wait already names, on this file too: a
         status left by the last session says both regions are up before this
         app has drawn anything, so the reveal it releases is the bug.
         """
@@ -1521,8 +1521,8 @@ class TestOrigeneratorUnderTheOverlay:
 class TestWaitingForTheHostedApp:
     """What the curtain is actually held on: the app's status file.
 
-    Its WINDOW is not the signal, for the same reason Nau's caption is not
-    Nau's — it is built at the end of a boot whose last act opens a gallery,
+    Its WINDOW is not the signal, for the same reason the main player's caption is not
+    The main player's — it is built at the end of a boot whose last act opens a gallery,
     and in origenerator mode the region shows arrive several seconds after it.
     """
 
@@ -1602,7 +1602,7 @@ class TestWaitingForThePlayersToDraw:
             (portrait, landscape), progress, timeout_s=0.3) is True
 
     def test_a_player_that_never_draws_does_not_keep_the_desktop(self, tmp_path):
-        """Bounded like Nau's wait: a player stuck on a bad clip must not hold
+        """Bounded like the main player's wait: a player stuck on a bad clip must not hold
         the curtain up forever — the reveal goes ahead and the log says why."""
         never = tmp_path / "portrait_status.txt"
         progress = SimpleNamespace(cancelled=False)

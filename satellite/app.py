@@ -1,6 +1,6 @@
 """Run loop for a native satellite player: an mpv window fun_time drives.
 
-The satellite half of Nau's app shell, stripped to essentials — no funscript,
+The satellite half of the main player's app shell, stripped to essentials — no funscript,
 tcode, heatmap, record or version cycling.  mpv renders the video into a
 pygame/SDL window; fun_time positions that window by HWND after launch and drives
 playback through the command + paused files, reading back the status file.  Three
@@ -132,9 +132,9 @@ def _run(args, playlist: list[Path]) -> int:
         else None
     )
     # The scrubber and the volume chip, drawn from the shared engine and taking
-    # presses like Nau's: the bar seeks, the chip sets this player's own sound,
+    # presses like the main player's: the bar seeks, the chip sets this player's own sound,
     # and the picture asks fun_time to pause or resume the room.  Missing beside
-    # Nau's is only the heatmap, which needs a script a satellite's clips lack.
+    # The main player's is only the heatmap, which needs a script a satellite's clips lack.
     volume = SatelliteVolume(player, live=not audio_muted(args))
     volume_painter = VolumeHudPainter()
     pointer = Pointer(session=session, volume=volume, hud=hud,
@@ -179,7 +179,7 @@ def _run(args, playlist: list[Path]) -> int:
         if hud is not None:
             # The clip on screen is the session's, not the published panel's — the
             # playlist walks on by itself between publishes — so the HUD is told what
-            # is decoding, the same way Nau names its file from its own session.
+            # is decoding, the same way the main player names its file from its own session.
             hud.tick(video=session.current_video.stem)
 
         if hud is not None and hud.display_suppressed:

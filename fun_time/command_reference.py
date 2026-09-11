@@ -194,9 +194,9 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("F",),
                 ("fmode_toggle", "fmode_on", "fmode_off"),
             ),
-            # The main player's sound, in whichever mode owns it — Nau's
+            # The main player's sound, in whichever mode owns it — the main player's
             # video in video mode, Genau's clip audio in genau.  Its volume steps
-            # sit with Nau's other playback controls.
+            # sit with the main player's other playback controls.
             _Row("Mute / unmute the main player", (), ("audio_mute", "audio_unmute")),
             _Row("Disable voice control", (), ("voice_toggle", "voice_off")),
             _Row("Start / stop broker", ("B",), ("broker_panel", "broker_start", "broker_stop")),
@@ -254,13 +254,13 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
-            # The same two commands Nau's section carries: one sound level reaches
+            # The same two commands the main player's section carries: one sound level reaches
             # both sinks, and which is audible is which mode owns the display.
             _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
             _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
             _Row(
                 "Seconds a clip holds the screen before Genau moves on — only "
-                "while it is unlocked (the ' key in Nau holds it)",
+                "while it is unlocked (the ' key in the main player holds it)",
                 (),
                 ("genau_clip_seconds_down", "genau_clip_seconds_up"),
                 ("clip seconds 1–60",),
@@ -268,14 +268,14 @@ _SECTIONS: tuple[_Section, ...] = (
         ),
     ),
     _Section(
-        "Nau",
+        "Main Player",
         (
             _Row("Previous video", ("[",), ("main_prev",)),
             _Row("Next video", ("]",), ("main_next",)),
             _Row(
                 "Lock / unlock the main player — locked (the default) what is on "
                 "screen repeats; unlocked it moves on and the list runs around. "
-                "Reaches whichever player is showing: Nau's video here, Genau's "
+                "Reaches whichever player is showing: the main player's video here, Genau's "
                 "clip in Genau mode",
                 ("'",),
                 ("main_lock", "main_lock_on", "main_lock_off"),
@@ -307,19 +307,19 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Nudge the video's playback rate up / down",
                 (),
-                ("nau_speed_up", "nau_speed_down"),
+                ("main_player_speed_up", "main_player_speed_down"),
             ),
             _Row(
                 "Set video speed (0.25×–2×; the funscript follows)",
                 (),
                 (
                     "speed_min", "speed_max",
-                    "nau_speed_25", "nau_speed_50", "nau_speed_75", "nau_speed_100",
-                    "nau_speed_125", "nau_speed_150", "nau_speed_175", "nau_speed_200",
+                    "main_player_speed_25", "main_player_speed_50", "main_player_speed_75", "main_player_speed_100",
+                    "main_player_speed_125", "main_player_speed_150", "main_player_speed_175", "main_player_speed_200",
                 ),
                 ("min speed", "max speed", "reset speed", "half speed", "double speed", "speed one point five ex"),
             ),
-            _Row("Cycle through versions of the current video", ("V",), ("nau_cycle_version",)),
+            _Row("Cycle through versions of the current video", ("V",), ("main_player_cycle_version",)),
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
             _Row(
                 "Shape of what plays, in the headset: \"VR only\", \"flat only\" "
@@ -337,8 +337,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 "compilation with it; the console's own pair reaches a fourth "
                 "state, neither, which holds the video on screen",
                 ("T",),
-                ("nau_toggle_length", "nau_length_shorts", "nau_length_full",
-                 "nau_length_mixed", "nau_length_none"),
+                ("main_player_toggle_length", "main_player_length_shorts", "main_player_length_full",
+                 "main_player_length_mixed", "main_player_length_none"),
             ),
             _Row(
                 "Reset the main player — back to the mixed library (leaving any "
@@ -352,8 +352,8 @@ _SECTIONS: tuple[_Section, ...] = (
                 "you were in; \"full video\" jumps to its source scene; \"money "
                 "jump\" returns to the clip",
                 (),
-                ("nau_compilation", "nau_end_compilation", "nau_full_vid",
-                 "nau_clip_jump"),
+                ("main_player_compilation", "main_player_end_compilation", "main_player_full_vid",
+                 "main_player_clip_jump"),
             ),
             _Row(
                 "Funscript navigation: \"jump to funscript\" skips ahead to "
@@ -361,12 +361,12 @@ _SECTIONS: tuple[_Section, ...] = (
                 "funscripted\" leaves for the next scripted video in the "
                 "playlist, landing where its action begins",
                 (),
-                ("nau_funscript_jump", "nau_next_funscripted"),
+                ("main_player_funscript_jump", "main_player_next_funscripted"),
             ),
             _Row(
                 "Loop control: hold and release to set a loop, press to end loop",
                 ("R",),
-                ("nau_record_down", "nau_record_up", "nau_record_tap", "nau_loop_cancel"),
+                ("main_player_record_down", "main_player_record_up", "main_player_record_tap", "main_player_loop_cancel"),
             ),
             _Row(
                 "F-Mode on the main player alone — play only the hand-scripted "

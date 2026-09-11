@@ -40,7 +40,7 @@ def test_it_leaves_this_session_s_own_processes_alone():
     """The sweep force-kills what it matches.  Fun Time's own children are named
     too, and nothing here should be able to reach them -- the command-line half
     bounds it as well, but the image half must not be the thing that saves us."""
-    for name in ("FunTime-Nau.exe", "FunTime-Dashboard.exe", "notepad.exe"):
+    for name in ("FunTime-MainPlayer.exe", "FunTime-Dashboard.exe", "notepad.exe"):
         assert not re.match(BROKER_IMAGE_PATTERN, name), name
 
 

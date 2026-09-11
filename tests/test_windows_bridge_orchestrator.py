@@ -61,7 +61,7 @@ from tests.sleeps import sleeps_in
 
 def _fake_startup_result() -> StartupResult:
     return StartupResult(
-        nau_pid=200,
+        main_player_pid=200,
         portrait_pid=300,
         landscape_pid=400,
         dashboard_pid=500,
@@ -76,8 +76,8 @@ class TestFixPostLoadingWindows:
     window policy is applied again once the overlay process has exited."""
 
     def test_reapplies_the_policy_for_the_mode_the_session_opened_in(self):
-        """A resumed genau session would otherwise get nau's stacking back here:
-        Nau promoted over Genau and un-parked, one pass after the sequencer
+        """A resumed genau session would otherwise get main_player's stacking back here:
+        The main player promoted over Genau and un-parked, one pass after the sequencer
         parked it — the display handed back to the player that is not playing."""
         result = replace(_fake_startup_result(), main_mode="genau")
 
@@ -372,7 +372,7 @@ class TestIdentifyChildren:
         ):
             children = identify_children(_fake_startup_result())
 
-        assert children["nau_pid"] == ChildProcess(pid=200, created_at=2000)
+        assert children["main_player_pid"] == ChildProcess(pid=200, created_at=2000)
         assert children["audio_pid"] == ChildProcess(pid=700, created_at=7000)
 
     def test_records_a_child_that_already_exited_as_unkillable(self):
@@ -384,7 +384,7 @@ class TestIdentifyChildren:
         ):
             children = identify_children(_fake_startup_result())
 
-        assert children["nau_pid"] == ChildProcess(pid=200, created_at=0)
+        assert children["main_player_pid"] == ChildProcess(pid=200, created_at=0)
 
 
 def _recorded_children(**overrides: ChildProcess) -> dict[str, ChildProcess]:
@@ -414,7 +414,7 @@ class TestShutdownChildren:
 
     def test_kills_the_recorded_children_but_never_a_recycled_pid(self, tmp_path):
         children = _recorded_children(
-            nau_pid=ChildProcess(pid=200, created_at=111),
+            main_player_pid=ChildProcess(pid=200, created_at=111),
             portrait_pid=ChildProcess(pid=300, created_at=222),
         )
         live_creation_times = {200: 111, 300: 999}  # 300 was recycled
@@ -474,7 +474,7 @@ class TestWritePidsFile:
     def test_writes_all_pids(self, tmp_path):
         parser = self._write(tmp_path)
 
-        assert parser.getint("pids", "nau_pid") == 200
+        assert parser.getint("pids", "main_player_pid") == 200
         assert parser.getint("pids", "portrait_pid") == 300
         assert parser.getint("pids", "landscape_pid") == 400
         assert parser.getint("pids", "dashboard_pid") == 500
@@ -486,7 +486,7 @@ class TestWritePidsFile:
         Windows has since handed the PID to."""
         parser = self._write(tmp_path)
 
-        assert parser.getint("created_at", "nau_pid") == 2000
+        assert parser.getint("created_at", "main_player_pid") == 2000
         assert parser.getint("created_at", "audio_pid") == 7000
 
 
@@ -600,7 +600,7 @@ class TestRunPythonOrchestratedBridge:
         assert code == 0
 
         # Should have killed all 6 child processes
-        assert 200 in killed_pids  # nau
+        assert 200 in killed_pids  # main_player
         assert 300 in killed_pids  # portrait
         assert 400 in killed_pids  # landscape
         assert 500 in killed_pids  # dashboard
@@ -818,7 +818,7 @@ class TestLoadingScreenLifecycle:
         )
 
         result_with_hwnds = StartupResult(
-            nau_pid=200, portrait_pid=300, landscape_pid=400,
+            main_player_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
             )
 
@@ -1183,7 +1183,7 @@ class TestClosingScreenLifecycle:
         def read_the_sound_flags():
             commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
             for flag in map(Path, (
-                commands.nau_paused_file, commands.audio_paused_file,
+                commands.main_player_paused_file, commands.audio_paused_file,
                 commands.portrait_paused_file, commands.landscape_paused_file,
                 commands.origenerator_paused_file,
             )):
@@ -1193,7 +1193,7 @@ class TestClosingScreenLifecycle:
         _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_sound_flags)
 
         assert paused_at_cover_up == {
-            "nau_paused.txt": "1",
+            "main_player_paused.txt": "1",
             "audio_paused.txt": "1",
             "portrait_paused.txt": "1",
             "landscape_paused.txt": "1",
@@ -1211,7 +1211,7 @@ class TestClosingScreenLifecycle:
         silence_the_players(commands)
 
         assert [Path(flag).read_text(encoding="utf-8") for flag in (
-            commands.nau_paused_file, commands.audio_paused_file,
+            commands.main_player_paused_file, commands.audio_paused_file,
             commands.portrait_paused_file, commands.landscape_paused_file,
         )] == ["1", "1", "1", "1"]
 
@@ -1672,7 +1672,7 @@ class TestHotkeyScriptGoesUpFirst:
         cancel away with them, since Esc only cancels while the hold is on."""
         state_dir = tmp_path / "state"
         state_dir.mkdir(parents=True, exist_ok=True)
-        (state_dir / "bridge_pids.ini").write_text("[pids]\nnau_pid = 999\n", encoding="utf-8")
+        (state_dir / "bridge_pids.ini").write_text("[pids]\nmain_player_pid = 999\n", encoding="utf-8")
 
         seen: list[bool] = []
         self._run(
@@ -1701,7 +1701,7 @@ class TestPostLoadingWindowState:
         )
 
         result_with_hwnds = StartupResult(
-            nau_pid=200, portrait_pid=300, landscape_pid=400,
+            main_player_pid=200, portrait_pid=300, landscape_pid=400,
             dashboard_pid=500, genau_pid=600, audio_pid=700,
                 rfb_hwnd=55555,
         )
@@ -1743,11 +1743,11 @@ class TestPostLoadingWindowState:
             )
 
         # video startup mode: both main-slot players stay up, Genau's HUD over
-        # Nau's video, so nobody is parked.
+        # The main player's video, so nobody is parked.
         assert hide_calls == [], f"a main-slot player was parked: {hide_calls}"
 
         # video startup mode: the windows that own a rect are promoted to topmost,
-        # Nau (hwnd 2020) included — it floats above the desktop like the main
+        # The main player (hwnd 2020) included — it floats above the desktop like the main
         # player always has — and Genau after it, which is what stacks the HUD
         # above the video.
         promoted = [h for h, v in topmost_calls if v]
@@ -1757,67 +1757,67 @@ class TestPostLoadingWindowState:
         assert promoted.index(GENAU_HWND) > promoted.index(2020)
 
 
-class TestNauObstructionLog:
+class TestMainPlayerObstructionLog:
     """After the bands are re-applied, the orchestrator walks the real z-order
-    and names whatever still covers Nau — the diagnostic that turns a "Nau isn't
+    and names whatever still covers the main player — the diagnostic that turns a "the main player isn't
     on top" report into the exact culprit window, since the topmost flag alone
-    reads True even when Nau is buried."""
+    reads True even when the main player is buried."""
 
-    def test_names_the_window_covering_nau(self, caplog):
+    def test_names_the_window_covering_main_player(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
-            StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Nau", 2020)
+            _log_window_obstruction("Main Player", 2020)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "topmost=False" in caplog.text  # a non-topmost window over topmost Nau
+        assert "topmost=False" in caplog.text  # a non-topmost window over topmost the main player
 
-    def test_quiet_when_nau_is_frontmost(self, caplog):
-        stack = [StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900))]
+    def test_quiet_when_main_player_is_frontmost(self, caplog):
+        stack = [StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900))]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Nau", 2020)
+            _log_window_obstruction("Main Player", 2020)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
-    def test_warns_when_nau_unresolved(self, caplog):
+    def test_warns_when_main_player_unresolved(self, caplog):
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder") as it, \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Nau", 0)
-        it.assert_not_called()  # nothing to walk if Nau never resolved
+            _log_window_obstruction("Main Player", 0)
+        it.assert_not_called()  # nothing to walk if the main player never resolved
         assert "unresolved" in caplog.text
 
-    def test_quiet_when_only_the_sessions_own_genau_layer_covers_nau(self, caplog):
-        """In video mode, Genau's window is the transparent HUD layer over Nau's
+    def test_quiet_when_only_the_sessions_own_genau_layer_covers_main_player(self, caplog):
+        """In video mode, Genau's window is the transparent HUD layer over the main player's
         video — over it on purpose.  Warning on that toasted every video mode
         startup with a covering window that covers nothing visible."""
         stack = [
-            StackedWindow(hwnd=1010, title="Video Nau+Genau", topmost=True,
+            StackedWindow(hwnd=1010, title="Video Main Player+Genau", topmost=True,
                           rect=(2560, 2483, 1440, 930)),
-            StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("INFO", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Nau", 2020, expected_over=1010)
+            _log_window_obstruction("Main Player", 2020, expected_over=1010)
         assert "frontmost over its rect" in caplog.text
         assert not [r for r in caplog.records if r.levelno >= 30]  # no WARNING
 
     def test_a_third_window_still_warns_past_the_expected_layer(self, caplog):
         stack = [
             StackedWindow(hwnd=99, title="Claude", topmost=False, rect=(2560, 2500, 1440, 900)),
-            StackedWindow(hwnd=1010, title="Video Nau+Genau", topmost=True,
+            StackedWindow(hwnd=1010, title="Video Main Player+Genau", topmost=True,
                           rect=(2560, 2483, 1440, 930)),
-            StackedWindow(hwnd=2020, title="Nau", topmost=True, rect=(2560, 2500, 1440, 900)),
+            StackedWindow(hwnd=2020, title="Main Player", topmost=True, rect=(2560, 2500, 1440, 900)),
         ]
         with patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=stack), \
              caplog.at_level("WARNING", logger="fun_time.windows_bridge_orchestrator"):
-            _log_window_obstruction("Nau", 2020, expected_over=1010)
+            _log_window_obstruction("Main Player", 2020, expected_over=1010)
         assert "covered at startup" in caplog.text
         assert "Claude" in caplog.text
-        assert "Video Nau+Genau" not in caplog.text
+        assert "Video Main Player+Genau" not in caplog.text
 
 
 class TestVoiceControlIntegration:
@@ -2046,7 +2046,7 @@ class TestTheFinishingPassFitsUnderTheCover:
         watching the z-order sort itself out: the exact thing it is up for.
 
         Every wait that pass can take, added up, has to clear that guard.  Five
-        window resolutions: the dashboard, Nau, Genau, and the two satellites.
+        window resolutions: the dashboard, the main player, Genau, and the two satellites.
         """
         budget = (
             HUD_PRIME_TIMEOUT_S
@@ -2057,7 +2057,7 @@ class TestTheFinishingPassFitsUnderTheCover:
 
 
 class TestThePlayersStartWhenTheCoverIsGone:
-    """Nau's video and Genau's audio must not run under the cover.
+    """The main player's video and Genau's audio must not run under the cover.
 
     The phase walk used to release them as its last act, which was also the
     moment the cover came down {D} so they lined up.  Now the cover is held

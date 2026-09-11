@@ -48,7 +48,7 @@ pytestmark = pytest.mark.skipif(
 # The windows a session that opens in video mode puts on screen, by exact title.
 # Genau is deliberately absent: video mode parks it, and a parked window is not a
 # window that failed to arrive.
-SHOWN_TITLES = ("Fun Time", "Portrait AI Player", "Landscape AI Player", "Nau")
+SHOWN_TITLES = ("Fun Time", "Portrait AI Player", "Landscape AI Player", "Main Player")
 
 # What the orchestrator logs when the room has been banded and settled.
 BANDED = "Post-loading window state corrected"
