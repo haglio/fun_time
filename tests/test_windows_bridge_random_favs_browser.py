@@ -94,9 +94,10 @@ def test_build_open_rfb_tab_command_opens_multiple_urls_in_one_launch():
 def test_open_rfb_tab_calls_subprocess(monkeypatch):
     recorded: dict[str, str] = {}
 
-    def fake_popen(cmd, cwd):
+    def fake_popen(cmd, cwd, **kwargs):
         recorded["cmd"] = cmd
         recorded["cwd"] = cwd
+        recorded["kwargs"] = kwargs
         return object()
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)
@@ -190,9 +191,10 @@ def test_launch_random_favs_browser_uses_subprocess(tmp_path: Path, monkeypatch)
 
     recorded: dict[str, str] = {}
 
-    def fake_popen(cmd, cwd):
+    def fake_popen(cmd, cwd, **kwargs):
         recorded["cmd"] = cmd
         recorded["cwd"] = cwd
+        recorded["kwargs"] = kwargs
         return object()
 
     monkeypatch.setattr(subprocess, "Popen", fake_popen)

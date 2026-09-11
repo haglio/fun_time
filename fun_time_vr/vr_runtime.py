@@ -19,6 +19,8 @@ from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time.child_log import no_child_log
+
 logger = logging.getLogger(__name__)
 
 APP_NAME = "FunTimeVR"
@@ -169,7 +171,8 @@ def process_running(image_name: str) -> bool:
 def start_runtime(launcher: Path) -> None:
     """Start the VR runtime's own client, the way its desktop shortcut would."""
     logger.info("Starting VR runtime: %s", launcher)
-    subprocess.Popen([str(launcher)], cwd=str(launcher.parent), **hidden_subprocess_kwargs())
+    subprocess.Popen([str(launcher)], cwd=str(launcher.parent),
+                     **no_child_log(), **hidden_subprocess_kwargs())
 
 
 def runtime_was_running() -> bool:

@@ -59,6 +59,7 @@ from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
 from fun_time.press_channel import PressChannel
 from fun_time.project_paths import PROJECT_ICON
+from fun_time.session_end import mark_session_end
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
 
 COLOR_BG = BG_PRIMARY
@@ -649,6 +650,7 @@ class DashboardWindow(QMainWindow):
         self._reveal.attach(_hwnd, self)
         set_taskbar_window_styles(_hwnd)
 
+        self._state_dir = app_config.state_dir
         self._ahk_cmd_file = app_config.state_dir / "ahk_cmd.txt"
 
         # Connected first: the channel's listener emits as soon as it exists.
@@ -672,6 +674,8 @@ class DashboardWindow(QMainWindow):
         self._refresh()
 
     def closeEvent(self, event: object) -> None:
+        # Closing this window ends the WHOLE session; a stray Alt+F4 lands here.
+        mark_session_end(self._state_dir, "the dashboard window was closed")
         try:
             self._ahk_cmd_file.write_text("exit", encoding="utf-8")
         except OSError:

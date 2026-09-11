@@ -13,6 +13,7 @@ from urllib.request import url2pathname
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
+from fun_time.child_log import no_child_log
 from fun_time.loopback_server import omnipause_url
 from fun_time.modes import SatelliteBuild
 from fun_time.players import Player
@@ -104,6 +105,7 @@ def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
 
     popen.assert_called_once_with(
         ["wscript.exe", str(launcher)], cwd=launcher.parent, creationflags=1,
+        **no_child_log(),
     )
 
 
@@ -132,7 +134,8 @@ def test_ensure_broker_does_not_kill_on_a_merely_stale_heartbeat(tmp_path: Path)
         ensure_broker(heartbeat, launcher)
 
     stop.assert_not_called()
-    popen.assert_called_once_with(["wscript.exe", str(launcher)], cwd=launcher.parent)
+    popen.assert_called_once_with(
+        ["wscript.exe", str(launcher)], cwd=launcher.parent, **no_child_log())
 
 
 def test_ensure_broker_restarts_a_broker_older_than_its_own_code(tmp_path: Path):
@@ -2133,7 +2136,7 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
             "--config", "C:/example/fun_time_config.json",
             "--audio-folder", "C:/example/audio",
         ]
-        assert kwargs == {"creationflags": 1}
+        assert kwargs == {"creationflags": 1, **no_child_log()}
 
     def test_a_named_output_rides_as_the_audio_device(self):
         _proc, argv, _kwargs = self._launch(audio_device="Pimax")
