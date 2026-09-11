@@ -274,7 +274,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     assert not is_window_topmost(landscape)
 
     _fix_post_loading_windows(StartupResult(
-        nau_pid=pids["nau_pid"],
+        main_player_pid=pids["main_player_pid"],
         portrait_pid=pids["portrait_pid"],
         landscape_pid=pids["landscape_pid"],
         dashboard_pid=0,

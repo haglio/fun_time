@@ -15,7 +15,7 @@ from fun_time.watch_stats import load_watch_stats
 
 def make_sampler(tmp_path: Path) -> WatchSampler:
     return WatchSampler(
-        nau_status_file=tmp_path / "nau_status.txt",
+        main_player_status_file=tmp_path / "main_player_status.txt",
         satellite_status_files={2: tmp_path / "portrait_status.txt",
                                 3: tmp_path / "landscape_status.txt"},
         stats_file=tmp_path / "watch_stats.json",
@@ -47,9 +47,9 @@ def test_a_video_watched_to_the_end_is_recorded_as_a_completion(tmp_path):
     assert stats[normalize_path_key(str(video))]["completions"] == 1
 
 
-def _publish_nau(path: Path, video, *, position_ms: int, duration_ms: int,
+def _publish_main_player(path: Path, video, *, position_ms: int, duration_ms: int,
                  paused: bool = False) -> None:
-    """Nau's status file, the way nau/status.py writes it."""
+    """The main player's status file, the way main_player/status.py writes it."""
     path.write_text(
         f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
         f"state=normal\npaused={'1' if paused else '0'}\n",
@@ -91,79 +91,79 @@ class TestSamplingCadence:
 
 
 class TestTheMainPlayer:
-    """Nau's status feed is watch-tracked just like a satellite's."""
+    """The main player's status feed is watch-tracked just like a satellite's."""
 
     def _sample(self, sampler, at: float) -> None:
         sampler.sample_due(now=at, paused=False)
 
-    def test_a_nau_video_watched_to_the_end_then_departed_is_a_completion(self, tmp_path):
+    def test_a_main_player_video_watched_to_the_end_then_departed_is_a_completion(self, tmp_path):
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
+        status = tmp_path / "main_player_status.txt"
 
-        _publish_nau(status, watched, position_ms=9000, duration_ms=10000)
+        _publish_main_player(status, watched, position_ms=9000, duration_ms=10000)
         self._sample(sampler, 100.0)
-        _publish_nau(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")
         assert stats[normalize_path_key(str(watched))]["completions"] == 1
 
     def test_an_unknown_duration_yields_no_sample(self, tmp_path):
-        """Before Nau knows the clip length it publishes duration_ms=0; no
+        """Before the main player knows the clip length it publishes duration_ms=0; no
         fraction can be formed, so the sample is dropped (never a divide-by-zero)."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
+        status = tmp_path / "main_player_status.txt"
 
-        _publish_nau(status, early, position_ms=5000, duration_ms=0)
+        _publish_main_player(status, early, position_ms=5000, duration_ms=0)
         self._sample(sampler, 100.0)
-        _publish_nau(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         assert normalize_path_key(str(early)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
-    def test_a_paused_nau_is_not_watching(self, tmp_path):
+    def test_a_paused_main_player_is_not_watching(self, tmp_path):
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
+        status = tmp_path / "main_player_status.txt"
 
-        _publish_nau(status, watched, position_ms=9000, duration_ms=10000, paused=True)
+        _publish_main_player(status, watched, position_ms=9000, duration_ms=10000, paused=True)
         self._sample(sampler, 100.0)
-        _publish_nau(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         assert normalize_path_key(str(watched)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
     def test_the_blank_between_videos_is_not_a_departure(self, tmp_path):
-        """Between videos Nau can briefly publish an empty video path; that blank
+        """Between videos the main player can briefly publish an empty video path; that blank
         must not read as the watched video departing (a spurious completion)."""
         sampler = make_sampler(tmp_path)
         watched = _make_video(tmp_path, "watched.mp4")
-        status = tmp_path / "nau_status.txt"
+        status = tmp_path / "main_player_status.txt"
 
-        _publish_nau(status, watched, position_ms=9000, duration_ms=10000)
+        _publish_main_player(status, watched, position_ms=9000, duration_ms=10000)
         self._sample(sampler, 100.0)
-        _publish_nau(status, "", position_ms=0, duration_ms=10000)
+        _publish_main_player(status, "", position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         assert normalize_path_key(str(watched)) not in load_watch_stats(tmp_path / "watch_stats.json")
 
-    def test_next_marks_the_departed_nau_video_as_a_skip(self, tmp_path):
-        """Pressing next on the main player is the "user nav" signal: a Nau video
+    def test_next_marks_the_departed_main_player_video_as_a_skip(self, tmp_path):
+        """Pressing next on the main player is the "user nav" signal: a main player video
         left early right after a next counts as a skip, like a satellite next."""
         sampler = make_sampler(tmp_path)
         early = _make_video(tmp_path, "early.mp4")
         nextv = _make_video(tmp_path, "next.mp4")
-        status = tmp_path / "nau_status.txt"
+        status = tmp_path / "main_player_status.txt"
 
-        _publish_nau(status, early, position_ms=1000, duration_ms=10000)
+        _publish_main_player(status, early, position_ms=1000, duration_ms=10000)
         self._sample(sampler, 100.0)
         sampler.note_command("main_next")
-        _publish_nau(status, nextv, position_ms=0, duration_ms=10000)
+        _publish_main_player(status, nextv, position_ms=0, duration_ms=10000)
         self._sample(sampler, 101.0)
 
         stats = load_watch_stats(tmp_path / "watch_stats.json")

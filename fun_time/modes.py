@@ -11,7 +11,7 @@ from .watch_stats import passes_inclusion, weighted_shuffle
 
 PLAYLIST_PORTRAIT = "portrait_playlist"
 PLAYLIST_LANDSCAPE = "landscape_playlist"
-PLAYLIST_NAU = "nau_playlist"
+PLAYLIST_MAIN_PLAYER = "main_player_playlist"
 
 
 def is_supported_video_path(path: str) -> bool:
@@ -335,7 +335,7 @@ def write_playlist_entries(
     """Write a playlist file: one video per line, TAB + funscript where there is one.
 
     The single shape both players read back with ``player_core.playlist.read_playlist``
-    — Nau drives the OSR2 from the funscript column, a silent satellite drops it —
+    — the main player drives the OSR2 from the funscript column, a silent satellite drops it —
     so every playlist fun_time writes is emitted here and can never drift apart.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -352,8 +352,8 @@ def write_playlist_file(path: Path, paths: list[str]) -> None:
     write_playlist_entries(path, [(video_path, None) for video_path in paths])
 
 
-def write_nau_playlist_file(path: Path, video_paths: list[str]) -> None:
-    """Write Nau's playlist, pairing each video with its funscript when it has one."""
+def write_main_player_playlist_file(path: Path, video_paths: list[str]) -> None:
+    """Write the main player's playlist, pairing each video with its funscript when it has one."""
     write_playlist_entries(
         path, [(video_path, matching_funscript(video_path)) for video_path in video_paths]
     )
@@ -428,7 +428,7 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
     built under it, and one player quietly holding the whole library while the
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
-    write_nau_playlist_file(
+    write_main_player_playlist_file(
         playlist_file, build_main_playlist_paths(main_sources, f_mode, recent=recent))
 
 
@@ -442,7 +442,7 @@ def build_all_playlists(
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
-    """Build and write all three playlists — both satellites' and Nau's.
+    """Build and write all three playlists — both satellites' and the main player's.
 
     Only a start with nothing to resume builds all three, so the main player's
     is built whole; each satellite's build still carries its own F-mode flag.
@@ -455,7 +455,7 @@ def build_all_playlists(
         rng=rng,
         metadata_root=metadata_root,
     )
-    write_nau_playlist_file(
-        build_playlist_file_path(state_dir, PLAYLIST_NAU),
+    write_main_player_playlist_file(
+        build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER),
         build_main_playlist_paths(main_sources, False, rng=rng),
     )

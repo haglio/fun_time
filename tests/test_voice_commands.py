@@ -102,16 +102,16 @@ class TestVoiceCommands:
             "previous main": "main_prev",
             "skip": "main_nudge_next",
             "back": "main_nudge_prev",
-            "record": "nau_record_down",
-            "loop": "nau_record_up",
-            # "end loop" is side-agnostic — it reaches Nau's own loop through the
+            "record": "main_player_record_down",
+            "loop": "main_player_record_up",
+            # "end loop" is side-agnostic — it reaches the main player's own loop through the
             # active-side resolution, not by naming the player here.
             "end loop": "active_no_loop",
             # The bare axis word is the literal one; "cycle / next / change
             # version" are generated with the other cycle axes.
-            "version": "nau_cycle_version",
-            "shorts": "nau_length_shorts",
-            "full length": "nau_length_full",
+            "version": "main_player_cycle_version",
+            "shorts": "main_player_length_shorts",
+            "full length": "main_player_length_full",
             "browse": "browse_library",
             "clip": "clipper_save",
             "save clip": "clipper_save",
@@ -121,9 +121,9 @@ class TestVoiceCommands:
             "speed down": "speed_down",
             "speed up": "speed_up",
             # …and naming the playback pins the same nudge to the video.
-            "playback slow down": "nau_speed_down",
-            "playback speed down": "nau_speed_down",
-            "playback speed up": "nau_speed_up",
+            "playback slow down": "main_player_speed_down",
+            "playback speed down": "main_player_speed_down",
+            "playback speed up": "main_player_speed_up",
             "amp down": "robot_hand_amplitude_down",
             "amp up": "robot_hand_amplitude_up",
             "center down": "robot_hand_center_down",
@@ -151,7 +151,7 @@ class TestVoiceCommands:
 
     def test_holding_a_genau_clip_is_the_main_lock_and_nothing_of_its_own(self):
         """It was a phrase and a padlock beside auto advance's arming; the two
-        could disagree, and the console carried a second lock next to Nau's."""
+        could disagree, and the console carried a second lock next to the main player's."""
         assert "lock clip" not in VOICE_COMMANDS
         assert "auto advance" not in VOICE_COMMANDS
         assert "advance on" not in VOICE_COMMANDS
@@ -190,7 +190,7 @@ class TestVoiceCommands:
         # show can narrow to; the app hears it on its own mic, but this model
         # has no such token, so the relayed phrase is "enhanced only" (and the
         # way back out is the room's own "clear filter", routed to the show).
-        oov_words = {"genau", "nau", "hotkeys", "unmute", "upscales", "upscaled"}
+        oov_words = {"genau", "hotkeys", "unmute", "upscales", "upscaled"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
@@ -262,21 +262,21 @@ class TestVoiceCommands:
         for retired in ("now now", "now mode", "hybrid", "hybrid mode", "player mode", "v l c"):
             assert retired not in VOICE_COMMANDS, retired
 
-    def test_nau_version_is_spoken_like_every_other_cycle_axis(self):
+    def test_main_player_version_is_spoken_like_every_other_cycle_axis(self):
         """"version" is an axis like "action" and "seed": the bare word cycles
         it, and so does an explicit verb up front."""
         for phrase in ("version", "cycle version", "next version", "change version"):
-            assert VOICE_COMMANDS[phrase] == "nau_cycle_version"
+            assert VOICE_COMMANDS[phrase] == "main_player_cycle_version"
 
-    def test_nau_length_phrases(self):
-        assert VOICE_COMMANDS["shorts"] == "nau_length_shorts"
-        assert VOICE_COMMANDS["full length"] == "nau_length_full"
-        assert VOICE_COMMANDS["mixed"] == "nau_length_mixed"
+    def test_main_player_length_phrases(self):
+        assert VOICE_COMMANDS["shorts"] == "main_player_length_shorts"
+        assert VOICE_COMMANDS["full length"] == "main_player_length_full"
+        assert VOICE_COMMANDS["mixed"] == "main_player_length_mixed"
 
     def test_end_compilation_leaves_without_naming_a_length(self):
         """"compilation" gets you in; this gets you out, back to whichever length
         mode was feeding the playlist before — the same shape as "end loop"."""
-        assert VOICE_COMMANDS["end compilation"] == "nau_end_compilation"
+        assert VOICE_COMMANDS["end compilation"] == "main_player_end_compilation"
 
     def test_main_reset_returns_the_playlist_to_the_default_browse(self):
         """"reset" means for the main player what it means for a satellite — drop
@@ -285,7 +285,7 @@ class TestVoiceCommands:
 
         Its own command rather than a bare "length mixed" forward, because half of
         what narrows the main player is the F-mode flag, which is the
-        orchestrator's and not Nau's to hear about.
+        orchestrator's and not the main player's to hear about.
         """
         for phrase in ("main reset", "reset main"):
             assert VOICE_COMMANDS[phrase] == "main_reset"
@@ -450,26 +450,26 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["max amp"] == "robot_hand_amp_100"
         assert VOICE_COMMANDS["min center"] == "robot_hand_center_0"
         assert VOICE_COMMANDS["max center"] == "robot_hand_center_100"
-        # Speed min/max route to the active engine (Nau video or Genau), not
+        # Speed min/max route to the active engine (the main player video or Genau), not
         # Genau-only like the amp/center extremes.
         assert VOICE_COMMANDS["min speed"] == "speed_min"
         assert VOICE_COMMANDS["max speed"] == "speed_max"
 
-    def test_nau_multiplier_speed_phrases(self):
-        assert VOICE_COMMANDS["half speed"] == "nau_speed_50"
-        assert VOICE_COMMANDS["normal speed"] == "nau_speed_100"
-        assert VOICE_COMMANDS["one and a half speed"] == "nau_speed_150"
-        assert VOICE_COMMANDS["double speed"] == "nau_speed_200"
+    def test_main_player_multiplier_speed_phrases(self):
+        assert VOICE_COMMANDS["half speed"] == "main_player_speed_50"
+        assert VOICE_COMMANDS["normal speed"] == "main_player_speed_100"
+        assert VOICE_COMMANDS["one and a half speed"] == "main_player_speed_150"
+        assert VOICE_COMMANDS["double speed"] == "main_player_speed_200"
 
     def test_spoken_speed_ex_phrases_cover_every_stop(self):
-        assert VOICE_COMMANDS["speed point two five ex"] == "nau_speed_25"
-        assert VOICE_COMMANDS["speed one ex"] == "nau_speed_100"
-        assert VOICE_COMMANDS["speed one point two five ex"] == "nau_speed_125"
-        assert VOICE_COMMANDS["speed one point seven five ex"] == "nau_speed_175"
-        assert VOICE_COMMANDS["speed two ex"] == "nau_speed_200"
+        assert VOICE_COMMANDS["speed point two five ex"] == "main_player_speed_25"
+        assert VOICE_COMMANDS["speed one ex"] == "main_player_speed_100"
+        assert VOICE_COMMANDS["speed one point two five ex"] == "main_player_speed_125"
+        assert VOICE_COMMANDS["speed one point seven five ex"] == "main_player_speed_175"
+        assert VOICE_COMMANDS["speed two ex"] == "main_player_speed_200"
 
     def test_reset_speed_snaps_to_normal(self):
-        assert VOICE_COMMANDS["reset speed"] == "nau_speed_100"
+        assert VOICE_COMMANDS["reset speed"] == "main_player_speed_100"
 
 
 def test_group_commands_join_the_order_agnostic_grid():
@@ -529,7 +529,7 @@ def test_group_commands_do_not_shadow_the_single_word_actions():
     assert VOICE_COMMANDS["lock"] == "active_lock_on"
     assert VOICE_COMMANDS["action"] == "active_cycle_action"
     assert VOICE_COMMANDS["seed"] == "active_cycle_seed"
-    assert VOICE_COMMANDS["loop"] == "nau_record_up"
+    assert VOICE_COMMANDS["loop"] == "main_player_record_up"
     # "filter" (put one on) must not disturb the phrases that drop one.
     assert VOICE_COMMANDS["no filter"] == "active_no_filter"
     assert VOICE_COMMANDS["filter off"] == "active_no_filter"
@@ -582,7 +582,7 @@ class TestBuildVoiceCommands:
             filter_commands={"fabricated act": "filter_both_fabricated_act"},
             clip_jump_phrases=("fabricated jump phrase",),
         )
-        assert built["fabricated jump phrase"] == "nau_clip_jump"
+        assert built["fabricated jump phrase"] == "main_player_clip_jump"
         assert built["fabricated act"] == "filter_both_fabricated_act"
         assert "fabricated jump phrase" not in VOICE_COMMANDS
         assert built["quit"] == "quit"

@@ -14,7 +14,7 @@ from .broker_control import write_broker_command
 from .mode_plan import build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
-    PLAYLIST_NAU,
+    PLAYLIST_MAIN_PLAYER,
     PLAYLIST_PORTRAIT,
     VideoShapes,
     build_main_playlist_paths,
@@ -23,7 +23,7 @@ from .modes import (
     build_satellite_playlist_paths,
     matching_funscript,
     playlist_entry_line,
-    write_nau_playlist_file,
+    write_main_player_playlist_file,
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
@@ -31,15 +31,15 @@ from .players import Player
 from .satellite_control import write_satellite_command
 from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
-# Both Nau and the native satellites re-read their playlist file on this verb.
+# Both the main player and the native satellites re-read their playlist file on this verb.
 RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
 PLAY_FILE_CMD = "PLAY_FILE"
-# Nau's HUD says whether F-mode is on, and this is the only way it can know: the
+# The main player's HUD says whether F-mode is on, and this is the only way it can know: the
 # playlist it is handed has already been narrowed, and a list of scripted videos
 # looks like any other.  The satellites need no such verb — fun_time draws their
 # HUD model itself.
 SET_F_MODE_CMD = "SET_F_MODE"
-# Puts Nau back into an A/B loop it was left running, bounds and all.  The only
+# Puts the main player back into an A/B loop it was left running, bounds and all.  The only
 # piece of the main player's state a restart has to hand back rather than rebuild: a
 # loop is a range inside one video, so it dies with the player process while
 # everything else rides in on the playlist or a seeded flag.
@@ -88,8 +88,8 @@ def apply_mode_switch(
     target_mode: str,
     omni_paused: bool,
     genau_cmd_file: str | Path,
-    nau_paused_file: str | Path,
-    nau_cmd_file: str | Path,
+    main_player_paused_file: str | Path,
+    main_player_cmd_file: str | Path,
 ) -> ModeSwitchFlowResult:
     """Switch the main slot between video and genau mode, sending each player
     what :class:`fun_time.mode_plan.ModeSwitchPlan` says it is owed.
@@ -104,10 +104,10 @@ def apply_mode_switch(
         omni_paused=omni_paused,
     )
     if plan.is_transition:
-        write_flag_file(nau_paused_file, not plan.nau_should_play)
+        write_flag_file(main_player_paused_file, not plan.main_player_should_play)
         for cmd in (plan.genau_cmd, plan.hud_cmd):
             append_command(Path(genau_cmd_file), cmd)
-        append_command(Path(nau_cmd_file), plan.nau_display_cmd)
+        append_command(Path(main_player_cmd_file), plan.main_player_display_cmd)
     return ModeSwitchFlowResult(
         next_mode=plan.target_mode,
         is_transition=plan.is_transition,
@@ -120,12 +120,12 @@ def apply_main_fmode(
     enabled: bool,
     main_sources: str,
     state_dir: str | Path,
-    nau_cmd_file: str | Path,
+    main_player_cmd_file: str | Path,
     recent: bool = False,
     start_at_top: bool = False,
     shapes: VideoShapes | None = None,
 ) -> None:
-    """Rebuild the main player's playlist under *enabled* and hand it to Nau.
+    """Rebuild the main player's playlist under *enabled* and hand it to the main player.
 
     The one place the main player's playlist is rewritten while a session runs,
     so everything narrowing it rides here: F-mode, the browse order, and the
@@ -135,14 +135,14 @@ def apply_main_fmode(
     for — the OSR2 follows a script someone meant, not one a bulk run inferred.
 
     ``start_at_top`` is the reorder's, and means here what it means for a
-    satellite: Nau keeps the video on screen across a reload whenever the new list
+    satellite: the main player keeps the video on screen across a reload whenever the new list
     still holds it — which a reorder's always does — so a newest-first rebuild
     would otherwise apply only after it, and the new arrivals never come up.
     """
     paths = build_main_playlist_paths(main_sources, enabled, recent=recent, shapes=shapes)
-    write_nau_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_NAU), paths)
+    write_main_player_playlist_file(build_playlist_file_path(Path(state_dir), PLAYLIST_MAIN_PLAYER), paths)
     # Queued in order — the reload first, the flag with it, the jump last so it
-    # lands on the list the reload has just taken.  Nau's HUD has no other way
+    # lands on the list the reload has just taken.  The main player's HUD has no other way
     # to know the flag: the playlist it is handed has already been narrowed,
     # and a list of scripted videos looks like any other.
     verbs = [RELOAD_PLAYLIST_CMD, f"{SET_F_MODE_CMD} {int(enabled)}"]
@@ -150,7 +150,7 @@ def apply_main_fmode(
         head = playlist_entry_line(paths[0], matching_funscript(paths[0]))
         verbs.append(f"{PLAY_FILE_CMD} {head}")
     for verb in verbs:
-        append_command(Path(nau_cmd_file), verb)
+        append_command(Path(main_player_cmd_file), verb)
 
 
 def apply_satellite_fmode(
@@ -202,7 +202,7 @@ def apply_fmode(
     state_dir: str | Path,
     main_recent: bool = False,
     main_shapes: VideoShapes | None = None,
-    nau_cmd_file: str | Path,
+    main_player_cmd_file: str | Path,
     satellites: Mapping[Player, SatelliteFmodeInputs],
     regen_metadata_root: Path | None = None,
 ) -> FModeFlowResult:
@@ -220,7 +220,7 @@ def apply_fmode(
             main_sources=main_sources,
             recent=main_recent,
             state_dir=state_dir,
-            nau_cmd_file=nau_cmd_file,
+            main_player_cmd_file=main_player_cmd_file,
             shapes=main_shapes,
         )
     for player in Player.SATELLITES:
@@ -393,7 +393,7 @@ def apply_enter_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
-    nau_paused_file: str | Path,
+    main_player_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
     relief: bool = False,
@@ -411,7 +411,7 @@ def apply_enter_omnipause(
     )
     write_flag_file(genau_paused_file, True)
     write_flag_file(audio_paused_file, True)
-    write_flag_file(nau_paused_file, True)
+    write_flag_file(main_player_paused_file, True)
     # The satellites obey their paused flag file each tick, so freezing playback
     # is a single flag write per side.  A paused native satellite simply cannot
     # auto-advance (its advance() returns early while paused), so OmniPause is a
@@ -440,7 +440,7 @@ def apply_leave_omnipause(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
     genau_cmd_file: str | Path,
-    nau_paused_file: str | Path,
+    main_player_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
     satellites_origenerator: bool = False,
@@ -454,8 +454,8 @@ def apply_leave_omnipause(
     write_flag_file(audio_paused_file, False)
     if plan.resume_genau_playback:
         append_command(Path(genau_cmd_file), "RESUME")
-    if plan.resume_nau_playback:
-        write_flag_file(nau_paused_file, False)
+    if plan.resume_main_player_playback:
+        write_flag_file(main_player_paused_file, False)
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
     # Unfreeze both satellites; a locked one holds its clip (its lock is

@@ -48,17 +48,17 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
     },
     "executables": {"python_exe", "genau_python_exe", "origenerator_python_exe"},
     "media": {
-        "nau_library_sources", "portrait_dirs", "landscape_dirs", "weird_dir",
+        "main_player_library_sources", "portrait_dirs", "landscape_dirs", "weird_dir",
         "favs_file", "genau_clips", "genau_audio", "vr_library_dirs",
     },
     "modules": {
-        "genau_module", "nau_module", "satellite_module", "audio_module",
+        "genau_module", "main_player_module", "satellite_module", "audio_module",
         "dashboard_module",
     },
     "commands": {
         "genau_mode_file", "genau_cmd_file", "genau_paused_file",
-        "nau_cmd_file", "nau_paused_file", "nau_status_file",
-        "nau_console_file", "nau_playlist_file",
+        "main_player_cmd_file", "main_player_paused_file", "main_player_status_file",
+        "main_player_console_file", "main_player_playlist_file",
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
         "portrait_playlist_file", "portrait_hud_file",
         "landscape_cmd_file", "landscape_paused_file", "landscape_status_file",
@@ -66,7 +66,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "broker_cmd_file", "broker_heartbeat_file", "broker_state_dir",
         "broker_tray_launcher", "audio_paused_file", "audio_volume_file",
         "dashboard_state_file", "dashboard_cmd_file",
-        "state_dir", "nau_notice_file",
+        "state_dir", "main_player_notice_file",
         "origenerator_cmd_file", "origenerator_paused_file",
         "origenerator_status_file",
     },
@@ -160,8 +160,8 @@ class TestReadingItBack:
 
         manifest = LaunchManifest.read(path)
 
-        assert manifest.commands.nau_cmd_file == raw["commands"]["nau_cmd_file"]
-        assert manifest.media.nau_library_sources == raw["media"]["nau_library_sources"]
+        assert manifest.commands.main_player_cmd_file == raw["commands"]["main_player_cmd_file"]
+        assert manifest.media.main_player_library_sources == raw["media"]["main_player_library_sources"]
         assert manifest.executables.python_exe == raw["executables"]["python_exe"]
         assert manifest.runtime.config_path == raw["runtime"]["config_path"]
         assert manifest.modules.satellite_module == raw["modules"]["satellite_module"]
@@ -197,20 +197,20 @@ class TestReadingItBack:
         cfg = load_config(cfg_path)
         path = write_windows_bridge_manifest(cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
         path.write_text(
-            path.read_text(encoding="utf-8").replace("nau_cmd_file = ", "nau_cmd_typo = "),
+            path.read_text(encoding="utf-8").replace("main_player_cmd_file = ", "main_player_cmd_typo = "),
             encoding="utf-8")
 
         with pytest.raises(ManifestKeyMissing) as raised:
             LaunchManifest.read(path)
 
-        assert "nau_cmd_file" in str(raised.value)
+        assert "main_player_cmd_file" in str(raised.value)
         assert str(path) in str(raised.value)
 
     def test_the_message_survives_str_without_repr_escaping(self):
         """str() of the error is the message verbatim, so a Windows manifest
         path keeps its single backslashes.  A KeyError base applies repr() and
         would double every one, and the file the error names is the point of it."""
-        message = r"[runtime] nau_cmd_file missing from D:\a\fun_time\state\bridge.ini"
+        message = r"[runtime] main_player_cmd_file missing from D:\a\fun_time\state\bridge.ini"
         assert str(ManifestKeyMissing(message)) == message
 
     def test_a_section_this_session_does_not_read_is_left_alone(self, cfg_path, tmp_path):
@@ -221,7 +221,7 @@ class TestReadingItBack:
         data["vr"] = {"tcode_udp_port": "8000"}
         path = write_manifest_data(data, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
 
-        assert LaunchManifest.read(path).commands.nau_cmd_file
+        assert LaunchManifest.read(path).commands.main_player_cmd_file
 
     def test_the_keys_a_reader_has_always_defaulted_stay_defaulted(self, cfg_path, tmp_path):
         """These five were read with a fallback rather than demanded, so a

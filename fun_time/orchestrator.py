@@ -19,7 +19,7 @@ from .checkout_overrides import (
 from .config import DEFAULT_CONFIG_PATH, load_config
 
 # Before the bridge imports: a worktree's genau_project_dirs override reaches
-# Genau and Nau as subprocess PYTHONPATH, but THIS process — and the dispatch
+# Genau and the main player as subprocess PYTHONPATH, but THIS process — and the dispatch
 # loop inside it — resolves player_core through the venv, which is the
 # primary's.  A branch leaning on an unlanded player_core change then imports
 # code the primary does not have, and the session dies at launch; that is how
@@ -73,8 +73,8 @@ def validate_config(config) -> None:
     require_file(config.paths.python_exe)
     if config.random_favs_browser.enabled:
         require_file(config.random_favs_browser.shortcut_path)
-    for nau_library_dir in config.paths.nau_library_dirs:
-        require_dir(nau_library_dir)
+    for main_player_library_dir in config.paths.main_player_library_dirs:
+        require_dir(main_player_library_dir)
     for portrait_dir in config.paths.portrait_dirs:
         require_dir(portrait_dir)
     for landscape_dir in config.paths.landscape_dirs:

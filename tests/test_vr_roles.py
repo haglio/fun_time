@@ -6,7 +6,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from fun_time.player_status import read_nau_status
+from fun_time.player_status import read_main_player_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
 
@@ -107,7 +107,7 @@ def role_parts(tmp_path):
     script = tmp_path / "scene one.funscript"
     _write_funscript(script)
 
-    playlist = tmp_path / "nau_playlist.tsv"
+    playlist = tmp_path / "main_player_playlist.tsv"
     playlist.write_text(f"{one}\t{script}\n{two}\n{three}\n", encoding="utf-8")
 
     player, driver = FakePlayer(), FakeDriver()
@@ -433,7 +433,7 @@ class TestTCode:
 class TestTheMainSlotLock:
     """One padlock for whichever player owns the main slot, and in video mode
     that is this one: the apostrophe, the console's padlock and the spoken
-    "main lock" all arrive here as Nau's own three verbs."""
+    "main lock" all arrive here as the main player's own three verbs."""
 
     def test_a_fresh_role_is_locked_the_way_the_player_opens(self, role_parts):
         """On is the main player's opening state on either display — the
@@ -464,12 +464,12 @@ class TestTheMainSlotLock:
         """The console that draws it is not always this player — in genau mode
         it is drawn over Genau's clip — so the flag travels with the status."""
         role = role_parts.role
-        status_file = tmp_path / "nau_status.txt"
+        status_file = tmp_path / "main_player_status.txt"
 
         def published() -> bool:
             text = "".join(f"{k}={v}\n" for k, v in role.status_fields(None).items())
             status_file.write_text(text, encoding="utf-8")
-            return read_nau_status(status_file).locked
+            return read_main_player_status(status_file).locked
 
         assert published() is True
         role.apply_command("LOCK_OFF", on_quit=_never_quits)
@@ -561,11 +561,11 @@ class TestStatus:
     def test_status_fields_read_back_through_the_orchestrators_own_parser(self, role_parts, tmp_path):
         role, player = role_parts.role, role_parts.player
         player.position_ms = 1_000.0
-        status_file = tmp_path / "nau_status.txt"
+        status_file = tmp_path / "main_player_status.txt"
 
         text = "".join(f"{k}={v}\n" for k, v in role.status_fields(None).items())
         status_file.write_text(text, encoding="utf-8")
-        status = read_nau_status(status_file)
+        status = read_main_player_status(status_file)
 
         assert status.video.endswith("scene one.mp4")
         assert status.has_funscript is True
@@ -584,18 +584,18 @@ class TestStatus:
     def test_the_touch_the_panel_chose_is_published_for_the_arbiter(self, role_parts, tmp_path):
         """Where the console panel drew Genau's turn ending, so the arbiter ends
         it there and not at a trough of its own choosing."""
-        status_file = tmp_path / "nau_status.txt"
+        status_file = tmp_path / "main_player_status.txt"
         fields = role_parts.role.status_fields(3_600)
         status_file.write_text("".join(f"{k}={v}\n" for k, v in fields.items()), encoding="utf-8")
 
-        assert read_nau_status(status_file).handoff_touch_ms == 3_600
+        assert read_main_player_status(status_file).handoff_touch_ms == 3_600
 
     def test_no_touch_publishes_an_empty_field_rather_than_a_zero(self, role_parts):
         assert role_parts.role.status_fields(None)["handoff_touch_ms"] == ""
 
 
 class TestWhatTheDriveGateReadsOffIt:
-    """The panel's drive gate reads the role as Nau's reads its session: the
+    """The panel's drive gate reads the role as the main player's reads its session: the
     script in play and the rate the video runs at."""
 
     def test_the_script_in_play(self, role_parts):
@@ -618,7 +618,7 @@ class TestWhetherItIsTheDisplay:
     verb Genau's role gets, so exactly one of the two claims the scene."""
 
     def _role(self, tmp_path):
-        playlist = tmp_path / "nau_playlist.tsv"
+        playlist = tmp_path / "main_player_playlist.tsv"
         playlist.write_text(f"{tmp_path / 'feature.mp4'}\t\n", encoding="utf-8")
         return MainRole(player=FakePlayer(), driver=FakeDriver(), playlist_file=playlist,
                         metadata_root=None, vr_dirs=())

@@ -259,7 +259,7 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     So the call is made on a throwaway thread and waited on for
     STALLED_WINDOW_TIMEOUT_S.  A healthy window answers in microseconds and nothing
     changes — including the ORDER the caller makes these calls in, which is what
-    stacks Genau's HUD above Nau's video and which posting the requests
+    stacks Genau's HUD above the main player's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
     named in the log and left where it is.  Its worker stays blocked in the
     kernel until that window's owner recovers or dies: one leaked thread per
@@ -374,7 +374,7 @@ def _rects_overlap(a: tuple[int, int, int, int], b: tuple[int, int, int, int]) -
     """Whether two (x, y, w, h) rectangles share VISIBLE interior area.
 
     A shared edge (touching but not crossing) is not overlap — the portrait
-    satellite's lower edge meets Nau's top edge, and that abutment must not
+    satellite's lower edge meets the main player's top edge, and that abutment must not
     read as coverage.  Nor is an intersection thinner than a window's
     invisible resize frame (see ``_FRAME_GHOST_PX``): those slivers had the
     startup log warning that a maximized Chrome on one monitor "covered" the
@@ -398,7 +398,7 @@ def windows_obscuring(
 
     This is what ``is_window_topmost`` cannot tell you: a window may carry the
     topmost flag yet still be buried under another overlapping window that was
-    promoted after it.  Only the real stacking order answers "is Nau visible."
+    promoted after it.  Only the real stacking order answers "is the main player visible."
     """
     idx = next((i for i, w in enumerate(stack) if w.hwnd == target_hwnd), None)
     if idx is None:
@@ -601,7 +601,7 @@ def restore_window(hwnd: int, *, activate: bool = True) -> None:
 def disable_window_transitions(hwnd: int) -> None:
     """Force-disable this window's DWM open/minimize/restore animations.
 
-    The main-slot players (Nau, Genau) are swapped by minimizing the idle
+    The main-slot players (the main player, Genau) are swapped by minimizing the idle
     one and restoring the active one, so both keep a taskbar button the whole
     session (no reappearing-icon flash).  DWMWA_TRANSITIONS_FORCEDISABLED makes
     that minimize/restore instantaneous — no fly-to-taskbar animation to see.

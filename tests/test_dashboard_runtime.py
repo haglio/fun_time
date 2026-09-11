@@ -6,11 +6,11 @@ from fun_time.dashboard_bridge import write_dashboard_snapshot
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.player_status import (
     GenauStatus,
-    NauStatus,
+    MainPlayerStatus,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     read_genau_status,
-    read_nau_status,
+    read_main_player_status,
 )
 
 
@@ -151,86 +151,86 @@ def test_read_genau_status_handles_inactive_cruise(tmp_path: Path):
     assert status.shape == "sawtooth"
 
 
-def test_read_nau_status_parses_has_funscript(tmp_path: Path):
-    # Nau publishes has_funscript per current video; the device arbiter
+def test_read_main_player_status_parses_has_funscript(tmp_path: Path):
+    # The main player publishes has_funscript per current video; the device arbiter
     # reads it to decide whether the funscript or Genau drives the OSR2.
-    status_file = tmp_path / "nau_status.txt"
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nstate=normal\npaused=0\n",
         encoding="utf-8",
     )
 
-    status = read_nau_status(status_file)
+    status = read_main_player_status(status_file)
 
     assert status.has_funscript is True
 
 
-def test_read_nau_status_defaults_has_funscript_to_false(tmp_path: Path):
-    status_file = tmp_path / "nau_status.txt"
+def test_read_main_player_status_defaults_has_funscript_to_false(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nhas_funscript=0\n", encoding="utf-8")
 
-    assert read_nau_status(status_file).has_funscript is False
-    assert read_nau_status(tmp_path / "missing.txt").has_funscript is False
+    assert read_main_player_status(status_file).has_funscript is False
+    assert read_main_player_status(tmp_path / "missing.txt").has_funscript is False
 
 
-def test_read_nau_status_parses_funscript_resting(tmp_path: Path):
-    # Nau flags when the current spot is in a funscript gap so the device arbiter
+def test_read_main_player_status_parses_funscript_resting(tmp_path: Path):
+    # The main player flags when the current spot is in a funscript gap so the device arbiter
     # can hand that stretch to Genau.
-    status_file = tmp_path / "nau_status.txt"
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nhas_funscript=1\nfunscript_resting=1\n", encoding="utf-8"
     )
 
-    assert read_nau_status(status_file).funscript_resting is True
+    assert read_main_player_status(status_file).funscript_resting is True
 
 
-def test_read_nau_status_defaults_funscript_resting_to_false(tmp_path: Path):
-    status_file = tmp_path / "nau_status.txt"
+def test_read_main_player_status_defaults_funscript_resting_to_false(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nhas_funscript=1\n", encoding="utf-8")
 
-    assert read_nau_status(status_file).funscript_resting is False
-    assert read_nau_status(tmp_path / "missing.txt").funscript_resting is False
+    assert read_main_player_status(status_file).funscript_resting is False
+    assert read_main_player_status(tmp_path / "missing.txt").funscript_resting is False
 
 
-def test_read_nau_status_parses_the_lock(tmp_path: Path):
-    status_file = tmp_path / "nau_status.txt"
+def test_read_main_player_status_parses_the_lock(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nlocked=0\n", encoding="utf-8")
 
-    assert read_nau_status(status_file).locked is False
+    assert read_main_player_status(status_file).locked is False
 
 
-def test_read_nau_status_defaults_the_lock_to_on(tmp_path: Path):
+def test_read_main_player_status_defaults_the_lock_to_on(tmp_path: Path):
     """Holding one video is what the main player does until told otherwise, so a
     status that says nothing about the lock — or no status at all — must not read
     as unlocked and light the console's padlock the wrong way."""
-    status_file = tmp_path / "nau_status.txt"
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 
-    assert read_nau_status(status_file).locked is True
-    assert read_nau_status(tmp_path / "missing.txt").locked is True
+    assert read_main_player_status(status_file).locked is True
+    assert read_main_player_status(tmp_path / "missing.txt").locked is True
 
 
-def test_read_nau_status_parses_position_and_duration(tmp_path: Path):
+def test_read_main_player_status_parses_position_and_duration(tmp_path: Path):
     # Watch tracking (breeding) needs the playback fraction, so both the
-    # position and the clip length are read off Nau's status file.
-    status_file = tmp_path / "nau_status.txt"
+    # position and the clip length are read off the main player's status file.
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nstate=normal\npaused=0\n",
         encoding="utf-8",
     )
 
-    status = read_nau_status(status_file)
+    status = read_main_player_status(status_file)
 
     assert status.position_ms == 54233
     assert status.duration_ms == 60000
 
 
-def test_read_nau_status_defaults_duration_to_zero(tmp_path: Path):
-    status_file = tmp_path / "nau_status.txt"
+def test_read_main_player_status_defaults_duration_to_zero(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\n", encoding="utf-8")
 
-    assert read_nau_status(status_file).duration_ms == 0
-    assert read_nau_status(tmp_path / "missing.txt").duration_ms == 0
+    assert read_main_player_status(status_file).duration_ms == 0
+    assert read_main_player_status(tmp_path / "missing.txt").duration_ms == 0
 
 
 def test_read_genau_status_names_the_clip_on_screen(tmp_path: Path):
@@ -252,45 +252,45 @@ def test_read_genau_status_reads_no_clip_before_one_is_up(tmp_path: Path):
     assert read_genau_status(tmp_path / "missing.txt").clip == ""
 
 
-def test_read_nau_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
-    """A loop lives in the player process, so the only record of one is what Nau
+def test_read_main_player_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
+    """A loop lives in the player process, so the only record of one is what the main player
     publishes — which is how a reopened session can be handed it back."""
-    status_file = tmp_path / "nau_status.txt"
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
-    assert read_nau_status(status_file).loop_bounds == (2000, 4000)
+    assert read_main_player_status(status_file).loop_bounds == (2000, 4000)
 
 
-def test_read_nau_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
+def test_read_main_player_status_reads_no_loop_where_nothing_is_looping(tmp_path: Path):
     """The bounds go on being published as the empty range when the loop is
-    cancelled, and an older Nau does not publish them at all — neither is a loop
+    cancelled, and an older main player does not publish them at all — neither is a loop
     to come back to."""
-    status_file = tmp_path / "nau_status.txt"
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
         "video=C:\\clip.mp4\nstate=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
     )
 
-    assert read_nau_status(status_file).loop_bounds is None
-    assert read_nau_status(tmp_path / "missing.txt").loop_bounds is None
+    assert read_main_player_status(status_file).loop_bounds is None
+    assert read_main_player_status(tmp_path / "missing.txt").loop_bounds is None
 
 
 def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
-    """Nau published the state before it published the range, so a status file
+    """The main player published the state before it published the range, so a status file
     left by that version names a loop it cannot describe.  Sending mpv a
     zero-length A/B range would strand the video on one frame."""
-    status_file = tmp_path / "nau_status.txt"
+    status_file = tmp_path / "main_player_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nstate=looping\n", encoding="utf-8")
 
-    assert read_nau_status(status_file).loop_bounds is None
+    assert read_main_player_status(status_file).loop_bounds is None
 
 
 def test_funscript_driving_is_scripted_and_not_resting():
-    assert NauStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
-    assert NauStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
-    assert NauStatus(has_funscript=False).funscript_driving is False
+    assert MainPlayerStatus(has_funscript=True, funscript_resting=False).funscript_driving is True
+    assert MainPlayerStatus(has_funscript=True, funscript_resting=True).funscript_driving is False
+    assert MainPlayerStatus(has_funscript=False).funscript_driving is False
 
 
 

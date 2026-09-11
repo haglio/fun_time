@@ -72,7 +72,7 @@ RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
-# A worktree's own answer to "which checkout of ../genau do Nau and Genau run
+# A worktree's own answer to "which checkout of ../genau do the main player and Genau run
 # out of" — one absolute path per line, in the worktree's state dir, blank lines
 # and #-comments ignored.  See :func:`_apply_genau_checkout_override`.
 
@@ -153,7 +153,7 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
         "paths": {
             "ahk_exe": paths.ahk_exe,
             "python_exe": paths.python_exe,
-            "nau_library_dirs": paths.nau_library_dirs,
+            "main_player_library_dirs": paths.main_player_library_dirs,
             "portrait_dirs": paths.portrait_dirs,
             "landscape_dirs": paths.landscape_dirs,
             "weird_dir": paths.weird_dir,
@@ -202,7 +202,7 @@ def _pin_paths_to_the_primary(raw: dict, real: ProjectConfig) -> None:
 def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
     """Let a worktree say for itself which checkout of ../genau its session runs.
 
-    ``paths.genau_project_dirs`` answers a per-SESSION question — Nau and Genau
+    ``paths.genau_project_dirs`` answers a per-SESSION question — the main player and Genau
     are launched with these directories in front of their venv's install — but it
     could only be said in the machine's one ``fun_time_config.json``, which every
     session reads.  A pin written there for one agent's genau branch reached the
@@ -250,11 +250,11 @@ def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
     return copied
 
 
-# Nau's per-video durations, and the one thing here that is merged rather than
-# copied.  Startup waits for Nau to report the video it is opening, Nau reports
+# The main player's per-video durations, and the one thing here that is merged rather than
+# copied.  Startup waits for the main player to report the video it is opening, the main player reports
 # nothing until it has a duration for it, and against a cold cache it goes off
 # and probes the whole library first — measured at 20s where a warm one is 0.1s.
-DURATION_CACHE_NAME = "nau_durations.json"
+DURATION_CACHE_NAME = "main_player_durations.json"
 
 
 def _seeded_state_names() -> tuple[str, ...]:
@@ -283,7 +283,7 @@ def merge_duration_cache(live_state: Path, branch_state: Path) -> int:
     """Union the live session's durations into the branch's; return the total.
 
     Copying this one was wrong, and copy-if-newer — what it was — was wrong in
-    the way that hides: Nau rewrites the file with exactly what it loaded plus
+    the way that hides: the main player rewrites the file with exactly what it loaded plus
     what it probed, so a branch session's copy shrinks to its own view of the
     library and is then *newer* than the live session's.  Every launch after the
     first therefore skipped the seed, kept the small file, and re-probed
@@ -463,7 +463,7 @@ def sibling_checkouts_line(
     _apply_origenerator_checkout_override(raw, worktree / STATE_DIRNAME)
     dirs = raw["paths"]["genau_project_dirs"]
     genau_line = (
-        "genau_project_dirs: (empty — Genau, Nau and player_core run "
+        "genau_project_dirs: (empty — Genau, the main player and player_core run "
         "from their venv installs, the primaries)"
         if not dirs else "genau_project_dirs: " + os.pathsep.join(dirs)
     )

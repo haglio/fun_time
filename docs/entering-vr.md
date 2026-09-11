@@ -3,7 +3,7 @@
 Fun Time and FunTimeVR are one session in two shapes. Both read the same config
 and the same state dir, run the same dispatch loop, voice control and AHK
 bridge, and drive the same OSR2 broker; the difference is that a VR session
-hosts every visual role inside one VR player process instead of Nau, Genau and
+hosts every visual role inside one VR player process instead of the main player, Genau and
 two satellite windows. So "Fun Time VR" is not a second app to start, and since
 2026-09-07 it is not a second thing to click either: you say **"enter VR"** and
 **"exit VR"**, the session running ends, and the other one opens on the state it

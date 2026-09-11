@@ -1,6 +1,6 @@
 """Every window icon has to survive having its alpha discarded.
 
-Nau's icon once came out of Task Manager as a solid magenta square.  The mark
+The main player's icon once came out of Task Manager as a solid magenta square.  The mark
 was there — but only in the alpha channel: its 256x256 frame was magenta edge
 to edge, with the N cut out by transparency alone.  Anything that flattens the
 image before drawing it gets that rectangle and nothing else, and that is a whole

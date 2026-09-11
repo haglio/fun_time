@@ -79,10 +79,10 @@ def compute_main_media_rect(
     secondary_monitor: MonitorRect,
     layout_config: LayoutConfig,
 ) -> WindowRect:
-    """The slot on the secondary monitor Nau and Genau share.
+    """The slot on the secondary monitor the main player and Genau share.
 
     The portrait satellite takes the top ``main_top_ratio`` of the secondary
-    monitor; the main player fills the rest below it.  Startup positions Nau
+    monitor; the main player fills the rest below it.  Startup positions the main player
     and Genau here, and the notice overlay flashes main-player notices here, so both
     derive it from this one function.
     """

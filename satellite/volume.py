@@ -1,6 +1,6 @@
 """A satellite's own volume chip: what it shows, and what a press on it sets.
 
-Set here rather than asked for, unlike Nau's: one sink, so nobody to ask.
+Set here rather than asked for, unlike the main player's: one sink, so nobody to ask.
 """
 from __future__ import annotations
 

@@ -1,6 +1,6 @@
 """What the session's players and its device are doing, read off disk.
 
-Nau and Genau each publish a small key=value status file, the broker writes a
+The main player and Genau each publish a small key=value status file, the broker writes a
 heartbeat and the OSR2 a receive stamp.  None of it is the dashboard's, though
 it lived in `dashboard_runtime`, whose other six importers wanted only these.
 """
@@ -24,8 +24,8 @@ def read_genau_enabled(path: Path) -> bool:
 
 
 @dataclass(frozen=True)
-class NauStatus:
-    """Snapshot of what Nau is playing, parsed from its status file.
+class MainPlayerStatus:
+    """Snapshot of what the main player is playing, parsed from its status file.
 
     Only the fields with consumers on this side are parsed.  ``position_ms``
     and ``duration_ms`` give the playback fraction watch tracking needs; the
@@ -42,18 +42,18 @@ class NauStatus:
     paused: bool = False
     has_funscript: bool = False
     funscript_resting: bool = False
-    # Whether Nau is holding the video on screen rather than letting it end.  The
+    # Whether the main player is holding the video on screen rather than letting it end.  The
     # main console draws the lock, and in genau mode it is drawn by a player
     # with no such lock of its own to ask — so it comes through here, the way the
     # loop ``state`` does.  Defaults on because that is what a main player with
     # nothing to say is doing.
     locked: bool = True
-    # The A/B range Nau is looping, as it published it — 0/0 when nothing is.
+    # The A/B range the main player is looping, as it published it — 0/0 when nothing is.
     # Read through :attr:`loop_bounds` rather than directly; the pair only means
     # a loop alongside ``state``.
     loop_in_ms: int = 0
     loop_out_ms: int = 0
-    # The touch-down Nau's trace chose for the handoff boundary in play, in
+    # The touch-down the main player's trace chose for the handoff boundary in play, in
     # media ms — the arbiter ends Genau's turn there, so the device is set down
     # exactly where the picture drew the blue ending.  None when there is no
     # chosen touch (a raised floor takes the ramp and flips at once).
@@ -63,18 +63,18 @@ class NauStatus:
     def funscript_driving(self) -> bool:
         """True when the funscript is actively driving the OSR2 — scripted and
         not resting.  The moment-to-moment handoff signal: whoever this points
-        to (Nau's funscript, else the Robot Hand) also takes the unqualified speed
+        to (the main player's funscript, else the Robot Hand) also takes the unqualified speed
         nudge, since that is the engine a nudge can actually move."""
         return self.has_funscript and not self.funscript_resting
 
     @property
     def loop_bounds(self) -> tuple[int, int] | None:
-        """The loop Nau is running, or None for no loop.
+        """The loop the main player is running, or None for no loop.
 
         A loop dies with the player process holding it, so this file is its only
         record and a reopened session is handed it back over the video the resume
         put at the top of the main player's playlist.  Both halves have to agree: a
-        state of "looping" with no range is a Nau too old to publish one, and a
+        state of "looping" with no range is a main player too old to publish one, and a
         range with nothing looping is the empty pair a cancelled loop leaves —
         either taken alone would hand mpv a loop it cannot play.
         """
@@ -87,8 +87,8 @@ class NauStatus:
 __all__ = ["read_key_values"]
 
 
-def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStatus:
-    """Nau's published status, or *fallback* (else a default) when the file is
+def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = None) -> MainPlayerStatus:
+    """The main player's published status, or *fallback* (else a default) when the file is
     missing or torn mid-replace.
 
     The fallback matters to the device arbiter: a default snapshot reads
@@ -98,10 +98,10 @@ def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStat
     snapshot makes a failed read a non-event.
     """
     if not path.exists():
-        return fallback or NauStatus()
+        return fallback or MainPlayerStatus()
     try:
         values = read_key_values(path)
-        return NauStatus(
+        return MainPlayerStatus(
             video=values.get("video", "").strip(),
             position_ms=int(values.get("position_ms", "0").strip() or 0),
             duration_ms=int(values.get("duration_ms", "0").strip() or 0),
@@ -115,12 +115,12 @@ def read_nau_status(path: Path, *, fallback: NauStatus | None = None) -> NauStat
             handoff_touch_ms=_status_touch(values),
         )
     except (OSError, ValueError):
-        return fallback or NauStatus()
+        return fallback or MainPlayerStatus()
 
 
 def _status_touch(values: dict) -> int | None:
-    """The touch-down Nau's trace chose for the boundary in play, or None —
-    absent on a raised floor, an unlatched forecast, or an older Nau."""
+    """The touch-down the main player's trace chose for the boundary in play, or None —
+    absent on a raised floor, an unlatched forecast, or an older main player."""
     raw = values.get("handoff_touch_ms", "").strip()
     return int(raw) if raw.isdigit() else None
 
@@ -137,7 +137,7 @@ def genau_status_path(state_dir: Path) -> Path:
 class GenauStatus:
     cruise_active: bool = False
     # Whether Genau is holding the clip on screen rather than letting its interval
-    # carry it on — the same lock Nau has, and on for the same reason: a clip
+    # carry it on — the same lock the main player has, and on for the same reason: a clip
     # repeating is where Genau opens.  Cruise is a separate thing entirely; it
     # varies the motion, never which clip plays.
     locked: bool = True

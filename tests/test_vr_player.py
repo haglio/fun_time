@@ -202,12 +202,12 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
     unit = _MainUnit(manifest, vr, lambda _name: 0, placement=DEFAULT_LAYOUT[PRIMARY])
 
     commands = manifest.commands
-    assert unit.cmd_file == Path(commands.nau_cmd_file)
-    assert unit.paused_file == Path(commands.nau_paused_file)
+    assert unit.cmd_file == Path(commands.main_player_cmd_file)
+    assert unit.paused_file == Path(commands.main_player_paused_file)
     assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
-        commands.nau_status_file)
+        commands.main_player_status_file)
     assert faked_collaborators["MainRole"].call_args.kwargs["playlist_file"] == Path(
-        commands.nau_playlist_file)
+        commands.main_player_playlist_file)
     # The one that is not a path, and the one that had no field to land in at
     # all until this branch: without it `route_audio` never asks mpv for the
     # headset's sink, and the primary's sound stays on the room speakers.

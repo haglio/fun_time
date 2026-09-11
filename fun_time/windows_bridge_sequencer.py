@@ -18,14 +18,14 @@ from player_core.file_channel import append_command
 
 from .config import LayoutConfig
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
-from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, nau_displays
+from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .player_status import (
     genau_status_path,
     read_genau_status,
-    read_nau_status,
+    read_main_player_status,
     read_origenerator_status,
 )
 from .players import Player
@@ -64,7 +64,7 @@ from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
     launch_genau,
-    launch_nau,
+    launch_main_player,
     launch_origenerator,
     launch_ui_companions,
     start_core_session,
@@ -77,18 +77,18 @@ logger = logging.getLogger(__name__)
 # — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
 
-# How long startup waits for Nau to finish loading.  Wide enough for the worst
+# How long startup waits for the main player to finish loading.  Wide enough for the worst
 # case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
 # for 525 of them, and paid once because the cache persists.  Its ceiling is the
 # overlay's own patience: the two waits in this phase run back to back under a
 # single progress write, and the overlay tears itself down when that file has
 # gone ``loading_screen.STALE_TIMEOUT_S`` without changing.  A test pins the sum.
-NAU_LOAD_TIMEOUT_S = 40.0
+MAIN_PLAYER_LOAD_TIMEOUT_S = 40.0
 
 
 @dataclass(frozen=True)
 class StartupResult:
-    nau_pid: int
+    main_player_pid: int
     portrait_pid: int
     landscape_pid: int
     dashboard_pid: int
@@ -128,7 +128,7 @@ def _startup_role_hwnds(
     portrait_hwnd: int,
     landscape_hwnd: int,
     genau_hwnd: int,
-    nau_hwnd: int,
+    main_player_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     origenerator_hwnd: int = 0,
@@ -148,7 +148,7 @@ def _startup_role_hwnds(
         "portrait": portrait_hwnd,
         "landscape": landscape_hwnd,
         "genau": genau_hwnd,
-        "nau": nau_hwnd,
+        "main_player": main_player_hwnd,
         "dashboard": dashboard_hwnd,
         "rfb": rfb_hwnd,
         "origenerator": origenerator_hwnd,
@@ -183,7 +183,7 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
 
     Walked in ``MANAGED_ROLES`` order rather than the mapping's, because
     ``HWND_TOPMOST`` inserts at the *top* of the band: that order is what puts
-    Genau's transparent HUD above Nau's video in video mode, and the policy says so
+    Genau's transparent HUD above the main player's video in video mode, and the policy says so
     outright ("Genau is promoted last").
 
     *beneath* is the loading overlay, when this runs under it: every promotion
@@ -200,23 +200,23 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
                 keep_the_cover_up(beneath)
 
 
-def _apply_main_slot_visibility(nau_hwnd: int, genau_hwnd: int, mode: str) -> None:
+def _apply_main_slot_visibility(main_player_hwnd: int, genau_hwnd: int, mode: str) -> None:
     """Park whichever slot-mate *mode* leaves idle.
 
-    Nau and Genau share the main player's rect; the slot swaps by minimizing the idle
+    The main player and Genau share the main player's rect; the slot swaps by minimizing the idle
     one (which keeps its taskbar button) and restoring the active one.  Disable
     both windows' DWM transitions first so those minimize/restores are instant —
-    no visible animation.  Nau is the idle one in genau mode; in video mode
-    neither is, because Genau's HUD is drawn over Nau's video.
+    no visible animation.  The main player is the idle one in genau mode; in video mode
+    neither is, because Genau's HUD is drawn over the main player's video.
 
     Safe under the loading overlay: minimizing moves no window into the topmost
     band, so nothing can flash over it.
     """
-    for hwnd in (nau_hwnd, genau_hwnd):
+    for hwnd in (main_player_hwnd, genau_hwnd):
         if hwnd:
             disable_window_transitions(hwnd)
-    if nau_hwnd and not nau_displays(mode):
-        minimize_window(nau_hwnd, activate=False)
+    if main_player_hwnd and not main_player_displays(mode):
+        minimize_window(main_player_hwnd, activate=False)
 
 
 def apply_startup_window_state(
@@ -224,7 +224,7 @@ def apply_startup_window_state(
     portrait_hwnd: int,
     landscape_hwnd: int,
     genau_hwnd: int,
-    nau_hwnd: int,
+    main_player_hwnd: int,
     dashboard_hwnd: int = 0,
     rfb_hwnd: int = 0,
     origenerator_hwnd: int = 0,
@@ -245,7 +245,7 @@ def apply_startup_window_state(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         genau_hwnd=genau_hwnd,
-        nau_hwnd=nau_hwnd,
+        main_player_hwnd=main_player_hwnd,
         dashboard_hwnd=dashboard_hwnd,
         rfb_hwnd=rfb_hwnd,
         origenerator_hwnd=origenerator_hwnd,
@@ -253,7 +253,7 @@ def apply_startup_window_state(
         origenerator_landscape_hwnd=origenerator_landscape_hwnd,
     )
     apply_topmost_bands(role_hwnds, mode, satellites_mode, beneath=beneath)
-    _apply_main_slot_visibility(nau_hwnd, genau_hwnd, mode)
+    _apply_main_slot_visibility(main_player_hwnd, genau_hwnd, mode)
     return role_hwnds
 
 
@@ -275,7 +275,7 @@ def release_the_players(m: LaunchManifest, main_mode: str) -> None:
 
     Startup holds every one of them so nothing plays into a room that is still
     being built; this releases exactly the ones the mode shows — Genau (with
-    its audio) in both, Nau in video mode alone — so nothing plays into a
+    its audio) in both, the main player in video mode alone — so nothing plays into a
     minimized window or drives the OSR2 unasked.
 
     Called by the sequencer on the path with no cover, and by the orchestrator on
@@ -284,7 +284,7 @@ def release_the_players(m: LaunchManifest, main_mode: str) -> None:
     phases, playback starts while the cover is still hiding it, and the first
     seconds of the video are spent under it.
     """
-    write_flag_file(m.commands.nau_paused_file, not nau_displays(main_mode))
+    write_flag_file(m.commands.main_player_paused_file, not main_player_displays(main_mode))
     for flag_file in (m.commands.genau_paused_file, m.commands.audio_paused_file):
         write_flag_file(flag_file, False)
     # The Robot Hand rides Genau's command channel rather than that flag (see
@@ -364,11 +364,11 @@ class _CoreSession:
     portrait_pid: int
     landscape_pid: int
     genau_pid: int
-    nau_pid: int
+    main_player_pid: int
     origenerator_pid: int
-    # Nau's status file, dropped once phase 1 has spent last session's copy —
+    # The main player's status file, dropped once phase 1 has spent last session's copy —
     # phase 4 holds the overlay on the new one appearing.
-    nau_status_file: Path
+    main_player_status_file: Path
 
 
 def _plan_the_layout(m: LaunchManifest) -> _Layout:
@@ -440,22 +440,22 @@ def _launch_the_satellites(
         genau_paused_file=m.commands.genau_paused_file,
         genau_cmd_file=m.commands.genau_cmd_file,
         audio_paused_file=m.commands.audio_paused_file,
-        nau_paused_file=m.commands.nau_paused_file,
+        main_player_paused_file=m.commands.main_player_paused_file,
         audio_volume_file=m.commands.audio_volume_file,
-        nau_cmd_file=m.commands.nau_cmd_file,
+        main_player_cmd_file=m.commands.main_player_cmd_file,
         satellite_python_exe=m.executables.python_exe,
         satellite_module=m.modules.satellite_module,
         portrait=portrait_slot,
         landscape=landscape_slot,
-        nau_status_file=m.commands.nau_status_file,
+        main_player_status_file=m.commands.main_player_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        main_sources=m.media.nau_library_sources,
+        main_sources=m.media.main_player_library_sources,
         favs_file=m.media.favs_file,
         state_dir=state_dir,
         result_file=str(core_result_file),
         regen_metadata_root=Path(regen_metadata_raw) if regen_metadata_raw else None,
         # The satellites import player_core, so a named player_core checkout
-        # must reach them exactly as it reaches Genau and Nau — without this
+        # must reach them exactly as it reaches Genau and the main player — without this
         # they quietly ran the venv's primary while everything else ran the
         # branch.
         project_dirs=project_dirs,
@@ -479,24 +479,24 @@ def _launch_the_main_slot_players(
     project_dirs: str,
     launched: _LaunchedChildren,
 ) -> tuple[int, int, Path]:
-    """Genau and Nau, who share the main slot's rect, and Nau's status file.
+    """Genau and the main player, who share the main slot's rect, and the main player's status file.
 
-    That file is how startup learns Nau has finished loading, so it is dropped
+    That file is how startup learns the main player has finished loading, so it is dropped
     here — after ``start_core_session`` has read last session's copy to resume
-    Nau onto the video it names, and before Nau could write a new one.
+    The main player onto the video it names, and before the main player could write a new one.
     """
     regen_metadata_raw = m.regen.metadata_root.strip()
-    # Launch Genau and Nau as early as possible so they can initialise
+    # Launch Genau and the main player as early as possible so they can initialise
     # pygame, scan media, and decode first frames while the rest of startup
     # continues.  Both share the Main slot's rect, which depends only on
     # the secondary monitor + main_top_ratio (already computed above).
     main_media_rect = compute_main_media_rect(
         secondary_monitor=layout.secondary_monitor, layout_config=layout.config,
     )
-    # Genau's drive readout, which Nau draws inside its console in video mode.  Named
+    # Genau's drive readout, which main player draws inside its console in video mode.  Named
     # here and handed to BOTH players, because each resolving it for itself is how
     # it went wrong: Genau derived it from its own config's state dir and wrote it
-    # into the Genau repo, while Nau was told to read it out of Fun Time's — so
+    # into the Genau repo, while the main player was told to read it out of Fun Time's — so
     # Video mode showed a console with the Genau half missing.
     genau_state = Path(m.commands.genau_cmd_file).parent
     genau_drive_file = genau_state / state_files.GENAU_DRIVE
@@ -520,40 +520,40 @@ def _launch_the_main_slot_players(
         genau_height=main_media_rect.height,
         command_file=m.commands.genau_cmd_file,
         paused_file=m.commands.genau_paused_file,
-        console_file=m.commands.nau_console_file,
+        console_file=m.commands.main_player_console_file,
         drive_file=genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
         project_dirs=project_dirs,
     )
-    # Nau's status file is how startup learns Nau has finished loading, and it
+    # The main player's status file is how startup learns the main player has finished loading, and it
     # can only say that once last session's copy is gone.  start_core_session
-    # read that one already, to resume Nau onto the video it names, so this is
-    # the first moment it is spent — and the last before Nau could write a new
-    # one.  See _wait_for_nau_loaded.
-    nau_status_file = Path(m.commands.nau_status_file)
-    nau_status_file.unlink(missing_ok=True)
-    nau_pid = launch_nau(
+    # read that one already, to resume the main player onto the video it names, so this is
+    # the first moment it is spent — and the last before the main player could write a new
+    # one.  See _wait_for_main_player_loaded.
+    main_player_status_file = Path(m.commands.main_player_status_file)
+    main_player_status_file.unlink(missing_ok=True)
+    main_player_pid = launch_main_player(
         python_exe=m.executables.genau_python_exe,
-        nau_module=m.modules.nau_module,
+        main_player_module=m.modules.main_player_module,
         config_path=m.runtime.genau_config_path,
-        playlist_file=m.commands.nau_playlist_file,
-        command_file=m.commands.nau_cmd_file,
-        paused_file=m.commands.nau_paused_file,
-        status_file=m.commands.nau_status_file,
-        console_file=m.commands.nau_console_file,
+        playlist_file=m.commands.main_player_playlist_file,
+        command_file=m.commands.main_player_cmd_file,
+        paused_file=m.commands.main_player_paused_file,
+        status_file=m.commands.main_player_status_file,
+        console_file=m.commands.main_player_console_file,
         drive_file=genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        log_file=state_dir / "nau.log",
-        nau_x=main_media_rect.x,
-        nau_y=main_media_rect.y,
-        nau_width=main_media_rect.width,
-        nau_height=main_media_rect.height,
+        log_file=state_dir / "main_player.log",
+        main_player_x=main_media_rect.x,
+        main_player_y=main_media_rect.y,
+        main_player_width=main_media_rect.width,
+        main_player_height=main_media_rect.height,
         metadata_dir=regen_metadata_raw or None,
         project_dirs=project_dirs,
     )
-    launched.pids.extend([genau_pid, nau_pid])
-    return genau_pid, nau_pid, nau_status_file
+    launched.pids.extend([genau_pid, main_player_pid])
+    return genau_pid, main_player_pid, main_player_status_file
 
 
 def _adopt_a_kept_origenerator(m: LaunchManifest) -> int:
@@ -624,7 +624,7 @@ def _launch_core_media(
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:
-    """Phase 1: the hosted app, then the two satellites, then Genau and Nau.
+    """Phase 1: the hosted app, then the two satellites, then Genau and the main player.
 
     Nothing here waits for a window.  Everything is started as early as it can
     be, slowest first, so each child's own boot — ComfyUI, pygame, a media
@@ -639,7 +639,7 @@ def _launch_core_media(
     main_mode, portrait_pid, landscape_pid = _launch_the_satellites(
         m, plan=layout.plan, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
-    genau_pid, nau_pid, nau_status_file = _launch_the_main_slot_players(
+    genau_pid, main_player_pid, main_player_status_file = _launch_the_main_slot_players(
         m, layout=layout, state_dir=state_dir, project_dirs=project_dirs,
         launched=launched)
 
@@ -665,9 +665,9 @@ def _launch_core_media(
         portrait_pid=portrait_pid,
         landscape_pid=landscape_pid,
         genau_pid=genau_pid,
-        nau_pid=nau_pid,
+        main_player_pid=main_player_pid,
         origenerator_pid=origenerator_pid,
-        nau_status_file=nau_status_file,
+        main_player_status_file=main_player_status_file,
     )
 
 
@@ -698,7 +698,7 @@ def _position_windows_now(plan: WindowLayoutPlan, main_mode: str, *,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
-        nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         mode=main_mode,
     )
     logger.info("Startup window state applied")
@@ -745,12 +745,12 @@ def _launch_the_companions(
 def _wait_for_the_room_to_be_drawing(
     m: LaunchManifest,
     *,
-    nau_status_file: Path,
+    main_player_status_file: Path,
     progress: ProgressReporter,
 ) -> None:
     """Hold the cover until every player has a picture under it.
 
-    Nau is the third player and by now the only one still loading: its window
+    The main player is the third player and by now the only one still loading: its window
     has been up since half a second after launch with its own loading screen
     painted into it, so revealing on the window alone shows his progress bar
     instead of a video.  The two satellites are the same case one step earlier —
@@ -761,10 +761,10 @@ def _wait_for_the_room_to_be_drawing(
     Neither wait gets to keep the desktop: a player that never arrives is
     revealed over anyway, and the log says which one.
     """
-    if not _wait_for_nau_loaded(nau_status_file, progress):
+    if not _wait_for_main_player_loaded(main_player_status_file, progress):
         logger.warning(
-            "Nau reported no video within %.0fs; revealing over whatever it "
-            "still has on screen", NAU_LOAD_TIMEOUT_S,
+            "the main player reported no video within %.0fs; revealing over whatever it "
+            "still has on screen", MAIN_PLAYER_LOAD_TIMEOUT_S,
         )
     if not _wait_for_players_drawing(
         (m.commands.portrait_status_file,
@@ -858,11 +858,11 @@ def _place_and_park_under_the_cover(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
         genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
-        nau_hwnd=wait_for_window_by_title("Nau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
+        main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         dashboard_hwnd=dash_hwnd,
         origenerator_hwnd=origenerator_hwnd,
     )
-    _apply_main_slot_visibility(role_hwnds["nau"], role_hwnds["genau"], main_mode)
+    _apply_main_slot_visibility(role_hwnds["main_player"], role_hwnds["genau"], main_mode)
     logger.info("Startup windows resolved and parked (bands deferred past the overlay)")
     return role_hwnds
 
@@ -885,7 +885,7 @@ def _settle_the_room_under_the_cover(
     # nothing to start here — only resolve and position each under the overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_room_to_be_drawing(
-        m, nau_status_file=core.nau_status_file, progress=progress)
+        m, main_player_status_file=core.main_player_status_file, progress=progress)
 
     progress.advance("origenerator")
     origenerator_hwnd = _hold_the_cover_for_the_hosted_app(
@@ -957,7 +957,7 @@ def _run_startup_phases(
         release_the_players(m, core.main_mode)
 
     return StartupResult(
-        nau_pid=core.nau_pid,
+        main_player_pid=core.main_player_pid,
         portrait_pid=core.portrait_pid,
         landscape_pid=core.landscape_pid,
         dashboard_pid=ui_pids["dashboard_pid"],
@@ -986,7 +986,7 @@ def _wait_for_the_hosted_app(
 ) -> bool:
     """Wait until the hosted app is ready, returning whether it got there.
 
-    Its window is not the signal, for the reason Nau's caption is not Nau's: it
+    Its window is not the signal, for the reason the main player's caption is not the main player's: it
     is built at the END of a boot whose last act opens a gallery, and the shows
     arrive seconds later still."""
     for _ in range(max(1, int(timeout_s / _HOSTED_POLL_S))):  # counted, not clocked
@@ -1034,7 +1034,7 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
     Deliberately NOT by pid.  The pid we launch with is the venv's
     ``Scripts\\pythonw.exe``, a launcher that spawns the base interpreter as a
     child, and the child is what owns the window — so a pid poll here can only
-    ever run out its timeout.  Two of them (plus Nau's) were 25 seconds of a
+    ever run out its timeout.  Two of them (plus the main player's) were 25 seconds of a
     28-second loading screen.
     """
     return (
@@ -1047,7 +1047,7 @@ def _resolve_satellite_hwnds() -> tuple[int, int]:
 # Their windows exist within a second of launch and stay BLACK until mpv has
 # opened the first clip and drawn a frame — on the 4K landscape library that is
 # several seconds — so a reveal timed on the windows alone lifts on two black
-# rectangles.  Bounded like Nau's: a player that never gets there does not get
+# rectangles.  Bounded like the main player's: a player that never gets there does not get
 # to keep the desktop.
 SATELLITE_PLAY_TIMEOUT_S = 25.0
 _PLAY_POLL_S = 0.1
@@ -1063,7 +1063,7 @@ def _wait_for_players_drawing(status_files, progress: ProgressReporter,
     actually going out, which is the same thing the integration suite waits on
     to call a player started.
 
-    Also a cancellation checkpoint, per poll, like the Nau wait it sits beside:
+    Also a cancellation checkpoint, per poll, like the main player wait it sits beside:
     this is one of the stretches that can run for tens of seconds, and the
     overlay covering it offers Esc.
     """
@@ -1082,23 +1082,23 @@ def _wait_for_players_drawing(status_files, progress: ProgressReporter,
     return False
 
 
-def _wait_for_nau_loaded(
+def _wait_for_main_player_loaded(
     status_file: Path,
     progress: ProgressReporter,
-    timeout_s: float = NAU_LOAD_TIMEOUT_S,
+    timeout_s: float = MAIN_PLAYER_LOAD_TIMEOUT_S,
 ) -> bool:
-    """Wait until Nau has a video on screen, returning whether it got there.
+    """Wait until the main player has a video on screen, returning whether it got there.
 
-    Nau's caption is NOT this signal.  Nau opens its window before reading its
+    The main player's caption is NOT this signal.  The main player opens its window before reading its
     library and paints its own loading screen into it while it does — so the
     window exists within half a second of launch, however long the library walk
     then runs.  Waiting on the caption alone brings the overlay down over that
-    loading screen, which is the one place it must never be seen: standalone Nau
+    loading screen, which is the one place it must never be seen: standalone main player
     owns its wait, and inside Fun Time, Fun Time owns it.
 
-    Nau's status file is the signal, because Nau writes it only from its playback
+    The main player's status file is the signal, because the main player writes it only from its playback
     loop.  The stale one is dropped at launch, so a file naming a video is this
-    session's Nau saying it is up.  Reading the *video* rather than merely the
+    session's the main player saying it is up.  Reading the *video* rather than merely the
     file's existence also survives a read that catches the first write half-done.
 
     Also a cancellation checkpoint, for the same reason ``advance`` is one — but
@@ -1109,7 +1109,7 @@ def _wait_for_nau_loaded(
     while time.monotonic() < deadline:
         if progress.cancelled:
             raise StartupCancelled()
-        if read_nau_status(status_file).video:
+        if read_main_player_status(status_file).video:
             return True
         time.sleep(0.1)
     return False

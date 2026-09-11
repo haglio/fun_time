@@ -114,7 +114,7 @@ class TestFModeOnTheStatusLine:
     """The word for the switch the F key throws.
 
     The console model Fun Time publishes lights the F button, but the status
-    line above it is read off the player DRAWING the console — Nau's own copy
+    line above it is read off the player DRAWING the console — the main player's own copy
     on the desktop, and here the main role's.  Left out, F-mode was a button
     that lit with nothing said beside it, and the key read as doing nothing.
     """
@@ -210,7 +210,7 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
 
     widest = max(
         _row_width(console_rows(ConsoleModel(mode=mode, latest=False),
-                                nau=ModeHud(length_mode=length)))
+                                main_player=ModeHud(length_mode=length)))
         for mode in ("video", "genau")
         for length in ("mixed", "full", "shorts", "")
     )

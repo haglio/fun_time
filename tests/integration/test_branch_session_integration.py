@@ -116,7 +116,7 @@ def test_a_branch_session_brings_up_a_whole_session_in_the_worktrees_state(
 
     children = session.read_child_pids()
 
-    assert all(children[role] for role in ("nau_pid", "portrait_pid", "landscape_pid"))
+    assert all(children[role] for role in ("main_player_pid", "portrait_pid", "landscape_pid"))
     assert (state_dir / "bridge_pids.ini").is_file()
     assert (state_dir / "windows_bridge_launch.ini").is_file()
     assert session.windows_bridge_log.parent == state_dir

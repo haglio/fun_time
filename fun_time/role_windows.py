@@ -54,7 +54,7 @@ class ChildPids:
     """The launched children whose windows the session manages: a pid the
     startup sequencer recorded, or 0 for a child this session never launched."""
 
-    nau: int = 0
+    main_player: int = 0
     portrait: int = 0
     landscape: int = 0
     dashboard: int = 0
@@ -130,8 +130,8 @@ class WindowRoles:
         # lookup answers with whatever window it reaches first whose title
         # merely CONTAINS the name (see find_window_by_title), and handing one
         # side's window to the other is the portrait/landscape visual swap.
-        elif role == "nau":
-            hwnd = find_window_by_pid(self.pids.nau) or find_window_by_title("Nau", exact=True)
+        elif role == "main_player":
+            hwnd = find_window_by_pid(self.pids.main_player) or find_window_by_title("Main Player", exact=True)
         elif role == "portrait":
             hwnd = (find_window_by_pid(self.pids.portrait)
                     or find_window_by_title(SATELLITE_PORTRAIT_TITLE, exact=True))
@@ -287,7 +287,7 @@ class WindowRoles:
     def remove_all_topmost(self) -> None:
         """Drop EVERY managed window out of the TOPMOST band (omnipause frees
         the desktop).  Dropping unconditionally — not just the normally-topmost
-        roles — is what stops Nau from being stranded on top in video mode, where
+        roles — is what stops the main player from being stranded on top in video mode, where
         it does carry the topmost flag."""
         for role in MANAGED_ROLES:
             hwnd = self.hwnd(role)
@@ -307,8 +307,8 @@ class WindowRoles:
         SetWindowPos calls later, promoted the host back over it.
 
         The hosted trio then goes up (:meth:`restack_satellites`), and the
-        overlapping Nau/Genau pair last (:meth:`restack_main_slot`), so Genau's
-        HUD sits above Nau's video in video mode.
+        overlapping main player/Genau pair last (:meth:`restack_main_slot`), so Genau's
+        HUD sits above the main player's video in video mode.
         """
         for role in FIXED_TOPMOST_ROLES:
             if not role_topmost(role, main_mode, satellites_mode):
@@ -335,26 +335,26 @@ class WindowRoles:
                 set_always_on_top(hwnd, True)
 
     def restack_main_slot(self, main_mode: str) -> None:
-        """Re-establish the Nau/Genau z-order for this mode.
+        """Re-establish the main player/Genau z-order for this mode.
 
-        Nau and Genau share one screen rect — in video mode Genau's transparent HUD
-        overlays Nau's video — so unlike every other window they OVERLAP and need
+        The main player and Genau share one screen rect — in video mode Genau's transparent HUD
+        overlays the main player's video — so unlike every other window they OVERLAP and need
         explicit stacking.  Demote both, then promote low-to-high so the last
         promotion lands highest:
 
-          * video mode — promote Nau, then Genau ABOVE it, so the HUD overlays
+          * video mode — promote the main player, then Genau ABOVE it, so the HUD overlays
                          the video and both float above the desktop.
-          * genau mode — promote Genau (Nau hidden).
+          * genau mode — promote Genau (the main player hidden).
 
-        Promoting Nau before Genau is what keeps the HUD over the video.
+        Promoting the main player before Genau is what keeps the HUD over the video.
         """
-        nau = self.hwnd("nau")
+        main_player = self.hwnd("main_player")
         genau = self.hwnd("genau")
-        for hwnd in (nau, genau):
+        for hwnd in (main_player, genau):
             if hwnd:
                 set_always_on_top(hwnd, False)
-        if nau and role_topmost("nau", main_mode):
-            set_always_on_top(nau, True)
+        if main_player and role_topmost("main_player", main_mode):
+            set_always_on_top(main_player, True)
         if genau and role_topmost("genau", main_mode):
             set_always_on_top(genau, True)
 

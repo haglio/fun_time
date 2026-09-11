@@ -1,7 +1,7 @@
 """FunTimeVR session entry point: the desktop orchestrator, aimed at a headset.
 
 Same config, same broker, same playlists, same dispatch loop / voice / AHK
-hotkeys — the difference is what gets launched: instead of Nau, Genau and two
+hotkeys — the difference is what gets launched: instead of the main player, Genau and two
 satellite windows, ONE VR player process (fun_time_vr.player) hosts every
 visual role, and the audio companion goes to the headset's output.  Everything
 else runs on the state files it always did.
@@ -28,7 +28,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 
 # Before anything that reaches the dispatch loop: a worktree's
-# genau_project_dirs override reaches Genau and Nau as subprocess PYTHONPATH,
+# genau_project_dirs override reaches Genau and the main player as subprocess PYTHONPATH,
 # but a launcher's own process resolves player_core through the venv, which is
 # the primary's.  (Every entry point needs it — see CLAUDE.md, "Standing
 # rules".)
@@ -46,7 +46,7 @@ from fun_time.manifest import (
 )
 from fun_time.modes import (
     PLAYLIST_LANDSCAPE,
-    PLAYLIST_NAU,
+    PLAYLIST_MAIN_PLAYER,
     PLAYLIST_PORTRAIT,
     SatelliteBuild,
     build_all_playlists,
@@ -70,7 +70,7 @@ from fun_time.overlay_progress import (
     StartupCancelled,
     ready_file_for,
 )
-from fun_time.player_status import read_nau_status
+from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
@@ -96,6 +96,7 @@ from fun_time.session_resume import (
     resume_shared_state,
 )
 from fun_time.shared_state import shared_state_path
+from fun_time.state_file_names import take_up_the_retired_state_file_names
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -157,7 +158,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 def vr_main_sources(config) -> str:
     """The main rotation's sources: the VR library, then the desktop primary's dirs."""
-    dirs = [*config.vr.library_dirs, *config.paths.nau_library_dirs]
+    dirs = [*config.vr.library_dirs, *config.paths.main_player_library_dirs]
     return "|".join(str(path) for path in dirs)
 
 
@@ -184,7 +185,7 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     and a ``[vr]`` section carries what only the VR player needs.
     """
     manifest = build_windows_bridge_manifest(config, dashboard_enabled=dashboard_enabled)
-    manifest["media"]["nau_library_sources"] = vr_main_sources(config)
+    manifest["media"]["main_player_library_sources"] = vr_main_sources(config)
     # Which half of that merged rotation is the VR half, so the main player's
     # browse can be narrowed to one shape or the other.
     manifest["media"]["vr_library_dirs"] = "|".join(
@@ -250,7 +251,7 @@ def _wait_for_player(
     while time.monotonic() < deadline:
         if progress is not None and progress.cancelled:
             raise StartupCancelled()
-        if read_nau_status(status_file).video:
+        if read_main_player_status(status_file).video:
             return True
         if player.poll() is not None:
             logger.error("VR player exited during startup (code %s)", player.returncode)
@@ -296,10 +297,10 @@ def stock_the_playlists(
     holds no VR video, and is rebuilt from the merged sources and rotated back
     onto *main_video*, the clip that was on screen (resume_main_video).
     """
-    nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
+    main_player_playlist = build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER)
     if not resumed:
         build_all_playlists(
-            main_sources=manifest.media.nau_library_sources,
+            main_sources=manifest.media.main_player_library_sources,
             portrait=SatelliteBuild(sources=manifest.media.portrait_dirs),
             landscape=SatelliteBuild(sources=manifest.media.landscape_dirs),
             favs_file=Path(manifest.media.favs_file),
@@ -308,14 +309,14 @@ def stock_the_playlists(
         )
         logger.info("Nothing to resume; built fresh playlists")
         return
-    if not main_playlist_has_vr(nau_playlist, vr_library_dirs):
+    if not main_playlist_has_vr(main_player_playlist, vr_library_dirs):
         build_main_playlist(
-            nau_playlist, manifest.media.nau_library_sources,
+            main_player_playlist, manifest.media.main_player_library_sources,
             f_mode=main_f_mode, recent=main_recent,
         )
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"
-            if resume_main_video(nau_playlist, main_video)
+            if resume_main_video(main_player_playlist, main_video)
             else "Resumed playlists; rebuilt the main player's, which held no VR video"
         )
     else:
@@ -444,6 +445,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         build_vr_manifest(config, dashboard_enabled=env.dashboard_enabled),
         state_dir / "windows_bridge_launch.ini",
     )
+    take_up_the_retired_state_file_names(state_dir)
     open_event_log(state_dir)
     manifest = LaunchManifest.read(manifest_path)
     # The dispatch loop and voice controller log under fun_time.*, which
@@ -499,12 +501,12 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
 
         portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
         landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
-        nau_playlist = build_playlist_file_path(state_dir, PLAYLIST_NAU)
-        nau_status = read_nau_status(Path(commands.nau_status_file))
+        main_player_playlist = build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER)
+        main_player_status = read_main_player_status(Path(commands.main_player_status_file))
         resumed = resume_playlists([
             (portrait_playlist, read_satellite_status(Path(commands.portrait_status_file)).video),
             (landscape_playlist, read_satellite_status(Path(commands.landscape_status_file)).video),
-            (nau_playlist, nau_status.video),
+            (main_player_playlist, main_player_status.video),
         ])
         # And the state that session was in: F-mode, each side's filter, order and
         # lock, any group loop, the sound level.  The dispatch loop opens on this
@@ -515,8 +517,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         # The mode comes across with the rest: the VR player hosts Genau too.
         seed_startup_states(
             commands.genau_paused_file, commands.audio_paused_file,
-            commands.nau_paused_file, commands.audio_volume_file,
-            commands.genau_cmd_file, nau_cmd_file=commands.nau_cmd_file,
+            commands.main_player_paused_file, commands.audio_volume_file,
+            commands.genau_cmd_file, main_player_cmd_file=commands.main_player_cmd_file,
             volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
             mode=carried.main_mode,
         )
@@ -534,7 +536,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             resumed=resumed,
             main_f_mode=carried.main_f_mode,
             main_recent=carried.main_latest,
-            main_video=nau_status.video,
+            main_video=main_player_status.video,
         )
 
         # --- The children: the audio companion, then the VR player ---
@@ -557,8 +559,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         # surface of the process launched here, so it covers the rest of it.
         progress.advance("players")
         runtime_was_up = vr_runtime.runtime_was_running()  # before ensure_ready() moves it
-        nau_status_file = Path(commands.nau_status_file)
-        nau_status_file.unlink(missing_ok=True)
+        main_player_status_file = Path(commands.main_player_status_file)
+        main_player_status_file.unlink(missing_ok=True)
         room_ready_file = scene_ready_file(state_dir)
         room_ready_file.unlink(missing_ok=True)  # a previous session's vouches
         player = launch_vr_player(
@@ -572,7 +574,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             pid=player.pid, created_at=get_process_creation_time(player.pid) or 0
         )
 
-        if not _wait_for_player(nau_status_file, player, progress):
+        if not _wait_for_player(main_player_status_file, player, progress):
             # The script too: one left running swallows every key it binds.
             stop_hotkey_script(ahk_proc, ahk_cmd_file)
             for child in children.values():

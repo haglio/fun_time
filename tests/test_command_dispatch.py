@@ -71,9 +71,9 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        nau_cmd_file=state_dir / "nau_cmd.txt",
-        nau_paused_file=state_dir / "nau_paused.txt",
-        nau_status_file=state_dir / "nau_status.txt",
+        main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        main_player_paused_file=state_dir / "main_player_paused.txt",
+        main_player_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
         broker_cmd_file=state_dir / "broker_cmd.txt",
     )
@@ -443,57 +443,57 @@ def test_portrait_next_queues_next(tmp_path: Path):
 # --- main_prev / main_next ---
 
 
-def test_primary_prev_in_video_mode_writes_nau_cmd(tmp_path: Path):
-    """Video mode displays Nau, so navigation goes to Nau's command file, not a satellite's."""
+def test_primary_prev_in_video_mode_writes_main_player_cmd(tmp_path: Path):
+    """Video mode displays the main player, so navigation goes to the main player's command file, not a satellite's."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     dispatch_command("main_prev", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
-def test_primary_next_in_video_mode_writes_nau_cmd(tmp_path: Path):
+def test_primary_next_in_video_mode_writes_main_player_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     dispatch_command("main_next", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_primary_next_in_nau_mode_writes_nau_cmd(tmp_path: Path):
+def test_primary_next_in_main_player_mode_writes_main_player_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     dispatch_command("main_next", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_primary_prev_in_genau_mode_writes_nau_cmd(tmp_path: Path):
-    """Outside video mode, Nau is the main player — even while Genau mode is
-    active, [ and ] navigate the paused Nau in the background."""
+def test_primary_prev_in_genau_mode_writes_main_player_cmd(tmp_path: Path):
+    """Outside video mode, the main player is the main player — even while Genau mode is
+    active, [ and ] navigate the paused main player in the background."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
     dispatch_command("main_prev", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PREV\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PREV\n"
 
 
 # --- main_lock ---
 
 
-def test_primary_lock_toggles_naus_hold_on_the_video(tmp_path: Path):
-    """The apostrophe and the console's padlock both send the toggle; Nau holds
+def test_primary_lock_toggles_the_main_players_hold_on_the_video(tmp_path: Path):
+    """The apostrophe and the console's padlock both send the toggle; the main player holds
     the state, since only it knows what its own end of file is doing."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     dispatch_command("main_lock", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
 
 
 def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
@@ -501,13 +501,13 @@ def test_the_spoken_forms_name_the_state_they_want(tmp_path: Path):
     state = _make_state(main_mode="video")
 
     dispatch_command("main_lock_on", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
     # Queued after the first, not overwriting it: the file is the same queue
     # the device arbiter's handoff verbs ride, and a whole-file write here is
     # what used to erase them.
     dispatch_command("main_lock_off", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\nLOCK_OFF\n"
 
 
 def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
@@ -520,7 +520,7 @@ def test_primary_lock_reaches_genau_in_genau_mode(tmp_path: Path):
     dispatch_command("main_lock", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LOCK\n"
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
 def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
@@ -530,7 +530,7 @@ def test_the_spoken_forms_follow_the_mode_too(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "LOCK_OFF\n"
 
     dispatch_command("main_lock_on", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "LOCK_ON\n"
 
 
 def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: Path):
@@ -561,7 +561,7 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
 
     dispatch_command(command, state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
 
 
 @pytest.mark.parametrize(
@@ -570,7 +570,7 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
 )
 @pytest.mark.parametrize("main_mode", ["video", "genau"])
 def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):
-    """Nau has no projection and no headset to face, in any mode.
+    """the main player has no projection and no headset to face, in any mode.
 
     The channel is the main player's, and the desktop main player answers a
     smaller contract than the VR one -- so this is gated on which player the
@@ -581,87 +581,87 @@ def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp
 
     dispatch_command(command, state, config)
 
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
-# --- nau cycle-version / length-mode ---
+# --- main_player cycle-version / length-mode ---
 
 
-def test_nau_cycle_version_writes_nau_cmd(tmp_path: Path):
+def test_main_player_cycle_version_writes_main_player_cmd(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_cycle_version", state, config)
+    dispatch_command("main_player_cycle_version", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
 
 
-def test_nau_toggle_length_writes_toggle_command(tmp_path: Path):
+def test_main_player_toggle_length_writes_toggle_command(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_toggle_length", state, config)
+    dispatch_command("main_player_toggle_length", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "TOGGLE_LENGTH_MODE\n"
 
 
-def test_nau_length_shorts_writes_set_length_mode(tmp_path: Path):
+def test_main_player_length_shorts_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_length_shorts", state, config)
+    dispatch_command("main_player_length_shorts", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
 
 
-def test_nau_length_full_writes_set_length_mode(tmp_path: Path):
+def test_main_player_length_full_writes_set_length_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_length_full", state, config)
+    dispatch_command("main_player_length_full", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE full\n"
 
 
 def test_end_compilation_writes_end_compilation(tmp_path: Path):
-    """Out of a compilation without naming a length — Nau goes back to whichever
+    """Out of a compilation without naming a length — the main player goes back to whichever
     mode it was in when it entered."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_end_compilation", state, config)
+    dispatch_command("main_player_end_compilation", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "END_COMPILATION\n"
 
 
-def test_nau_length_mixed_writes_set_length_mode(tmp_path: Path):
-    """The unfiltered mode Nau opens in, and the way back to it from either half."""
+def test_main_player_length_mixed_writes_set_length_mode(tmp_path: Path):
+    """The unfiltered mode the main player opens in, and the way back to it from either half."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_length_mixed", state, config)
+    dispatch_command("main_player_length_mixed", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE mixed\n"
 
 
-def test_nau_length_mode_written_in_video_mode(tmp_path: Path):
-    """Nau owns the display in video mode too, so length/version actions apply."""
+def test_main_player_length_mode_written_in_video_mode(tmp_path: Path):
+    """the main player owns the display in video mode too, so length/version actions apply."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_length_shorts", state, config)
+    dispatch_command("main_player_length_shorts", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_LENGTH_MODE shorts\n"
 
 
-def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
+def test_main_player_length_mode_not_written_in_genau_mode(tmp_path: Path):
     """Length/version actions are inert in genau mode, where Genau owns the display."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
-    dispatch_command("nau_length_shorts", state, config)
+    dispatch_command("main_player_length_shorts", state, config)
 
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
 # --- clip navigation (compilation / full vid / money shot) ---
@@ -669,59 +669,59 @@ def test_nau_length_mode_not_written_in_genau_mode(tmp_path: Path):
 
 def test_compilation_writes_play_compilation(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_compilation", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
+    dispatch_command("main_player_compilation", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_COMPILATION\n"
 
 
 def test_full_vid_writes_play_full_vid(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_full_vid", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
+    dispatch_command("main_player_full_vid", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_FULL_VID\n"
 
 
 def test_clip_jump_writes_play_clip_jump(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_clip_jump", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
+    dispatch_command("main_player_clip_jump", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "PLAY_CLIP_JUMP\n"
 
 
 def test_funscript_jump_writes_jump_to_funscript(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_funscript_jump", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
+    dispatch_command("main_player_funscript_jump", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "JUMP_TO_FUNSCRIPT\n"
 
 
 def test_next_funscripted_writes_next_funscripted(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_next_funscripted", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
+    dispatch_command("main_player_next_funscripted", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "NEXT_FUNSCRIPTED\n"
 
 
 def test_clip_nav_inert_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_compilation", _make_state(main_mode="genau"), config)
-    assert not config.nau_cmd_file.exists()
+    dispatch_command("main_player_compilation", _make_state(main_mode="genau"), config)
+    assert not config.main_player_cmd_file.exists()
 
 
 def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
-    """Genau owns the display and the device there; Nau's playlist and script are
+    """Genau owns the display and the device there; the main player's playlist and script are
     not what the room is watching, so a jump into them would be invisible."""
     config = _make_config(tmp_path)
-    dispatch_command("nau_next_funscripted", _make_state(main_mode="genau"), config)
-    assert not config.nau_cmd_file.exists()
+    dispatch_command("main_player_next_funscripted", _make_state(main_mode="genau"), config)
+    assert not config.main_player_cmd_file.exists()
 
 
 def test_clip_nav_voice_phrases():
     from fun_time.voice_commands import VOICE_COMMANDS
 
-    assert VOICE_COMMANDS["compilation"] == "nau_compilation"
-    assert VOICE_COMMANDS["full video"] == "nau_full_vid"
+    assert VOICE_COMMANDS["compilation"] == "main_player_compilation"
+    assert VOICE_COMMANDS["full video"] == "main_player_full_vid"
     # The clip-jump phrases are overlay content, so take them from whichever
     # overlay is loaded rather than naming one.
     from fun_time.content import load_content
 
     for phrase in load_content()["clip_jump_phrases"]:
-        assert VOICE_COMMANDS[phrase] == "nau_clip_jump"
+        assert VOICE_COMMANDS[phrase] == "main_player_clip_jump"
 
 
 def test_funscript_nav_voice_phrases_are_split_for_vosk():
@@ -729,8 +729,8 @@ def test_funscript_nav_voice_phrases_are_split_for_vosk():
     for the two-word form; the reference rejoins it (see friendly_voice)."""
     from fun_time.voice_commands import VOICE_COMMANDS
 
-    assert VOICE_COMMANDS["jump to fun script"] == "nau_funscript_jump"
-    assert VOICE_COMMANDS["next fun scripted"] == "nau_next_funscripted"
+    assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
+    assert VOICE_COMMANDS["next fun scripted"] == "main_player_next_funscripted"
     assert "jump to funscript" not in VOICE_COMMANDS
 
 
@@ -837,7 +837,7 @@ def test_landscape_command_sets_active_side_to_landscape(tmp_path: Path):
 
 
 def test_primary_nav_sets_active_side_to_primary(tmp_path: Path):
-    """Navigating the main player (Nau) makes it the active player (slot 1), so bare
+    """Navigating the main player (the main player) makes it the active player (slot 1), so bare
     'next'/'previous' then drive it too."""
     config = _make_config(tmp_path)
 
@@ -897,12 +897,12 @@ def test_minimize_names_each_side_its_own_window(tmp_path: Path):
 
 
 def test_the_main_players_button_parks_whichever_player_holds_the_slot(tmp_path: Path):
-    """Nau and Genau share the main rect, so the console's button names the slot
+    """the main player and Genau share the main rect, so the console's button names the slot
     rather than a window: Genau alone in genau mode, and both in video mode,
-    where Genau's HUD sits over Nau's video."""
+    where Genau's HUD sits over the main player's video."""
     config = _make_config(tmp_path)
 
-    for mode, roles in (("genau", ["genau"]), ("video", ["nau", "genau"])):
+    for mode, roles in (("genau", ["genau"]), ("video", ["main_player", "genau"])):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
         assert ops == [WindowOp(op="minimize_role", key=role) for role in roles], mode
@@ -914,7 +914,7 @@ def test_the_main_players_button_never_parks_the_hidden_slot_mate(tmp_path: Path
     in the ops, whichever mode it is."""
     config = _make_config(tmp_path)
 
-    for mode, hidden in (("genau", "nau"),):
+    for mode, hidden in (("genau", "main_player"),):
         _state, ops = dispatch_command(
             "main_minimize", _make_state(main_mode=mode), config)
         assert hidden not in [op.key for op in ops], mode
@@ -967,10 +967,10 @@ def test_omnipause_toggle_leaves_pause_from_paused(tmp_path: Path):
 
     assert new_state.omni_paused is False
     assert any(op.op == "unsuspend_hotkeys" for op in ops)
-    # Leaving OmniPause clears both satellites' paused flags and resumes Nau.
+    # Leaving OmniPause clears both satellites' paused flags and resumes the main player.
     assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
     assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
-    assert config.nau_paused_file.read_text(encoding="utf-8") == "0"
+    assert config.main_player_paused_file.read_text(encoding="utf-8") == "0"
 
 
 # --- F-mode ---
@@ -2203,7 +2203,7 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
 # --- mode switch (genau_activate / main_video_activate / main_video_activate) ---
 
 
-def test_main_video_activate_raises_nau_under_genaus_hud(tmp_path: Path):
+def test_main_video_activate_raises_main_player_under_genaus_hud(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
@@ -2211,17 +2211,17 @@ def test_main_video_activate_raises_nau_under_genaus_hud(tmp_path: Path):
 
     assert new_state.main_mode == "video"
     slot_ops = [(op.op, op.key) for op in ops if op.op.endswith("_role")]
-    # Video mode shows Nau underneath Genau's transparent HUD; nothing hides.
+    # Video mode shows the main player underneath Genau's transparent HUD; nothing hides.
     assert slot_ops == [
-        ("show_role", "nau"),
+        ("show_role", "main_player"),
         ("show_role", "genau"),
         ("activate_role", "genau"),
     ]
-    # The mode switch re-stacks the pair — Nau topmost with Genau's HUD above it.
+    # The mode switch re-stacks the pair — the main player topmost with Genau's HUD above it.
     assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
-def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
+def test_genau_activate_activates_genau_and_lowers_main_player(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
@@ -2232,21 +2232,21 @@ def test_genau_activate_activates_genau_and_lowers_nau(tmp_path: Path):
     assert slot_ops == [
         ("show_role", "genau"),
         ("activate_role", "genau"),
-        ("hide_role", "nau"),
+        ("hide_role", "main_player"),
     ]
-    # The mode switch re-stacks the Nau/Genau pair for the new mode.
+    # The mode switch re-stacks the main player/Genau pair for the new mode.
     assert [op.op for op in ops if op.op == "restack_main"] == ["restack_main"]
 
 
-def test_a_mode_switch_tells_nau_only_whether_it_is_on_screen(tmp_path: Path):
-    """The arbiter owns Nau's T-Code lever inside video mode, and a Nau parked
+def test_a_mode_switch_tells_main_player_only_whether_it_is_on_screen(tmp_path: Path):
+    """The arbiter owns the main player's T-Code lever inside video mode, and a main player parked
     off screen in genau mode sends nothing — so the switch says nothing of it."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     dispatch_command("genau_activate", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8").splitlines() == ["DISPLAY_OFF"]
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == ["DISPLAY_OFF"]
 
 
 # --- genau command forwarding (_GENAU_CMD_MAP) ---
@@ -2266,7 +2266,7 @@ def test_genau_speed_down_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
     """The hand is at work in both modes — driving outright in genau
     mode, filling the funscript's gaps in video mode — so its own rate keys
-    never land on Nau's video rate."""
+    never land on the main player's video rate."""
     for mode in ("video", "genau"):
         config = _make_config(tmp_path / mode)
         state = _make_state(main_mode=mode)
@@ -2274,15 +2274,15 @@ def test_the_motion_rate_reaches_the_robot_hand_in_either_mode(tmp_path: Path):
         new_state, ops = dispatch_command("robot_hand_speed_up", state, config)
 
         assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n", mode
-        assert not config.nau_cmd_file.exists()
+        assert not config.main_player_cmd_file.exists()
         assert new_state == state
         assert ops == []
 
 
-def _set_nau_driving(config, *, driving: bool) -> None:
-    """Publish a Nau status so the speed arbiter sees the funscript
+def _set_main_player_driving(config, *, driving: bool) -> None:
+    """Publish a main player status so the speed arbiter sees the funscript
     driving (scripted, not resting) or not."""
-    config.nau_status_file.write_text(
+    config.main_player_status_file.write_text(
         f"has_funscript={'1' if driving else '0'}\nfunscript_resting=0\n",
         encoding="utf-8",
     )
@@ -2294,26 +2294,26 @@ def test_the_motion_rate_never_reaches_the_videos_playback_rate(tmp_path: Path):
     from when one shared pair made pressing Genau's − move the playback rate
     across the panel instead."""
     config = _make_config(tmp_path)
-    _set_nau_driving(config, driving=True)
+    _set_main_player_driving(config, driving=True)
     state = _make_state(main_mode="video")
 
     dispatch_command("robot_hand_speed_up", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
-def test_the_bare_nudge_routes_to_nau_in_video_mode_while_the_funscript_drives(tmp_path: Path):
+def test_the_bare_nudge_routes_to_main_player_in_video_mode_while_the_funscript_drives(tmp_path: Path):
     """Video mode, actively scripted stretch: the funscript drives the OSR2 and Genau
-    is paused, so "speed up" tunes Nau's video — whose clock scales the script.
+    is paused, so "speed up" tunes the main player's video — whose clock scales the script.
     Sent to Genau it moved a number on a dimmed readout and nothing else."""
     config = _make_config(tmp_path)
-    _set_nau_driving(config, driving=True)
+    _set_main_player_driving(config, driving=True)
     state = _make_state(main_mode="video")
 
     dispatch_command("speed_up", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
 
@@ -2321,13 +2321,13 @@ def test_the_bare_nudge_routes_to_genau_in_video_mode_while_genau_drives(tmp_pat
     # Video mode, unscripted stretch (no funscript / lead-in / gap): Genau drives the
     # OSR2, so the bare nudge tunes Genau's motion rate.
     config = _make_config(tmp_path)
-    _set_nau_driving(config, driving=False)
+    _set_main_player_driving(config, driving=False)
     state = _make_state(main_mode="video")
 
     dispatch_command("speed_down", state, config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
 def test_the_bare_nudge_reaches_the_video_while_the_hand_is_held(tmp_path: Path):
@@ -2338,7 +2338,7 @@ def test_the_bare_nudge_reaches_the_video_while_the_hand_is_held(tmp_path: Path)
 
     dispatch_command("speed_up", _make_state(main_mode="video"), config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
 
@@ -2347,38 +2347,38 @@ def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: 
     config = _make_config(tmp_path / "genau")
     dispatch_command("speed_up", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
 def test_speed_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("speed_min", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
     dispatch_command("speed_max", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
 
 
-def test_nau_multiplier_sets_nau_speed(tmp_path: Path):
+def test_main_player_multiplier_sets_main_player_speed(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_speed_150", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
+    dispatch_command("main_player_speed_150", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
 
 
-def test_nau_speed_up_down_nudge_the_video_rate_where_nau_is_on_screen(tmp_path: Path):
+def test_main_player_speed_up_down_nudge_the_video_rate_where_main_player_is_on_screen(tmp_path: Path):
     """The console's playback-rate arrows, and spoken "playback speed up".  They
-    tune Nau's video — never the motion — so they reach Nau in video mode and
-    are a no-op in genau, where Nau is off screen and its clips have no such
+    tune the main player's video — never the motion — so they reach the main player in video mode and
+    are a no-op in genau, where the main player is off screen and its clips have no such
     rate."""
     config = _make_config(tmp_path / "video")
-    dispatch_command("nau_speed_up", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    dispatch_command("main_player_speed_up", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
 
     config = _make_config(tmp_path / "genau")
-    dispatch_command("nau_speed_down", _make_state(main_mode="genau"), config)
-    assert not config.nau_cmd_file.exists()
+    dispatch_command("main_player_speed_down", _make_state(main_mode="genau"), config)
+    assert not config.main_player_cmd_file.exists()
     assert not config.genau_cmd_file.exists()
 
 
@@ -2387,48 +2387,48 @@ def test_naming_the_playback_reaches_the_video_while_genau_holds_the_osr2(tmp_pa
     the playback is the only way to move the video's rate — and it has to land
     there rather than follow whichever engine happens to be driving."""
     config = _make_config(tmp_path)
-    _set_nau_driving(config, driving=False)
+    _set_main_player_driving(config, driving=False)
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_speed_down", state, config)
+    dispatch_command("main_player_speed_down", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
     assert not config.genau_cmd_file.exists()
 
 
-def test_nau_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
-    # An absolute multiplier is a Nau-video concept; in genau mode Nau is hidden,
+def test_main_player_multiplier_is_a_noop_when_genau_drives(tmp_path: Path):
+    # An absolute multiplier is a main player-video concept; in genau mode the main player is hidden,
     # so it is a no-op (the speaker uses Genau's own 0-100 grammar there).
     config = _make_config(tmp_path)
-    dispatch_command("nau_speed_150", _make_state(main_mode="genau"), config)
+    dispatch_command("main_player_speed_150", _make_state(main_mode="genau"), config)
     assert not config.genau_cmd_file.exists()
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
 
 
-def test_absolute_speed_reaches_nau_video_in_video_mode_even_when_genau_drives(tmp_path: Path):
-    # Absolute video-speed sets (multiplier, min/max) tune whatever Nau shows, so
-    # they land on Nau's video even during a Genau-driven stretch — they must not
+def test_absolute_speed_reaches_main_player_video_in_video_mode_even_when_genau_drives(tmp_path: Path):
+    # Absolute video-speed sets (multiplier, min/max) tune whatever the main player shows, so
+    # they land on the main player's video even during a Genau-driven stretch — they must not
     # silently vanish the way a driver-routed command would.
     config = _make_config(tmp_path)
-    _set_nau_driving(config, driving=False)  # Genau owns the OSR2 this stretch
+    _set_main_player_driving(config, driving=False)  # Genau owns the OSR2 this stretch
     state = _make_state(main_mode="video")
 
-    dispatch_command("nau_speed_150", state, config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
+    dispatch_command("main_player_speed_150", state, config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1.5\n"
     assert not config.genau_cmd_file.exists()
 
 
-def test_speed_max_sets_nau_video_in_video_mode(tmp_path: Path):
+def test_speed_max_sets_main_player_video_in_video_mode(tmp_path: Path):
     config = _make_config(tmp_path)
-    _set_nau_driving(config, driving=False)
+    _set_main_player_driving(config, driving=False)
     dispatch_command("speed_max", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
 def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("nau_speed_100", _make_state(main_mode="video"), config)
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
+    dispatch_command("main_player_speed_100", _make_state(main_mode="video"), config)
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
 
 
 def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
@@ -2437,7 +2437,7 @@ def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):
     new_state, ops = dispatch_command("audio_volume_down", _make_state(), config)
 
     assert new_state.volume == 90
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 90 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "90"
     assert ops == [WindowOp(op="notice", key="Volume 90%", source="main")]
 
@@ -2448,7 +2448,7 @@ def test_volume_up_steps_both_audio_sinks_up(tmp_path: Path):
     new_state, _ops = dispatch_command("audio_volume_up", _make_state(volume=40), config)
 
     assert new_state.volume == 50
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 50 0"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 50 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "50"
 
 
@@ -2463,14 +2463,14 @@ def test_volume_clamps_at_silent_and_at_full(tmp_path: Path):
 
 
 def test_the_primary_is_told_the_mute_as_well_as_the_level(tmp_path: Path):
-    """The audio companion is a sink and a level of zero is all it needs.  Nau
+    """The audio companion is a sink and a level of zero is all it needs.  The main player
     also *draws* the level, and from zero alone it cannot tell muted from turned
     all the way down — nor what unmuting should return to."""
     config = _make_config(tmp_path)
 
     dispatch_command("audio_mute", _make_state(volume=70), config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0", "the sink stays dumb"
 
 
@@ -2484,13 +2484,13 @@ def test_setting_the_volume_outright_lands_on_both_sinks(tmp_path: Path):
         "audio_set_volume|35", _make_state(volume=70, muted=True), config)
 
     assert (new_state.volume, new_state.muted) == (35, False)
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 35 0"
     assert config.audio_volume_file.read_text(encoding="utf-8") == "35"
     assert ops == [WindowOp(op="notice", key="Volume 35%", source="main")]
 
 
 def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
-    """Nau and Genau each draw the primary display's volume chip, and each is told
+    """the main player and Genau each draw the primary display's volume chip, and each is told
     the level and the mute as two facts — the sink gets a mute as a zero, which
     cannot say whether the speaker is off or turned all the way down.
 
@@ -2502,7 +2502,7 @@ def test_the_level_reaches_both_players_that_draw_it(tmp_path: Path):
     dispatch_command("audio_mute", _make_state(volume=70, main_mode="video"), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 1"
 
 
 def test_setting_the_volume_clamps_and_ignores_nonsense(tmp_path: Path):
@@ -2523,7 +2523,7 @@ def test_mute_silences_both_sinks_and_remembers_the_level(tmp_path: Path):
 
     assert new_state.muted is True
     assert new_state.volume == 70  # remembered, so unmuting restores it
-    # What Nau is told is its own test; here the companion, which only has to
+    # What the main player is told is its own test; here the companion, which only has to
     # be quiet, gets the plain zero.
     assert config.audio_volume_file.read_text(encoding="utf-8") == "0"
     assert ops == [WindowOp(op="notice", key="Muted", source="main")]
@@ -2537,7 +2537,7 @@ def test_unmute_restores_the_level_the_mute_interrupted(tmp_path: Path):
     )
 
     assert new_state.muted is False
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 70 0"
     assert ops == [WindowOp(op="notice", key="Volume 70%", source="main")]
 
 
@@ -2563,7 +2563,7 @@ def test_stepping_the_volume_lifts_a_mute(tmp_path: Path):
 
     assert new_state.muted is False
     assert new_state.volume == 80
-    assert config.nau_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").strip() == "SET_VOLUME 80 0"
 
 
 def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
@@ -2891,67 +2891,67 @@ def test_leaving_omnipause_adds_genau_ops_when_in_genau_mode(tmp_path: Path):
 # --- main-player nudge ---
 
 
-def test_primary_nudge_in_video_mode_writes_nau_seek(tmp_path: Path):
-    """Video mode displays Nau, so nudges seek Nau just like in video mode."""
+def test_primary_nudge_in_video_mode_writes_main_player_seek(tmp_path: Path):
+    """Video mode displays the main player, so nudges seek the main player just like in video mode."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     new_state, ops = dispatch_command("main_nudge_prev", state, config)
 
     assert ops == []
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
 
 
-def test_primary_nudge_in_nau_mode_writes_nau_seek(tmp_path: Path):
+def test_primary_nudge_in_main_player_mode_writes_main_player_seek(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     new_state, ops = dispatch_command("main_nudge_prev", state, config)
     assert ops == []
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SEEK_BACK\n"
 
     dispatch_command("main_nudge_next", state, config)
-    assert config.nau_cmd_file.read_text(
+    assert config.main_player_cmd_file.read_text(
         encoding="utf-8") == "SEEK_BACK\nSEEK_FWD\n"
 
 
-# --- nau record commands ---
+# --- main_player record commands ---
 
 
-def test_nau_record_commands_write_nau_cmd_in_nau_mode(tmp_path: Path):
+def test_main_player_record_commands_write_main_player_cmd_in_main_player_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
     for command, expected in [
-        ("nau_record_down", "RECORD_DOWN"),
-        ("nau_record_up", "RECORD_UP"),
-        ("nau_record_tap", "RECORD_TAP"),
-        ("nau_loop_cancel", "LOOP_CANCEL"),
+        ("main_player_record_down", "RECORD_DOWN"),
+        ("main_player_record_up", "RECORD_UP"),
+        ("main_player_record_tap", "RECORD_TAP"),
+        ("main_player_loop_cancel", "LOOP_CANCEL"),
     ]:
         new_state, ops = dispatch_command(command, state, config)
-        assert config.nau_cmd_file.read_text(encoding="utf-8") == expected + "\n"
+        assert config.main_player_cmd_file.read_text(encoding="utf-8") == expected + "\n"
         assert ops == []
-        config.nau_cmd_file.unlink()
+        config.main_player_cmd_file.unlink()
 
 
-def test_nau_record_commands_work_in_video_mode(tmp_path: Path):
-    """Video mode displays Nau, so loop recording works there too."""
+def test_main_player_record_commands_work_in_video_mode(tmp_path: Path):
+    """Video mode displays the main player, so loop recording works there too."""
     config = _make_config(tmp_path)
     state = _make_state(main_mode="video")
 
-    new_state, ops = dispatch_command("nau_record_tap", state, config)
+    new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
-    assert config.nau_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "RECORD_TAP\n"
     assert ops == []
 
 
-def test_nau_record_commands_noop_in_genau_mode(tmp_path: Path):
+def test_main_player_record_commands_noop_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")
 
-    new_state, ops = dispatch_command("nau_record_tap", state, config)
+    new_state, ops = dispatch_command("main_player_record_tap", state, config)
 
-    assert not config.nau_cmd_file.exists()
+    assert not config.main_player_cmd_file.exists()
     assert ops == []
 
 
@@ -3671,7 +3671,7 @@ def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch)
 
 
 def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, monkeypatch):
-    """The bug this fixes: "main latest" in genau mode rewrote a playlist for Nau,
+    """The bug this fixes: "main latest" in genau mode rewrote a playlist for the main player,
     which was neither on screen nor playing, and Genau — the player actually
     showing — carried on in the order it launched in.  Two toasts and nothing
     happening.  The reorder goes to whoever owns the slot's screen, as the lock
@@ -3684,7 +3684,7 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, mo
     state, ops = dispatch_command("main_latest", _make_state(main_mode="genau"), config)
 
     assert config.genau_cmd_file.read_text(encoding="utf-8").split() == ["LATEST"]
-    assert calls == []  # Nau's playlist is left exactly as it was
+    assert calls == []  # the main player's playlist is left exactly as it was
     assert [op.key for op in ops if op.op == "notice"] == ["Latest"]
 
     dispatch_command("main_shuffle", state, config)
@@ -3693,9 +3693,9 @@ def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, mo
 
 
 def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_path, monkeypatch):
-    """``main_latest`` says which order the playlist file we built for Nau is in —
+    """``main_latest`` says which order the playlist file we built for the main player is in —
     an F-mode rebuild reads it to reload the same way round — so setting it for a
-    Genau reorder would light "Latest" over a Nau playlist nobody reordered.  Genau
+    Genau reorder would light "Latest" over a main player playlist nobody reordered.  Genau
     keeps its own, which is what the console draws while Genau is showing."""
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
     config = _make_config(tmp_path)
@@ -3709,9 +3709,9 @@ def test_a_main_reorder_in_genau_mode_is_remembered_under_genaus_own_flag(tmp_pa
     assert state.genau_latest is False
 
 
-def test_a_main_reorder_in_video_mode_still_reaches_nau(tmp_path, monkeypatch):
-    """Video mode is Nau on screen with Genau driving the OSR2, so the video being
-    browsed is Nau's — Genau's clips are not what a reorder there is about."""
+def test_a_main_reorder_in_video_mode_still_reaches_main_player(tmp_path, monkeypatch):
+    """Video mode is the main player on screen with Genau driving the OSR2, so the video being
+    browsed is the main player's — Genau's clips are not what a reorder there is about."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
@@ -3770,7 +3770,7 @@ def test_neither_shape_holds_the_video_instead_of_rebuilding(tmp_path, monkeypat
     assert (state.main_plays_vr, state.main_plays_flat) == (False, False)
     assert ops[0].key == "No videos left"
     assert calls == []
-    assert "LOCK_ON" in config.nau_cmd_file.read_text(encoding="utf-8")
+    assert "LOCK_ON" in config.main_player_cmd_file.read_text(encoding="utf-8")
 
 
 def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypatch):
@@ -3802,7 +3802,7 @@ def test_main_reset_puts_both_shapes_back(tmp_path, monkeypatch):
 def test_main_reset_drops_the_length_mode_and_f_mode_together(tmp_path, monkeypatch):
     """"reset" means for the main player what it means for a satellite: drop
     everything narrowing what it plays.  Two things do — the length mode, which
-    Nau holds, and F-mode, which we hold — so a reset that sent only the length
+    The main player holds, and F-mode, which we hold — so a reset that sent only the length
     verb left the player still narrowed to the scripted videos."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
@@ -3813,7 +3813,7 @@ def test_main_reset_drops_the_length_mode_and_f_mode_together(tmp_path, monkeypa
 
     assert state.main_f_mode is False
     assert calls[-1]["enabled"] is False
-    assert "SET_LENGTH_MODE mixed" in config.nau_cmd_file.read_text(encoding="utf-8")
+    assert "SET_LENGTH_MODE mixed" in config.main_player_cmd_file.read_text(encoding="utf-8")
     assert ops[0].op == "notice"
 
 
@@ -3829,7 +3829,7 @@ def test_main_reset_does_not_reshuffle_a_player_that_was_not_narrowed(tmp_path, 
     dispatch_command("main_reset", _make_state(main_f_mode=False), config)
 
     assert calls == []
-    assert "SET_LENGTH_MODE mixed" in config.nau_cmd_file.read_text(encoding="utf-8")
+    assert "SET_LENGTH_MODE mixed" in config.main_player_cmd_file.read_text(encoding="utf-8")
 
 
 def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does_not_offer(
@@ -3844,9 +3844,9 @@ def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does
     assert calls == []
 
 
-def test_main_reset_keeps_the_length_verb_off_a_slot_nau_does_not_own(tmp_path, monkeypatch):
-    """The length mode is Nau's, so the verb only goes while Nau owns the main slot
-    — the same guard every other Nau verb has.  The F-mode flag is ours and goes
+def test_main_reset_keeps_the_length_verb_off_a_slot_main_player_does_not_own(tmp_path, monkeypatch):
+    """The length mode is the main player's, so the verb only goes while the main player owns the main slot
+    — the same guard every other the main player verb has.  The F-mode flag is ours and goes
     whoever is showing, exactly as "main f mode off" does."""
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
@@ -3857,8 +3857,8 @@ def test_main_reset_keeps_the_length_verb_off_a_slot_nau_does_not_own(tmp_path, 
         "main_reset", _make_state(main_mode="genau", main_f_mode=True), config)
 
     assert state.main_f_mode is False
-    assert not config.nau_cmd_file.exists() or "SET_LENGTH_MODE" not in (
-        config.nau_cmd_file.read_text(encoding="utf-8"))
+    assert not config.main_player_cmd_file.exists() or "SET_LENGTH_MODE" not in (
+        config.main_player_cmd_file.read_text(encoding="utf-8"))
 
 
 def test_main_reset_makes_the_main_player_the_one_a_bare_word_reaches(tmp_path, monkeypatch):
@@ -3874,7 +3874,7 @@ def test_main_reset_makes_the_main_player_the_one_a_bare_word_reaches(tmp_path, 
 
 
 def test_reordering_the_main_player_starts_it_at_the_top(tmp_path, monkeypatch):
-    """A reorder filters nothing out, so Nau keeps the video on screen across the
+    """A reorder filters nothing out, so the main player keeps the video on screen across the
     reload and carries on from wherever it now sits — leaving the newest-first list
     to apply only after it, and the arrivals that were asked for never coming up.
     The satellites' reorder starts at the top for exactly this reason; so does this."""

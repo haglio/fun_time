@@ -38,9 +38,9 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         genau_paused_file=tmp_path / "rh_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
-        nau_cmd_file=tmp_path / "nau_cmd.txt",
-        nau_paused_file=tmp_path / "nau_paused.txt",
-        nau_status_file=tmp_path / "nau_status.txt",
+        main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        main_player_paused_file=tmp_path / "main_player_paused.txt",
+        main_player_status_file=tmp_path / "main_player_status.txt",
         dashboard_state_file=tmp_path / "dashboard_state.ini",
         broker_heartbeat_file=tmp_path / "broker_heartbeat.txt",
     )
@@ -52,7 +52,7 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
     publisher = HudPublisher(
         {"portrait": tmp_path / "portrait_hud.json",
          "landscape": tmp_path / "landscape_hud.json",
-         "nau": tmp_path / "nau_console.json"},
+         "main_player": tmp_path / "main_player_console.json"},
         tmp_path / "thumbs",
     )
     return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
@@ -71,7 +71,7 @@ def panel(tmp_path, side: str) -> dict:
 
 
 def console(tmp_path) -> dict:
-    return json.loads((tmp_path / "nau_console.json").read_text(encoding="utf-8"))
+    return json.loads((tmp_path / "main_player_console.json").read_text(encoding="utf-8"))
 
 
 class TestHudPublishing:
@@ -167,7 +167,7 @@ class TestHudPublishing:
             feed.publish(replace(state, active_side=slot))
             return console(tmp_path)["active"]
 
-        assert active(1) is True   # the the main player holds it
+        assert active(1) is True   # the main player holds it
         assert active(2) is False  # a satellite does
 
     def test_the_console_says_what_has_the_osr2_and_whether_the_broker_is_up(self, tmp_path):
@@ -222,19 +222,19 @@ class TestHudPublishing:
         both go out on their status files and the one the mode says is showing
         comes back down here, the way the loop state does."""
         feed, state = make_feed(tmp_path), BridgeState()
-        nau = feed.config.nau_status_file
+        main_player = feed.config.main_player_status_file
         genau = feed.config.state_dir / "genau_status.txt"
 
         def published(mode: str) -> bool:
             feed.publish(replace(state, main_mode=mode))
             return console(tmp_path)["locked"]
 
-        nau.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
+        main_player.write_text("video=C:/v/n.mp4\nlocked=0\n", encoding="utf-8")
         genau.write_text("locked=1\n", encoding="utf-8")
         assert published("video") is False
         assert published("genau") is True
 
-        nau.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
+        main_player.write_text("video=C:/v/n.mp4\nlocked=1\n", encoding="utf-8")
         genau.write_text("locked=0\n", encoding="utf-8")
         assert published("video") is True
         assert published("genau") is False
@@ -331,7 +331,7 @@ class TestHudPublishing:
 
 class TestOsr2Mode:
     """What the main console is told the OSR2 is doing — this feed's payload
-    for Nau is the only consumer of the answer."""
+    for the main player is the only consumer of the answer."""
 
     def test_osr2_mode_off_when_rx_file_missing(self, tmp_path):
         feed = make_feed(tmp_path)

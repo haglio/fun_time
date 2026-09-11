@@ -177,7 +177,7 @@ def main(argv: list[str] | None = None) -> int:
     paths = config.paths
     sources = "|".join(
         str(folder)
-        for folder in (*paths.portrait_dirs, *paths.landscape_dirs, *paths.nau_library_dirs)
+        for folder in (*paths.portrait_dirs, *paths.landscape_dirs, *paths.main_player_library_dirs)
     )
     rows = build_breeding_rows(collect_video_files(sources), config.regen.metadata_root)
     print(render_breeding_report(rows, top=len(rows) if args.all else args.top))

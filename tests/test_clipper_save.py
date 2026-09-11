@@ -40,16 +40,16 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        nau_cmd_file=state_dir / "nau_cmd.txt",
-        nau_paused_file=state_dir / "nau_paused.txt",
-        nau_status_file=state_dir / "nau_status.txt",
+        main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        main_player_paused_file=state_dir / "main_player_paused.txt",
+        main_player_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
 
 
-def test_the_save_runs_clippers_venv_on_naus_video_and_position(tmp_path: Path):
+def test_the_save_runs_clippers_venv_on_main_players_video_and_position(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.nau_status_file.write_text(
+    config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\nstate=normal\npaused=0\n",
         encoding="utf-8",
     )
@@ -78,7 +78,7 @@ def test_the_save_runs_clippers_venv_on_naus_video_and_position(tmp_path: Path):
 
 def test_a_failed_save_answers_empty_so_nothing_flashes(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.nau_status_file.write_text(
+    config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -94,7 +94,7 @@ def test_a_failed_save_answers_empty_so_nothing_flashes(tmp_path: Path):
 
 def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
     config = _make_config(tmp_path)
-    # No nau_status file → no current video → nothing to clip.
+    # No main_player_status file → no current video → nothing to clip.
 
     with patch("fun_time.clipper_save.subprocess") as mock_subprocess:
         message = save_clip_session(config)
@@ -105,7 +105,7 @@ def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
 
 def test_a_timeout_reads_as_a_failed_save_not_a_crash(tmp_path: Path):
     config = _make_config(tmp_path)
-    config.nau_status_file.write_text(
+    config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 
@@ -121,7 +121,7 @@ def test_a_bug_in_our_own_argument_building_surfaces(tmp_path: Path):
     """The old bare `except Exception` read a TypeError in our own code as
     "clipper failed"; only the OS and subprocess failures are clipper's."""
     config = _make_config(tmp_path)
-    config.nau_status_file.write_text(
+    config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
     )
 

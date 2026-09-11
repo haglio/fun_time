@@ -277,8 +277,8 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
             assert "now mode" not in phrase and "go now" not in phrase, phrase
 
 
-def test_nau_video_rows_show_main_nav_in_both_orders():
-    """The Nau prev/next rows surface "main previous"/"main next" and the
+def test_main_player_video_rows_show_main_nav_in_both_orders():
+    """The main player prev/next rows surface "main previous"/"main next" and the
     reverse order, so the main player's navigation is visible in the
     legend."""
     rows = _all_rows()
@@ -292,9 +292,9 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     """Two ways to move the rate, and the row order follows the Genau section's:
     the up/down nudge, then the line that sets it outright.  The nudge is spoken
     only — the keys say "speed up", which follows the OSR2's driver instead."""
-    nau_rows = {s.title: s for s in build_reference_sections()}["Nau"].rows
-    descs = [r.description for r in nau_rows]
-    nudge = next(r for r in nau_rows if "nau_speed_up" in r.commands)
+    main_player_rows = {s.title: s for s in build_reference_sections()}["Main Player"].rows
+    descs = [r.description for r in main_player_rows]
+    nudge = next(r for r in main_player_rows if "main_player_speed_up" in r.commands)
     assert _keys(nudge) == ()
     assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
     assert descs.index(nudge.description) + 1 == next(
@@ -338,10 +338,10 @@ def test_sound_rows_are_voice_only_and_list_both_words_of_each_pair():
     assert "audio_unmute" in mute.commands
 
     # One sound level reaches both of the primary display's sinks, so the steps
-    # are listed under each player that can own the display — Nau's video sound
+    # are listed under each player that can own the display — the main player's video sound
     # and Genau's clip music are the same control from the speaker's side.
     by_title = {s.title: s for s in build_reference_sections()}
-    for title in ("Genau", "Nau"):
+    for title in ("Genau", "Main Player"):
         steps = [r for r in by_title[title].rows if "audio_volume_up" in r.commands]
         assert len(steps) == 1, f"expected one volume row in {title}"
         assert "audio_volume_down" in steps[0].commands, "one row documents the pair"
@@ -376,7 +376,7 @@ def test_latest_is_spoken_only_and_the_older_names_are_gone():
 
 def test_end_loop_follows_the_player_last_spoken_to():
     """"end loop" is side-agnostic like every other bare command: it reaches whichever
-    player was last addressed, and means that player's kind of loop — Nau's A-B loop
+    player was last addressed, and means that player's kind of loop — the main player's A-B loop
     on the main player, a satellite's group loop on portrait or landscape."""
     assert VOICE_COMMANDS["end loop"] == "active_no_loop"
     assert VOICE_COMMANDS["portrait end loop"] == "portrait_no_loop"
@@ -442,14 +442,14 @@ def test_genau_mode_row_lists_genau_phrase_and_g_key():
     assert any(key.lower() == "g" for key in _keys(row))
 
 
-def test_section_titles_run_global_robot_hand_genau_nau_satellites():
+def test_section_titles_run_global_robot_hand_genau_main_player_satellites():
     """Five sections, in the order the room is built: what governs everything,
     then the engine driving the OSR2, then the clips it plays under, then the
     video, then the two side players.  The hand leads because it drives in both
-    modes, Genau leads Nau because it owns the primary display in its own mode,
+    modes, Genau leads the main player because it owns the primary display in its own mode,
     and every satellite scope shares the last section."""
     titles = [s.title for s in build_reference_sections()]
-    assert titles == ["Global", "Robot Hand", "Genau", "Nau", "Satellites"]
+    assert titles == ["Global", "Robot Hand", "Genau", "Main Player", "Satellites"]
     for retired in ("Portrait", "Landscape", "Both", "Active side",
                     "Filters (satellites)", "Modes", "Genau control"):
         assert retired not in titles, f"{retired!r} should be folded in"
@@ -457,14 +457,14 @@ def test_section_titles_run_global_robot_hand_genau_nau_satellites():
 
 def test_the_backslash_key_offsets_the_hand_and_the_browser_has_its_own_key():
     """The backslash offsets the Robot Hand's motion in either mode — it used to
-    open Nau's library browser in video mode, and that browser now has the key
+    open the main player's library browser in video mode, and that browser now has the key
     the retired mode had."""
     sections = build_reference_sections()
     by_title = {s.title: s for s in sections}
     hand_backslash = [r for r in by_title["Robot Hand"].rows if "\\" in _keys(r)]
     assert [r.commands for r in hand_backslash] == [("quarter_button",)]
-    assert not [r for r in by_title["Nau"].rows if "\\" in _keys(r)]
-    browser = [r for r in by_title["Nau"].rows if "browse_library" in r.commands]
+    assert not [r for r in by_title["Main Player"].rows if "\\" in _keys(r)]
+    browser = [r for r in by_title["Main Player"].rows if "browse_library" in r.commands]
     assert len(browser) == 1 and _keys(browser[0]) == ("N",)
     assert "browse" in browser[0].voice
 
@@ -487,16 +487,16 @@ def test_video_mode_is_spoken_as_written_of_either_side_or_of_both():
 
 def test_loop_control_row_consolidates_record_and_cancel():
     rows = _all_rows()
-    loop_rows = [r for r in rows if "nau_record_down" in r.commands]
+    loop_rows = [r for r in rows if "main_player_record_down" in r.commands]
     assert loop_rows, "expected a loop control row"
     row = loop_rows[0]
     assert "R" in _keys(row)
     assert "record" in row.voice
     assert "loop" in row.voice
     # Record and cancel are one row.  The cancel's phrase, "end loop", is no longer
-    # this row's own: it is the side-agnostic phrase, and reaches Nau's loop through
+    # this row's own: it is the side-agnostic phrase, and reaches the main player's loop through
     # the active-side resolution whenever the main player is the player last addressed.
-    assert "nau_loop_cancel" in row.commands
+    assert "main_player_loop_cancel" in row.commands
 
 
 def test_previous_shape_is_a_separate_keyless_line():
@@ -621,10 +621,10 @@ def test_funscript_row_shows_the_joined_word_the_recognizer_cannot_hear():
     """The small vosk model has no "funscript" token, so the recognizer listens
     for "fun script" — but nobody says it that way, and reading it in the popup
     would teach the wrong phrase."""
-    assert VOICE_COMMANDS["jump to fun script"] == "nau_funscript_jump"
+    assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
     assert "jump to funscript" not in VOICE_COMMANDS  # display-only
 
-    rows = [r for r in _all_rows() if "nau_funscript_jump" in r.commands]
+    rows = [r for r in _all_rows() if "main_player_funscript_jump" in r.commands]
     assert len(rows) == 1, "expected exactly one funscript navigation row"
     assert rows[0].voice == ("jump to funscript", "next funscripted")
     assert _keys(rows[0]) == ()

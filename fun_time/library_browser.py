@@ -690,7 +690,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     parser.read(manifest_path, encoding="utf-8")
     metadata_root = parser.get("regen", "metadata_root", fallback="")
     return BrowserConfig(
-        sources=parser.get("media", "nau_library_sources", fallback=""),
+        sources=parser.get("media", "main_player_library_sources", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
     )

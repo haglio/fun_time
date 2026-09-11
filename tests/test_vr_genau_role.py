@@ -217,7 +217,7 @@ class TestWhatTheHeadsetIsToldToShow:
 
     def test_hud_on_means_the_video_shows_and_the_clip_does_not(self, tmp_path):
         """Video mode, on the desktop: Genau is the see-through layer over
-        Nau's video.  In the headset there is nothing to see through, so the
+        The main player's video.  In the headset there is nothing to see through, so the
         clip simply steps aside."""
         genau = Genau(tmp_path)
 
@@ -273,7 +273,7 @@ class TestWhatItPublishes:
         assert hud.drive is not None
 
     def test_the_console_file_fun_time_publishes_is_read(self, tmp_path):
-        console = tmp_path / "nau_console.json"
+        console = tmp_path / "main_player_console.json"
         console.write_text('{"mode": "genau", "broker": true}', encoding="utf-8")
         genau = Genau(tmp_path, console_file=console)
 

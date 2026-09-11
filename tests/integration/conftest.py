@@ -1,13 +1,13 @@
 """Force the real Windows platform for the integration suite, and serialize runs.
 
 Integration tests launch the real bridge and inspect real native windows (the
-dashboard, Nau, the satellites), so they must run on the native Qt platform — never the
+dashboard, the main player, the satellites), so they must run on the native Qt platform — never the
 offscreen platform the unit suite defaults to. The root ``tests/conftest.py`` sets
 ``QT_QPA_PLATFORM=offscreen`` so routine unit runs don't flash windows; because it is
 an ancestor conftest it is imported first, so by the time this module runs the variable
 is already ``"offscreen"``.
 
-Remove it here — before any ``QApplication`` is created or any bridge/Nau subprocess is
+Remove it here — before any ``QApplication`` is created or any bridge/the main player subprocess is
 spawned — so Qt falls back to the native windows platform and every child process the
 integration session launches inherits a real platform too. Without this, those windows
 would render offscreen and the Win32 inspection helpers would find nothing.
@@ -33,6 +33,7 @@ from .integration_support import close_udp_sinks
 # onto the user's monitors, before a single integration test had started.
 if sys.platform != "win32" or on_hidden_desktop():
     os.environ.pop("QT_QPA_PLATFORM", None)
+    os.environ.pop("SDL_VIDEODRIVER", None)
 
 
 def _refuse_a_run_off_the_hidden_desktop() -> None:
@@ -67,7 +68,7 @@ def pytest_collection_modifyitems(session, config, items):
     ``tests/integration/``.  A run that instead recurses in from ``tests``
     imports this file partway through collection, long after sessionstart has
     passed, so the refusal never ran at all: the suite launched real players, a
-    real Nau and a real AHK bridge onto the user's monitors on top of his work.
+    real main player and a real AHK bridge onto the user's monitors on top of his work.
     That is not hypothetical — it is what ``-c pyproject.toml`` did while the
     ``norecursedirs`` exclusion still lived in a separate pytest.ini.
 

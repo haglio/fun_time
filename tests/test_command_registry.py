@@ -46,8 +46,8 @@ _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     # it.  The reference names both, but no phrase asks for either -- each takes
     # a second, deliberate press on the button that is already the only one lit.
     "main_projection_none",
-    "nau_length_none",
-    "nau_record_tap",
+    "main_player_length_none",
+    "main_player_record_tap",
 }
 
 # The nav ids are parsed, not exact keys, so the handler map does not list

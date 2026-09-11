@@ -1,5 +1,5 @@
 """Saving a Clipper session — the one place the dispatcher's world shells out
-to a sibling repo, running clipper's own venv for the video Nau is showing."""
+to a sibling repo, running clipper's own venv for the video the main player is showing."""
 from __future__ import annotations
 
 import functools
@@ -9,7 +9,7 @@ import sys
 from pathlib import Path
 
 from .bridge_records import BridgeConfig
-from .player_status import read_nau_status
+from .player_status import read_main_player_status
 
 logger = logging.getLogger(__name__)
 
@@ -39,10 +39,10 @@ def _clipper_python() -> str:
 def _current_main_media(config: BridgeConfig) -> tuple[str, float]:
     """The main player's current video path and playback time (seconds).
 
-    Nau owns the main player in video mode and
+    The main player owns the main slot in video mode and
     publishes both in its status file; the path is empty when nothing is playing.
     """
-    status = read_nau_status(config.nau_status_file)
+    status = read_main_player_status(config.main_player_status_file)
     return status.video, status.position_ms / 1000
 
 

@@ -15,6 +15,10 @@ from pathlib import Path
 # tests/integration/conftest.py restore the native platform — the integration tests
 # inspect real windows and need real HWNDs, which the offscreen platform cannot give.
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+# SDL the same way: the main player's window is pygame's, on the machine that
+# also runs the live players.  tests/integration/conftest.py takes both off
+# again on the hidden desktop, where the real windows are the point.
+os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -51,8 +55,8 @@ def _qapp():
 # The window wrappers in fun_time.win32 all funnel through a few user32 calls, and
 # the same machine runs the user's live Fun Time.  So an unmocked window call in a
 # unit test lands on THEIR windows: a test that reaches the real ``set_always_on_top``
-# resolves the live "Nau"/"Genau" window by title and forces it on top — the test
-# bleed under "Nau pops on top during OmniPause" (it looked like a runtime/OmniPause
+# resolves the live "Main Player"/"Genau" window by title and forces it on top — the test
+# bleed under "the main player pops on top during OmniPause" (it looked like a runtime/OmniPause
 # bug for months because it WAS our code, run by a concurrent agent's test process).
 _MUTATING_USER32_CALLS = (
     "SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW", "BringWindowToTop",
@@ -216,13 +220,13 @@ def _write_config(tmp_path: Path, overrides: dict | None = None) -> Path:
     (tmp_path / "videos" / "videos" / "portrait").mkdir(parents=True, exist_ok=True)
     (tmp_path / "videos" / "videos" / "landscape").mkdir(parents=True, exist_ok=True)
     (tmp_path / "weird").mkdir(exist_ok=True)
-    (tmp_path / "videos" / "videos" / "nau_library").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "videos" / "videos" / "main_player_library").mkdir(parents=True, exist_ok=True)
 
     cfg: dict = {
         "paths": {
             "ahk_exe": str(tmp_path / "ahk.exe"),
             "python_exe": str(tmp_path / "python.exe"),
-            "nau_library_dirs": [str(tmp_path / "videos" / "videos" / "nau_library")],
+            "main_player_library_dirs": [str(tmp_path / "videos" / "videos" / "main_player_library")],
             "portrait_dir": str(tmp_path / "videos" / "videos" / "portrait"),
             "landscape_dir": str(tmp_path / "videos" / "videos" / "landscape"),
             "weird_dir": str(tmp_path / "weird"),

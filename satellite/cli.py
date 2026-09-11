@@ -2,7 +2,7 @@
 
 Kept apart from the run loop so the orchestrator-facing surface (the file
 quartet fun_time hands each satellite, the window geometry) is importable and
-testable without an SDL display, exactly as Nau's own CLI is.  A satellite always
+testable without an SDL display, exactly as the main player's own CLI is.  A satellite always
 receives an explicit ``--playlist`` from fun_time, so there is no library
 discovery or version grouping here — just read the list.
 """
@@ -52,7 +52,7 @@ def build_parser() -> argparse.ArgumentParser:
 def resolve_playlist(args) -> list[Path]:
     """The videos to play, from the explicit ``--playlist`` file.
 
-    A satellite is silent and unscripted, so the funscript column of Nau's shared
+    A satellite is silent and unscripted, so the funscript column of the main player's shared
     playlist format is dropped.  No file means nothing to play (fun_time always
     supplies one; standalone without it is an error the caller reports).
     """

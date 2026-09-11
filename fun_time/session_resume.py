@@ -185,16 +185,16 @@ def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
             append_command(Path(command_file), "LOCK")
 
 
-def resume_main_loop(nau_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
+def resume_main_loop(main_player_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
     """Queue SET_LOOP on the main player's command file for the loop it was running.
 
     The main player's counterpart of :func:`resume_satellite_locks`, re-sent for
     the same reason and queued the same way (docs/resuming-a-session.md).
-    *bounds* is None when there was no loop — Nau then plays the video through,
+    *bounds* is None when there was no loop — the main player then plays the video through,
     which is already what no loop means.
     """
     if bounds is not None:
-        append_command(Path(nau_cmd_file), f"{SET_LOOP_CMD} {bounds[0]} {bounds[1]}")
+        append_command(Path(main_player_cmd_file), f"{SET_LOOP_CMD} {bounds[0]} {bounds[1]}")
 
 
 def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:

@@ -656,7 +656,7 @@ def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path,
 
     browser_config = load_browser_config(manifest)
 
-    assert browser_config.sources == "|".join(str(path) for path in config.paths.nau_library_dirs)
+    assert browser_config.sources == "|".join(str(path) for path in config.paths.main_player_library_dirs)
     assert browser_config.metadata_root == tmp_path / "videos" / "metadata"
     assert browser_config.thumbnail_cache.parent == manifest.parent
 

@@ -64,7 +64,7 @@ just been replaced, so unlike a filter or an order neither can ride back in on a
 file the new player reads — each is queued on the player's command file before
 that player launches, and drains on its first tick. By then the player has
 loaded the clip the resume put at the top of its playlist, which is the clip the
-lock was on and the video the loop was cut from. Nau holds the seek until mpv
+lock was on and the video the loop was cut from. The main player holds the seek until mpv
 has the file open (its `restore_loop`), so the loop lands however slowly the
 file opens.
 

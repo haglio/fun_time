@@ -24,7 +24,7 @@ from fun_time.windows_bridge_startup import reap_orphaned_satellites
 # the set is worth naming somewhere a reader can see all of it at once.
 ROLES = (
     "Orchestrator", "Dashboard", "AudioCompanion", "LibraryBrowser",
-    "Nau", "Genau", "Origenerator", "Portrait", "Landscape",
+    "MainPlayer", "Genau", "Origenerator", "Portrait", "Landscape",
     "ClosingScreen", "LoadingScreen",
 )
 

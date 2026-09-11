@@ -1,11 +1,11 @@
 """Playlist/navigation orchestration for a satellite player, decoupled from the
 window.
 
-A satellite is the simple half of Nau: an unscripted looper of short clips, muted
+A satellite is the simple half of the main player: an unscripted looper of short clips, muted
 until its own chip is asked.  It owns its playlist position and drives an
 mpv-backed *player* (:class:`player_core.mpv_player.MpvPlayer`) to
 load/pause/lock/seek — but with no funscript, no OSR2/T-Code and no loop
-recording, it is a fraction of Nau's own PlayerSession.  Navigation is fully
+recording, it is a fraction of the main player's own PlayerSession.  Navigation is fully
 in-process (a Python list + index), which is the whole point of dropping VLC:
 no HTTP playlist to resolve ids against, and pausing is a flag.
 

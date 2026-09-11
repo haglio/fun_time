@@ -110,7 +110,7 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
 
 def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_path: Path):
     """The main player fills the secondary monitor below the portrait's slice
-    — the rect startup launches Nau/Genau into and the notice overlay flashes
+    — the rect startup launches main player/Genau into and the notice overlay flashes
     main-player notices over.  It abuts the portrait window with no gap and no
     overlap, and reaches the monitor's lower edge."""
     config = load_config(cfg_path)

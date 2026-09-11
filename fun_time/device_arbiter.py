@@ -2,7 +2,7 @@
 
 The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so only one
 may drive at a time.  This is the arbiter that hands the device between them —
-edge-triggered on Nau's published status, and asserted rather than
+edge-triggered on the main player's published status, and asserted rather than
 fired-and-forgotten, because a verb queued on a file channel can still die.
 """
 from __future__ import annotations
@@ -14,8 +14,8 @@ from pathlib import Path
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
-from .mode_plan import nau_displays
-from .player_status import read_nau_status
+from .mode_plan import main_player_displays
+from .player_status import read_main_player_status
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
 # without an edge, so a verb lost in transit converges instead of staying lost
@@ -24,27 +24,27 @@ REASSERT_S = 1.0
 
 
 class DeviceArbiter:
-    """The video-mode handoff between Nau's funscript and the Robot Hand."""
+    """The video-mode handoff between the main player's funscript and the Robot Hand."""
 
     def __init__(
         self,
         *,
-        nau_status_file: Path,
-        nau_cmd_file: Path,
+        main_player_status_file: Path,
+        main_player_cmd_file: Path,
         genau_cmd_file: Path,
         clock: Callable[[], float] = time.monotonic,
     ) -> None:
-        self.nau_status_file = nau_status_file
-        self.nau_cmd_file = nau_cmd_file
+        self.main_player_status_file = main_player_status_file
+        self.main_player_cmd_file = main_player_cmd_file
         self.genau_cmd_file = genau_cmd_file
         self._clock = clock
         # Whether the funscript is driving the OSR2 right now (so the hand is
-        # paused and Nau's T-Code is on) or the Robot Hand is (a funscript gap
+        # paused and the main player's T-Code is on) or the Robot Hand is (a funscript gap
         # or an unscripted video).  None means "no decision applied yet" — set
         # outside video mode so re-entry re-asserts the correct driver.
         self._funscript_driving: bool | None = None
         self._asserted_at: float = 0.0
-        self._nau_status = None
+        self._main_player_status = None
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
@@ -55,25 +55,25 @@ class DeviceArbiter:
 
         The funscript drives while it is actively scripting (``has_funscript``
         and not ``funscript_resting``); the hand drives the unscripted stretches.
-        Each handoff sets both levers: Nau's T-Code on + the hand paused for the
-        funscript, or Nau's T-Code off (so its gap drift can't fight) + the hand
+        Each handoff sets both levers: the main player's T-Code on + the hand paused for the
+        funscript, or the main player's T-Code off (so its gap drift can't fight) + the hand
         resumed.  Edge-triggered, so it fires once per handoff; outside video
         mode, or paused, the remembered state is cleared so re-entry re-asserts.
 
         The handoff itself is not smoothed here, and nothing waits for the
         motion: whoever takes the device walks it from where it is to where it
-        needs to be (Nau's driver parks it over its handoff ramp; the hand climbs
+        needs to be (the main player's driver parks it over its handoff ramp; the hand climbs
         back out of the park over the same one).  Waiting here for the hand's next
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
-        if not nau_displays(main_mode) or paused:
+        if not main_player_displays(main_mode) or paused:
             self._funscript_driving = None
             self._park_touch_deadline = None
             return
-        previous = self._nau_status
-        status = read_nau_status(self.nau_status_file, fallback=previous)
-        self._nau_status = status
+        previous = self._main_player_status
+        status = read_main_player_status(self.main_player_status_file, fallback=previous)
+        self._main_player_status = status
         funscript_driving = status.funscript_driving
         now = self._clock()
         if (funscript_driving == self._funscript_driving
@@ -101,15 +101,15 @@ class DeviceArbiter:
         # queued, and the standing pair is re-queued on a slow heartbeat — both
         # verbs are idempotent at their players — so any lost one converges
         # within a second instead of at the next turn boundary.
-        queued_nau = append_command(
-            self.nau_cmd_file,
+        queued_main_player = append_command(
+            self.main_player_cmd_file,
             "SET_TCODE_ENABLED 1" if funscript_driving else "SET_TCODE_ENABLED 0",
         )
         queued_genau = append_command(
             self.genau_cmd_file,
             "PAUSE" if funscript_driving else "RESUME",
         )
-        if queued_nau and queued_genau:
+        if queued_main_player and queued_genau:
             self._funscript_driving = funscript_driving
             self._asserted_at = now
             self._park_touch_deadline = None
@@ -117,7 +117,7 @@ class DeviceArbiter:
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.
 
-        The touch is NAU'S CHOICE, published with its status: the trace picks
+        The touch is THE MAIN PLAYER'S CHOICE, published with its status: the trace picks
         one touch-down, draws the blue ending on it, and this side simply ends
         the hand's turn when the playhead reaches it — one chooser, so the device
         cannot stop at a different trough than the picture drew.  When each

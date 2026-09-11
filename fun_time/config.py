@@ -29,7 +29,7 @@ EXAMPLE_CONFIG_PATH = PROJECT_DIR / "fun_time_config.example.json"
 class PathsConfig:
     ahk_exe: Path
     python_exe: Path
-    nau_library_dirs: tuple[Path, ...]
+    main_player_library_dirs: tuple[Path, ...]
     portrait_dirs: tuple[Path, ...]
     landscape_dirs: tuple[Path, ...]
     weird_dir: Path
@@ -48,7 +48,7 @@ class PathsConfig:
     broker_state_dir: Path
     genau_python_exe: Path | None = None
     genau_config_path: Path | None = None
-    # Which checkouts Genau and Nau are run out of, put on their PYTHONPATH.
+    # Which checkouts Genau and the main player are run out of, put on their PYTHONPATH.
     # Absent, every package they import — their own, and ``player_core`` under
     # them — resolves through the genau venv's editable installs, which name the
     # primary checkout of each repo for good: so a *worktree* of either could not
@@ -110,7 +110,7 @@ class VoiceControlConfig:
 class VrConfig:
     """What FunTimeVR needs beyond the desktop session's own config.
 
-    ``library_dirs`` joins the main rotation alongside ``nau_library_dirs``;
+    ``library_dirs`` joins the main rotation alongside ``main_player_library_dirs``;
     ``clips_dir`` is the VR180 clips genau mode browses in the headset, together
     with the desktop's flat ``paths.clips_dir``; ``audio_device`` routes the main
     player's sound to the headset by substring match; the T-Code endpoint is the
@@ -206,24 +206,24 @@ class ProjectConfig:
         return self.paths.state_dir / state_files.GENAU_PAUSED
 
     @property
-    def nau_cmd_file(self) -> Path:
-        return self.paths.state_dir / "nau_cmd.txt"
+    def main_player_cmd_file(self) -> Path:
+        return self.paths.state_dir / "main_player_cmd.txt"
 
     @property
-    def nau_paused_file(self) -> Path:
-        return self.paths.state_dir / "nau_paused.txt"
+    def main_player_paused_file(self) -> Path:
+        return self.paths.state_dir / "main_player_paused.txt"
 
     @property
-    def nau_status_file(self) -> Path:
-        return self.paths.state_dir / "nau_status.txt"
+    def main_player_status_file(self) -> Path:
+        return self.paths.state_dir / "main_player_status.txt"
 
     @property
-    def nau_notice_file(self) -> Path:
-        return self.paths.state_dir / "nau_notice.txt"
+    def main_player_notice_file(self) -> Path:
+        return self.paths.state_dir / "main_player_notice.txt"
 
     @property
-    def nau_playlist_file(self) -> Path:
-        return self.paths.state_dir / "nau_playlist.tsv"
+    def main_player_playlist_file(self) -> Path:
+        return self.paths.state_dir / "main_player_playlist.tsv"
 
     # --- The hosted Origenerator's channel (see fun_time.satellites_mode):
     # verbs in, the OmniPause flag over it, and region occupancy back.
@@ -288,17 +288,17 @@ def _resolve_config_path(config_path: str | Path | None, project_dir: Path) -> P
 
 
 def _load_paths_config(paths_raw: dict[str, Any], source_path: Path, project_dir: Path) -> PathsConfig:
-    nau_library_dirs_raw = require_value(paths_raw, "nau_library_dirs", source_path, context="config.paths")
-    if not isinstance(nau_library_dirs_raw, list):
-        raise TypeError("paths.nau_library_dirs must be a list of folder paths")
-    if not nau_library_dirs_raw:
-        raise ValueError("paths.nau_library_dirs must include at least one folder path")
+    main_player_library_dirs_raw = require_value(paths_raw, "main_player_library_dirs", source_path, context="config.paths")
+    if not isinstance(main_player_library_dirs_raw, list):
+        raise TypeError("paths.main_player_library_dirs must be a list of folder paths")
+    if not main_player_library_dirs_raw:
+        raise ValueError("paths.main_player_library_dirs must include at least one folder path")
 
     state_dir = require_path(paths_raw, "state_dir", source_path, base=project_dir, context="config.paths")
     return PathsConfig(
         ahk_exe=require_path(paths_raw, "ahk_exe", source_path, base=project_dir, context="config.paths"),
         python_exe=require_path(paths_raw, "python_exe", source_path, base=project_dir, context="config.paths"),
-        nau_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in nau_library_dirs_raw),
+        main_player_library_dirs=tuple(resolve_path(project_dir, str(value)) for value in main_player_library_dirs_raw),
         portrait_dirs=_load_dir_list(paths_raw, "portrait_dirs", "portrait_dir", source_path, project_dir),
         landscape_dirs=_load_dir_list(paths_raw, "landscape_dirs", "landscape_dir", source_path, project_dir),
         weird_dir=require_path(paths_raw, "weird_dir", source_path, base=project_dir, context="config.paths"),

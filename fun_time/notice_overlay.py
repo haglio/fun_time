@@ -1,5 +1,5 @@
 """The glanceable flash of a notice (:func:`fun_time.event_log.notice`), at the
-top-center of the window it is about: a main-player one over the Nau/Genau
+top-center of the window it is about: a main-slot one over the main player/Genau
 display, a portrait/landscape one over that satellite.
 
 The pure model here (which rect a source maps to, where the overlay sits on it)

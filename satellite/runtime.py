@@ -3,10 +3,10 @@
 fun_time writes one command per line to the satellite's command file; the run
 loop consumes them and calls :func:`apply_command`.  The keyword is
 case-insensitive and PLAY_FILE carries a case-sensitive path argument.  Pause is
-NOT a command — it rides its own flag file (like Nau), so a paused satellite is a
+NOT a command — it rides its own flag file (like the main player), so a paused satellite is a
 settled state rather than a verb race.  A satellite is silent and unscripted, so
 there is no volume/speed/funscript/record surface — the verb set is a fraction of
-Nau's own command set.
+The main player's own command set.
 """
 from __future__ import annotations
 

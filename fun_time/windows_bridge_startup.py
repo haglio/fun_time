@@ -19,9 +19,9 @@ from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .child_log import open_child_log
 from .config import load_config
-from .mode_plan import STARTUP_MAIN_MODE, hud_verb, nau_display_verb
+from .mode_plan import STARTUP_MAIN_MODE, hud_verb, main_player_display_verb
 from .modes import (
-    PLAYLIST_NAU,
+    PLAYLIST_MAIN_PLAYER,
     SatelliteBuild,
     build_all_playlists,
     build_main_playlist,
@@ -37,7 +37,7 @@ from .orchestrator_broker import (
 )
 from .player_status import (
     is_broker_heartbeat_fresh,
-    read_nau_status,
+    read_main_player_status,
 )
 from .players import Player
 from .process_identity import NAMER
@@ -66,7 +66,7 @@ logger = logging.getLogger(__name__)
 # The two native satellites carry DISTINCT window captions so the sequencer can
 # resolve each to its slot by title when the pid lookup fails (the genau venv's
 # pythonw launcher can own a pid other than the window's — the same reason
-# launch_nau needs a title fallback).  A shared caption lets the fallback assign
+# launch_main_player needs a title fallback).  A shared caption lets the fallback assign
 # one side's window to the other, which is the portrait/landscape visual swap.
 # The sequencer imports these to resolve by, so the strings live in one place.
 # These captions are also what each window calls itself in Alt-Tab and on its
@@ -286,11 +286,11 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
 def seed_startup_states(
     genau_paused_file: str | Path,
     audio_paused_file: str | Path,
-    nau_paused_file: str | Path,
+    main_player_paused_file: str | Path,
     audio_volume_file: str | Path,
     genau_cmd_file: str | Path,
     *,
-    nau_cmd_file: str | Path,
+    main_player_cmd_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
     f_mode: bool = False,
@@ -301,25 +301,25 @@ def seed_startup_states(
     and the sound, F-mode and mode this session comes back in.
 
     All three of those last are the session's, not a fresh session's.  The level
-    is seeded because Nau and the audio companion each launch unattenuated and
+    is seeded because the main player and the audio companion each launch unattenuated and
     neither reads a level from a file it already has, so seeding is the only way
     a resumed session comes up as loud as you left it — and both sinks are told,
     through the one publisher the live volume commands use, which is what keeps a
     resumed mute explicable rather than a silence with nothing on screen backing
-    it (Nau draws the level and the mute it is given).
+    it (the main player draws the level and the mute it is given).
 
     *f_mode* is the main player's own — this whole function is the main slot's
-    seeding — and it is seeded for the same shape of reason: the playlist Nau is
+    seeding — and it is seeded for the same shape of reason: the playlist the main player is
     handed has already been narrowed and a list of scripted videos looks like any
-    other, so Nau's HUD can only know from being told.  fun_time draws the
+    other, so the main player's HUD can only know from being told.  fun_time draws the
     satellites' HUD model itself, which is why a resumed F-mode session showed
     F-Mode on every player except the one that had to be sent it.
 
     *mode* is which player owns the big display, and it is seeded with the same
     verbs a live switch into it says (see ``mode_plan``): Genau's window is told
-    whether it is the display or the HUD layer over Nau's video, and Nau
+    whether it is the display or the HUD layer over the main player's video, and the main player
     whether it is on screen at all — the mirror pair, so an alt-tab back to a
-    parked Nau lands on black rather than on the frame it stopped on.  Only
+    parked main player lands on black rather than on the frame it stopped on.  Only
     those verbs, never the switch's RESUME: a live switch starts its player
     immediately and startup must not (the reveal is what hands Genau its
     RESUME), and the windows are parked to match by the sequencer.
@@ -333,23 +333,23 @@ def seed_startup_states(
     # later verb of the same kind supersedes an earlier one and none is lost.
     # The broker is left out on purpose — startup has already parked the OSR2.
     Path(genau_cmd_file).write_text(f"PAUSE\n{hud_verb(mode)}\n", encoding="utf-8")
-    append_command(Path(nau_cmd_file), nau_display_verb(mode))
+    append_command(Path(main_player_cmd_file), main_player_display_verb(mode))
     # Every player waits for the reveal: a live switch's flags would start its
     # player the moment they landed, and here that is twenty seconds of the OSR2
     # moving under a progress bar.  The flag does not hold the Robot Hand,
     # whose motion follows the PAUSE/RESUME verbs on Genau's channel and never
     # reads the paused flag at all — which is why the PAUSE above is written
     # whole and no RESUME follows it.
-    for path in (genau_paused_file, audio_paused_file, nau_paused_file):
+    for path in (genau_paused_file, audio_paused_file, main_player_paused_file):
         write_flag_file(path, True)
     publish_audio_level(
-        nau_cmd_file=Path(nau_cmd_file),
+        main_player_cmd_file=Path(main_player_cmd_file),
         genau_cmd_file=Path(genau_cmd_file),
         audio_volume_file=Path(audio_volume_file),
         volume=volume,
         muted=muted,
     )
-    append_command(Path(nau_cmd_file), f"{SET_F_MODE_CMD} {int(f_mode)}")
+    append_command(Path(main_player_cmd_file), f"{SET_F_MODE_CMD} {int(f_mode)}")
 
 
 def reset_satellite_paused_states(
@@ -360,7 +360,7 @@ def reset_satellite_paused_states(
 ) -> None:
     """Seed both satellite paused flags for the mode the session opens in.
 
-    Unlike the genau/audio/nau flags, the satellite paused files are outside
+    Unlike the genau/audio/main_player flags, the satellite paused files are outside
     ``seed_startup_states``' scope and nothing else clears them: a ``"1"`` left
     stranded by a prior session's OmniPause would freeze this session's
     satellites at position 0.  Video mode writes ``"0"`` and a satellite comes up
@@ -383,14 +383,14 @@ def start_core_session(
     genau_paused_file: str | Path,
     genau_cmd_file: str | Path | None = None,
     audio_paused_file: str | Path,
-    nau_paused_file: str | Path,
+    main_player_paused_file: str | Path,
     audio_volume_file: str | Path,
-    nau_cmd_file: str | Path,
+    main_player_cmd_file: str | Path,
     satellite_python_exe: str | Path,
     satellite_module: str,
     portrait: SatelliteSlot,
     landscape: SatelliteSlot,
-    nau_status_file: str | Path,
+    main_player_status_file: str | Path,
     main_sources: str,
     favs_file: str | Path,
     state_dir: str | Path,
@@ -400,7 +400,7 @@ def start_core_session(
     project_dirs: str | None = None,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
-    opens in — which the caller needs because parking the Nau/Genau pair to match
+    opens in — which the caller needs because parking the main player/Genau pair to match
     takes window handles only the sequencer has."""
     portrait = for_side(portrait, Player.PORTRAIT)
     landscape = for_side(landscape, Player.LANDSCAPE)
@@ -413,7 +413,7 @@ def start_core_session(
     )
     # Send the OSR2 home first, so it waits out startup parked rather than
     # wherever the last session left it — the two native players decode their
-    # first frames while Nau and Genau scan their libraries, and that wait is
+    # first frames while the main player and Genau scan their libraries, and that wait is
     # long.  The verb keeps in the file until the broker's next tick, so it does
     # not matter that ensure_broker may only now be starting one.
     write_broker_command(broker_cmd_file, PARK_CMD)
@@ -426,12 +426,12 @@ def start_core_session(
     # first run, a wiped state dir — is built, by the same builder the F-mode
     # toggle uses.  Shuffle and Premiere still rebuild on demand, and that is
     # where videos added since come in.
-    nau_playlist = build_playlist_file_path(state_path, PLAYLIST_NAU)
-    nau_status = read_nau_status(Path(nau_status_file))
+    main_player_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_PLAYER)
+    main_player_status = read_main_player_status(Path(main_player_status_file))
     resumed = resume_playlists([
         (Path(portrait.playlist_file), read_satellite_status(Path(portrait.status_file)).video),
         (Path(landscape.playlist_file), read_satellite_status(Path(landscape.status_file)).video),
-        (nau_playlist, nau_status.video),
+        (main_player_playlist, main_player_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
     # filter, order and lock, any group loop, the sound level, which player had
@@ -441,8 +441,8 @@ def start_core_session(
     # what those flags have to be seeded to.
     carried = resume_shared_state(shared_state_path(state_path), resumed=resumed)
     seed_startup_states(
-        genau_paused_file, audio_paused_file, nau_paused_file, audio_volume_file,
-        genau_cmd_file, nau_cmd_file=nau_cmd_file,
+        genau_paused_file, audio_paused_file, main_player_paused_file, audio_volume_file,
+        genau_cmd_file, main_player_cmd_file=main_player_cmd_file,
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
         mode=carried.main_mode,
     )
@@ -459,17 +459,17 @@ def start_core_session(
             state_dir=state_path,
             metadata_root=regen_metadata_root,
         )
-    elif not playlist_fits_sources(nau_playlist, main_sources):
+    elif not playlist_fits_sources(main_player_playlist, main_sources):
         # FunTimeVR left this playlist, and its VR videos must never reach the
         # primary monitor: rebuild from this app's library, under the order and
         # F-mode being carried forward, then rotate back onto the clip that was
         # on screen.  (The satellites' dirs are the same in either app, so their
         # resume stands.)
-        build_main_playlist(nau_playlist, main_sources, f_mode=carried.main_f_mode,
+        build_main_playlist(main_player_playlist, main_sources, f_mode=carried.main_f_mode,
                             recent=carried.main_latest)
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"
-            if resume_main_video(nau_playlist, nau_status.video)
+            if resume_main_video(main_player_playlist, main_player_status.video)
             else "Resumed playlists; rebuilt the main player's, which held another app's videos"
         )
     # Which of the two ran is the difference between the clips of the last
@@ -491,8 +491,8 @@ def start_core_session(
     # video leading, and those bounds would then mark out a stretch of a video
     # nobody chose.
     resume_main_loop(
-        Path(nau_cmd_file),
-        nau_status.loop_bounds if playlist_opens_on(nau_playlist, nau_status.video) else None,
+        Path(main_player_cmd_file),
+        main_player_status.loop_bounds if playlist_opens_on(main_player_playlist, main_player_status.video) else None,
     )
     launch_core_apps(
         python_exe=satellite_python_exe,
@@ -507,9 +507,9 @@ def start_core_session(
 
 
 def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
-    """The ``Popen`` environment that decides which checkouts Genau and Nau run.
+    """The ``Popen`` environment that decides which checkouts Genau and the main player run.
 
-    Both are started as ``python -m genau`` / ``-m nau`` out of the genau venv,
+    Both are started as ``python -m genau`` / ``-m main_player`` out of the genau venv,
     and every package they import — their own, and ``player_core`` under them —
     resolves through that venv's editable installs, which name the primary
     checkout of each repo for good.  So a *worktree* of either could not be run
@@ -583,14 +583,14 @@ def launch_genau(
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:
         cmd.extend(["--paused-file", str(paused_file)])
-    # In genau mode Genau draws the main console — the same panel Nau draws in
+    # In genau mode Genau draws the main console — the same panel the main player draws in
     # video mode — so it reads the console Fun Time publishes and posts a
-    # press back on the dashboard command file, exactly as Nau does.
+    # press back on the dashboard command file, exactly as the main player does.
     if console_file is not None:
         cmd.extend(["--console-file", str(console_file)])
-    # Where Genau publishes its drive readout for Nau to draw in video mode.  Named by
+    # Where Genau publishes its drive readout for the main player to draw in video mode.  Named by
     # us so both players name the same file; Genau resolving it from its own
-    # config wrote it into the Genau repo, where Nau was never looking.
+    # config wrote it into the Genau repo, where the main player was never looking.
     if drive_file is not None:
         cmd.extend(["--drive-file", str(drive_file)])
     if dashboard_cmd_file is not None:
@@ -653,7 +653,7 @@ def origenerator_launch_kwargs(
     project_dirs: str | None = None,
 ) -> dict:
     """The environment that argv runs in — also shared with the launch test."""
-    # The same checkout choice Genau, Nau and the satellites get: named
+    # The same checkout choice Genau, the main player and the satellites get: named
     # project dirs ride the hosted app's PYTHONPATH, so a branch of
     # player_core is the one its ensure_player_core_on_path finds (it defers
     # to an already-importable copy rather than walking up to the primary).
@@ -706,10 +706,10 @@ def launch_origenerator(
     return proc.pid
 
 
-def launch_nau(
+def launch_main_player(
     *,
     python_exe: str | Path,
-    nau_module: str,
+    main_player_module: str,
     config_path: str | Path,
     playlist_file: str | Path,
     command_file: str | Path,
@@ -719,27 +719,27 @@ def launch_nau(
     drive_file: str | Path,
     dashboard_cmd_file: str | Path,
     log_file: str | Path,
-    nau_x: int,
-    nau_y: int,
-    nau_width: int,
-    nau_height: int,
+    main_player_x: int,
+    main_player_y: int,
+    main_player_width: int,
+    main_player_height: int,
     metadata_dir: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> int:
-    """Launch Nau subprocess, returning its PID.
+    """Launch the main player subprocess, returning its PID.
 
-    *project_dir* is which checkout of the genau repo to run — Nau ships there
+    *project_dir* is which checkout of the genau repo to run — the main player ships there
     too, so it follows Genau onto a branch rather than staying on the primary
     while its housemate moves (see :func:`genau_project_kwargs`).
 
     Its stdout and stderr go to *log_file* for the same reason a satellite's do:
-    Nau is the same mpv-backed player under the same windowed ``pythonw``, which
+    The main player is the same mpv-backed player under the same windowed ``pythonw``, which
     gives an unhandled exception nowhere to print its traceback.
     """
     cmd = [
-        NAMER.named_exe(python_exe, "Nau"),
+        NAMER.named_exe(python_exe, "MainPlayer"),
         "-m",
-        nau_module,
+        main_player_module,
         "--config",
         str(config_path),
         "--playlist",
@@ -750,7 +750,7 @@ def launch_nau(
         str(paused_file),
         "--status-file",
         str(status_file),
-        # Nau's HUD is the console the dashboard used to be: it reads the panel we
+        # The main player's HUD is the console the dashboard used to be: it reads the panel we
         # publish, reads Genau's readout for the section under it, and posts a
         # press — on a button or on the volume control — back onto the same
         # command file the dashboard wrote.
@@ -761,20 +761,20 @@ def launch_nau(
         "--dashboard-cmd-file",
         str(dashboard_cmd_file),
         "--x",
-        str(nau_x),
+        str(main_player_x),
         "--y",
-        str(nau_y),
+        str(main_player_y),
         "--width",
-        str(nau_width),
+        str(main_player_width),
         "--height",
-        str(nau_height),
+        str(main_player_height),
         # This window is one of ours, not an application of its own: see
         # TASKBAR_IDENTITY_ARGS — and it wears Fun Time's icon.
         "--icon",
         str(PROJECT_ICON),
         *TASKBAR_IDENTITY_ARGS,
     ]
-    # Lets Nau group a video's versions from Evolver's metadata sidecars rather
+    # Lets the main player group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
     if metadata_dir:
         cmd += ["--metadata-dir", str(metadata_dir)]
@@ -903,10 +903,10 @@ def launch_core_apps(
     """Spawn the two native satellite players (portrait + landscape).
 
     Each is our own mpv-backed process (this repo's ``satellite`` package),
-    driven through its command/paused/status file quartet like Nau.  Each launches
+    driven through its command/paused/status file quartet like the main player.  Each launches
     straight into its final portrait/landscape rect: mpv sizes its output to the
     launch geometry and does NOT rescale when a later Win32 move resizes the
-    window, so launching at the real rect (exactly as Nau does) is what makes the
+    window, so launching at the real rect (exactly as the main player does) is what makes the
     video fill it.  There is no HTTP interface to wait on and nothing to enqueue or
     repeat-mode here — the native player owns its playlist and auto-advances (its
     wrap is repeat-all).
@@ -961,7 +961,7 @@ def _build_satellite_launch_command(
     """The argv for a native satellite player (``python -m satellite ...``).
 
     The satellite is our own mpv-backed process, driven through the
-    command/paused/status file quartet exactly as Nau is.  It takes no
+    command/paused/status file quartet exactly as the main player is.  It takes no
     ``--config`` — the quartet plus geometry fully specify it — and ``--title``
     gives it the distinct caption the sequencer resolves its slot by.
 
@@ -1026,7 +1026,7 @@ def launch_satellite(
 ) -> int:
     """Launch a native satellite player subprocess, returning its PID.
 
-    A sibling of :func:`launch_nau`: our own mpv-backed process, launched at the
+    A sibling of :func:`launch_main_player`: our own mpv-backed process, launched at the
     given rect with the given distinct *title*, driven through the
     command/paused/status file quartet, and drawing its own lock HUD from the
     published panel.

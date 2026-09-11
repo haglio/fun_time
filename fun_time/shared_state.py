@@ -86,8 +86,8 @@ class BridgeState:
     main_plays_flat: bool = True
     # Genau's own, kept apart from ``main_latest`` even though the two players
     # share the main slot: ``main_latest`` describes the playlist file we built
-    # for Nau, and a Genau reorder rewrites nothing of Nau's.  One flag for both
-    # would light "Latest" on Nau's console over a playlist nobody reordered.
+    # for the main player, and a Genau reorder rewrites nothing of the main player's.  One flag for both
+    # would light "Latest" on the main player's console over a playlist nobody reordered.
     # It alone does not resume (fun_time.session_resume.NOT_RESUMED): Genau
     # reshuffles its clips folder at every launch.
     genau_latest: bool = False
@@ -163,7 +163,7 @@ def write_shared_state(state_file: Path, state: BridgeState) -> None:
     tmp.replace(state_file)
 
 
-_RESUMED_MAIN_MODES = {"nau": MAIN_VIDEO_MODE, "hybrid": MAIN_VIDEO_MODE}
+_RESUMED_MAIN_MODES = {"main_player": MAIN_VIDEO_MODE, "hybrid": MAIN_VIDEO_MODE}
 _RESUMED_SATELLITES_MODES = {"player": "video"}
 
 

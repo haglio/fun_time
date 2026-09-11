@@ -49,7 +49,7 @@ def _write_config(path: Path) -> Path:
         "paths": {
             "ahk_exe": "C:/Program Files/AutoHotkey/v2/AutoHotkey64.exe",
             "python_exe": ".venv/Scripts/pythonw.exe",
-            "nau_library_dirs": ["C:/library/main"],
+            "main_player_library_dirs": ["C:/library/main"],
             "portrait_dirs": ["C:/library/portrait"],
             "landscape_dirs": ["C:/library/landscape"],
             "weird_dir": "C:/library/misc",
@@ -59,7 +59,7 @@ def _write_config(path: Path) -> Path:
             "state_dir": "state",
             "genau_python_exe": "C:/genau/.venv/Scripts/pythonw.exe",
             "genau_config_path": "C:/genau/genau_config.json",
-            # Relative on purpose: a checkout Genau and Nau are run out of sits
+            # Relative on purpose: a checkout Genau and the main player are run out of sits
             # one directory up from the primary, which from a worktree is a
             # different place entirely.
             "genau_project_dirs": ["../genau", "../player_core"],
@@ -244,7 +244,7 @@ def _write_genau_override(checkouts, text: str) -> None:
 
 
 def test_a_worktree_can_name_the_genau_checkout_its_own_session_runs(checkouts):
-    """Which checkout of ../genau Nau and Genau come from is a per-session fact,
+    """Which checkout of ../genau the main player and Genau come from is a per-session fact,
     and until this it could only be said in the machine's one config — where it
     reached the user's ordinary session and every other agent's branch session
     too."""
@@ -571,19 +571,19 @@ def _live_state(checkouts) -> Path:
     state = checkouts.primary / "state"
     (state / "hud_thumbnails").mkdir(parents=True)
     (state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"thumbnail")
-    (state / "nau_durations.json").write_text(json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8")
+    (state / "main_player_durations.json").write_text(json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8")
     (state / "watch_stats.json").write_text(json.dumps({"C:/library/main/one.mp4": {"seconds": 90}}), encoding="utf-8")
     # Session state, which must stay the branch session's own.
-    (state / "nau_playlist.tsv").write_text("C:/library/main/one.mp4\n", encoding="utf-8")
+    (state / "main_player_playlist.tsv").write_text("C:/library/main/one.mp4\n", encoding="utf-8")
     (state / "dashboard_cmd.txt").write_text("portrait_lock", encoding="utf-8")
     (state / "shared_state.ini").write_text("[state]\n", encoding="utf-8")
     return state
 
 
 def test_the_library_caches_are_started_from_the_live_sessions(checkouts):
-    """Startup waits for Nau to report the video it is opening, and Nau reports
+    """Startup waits for the main player to report the video it is opening, and the main player reports
     nothing until it has a duration for it — so against a cold
-    ``nau_durations.json`` it probed the whole library first and a branch launch
+    ``main_player_durations.json`` it probed the whole library first and a branch launch
     took 45 seconds where the live session takes 4.  The thumbnail cache and the
     watch stats are the same cost paid later: blank HUD maps and an empty
     breeding view, neither of them the branch's doing."""
@@ -594,7 +594,7 @@ def test_the_library_caches_are_started_from_the_live_sessions(checkouts):
     )
 
     state = branch_config.parent
-    assert json.loads((state / "nau_durations.json").read_text(encoding="utf-8")) == {
+    assert json.loads((state / "main_player_durations.json").read_text(encoding="utf-8")) == {
         "C:/library/main/one.mp4": {"ms": 1}
     }
     assert (state / "watch_stats.json").is_file()
@@ -612,7 +612,7 @@ def test_nothing_describing_the_session_itself_is_seeded(checkouts):
     )
 
     state = branch_config.parent
-    assert not (state / "nau_playlist.tsv").exists()
+    assert not (state / "main_player_playlist.tsv").exists()
     assert not (state / "dashboard_cmd.txt").exists()
     assert not (state / "shared_state.ini").exists()
 
@@ -633,19 +633,19 @@ def test_a_branch_sessions_own_watch_stats_are_not_rolled_back_by_older_ones(che
 
 
 def test_the_duration_cache_is_merged_rather_than_copied(checkouts):
-    """Nau rewrites the file with what it loaded plus what it probed, so a
+    """The main player rewrites the file with what it loaded plus what it probed, so a
     branch session's copy shrinks to its own view of the library.  Both files
     are partial views of one library, and the union is what either wants."""
     live = _live_state(checkouts)
     branch_state = checkouts.worktree / "state"
     branch_state.mkdir(parents=True)
-    (branch_state / "nau_durations.json").write_text(
+    (branch_state / "main_player_durations.json").write_text(
         json.dumps({"C:/library/main/two.mp4": {"ms": 2}}), encoding="utf-8"
     )
 
     branch_session.merge_duration_cache(live, branch_state)
 
-    assert json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8")) == {
+    assert json.loads((branch_state / "main_player_durations.json").read_text(encoding="utf-8")) == {
         "C:/library/main/one.mp4": {"ms": 1},
         "C:/library/main/two.mp4": {"ms": 2},
     }
@@ -653,19 +653,19 @@ def test_the_duration_cache_is_merged_rather_than_copied(checkouts):
 
 def test_a_newer_duration_cache_still_takes_what_the_live_session_knows(checkouts):
     """The regression this exists for.  Copy-if-newer skipped the seed for every
-    worktree that had launched once, because Nau's own rewrite is always newer
+    worktree that had launched once, because the main player's own rewrite is always newer
     than the live session's file — so branch launches went on re-probing the
     library and taking half a minute long after the seeding landed."""
     live = _live_state(checkouts)
     branch_state = checkouts.worktree / "state"
     branch_state.mkdir(parents=True)
-    (branch_state / "nau_durations.json").write_text(json.dumps({"its own": {}}), encoding="utf-8")
-    stale = (live / "nau_durations.json").stat().st_mtime - 3600
-    os.utime(live / "nau_durations.json", (stale, stale))
+    (branch_state / "main_player_durations.json").write_text(json.dumps({"its own": {}}), encoding="utf-8")
+    stale = (live / "main_player_durations.json").stat().st_mtime - 3600
+    os.utime(live / "main_player_durations.json", (stale, stale))
 
     branch_session.seed_derived_caches(live, branch_state)
 
-    merged = json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8"))
+    merged = json.loads((branch_state / "main_player_durations.json").read_text(encoding="utf-8"))
     assert set(merged) == {"its own", "C:/library/main/one.mp4"}
 
 
@@ -675,13 +675,13 @@ def test_the_branchs_own_reading_of_a_file_wins_over_the_live_sessions(checkouts
     live = _live_state(checkouts)
     branch_state = checkouts.worktree / "state"
     branch_state.mkdir(parents=True)
-    (branch_state / "nau_durations.json").write_text(
+    (branch_state / "main_player_durations.json").write_text(
         json.dumps({"C:/library/main/one.mp4": {"ms": 999}}), encoding="utf-8"
     )
 
     branch_session.merge_duration_cache(live, branch_state)
 
-    merged = json.loads((branch_state / "nau_durations.json").read_text(encoding="utf-8"))
+    merged = json.loads((branch_state / "main_player_durations.json").read_text(encoding="utf-8"))
     assert merged["C:/library/main/one.mp4"] == {"ms": 999}
 
 

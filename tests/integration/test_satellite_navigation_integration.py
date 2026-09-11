@@ -258,9 +258,9 @@ def _bridge_config(satellite: _Satellite, tmp_path: Path) -> BridgeConfig:
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
-        nau_cmd_file=state_dir / "nau_cmd.txt",
-        nau_paused_file=state_dir / "nau_paused.txt",
-        nau_status_file=state_dir / "nau_status.txt",
+        main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        main_player_paused_file=state_dir / "main_player_paused.txt",
+        main_player_status_file=state_dir / "main_player_status.txt",
         dashboard_state_file=state_dir / "dashboard_state.ini",
     )
 

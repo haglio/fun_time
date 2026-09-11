@@ -82,14 +82,14 @@ class TestLoadConfig:
         with pytest.raises(TypeError):
             load_config(cfg_file)
 
-    def test_raises_when_nau_library_dirs_empty(self, cfg_factory):
-        path = cfg_factory({"paths": {"nau_library_dirs": []}})
-        with pytest.raises(ValueError, match="nau_library_dirs"):
+    def test_raises_when_main_player_library_dirs_empty(self, cfg_factory):
+        path = cfg_factory({"paths": {"main_player_library_dirs": []}})
+        with pytest.raises(ValueError, match="main_player_library_dirs"):
             load_config(path)
 
-    def test_nau_library_dirs_not_a_list(self, cfg_factory):
-        path = cfg_factory({"paths": {"nau_library_dirs": "not-a-list"}})
-        with pytest.raises(TypeError, match="nau_library_dirs"):
+    def test_main_player_library_dirs_not_a_list(self, cfg_factory):
+        path = cfg_factory({"paths": {"main_player_library_dirs": "not-a-list"}})
+        with pytest.raises(TypeError, match="main_player_library_dirs"):
             load_config(path)
 
     def test_loads_paths_correctly(self, cfg_path: Path, tmp_path: Path):
@@ -235,15 +235,15 @@ class TestRegenConfig:
         assert cfg.paths.portrait_dirs == ((tmp_path / "videos" / "videos" / "portrait").resolve(),)
         assert cfg.paths.landscape_dirs == ((tmp_path / "videos" / "videos" / "landscape").resolve(),)
 
-    def test_multiple_nau_library_dirs(self, tmp_path: Path, cfg_factory):
+    def test_multiple_main_player_library_dirs(self, tmp_path: Path, cfg_factory):
         extra = tmp_path / "extra"
         extra.mkdir()
-        path = cfg_factory({"paths": {"nau_library_dirs": [
-            str(tmp_path / "nau_library"),
+        path = cfg_factory({"paths": {"main_player_library_dirs": [
+            str(tmp_path / "main_player_library"),
             str(extra),
         ]}})
         cfg = load_config(path)
-        assert len(cfg.paths.nau_library_dirs) == 2
+        assert len(cfg.paths.main_player_library_dirs) == 2
 
     def test_multiple_portrait_and_landscape_dirs(self, tmp_path: Path, cfg_factory):
         portrait_extra = tmp_path / "portrait_extra"

@@ -2,7 +2,7 @@
   "paths": {
     "ahk_exe": "C:/Program Files/AutoHotkey/v2/AutoHotkey64.exe",
     "python_exe": "C:/path/to/fun_time/.venv/Scripts/pythonw.exe",
-    "nau_library_dirs": [
+    "main_player_library_dirs": [
       "C:/path/to/library/main"
     ],
     "portrait_dirs": [

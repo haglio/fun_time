@@ -5,7 +5,7 @@ in a ``pytest.ini`` beside ``pyproject.toml``, passing ``-c pyproject.toml`` —
 natural thing to reach for in a worktree, and what an agent did — selected a config
 that declared nothing: no ``addopts`` (so no sanitize plugin and no timeout) and no
 ``norecursedirs``, which swept ``tests/integration/`` into what was meant to be a unit
-run and put the suite's real players, Nau and AHK bridge on the user's monitors while
+run and put the suite's real players, the main player and AHK bridge on the user's monitors while
 he was working.
 
 Holding the settings in ``pyproject.toml`` is what makes an explicit ``-c`` and bare

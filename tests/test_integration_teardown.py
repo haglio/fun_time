@@ -58,7 +58,7 @@ def test_reap_off_the_hidden_desktop_kills_nothing_at_all():
 
     Off the hidden desktop this used to run `Get-Process pythonw,autohotkey64 |
     where StartTime > -5min | Stop-Process -Force`, which is every satellite,
-    Nau, Genau, the dashboard, the audio companion and the AHK bridge of any
+    The main player, Genau, the dashboard, the audio companion and the AHK bridge of any
     session started in the last five minutes — the user's included.  It existed
     to support bare `pytest tests/integration/`, which is exactly the invocation
     that is forbidden; the suite now refuses that run instead of sweeping.

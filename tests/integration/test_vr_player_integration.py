@@ -26,7 +26,7 @@ from player_core.file_channel import append_command
 
 from fun_time.config import load_config
 from fun_time.manifest import LaunchManifest, write_manifest_data
-from fun_time.player_status import read_nau_status
+from fun_time.player_status import read_main_player_status
 from fun_time.runtime_flow import apply_mode_switch
 from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.layout import (
@@ -111,8 +111,8 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     # where opening a cold file blocks inside the drive's own driver.  No timeout
     # can end a thread stuck there, and Windows cannot finish closing a process
     # that has one, so every run that read them left an unkillable python process.
-    main_videos = _sample_library_videos(config.paths.nau_library_dirs, 2)
-    Path(commands.nau_playlist_file).write_text(
+    main_videos = _sample_library_videos(config.paths.main_player_library_dirs, 2)
+    Path(commands.main_player_playlist_file).write_text(
         "".join(f"{video}\n" for video in main_videos), encoding="utf-8"
     )
     Path(commands.portrait_playlist_file).write_text(
@@ -123,7 +123,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         "".join(f"{video}\n" for video in _sample_library_videos(config.paths.landscape_dirs, 2)),
         encoding="utf-8",
     )
-    for side in ("nau", "portrait", "landscape"):
+    for side in ("main_player", "portrait", "landscape"):
         Path(commands.side_file(side, "paused")).write_text("0", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
@@ -204,7 +204,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         # Status flows from the worker before any frame renders — the
         # orchestrator's startup gate reads this exact file.
         _wait(
-            lambda: read_nau_status(Path(commands.nau_status_file)).video,
+            lambda: read_main_player_status(Path(commands.main_player_status_file)).video,
             timeout=30, desc="the main player's first status write",
         )
 
@@ -251,10 +251,10 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         )
 
         # Commands travel the file channel through the worker thread.
-        first_video = read_nau_status(Path(commands.nau_status_file)).video
-        append_command(Path(commands.nau_cmd_file), "NEXT")
+        first_video = read_main_player_status(Path(commands.main_player_status_file)).video
+        append_command(Path(commands.main_player_cmd_file), "NEXT")
         _wait(
-            lambda: read_nau_status(Path(commands.nau_status_file)).video
+            lambda: read_main_player_status(Path(commands.main_player_status_file)).video
             not in ("", first_video),
             timeout=20, desc="NEXT to advance the main player",
         )
@@ -370,14 +370,14 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     manifest = LaunchManifest.read(manifest_path)
     vr = vrp.VrSettings.read(manifest_path)
     commands = manifest.commands
-    Path(commands.nau_playlist_file).write_text(
+    Path(commands.main_player_playlist_file).write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(
-            config.paths.nau_library_dirs, 2)),
+            config.paths.main_player_library_dirs, 2)),
         encoding="utf-8",
     )
     # Genau mode is where the main player waits paused, and the flag survives a
     # session end -- so this is the state a headset session opens in.
-    Path(commands.nau_paused_file).write_text("1", encoding="utf-8")
+    Path(commands.main_player_paused_file).write_text("1", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
@@ -404,22 +404,22 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
 
     try:
         pump.start()
-        _wait(lambda: read_nau_status(Path(commands.nau_status_file)).duration_ms,
+        _wait(lambda: read_main_player_status(Path(commands.main_player_status_file)).duration_ms,
               timeout=30, desc="the main player to open its video")
         run_frames(120)
-        assert read_nau_status(Path(commands.nau_status_file)).paused, (
+        assert read_main_player_status(Path(commands.main_player_status_file)).paused, (
             "the main player should still be holding where genau mode left it"
         )
 
         apply_mode_switch(
             current_mode="genau", target_mode="video", omni_paused=False,
             genau_cmd_file=commands.genau_cmd_file,
-            nau_paused_file=commands.nau_paused_file,
-            nau_cmd_file=commands.nau_cmd_file,
+            main_player_paused_file=commands.main_player_paused_file,
+            main_player_cmd_file=commands.main_player_cmd_file,
         )
 
         position = _wait(
-            lambda: (run_frames(9) or read_nau_status(Path(commands.nau_status_file)).position_ms),
+            lambda: (run_frames(9) or read_main_player_status(Path(commands.main_player_status_file)).position_ms),
             timeout=30,
             desc="the main player's position to advance once video mode unpaused it",
         )

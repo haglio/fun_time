@@ -9,9 +9,9 @@ means the same window a test in the other one does.
 from __future__ import annotations
 
 # HWNDs the role lookups resolve to: portrait, landscape and dashboard by pid;
-# Nau by pid (with an exact-title fallback); Genau by title; RFB from the hwnd
+# The main player by pid (with an exact-title fallback); Genau by title; RFB from the hwnd
 # captured at startup.
-NAU_HWND = 2001
+MAIN_PLAYER_HWND = 2001
 PORTRAIT_HWND = 3001
 LANDSCAPE_HWND = 4001
 DASHBOARD_HWND = 5001
@@ -24,20 +24,20 @@ HOSTED_HWND = 8001
 HOSTED_PORTRAIT_HWND = 8002
 HOSTED_LANDSCAPE_HWND = 8003
 
-NAU_PID = 200
+MAIN_PLAYER_PID = 200
 PORTRAIT_PID = 300
 LANDSCAPE_PID = 400
 DASHBOARD_PID = 500
 
 PID_TO_HWND = {
-    NAU_PID: NAU_HWND,
+    MAIN_PLAYER_PID: MAIN_PLAYER_HWND,
     PORTRAIT_PID: PORTRAIT_HWND,
     LANDSCAPE_PID: LANDSCAPE_HWND,
     DASHBOARD_PID: DASHBOARD_HWND,
 }
 
 # The windows that are topmost in EVERY mode — the ones that own a rect and so
-# overlap nothing.  Nau and Genau SHARE the main player's rect, so each is in
+# overlap nothing.  The main player and Genau SHARE the main slot's rect, so each is in
 # the band only in the modes where it shows something; every test folds those
 # two in or out as its own mode requires.
 TOPMOST_HWNDS = {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND}

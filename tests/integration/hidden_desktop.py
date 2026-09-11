@@ -1,6 +1,6 @@
 """Run the integration suite on a hidden Win32 desktop — invisibly, focus-safe.
 
-The suite launches real windows (Nau/the satellites — all mpv, the dashboard, AHK) and asserts on
+The suite launches real windows (the main player/the satellites — all mpv, the dashboard, AHK) and asserts on
 real window state, so it must run on the native Qt platform — but that throws those
 windows onto the monitors and can grab focus.  A Win32 *desktop* other than the
 input desktop fixes this: its windows are real HWNDs (winId != 0, real styles, real
@@ -9,7 +9,7 @@ foreground.
 
 ``CreateDesktopW`` makes the desktop; ``CreateProcessW`` with ``STARTUPINFO.lpDesktop``
 binds pytest to it, and every subprocess pytest spawns (orchestrator -> the
-satellites / Nau / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
+satellites / the main player / AHK / dashboard) inherits it.  The win32 lookup helpers enumerate the caller's own
 desktop, so they see the app because pytest shares the hidden desktop.  There is no
 silent fall-back: if the desktop can't be opened, ``CreateProcessW`` fails, so a run
 can never leak onto the real screen.
@@ -35,7 +35,7 @@ exception: it is a service that outlives the session, and it breaks away (see
 Usage (default integration command):
 
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop
-    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k nau   # extra args pass through
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k main_player   # extra args pass through
 """
 from __future__ import annotations
 
@@ -96,7 +96,7 @@ WAIT_TIMEOUT = 0x00000102
 STILL_ACTIVE = 259
 
 # Destroying the job terminates every process still in it.  The run's whole
-# process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
+# process tree — pytest, the orchestrator, the satellites, the main player, Genau, AHK — is in it,
 # because a process created by a process in a job joins that job.
 JOB_OBJECT_LIMIT_BREAKAWAY_OK = 0x00000800
 JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x00002000
