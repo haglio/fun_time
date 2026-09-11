@@ -3,7 +3,7 @@
 Fun Time is a Windows desktop setup that launches and coordinates:
 
 - Nau, a funscript video player for the main player's video library (lives in the separate `../genau` project, launched as `python -m nau`)
-- two satellite VLC instances (portrait and landscape)
+- two satellite players, portrait and landscape (this repo's own mpv-based `satellite` package, launched as `python -m satellite`)
 - Genau, a clip-based visualizer for OSR2 auto mode (the separate `../genau` project)
 - a Genau audio companion
 - a minimal AutoHotkey hotkey shell (window placement and command dispatch run in Python)
@@ -41,7 +41,7 @@ Runtime state:
 
 Local runtime data:
 
-- `favs.csv` — favorites CSV written when a satellite VLC is locked
+- `favs.csv` — favorites CSV written when a satellite is locked
 - `Fun Time.lnk` — convenience shortcut
 
 ## Recommended project-local paths
@@ -81,7 +81,7 @@ For the satellite AI libraries, Fun Time can now read either a single folder or 
 - `paths.portrait_dir` or `paths.portrait_dirs`
 - `paths.landscape_dir` or `paths.landscape_dirs`
 
-If the list form is used, the portrait or landscape VLC gets all listed folders joined into one rotating source set.
+If the list form is used, the portrait or landscape satellite gets all listed folders joined into one rotating source set.
 
 Nau's video library folders are configured with `paths.nau_library_dirs` (a list of one or more folders):
 
@@ -114,8 +114,8 @@ The layout values that used to be hard-coded in AutoHotkey now live under `layou
 
 Monitor naming under `layout` now uses:
 
-- `primary_monitor` — the monitor that shows the landscape VLC, the dashboard, and the Random Favs Browser
-- `secondary_monitor` — the monitor that shows the portrait VLC and the shared main-player slot (Nau and Genau use the same rect)
+- `primary_monitor` — the monitor that shows the landscape satellite, the dashboard, and the Random Favs Browser
+- `secondary_monitor` — the monitor that shows the portrait satellite and the shared main-player slot (Nau and Genau use the same rect)
 
 ## High-level architecture
 
@@ -141,7 +141,6 @@ Every recognized voice command flashes a **green confirmation** — the phrase i
 
 ### Windows apps
 
-- VLC
 - AutoHotkey v2
 
 ### Python / tools
@@ -454,12 +453,12 @@ It ranks every stamped clip in the configured library by that weight — "Rising
 
 ## Favorites CSV behavior
 
-When a satellite VLC is locked, the current media item is added to `favs.csv`.
+When a satellite is locked, the current media item is added to `favs.csv`.
 
 Specifically:
 
-- locking the portrait VLC writes its current item to `favs.csv`
-- locking the landscape VLC writes its current item to `favs.csv`
+- locking the portrait satellite writes its current item to `favs.csv`
+- locking the landscape satellite writes its current item to `favs.csv`
 
 The CSV contains two columns:
 
