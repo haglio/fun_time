@@ -9,6 +9,13 @@ chronically-skipped ones fade, a continuous companion to mark-as-weird.
 
 Stats live in one JSON file under the state dir, keyed by normalized video
 path: ``{"completions": int, "skips": int, "locks": int}``.
+
+That shape is a contract with Evolver, which moves the videos counted here and
+re-keys this file in place when it does, keeping this app's own normalization.
+It carries no version, and cannot: every top-level key is a video path, so a
+key reserved for a number would reach that side as a video to go looking for.
+The shape is what Evolver checks instead, which is why
+`tests/test_watch_stats.py` holds it.
 """
 from __future__ import annotations
 

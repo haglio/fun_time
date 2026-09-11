@@ -197,3 +197,31 @@ def test_tracker_discard_suppresses_classifying_the_departed_video():
 
     tracker.observe("b.mp4", 0.95)
     assert tracker.observe("c.mp4", 0.0) == [("completion", "b.mp4")]
+
+
+class TestTheShapeAnotherAppRewrites:
+    """Evolver moves the videos counted here, so it re-keys this file in place
+    and has to keep this app's own normalization -- a key written in any other
+    case never matches again, which strands the counts as thoroughly as the
+    move would have. Nothing over there imports this, so the shape is the whole
+    contract."""
+
+    def test_a_row_is_keyed_by_the_path_as_this_app_normalizes_it(self, tmp_path: Path):
+        video = tmp_path / "Portrait" / "Example Clip.mp4"
+        video.parent.mkdir(parents=True)
+        video.write_text("v", encoding="utf-8")
+        stats_file = tmp_path / "watch_stats.json"
+
+        record_watch_event(stats_file, str(video), "completion")
+
+        assert list(load_watch_stats(stats_file)) == [normalize_path_key(str(video))]
+
+    def test_a_row_holds_the_three_counts_and_nothing_else(self, tmp_path: Path):
+        video = tmp_path / "clip.mp4"
+        video.write_text("v", encoding="utf-8")
+        stats_file = tmp_path / "watch_stats.json"
+
+        record_watch_event(stats_file, str(video), "skip")
+
+        row = load_watch_stats(stats_file)[normalize_path_key(str(video))]
+        assert sorted(row) == ["completions", "locks", "skips"]

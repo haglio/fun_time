@@ -12,40 +12,16 @@ it).
 from __future__ import annotations
 
 import json
-import os
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from app_support.json_store import locked_update
+from app_support.mirrored_tree import library_roots_beside, mirrored_path
 
 
 def normalize_path_key(path: str) -> str:
     return path.strip().lower()
-
-
-def _as_spelled(path: str | Path) -> Path:
-    """The path made absolute without asking the disk anything."""
-    return Path(os.path.abspath(path))
-
-
-def _as_folded(path: str | Path) -> Path:
-    """The spelling with its case folded.  The stats file keys a clip by its
-    lowercased path (:func:`normalize_path_key`), and a library root with a
-    capital in it is the same place on the case-insensitive disks the library
-    lives on -- though not to ``relative_to`` on a platform whose paths compare
-    case-sensitively, which left the breeding report empty there."""
-    return Path(str(_as_spelled(path)).lower())
-
-
-def _as_the_disk_has_it(path: str | Path) -> Path:
-    """The path with every junction and symlink followed: a trip to the disk, which on
-    a drive busy syncing can block for minutes, so only taken when the spelling alone
-    did not place the clip under the library."""
-    try:
-        return Path(path).resolve()
-    except OSError:
-        return Path(path)
 
 
 def metadata_path_for(
@@ -54,23 +30,20 @@ def metadata_path_for(
 ) -> Path | None:
     """Map a video to its metadata JSON, mirroring the whole video library.
 
-    The metadata tree parallels the video tree one-to-one: a clip at
-    ``<library>/2D/AI/2_outbox/x.mp4`` has its sidecar at
-    ``<metadata_root>/2D/AI/2_outbox/x.json``.  The library root is the
-    ``videos`` sibling of *metadata_root* (``…/videos/metadata`` pairs with
-    ``…/videos/videos``), so AI and non-AI clips both resolve through here.
+    The rule -- same relative path under the other root, suffix swapped, and
+    the several spellings a path can reach here under -- belongs to every app
+    that reads one of these files and is
+    :mod:`app_support.mirrored_tree`; this module used to carry a copy of it.
     """
     if metadata_root is None:
         return None
     metadata_root = Path(metadata_root)
-    library_root = metadata_root.parent / "videos"
-    for place in (_as_spelled, _as_folded, _as_the_disk_has_it):
-        try:
-            rel = place(video_path).relative_to(place(library_root))
-        except ValueError:
-            continue
-        return metadata_root / rel.with_suffix(".json")
-    return None
+    return mirrored_path(
+        video_path,
+        roots=library_roots_beside(metadata_root),
+        mirror_root=metadata_root,
+        suffix=".json",
+    )
 
 
 # Evolver records what kind every library video is on its sidecar, as
