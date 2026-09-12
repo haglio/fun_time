@@ -25,7 +25,7 @@ from PyQt6.QtWidgets import QApplication
 # runs — and without this the imports below resolve the primaries and a
 # cross-repo branch cannot even collect.  A no-op in the primary and in CI,
 # where no override file exists.
-from fun_time.branch_session import apply_genau_dirs_to_sys_path
+from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 
 apply_genau_dirs_to_sys_path()
 

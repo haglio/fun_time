@@ -25,7 +25,7 @@ from pathlib import Path
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.branch_session import apply_genau_dirs_to_sys_path
+from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 
 # Before anything that reaches the dispatch loop: a worktree's
 # genau_project_dirs override reaches Genau and Nau as subprocess PYTHONPATH,

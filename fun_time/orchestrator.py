@@ -12,7 +12,10 @@ import logging
 import os
 from pathlib import Path
 
-from .branch_session import apply_genau_dirs_to_sys_path, apply_origenerator_dir_override
+from .checkout_overrides import (
+    apply_genau_dirs_to_sys_path,
+    apply_origenerator_dir_override,
+)
 from .config import DEFAULT_CONFIG_PATH, load_config
 
 # Before the bridge imports: a worktree's genau_project_dirs override reaches
