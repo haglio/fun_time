@@ -764,45 +764,24 @@ def build_integration_temp_root() -> Path:
     return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
 
 
-# How long a draw may spend LOOKING before it gives up: listing the library, and
-# probing what it drew.  Both walk a cloud drive that fetches a cold file from
-# the internet on first open, so both can outlast pytest's own per-test timeout
-# -- and the timeout runs on a thread, which cannot interrupt a blocked read, so
-# the run then hangs holding the machine-wide lock (2026-09-11, twice).  A budget
-# turns that into a named failure.
-LISTING_BUDGET_S = 30.0
+# How long a draw may spend probing what it drew before it gives up.  Every
+# skipped clip costs a real wait, so a slow library could otherwise outlast
+# pytest's own per-test timeout -- and that timeout runs on a thread, which
+# cannot interrupt a blocked read.
 PROBE_BUDGET_S = 90.0
 
 
-def library_clips(roots, *, budget_s: float = LISTING_BUDGET_S, walk=os.walk) -> list[Path]:
-    """Every video under each of *roots*, or as many as *budget_s* each buys.
-
-    Listed on a thread it may never return from, the way a cold clip is read
-    (:func:`readable_at_speed`).  One directory of the cloud drive can block for
-    minutes by itself, so a deadline checked between directories is no deadline
-    at all: the run was still inside a single walk step when the test timed out.
-
-    The budget is per root, so a cold root costs its own and nothing else's --
-    the VR masters going cold must still leave the local library listed, since
-    falling back to it is what the caller is counting on.
-    """
-    found: list[Path] = []
-    for root in roots:
-        reached = len(found)
-
-        def crawl(root=root) -> None:
-            for dirpath, _dirs, filenames in walk(root):
-                found.extend(
-                    Path(dirpath) / name for name in filenames
-                    if Path(name).suffix.lower() in VIDEO_EXTENSIONS)
-
-        lister = threading.Thread(target=crawl, daemon=True)
-        lister.start()
-        lister.join(budget_s)
-        if lister.is_alive():
-            print(f"[integration] stopped listing after {budget_s:g}s with "
-                  f"{len(found) - reached} clips from one source; the draw is over those")
-    return list(found)
+def library_clips(roots) -> list[Path]:
+    """Every video under *roots*.  Point it at local folders only: a walk that
+    reaches into the cloud drive can block inside its driver, where nothing ends
+    it and the process can never finish exiting."""
+    return [
+        Path(dirpath) / name
+        for root in roots
+        for dirpath, _dirs, filenames in os.walk(root)
+        for name in filenames
+        if Path(name).suffix.lower() in VIDEO_EXTENSIONS
+    ]
 
 
 def sample_library_clips(candidates, count: int, *, desc: str, readable=None,

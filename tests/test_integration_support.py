@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import socket
 import time
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -451,41 +452,23 @@ def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
     assert len(probed) == 2
 
 
-def test_the_listing_gives_up_on_a_source_that_blocks_inside_one_directory(tmp_path, capsys):
-    """One directory of the cloud drive can block for minutes on its own, so a
-    deadline checked between directories is no deadline at all — the run was
-    still inside a single walk step when pytest's own timeout fired."""
-    def crawl(root):
-        yield str(tmp_path), [], ["one.mp4"]
-        time.sleep(5)
-        yield str(tmp_path), [], ["two.mp4"]
-
-    found = library_clips([tmp_path], budget_s=0.2, walk=crawl)
-
-    assert [clip.name for clip in found] == ["one.mp4"]
-    assert "stopped listing" in capsys.readouterr().out
-
-
-def test_a_cold_source_still_leaves_the_next_one_listed():
-    """The VR masters live on the cloud drive and the desktop library does not.
-    Falling back to the local one is what the VR draw is counting on, so a cold
-    root must cost its own budget and nothing else's."""
-    def crawl(root):
-        if root == "cold":
-            time.sleep(5)
-        yield str(root), [], [f"{root}.mp4"]
-
-    found = library_clips(["cold", "warm"], budget_s=0.2, walk=crawl)
-
-    assert [clip.name for clip in found] == ["warm.mp4"]
-
-
 def test_the_listing_keeps_only_the_video_files(tmp_path):
     (tmp_path / "clip.mp4").write_bytes(b"")
     (tmp_path / "clip.funscript").write_bytes(b"")
     (tmp_path / "notes.txt").write_bytes(b"")
 
     assert [p.name for p in library_clips([tmp_path])] == ["clip.mp4"]
+
+
+def test_the_vr_test_draws_nothing_from_the_vr_library():
+    """The VR masters sit on the cloud drive, where opening a cold file blocks
+    inside the drive's own driver: no timeout ends a thread stuck there, and
+    Windows cannot finish closing a process that has one.  Every run that drew
+    from them left an unkillable python process -- fifteen on 2026-09-12 -- so the
+    VR test draws from the desktop library alone."""
+    vr_test = Path(integration_support.__file__).with_name("test_vr_player_integration.py")
+
+    assert "vr.library_dirs" not in vr_test.read_text(encoding="utf-8")
 
 
 def test_a_window_whose_median_hides_a_stall_is_not_quiet():
