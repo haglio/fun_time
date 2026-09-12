@@ -224,9 +224,6 @@ _WIN32_REACHES = {
     # module the rest of the family asks for a monitor rather than measuring
     # one, which is why its count is the only one that ever goes up.
     "fun_time/monitors.py": 13,
-    # A fourth enumeration walk with its own hoisted handle and its own
-    # prototype; folding it into win32._first_window is its own change.
-    "fun_time/windows_bridge_sequencer.py": 9,
 }
 
 # What counts as reaching it.

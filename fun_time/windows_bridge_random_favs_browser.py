@@ -4,6 +4,9 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+# Matched as a substring of the window class, which is "Chrome_WidgetWin_1".
+CHROME_WINDOW_CLASS = "Chrome"
+
 
 @dataclass(frozen=True)
 class ChromeShortcut:

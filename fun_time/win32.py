@@ -109,6 +109,42 @@ def _first_window(match: Callable[[int], bool]) -> int:
     return found
 
 
+def _every_window(match: Callable[[int], bool]) -> set[int]:
+    """Every top-level window *match* accepts — :func:`_first_window`'s other
+    half, whose callback never stops the walk."""
+    found: set[int] = set()
+
+    def callback(hwnd: int, _lparam: int) -> bool:
+        if match(hwnd):
+            found.add(hwnd)
+        return True
+
+    _user32.EnumWindows(WNDENUMPROC(callback), 0)
+    return found
+
+
+def window_class(hwnd: int) -> str:
+    """*hwnd*'s window class — what an application's own windows share."""
+    name = ctypes.create_unicode_buffer(256)
+    _user32.GetClassNameW(hwnd, name, 256)
+    return name.value
+
+
+def find_windows_by_class(substring: str) -> set[int]:
+    """Every visible, titled window whose class name contains *substring*.
+
+    The class is how one application's windows are told from another's when
+    nothing else will do: a browser window carries the page's title, and the
+    process that launched it handed its URL to a Chrome already running, so
+    neither title nor pid finds it.  Titled and visible leaves out the internal
+    surfaces.
+    """
+    return _every_window(
+        lambda hwnd: bool(_user32.IsWindowVisible(hwnd))
+        and _user32.GetWindowTextLengthW(hwnd) > 0
+        and substring in window_class(hwnd))
+
+
 def find_window_by_pid(pid: int, *, include_hidden: bool = False) -> int:
     """Find a top-level window belonging to *pid*. Returns 0 if not found.
 

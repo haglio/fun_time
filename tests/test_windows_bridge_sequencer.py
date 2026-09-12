@@ -1197,8 +1197,8 @@ class TestWaitForNewChromeWindow:
     def test_returns_the_window_that_was_not_there_before(self, monkeypatch):
         self._clock(monkeypatch)
         snapshots = iter([{111, 222}, {111, 222}, {111, 222, 333}])
-        with patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds",
-                   side_effect=lambda: next(snapshots)):
+        with patch("fun_time.windows_bridge_sequencer.find_windows_by_class",
+                   side_effect=lambda _cls: next(snapshots)):
             hwnd = windows_bridge_sequencer._wait_for_new_chrome_window(
                 {111, 222}, timeout_ms=8000)
 
@@ -1206,7 +1206,7 @@ class TestWaitForNewChromeWindow:
 
     def test_gives_up_at_the_deadline_when_no_window_appears(self, monkeypatch):
         self._clock(monkeypatch)
-        with patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds",
+        with patch("fun_time.windows_bridge_sequencer.find_windows_by_class",
                    return_value={111, 222}):
             hwnd = windows_bridge_sequencer._wait_for_new_chrome_window(
                 {111, 222}, timeout_ms=3000)
@@ -1254,7 +1254,7 @@ class TestMaybeLaunchRandomFavsBrowser:
         launch_result = MagicMock(should_launch=True)
 
         with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
-             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
+             patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window") as mock_move:
@@ -1281,7 +1281,7 @@ class TestMaybeLaunchRandomFavsBrowser:
             return launch_result
 
         with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
-             patch("fun_time.windows_bridge_sequencer._get_chrome_window_hwnds", return_value=set()), \
+             patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
              patch("fun_time.windows_bridge_sequencer.move_window"):
