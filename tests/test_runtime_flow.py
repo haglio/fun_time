@@ -9,7 +9,6 @@ import pytest
 from fun_time.players import Player
 from fun_time.runtime_flow import (
     FMODE_PLAYERS,
-    PORTRAIT_PLAYER,
     SatelliteFmodeInputs,
     apply_enter_omnipause,
     apply_fmode,
@@ -195,7 +194,7 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
             Player.PORTRAIT: SatelliteFmodeInputs(recent=False, sources=str(portrait_root), cmd_file=tmp_path / "portrait_cmd.txt"),
             Player.LANDSCAPE: SatelliteFmodeInputs(recent=False, sources=str(landscape_root), cmd_file=landscape_cmd_file),
         },
-        players=(PORTRAIT_PLAYER,),
+        players=(Player.PORTRAIT,),
         enabled=True,
         main_sources="",
         favs_file=tmp_path / "favs.csv",
@@ -203,7 +202,7 @@ def test_fmode_on_one_player_leaves_the_others_playlists_untouched(tmp_path: Pat
         nau_cmd_file=nau_cmd_file,
     )
 
-    assert result.players == (PORTRAIT_PLAYER,)
+    assert result.players == (Player.PORTRAIT,)
     assert (state_dir / "portrait_playlist.tsv").exists()
     assert not (state_dir / "landscape_playlist.tsv").exists()
     assert not (state_dir / "nau_playlist.tsv").exists()

@@ -54,9 +54,6 @@ from .robot_hand_hold import (
 )
 from .runtime_flow import (
     FMODE_PLAYERS,
-    LANDSCAPE_PLAYER,
-    MAIN_PLAYER,
-    PORTRAIT_PLAYER,
     SatelliteFilterFlowResult,
     SatelliteFmodeInputs,
     apply_enter_omnipause,
@@ -791,42 +788,44 @@ def _main_slot_ops(main_mode: str) -> list[WindowOp]:
 # a player reaches that one alone, off its own HUD button or its own spoken
 # phrase.  ``both_fmode`` never arrives here: the dispatch loop expands every
 # both_* into its portrait/landscape pair first.
-_FMODE_COMMANDS: dict[str, tuple[tuple[str, ...], bool | None]] = {
+_FMODE_COMMANDS: dict[str, tuple[tuple[Player, ...], bool | None]] = {
     "fmode_toggle": (FMODE_PLAYERS, None),
     "fmode_on": (FMODE_PLAYERS, True),
     "fmode_off": (FMODE_PLAYERS, False),
-    "main_fmode": ((MAIN_PLAYER,), None),
-    "main_fmode_on": ((MAIN_PLAYER,), True),
-    "main_fmode_off": ((MAIN_PLAYER,), False),
-    "portrait_fmode": ((PORTRAIT_PLAYER,), None),
-    "portrait_fmode_on": ((PORTRAIT_PLAYER,), True),
-    "portrait_fmode_off": ((PORTRAIT_PLAYER,), False),
-    "landscape_fmode": ((LANDSCAPE_PLAYER,), None),
-    "landscape_fmode_on": ((LANDSCAPE_PLAYER,), True),
-    "landscape_fmode_off": ((LANDSCAPE_PLAYER,), False),
+    "main_fmode": ((Player.MAIN,), None),
+    "main_fmode_on": ((Player.MAIN,), True),
+    "main_fmode_off": ((Player.MAIN,), False),
+    "portrait_fmode": ((Player.PORTRAIT,), None),
+    "portrait_fmode_on": ((Player.PORTRAIT,), True),
+    "portrait_fmode_off": ((Player.PORTRAIT,), False),
+    "landscape_fmode": ((Player.LANDSCAPE,), None),
+    "landscape_fmode_on": ((Player.LANDSCAPE,), True),
+    "landscape_fmode_off": ((Player.LANDSCAPE,), False),
 }
 
 # Where each player's flash goes, so a sided F-mode reports on that player's own
 # display and the all-players one reports to the room.
 _FMODE_NOTICE_SOURCE = {
-    MAIN_PLAYER: SOURCE_MAIN,
-    PORTRAIT_PLAYER: SOURCE_PORTRAIT,
-    LANDSCAPE_PLAYER: SOURCE_LANDSCAPE,
-}
-
-_FMODE_STATE_FIELD = {
-    MAIN_PLAYER: "main_f_mode",
-    PORTRAIT_PLAYER: "portrait_f_mode",
-    LANDSCAPE_PLAYER: "landscape_f_mode",
+    Player.MAIN: SOURCE_MAIN,
+    Player.PORTRAIT: SOURCE_PORTRAIT,
+    Player.LANDSCAPE: SOURCE_LANDSCAPE,
 }
 
 
-def _player_f_mode(state: BridgeState, player: str) -> bool:
-    """Whether *player* is in F-mode — the one reader of the per-player flags."""
-    return bool(getattr(state, _FMODE_STATE_FIELD[player]))
+def _player_f_mode(state: BridgeState, player: Player) -> bool:
+    """Whether *player* is in F-mode — the main slot's own flag, or its side's."""
+    return state.main_f_mode if player is Player.MAIN else state.side(player).f_mode
 
 
-def _next_f_mode(state: BridgeState, players: tuple[str, ...]) -> bool:
+def _with_f_mode(state: BridgeState, players: tuple[Player, ...], enabled: bool) -> BridgeState:
+    """*state* with each of *players* put into F-mode, or out of it."""
+    for player in players:
+        state = (replace(state, main_f_mode=enabled) if player is Player.MAIN
+                 else state.with_side(player, f_mode=enabled))
+    return state
+
+
+def _next_f_mode(state: BridgeState, players: tuple[Player, ...]) -> bool:
     """What a toggle over *players* should set them all to.
 
     One player is an ordinary flip.  Several — the F key, or a spoken "f mode" —
@@ -838,7 +837,7 @@ def _next_f_mode(state: BridgeState, players: tuple[str, ...]) -> bool:
 
 
 def _dispatch_fmode(
-    players: tuple[str, ...], target: bool | None,
+    players: tuple[Player, ...], target: bool | None,
     state: BridgeState, config: BridgeConfig,
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Put *players* into F-mode or out of it, rebuilding only what moves.
@@ -872,13 +871,13 @@ def _dispatch_fmode(
     )
     if result.players:
         logger.info(result.log_message)
-    state = replace(state, **{_FMODE_STATE_FIELD[player]: enabled for player in result.players})
+    state = _with_f_mode(state, result.players, enabled)
     # A rebuilt satellite got a new queue, which drops its lock, its group loop and
     # the widened seed row that rode on the loop — the same as any other rebuild.
-    for player, which in ((PORTRAIT_PLAYER, 2), (LANDSCAPE_PLAYER, 3)):
+    for player in Player.SATELLITES:
         if player in result.players:
-            state = cancel_lock(which, state, config)
-            state = clear_side_grouping(state, which)
+            state = cancel_lock(player, state, config)
+            state = clear_side_grouping(state, player)
     # Flash which way it went, on the display it went on — a sided F-mode reports
     # from that player, the all-players one from the room.  It goes off the players
     # *asked for*, not the ones that moved: "f mode" is a gesture at the room even

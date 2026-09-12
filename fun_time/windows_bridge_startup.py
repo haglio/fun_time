@@ -491,8 +491,8 @@ def start_core_session(
     # A lock has no file of its own to come back in, so queue it for each side
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
-        (Path(portrait.cmd_file), carried.locked2),
-        (Path(landscape.cmd_file), carried.locked3),
+        (Path(portrait.cmd_file), carried.side(Player.PORTRAIT).locked),
+        (Path(landscape.cmd_file), carried.side(Player.LANDSCAPE).locked),
     ])
     # The main player's loop is the same kind of thing, and queued the same way —
     # but only if the main player really did come back onto the video the loop was

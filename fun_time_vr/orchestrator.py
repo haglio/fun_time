@@ -71,6 +71,7 @@ from fun_time.overlay_progress import (
     ready_file_for,
 )
 from fun_time.player_status import read_nau_status
+from fun_time.players import Player
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.satellite_control import read_satellite_status
 from fun_time.session_environment import SessionEnvironment
@@ -513,8 +514,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         # A lock lives in the player process, so it has to be re-sent; the roles read
         # the satellites' own command files, and the VR player is not up yet.
         resume_satellite_locks([
-            (Path(commands.portrait_cmd_file), carried.locked2),
-            (Path(commands.landscape_cmd_file), carried.locked3),
+            (Path(commands.portrait_cmd_file), carried.side(Player.PORTRAIT).locked),
+            (Path(commands.landscape_cmd_file), carried.side(Player.LANDSCAPE).locked),
         ])
         stock_the_playlists(
             manifest,

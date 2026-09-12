@@ -20,6 +20,7 @@ from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_slot import SatelliteSlot
 from fun_time.shared_state import (
     BridgeState,
+    SideState,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -804,24 +805,17 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(
-        main_f_mode=True,
-        portrait_f_mode=True,
-        portrait_filter="alpha",
-        landscape_latest=True,
-        portrait_loop="seed",
-        portrait_map_anchor="C:/v/a.mp4",
-    ))
+    write_shared_state(state_file, BridgeState(landscape=SideState(latest=True), portrait=SideState(f_mode=True, filter="alpha", loop="seed", map_anchor="C:/v/a.mp4"), main_f_mode=True))
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert (state.main_f_mode, state.portrait_f_mode) == (True, True)
-    assert state.portrait_filter == "alpha"
-    assert state.landscape_latest is True
-    assert state.portrait_loop == "seed"
-    assert state.portrait_map_anchor == "C:/v/a.mp4"
+    assert (state.main_f_mode, state.side(Player.PORTRAIT).f_mode) == (True, True)
+    assert state.side(Player.PORTRAIT).filter == "alpha"
+    assert state.side(Player.LANDSCAPE).latest is True
+    assert state.side(Player.PORTRAIT).loop == "seed"
+    assert state.side(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
     # state, but Nau's own HUD can only know F-mode from being told — so it is
     # told, or the main player is the one display that comes back saying nothing.
@@ -857,13 +851,13 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(
-        shared_state_path(kwargs["state_dir"]), BridgeState(locked2=True, locked3=False)
+        shared_state_path(kwargs["state_dir"]), BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=True))
     )
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
-    assert (state.locked2, state.locked3) == (True, False)
+    assert (state.side(Player.PORTRAIT).locked, state.side(Player.LANDSCAPE).locked) == (True, False)
     assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK"]
     assert not kwargs["landscape"].cmd_file.exists()
 

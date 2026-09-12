@@ -8,7 +8,7 @@ comes back and what cannot: ``docs/resuming-a-session.md``.
 from __future__ import annotations
 
 from collections.abc import Sequence
-from dataclasses import fields
+from dataclasses import fields, replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -16,8 +16,9 @@ from player_core.playlist import read_playlist
 
 from .media_metadata import normalize_path_key
 from .modes import source_roots, write_playlist_entries
+from .players import Player
 from .runtime_flow import SET_LOOP_CMD
-from .shared_state import BridgeState, read_shared_state, write_shared_state
+from .shared_state import BridgeState, SideState, read_shared_state, write_shared_state
 
 PlaylistEntries = list[tuple[Path, Path | None]]
 
@@ -34,7 +35,7 @@ PlaylistEntries = list[tuple[Path, Path | None]]
 # fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
-# These five are dropped because nothing carries them into the new session:
+# These are dropped because nothing carries them into the new session:
 # OmniPause's flags are cleared before the players launch, Genau reshuffles its
 # clips at every launch, whichever player was last addressed is a fact about the
 # session that ended, and a keyboard selection was never a thing to leave.
@@ -42,13 +43,24 @@ NOT_RESUMED = frozenset({
     "omni_paused",
     "active_side",
     "genau_latest",
-    "portrait_nav_anchor",
-    "landscape_nav_anchor",
 })
+
+# The same answer for a value one satellite carries (:class:`SideState`), since
+# that is where the keyboard selection lives.
+NOT_RESUMED_PER_SIDE = frozenset({"nav_anchor"})
 
 RESUMED_FIELDS: tuple[str, ...] = tuple(
     field.name for field in fields(BridgeState) if field.name not in NOT_RESUMED
 )
+
+RESUMED_SIDE_FIELDS: tuple[str, ...] = tuple(
+    field.name for field in fields(SideState) if field.name not in NOT_RESUMED_PER_SIDE
+)
+
+
+def _resumed_side(side: SideState) -> SideState:
+    """One satellite's state, minus what a new session does not bring back."""
+    return SideState(**{name: getattr(side, name) for name in RESUMED_SIDE_FIELDS})
 
 
 def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
@@ -195,10 +207,10 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     (docs/resuming-a-session.md).
     """
     previous = read_shared_state(state_file) if resumed else None
-    state = (
-        BridgeState()
-        if previous is None
-        else BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS})
+    state = BridgeState() if previous is None else replace(
+        BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
+        portrait=_resumed_side(previous.side(Player.PORTRAIT)),
+        landscape=_resumed_side(previous.side(Player.LANDSCAPE)),
     )
     write_shared_state(state_file, state)
     return state

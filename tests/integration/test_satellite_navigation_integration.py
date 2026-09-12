@@ -30,7 +30,7 @@ from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import HudPanel
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import read_satellite_status, write_satellite_command
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, SideState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.windows_bridge_startup import launch_satellite
 
@@ -341,7 +341,7 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     assert playing not in browse
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
-        dispatch_command("portrait_no_loop", BridgeState(portrait_loop="seed"), config)
+        dispatch_command("portrait_no_loop", BridgeState(portrait=SideState(loop="seed")), config)
 
     _drained(satellite)
     time.sleep(0.5)
@@ -399,7 +399,7 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
                 seed_count=len(row), active_loop=loop, playing=playing,
             ))
 
-        state = BridgeState(portrait_loop="", locked2=True)
+        state = BridgeState(portrait=SideState(loop="", locked=True))
         with patch("fun_time.satellite_groups.seed_family_items", return_value=family), \
                 patch("fun_time.satellite_groups.widened_seed_items", return_value=widened):
             state, _ = dispatch_command("portrait_loop", state, config)
