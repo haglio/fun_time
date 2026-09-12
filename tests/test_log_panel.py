@@ -310,47 +310,68 @@ def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
     assert panel.controls.layout().spacing() == BUTTON_GAP
 
 
-def test_the_source_toggles_are_the_familys_word_button(panel_factory):
-    """The same object a console's Video/Genau pair is, at the same size in the
-    same label type.  Left to Qt's own measurement they came out taller and set
-    larger than the buttons a foot below them on the same screen, which is the
-    inconsistency between a Qt window and a drawn HUD this family keeps paying
-    for -- so the size and the type are the family's here, and only the shape
-    and the toggling stay Qt's.
-    """
+def test_a_source_toggle_is_sized_the_way_a_huds_mode_button_is(panel_factory):
     from PyQt6.QtCore import Qt
-    from shared_ui.colors import BG_BUTTON, TEXT_PRIMARY
+    from PyQt6.QtGui import QFontMetrics
     from shared_ui.fonts import SIZE_TINY
-    from shared_ui.spacing import BUTTON_SIZE_HUD, BUTTON_WORD_W
+    from shared_ui.spacing import BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
 
     panel = panel_factory(["Clip saved"])
 
     for button in panel._source_buttons.values():
-        assert button.width() == BUTTON_WORD_W
+        label = QFontMetrics(button.font()).horizontalAdvance(button.text())
+        assert button.width() == label + 2 * BUTTON_PAD_H_TIGHT, button.text()
         assert button.height() == BUTTON_SIZE_HUD
         assert button.font().pointSize() == SIZE_TINY
         assert button.autoRaise()
         assert button.toolButtonStyle() == Qt.ToolButtonStyle.ToolButtonTextOnly
         assert button.isCheckable()
 
-        sheet = button.styleSheet()
-        assert BG_BUTTON.name() in sheet and TEXT_PRIMARY.name() in sheet
+
+def _grabbed(widget):
+    from PyQt6.QtGui import QColor
+
+    image = widget.grab().toImage()
+    return lambda x, y: QColor(image.pixel(x, y)).getRgb()[:3]
 
 
-def test_a_word_button_wears_the_consoles_mode_face(panel_factory):
-    """These are the same object the console's Video/Genau pair is: a word you
-    turn on.  On is the family's blue with the bright label, off the resting
-    ground with the muted one, and either goes one step lighter under the
-    pointer -- the one hover rule this family has."""
-    from shared_ui.colors import BG_BUTTON, BLUE, TEXT_MUTED, TEXT_PRIMARY, hovered
+def _brightest_ink(widget) -> int:
+    pixel = _grabbed(widget)
+    return max(min(pixel(x, y))
+               for x in range(2, widget.width() - 2) for y in range(2, widget.height() - 2))
 
-    panel = panel_factory(["Clip saved"])
-    sheet = panel._source_buttons["system"].styleSheet()
 
-    assert f"background: {BG_BUTTON.name()}" in sheet
-    assert TEXT_MUTED.name() in sheet
-    checked = sheet.split("QToolButton:checked {")[-1]
-    assert BLUE.name() in checked and TEXT_PRIMARY.name() in checked
+def _one_off_and_one_on(panel):
+    off, on = panel._source_buttons["main"], panel._source_buttons["system"]
+    off.setChecked(False)
+    on.setChecked(True)
+    return off, on
+
+
+def test_a_word_button_wears_the_huds_mode_button_edge_and_ground(panel_factory):
+    from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
+
+    off, on = _one_off_and_one_on(panel_factory(["Clip saved"]))
+
+    for button, edge, ground in ((off, TEXT_MUTED, BG_BUTTON), (on, BLUE, BLUE)):
+        pixel = _grabbed(button)
+        middle = button.height() // 2
+        assert pixel(0, middle) == edge, button.text()
+        assert pixel(2, middle) == ground, button.text()
+
+
+def test_a_word_buttons_label_is_bright_off_and_white_on(panel_factory):
+    off, on = _one_off_and_one_on(panel_factory(["Clip saved"]))
+
+    assert _brightest_ink(off) > 200
+    assert _brightest_ink(on) >= 250
+
+
+def test_a_word_button_still_lightens_under_the_pointer(panel_factory):
+    from shared_ui.colors import BG_BUTTON, BLUE, hovered
+
+    sheet = panel_factory(["Clip saved"])._source_buttons["system"].styleSheet()
+
     assert hovered(BG_BUTTON).name() in sheet and hovered(BLUE).name() in sheet
 
 
