@@ -8,8 +8,6 @@ belongs to :mod:`fun_time.windows_bridge_startup`; this module owns the order.
 from __future__ import annotations
 
 import configparser
-import ctypes
-import ctypes.wintypes
 import logging
 import subprocess
 import time
@@ -42,6 +40,7 @@ from .shared_state import read_shared_state, shared_state_path
 from .win32 import (
     disable_window_transitions,
     find_window_for_process,
+    find_windows_by_class,
     minimize_window,
     move_window,
     restore_window,
@@ -57,7 +56,11 @@ from .window_layout import (
     compute_window_layout,
 )
 from .window_roles import MANAGED_ROLES, ORIGENERATOR_ROLE_TITLES, role_topmost
-from .windows_bridge_random_favs_browser import ChromeShortcut, launch_random_favs_browser
+from .windows_bridge_random_favs_browser import (
+    CHROME_WINDOW_CLASS,
+    ChromeShortcut,
+    launch_random_favs_browser,
+)
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
@@ -877,12 +880,11 @@ def _settle_the_room_under_the_cover(
     progress: ProgressReporter,
 ) -> dict[str, int]:
     """Phase 4, on the path with a loading screen: everything at once, unseen."""
-    # Named for the wait it actually is: the players open their own windows,
-    # and until they have there is nothing here to position.
+    # Named for the wait it is: until the players open their own windows there
+    # is nothing here to position.
     progress.advance("players")
-    # The satellites launched playing (their paused flag is unset) and own their
-    # playlists, so there is nothing to start here — just resolve and position
-    # each under the loading overlay.
+    # The satellites launched playing and own their playlists, so there is
+    # nothing to start here — only resolve and position each under the overlay.
     portrait_hwnd, landscape_hwnd = _resolve_satellite_hwnds()
     _wait_for_the_room_to_be_drawing(
         m, nau_status_file=core.nau_status_file, progress=progress)
@@ -950,10 +952,9 @@ def _run_startup_phases(
             progress=progress)
 
     # A session with nothing to hide under starts playing as soon as it is
-    # built.  One with a cover does NOT: the orchestrator calls this itself once
-    # the cover is off the screen, because a player released while the cover is
-    # still up is a video (and Genau's audio) running under it, and the first
-    # seconds of it are gone by the time he can see or hear them.
+    # built.  One with a cover does NOT: the orchestrator calls this once the
+    # cover is off, since a player released under it loses its first seconds of
+    # video (and Genau's audio) before anyone can see or hear them.
     if not hide_windows:
         release_the_players(m, core.main_mode)
 
@@ -1117,23 +1118,19 @@ def _wait_for_nau_loaded(
 
 
 def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
-    """Resolve a Windows .lnk shortcut, returning (target, work_dir, args).
-
-    Uses the COM IShellLink interface via ctypes.
-    """
+    """A Windows .lnk shortcut's (target, work_dir, args), through COM."""
     try:
         import win32com.client  # type: ignore[import-untyped]
         shell = win32com.client.Dispatch("WScript.Shell")
         link = shell.CreateShortcut(shortcut_path)
         return link.TargetPath, link.WorkingDirectory, link.Arguments
     except Exception:  # noqa: BLE001 - pywin32 raises com_error, a bare Exception
-        # Deliberately not narrowed: pywintypes.com_error derives straight from
+        # Not narrowed on purpose: pywintypes.com_error derives straight from
         # Exception, so catching ImportError alone would send the COM failure
-        # this fallback exists for straight past the fallback.
+        # this fallback exists for straight past it.
         logger.debug("Shortcut COM resolver failed for %s", shortcut_path, exc_info=True)
 
-    # Fallback: use PowerShell
-    try:
+    try:  # Fallback: PowerShell
         ps_script = (
             f"$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{shortcut_path}'); "
             f"Write-Output $s.TargetPath; Write-Output $s.WorkingDirectory; Write-Output $s.Arguments"
@@ -1160,11 +1157,8 @@ def _maybe_launch_random_favs_browser(
     *,
     env: SessionEnvironment,
 ) -> int:
-    """Launch the Random Favs Browser if enabled and position it.
-
-    Returns the browser window handle (0 if not launched).  The handle is
-    needed so the dispatch loop can include RFB in omnipause topmost management.
-    """
+    """Launch the Random Favs Browser if enabled and position it, returning its
+    window handle (0 if not launched) for OmniPause's topmost band."""
     if not settings.enabled:
         return 0
 
@@ -1177,7 +1171,7 @@ def _maybe_launch_random_favs_browser(
         return 0
 
     # Take a Chrome window snapshot before launch
-    before_hwnds = _get_chrome_window_hwnds()
+    before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
 
     result = launch_random_favs_browser(
         manifest_file,
@@ -1205,45 +1199,12 @@ def _maybe_launch_random_favs_browser(
     return new_hwnd
 
 
-def _get_chrome_window_hwnds() -> set[int]:
-    """Get the set of visible Chrome window handles."""
-    hwnds: set[int] = set()
-
-    _user32 = ctypes.windll.user32  # type: ignore[attr-defined]
-
-    WNDENUMPROC = ctypes.WINFUNCTYPE(
-        ctypes.wintypes.BOOL,
-        ctypes.wintypes.HWND,
-        ctypes.wintypes.LPARAM,
-    )
-
-    def callback(hwnd: int, _lparam: int) -> bool:
-        if not _user32.IsWindowVisible(hwnd):
-            return True
-        # Check process name via PID
-        pid = ctypes.wintypes.DWORD()
-        _user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-        # Check title is non-empty
-        title_len = _user32.GetWindowTextLengthW(hwnd)
-        if title_len > 0:
-            # Get the window class name to identify Chrome
-            class_name = ctypes.create_unicode_buffer(256)
-            _user32.GetClassNameW(hwnd, class_name, 256)
-            if "Chrome" in class_name.value:
-                hwnds.add(hwnd)
-        return True
-
-    _user32.EnumWindows(WNDENUMPROC(callback), 0)
-    return hwnds
-
-
 def _wait_for_new_chrome_window(before: set[int], timeout_ms: int = 8000) -> int:
-    """Wait for a new Chrome window that wasn't in the 'before' set."""
+    """Wait for a Chrome window that was not in the *before* set."""
     deadline = time.monotonic() + timeout_ms / 1000
     while time.monotonic() < deadline:
-        current = _get_chrome_window_hwnds()
-        new_windows = current - before
-        if new_windows:
-            return next(iter(new_windows))
+        appeared = find_windows_by_class(CHROME_WINDOW_CLASS) - before
+        if appeared:
+            return next(iter(appeared))
         time.sleep(0.2)
     return 0
