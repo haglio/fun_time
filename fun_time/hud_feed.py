@@ -66,9 +66,9 @@ class HudFeed:
             return
         favs = self._favs_content()
 
-        def side(name: str, which: int, *, sources: str, status_file: Path) -> SideInputs:
+        def side(name: str, player: Player, *, sources: str, status_file: Path) -> SideInputs:
             current = self._satellite_clip(name, status_file)
-            values = state.side(which)
+            values = state.side(player)
             return SideInputs(
                 side=name, sources=sources, current=current, locked=values.locked,
                 filter_query=values.filter,
