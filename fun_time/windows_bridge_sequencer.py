@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import configparser
 import logging
-import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -37,6 +36,7 @@ from .satellites_mode import OPEN_SHOWS, ORIGENERATOR_MODE, VIDEO_MODE
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .shared_state import read_shared_state, shared_state_path
+from .shortcuts import resolve_shortcut
 from .win32 import (
     disable_window_transitions,
     find_window_for_process,
@@ -1117,40 +1117,6 @@ def _wait_for_nau_loaded(
     return False
 
 
-def resolve_shortcut(shortcut_path: str) -> tuple[str, str, str]:
-    """A Windows .lnk shortcut's (target, work_dir, args), through COM."""
-    try:
-        import win32com.client  # type: ignore[import-untyped]
-        shell = win32com.client.Dispatch("WScript.Shell")
-        link = shell.CreateShortcut(shortcut_path)
-        return link.TargetPath, link.WorkingDirectory, link.Arguments
-    except Exception:  # noqa: BLE001 - pywin32 raises com_error, a bare Exception
-        # Not narrowed on purpose: pywintypes.com_error derives straight from
-        # Exception, so catching ImportError alone would send the COM failure
-        # this fallback exists for straight past it.
-        logger.debug("Shortcut COM resolver failed for %s", shortcut_path, exc_info=True)
-
-    try:  # Fallback: PowerShell
-        ps_script = (
-            f"$s = (New-Object -ComObject WScript.Shell).CreateShortcut('{shortcut_path}'); "
-            f"Write-Output $s.TargetPath; Write-Output $s.WorkingDirectory; Write-Output $s.Arguments"
-        )
-        result = subprocess.run(
-            ["powershell.exe", "-NoProfile", "-Command", ps_script],
-            capture_output=True, text=True, check=False,
-        )
-        lines = result.stdout.strip().splitlines()
-        if len(lines) >= 3:
-            return lines[0], lines[1], lines[2]
-        if len(lines) >= 1:
-            return lines[0], lines[1] if len(lines) > 1 else "", ""
-    except (OSError, subprocess.SubprocessError):
-        logger.debug("Shortcut PowerShell resolver failed for %s", shortcut_path,
-                     exc_info=True)
-
-    return "", "", ""
-
-
 def _maybe_launch_random_favs_browser(
     settings: RandomFavsBrowserSettings,
     plan: WindowLayoutPlan,
@@ -1165,8 +1131,8 @@ def _maybe_launch_random_favs_browser(
     shortcut_path = settings.shortcut_path
     manifest_file = settings.manifest_file
 
-    target, work_dir, args = resolve_shortcut(shortcut_path)
-    if not target:
+    shortcut = resolve_shortcut(shortcut_path)
+    if not shortcut.target:
         logger.warning("Random Favs Browser skipped: could not resolve shortcut %s", shortcut_path)
         return 0
 
@@ -1175,7 +1141,8 @@ def _maybe_launch_random_favs_browser(
 
     result = launch_random_favs_browser(
         manifest_file,
-        shortcut=ChromeShortcut(target=target, work_dir=work_dir, args=args),
+        shortcut=ChromeShortcut(target=shortcut.target, work_dir=shortcut.work_dir,
+                                args=shortcut.arguments),
     )
     if not result.should_launch:
         logger.info("Random Favs Browser skipped: launch plan was empty")
