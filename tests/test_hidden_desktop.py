@@ -2,19 +2,26 @@
 
 The desktop plumbing (create/enumerate) is validated by actually running the suite
 through it.  Here we pin the pure decisions — what pytest command the hidden desktop
-runs and whether it runs at all — plus the job object that guarantees a run cannot
-outlive itself.
+runs and whether it runs at all — plus when a run is over, and the job object that
+guarantees a run cannot outlive itself.
 """
 from __future__ import annotations
 
+import contextlib
+import ctypes
+import ctypes.wintypes as wt
+import json
+import os
 import subprocess
 import sys
+import threading
 import time
-from types import SimpleNamespace
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 
+from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
 from tests.integration import hidden_desktop
 from tests.integration.hidden_desktop import (
@@ -30,7 +37,6 @@ from tests.integration.hidden_desktop import (
 
 def test_argv_runs_pytest_on_the_integration_dir():
     argv = build_pytest_argv([])
-    assert argv[0] == sys.executable
     assert argv[1:3] == ["-m", "pytest"]
     assert "tests/integration/" in argv
 
@@ -75,28 +81,13 @@ class _StopTheRun(Exception):
     """Ends the run at the point the child would have been launched."""
 
 
-def test_a_run_that_never_finishes_is_ended_rather_than_waited_on_forever():
-    """pytest's per-test timeout runs on a thread, and a thread cannot interrupt
-    a call blocked inside Windows — so a wedged test prints its stack and the run
-    then sits there.  The wait used to have no ceiling at all, and the
-    machine-wide lock is held around it, so one wedge left every other session's
-    suite waiting on a run that was never going to finish.  The job object
-    closing on the way out is what takes the children with it.
-    """
-    closed: list[object] = []
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
+def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_children():
+    with _the_run_runs("-c", "import time; time.sleep(60)") as launched, \
+         patch.object(hidden_desktop, "RUN_CEILING_S", 1):
+        assert hidden_desktop._run_the_suite([]) == hidden_desktop.WEDGED_EXIT_CODE
 
-    with patch.object(hidden_desktop._kernel32, "WaitForSingleObject",
-                      return_value=hidden_desktop.WAIT_TIMEOUT) as wait, \
-         patch.object(hidden_desktop, "_launch_on_desktop",
-                      return_value=SimpleNamespace(hProcess=object())), \
-         patch.object(hidden_desktop, "_close_process_handles", lambda pi: None), \
-         patch.object(hidden_desktop, "close_run_job", closed.append), \
-         patch.object(hidden_desktop, "create_run_job", object):
-        code = hidden_desktop._run_the_suite([])
-
-    assert code == hidden_desktop.WEDGED_EXIT_CODE
-    assert wait.call_args.args[1] == hidden_desktop._ceiling_ms()
-    assert len(closed) == 1
+    assert _wait_until_dead(launched[0])
 
 
 def test_the_ceiling_leaves_a_green_suite_room_to_finish():
@@ -104,6 +95,140 @@ def test_the_ceiling_leaves_a_green_suite_room_to_finish():
     fifteen.  A ceiling anywhere near either would turn a slow machine into a
     failed run, which is the opposite of what it is for."""
     assert hidden_desktop.RUN_CEILING_S >= 30 * 60
+
+
+@contextlib.contextmanager
+def _the_run_runs(*python_args: str):
+    interpreter = build_pytest_argv([])[0]
+    launched: list[int] = []
+
+    def launch_and_record(*args, **kwargs):
+        pi = _launch_on_desktop(*args, **kwargs)
+        launched.append(pi.dwProcessId)
+        return pi
+
+    with patch.object(hidden_desktop, "build_pytest_argv", lambda _extra: [interpreter, *python_args]), \
+         patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}"), \
+         patch.object(hidden_desktop, "_launch_on_desktop", launch_and_record):
+        yield launched
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
+def test_the_process_a_run_waits_on_is_the_interpreter_itself_running_in_this_venv(tmp_path):
+    report = tmp_path / "interpreter.json"
+    probe = (f"import json, os, pathlib, sys; pathlib.Path({str(report)!r})"
+             ".write_text(json.dumps([os.getpid(), sys.prefix]))")
+    with _the_run_runs("-c", probe) as launched:
+        assert hidden_desktop._run_the_suite([]) == 0
+
+    assert json.loads(report.read_text()) == [launched[0], sys.prefix]
+
+
+_kernel32 = load_dll("kernel32", use_last_error=True)
+
+EXCEPTION_DEBUG_EVENT = 1
+CREATE_PROCESS_DEBUG_EVENT = 3
+EXIT_PROCESS_DEBUG_EVENT = 5
+LOAD_DLL_DEBUG_EVENT = 6
+EXCEPTION_BREAKPOINT = 0x80000003
+DBG_CONTINUE = 0x00010002
+DBG_EXCEPTION_NOT_HANDLED = 0x80010001
+
+
+class _DebugEventDetail(ctypes.Union):
+    _fields_ = [("hFile", wt.HANDLE), ("ExceptionCode", wt.DWORD), ("_rest", ctypes.c_ubyte * 160)]
+
+
+class _DEBUG_EVENT(ctypes.Structure):
+    _fields_ = [("dwDebugEventCode", wt.DWORD), ("dwProcessId", wt.DWORD),
+                ("dwThreadId", wt.DWORD), ("u", _DebugEventDetail)]
+
+
+_kernel32.DebugActiveProcess.argtypes = [wt.DWORD]
+_kernel32.DebugActiveProcess.restype = wt.BOOL
+_kernel32.DebugActiveProcessStop.argtypes = [wt.DWORD]
+_kernel32.DebugActiveProcessStop.restype = wt.BOOL
+_kernel32.WaitForDebugEvent.argtypes = [ctypes.POINTER(_DEBUG_EVENT), wt.DWORD]
+_kernel32.WaitForDebugEvent.restype = wt.BOOL
+_kernel32.ContinueDebugEvent.argtypes = [wt.DWORD, wt.DWORD, wt.DWORD]
+_kernel32.ContinueDebugEvent.restype = wt.BOOL
+_kernel32.CloseHandle.argtypes = [wt.HANDLE]
+_kernel32.CloseHandle.restype = wt.BOOL
+
+
+def _answer(event: _DEBUG_EVENT) -> None:
+    handled = (event.dwDebugEventCode != EXCEPTION_DEBUG_EVENT
+               or event.u.ExceptionCode == EXCEPTION_BREAKPOINT)
+    _kernel32.ContinueDebugEvent(event.dwProcessId, event.dwThreadId,
+                                 DBG_CONTINUE if handled else DBG_EXCEPTION_NOT_HANDLED)
+
+
+@contextlib.contextmanager
+def _held_in_its_exit(pid: int, release: Path):
+    """Debug *pid*, let it go on to exit, and do not let the exit finish.
+
+    A debugged process's last thread waits inside the kernel for its debugger to
+    acknowledge the exit, after its exit code is recorded: the state a driver that
+    never completes an I/O leaves a process in, reproduced without the driver."""
+    if not _kernel32.DebugActiveProcess(pid):
+        raise ctypes.WinError(ctypes.get_last_error())
+    event = _DEBUG_EVENT()
+    unanswered = False
+    try:
+        release.touch()
+        while True:
+            if not _kernel32.WaitForDebugEvent(ctypes.byref(event), 30_000):
+                raise ctypes.WinError(ctypes.get_last_error())
+            unanswered = True
+            if event.dwDebugEventCode in (CREATE_PROCESS_DEBUG_EVENT, LOAD_DLL_DEBUG_EVENT) \
+                    and event.u.hFile:
+                _kernel32.CloseHandle(event.u.hFile)
+            if event.dwDebugEventCode == EXIT_PROCESS_DEBUG_EVENT:
+                break
+            _answer(event)
+            unanswered = False
+        yield
+    finally:
+        if unanswered:
+            _answer(event)
+        _kernel32.DebugActiveProcessStop(pid)
+
+
+def _pid_written_to(path: Path, timeout: float = 30.0) -> int:
+    deadline = time.monotonic() + timeout
+    while not (path.exists() and path.read_text()):
+        if time.monotonic() > deadline:
+            raise TimeoutError(f"nothing wrote a pid to {path} within {timeout:g}s")
+        time.sleep(0.05)
+    return int(path.read_text())
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 debugging")
+def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_taking_it_down(
+        tmp_path, capsys):
+    pid_file, release = tmp_path / "pid", tmp_path / "release"
+    stand_in = tmp_path / "stand_in.py"
+    stand_in.write_text(
+        "import os, pathlib, time\n"
+        f"pathlib.Path({str(pid_file)!r}).write_text(str(os.getpid()))\n"
+        f"while not pathlib.Path({str(release)!r}).exists():\n"
+        "    time.sleep(0.02)\n"
+        "os._exit(3)\n",
+        encoding="utf-8",
+    )
+    ended: list[int] = []
+    with _the_run_runs(str(stand_in)):
+        run = threading.Thread(target=lambda: ended.append(hidden_desktop._run_the_suite([])),
+                               daemon=True)
+        run.start()
+        try:
+            with _held_in_its_exit(_pid_written_to(pid_file), release):
+                run.join(timeout=30)
+                assert ended == [3]
+        finally:
+            run.join(timeout=30)
+
+    assert "Windows has not finished taking its process down" in capsys.readouterr().err
 
 
 def test_main_hands_its_own_args_to_the_run_and_returns_its_code():

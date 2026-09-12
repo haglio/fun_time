@@ -44,7 +44,8 @@ import ctypes.wintypes as wt
 import os
 import subprocess
 import sys
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Mapping
 from pathlib import Path
 
 from fun_time.win32_loader import load_dll, win_functype
@@ -63,9 +64,19 @@ def build_pytest_argv(extra_args: list[str]) -> list[str]:
     """The pytest command the hidden desktop runs — the whole integration dir, with
     caller *extra_args* appended last so they win."""
     return [
-        sys.executable, "-m", "pytest", INTEGRATION_DIR,
+        sys._base_executable, "-m", "pytest", INTEGRATION_DIR,
         *extra_args,
     ]
+
+
+def _venv_environment() -> dict[str, str]:
+    """This environment, naming the venv the :func:`build_pytest_argv` interpreter runs in.
+
+    A venv's python.exe is only a launcher that runs the real interpreter as its
+    child, so a run started through it would hand back the launcher's handle.
+    ``__PYVENV_LAUNCHER__`` is how that launcher hands the venv over itself, and
+    how multiprocessing starts its workers without one (bpo-35797)."""
+    return {**os.environ, "__PYVENV_LAUNCHER__": sys.executable}
 
 
 # --- Win32 desktop isolation ---------------------------------------------------
@@ -80,7 +91,9 @@ STD_INPUT_HANDLE = -10
 STD_OUTPUT_HANDLE = -11
 STD_ERROR_HANDLE = -12
 CREATE_SUSPENDED = 0x00000004
+CREATE_UNICODE_ENVIRONMENT = 0x00000400
 WAIT_TIMEOUT = 0x00000102
+STILL_ACTIVE = 259
 
 # Destroying the job terminates every process still in it.  The run's whole
 # process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
@@ -290,7 +303,15 @@ def _close_process_handles(pi: _PROCESS_INFORMATION) -> None:
     _kernel32.CloseHandle(pi.hThread)
 
 
-def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) -> _PROCESS_INFORMATION:
+def _environment_block(environment: Mapping[str, str] | None) -> ctypes.Array | None:
+    if environment is None:
+        return None
+    entries = sorted(environment.items(), key=lambda entry: entry[0].upper())
+    return ctypes.create_unicode_buffer("".join(f"{name}={value}\0" for name, value in entries))
+
+
+def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int,
+                       environment: Mapping[str, str] | None = None) -> _PROCESS_INFORMATION:
     """Start *cmdline* on *desktop*, inside *job*, and let it run.
 
     Created suspended so the process is in the job before it can execute a
@@ -309,7 +330,8 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int) ->
     si.hStdError = _kernel32.GetStdHandle(STD_ERROR_HANDLE)
     pi = _PROCESS_INFORMATION()
     ok = _kernel32.CreateProcessW(None, ctypes.create_unicode_buffer(cmdline), None, None,
-                                  True, CREATE_SUSPENDED, None, cwd,
+                                  True, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
+                                  _environment_block(environment), cwd,
                                   ctypes.byref(si), ctypes.byref(pi))
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())
@@ -345,9 +367,7 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
                         f"{argv[0]} was still running {timeout_seconds:g}s after it was "
                         "started on an empty desktop"
                     )
-                code = wt.DWORD()
-                _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
-                return int(code.value)
+                return _exit_code(pi.hProcess)
             finally:
                 _close_process_handles(pi)
         finally:
@@ -356,25 +376,43 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
         _user32.CloseDesktop(hdesk)
 
 
-# How long a whole run may take before the runner stops waiting on it.  A green
-# suite is about thirteen minutes, so this is not a performance budget -- it is
-# the ceiling on a WEDGE.  pytest's own per-test timeout runs on a thread, and a
-# thread cannot interrupt a call blocked inside Windows (a cold file on the cloud
-# drive is the one that does it): the timeout prints its stack and the run then
-# sits there.  Waiting forever on that did not cost this run alone -- the
-# machine-wide lock is held around the wait, so every other session's suite
-# waited on a run that was never going to finish, twice on 2026-09-11, each
-# time until somebody noticed by hand.
+# How long a run that never decides an exit code is waited on.  A green suite is
+# about thirteen minutes, so this is the ceiling on a wedge, not a budget.
 RUN_CEILING_S = 45 * 60
 
 # What such a run exits with.  pytest's own codes stop at 5, so this cannot be
 # read as a test result.
 WEDGED_EXIT_CODE = 9
 
+_POLL_MS = 1000
+_TEARDOWN_GRACE_MS = 2000
 
-def _ceiling_ms() -> int:
-    """:data:`RUN_CEILING_S` as the wait wants it."""
-    return int(RUN_CEILING_S * 1000)
+
+def _wait_for_the_run(process: int) -> int:
+    """pytest's exit code, as soon as pytest has decided it.
+
+    A process can have exited and never be gone: Windows records its exit code,
+    then may never finish taking it down, and a handle to it never signals."""
+    deadline = time.monotonic() + RUN_CEILING_S
+    while (code := _exit_code(process)) == STILL_ACTIVE:
+        if time.monotonic() >= deadline:
+            print(f"[hidden-desktop] the run passed {RUN_CEILING_S / 60:g} minutes "
+                  "without finishing, so it is being ended here; the job object "
+                  "takes its children with it and the queue moves again",
+                  file=sys.stderr, flush=True)
+            return WEDGED_EXIT_CODE
+        _kernel32.WaitForSingleObject(process, _POLL_MS)
+    if _kernel32.WaitForSingleObject(process, _TEARDOWN_GRACE_MS) == WAIT_TIMEOUT:
+        print(f"[hidden-desktop] pytest exited {code}, but Windows has not finished taking "
+              "its process down and nothing can end it; the run ends here without it",
+              file=sys.stderr, flush=True)
+    return code
+
+
+def _exit_code(process: int) -> int:
+    code = wt.DWORD()
+    _kernel32.GetExitCodeProcess(process, ctypes.byref(code))
+    return int(code.value)
 
 
 def _announce_waiting(seconds: float) -> None:
@@ -408,17 +446,10 @@ def _run_the_suite(extra_args: list[str]) -> int:
         cmdline = subprocess.list2cmdline(build_pytest_argv(extra_args))
         job = create_run_job()
         try:
-            pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
+            pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
+                                    environment=_venv_environment())
             try:
-                if _kernel32.WaitForSingleObject(pi.hProcess, _ceiling_ms()) == WAIT_TIMEOUT:
-                    print(f"[hidden-desktop] the run passed {RUN_CEILING_S / 60:g} minutes "
-                          "without finishing, so it is being ended here; the job object "
-                          "takes its children with it and the queue moves again",
-                          file=sys.stderr, flush=True)
-                    return WEDGED_EXIT_CODE
-                code = wt.DWORD()
-                _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
-                return int(code.value)
+                return _wait_for_the_run(pi.hProcess)
             finally:
                 _close_process_handles(pi)
         finally:
