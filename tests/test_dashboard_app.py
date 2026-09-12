@@ -1086,30 +1086,36 @@ def test_the_pause_tooltip_names_the_act_the_press_will_take():
     assert tip(True) == OMNIPAUSE_RESUME_TOOLTIP
 
 
-def test_the_bar_wears_the_familys_button_edge_and_radius():
-    """The scene's rects carry the family's subtle outline, and the corner
-    radius the painter rounds with is shared_ui's — the cross-repo metric
-    every app's buttons share, not a number of this module's own.  (The
-    radius reaches pixels only inside paintEvent, so the shared constant is
-    the closest drawn fact a scene-level test can pin.)"""
-    from shared_ui.colors import BORDER_SUBTLE
-    from shared_ui.spacing import BUTTON_RADIUS
+def test_the_bar_wears_the_huds_button_edge_and_corner():
+    from shared_ui.colors import GREEN, TEXT_MUTED
+    from shared_ui.spacing import BUTTON_RADIUS_HUD
 
     from fun_time.dashboard_app import _BUTTON_RADIUS
 
-    rects = _scene().rects
-    assert rects
-    assert all(item.outline == BORDER_SUBTLE for item in rects)
-    assert _BUTTON_RADIUS == BUTTON_RADIUS
+    layout = compute_dashboard_bar_layout()
+    lit = {item.rect: item.outline
+           for item in _scene(_snapshot(voice_active=True, f_mode=True)).rects}
+
+    assert all(item.outline == TEXT_MUTED for item in _scene().rects)
+    assert lit[layout.voice_panel] == BLUE
+    assert lit[layout.fmode_button] == GREEN
+    assert lit[layout.quit_button] == TEXT_MUTED
+    assert _BUTTON_RADIUS == BUTTON_RADIUS_HUD
+
+
+def test_a_pressed_control_keeps_the_edge_its_state_gave_it():
+    layout = compute_dashboard_bar_layout()
+    pressed = _scene(_snapshot(voice_active=True),
+                     pressed_actions=frozenset({VOICE_TOGGLE}))
+
+    assert next(item.outline for item in pressed.rects
+                if item.rect == layout.voice_panel) == BLUE
 
 
 def _mark_side(rect) -> int:
-    """How big a mark on *rect* is drawn: the family's icon size, or the control
-    itself when that is smaller.  Every button in every app hugs its mark by the
-    same amount, which is what this number is."""
-    from shared_ui.spacing import BUTTON_ICON
+    from shared_ui.spacing import BUTTON_MARK_INSET_HUD
 
-    return min(BUTTON_ICON, min(rect.width, rect.height))
+    return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET_HUD
 
 
 class TestMarkCache:
@@ -1148,10 +1154,8 @@ class TestMarkCache:
 
         assert MarkCache().mark("power", rect) is not MarkCache().mark("power", rect)
 
-    def test_a_mark_is_drawn_at_the_familys_icon_size_not_the_controls(self):
-        """Every button in every app hugs its mark by the same amount."""
-        layout = compute_dashboard_bar_layout()
-        rect = layout.quit_button
+    def test_a_mark_is_inset_from_its_button_as_far_as_a_huds_is(self):
+        rect = compute_dashboard_bar_layout().quit_button
 
         assert MarkCache().mark("power", rect).width() == _mark_side(rect)
 

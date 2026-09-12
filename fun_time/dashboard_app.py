@@ -14,15 +14,15 @@ from shared_ui.colors import (
     BG_BUTTON_ACTIVE,
     BG_PRIMARY,
     BLUE,
-    BORDER_SUBTLE,
     GREEN,
     MAGENTA,
+    TEXT_MUTED,
     TEXT_PRIMARY,
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS
+from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_RADIUS_HUD
 
 from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
@@ -113,8 +113,8 @@ class DashboardImageItem:
 @dataclass(frozen=True)
 class DashboardRectItem:
     rect: Rect
-    outline: QColor = field(default_factory=lambda: BORDER_SUBTLE)
-    fill: QColor = field(default_factory=lambda: COLOR_PANEL)
+    outline: QColor
+    fill: QColor
 
 
 @dataclass(frozen=True)
@@ -188,7 +188,7 @@ class MarkCache:
         ink = color or COLOR_TEXT
         key = (name, rect.width, rect.height, ink.rgba())
         if key not in self._marks:
-            side = min(BUTTON_ICON, min(rect.width, rect.height))
+            side = min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET_HUD
             self._marks[key] = glyph_pixmap(name, side, ink)
         return self._marks[key]
 
@@ -197,9 +197,7 @@ class MarkCache:
 # — one constant so the two can't drift, and so tests can find the real window.
 REFERENCE_WINDOW_TITLE = "Hotkeys & Voice Commands Reference"
 
-# How round a control's corners are -- the family's radius, so a button in one
-# app is the same shape as a button in the other.
-_BUTTON_RADIUS = BUTTON_RADIUS
+_BUTTON_RADIUS = BUTTON_RADIUS_HUD
 
 # Every control in the bar names itself on hover.  Omnipause names the act the
 # press takes rather than the state it is in, as its mark does.
@@ -244,13 +242,17 @@ def build_dashboard_scene(
             return fill
         return BG_BUTTON_ACTIVE if fill == COLOR_PANEL else lighten_color(fill)
 
+    def _control(rect: Rect, fill: QColor, action_id: str) -> DashboardRectItem:
+        outline = TEXT_MUTED if fill == COLOR_PANEL else fill
+        return DashboardRectItem(rect, outline=outline, fill=_press_fill(fill, action_id))
+
     rects = (
-        DashboardRectItem(layout.quit_button, fill=_press_fill(COLOR_PANEL, QUIT_BUTTON)),
-        DashboardRectItem(layout.omnipause_button, fill=_press_fill(COLOR_PANEL, OMNIPAUSE_TOGGLE)),
-        DashboardRectItem(layout.help_button, fill=_press_fill(COLOR_PANEL, HELP_REFERENCE)),
-        DashboardRectItem(layout.voice_panel, fill=_press_fill(voice_fill, VOICE_TOGGLE)),
-        DashboardRectItem(layout.fmode_button, fill=_press_fill(fmode_fill, FMODE_TOGGLE)),
-        DashboardRectItem(layout.vr_button, fill=_press_fill(COLOR_PANEL, vr_action)),
+        _control(layout.quit_button, COLOR_PANEL, QUIT_BUTTON),
+        _control(layout.omnipause_button, COLOR_PANEL, OMNIPAUSE_TOGGLE),
+        _control(layout.help_button, COLOR_PANEL, HELP_REFERENCE),
+        _control(layout.voice_panel, voice_fill, VOICE_TOGGLE),
+        _control(layout.fmode_button, fmode_fill, FMODE_TOGGLE),
+        _control(layout.vr_button, COLOR_PANEL, vr_action),
     )
     # The app-name lockup, styled like the loading screen: bold italic, wordmark tone.
     # Built fresh (not via the cached make_font) so setItalic cannot leak into
