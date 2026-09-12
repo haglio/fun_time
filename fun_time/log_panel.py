@@ -126,7 +126,7 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 # PyQt6 widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
-from PyQt6.QtGui import QColor, QFontMetrics, QIcon
+from PyQt6.QtGui import QColor, QFontMetrics, QIcon, QPainter, QTransform
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -154,8 +154,8 @@ from shared_ui.fonts import FONT_UI, SIZE_SMALL, SIZE_TINY, make_font
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import (
     BUTTON_GAP,
+    BUTTON_GROUP_GAP,
     BUTTON_PAD_H_TIGHT,
-    BUTTON_RADIUS,
     BUTTON_RADIUS_HUD,
     BUTTON_SIZE_HUD,
 )
@@ -209,6 +209,23 @@ def _copy_icon(size: int, color: QColor) -> QIcon:
 def _copied_icon(size: int, color: QColor) -> QIcon:
     """A tick — what the copy button shows for a moment after a successful copy."""
     return QIcon(glyph_pixmap("check", size, color))
+
+
+_DIAL_ARROW = 10
+
+
+class _LevelDial(QComboBox):
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._arrow = glyph_pixmap("chevron_right", _DIAL_ARROW, TEXT_MUTED).transformed(
+            QTransform().rotate(90))
+
+    def paintEvent(self, event: object) -> None:
+        super().paintEvent(event)
+        painter = QPainter(self)
+        painter.drawPixmap(self.width() - _DIAL_ARROW - BUTTON_GAP,
+                           (self.height() - _DIAL_ARROW) // 2, self._arrow)
+        painter.end()
 
 
 class LogPanelWidget(QWidget):
@@ -266,31 +283,31 @@ class LogPanelWidget(QWidget):
         self.controls = QWidget()
         controls = QHBoxLayout(self.controls)
         controls.setContentsMargins(0, 0, 0, 0)
-        controls.setSpacing(BUTTON_GAP)
-        self._verbosity = QComboBox(self)
-        self._verbosity.setFont(make_font(FONT_UI, SIZE_SMALL))
-        for name in LEVEL_NAMES:
-            self._verbosity.addItem(name, LEVELS_BY_NAME[name])
-        # Qt's own hint, taken AFTER the items are in: it knows what the arrow and
-        # the frame cost on this style, and a width guessed at from the text plus
-        # a constant came up short enough to elide "WARNING" to "WARN".
-        self._verbosity.setMinimumWidth(self._verbosity.sizeHint().width())
-        # As tall as the buttons beside it: Qt frames and pads a combo box, so
-        # the height comes back in the sheet as well as being fixed here.
-        self._verbosity.setFont(make_font(FONT_UI, SIZE_TINY))
+        controls.setSpacing(0)
+        self._verbosity = _LevelDial(self)
+        self._verbosity.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
         self._verbosity.setFixedHeight(BUTTON_SIZE_HUD)
         self._verbosity.setStyleSheet(
             "QComboBox {"
             f" color: {TEXT_PRIMARY.name()};"
             f" background: {BG_BUTTON.name()};"
-            " border: none; padding: 0px 4px;"
-            f" border-radius: {BUTTON_RADIUS}px; }}"
+            f" border: 1px solid {TEXT_MUTED.name()};"
+            f" padding: 0px {BUTTON_PAD_H_TIGHT}px;"
+            f" border-radius: {BUTTON_RADIUS_HUD}px; }}"
             f" QComboBox:hover {{ background: {hovered(BG_BUTTON).name()}; }}"
-            " QComboBox::drop-down { border: none; width: 14px; }"
+            " QComboBox::drop-down { border: none;"
+            f" width: {_DIAL_ARROW + 2 * BUTTON_GAP}px; }}"
+            " QComboBox::down-arrow { image: none; }"
         )
+        for name in LEVEL_NAMES:
+            self._verbosity.addItem(name, LEVELS_BY_NAME[name])
+        # Qt's own hint, taken AFTER the items and the sheet are in: a width
+        # guessed at from the text plus a constant elided "WARNING" to "WARN".
+        self._verbosity.setMinimumWidth(self._verbosity.sizeHint().width())
         self._verbosity.setCurrentText(logging.getLevelName(self._filter.verbosity))
         self._verbosity.currentIndexChanged.connect(self._on_verbosity_changed)
         controls.addWidget(self._verbosity)
+        controls.addSpacing(BUTTON_GROUP_GAP)
 
         self._source_buttons: dict[str, QToolButton] = {}
         for source in SOURCES:
@@ -317,6 +334,8 @@ class LogPanelWidget(QWidget):
             # Auto-raise is what a QToolBar does: a flat row, not framed ones.
             button.setAutoRaise(True)
             button.toggled.connect(self._on_sources_changed)
+            if self._source_buttons:
+                controls.addSpacing(BUTTON_GAP)
             controls.addWidget(button)
             self._source_buttons[source] = button
         # No trailing stretch: the dashboard right-justifies this row.

@@ -97,10 +97,8 @@ class DashboardBarLayout:
     vr_button: Rect
 
     @property
-    def content_width(self) -> int:
-        """How wide the bar's own buttons run — the width it takes in its row,
-        leaving the rest to the log's filter controls beside it."""
-        return self.vr_button.x + self.vr_button.width + PAD
+    def width(self) -> int:
+        return self.vr_button.x + self.vr_button.width + GROUP_GAP
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
