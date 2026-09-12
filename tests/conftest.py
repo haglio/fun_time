@@ -55,6 +55,7 @@ def _qapp():
 # bug for months because it WAS our code, run by a concurrent agent's test process).
 _MUTATING_USER32_CALLS = (
     "SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW", "BringWindowToTop",
+    "SetActiveWindow",
 )
 
 
