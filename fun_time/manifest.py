@@ -15,10 +15,19 @@ from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 from .config import LayoutConfig, RegenConfig
-from .hud_transport import HUD_FILENAME
 from .nau_console import nau_console_path
+from .players import Player
 
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
+
+
+def _side_files(config) -> dict[str, str]:
+    """Both satellites' channel files, under the keys the manifest always used."""
+    return {
+        f"{player.label}_{name}": str(getattr(config.side(player), name))
+        for player in Player.SATELLITES
+        for name in ("cmd_file", "paused_file", "status_file", "playlist_file", "hud_file")
+    }
 
 
 def build_windows_bridge_manifest(
@@ -30,9 +39,8 @@ def build_windows_bridge_manifest(
             "windows_bridge_log_file": str(config.log_file("windows_bridge")),
             "genau_config_path": str(config.paths.genau_config_path or config.config_path),
             # Where Genau and Nau are started from.  Empty means "wherever we
-            # are", which resolves them through their venv's editable install —
-            # the primary genau checkout.  Named, a worktree of that repo can be
-            # run instead, so a branch of it is judged before it lands.
+            # are", resolving them through their venv's editable install; named,
+            # another checkout of that repo runs instead.
             "genau_project_dirs": os.pathsep.join(
                 str(path) for path in config.paths.genau_project_dirs),
             # The Origenerator checkout the session hosts, or "" for a session
@@ -45,9 +53,8 @@ def build_windows_bridge_manifest(
             # genau's runs the apps that live in ../genau (Genau and Nau).
             "python_exe": str(config.paths.python_exe),
             "genau_python_exe": str(config.paths.genau_python_exe or config.paths.python_exe),
-            # Origenerator has no venv; its deps live in a system install its
-            # own launcher would find, so a session must be told which python
-            # that is.  Empty with no origenerator configured.
+            # Origenerator has no venv; its deps live in a system install, so a
+            # session is told which python that is.  Empty without one.
             "origenerator_python_exe": str(config.paths.origenerator_python_exe or ""),
         },
         "media": {
@@ -77,28 +84,18 @@ def build_windows_bridge_manifest(
             "nau_status_file": str(config.nau_status_file),
             "nau_console_file": str(nau_console_path(config.paths.state_dir)),
             "nau_playlist_file": str(config.nau_playlist_file),
-            "portrait_cmd_file": str(config.paths.state_dir / "portrait_cmd.txt"),
-            "portrait_paused_file": str(config.paths.state_dir / "portrait_paused.txt"),
-            "portrait_status_file": str(config.paths.state_dir / "portrait_status.txt"),
-            "portrait_playlist_file": str(config.paths.state_dir / "portrait_playlist.tsv"),
-            "portrait_hud_file": str(config.paths.state_dir / HUD_FILENAME["portrait"]),
-            "landscape_cmd_file": str(config.paths.state_dir / "landscape_cmd.txt"),
-            "landscape_paused_file": str(config.paths.state_dir / "landscape_paused.txt"),
-            "landscape_status_file": str(config.paths.state_dir / "landscape_status.txt"),
-            "landscape_playlist_file": str(config.paths.state_dir / "landscape_playlist.tsv"),
-            "landscape_hud_file": str(config.paths.state_dir / HUD_FILENAME["landscape"]),
+            **_side_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
             "broker_heartbeat_file": str(config.broker_heartbeat_file),
-            # The broker's own directory, so a child needing a broker file we have
-            # not named here resolves it against the broker rather than against the
-            # session — which is what put the console's broker and OSR2 lights on a
-            # branch session's empty state dir.
+            # The broker's own directory, so a child needing a broker file not
+            # named here resolves it against the broker and not the session --
+            # which had put the console's broker and OSR2 lights on an empty dir.
             "broker_state_dir": str(config.paths.broker_state_dir),
             "broker_tray_launcher": str(config.paths.broker_tray_launcher or ""),
             "audio_paused_file": str(config.audio_paused_file),
             "audio_volume_file": str(config.audio_volume_file),
-            "dashboard_state_file": str(config.paths.state_dir / "dashboard_state.ini"),
-            "dashboard_cmd_file": str(config.paths.state_dir / "dashboard_cmd.txt"),
+            "dashboard_state_file": str(config.dashboard_state_file),
+            "dashboard_cmd_file": str(config.dashboard_cmd_file),
             "state_dir": str(config.paths.state_dir),
             "nau_notice_file": str(config.nau_notice_file),
             "origenerator_cmd_file": str(config.origenerator_cmd_file),
