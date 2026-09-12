@@ -21,8 +21,6 @@ from player_core.file_channel import publish_whole
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
 from .thumbnail_cache import cached_thumbnail
 
-HUD_FILENAME = {"portrait": "portrait_hud.json", "landscape": "landscape_hud.json"}
-
 
 def _cell(path: str, thumb: object, label: str = "") -> dict[str, str]:
     """One map cell as the player parses it; an absent thumbnail draws a placeholder."""

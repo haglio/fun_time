@@ -23,7 +23,7 @@ from player_core.file_channel import append_command
 
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
-from .hud_transport import HUD_FILENAME, HudPublisher
+from .hud_transport import HudPublisher
 from .library_handles import build_library_handles
 from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .lock_hud import prime_group_indexes
@@ -41,6 +41,7 @@ from .overlay_progress import (
     StartupCancelled,
     ready_file_for,
 )
+from .players import Player
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
@@ -767,7 +768,8 @@ def start_hud_priming(
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
         {
-            **{side: Path(manifest.commands.side_file(side, "hud")) for side in HUD_FILENAME},
+            **{player.label: Path(manifest.commands.side_file(player.label, "hud"))
+               for player in Player.SATELLITES},
             # Nau's console rides the same publisher as the satellites' maps.
             "nau": Path(manifest.commands.nau_console_file),
         },

@@ -18,6 +18,7 @@ from app_support.config_reader import (
 )
 
 from .loopback_server import LOOPBACK_PORT
+from .players import Player
 from .project_paths import PROJECT_DIR
 
 DEFAULT_CONFIG_PATH = PROJECT_DIR / "fun_time_config.json"
@@ -127,6 +128,17 @@ class VrConfig:
 
 
 @dataclass(frozen=True)
+class SideFiles:
+    """One satellite's own files, under the session's state dir."""
+
+    cmd_file: Path
+    paused_file: Path
+    status_file: Path
+    playlist_file: Path
+    hud_file: Path
+
+
+@dataclass(frozen=True)
 class ProjectConfig:
     project_dir: Path
     config_path: Path
@@ -149,14 +161,12 @@ class ProjectConfig:
     def instance_id(self) -> str:
         """Which running session this one *is*, for the single-instance mutex.
 
-        Defaults to the config path, so every config is its own instance —
-        which is what lets integration runs, each on a unique temp config, take
-        mutexes without colliding.  A config may instead name another session's
-        identity, and then the two can never both be up: whichever starts
-        second is refused with Fun Time's own "already running" message.  That
-        is how a branch-verification session guarantees it replaces the live
-        session rather than fighting it for the AHK shell, the monitors and the
-        machine's fixed ports (see :mod:`fun_time.branch_session`).
+        Defaults to the config path, so every config is its own instance — which
+        is what lets integration runs, each on a unique temp config, take mutexes
+        without colliding.  A config may instead name another session's identity,
+        and then whichever starts second is refused with the "already running"
+        message: that is how a branch session replaces the live one rather than
+        fighting it for the AHK shell, the monitors and the fixed ports.
         """
         return self.instance_id_override or str(self.config_path)
 
@@ -240,6 +250,27 @@ class ProjectConfig:
     @property
     def random_favs_browser_manifest_file(self) -> Path:
         return self.paths.state_dir / "random_favs_browser_urls.txt"
+
+    def side(self, player: Player) -> SideFiles:
+        """The four channel files and the HUD one satellite reads — here with the
+        session's other file names, not where the manifest is serialized."""
+        label = Player(player).label
+        return SideFiles(
+            cmd_file=self.paths.state_dir / f"{label}_cmd.txt",
+            paused_file=self.paths.state_dir / f"{label}_paused.txt",
+            status_file=self.paths.state_dir / f"{label}_status.txt",
+            playlist_file=self.paths.state_dir / f"{label}_playlist.tsv",
+            hud_file=self.paths.state_dir / f"{label}_hud.json",
+        )
+
+    # What the dashboard publishes about itself, and its buttons coming back.
+    @property
+    def dashboard_state_file(self) -> Path:
+        return self.paths.state_dir / "dashboard_state.ini"
+
+    @property
+    def dashboard_cmd_file(self) -> Path:
+        return self.paths.state_dir / "dashboard_cmd.txt"
 
     @property
     def logs_dir(self) -> Path:
