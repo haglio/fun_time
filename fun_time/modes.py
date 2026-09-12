@@ -410,8 +410,7 @@ def build_satellite_playlists(
 
 
 def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
-                        recent: bool = False,
-                        shapes: VideoShapes | None = None) -> None:
+                        recent: bool = False) -> None:
     """Build and write the main player's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
@@ -424,8 +423,7 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
     write_nau_playlist_file(
-        playlist_file,
-        build_main_playlist_paths(main_sources, f_mode, recent=recent, shapes=shapes))
+        playlist_file, build_main_playlist_paths(main_sources, f_mode, recent=recent))
 
 
 def build_all_playlists(
@@ -435,18 +433,13 @@ def build_all_playlists(
     landscape: SatelliteBuild,
     favs_file: Path,
     state_dir: Path,
-    main_f_mode: bool = False,
-    main_recent: bool = False,
-    main_shapes: VideoShapes | None = None,
     rng: random.Random | None = None,
     metadata_root: Path | None = None,
 ) -> None:
     """Build and write all three playlists — both satellites' and Nau's.
 
-    F-mode is per player, so each build carries its own flag: a session where
-    only the landscape satellite is narrowed to favorites builds the other two
-    whole.  The one caller that wants all three at once is a fresh start with
-    nothing to resume, which is why every flag defaults off.
+    Only a start with nothing to resume builds all three, so the main player's
+    is built whole; each satellite's build still carries its own F-mode flag.
     """
     build_satellite_playlists(
         portrait=portrait,
@@ -458,6 +451,5 @@ def build_all_playlists(
     )
     write_nau_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_NAU),
-        build_main_playlist_paths(main_sources, main_f_mode, recent=main_recent,
-                                  rng=rng, shapes=main_shapes),
+        build_main_playlist_paths(main_sources, False, rng=rng),
     )
