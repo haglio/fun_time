@@ -14,7 +14,6 @@ loop's median at a video frame period and fails here loudly.
 """
 from __future__ import annotations
 
-import glob
 import os
 import sys
 import threading
@@ -43,6 +42,7 @@ from fun_time_vr.orchestrator import build_vr_manifest
 from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
+    library_clips,
     readable_at_speed,
     sample_library_clips,
     stall_per_transition,
@@ -83,14 +83,10 @@ def _wait(predicate, *, timeout, desc):
 
 
 def _sample_library_videos(dirs, count: int) -> list[str]:
-    candidates: list[str] = []
-    for root in dirs:
-        candidates.extend(
-            glob.glob(os.path.join(str(root), "**", "*.mp4"), recursive=True)
-        )
-    return sample_library_clips(
-        candidates, count, desc=f"sample videos under {dirs}", readable=readable_at_speed,
-    )
+    return [str(clip) for clip in sample_library_clips(
+        library_clips(dirs), count,
+        desc=f"sample videos under {dirs}", readable=readable_at_speed,
+    )]
 
 
 def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
