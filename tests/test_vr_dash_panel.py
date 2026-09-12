@@ -29,9 +29,7 @@ from fun_time.event_log import (
     EventRecord,
 )
 from fun_time_vr.dash_panel import (
-    _BODY_FACE,
     _FONT_PX,
-    _WORDMARK_FACE,
     DASH_WIDTH_PX,
     LOG_ROWS,
     VERBOSITY_CHIP,
@@ -39,7 +37,6 @@ from fun_time_vr.dash_panel import (
     DashPointer,
     DashState,
     _arrow_down,
-    _font,
     dash_actions,
     dash_height,
     dial_stops,
@@ -47,6 +44,7 @@ from fun_time_vr.dash_panel import (
     paint_dash,
     verbosity_name,
 )
+from fun_time_vr.lettering import BOLD_FACE, WORDMARK_FACE, load_font
 
 
 def _record(message: str, *, level: int = NOTICE, source: str = SOURCE_SYSTEM) -> EventRecord:
@@ -121,13 +119,13 @@ class TestItIsTheDesktopsBar:
         def written_in(face):
             image = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
             ImageDraw.Draw(image).text((title.x, title.y + 4), "Fun Time",
-                                       font=_font(_FONT_PX, face), fill=WORDMARK_MAGENTA)
+                                       font=load_font(_FONT_PX, face), fill=WORDMARK_MAGENTA)
             return _app_name_mask(image)
 
         painted = _app_name_mask(paint_dash(DashState(), []))
 
-        assert np.array_equal(painted, written_in(_WORDMARK_FACE))
-        assert not np.array_equal(painted, written_in(_BODY_FACE))
+        assert np.array_equal(painted, written_in(WORDMARK_FACE))
+        assert not np.array_equal(painted, written_in(BOLD_FACE))
 
     def test_a_window_wears_the_short_name_the_log_panel_gives_it(self):
         """"Sat" and "Land", not "portrait" and "landscape": the same row of
@@ -173,7 +171,7 @@ class TestItIsOneRow:
 
         from fun_time.dashboard_actions import EXIT_VR, FMODE_TOGGLE
         from fun_time.dashboard_layout import PAD
-        from fun_time_vr.dash_panel import _SMALL_PX, _font
+        from fun_time_vr.dash_panel import _SMALL_PX
 
         bar = compute_dashboard_bar_layout()
         actions = dash_actions()
@@ -191,7 +189,7 @@ class TestItIsOneRow:
                    for left, right in pairwise(chips))
         assert chips[-1].x + chips[-1].width + PAD == DASH_WIDTH_PX
         for source, chip in zip(SOURCES, chips, strict=True):
-            label = int(_font(_SMALL_PX).getlength(SOURCE_LABELS[source]))
+            label = int(load_font(_SMALL_PX).getlength(SOURCE_LABELS[source]))
             assert chip.width == label + 2 * BUTTON_PAD_H_TIGHT, source
 
 
