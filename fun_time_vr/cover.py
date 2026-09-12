@@ -36,6 +36,8 @@ from fun_time.overlay_progress import (
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import DESKTOP, crossing_progress_path, headset_hold_asked
 
+from .lettering import REGULAR_FACE, WORDMARK_FACE, load_font
+
 logger = logging.getLogger(__name__)
 
 # Shorter than the desktop's: no browser, no Origenerator, no windows.
@@ -316,10 +318,6 @@ class CoverAnchor:
     def release(self) -> None:
         self._yaw = None
 
-# Segoe UI as filenames: Pillow loads a face by file, not by family.
-_WORDMARK_FONT = "segoeuiz.ttf"
-_BODY_FONT = "segoeui.ttf"
-
 _ICON_PX = 96
 _WORDMARK = "Fun Time VR"
 _WORDMARK_PT = 30
@@ -337,13 +335,6 @@ def _clear_color(hex_color: str) -> tuple[float, float, float, float]:
 
 
 COVER_CLEAR = _clear_color(BG)
-
-
-def _font(filename: str, size: int) -> ImageFont.FreeTypeFont:  # never raises
-    try:
-        return ImageFont.truetype(filename, size)
-    except OSError:
-        return ImageFont.load_default(size)
 
 
 def _icon_image() -> Image.Image | None:
@@ -364,9 +355,9 @@ def paint_cover(cover: Cover, *, size: tuple[int, int] = COVER_SIZE_PX) -> Image
     width, height = size
     image = Image.new("RGBA", size, BG)
     draw = ImageDraw.Draw(image)
-    wordmark_font = _font(_WORDMARK_FONT, _WORDMARK_PT)
-    status_font = _font(_BODY_FONT, _STATUS_PT)
-    hint_font = _font(_BODY_FONT, _HINT_PT)
+    wordmark_font = load_font(_WORDMARK_PT, WORDMARK_FACE)
+    status_font = load_font(_STATUS_PT, REGULAR_FACE)
+    hint_font = load_font(_HINT_PT, REGULAR_FACE)
 
     icon = _icon_image()
     rows = [

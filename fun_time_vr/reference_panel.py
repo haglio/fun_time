@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, replace
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from shared_ui.icons_pil import glyph_image
 from shared_ui.palette import (
     BG_BUTTON,
@@ -19,6 +19,8 @@ from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS, BUTTON_SIZE
 
 from fun_time.command_reference import build_reference_sections
 from fun_time.dashboard_layout import Rect
+
+from .lettering import fit_text, load_font
 
 __all__ = [
     "NEXT_PAGE",
@@ -47,13 +49,6 @@ _ROW_H = 17
 _HEAD_H = BUTTON_SIZE + _PAD
 # The desktop table's three columns: press, say, and what it does.
 _KEY_X, _SAY_X, _WHAT_X = _PAD, 210, 400
-
-
-def _font(px: int) -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype("segoeuib.ttf", px)
-    except OSError:
-        return ImageFont.load_default(px)
 
 
 def sections():
@@ -85,21 +80,12 @@ def reference_actions() -> dict[str, Rect]:  # the two, at the top right
     }
 
 
-def _fit(font, text: str, width: int) -> str:
-    if font.getlength(text) <= width or not text:
-        return text
-    kept = text
-    while kept and font.getlength(kept + "…") > width:
-        kept = kept[:-1]
-    return kept + "…"
-
-
 def paint_reference(state: ReferenceState) -> Image.Image:
     """One section: its title, the heads, a row per command."""
     height = reference_height()
     panel = Image.new("RGBA", (REFERENCE_WIDTH_PX, height), (*BG_PRIMARY, 240))
     draw = ImageDraw.Draw(panel)
-    title_font, row_font = _font(_TITLE_PX), _font(_ROW_PX)
+    title_font, row_font = load_font(_TITLE_PX), load_font(_ROW_PX)
     section = sections()[page_of(state)]
 
     draw.text((_PAD, _PAD), section.title, font=title_font, fill=(*MAGENTA, 255))
@@ -121,7 +107,7 @@ def paint_reference(state: ReferenceState) -> Image.Image:
         draw.text((x, y), head, font=row_font, fill=(*TEXT_MUTED, 255))
     y += _ROW_H
     if section.note:
-        draw.text((_PAD, y), _fit(row_font, section.note, REFERENCE_WIDTH_PX - 2 * _PAD),
+        draw.text((_PAD, y), fit_text(row_font, section.note, REFERENCE_WIDTH_PX - 2 * _PAD),
                   font=row_font, fill=(*TEXT_MUTED, 255))
     y += _ROW_H
 
@@ -133,7 +119,7 @@ def paint_reference(state: ReferenceState) -> Image.Image:
             (_WHAT_X, row.description, REFERENCE_WIDTH_PX - _WHAT_X - _PAD),
         )
         for x, text, width in cells:
-            draw.text((x, y), _fit(row_font, text, width), font=row_font,
+            draw.text((x, y), fit_text(row_font, text, width), font=row_font,
                       fill=(*TEXT_PRIMARY, 255))
         y += _ROW_H
     return panel

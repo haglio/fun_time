@@ -11,7 +11,7 @@ import time
 from dataclasses import dataclass, replace
 from functools import cache
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from shared_ui.icons_pil import glyph_image
 from shared_ui.palette import (
     BG_BUTTON,
@@ -46,6 +46,7 @@ from fun_time.icon_image import load_icon_image
 from fun_time.project_paths import PROJECT_ICON
 
 from .console_panel import level_color
+from .lettering import WORDMARK_FACE, load_font
 
 _DIAL_W = 92  # the name and the arrow beside it
 _ARROW_PX = 10
@@ -58,20 +59,6 @@ LOG_ROWS = 8
 # which stop it landed on.
 VERBOSITY_CHIP = "dash_verbosity"
 VERBOSITY_STOP = "dash_verbosity:"
-
-
-# Pillow loads a face by file, not by family: "b" is Segoe UI's bold, "z" its
-# bold italic -- the lean the app's name wears everywhere else it is written.
-_BODY_FACE = "segoeuib.ttf"
-_WORDMARK_FACE = "segoeuiz.ttf"
-
-
-@cache
-def _font(px: int, face: str = _BODY_FACE) -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype(face, px)
-    except OSError:
-        return ImageFont.load_default(px)
 
 
 @dataclass(frozen=True)
@@ -125,7 +112,7 @@ def source_chips() -> dict[str, Rect]:  # left to right, in SOURCES order
     chips: dict[str, Rect] = {}
     x = dial.x + dial.width + BUTTON_GROUP_GAP
     for source in SOURCES:
-        width = int(_font(_SMALL_PX).getlength(SOURCE_LABELS[source])) + 2 * BUTTON_PAD_H_TIGHT
+        width = int(load_font(_SMALL_PX).getlength(SOURCE_LABELS[source])) + 2 * BUTTON_PAD_H_TIGHT
         chips[source] = Rect(x, dial.y, width, BUTTON_SIZE_HUD)
         x += width + BUTTON_GAP
     return chips
@@ -248,7 +235,7 @@ def paint_dash(state: DashState, records,
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
-    wordmark, small = _font(_FONT_PX, _WORDMARK_FACE), _font(_SMALL_PX)
+    wordmark, small = load_font(_FONT_PX, WORDMARK_FACE), load_font(_SMALL_PX)
 
     mark = _app_mark(bar.app_icon.height)
     if mark is not None:
