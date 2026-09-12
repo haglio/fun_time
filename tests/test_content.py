@@ -8,6 +8,8 @@ lifted from the real library.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 from fun_time.content import EXAMPLE_CONTENT, load_content, load_web_providers
@@ -67,3 +69,26 @@ class TestLoadWebProviders:
         local = tmp_path / "content.local.json"
         local.write_text(json.dumps({"filter_acts": {"zeta": ["zeta"]}}), encoding="utf-8")
         assert load_web_providers(local, EXAMPLE_CONTENT) == ()
+
+
+def test_importing_the_vocabulary_reads_no_overlay():
+    """The overlay is read when somebody asks for it, not when a module loads.
+
+    These three used to parse it as they imported, into module-level constants,
+    which put file I/O on the startup path before any caller had said which
+    overlay it wanted -- and left a test or a variant session no way to name a
+    different one but to reach in and rebind the constant.  A malformed
+    content.local.json also became an import-time crash, raised somewhere far
+    from the file that caused it.
+    """
+    probe = (
+        "import fun_time.content, fun_time.filter_vocab, fun_time.media_actions; "
+        "print(fun_time.content.load_content.cache_info().currsize)"
+    )
+    result = subprocess.run([sys.executable, "-c", probe],
+                            capture_output=True, text=True, check=True)
+
+    assert result.stdout.strip() == "0", (
+        "importing these parsed the content overlay; have them call "
+        "load_content()/load_filter_acts()/load_web_providers() instead"
+    )

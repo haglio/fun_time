@@ -68,18 +68,19 @@ class WebProvider:
     gallery_url: str
 
 
+@functools.cache
 def load_web_providers(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,
 ) -> tuple[WebProvider, ...]:
-    """Provider gallery rules from the overlay, or ``()`` when none are set."""
+    """Provider gallery rules from the overlay, or ``()`` when none are set.
+
+    Called, never bound at import: a module that reads the overlay as it loads
+    has chosen one before any caller could say which.  Cached, so calling is free
+    after the first parse.
+    """
     data = load_content(local_path, example_path)
     return tuple(
         WebProvider(marker=entry["marker"], gallery_url=entry["gallery_url"])
         for entry in data.get("web_providers", ())
     )
-
-
-# Loaded once at import; the git-ignored overlay's real providers, or the
-# example's tame placeholders on a fresh/public checkout.
-WEB_PROVIDERS: tuple[WebProvider, ...] = load_web_providers()

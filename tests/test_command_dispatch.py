@@ -131,9 +131,10 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SideState(locked=False))
 
-    from fun_time.media_actions import WEB_PROVIDERS, make_web_url_from_path
+    from fun_time.content import load_web_providers
+    from fun_time.media_actions import make_web_url_from_path
 
-    path = rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4"
+    path = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
     _set_current(config, 2, path)
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
@@ -148,9 +149,9 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
 def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SideState(locked=False))
-    from fun_time.media_actions import WEB_PROVIDERS
+    from fun_time.content import load_web_providers
 
-    video = tmp_path / "videos" / WEB_PROVIDERS[0].marker / "abc_123.mp4"
+    video = tmp_path / "videos" / load_web_providers()[0].marker / "abc_123.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
 
@@ -167,9 +168,9 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
 
     keys = []
     for _ in range(2):
-        from fun_time.media_actions import WEB_PROVIDERS
+        from fun_time.content import load_web_providers
 
-        _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
+        _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
         with patch("fun_time.command_dispatch.ensure_in_favs"):
             _, ops = dispatch_command("portrait_lock", _make_state(portrait=SideState(locked=False)), config)
         keys += [op.key for op in ops if op.op == "open_rfb_tab"]
@@ -214,9 +215,9 @@ def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: 
     config = replace(_make_config(tmp_path), loopback_port=8771)
     state = _make_state(portrait=SideState(locked=False))
 
-    from fun_time.media_actions import WEB_PROVIDERS
+    from fun_time.content import load_web_providers
 
-    _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
+    _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         _new_state, ops = dispatch_command("portrait_lock", state, config)
 
@@ -251,9 +252,10 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SideState(locked=False))
 
-    from fun_time.media_actions import WEB_PROVIDERS, make_web_url_from_path
+    from fun_time.content import load_web_providers
+    from fun_time.media_actions import make_web_url_from_path
 
-    path = rf"C:\videos\{WEB_PROVIDERS[0].marker}\def_456.mp4"
+    path = rf"C:\videos\{load_web_providers()[0].marker}\def_456.mp4"
     _set_current(config, 3, path)
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
@@ -4124,9 +4126,9 @@ def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
 
 def test_locking_a_known_video_opens_an_rfb_tab(tmp_path: Path):
     config = _make_config(tmp_path)
-    from fun_time.media_actions import WEB_PROVIDERS
+    from fun_time.content import load_web_providers
 
-    _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
+    _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
 
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         _state, ops = _toggle_lock(2, _make_state(portrait=SideState(locked=False)), config)

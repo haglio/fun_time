@@ -21,7 +21,7 @@ import re
 from pathlib import Path
 
 from fun_time.command_reference import build_reference_sections
-from fun_time.filter_vocab import FILTER_ACTS, set_command
+from fun_time.filter_vocab import load_filter_acts, set_command
 from fun_time.voice_commands import VOICE_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -287,7 +287,7 @@ def _expected_filter_ids() -> set[str]:
     return {
         set_command(scope, query)
         for scope in ("both", "portrait", "landscape")
-        for query in FILTER_ACTS
+        for query in load_filter_acts()
     }
 
 
