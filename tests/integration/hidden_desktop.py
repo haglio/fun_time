@@ -80,7 +80,7 @@ STD_INPUT_HANDLE = -10
 STD_OUTPUT_HANDLE = -11
 STD_ERROR_HANDLE = -12
 CREATE_SUSPENDED = 0x00000004
-INFINITE = 0xFFFFFFFF
+WAIT_TIMEOUT = 0x00000102
 
 # Destroying the job terminates every process still in it.  The run's whole
 # process tree — pytest, the orchestrator, the satellites, Nau, Genau, AHK — is in it,
@@ -356,6 +356,27 @@ def run_where_nothing_is_focused(argv: list[str], timeout_seconds: float = 20.0)
         _user32.CloseDesktop(hdesk)
 
 
+# How long a whole run may take before the runner stops waiting on it.  A green
+# suite is about thirteen minutes, so this is not a performance budget -- it is
+# the ceiling on a WEDGE.  pytest's own per-test timeout runs on a thread, and a
+# thread cannot interrupt a call blocked inside Windows (a cold file on the cloud
+# drive is the one that does it): the timeout prints its stack and the run then
+# sits there.  Waiting forever on that did not cost this run alone -- the
+# machine-wide lock is held around the wait, so every other session's suite
+# waited on a run that was never going to finish, twice on 2026-09-11, each
+# time until somebody noticed by hand.
+RUN_CEILING_S = 45 * 60
+
+# What such a run exits with.  pytest's own codes stop at 5, so this cannot be
+# read as a test result.
+WEDGED_EXIT_CODE = 9
+
+
+def _ceiling_ms() -> int:
+    """:data:`RUN_CEILING_S` as the wait wants it."""
+    return int(RUN_CEILING_S * 1000)
+
+
 def _announce_waiting(seconds: float) -> None:
     print(f"[integration] another integration run holds {INTEGRATION_LOCK_NAME!r}; "
           f"waiting for it to finish ({seconds:.0f}s elapsed)",
@@ -389,7 +410,12 @@ def _run_the_suite(extra_args: list[str]) -> int:
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job)
             try:
-                _kernel32.WaitForSingleObject(pi.hProcess, INFINITE)
+                if _kernel32.WaitForSingleObject(pi.hProcess, _ceiling_ms()) == WAIT_TIMEOUT:
+                    print(f"[hidden-desktop] the run passed {RUN_CEILING_S / 60:g} minutes "
+                          "without finishing, so it is being ended here; the job object "
+                          "takes its children with it and the queue moves again",
+                          file=sys.stderr, flush=True)
+                    return WEDGED_EXIT_CODE
                 code = wt.DWORD()
                 _kernel32.GetExitCodeProcess(pi.hProcess, ctypes.byref(code))
                 return int(code.value)

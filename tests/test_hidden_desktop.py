@@ -10,6 +10,7 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -72,6 +73,37 @@ def test_the_queue_is_waited_out_before_pytest_is_started():
 
 class _StopTheRun(Exception):
     """Ends the run at the point the child would have been launched."""
+
+
+def test_a_run_that_never_finishes_is_ended_rather_than_waited_on_forever():
+    """pytest's per-test timeout runs on a thread, and a thread cannot interrupt
+    a call blocked inside Windows — so a wedged test prints its stack and the run
+    then sits there.  The wait used to have no ceiling at all, and the
+    machine-wide lock is held around it, so one wedge left every other session's
+    suite waiting on a run that was never going to finish.  The job object
+    closing on the way out is what takes the children with it.
+    """
+    closed: list[object] = []
+
+    with patch.object(hidden_desktop._kernel32, "WaitForSingleObject",
+                      return_value=hidden_desktop.WAIT_TIMEOUT) as wait, \
+         patch.object(hidden_desktop, "_launch_on_desktop",
+                      return_value=SimpleNamespace(hProcess=object())), \
+         patch.object(hidden_desktop, "_close_process_handles", lambda pi: None), \
+         patch.object(hidden_desktop, "close_run_job", closed.append), \
+         patch.object(hidden_desktop, "create_run_job", object):
+        code = hidden_desktop._run_the_suite([])
+
+    assert code == hidden_desktop.WEDGED_EXIT_CODE
+    assert wait.call_args.args[1] == hidden_desktop._ceiling_ms()
+    assert len(closed) == 1
+
+
+def test_the_ceiling_leaves_a_green_suite_room_to_finish():
+    """Thirteen minutes is a green run here, and the gate's own job times out at
+    fifteen.  A ceiling anywhere near either would turn a slow machine into a
+    failed run, which is the opposite of what it is for."""
+    assert hidden_desktop.RUN_CEILING_S >= 30 * 60
 
 
 def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
