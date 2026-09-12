@@ -763,7 +763,49 @@ def build_integration_temp_root() -> Path:
     return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
 
 
-def sample_library_clips(candidates, count: int, *, desc: str, readable=None) -> list:
+# How long a draw may spend LOOKING before it gives up: listing the library, and
+# probing what it drew.  Both walk a cloud drive that fetches a cold file from
+# the internet on first open, so both can outlast pytest's own per-test timeout
+# -- and the timeout runs on a thread, which cannot interrupt a blocked read, so
+# the run then hangs holding the machine-wide lock (2026-09-11, twice).  A budget
+# turns that into a named failure.
+LISTING_BUDGET_S = 30.0
+PROBE_BUDGET_S = 90.0
+
+
+def library_clips(roots, *, budget_s: float = LISTING_BUDGET_S, walk=os.walk) -> list[Path]:
+    """Every video under each of *roots*, or as many as *budget_s* each buys.
+
+    Listed on a thread it may never return from, the way a cold clip is read
+    (:func:`readable_at_speed`).  One directory of the cloud drive can block for
+    minutes by itself, so a deadline checked between directories is no deadline
+    at all: the run was still inside a single walk step when the test timed out.
+
+    The budget is per root, so a cold root costs its own and nothing else's --
+    the VR masters going cold must still leave the local library listed, since
+    falling back to it is what the caller is counting on.
+    """
+    found: list[Path] = []
+    for root in roots:
+        reached = len(found)
+
+        def crawl(root=root) -> None:
+            for dirpath, _dirs, filenames in walk(root):
+                found.extend(
+                    Path(dirpath) / name for name in filenames
+                    if Path(name).suffix.lower() in VIDEO_EXTENSIONS)
+
+        lister = threading.Thread(target=crawl, daemon=True)
+        lister.start()
+        lister.join(budget_s)
+        if lister.is_alive():
+            print(f"[integration] stopped listing after {budget_s:g}s with "
+                  f"{len(found) - reached} clips from one source; the draw is over those")
+    return list(found)
+
+
+def sample_library_clips(candidates, count: int, *, desc: str, readable=None,
+                         budget_s: float = PROBE_BUDGET_S, now=time.monotonic) -> list:
     """*count* clips drawn at random from *candidates*, reproducibly.
 
     A fresh draw each run — the same clips every run masks bugs that only one
@@ -776,7 +818,9 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None) ->
     ``Sample larger than population`` from inside a test.
 
     With *readable* (see :func:`readable_at_speed`), a drawn clip the machine
-    cannot serve right now is skipped, named, and replaced by the next draw.
+    cannot serve right now is skipped, named, and replaced by the next draw --
+    for at most *budget_s*, since every skip costs a real wait and a whole cold
+    library would otherwise outlast the test.
     """
     candidates = sorted(candidates, key=str)
     assert len(candidates) >= count, (
@@ -789,15 +833,17 @@ def sample_library_clips(candidates, count: int, *, desc: str, readable=None) ->
         chosen = rng.sample(candidates, count)
     else:
         chosen = []
+        stop_at = now() + budget_s
         for clip in rng.sample(candidates, len(candidates)):
-            if len(chosen) == count:
+            if len(chosen) == count or now() >= stop_at:
                 break
             if readable(clip):
                 chosen.append(clip)
             else:
                 print(f"[integration]   skipped, not readable at speed: {clip}")
         assert len(chosen) == count, (
-            f"need {count} {desc} that read at speed, found {len(chosen)}"
+            f"need {count} {desc} that read at speed, found {len(chosen)} "
+            f"within {budget_s:g}s -- the library is cold on this machine"
         )
     for clip in chosen:
         print(f"[integration]   {clip}")

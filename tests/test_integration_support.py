@@ -25,6 +25,7 @@ from tests.integration.integration_support import (
     FunTimeIntegrationSession,
     close_udp_sinks,
     isolate_shared_resources,
+    library_clips,
     readable_at_speed,
     sample_library_clips,
     stall_per_transition,
@@ -427,6 +428,64 @@ def test_a_sample_skips_the_clips_the_drive_cannot_serve_at_speed(monkeypatch, c
 def test_a_sample_fails_saying_so_when_too_few_clips_read_at_speed():
     with pytest.raises(AssertionError, match="read at speed"):
         sample_library_clips(["a.mp4", "b.mp4"], 2, desc="clips", readable=lambda clip: False)
+
+
+def test_a_sample_gives_up_probing_once_its_budget_is_spent(monkeypatch):
+    """Every skip costs a real two-second wait, so a library the drive has gone
+    cold on can outlast the whole test.  It did: pytest's timeout fired, its
+    thread could not interrupt the blocked read, and the run sat there holding
+    the machine-wide lock until somebody killed it by hand.  A budget makes that
+    a named failure instead."""
+    monkeypatch.setenv("FUN_TIME_INTEGRATION_SEED", "7")
+    probed: list[str] = []
+    clock = iter([0.0, 0.0, 1.0, 99.0, 99.0, 99.0])
+
+    def probe(clip):
+        probed.append(clip)
+        return False
+
+    with pytest.raises(AssertionError, match="the library is cold"):
+        sample_library_clips([f"{n}.mp4" for n in range(50)], 2, desc="clips",
+                             readable=probe, budget_s=10.0, now=lambda: next(clock))
+
+    assert len(probed) == 2
+
+
+def test_the_listing_gives_up_on_a_source_that_blocks_inside_one_directory(tmp_path, capsys):
+    """One directory of the cloud drive can block for minutes on its own, so a
+    deadline checked between directories is no deadline at all — the run was
+    still inside a single walk step when pytest's own timeout fired."""
+    def crawl(root):
+        yield str(tmp_path), [], ["one.mp4"]
+        time.sleep(5)
+        yield str(tmp_path), [], ["two.mp4"]
+
+    found = library_clips([tmp_path], budget_s=0.2, walk=crawl)
+
+    assert [clip.name for clip in found] == ["one.mp4"]
+    assert "stopped listing" in capsys.readouterr().out
+
+
+def test_a_cold_source_still_leaves_the_next_one_listed():
+    """The VR masters live on the cloud drive and the desktop library does not.
+    Falling back to the local one is what the VR draw is counting on, so a cold
+    root must cost its own budget and nothing else's."""
+    def crawl(root):
+        if root == "cold":
+            time.sleep(5)
+        yield str(root), [], [f"{root}.mp4"]
+
+    found = library_clips(["cold", "warm"], budget_s=0.2, walk=crawl)
+
+    assert [clip.name for clip in found] == ["warm.mp4"]
+
+
+def test_the_listing_keeps_only_the_video_files(tmp_path):
+    (tmp_path / "clip.mp4").write_bytes(b"")
+    (tmp_path / "clip.funscript").write_bytes(b"")
+    (tmp_path / "notes.txt").write_bytes(b"")
+
+    assert [p.name for p in library_clips([tmp_path])] == ["clip.mp4"]
 
 
 def test_a_window_whose_median_hides_a_stall_is_not_quiet():
