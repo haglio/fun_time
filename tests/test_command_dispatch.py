@@ -3846,6 +3846,18 @@ def test_main_reset_does_not_reshuffle_a_player_that_was_not_narrowed(tmp_path, 
     assert "SET_LENGTH_MODE mixed" in config.nau_cmd_file.read_text(encoding="utf-8")
 
 
+def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does_not_offer(
+    tmp_path, monkeypatch
+):
+    calls: list[dict] = []
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
+                        lambda **kwargs: calls.append(kwargs))
+
+    dispatch_command("main_reset", _make_state(main_plays_flat=False), _make_config(tmp_path))
+
+    assert calls == []
+
+
 def test_main_reset_keeps_the_length_verb_off_a_slot_nau_does_not_own(tmp_path, monkeypatch):
     """The length mode is Nau's, so the verb only goes while Nau owns the main slot
     — the same guard every other Nau verb has.  The F-mode flag is ours and goes

@@ -64,6 +64,12 @@ class TestVideoShapes:
     def test_a_session_whose_sources_hold_both_offers_one(self, tmp_path: Path):
         assert VideoShapes(vr_dirs=str(tmp_path / "vr")).offered is True
 
+    def test_a_session_with_no_vr_library_narrows_nothing_whatever_the_headset_left_on(self):
+        paths = ["C:/v/flat/scene one.mp4", "C:/v/flat/scene two_180_sbs.mp4"]
+
+        for plays_vr, plays_flat in ((True, False), (False, True), (False, False)):
+            assert VideoShapes(plays_vr=plays_vr, plays_flat=plays_flat).keep(paths) == paths
+
     def test_the_main_build_narrows_to_the_shape_asked_for(self, tmp_path: Path):
         vr_dir = tmp_path / "vr"
         flat_dir = tmp_path / "flat"
