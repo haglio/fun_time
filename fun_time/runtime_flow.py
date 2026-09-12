@@ -155,7 +155,7 @@ def apply_main_fmode(
 
 def apply_satellite_fmode(
     *,
-    which: int,
+    player: Player,
     enabled: bool,
     sources: str,
     favs_file: str | Path,
@@ -172,7 +172,7 @@ def apply_satellite_fmode(
     """
     build_one_satellite_playlist(
         sources=sources,
-        name=PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
+        name=PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
         f_mode=enabled,
@@ -227,7 +227,7 @@ def apply_fmode(
         if player in named:
             side = satellites[player]
             apply_satellite_fmode(
-                which=player,
+                player=player,
                 enabled=enabled,
                 sources=side.sources,
                 favs_file=favs_file,
@@ -277,7 +277,7 @@ class SatelliteFilterFlowResult:
 
 def apply_satellite_filter(
     *,
-    which: int,
+    player: Player,
     query: str,
     f_mode_enabled: bool,
     recent: bool,
@@ -288,7 +288,7 @@ def apply_satellite_filter(
     start_at_top: bool = False,
     regen_metadata_root: Path | None = None,
 ) -> SatelliteFilterFlowResult:
-    """Rebuild and reload one satellite (2=portrait, 3=landscape) under *query*.
+    """Rebuild and reload one satellite under *query*.
 
     Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
     so the filtered playlist still honors Latest vs Shuffle and F-mode.  A
@@ -304,8 +304,8 @@ def apply_satellite_filter(
     newest arrivals never come up.  ``start_at_top`` follows the reload with a jump
     to the head of the list it just wrote.
     """
-    label = Player(which).label
-    name = PLAYLIST_PORTRAIT if which == Player.PORTRAIT else PLAYLIST_LANDSCAPE
+    label = Player(player).label
+    name = PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
         query=query, f_mode_enabled=f_mode_enabled, recent=recent,
         sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,

@@ -347,7 +347,7 @@ def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path)
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        which=2, query="", f_mode_enabled=False, recent=True, start_at_top=True,
+        player=2, query="", f_mode_enabled=False, recent=True, start_at_top=True,
         sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
@@ -366,7 +366,7 @@ def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        which=2, query="", f_mode_enabled=False, recent=False,
+        player=2, query="", f_mode_enabled=False, recent=False,
         sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
@@ -377,7 +377,7 @@ def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
 def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **roots) -> None:
     """Reload the portrait satellite in one order — what "latest"/"shuffle" run."""
     apply_satellite_filter(
-        which=2,
+        player=2,
         query=query,
         f_mode_enabled=False,
         recent=recent,
@@ -504,7 +504,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     landscape_cmd_file = tmp_path / "landscape_cmd.txt"
 
     result = apply_satellite_filter(
-        which=2,
+        player=2,
         query="alpha",
         f_mode_enabled=False,
         recent=True,
@@ -535,7 +535,7 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     result = apply_satellite_filter(
-        which=2,
+        player=2,
         query="alpha",
         f_mode_enabled=False,
         recent=True,
@@ -559,7 +559,7 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     _make_action_video(portrait_root, metadata_root, "pt", "Twirling")
 
     result = apply_satellite_filter(
-        which=2,
+        player=2,
         query="",
         f_mode_enabled=False,
         recent=True,

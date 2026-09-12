@@ -234,21 +234,21 @@ def _toggle_genau_enabled(path: Path) -> None:
 
 
 def _toggle_lock(
-    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.side(which).locked
-    current_path = satellite_current(config, which)
+    locked = state.side(player).locked
+    current_path = satellite_current(config, player)
     # "Lock" names the video the speaker had in front of them.  If the satellite
     # auto-advanced while the phrase was being recognized, bring that video back
     # and lock it — the whole point of the lock is to keep watching *it*.  An
     # unlock needs no such rescue: a locked satellite repeats one video and
     # cannot have advanced.
     if not locked and target_path and not same_video(target_path, current_path):
-        play_video(config, which, target_path)
-        logger.info("Lock back-dated to %s (player %d had advanced)", target_path, which)
+        play_video(config, player, target_path)
+        logger.info("Lock back-dated to %s (player %d had advanced)", target_path, player)
         current_path = target_path
-    plan = build_lock_toggle_plan(which=which, locked=locked, current_path=current_path)
-    send_satellite(config, which, "LOCK" if plan.next_locked else "UNLOCK")
+    plan = build_lock_toggle_plan(player=player, locked=locked, current_path=current_path)
+    send_satellite(config, player, "LOCK" if plan.next_locked else "UNLOCK")
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
         # Locking is the strongest positive watch signal ("breeding" weight).
@@ -256,7 +256,7 @@ def _toggle_lock(
     if plan.advance_playlist:
         # Unlocking moves on from the clip you were dwelling on, rather than
         # replaying it once more before the auto-advance.
-        send_satellite(config, which, "NEXT")
+        send_satellite(config, player, "NEXT")
     if plan.log_message:
         logger.info(plan.log_message)
     lock_ops: list[WindowOp] = []
@@ -276,14 +276,14 @@ def _toggle_lock(
     # back into cycling that group.  The loop therefore stays in state — a lock is a
     # pause at one position *inside* the loop, and the HUD goes on drawing the loop
     # (lit button, group rectangle, frozen map) with the held clip ringed.
-    return state.with_side(which, locked=plan.next_locked), lock_ops
+    return state.with_side(player, locked=plan.next_locked), lock_ops
 
 
 def _discard(
-    which: int, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.side(which).locked
-    current_path = satellite_current(config, which)
+    locked = state.side(player).locked
+    current_path = satellite_current(config, player)
     # "Weird" judges the video the speaker saw.  When the satellite advanced
     # while the phrase was being recognized, jump back to the condemned clip
     # before trashing it, so the wrong (innocent) clip is never the one dropped.
@@ -293,25 +293,25 @@ def _discard(
     # file that lights the HUD's ★ for this clip, so the key does what the badge
     # on screen implies: a starred clip loses the star, an unstarred one goes.
     is_favorite = is_favorite_path(condemned, read_favs_content(config.favs_file))
-    plan = build_discard_plan(which=which, current_path=condemned, is_favorite=is_favorite)
+    plan = build_discard_plan(player=player, current_path=condemned, is_favorite=is_favorite)
     if locked:
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.
-        send_satellite(config, which, "UNLOCK")
+        send_satellite(config, player, "UNLOCK")
     if plan.remove_from_favs and condemned:
         remove_from_favs(config.favs_file, condemned)
     if plan.advance_playlist:
         if plan.drop_from_playlist:
             if already_moved_on:
-                play_video(config, which, condemned)
+                play_video(config, player, condemned)
             # TRASH drops the current clip from the playlist and plays the next.
-            send_satellite(config, which, "TRASH")
+            send_satellite(config, player, "TRASH")
         elif not already_moved_on:
             # A demotion leaves the clip in the playlist, so this is a plain
             # advance (NEXT) and PREV comes straight back to it.  Nothing has to
             # be done to the clip itself, so a satellite that already moved on is
             # left alone rather than dragged back to a clip it would leave again.
-            send_satellite(config, which, "NEXT")
+            send_satellite(config, player, "NEXT")
     if plan.move_to_weird and condemned:
         move_to_weird(config.weird_dir, Path(condemned))
     if plan.log_message:
@@ -322,16 +322,16 @@ def _discard(
     # green, condemning a clip that was never one is not.
     discard_ops = (
         [WindowOp(
-            op="notice", key=plan.notice_message, source=satellite_source(which),
+            op="notice", key=plan.notice_message, source=satellite_source(player),
             level=FAVORITE_NOTICE_LEVEL if plan.notice_about_favorites else NOTICE,
         )]
         if plan.notice_message
         else []
     )
-    return state.with_side(which, locked=False), discard_ops
+    return state.with_side(player, locked=False), discard_ops
 
 
-# display slot (2=portrait, 3=landscape) and variation axis per cycle command.
+# The satellite and the variation axis each cycle command reaches.
 _CYCLE_COMMANDS = {
     "portrait_cycle_action": (Player.PORTRAIT, "action"),
     "portrait_cycle_seed": (Player.PORTRAIT, "seed"),
@@ -468,21 +468,21 @@ _WRONG_ACTION_SIDES: dict[str, Player] = {"portrait_wrong_action": Player.PORTRA
 
 
 def _dispatch_lock_action(
-    which: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
+    player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Filter the satellite to the current clip's action — "portrait [act]",
     with the act read off the clip instead of spoken."""
-    current = target_path or satellite_current(config, which)
+    current = target_path or satellite_current(config, player)
     if not current:
         return state, []
     action = video_action_label(current, config)
     if not action:
-        return state, [WindowOp(op="notice", key="No action metadata", source=satellite_source(which), level=FAILED_NOTICE_LEVEL)]
-    return _dispatch_set_filter((which,), action.lower(), state, config)
+        return state, [WindowOp(op="notice", key="No action metadata", source=satellite_source(player), level=FAILED_NOTICE_LEVEL)]
+    return _dispatch_set_filter((player,), action.lower(), state, config)
 
 
 def _dispatch_lock_video(
-    which: int, path: str, state: BridgeState, config: BridgeConfig
+    player: Player, path: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Double-click a HUD thumbnail: switch to *path* and lock it (repeat-one).
 
@@ -490,9 +490,9 @@ def _dispatch_lock_video(
     just moves the lock onto it; when unlocked, toggling the lock with the target
     both switches to it and locks it (the same back-dating a spoken "lock" uses).
     """
-    if state.side(which).locked:
-        return switch_to_video(which, path, state, config)
-    return _toggle_lock(which, state, config, target_path=path)
+    if state.side(player).locked:
+        return switch_to_video(player, path, state, config)
+    return _toggle_lock(player, state, config, target_path=path)
 
 
 # The four steps of "<side>_nav_<dir>" — see :func:`satellite_groups.navigate_hud`.
@@ -501,12 +501,12 @@ _NAV_DIRECTIONS = ("left", "right", "up", "down")
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
     """``(slot, direction)`` for a ``<side>_nav_<dir>`` command, else None."""
-    for prefix, which in (("portrait_nav_", Player.PORTRAIT),
+    for prefix, player in (("portrait_nav_", Player.PORTRAIT),
                           ("landscape_nav_", Player.LANDSCAPE)):
         if command.startswith(prefix):
             direction = command[len(prefix):]
             if direction in _NAV_DIRECTIONS:
-                return which, direction
+                return player, direction
     return None
 
 
@@ -1027,7 +1027,7 @@ def _dispatch_main_reset(
 
 
 def _dispatch_reorder(
-    which: int, recent: bool, state: BridgeState, config: BridgeConfig
+    player: Player, recent: bool, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
     """Reload one satellite in a fresh order — Latest (newest-first) or Shuffle.
 
@@ -1037,14 +1037,14 @@ def _dispatch_reorder(
     same way.  The rebuild replaces the queue, which drops the side's lock and any
     group loop (with the widened row that rode on it).
     """
-    state = state.with_side(which, latest=recent)
+    state = state.with_side(player, latest=recent)
     # From the top of the new order: asking for the latest is asking to see what has
     # just arrived, and the reload alone would leave the clip on screen playing with
     # the new order applying only after it.
-    result = _rebuild_side(which, state.side(which).filter, state, config, start_at_top=True)
-    state = state.with_side(which, locked=False)
-    state = clear_side_grouping(state, which)
-    side = Player(which).label
+    result = _rebuild_side(player, state.side(player).filter, state, config, start_at_top=True)
+    state = state.with_side(player, locked=False)
+    state = clear_side_grouping(state, player)
+    side = Player(player).label
     # The order's own word and nothing else.  The toast flashes on the player it
     # was said to, and this is what that player's HUD calls the order it is now
     # in, so naming the player and then spelling the order out a second time
@@ -1054,7 +1054,7 @@ def _dispatch_reorder(
     # reorder is not echoed on top of it (see SELF_REPORTING_COMMANDS).
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, side, result.count)
-    return state, [WindowOp(op="notice", key=label, source=satellite_source(which))]
+    return state, [WindowOp(op="notice", key=label, source=satellite_source(player))]
 
 
 def _dispatch_reset(
@@ -1080,27 +1080,27 @@ def _dispatch_reset(
     then, so there is nothing the press could put back.
     """
     ops: list[WindowOp] = []
-    for which in players:
+    for player in players:
         # Every default is the empty value of its field, so "already reset" is
         # the side's whole SideState sitting at the default — a narrowing the
         # reset clears cannot be one this test forgets.  (The nav anchor is
         # already gone: every side command that is not itself a nav step clears
         # it on the way in, so no reset has ever seen one set.)
-        if state.side(which) == SideState():
-            logger.info("Reset %s: already at its defaults", satellite_source(which))
+        if state.side(player) == SideState():
+            logger.info("Reset %s: already at its defaults", satellite_source(player))
             continue
-        state = cancel_lock(which, state, config)
+        state = cancel_lock(player, state, config)
         state = state.with_side(
-            which, latest=False, filter="", f_mode=False, nav_anchor="")
-        state = clear_side_grouping(state, which)
-        result = _rebuild_side(which, "", state, config, start_at_top=True)
-        logger.info("Reset %s: %s", satellite_source(which), result.log_message)
-        ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(which)))
+            player, latest=False, filter="", f_mode=False, nav_anchor="")
+        state = clear_side_grouping(state, player)
+        result = _rebuild_side(player, "", state, config, start_at_top=True)
+        logger.info("Reset %s: %s", satellite_source(player), result.log_message)
+        ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(player)))
     return state, ops
 
 
 def _rebuild_side(
-    which: int, query: str, state: BridgeState, config: BridgeConfig,
+    player: Player, query: str, state: BridgeState, config: BridgeConfig,
     *, start_at_top: bool = False,
 ) -> SatelliteFilterFlowResult:
     """Rebuild one satellite's browse under *query* and its own current ordering.
@@ -1111,16 +1111,16 @@ def _rebuild_side(
     reset — since the reload otherwise keeps the clip on screen and carries on from
     where it sat, leaving the new order to apply only after it.
     """
-    side = state.side(which)
+    side = state.side(player)
     return apply_satellite_filter(
-        which=which,
+        player=player,
         query=query,
         f_mode_enabled=side.f_mode,
         recent=side.latest,
-        sources=config.side(which).sources,
+        sources=config.side(player).sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        cmd_file=config.side(which).cmd_file,
+        cmd_file=config.side(player).cmd_file,
         start_at_top=start_at_top,
         regen_metadata_root=config.regen_metadata_root,
     )
@@ -1136,21 +1136,21 @@ def _dispatch_set_filter(
     it, then reloads under its own ordering.
     """
     ops: list[WindowOp] = []
-    for which in players:
-        result = _rebuild_side(which, query, state, config)
+    for player in players:
+        result = _rebuild_side(player, query, state, config)
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
         # next F-mode/reorder rebuild blank the satellite.  A filter that *did* rebuild
         # also replaced any loop's sub-playlist, so the loop (and its widened row)
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
-            state = state.with_side(which, filter=query)
-            state = clear_side_grouping(state, which)
+            state = state.with_side(player, filter=query)
+            state = clear_side_grouping(state, player)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
         # so it reads red like the other no-effect notices.
         level = NOTICE if result.applied else FAILED_NOTICE_LEVEL
-        ops.append(WindowOp(op="notice", key=result.log_message, source=satellite_source(which), level=level))
+        ops.append(WindowOp(op="notice", key=result.log_message, source=satellite_source(player), level=level))
     return state, ops
 
 
@@ -1344,17 +1344,17 @@ _MODE_SWITCH_COMMANDS: dict[str, str] = {
 }
 
 
-def _transport(which: Player, verb: str, state: BridgeState, config: BridgeConfig,
+def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Advance a satellite; navigation moves on, so a repeat-one lock goes first."""
-    state = cancel_lock(which, state, config)
-    send_satellite(config, which, verb)
+    state = cancel_lock(player, state, config)
+    send_satellite(config, player, verb)
     return state, []
 
 
-def _no_loop(which: Player, state: BridgeState, config: BridgeConfig,
+def _no_loop(player: Player, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    return no_loop(which, state, config)
+    return no_loop(player, state, config)
 
 
 def _forward_to_nau(verb: str, state: BridgeState, config: BridgeConfig,
@@ -1477,11 +1477,11 @@ def _fmode(players: tuple[str, ...], target: bool | None, state: BridgeState,
     return _dispatch_fmode(players, target, state, config)
 
 
-def _reorder(which: Player, recent: bool, state: BridgeState, config: BridgeConfig,
+def _reorder(player: Player, recent: bool, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    if which is Player.MAIN:
+    if player is Player.MAIN:
         return _dispatch_main_reorder(recent, state, config)
-    return _dispatch_reorder(which, recent, state, config)
+    return _dispatch_reorder(player, recent, state, config)
 
 
 def _reset(players: tuple[Player, ...], state: BridgeState, config: BridgeConfig,
@@ -1564,22 +1564,22 @@ def _words_for_a_show_that_is_not_up(state: BridgeState, _config: BridgeConfig,
 def _build_handlers() -> dict[str, Handler]:
     """Every exact command id and its handler — the map dispatch_command reads."""
     handlers: dict[str, Handler] = {}
-    handlers.update({cmd: partial(_transport, which, verb)
-                     for cmd, (which, verb) in _TRANSPORT_COMMANDS.items()})
+    handlers.update({cmd: partial(_transport, player, verb)
+                     for cmd, (player, verb) in _TRANSPORT_COMMANDS.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
     handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
     handlers["portrait_trash"] = partial(_discard, Player.PORTRAIT)
     handlers["landscape_trash"] = partial(_discard, Player.LANDSCAPE)
-    handlers.update({cmd: partial(cycle_variant, which, kind)
-                     for cmd, (which, kind) in _CYCLE_COMMANDS.items()})
-    handlers.update({cmd: partial(more_seeds, which)
-                     for cmd, which in _MORE_SEEDS_SIDES.items()})
-    handlers.update({cmd: partial(wrong_action, which)
-                     for cmd, which in _WRONG_ACTION_SIDES.items()})
-    handlers.update({cmd: partial(group_loop, which, axis)
-                     for cmd, (which, axis) in _LOOP_COMMANDS.items()})
-    handlers.update({cmd: partial(loop_cycle, which)
-                     for cmd, which in _LOOP_CYCLE_SIDES.items()})
+    handlers.update({cmd: partial(cycle_variant, player, kind)
+                     for cmd, (player, kind) in _CYCLE_COMMANDS.items()})
+    handlers.update({cmd: partial(more_seeds, player)
+                     for cmd, player in _MORE_SEEDS_SIDES.items()})
+    handlers.update({cmd: partial(wrong_action, player)
+                     for cmd, player in _WRONG_ACTION_SIDES.items()})
+    handlers.update({cmd: partial(group_loop, player, axis)
+                     for cmd, (player, axis) in _LOOP_COMMANDS.items()})
+    handlers.update({cmd: partial(loop_cycle, player)
+                     for cmd, player in _LOOP_CYCLE_SIDES.items()})
     handlers.update({cmd: partial(_no_loop, player)
                      for cmd, player in _NO_LOOP_SIDES.items()})
     handlers.update({cmd: partial(_dispatch_lock_action, player)
@@ -1607,8 +1607,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["relief_omnipause"] = _relief_omnipause
     handlers.update({cmd: partial(_fmode, players, target)
                      for cmd, (players, target) in _FMODE_COMMANDS.items()})
-    handlers.update({cmd: partial(_reorder, which, recent)
-                     for cmd, (which, recent) in _REORDER_COMMANDS.items()})
+    handlers.update({cmd: partial(_reorder, player, recent)
+                     for cmd, (player, recent) in _REORDER_COMMANDS.items()})
     handlers.update({cmd: partial(_reset, players)
                      for cmd, players in _RESET_SIDES.items()})
     handlers.update({cmd: partial(_main_projection, plays_vr, plays_flat)

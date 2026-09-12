@@ -79,10 +79,10 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
     )
 
 
-def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool = False) -> None:
-    """Make read_satellite_status report *video* as satellite *which*'s current
+def _set_current(config: BridgeConfig, player: Player, video: str, *, locked: bool = False) -> None:
+    """Make read_satellite_status report *video* as satellite *player*'s current
     clip — the file-based stand-in for the old get_current_file_path mock."""
-    status = config.side(which).status_file
+    status = config.side(player).status_file
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
         f"video={video}\nposition_ms=100\nduration_ms=1000\n"
@@ -91,17 +91,17 @@ def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool =
     )
 
 
-def _cmds(config: BridgeConfig, which: int) -> list[str]:
-    """The verbs queued on satellite *which*'s command file, in order."""
-    cmd_file = config.side(which).cmd_file
+def _cmds(config: BridgeConfig, player: Player) -> list[str]:
+    """The verbs queued on satellite *player*'s command file, in order."""
+    cmd_file = config.side(player).cmd_file
     if not cmd_file.exists():
         return []
     return [line.strip() for line in cmd_file.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def _playlist(config: BridgeConfig, which: int) -> list[str]:
-    """The video paths written to satellite *which*'s playlist file, in order."""
-    playlist = config.side(which).playlist_file
+def _playlist(config: BridgeConfig, player: Player) -> list[str]:
+    """The video paths written to satellite *player*'s playlist file, in order."""
+    playlist = config.side(player).playlist_file
     if not playlist.exists():
         return []
     return [
@@ -1157,7 +1157,7 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
     assert new_state.side(Player.LANDSCAPE).filter == ""  # the other satellite is untouched
     assert mock_filter.call_count == 1
     kwargs = mock_filter.call_args.kwargs
-    assert kwargs["which"] == 2
+    assert kwargs["player"] is Player.PORTRAIT
     assert kwargs["query"] == "alpha"
     assert kwargs["cmd_file"] == config.side(2).cmd_file
     assert kwargs["sources"] == config.portrait_sources
@@ -1411,7 +1411,7 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
 
     assert new_state.side(Player.PORTRAIT).filter == "beta gamma"
     assert new_state.side(Player.LANDSCAPE).filter == "beta gamma"
-    assert {call.kwargs["which"] for call in mock_filter.call_args_list} == {2, 3}
+    assert {call.kwargs["player"] for call in mock_filter.call_args_list} == set(Player.SATELLITES)
 
 
 def test_filter_command_both_scope_notices_each_satellite_under_its_own_source(tmp_path: Path):
@@ -1495,7 +1495,7 @@ def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=True)
         state, ops = dispatch_command("portrait_latest", _make_state(), config)
 
-    assert [call.kwargs["which"] for call in mock_filter.call_args_list] == [2]
+    assert [call.kwargs["player"] for call in mock_filter.call_args_list] == [Player.PORTRAIT]
     assert state.side(Player.PORTRAIT).latest is True
     assert state.side(Player.LANDSCAPE).latest is False
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]

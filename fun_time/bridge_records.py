@@ -13,6 +13,7 @@ from .config import RegenConfig
 from .event_log import FAVORITE, NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
 from .player_status import genau_enabled_path
+from .players import Player
 
 # A notice that reports a command had no effect ("No other seeds") is logged at
 # ERROR so the log panel and the on-player flash render it red, not white — the
@@ -29,7 +30,7 @@ FAVORITE_NOTICE_LEVEL = FAVORITE
 
 @dataclass
 class BridgeConfig:
-    # Each satellite (2=portrait, 3=landscape) is a native mpv-backed player
+    # Each satellite is a native mpv-backed player
     # driven through a file quartet — a command file it drains verbs from, a
     # paused flag it obeys, a status file it publishes, and the playlist file it
     # plays.  See :mod:`fun_time.satellite_control`.
@@ -95,9 +96,9 @@ class BridgeConfig:
     regen_generate_video_url: str = RegenConfig.generate_video_url
     regen_generate_image_url: str = RegenConfig.generate_image_url
 
-    def side(self, which: int) -> SideChannel:
-        """Satellite *which*'s (2=portrait, 3=landscape) file quartet and sources."""
-        if which == 2:
+    def side(self, player: Player) -> SideChannel:
+        """Satellite *player*'s file quartet and sources."""
+        if Player(player) is Player.PORTRAIT:
             return SideChannel(
                 cmd_file=self.portrait_cmd_file,
                 paused_file=self.portrait_paused_file,
