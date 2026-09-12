@@ -417,6 +417,8 @@ _user32.SetForegroundWindow.restype = ctypes.wintypes.BOOL
 _user32.GetForegroundWindow.restype = ctypes.wintypes.HWND
 _user32.BringWindowToTop.argtypes = [ctypes.wintypes.HWND]
 _user32.BringWindowToTop.restype = ctypes.wintypes.BOOL
+_user32.SetActiveWindow.argtypes = [ctypes.wintypes.HWND]
+_user32.SetActiveWindow.restype = ctypes.wintypes.HWND
 _user32.AttachThreadInput.argtypes = [
     ctypes.wintypes.DWORD,  # idAttach
     ctypes.wintypes.DWORD,  # idAttachTo
@@ -443,18 +445,16 @@ def force_foreground_window(hwnd: int) -> bool:
     foreground window or received the last input — and the bridge is neither
     when a hotkey lands: AHK got the key, a player owns the screen.  The refusal
     is silent, and delivers no WM_ACTIVATE, which is the message the window has
-    to see.  Attaching this thread's input queue to the foreground thread's is
-    one of the cases the rule accepts, so the call goes through.
-
-    Returns whether the window really ended up there.  A False is worth logging
-    but not acting on: a non-input desktop (the integration suite's) has no
-    foreground to be, so it reads False while the activation still lands.
+    to see.  So this thread's input queue is attached to the foreground's, one
+    of the cases the rule accepts — or, where nothing holds the foreground (the
+    integration suite's desktop), to the window's own, where ``SetActiveWindow``
+    delivers it.  Returns whether the window ended up the foreground.
     """
     if not window_exists(hwnd):
         return False
     foreground = _user32.GetForegroundWindow()
     this_thread = _kernel32.GetCurrentThreadId()
-    other_thread = _user32.GetWindowThreadProcessId(foreground, None) if foreground else 0
+    other_thread = _user32.GetWindowThreadProcessId(foreground or hwnd, None)
     attached = bool(
         other_thread
         and other_thread != this_thread
@@ -463,6 +463,8 @@ def force_foreground_window(hwnd: int) -> bool:
     try:
         _user32.BringWindowToTop(hwnd)
         _user32.SetForegroundWindow(hwnd)
+        if not foreground:
+            _user32.SetActiveWindow(hwnd)
     finally:
         if attached:
             _user32.AttachThreadInput(other_thread, this_thread, False)

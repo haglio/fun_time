@@ -281,17 +281,20 @@ class TestForceForegroundWindow:
         user32.SetForegroundWindow.assert_not_called()
         user32.AttachThreadInput.assert_not_called()
 
-    def test_no_foreground_window_means_nothing_to_attach_to(self):
-        """The hidden desktop the integration suite runs on has no foreground
-        window: the activation still lands, and this still reads False."""
+    def test_with_no_foreground_to_attach_the_windows_own_queue_takes_the_activation(self):
         with patch("fun_time.win32._user32") as user32, \
              patch("fun_time.win32._kernel32") as kernel32:
             self._mock(user32, kernel32, ends_up_foreground=0, was_foreground=0)
+            user32.GetWindowThreadProcessId.side_effect = lambda hwnd, _pid: {111: 7003}[hwnd]
 
             assert force_foreground_window(111) is False
 
-        user32.AttachThreadInput.assert_not_called()
-        user32.SetForegroundWindow.assert_called_once_with(111)
+        activation = [c for c in user32.mock_calls if c[0] in ("AttachThreadInput", "SetActiveWindow")]
+        assert activation == [
+            call.AttachThreadInput(7003, 7002, True),
+            call.SetActiveWindow(111),
+            call.AttachThreadInput(7003, 7002, False),
+        ]
 
     def test_detaches_even_when_the_activation_raises(self):
         with patch("fun_time.win32._user32") as user32, \
