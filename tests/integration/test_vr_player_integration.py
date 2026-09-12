@@ -107,12 +107,11 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     vr = vrp.VrSettings.read(manifest_path)
     commands = manifest.commands
 
-    # The main player rotates real VR-library masters when the machine has them
-    # (the realistic heavy-decode load), and falls back to the desktop library
-    # rotation's own files — the same merged-sources order production uses.
-    main_videos = _sample_library_videos(
-        [*config.vr.library_dirs, *config.paths.nau_library_dirs], 2
-    )
+    # The desktop library, and never the VR masters: those sit on the cloud drive,
+    # where opening a cold file blocks inside the drive's own driver.  No timeout
+    # can end a thread stuck there, and Windows cannot finish closing a process
+    # that has one, so every run that read them left an unkillable python process.
+    main_videos = _sample_library_videos(config.paths.nau_library_dirs, 2)
     Path(commands.nau_playlist_file).write_text(
         "".join(f"{video}\n" for video in main_videos), encoding="utf-8"
     )
@@ -373,7 +372,7 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     commands = manifest.commands
     Path(commands.nau_playlist_file).write_text(
         "".join(f"{video}\n" for video in _sample_library_videos(
-            [*config.vr.library_dirs, *config.paths.nau_library_dirs], 2)),
+            config.paths.nau_library_dirs, 2)),
         encoding="utf-8",
     )
     # Genau mode is where the main player waits paused, and the flag survives a
