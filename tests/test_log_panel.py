@@ -302,12 +302,49 @@ def test_the_level_dial_fits_its_longest_name(panel_factory):
     assert dial.width() >= dial.sizeHint().width(), "the longest level name is cut off"
 
 
-def test_the_filter_row_uses_the_familys_button_gap(panel_factory):
-    from shared_ui.spacing import BUTTON_GAP
+def test_the_level_dial_wears_the_huds_button_edge_ground_and_height(panel_factory):
+    from shared_ui.palette import BG_BUTTON, TEXT_MUTED
+    from shared_ui.spacing import BUTTON_SIZE_HUD
+
+    dial = panel_factory(["Clip saved"])._verbosity
+    pixel = _grabbed(dial)
+    middle = dial.height() // 2
+
+    assert dial.height() == BUTTON_SIZE_HUD
+    assert pixel(0, middle) == TEXT_MUTED
+    assert pixel(2, middle) == BG_BUTTON
+
+
+def test_the_level_dial_shows_an_arrow_pointing_down(panel_factory):
+    from shared_ui.palette import BG_BUTTON
+
+    dial = panel_factory(["Clip saved"])._verbosity
+    pixel = _grabbed(dial)
+    inked = [(y, sum(pixel(x, y) != BG_BUTTON for x in range(dial.width() - 16, dial.width() - 2)))
+             for y in range(2, dial.height() - 2)]
+    rows = [(y, count) for y, count in inked if count]
+
+    assert rows, "the dial draws no arrow"
+    apex = min(rows, key=lambda row: row[1])[0]
+    widest = max(rows, key=lambda row: row[1])[0]
+    assert apex > widest
+
+
+def test_the_filter_row_sets_the_dial_a_group_apart_from_the_toggles(panel_factory):
+    from itertools import pairwise
+
+    from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP
 
     panel = panel_factory(["Clip saved"])
+    panel.controls.adjustSize()
+    panel.controls.layout().activate()
+    toggles = list(panel._source_buttons.values())
 
-    assert panel.controls.layout().spacing() == BUTTON_GAP
+    def gap(left, right) -> int:
+        return right.x() - (left.x() + left.width())
+
+    assert gap(panel._verbosity, toggles[0]) == BUTTON_GROUP_GAP
+    assert all(gap(left, right) == BUTTON_GAP for left, right in pairwise(toggles))
 
 
 def test_a_source_toggle_is_sized_the_way_a_huds_mode_button_is(panel_factory):

@@ -40,9 +40,6 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_layout import (
-    PAD as BAR_PAD,
-)
-from fun_time.dashboard_layout import (
     DashboardBarLayout,
     Rect,
     add_rect_arguments,
@@ -619,15 +616,11 @@ class DashboardWindow(QMainWindow):
         # a row shorter and the Random Favs Browser below it that much taller.
         top_row = QWidget(self)
         top_layout = QHBoxLayout(top_row)
-        # The bar insets its own contents by PAD; the filters at the far end get
-        # the same margin, so the row is even about its two edges.
-        top_layout.setContentsMargins(0, 0, BAR_PAD, 0)
+        top_layout.setContentsMargins(0, 0, 0, 0)
         top_layout.setSpacing(0)
         top_layout.addWidget(self._widget)
-        # Right-justified: the log's filters and the bar's own buttons do
-        # different jobs, and run together at the left they read as one strip.
-        top_layout.addStretch(1)
         top_layout.addWidget(self._log_widget.controls)
+        top_layout.addStretch(1)
         central = QWidget(self)
         central_layout = QVBoxLayout(central)
         central_layout.setContentsMargins(0, 0, 0, 0)
@@ -763,7 +756,7 @@ class DashboardWindow(QMainWindow):
         scene = build_dashboard_scene(
             self._bar_layout,
             snapshot,
-            width=self._bar_layout.content_width,
+            width=self._bar_layout.width,
             marks=self._widget.marks,
             pressed_actions=pressed_actions,
         )

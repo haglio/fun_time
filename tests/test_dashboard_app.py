@@ -46,7 +46,7 @@ from tests.sleeps import sleeps_in
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
     layout = compute_dashboard_bar_layout()
     kwargs.setdefault("marks", MarkCache())
-    return build_dashboard_scene(layout, snapshot, width=layout.content_width, **kwargs)
+    return build_dashboard_scene(layout, snapshot, width=layout.width, **kwargs)
 
 
 def _snapshot(**overrides) -> DashboardSnapshot:
@@ -118,8 +118,29 @@ def test_the_bar_is_only_as_wide_as_its_own_buttons():
     its buttons need and leaves the rest to them."""
     layout = compute_dashboard_bar_layout()
 
-    assert _scene().width == layout.content_width
+    assert _scene().width == layout.width
     assert _scene().height == layout.height
+
+
+def test_the_log_filters_follow_the_bar_a_group_gap_on(dashboard_app_config):
+    from PyQt6.QtCore import QPoint
+
+    window = build_dashboard_window(
+        dashboard_app_config,
+        launch_geometry=DashboardLaunchGeometry(x=0, y=0, width=1200, height=300),
+    )
+    try:
+        for widget in (window, window.centralWidget(), window._widget.parentWidget()):
+            widget.layout().activate()
+        layout = compute_dashboard_bar_layout()
+
+        def left(widget) -> int:
+            return widget.mapTo(window, QPoint(0, 0)).x()
+
+        crossing_right = left(window._widget) + layout.vr_button.x + layout.vr_button.width
+        assert left(window._log_widget._verbosity) - crossing_right == GROUP_GAP
+    finally:
+        window.close()
 
 
 def test_the_window_is_the_bar_and_the_log_under_it():
@@ -987,7 +1008,7 @@ def test_dashboard_widget_emits_action_on_click():
     from fun_time.dashboard_app import DashboardWidget
 
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.content_width, marks=MarkCache())
+    scene = build_dashboard_scene(layout, width=layout.width, marks=MarkCache())
 
     widget = DashboardWidget()
     widget.set_scene(scene)
@@ -1020,7 +1041,7 @@ def test_dashboard_widget_ignores_click_outside_actions():
     from fun_time.dashboard_app import DashboardWidget
 
     layout = compute_dashboard_bar_layout()
-    scene = build_dashboard_scene(layout, width=layout.content_width, marks=MarkCache())
+    scene = build_dashboard_scene(layout, width=layout.width, marks=MarkCache())
 
     widget = DashboardWidget()
     widget.set_scene(scene)
