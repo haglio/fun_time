@@ -41,6 +41,7 @@ from pathlib import Path
 # module at call time rather than bound once at import.
 from . import config as config_module
 from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
+from .shortcuts import read_shortcuts, write_shortcut
 
 # Written into the worktree's own state dir, which is git-ignored — this file
 # holds the machine's real library paths and must never be committable.
@@ -570,56 +571,15 @@ def shortcut_name(worktree: Path, branch: str, *, vr: bool = False) -> str:
     return f"{SHORTCUT_PREFIX}{stem}{SHORTCUT_VR_INFIX if vr else ''}{SHORTCUT_SUFFIX}"
 
 
-def _ps_quote(value: str) -> str:
-    """*value* as a PowerShell single-quoted literal."""
-    escaped = value.replace("'", "''")
-    return f"'{escaped}'"
-
-
-def _powershell(script: str) -> str:
-    result = subprocess.run(
-        ["powershell.exe", "-NoProfile", "-Command", script],
-        capture_output=True,
-        text=True,
-        check=True,
-        encoding="utf-8",
-        errors="replace",
-    )
-    return result.stdout
-
-
-def _read_shortcuts(primary: Path) -> dict[Path, tuple[str, str]]:
-    """Every ``Verify *.lnk`` sitting in *primary*, as (target, arguments).
-
-    Read through PowerShell's ``WScript.Shell`` rather than pywin32, which this
-    venv does not carry — ``windows_bridge_sequencer.resolve_shortcut`` keeps
-    the same fallback for the same reason.  One invocation for the whole folder,
-    because starting PowerShell costs far more than reading a shortcut does.
-    """
-    script = (
-        "$shell = New-Object -ComObject WScript.Shell; "
-        f"Get-ChildItem -LiteralPath {_ps_quote(str(primary))} "
-        f"-Filter {_ps_quote(f'{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}')} -ErrorAction SilentlyContinue "
-        "| ForEach-Object { $link = $shell.CreateShortcut($_.FullName); "
-        "Write-Output ($_.FullName + \"`t\" + $link.TargetPath + \"`t\" + $link.Arguments) }"
-    )
-    found: dict[Path, tuple[str, str]] = {}
-    for line in _powershell(script).splitlines():
-        fields = line.split(FIELD_SEPARATOR)
-        if len(fields) == 3:
-            found[Path(fields[0])] = (fields[1], fields[2])
-    return found
-
-
 def _generated_shortcuts(primary: Path) -> dict[Path, Path]:
-    """Those of them this module wrote, mapped to the worktree each one runs.
-
-    A filename is not proof of anything — the folder is full of his own files —
-    so ownership is decided by the arguments naming the branch launcher.
-    """
+    """The launchers this module wrote, mapped to the worktree each one runs.
+    The folder is full of his own files, so a name proves nothing: ownership is
+    the arguments naming the branch launcher."""
     owned: dict[Path, Path] = {}
-    for path, (_target, arguments) in _read_shortcuts(primary).items():
-        tokens = [token.strip('"') for token in shlex.split(arguments or "", posix=False)]
+    found = read_shortcuts(primary, pattern=f"{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}")
+    for path, shortcut in found.items():
+        tokens = [token.strip('"')
+                  for token in shlex.split(shortcut.arguments or "", posix=False)]
         if len(tokens) >= 2 and Path(tokens[0]).name.lower() == LAUNCHER_NAME:
             owned[path] = Path(tokens[1])
     return owned
@@ -628,11 +588,9 @@ def _generated_shortcuts(primary: Path) -> dict[Path, Path]:
 def prune_stale_shortcuts(primary: Path) -> list[Path]:
     """Delete the generated launchers whose worktree is gone; return which.
 
-    A worktree is removed once its branch lands, and a shortcut still pointing
-    at one is a file in his folder that can only fail.  Run whenever a new one
-    is written, so what sits there is roughly what is in flight rather than
-    everything ever verified — this repo carries dozens of worktrees, and
-    without this the folder fills up within days.
+    A shortcut pointing at a removed worktree is a file that can only fail.  Run
+    whenever a new one is written, so what sits there is roughly what is in
+    flight rather than everything ever verified.
     """
     removed: list[Path] = []
     for path, worktree in sorted(_generated_shortcuts(primary).items()):
@@ -647,13 +605,10 @@ def write_launch_shortcut(
 ) -> Path:
     """Put a double-clickable launcher for *worktree* in the primary checkout.
 
-    This is how a branch reaches him: an agent makes one of these, names the
-    file, and he double-clicks it in the folder he already keeps open.  There is
-    no menu and nothing to choose — the branch is baked into the shortcut, so
-    the only thing he has to know is which file the agent told him about.
-
-    It points at ``launch_branch.vbs`` in the primary rather than carrying the
-    launch itself, so one made weeks ago still runs today's launcher.
+    This is how a branch reaches him: an agent makes one, names the file, and he
+    double-clicks it in the folder he already keeps open.  Nothing to choose —
+    the branch is baked in.  It points at ``launch_branch.vbs`` in the primary
+    rather than carrying the launch, so one made weeks ago still runs today's.
     """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
@@ -668,7 +623,7 @@ def write_launch_shortcut(
     arguments = [str(launcher), str(worktree), branch]
     if vr:
         arguments.append(VR_LAUNCH_FLAG)
-    _write_shortcut(
+    write_shortcut(
         destination,
         # wscript rather than the .vbs itself: a shortcut's target has to be an
         # executable for arguments to reach the script.
@@ -686,15 +641,14 @@ def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> li
     """Take *worktree*'s launcher back out of the primary checkout.
 
     An agent's last step once its work has landed: the branch is in Fun Time by
-    then, so a shortcut still offering to run it separately is a file in his
-    folder that can only confuse.  The stale sweep would catch it eventually,
-    but only when some other agent happens to write a shortcut — which may be
-    days away, and it is his folder in the meantime.
+    then, so a shortcut still offering to run it separately can only confuse.
+    The stale sweep would catch it only when some other agent happens to write
+    one, which may be days away.
 
     Matched by the worktree the shortcut runs rather than by its name, so a
-    branch renamed since makes no difference, and both flavours go.  Returns what
-    was removed, empty if there was nothing.  Run it before removing the
-    worktree: from a gone directory there is no package left to run it with.
+    branch renamed since makes no difference and both flavours go.  Run it
+    before removing the worktree: from a gone directory there is no package
+    left to run it with.
     """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
@@ -705,28 +659,6 @@ def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> li
             removed.append(path)
     prune_stale_shortcuts(primary)
     return removed
-
-
-def _write_shortcut(
-    destination: Path, *, target: str, arguments: str, working_dir: str, icon: str, description: str
-) -> None:
-    """Write a .lnk through PowerShell's ``WScript.Shell``.
-
-    There is no pure-Python way to author a shortcut, and pywin32 is not in this
-    venv — the same reason ``resolve_shortcut`` reads them this way.
-    """
-    fields = {
-        "TargetPath": target,
-        "Arguments": arguments,
-        "WorkingDirectory": working_dir,
-        "IconLocation": icon,
-        "Description": description,
-    }
-    assignments = "".join(f"$link.{name} = {_ps_quote(value)}; " for name, value in fields.items())
-    _powershell(
-        f"$link = (New-Object -ComObject WScript.Shell).CreateShortcut({_ps_quote(str(destination))}); "
-        f"{assignments}$link.Save()"
-    )
 
 
 def build_parser() -> argparse.ArgumentParser:

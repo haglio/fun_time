@@ -26,6 +26,7 @@ from fun_time.player_status import (
     read_nau_status,
 )
 from fun_time.session_environment import SessionEnvironment
+from fun_time.shortcuts import Shortcut
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -1114,76 +1115,6 @@ FAKE_LAYOUT_CFG = LayoutConfig(
 MAIN_RECT = MonitorRect(x=0, y=0, width=2560, height=1392)
 
 
-class TestResolveShortcut:
-    """The .lnk resolver under the Random Favs Browser launch.
-
-    It swallows every exception twice and hands back empty strings, which the
-    caller turns into one 'skipped' log line — a failure mode nothing louder
-    can catch, so what CAN be pinned off Windows is pinned here: the
-    PowerShell fallback's parsing, and the all-quiet dead end.  (The COM fast
-    path and the real EnumWindows enumeration are Windows-only flesh; the
-    integration suite is their only cover.)
-    """
-
-    @staticmethod
-    def _without_com(monkeypatch):
-        """Force the win32com import to fail, as it does off Windows — and so
-        the test means the same thing on Windows CI, where it would otherwise
-        answer from real COM."""
-        import sys as _sys
-
-        monkeypatch.setitem(_sys.modules, "win32com", None)
-        monkeypatch.setitem(_sys.modules, "win32com.client", None)
-
-    def test_parses_the_three_fields_powershell_reports(self, monkeypatch):
-        self._without_com(monkeypatch)
-        completed = SimpleNamespace(
-            stdout="C:\\Chrome\\chrome.exe\r\nC:\\Chrome\r\n--profile-directory=\"Profile 2\"\r\n",
-            returncode=0,
-        )
-        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
-                   return_value=completed):
-            resolved = windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk")
-
-        assert resolved == (
-            "C:\\Chrome\\chrome.exe", "C:\\Chrome", '--profile-directory="Profile 2"',
-        )
-
-    def test_a_bare_target_resolves_without_workdir_or_args(self, monkeypatch):
-        self._without_com(monkeypatch)
-        completed = SimpleNamespace(stdout="C:\\Chrome\\chrome.exe\r\n", returncode=0)
-        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
-                   return_value=completed):
-            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == (
-                "C:\\Chrome\\chrome.exe", "", "",
-            )
-
-    def test_every_resolver_failing_is_three_empty_strings_not_a_raise(self, monkeypatch):
-        self._without_com(monkeypatch)
-        with patch("fun_time.windows_bridge_sequencer.subprocess.run",
-                   side_effect=OSError("no powershell")):
-            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
-
-
-    def test_each_link_that_fails_says_so_before_the_next_one_is_tried(
-            self, monkeypatch, caplog):
-        """"Random Favs Browser skipped: could not resolve shortcut" was the
-        whole account of a failure with two resolvers under it, so the one
-        question worth asking — which link broke, and how — had no answer
-        anywhere.  Each fall-through now says which resolver it was and what it
-        raised, at debug, so the working case stays silent."""
-        self._without_com(monkeypatch)
-        with caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_sequencer"), \
-             patch("fun_time.windows_bridge_sequencer.subprocess.run",
-                   side_effect=OSError("no powershell")):
-            assert windows_bridge_sequencer.resolve_shortcut(r"C:\fake\s.lnk") == ("", "", "")
-
-        said = " ".join(record.getMessage() for record in caplog.records)
-        assert "COM" in said and "PowerShell" in said
-        assert any(record.exc_info for record in caplog.records), (
-            "the fall-through has to carry what was raised, or it explains nothing")
-
-
 class TestWaitForNewChromeWindow:
     """The poll that pairs a launch with the window it opened."""
 
@@ -1253,7 +1184,8 @@ class TestMaybeLaunchRandomFavsBrowser:
 
         launch_result = MagicMock(should_launch=True)
 
-        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
+        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut",
+                   return_value=Shortcut("chrome.exe")), \
              patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", return_value=launch_result), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \
@@ -1280,7 +1212,8 @@ class TestMaybeLaunchRandomFavsBrowser:
             launch_kwargs.update(kwargs)
             return launch_result
 
-        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut", return_value=("chrome.exe", "", "")), \
+        with patch("fun_time.windows_bridge_sequencer.resolve_shortcut",
+                   return_value=Shortcut("chrome.exe")), \
              patch("fun_time.windows_bridge_sequencer.find_windows_by_class", return_value=set()), \
              patch("fun_time.windows_bridge_sequencer.launch_random_favs_browser", side_effect=capture_launch), \
              patch("fun_time.windows_bridge_sequencer._wait_for_new_chrome_window", return_value=55555), \

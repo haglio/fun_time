@@ -25,7 +25,14 @@ from app_support.win32 import mutex_name
 
 from fun_time import branch_session
 from fun_time.config import ProjectConfig, load_config
+from fun_time.shortcuts import Shortcut, read_shortcuts, write_shortcut
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
+
+
+def _shortcut_at(primary, path) -> Shortcut:
+    """The one shortcut *path* names, read back off disk."""
+    pattern = f"{branch_session.SHORTCUT_PREFIX}*{branch_session.SHORTCUT_SUFFIX}"
+    return read_shortcuts(primary, pattern=pattern)[path]
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -440,12 +447,12 @@ def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
 
-    target, arguments = branch_session._read_shortcuts(primary_with_launcher.primary)[written]
+    found = _shortcut_at(primary_with_launcher.primary, written)
 
-    assert Path(target).name.lower() == "wscript.exe"
-    assert branch_session.LAUNCHER_NAME in arguments
+    assert Path(found.target).name.lower() == "wscript.exe"
+    assert branch_session.LAUNCHER_NAME in found.arguments
     # The branch rides along so a failed launch can name it rather than a path.
-    assert "example/newer" in arguments
+    assert "example/newer" in found.arguments
 
 
 @pytestmark_shortcut
@@ -458,10 +465,10 @@ def test_a_vr_shortcut_names_itself_and_asks_the_launcher_for_the_headset(primar
     )
 
     assert written == primary_with_launcher.primary / "Verify example-newer in VR.lnk"
-    target, arguments = branch_session._read_shortcuts(primary_with_launcher.primary)[written]
-    assert Path(target).name.lower() == "wscript.exe"
-    assert branch_session.LAUNCHER_NAME in arguments
-    assert branch_session.VR_LAUNCH_FLAG in arguments
+    found = _shortcut_at(primary_with_launcher.primary, written)
+    assert Path(found.target).name.lower() == "wscript.exe"
+    assert branch_session.LAUNCHER_NAME in found.arguments
+    assert branch_session.VR_LAUNCH_FLAG in found.arguments
     # Still discoverable as this module's, and still mapped to its worktree, so
     # the sweep and the removal reach it exactly as they reach the desktop one.
     assert branch_session._generated_shortcuts(primary_with_launcher.primary) == {
@@ -511,7 +518,7 @@ def test_the_sweep_only_ever_deletes_shortcuts_this_module_wrote(primary_with_la
     launcher — and a shortcut of his that happens to start with the same word
     is left where it is."""
     decoy = primary_with_launcher.primary / "Verify something of his own.lnk"
-    branch_session._write_shortcut(
+    write_shortcut(
         decoy,
         target=str(tmp_path / "nothing.exe"),
         arguments="",
