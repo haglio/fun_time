@@ -1,15 +1,18 @@
 """Reading the metadata sidecar Evolver keeps beside every library video.
 
-The metadata tree mirrors the video library one-to-one (``…/videos/metadata``
-pairs with ``…/videos/videos``), so a video's record sits at the same path under
-the metadata root as the video sits under the library root. Evolver owns what
-goes in; the main player only reads, and a missing or malformed file is the ordinary case
-rather than an error — plenty of videos predate the metadata.
+The metadata tree mirrors the video library one-to-one, and that rule belongs
+to every app that reads or writes one of these -- it is
+:mod:`app_support.mirrored_tree`, which this player used to spell out for itself.
+Evolver owns what goes in; the main player only reads, and a missing or malformed
+file is the ordinary case rather than an error -- plenty of videos predate the
+metadata.
 """
 from __future__ import annotations
 
 import json
 from pathlib import Path
+
+from app_support.mirrored_tree import library_roots_beside, mirrored_path
 
 from .video_kind import EXCERPT
 
@@ -18,18 +21,15 @@ def sidecar_for(video: Path, metadata_root: Path) -> Path | None:
     """Where Evolver's metadata for *video* lives, or None if *video* is outside.
 
     Two roots, because Genau's delivered loops sit *beside* the video tree
-    (``videos/genau/clips``) rather than inside it, and Evolver files their
-    records the same way it files the library's: mirrored from the folder that
-    holds both, so the loop's lands at ``metadata/genau/clips``.
+    rather than inside it, and Evolver files their records the same way it
+    files the library's: mirrored from the folder that holds both.
     """
-    library = metadata_root.parent / "videos"
-    for root in (library, metadata_root.parent):
-        try:
-            rel = video.relative_to(root)
-        except ValueError:
-            continue
-        return (metadata_root / rel).with_suffix(".json")
-    return None
+    return mirrored_path(
+        video,
+        roots=library_roots_beside(metadata_root),
+        mirror_root=metadata_root,
+        suffix=".json",
+    )
 
 
 def read_sidecar(video: Path, metadata_root: Path) -> dict:
