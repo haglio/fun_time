@@ -90,7 +90,7 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
 def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
     """The one module-level side effect on the launch path, pinned in place.
 
-    ``apply_genau_dirs_to_sys_path()`` must run AFTER ``branch_session`` is
+    ``apply_genau_dirs_to_sys_path()`` must run AFTER ``checkout_overrides`` is
     imported (it is what provides it) and BEFORE the bridge is, because this
     process resolves ``player_core`` through the venv — the primary's — and a
     branch leaning on an unlanded player_core change then imports code the
@@ -102,7 +102,7 @@ def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
     tree = ast.parse((PROJECT_DIR / "fun_time" / "orchestrator.py").read_text(encoding="utf-8"))
     provides = applies = uses = None
     for node in tree.body:
-        if isinstance(node, ast.ImportFrom) and node.module == "branch_session":
+        if isinstance(node, ast.ImportFrom) and node.module == "checkout_overrides":
             provides = node.lineno
         elif (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)
                 and getattr(node.value.func, "id", "") == "apply_genau_dirs_to_sys_path"):
@@ -113,6 +113,6 @@ def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
 
     assert provides and applies and uses, "the launch path's import shape has moved"
     assert provides < applies < uses, (
-        "the genau/player_core override has to be applied after branch_session "
-        "is imported and before the bridge is"
+        "the genau/player_core override has to be applied after "
+        "checkout_overrides is imported and before the bridge is"
     )

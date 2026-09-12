@@ -40,6 +40,12 @@ from pathlib import Path
 # the one place that has to tell two checkouts apart — so it is read through the
 # module at call time rather than bound once at import.
 from . import config as config_module
+from .checkout_overrides import (
+    GENAU_DIRS_OVERRIDE_NAME,
+    ORIGENERATOR_DIR_OVERRIDE_NAME,
+    STATE_DIRNAME,
+    override_lines,
+)
 from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
 from .shortcuts import read_shortcuts, write_shortcut
 
@@ -63,20 +69,17 @@ DESKTOP_ICON_NAME = "icon.ico"
 
 RESERVED_IN_FILENAMES = r'[<>:"/\|?*]'
 
-STATE_DIRNAME = "state"
 FIELD_SEPARATOR = "\t"
 DETACHED = "(detached)"
 
 # A worktree's own answer to "which checkout of ../genau do Nau and Genau run
 # out of" — one absolute path per line, in the worktree's state dir, blank lines
 # and #-comments ignored.  See :func:`_apply_genau_checkout_override`.
-GENAU_DIRS_OVERRIDE_NAME = "genau_project_dirs.txt"
 
 # The same per-worktree answer for "which Origenerator checkout does this
 # session host": one absolute path (or an empty file for none at all), for the
 # same reason genau's exists — the machine's one config must not be repointed
 # at an unlanded branch.  See :func:`apply_origenerator_dir_override`.
-ORIGENERATOR_DIR_OVERRIDE_NAME = "origenerator_dir.txt"
 
 # Git-ignored overlays that a session reads from its own checkout, so they exist
 # in the primary and in no worktree.  See :func:`mirror_private_overlays`.
@@ -205,70 +208,17 @@ def _apply_genau_checkout_override(raw: dict, state_dir: Path) -> None:
     session reads.  A pin written there for one agent's genau branch reached the
     user's ordinary session and every other agent's, each silently running an
     unlanded branch of another repo, and nothing ever took it back out.
-
-    A file in the worktree's own state dir answers it per session instead: one
-    absolute path per line, ``#`` comments and blank lines ignored.  Present, it
-    REPLACES the machine's value outright — so an empty file is the way to say
-    "the plain venv install, whatever the machine is pinned to", which is what a
-    branch that has nothing to do with genau wants.  Absent, the machine's value
-    rides through as before.  It lives beside the branch config, is git-ignored
-    with the rest of ``state/``, and dies with the worktree.
     """
-    override = state_dir / GENAU_DIRS_OVERRIDE_NAME
-    try:
-        text = override.read_text(encoding="utf-8")
-    except OSError:
-        return
-    dirs = [line.strip() for line in text.splitlines()]
-    raw.setdefault("paths", {})["genau_project_dirs"] = [
-        line for line in dirs if line and not line.startswith("#")
-    ]
+    lines = override_lines(state_dir / GENAU_DIRS_OVERRIDE_NAME)
+    if lines is not None:
+        raw.setdefault("paths", {})["genau_project_dirs"] = lines
 
 
 def _apply_origenerator_checkout_override(raw: dict, state_dir: Path) -> None:
-    """Let a worktree say for itself which Origenerator checkout its session hosts.
-
-    Same shape and same reason as :func:`_apply_genau_checkout_override`: the
-    config key is per-machine but the question is per-SESSION, so an agent
-    judging an origenerator branch writes the worktree path here rather than
-    into the machine's one ``fun_time_config.json``.  Present, the file
-    REPLACES the machine's value — one absolute path, or empty to host none at
-    all (which is how a branch unrelated to origenerator gets the plain
-    machine setup even while some other agent's pin sits in the config).
-    Absent, the machine's value rides through.
-    """
-    override = state_dir / ORIGENERATOR_DIR_OVERRIDE_NAME
-    try:
-        text = override.read_text(encoding="utf-8")
-    except OSError:
-        return
-    lines = [line.strip() for line in text.splitlines()
-             if line.strip() and not line.strip().startswith("#")]
-    raw.setdefault("paths", {})["origenerator_dir"] = lines[0] if lines else ""
-
-
-def apply_origenerator_dir_override(config, *, integration: bool = False):
-    """This checkout's origenerator override, applied to a loaded config.
-
-    The branch-config generator runs the PRIMARY checkout's copy of this
-    module (see :func:`build_branch_config`), so a branch that INTRODUCES the
-    override cannot rely on the generator applying it — the orchestrator calls
-    this at launch instead, resolving the file against its own checkout.  A
-    no-op wherever the override file does not exist, which is every ordinary
-    session.
-    """
-    if integration:
-        return config
-    override = config_module.PROJECT_DIR / STATE_DIRNAME / ORIGENERATOR_DIR_OVERRIDE_NAME
-    try:
-        text = override.read_text(encoding="utf-8")
-    except OSError:
-        return config
-    lines = [line.strip() for line in text.splitlines()
-             if line.strip() and not line.strip().startswith("#")]
-    from dataclasses import replace as dc_replace
-    new_dir = Path(lines[0]) if lines else None
-    return dc_replace(config, paths=dc_replace(config.paths, origenerator_dir=new_dir))
+    """The same, for the Origenerator checkout a session hosts."""
+    lines = override_lines(state_dir / ORIGENERATOR_DIR_OVERRIDE_NAME)
+    if lines is not None:
+        raw.setdefault("paths", {})["origenerator_dir"] = lines[0] if lines else ""
 
 
 def mirror_private_overlays(primary: Path, worktree: Path) -> list[Path]:
@@ -486,33 +436,6 @@ def launch(worktree: Path, *, vr: bool = False, **kwargs) -> int:
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
     return subprocess.run(command, cwd=str(worktree), check=False).returncode
-
-
-def apply_genau_dirs_to_sys_path() -> list[str]:
-    """Put this checkout's genau_project_dirs override on ``sys.path``.
-
-    The override reaches Genau and Nau as subprocess PYTHONPATH, but the
-    orchestrator's own process — and the device arbiter inside it — resolves
-    ``player_core`` through the venv, which is the primary checkout's.  A
-    branch that leans on an unlanded player_core change therefore imports
-    names the primary does not have yet, and the session dies at launch.
-    Called at the top of the orchestrator, ahead of the bridge imports, so a
-    verification session runs the same player_core its Genau and Nau do; a
-    no-op wherever the override file does not exist, which is every ordinary
-    session.  Returns what it added.
-    """
-    override = config_module.PROJECT_DIR / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME
-    try:
-        text = override.read_text(encoding="utf-8")
-    except OSError:
-        return []
-    dirs = [line.strip() for line in text.splitlines()
-            if line.strip() and not line.strip().startswith("#")
-            and Path(line.strip()).is_dir()]
-    for entry in reversed(dirs):
-        if entry not in sys.path:
-            sys.path.insert(0, entry)
-    return dirs
 
 
 def sibling_checkouts_line(
