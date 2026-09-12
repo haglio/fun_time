@@ -42,6 +42,12 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 """
 
+_RUN_THE_CHECKOUTS_THIS_BRANCH_NAMES = """
+import tests  # bound first: a sibling checkout put ahead of this one has a tests package too
+from fun_time.branch_session import apply_genau_dirs_to_sys_path
+apply_genau_dirs_to_sys_path()
+"""
+
 
 PACKAGE_MODULES = tuple(
     f"fun_time.{path.stem}"
@@ -60,7 +66,8 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
     """
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     return subprocess.run(
-        [sys.executable, "-c", _STRIP_WIN32_FROM_CTYPES + body],
+        [sys.executable, "-c",
+         _STRIP_WIN32_FROM_CTYPES + _RUN_THE_CHECKOUTS_THIS_BRANCH_NAMES + body],
         cwd=str(REPO_DIR), env=env, capture_output=True, text=True, timeout=180,
     )
 
