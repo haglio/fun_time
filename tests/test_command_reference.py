@@ -677,7 +677,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     section: one row sets a filter by act, one drops it.  Neither spells out
     "portrait"/"landscape" any more — the section's note aims them, the same way
     it aims "next"."""
-    from fun_time.filter_vocab import FILTER_ACTS, display_forms
+    from fun_time.filter_vocab import display_forms, load_filter_acts
 
     rows = _satellite_section().rows
     set_row = next(r for r in rows if r.description.startswith("Filter by act"))
@@ -685,7 +685,7 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     # built from: an act whose word the speech model has no token for is *heard*
     # as something else, and printing that would teach the reader the wrong word.
     assert set(set_row.voice) == set(display_forms())
-    spoken = {form for forms in FILTER_ACTS.values() for form in forms}
+    spoken = {form for forms in load_filter_acts().values() for form in forms}
     workarounds = spoken - set(display_forms())
     # No demand that this overlay HAS a workaround — that mechanic is pinned
     # on fixture data in test_filter_vocab — only that none it does have leaks.

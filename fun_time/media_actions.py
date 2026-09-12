@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .content import WEB_PROVIDERS, WebProvider
+from .content import WebProvider, load_web_providers
 from .favs_csv import FAVS_HEADER, hyperlink_cell
 
 
@@ -30,7 +30,7 @@ def make_web_url_from_path(
     if not full_path:
         return ""
     if providers is None:
-        providers = WEB_PROVIDERS
+        providers = load_web_providers()
 
     path = full_path.replace("/", "\\")
     name_no_ext = Path(path).stem
