@@ -138,8 +138,8 @@ def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = N
 @dataclass(frozen=True)
 class VideoShapes:
     """Which shapes of video the main player's browse may reach, and where the
-    VR masters live.  Both and no VR dirs is every session outside the headset,
-    whose sources hold nothing of the other shape, and narrows nothing.
+    VR masters live.  No VR dirs is every session outside the headset, which
+    narrows nothing whatever shapes the headset's flags were left on.
     """
 
     vr_dirs: str = ""
@@ -152,7 +152,13 @@ class VideoShapes:
         puts the pair of buttons on the console."""
         return bool(source_roots(self.vr_dirs))
 
+    @property
+    def narrows(self) -> bool:
+        return self.offered and not (self.plays_vr and self.plays_flat)
+
     def keep(self, paths: list[str]) -> list[str]:
+        if not self.narrows:
+            return list(paths)
         return keep_shapes(paths, vr_dirs=source_roots(self.vr_dirs),
                            plays_vr=self.plays_vr, plays_flat=self.plays_flat)
 

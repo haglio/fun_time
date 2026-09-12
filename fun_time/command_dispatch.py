@@ -1010,7 +1010,7 @@ def _dispatch_main_reset(
     that does — so a reset pressed with nothing narrowed must not throw away the
     browse either.
     """
-    narrowed = state.main_f_mode or not (state.main_plays_vr and state.main_plays_flat)
+    narrowed = state.main_f_mode or main_video_shapes(state, config).narrows
     if narrowed:
         state = replace(state, main_f_mode=False, main_plays_vr=True, main_plays_flat=True)
         apply_main_fmode(
