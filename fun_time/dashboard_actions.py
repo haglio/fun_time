@@ -24,5 +24,7 @@ HELP_REFERENCE_CLOSE = "help_reference_close"
 # (see SUSPEND_EXEMPT_COMMANDS in voice_control).
 HELP_REFERENCE_COMMANDS = frozenset({HELP_REFERENCE, HELP_REFERENCE_CLOSE})
 
-# Whether the reference is up, for a surface with no window to be told about.
+# Whether each panel is up, for a surface with no window to be told about.
 REFERENCE_OPEN_FILENAME = "reference_open.txt"
+LIBRARY_OPEN_FILENAME = "library_open.txt"
+BROWSE_LIBRARY_CLOSE = "browse_library_close"

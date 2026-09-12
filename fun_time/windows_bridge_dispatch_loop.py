@@ -23,8 +23,10 @@ from .child_log import no_child_log
 from .clipper_save import save_clip_session
 from .command_dispatch import dispatch_command, hosting_origenerator, routes_to_origenerator
 from .dashboard_actions import (
+    BROWSE_LIBRARY_CLOSE,
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
+    LIBRARY_OPEN_FILENAME,
     REFERENCE_OPEN_FILENAME,
 )
 from .dashboard_bridge import write_dashboard_snapshot
@@ -465,7 +467,7 @@ class DispatchLoopRunner:
         if cmd in HELP_REFERENCE_COMMANDS:
             # A dashboard-UI action: the press above tells a desktop dashboard,
             # the flag tells a headset, and there is nothing to dispatch.
-            self._toggle_reference(cmd)
+            self._publish_panel(REFERENCE_OPEN_FILENAME, toggling=cmd == HELP_REFERENCE)
             return
         if cmd == "omniminimize":
             self._handle_omniminimize()
@@ -482,11 +484,16 @@ class DispatchLoopRunner:
             # for, so the retract must go out even from inside omnipause.
             self._handle_enter_omnipause("relief_omnipause")
         elif cmd == "browse_library":
-            threading.Thread(
-                target=self._handle_browse_library,
-                daemon=True,
-                name="library-browser",
-            ).start()
+            if self.config.vr_main_player:
+                self._publish_panel(LIBRARY_OPEN_FILENAME, toggling=True)
+            else:
+                threading.Thread(
+                    target=self._handle_browse_library,
+                    daemon=True,
+                    name="library-browser",
+                ).start()
+        elif cmd == BROWSE_LIBRARY_CLOSE:
+            self._publish_panel(LIBRARY_OPEN_FILENAME, toggling=False)
         elif cmd == "broker_panel":
             threading.Thread(
                 target=self._handle_broker_toggle,
@@ -658,11 +665,8 @@ class DispatchLoopRunner:
         hb = self.config.broker_heartbeat_file
         return hb is not None and is_broker_heartbeat_fresh(hb)
 
-    def _toggle_reference(self, cmd: str) -> None:
-        """Publish whether the reference is up, for a surface that reads files:
-        ``help_reference`` toggles it, ``help_reference_close`` shuts it."""
-        path = Path(self.config.state_dir) / REFERENCE_OPEN_FILENAME
-        toggling = cmd == HELP_REFERENCE
+    def _publish_panel(self, filename: str, *, toggling: bool) -> None:
+        path = Path(self.config.state_dir) / filename
         write_flag(path, toggling and not read_flag(path, default=False))
 
     def _handle_voice_toggle(self, cmd: str) -> None:
