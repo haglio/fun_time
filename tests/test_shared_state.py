@@ -1,13 +1,18 @@
 """The INI a session reads its own mode off."""
 from __future__ import annotations
 
+import ast
 import configparser
 import subprocess
 import sys
 from dataclasses import fields, replace
 from pathlib import Path
 
+import pytest
+
+from fun_time import shared_state
 from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
+from fun_time.players import Player
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITES_VIDEO_MODE
 from fun_time.shared_state import (
     SHARED_STATE_FILENAME,
@@ -36,6 +41,20 @@ def _shifted(value):
     return f"{value}-carried"
 
 
+def _shifted_state(state: BridgeState) -> BridgeState:
+    """*state* with every value it holds replaced by a different one of its own
+    type — both satellites' own among them, which is why this walks the sides
+    rather than the top-level fields alone."""
+    shifted = replace(state, **{
+        f.name: _shifted(getattr(state, f.name)) for f in fields(state)
+        if not isinstance(getattr(state, f.name), SideState)})
+    for player in Player.SATELLITES:
+        side = shifted.side(player)
+        shifted = shifted.with_side(
+            player, **{f.name: _shifted(getattr(side, f.name)) for f in fields(side)})
+    return shifted
+
+
 def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
     """The dispatch loop replaces its whole state with what this file reads back,
     every tick.  So a field written by a command but missing from the INI is not
@@ -47,8 +66,7 @@ def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
     session mode, and the next one added has to be carried too.
     """
     state_file = tmp_path / "shared_state.ini"
-    state = BridgeState()
-    state = replace(state, **{f.name: _shifted(getattr(state, f.name)) for f in fields(state)})
+    state = _shifted_state(BridgeState())
 
     write_shared_state(state_file, state)
 
@@ -59,12 +77,10 @@ class TestSharedState:
     def test_write_then_read_roundtrip(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
-            locked2=True,
-            locked3=False,
+            portrait=SideState(locked=True),
+            landscape=SideState(f_mode=True),
             main_mode="genau",
             main_f_mode=True,
-            portrait_f_mode=False,
-            landscape_f_mode=True,
             omni_paused=True,
         )
 
@@ -118,63 +134,67 @@ class TestSharedState:
         state_file = tmp_path / "shared_state.ini"
         state = BridgeState(
             main_mode="video",
-            portrait_filter="beta gamma",
-            landscape_filter="alpha",
+            portrait=SideState(filter="beta gamma"),
+            landscape=SideState(filter="alpha"),
         )
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.portrait_filter == "beta gamma"
-        assert loaded.landscape_filter == "alpha"
+        assert loaded.side(Player.PORTRAIT).filter == "beta gamma"
+        assert loaded.side(Player.LANDSCAPE).filter == "alpha"
 
     def test_roundtrip_preserves_per_satellite_loops(self, tmp_path):
         """The HUD runs in its own process and reads its loop state from this
         file, so a loop set by a command has to survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_loop="seed", landscape_loop="action")
+        state = BridgeState(portrait=SideState(loop="seed"),
+                            landscape=SideState(loop="action"))
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.portrait_loop == "seed"
-        assert loaded.landscape_loop == "action"
+        assert loaded.side(Player.PORTRAIT).loop == "seed"
+        assert loaded.side(Player.LANDSCAPE).loop == "action"
 
     def test_roundtrip_preserves_the_map_anchor(self, tmp_path):
         """The HUD orders a running loop's map from the clip the loop started on,
         which it reads from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_map_anchor="C:/v/a.mp4", landscape_map_anchor="C:/v/b.mp4")
+        state = BridgeState(portrait=SideState(map_anchor="C:/v/a.mp4"),
+                            landscape=SideState(map_anchor="C:/v/b.mp4"))
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.portrait_map_anchor == "C:/v/a.mp4"
-        assert loaded.landscape_map_anchor == "C:/v/b.mp4"
+        assert loaded.side(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
+        assert loaded.side(Player.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_widen_clip(self, tmp_path):
         """The HUD reads which clip each side's seed row is widened around from
         this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_widen_clip="C:/v/a.mp4", landscape_widen_clip="C:/v/b.mp4")
+        state = BridgeState(portrait=SideState(widen_clip="C:/v/a.mp4"),
+                            landscape=SideState(widen_clip="C:/v/b.mp4"))
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.portrait_widen_clip == "C:/v/a.mp4"
-        assert loaded.landscape_widen_clip == "C:/v/b.mp4"
+        assert loaded.side(Player.PORTRAIT).widen_clip == "C:/v/a.mp4"
+        assert loaded.side(Player.LANDSCAPE).widen_clip == "C:/v/b.mp4"
 
     def test_roundtrip_preserves_the_nav_anchor(self, tmp_path):
         """The HUD reads which clip each side's map is frozen on for keyboard
         navigation from this file, so it must survive the round-trip."""
         state_file = tmp_path / "shared_state.ini"
-        state = BridgeState(portrait_nav_anchor="C:/v/a.mp4", landscape_nav_anchor="C:/v/b.mp4")
+        state = BridgeState(portrait=SideState(nav_anchor="C:/v/a.mp4"),
+                            landscape=SideState(nav_anchor="C:/v/b.mp4"))
 
         write_shared_state(state_file, state)
         loaded = read_shared_state(state_file)
 
-        assert loaded.portrait_nav_anchor == "C:/v/a.mp4"
-        assert loaded.landscape_nav_anchor == "C:/v/b.mp4"
+        assert loaded.side(Player.PORTRAIT).nav_anchor == "C:/v/a.mp4"
+        assert loaded.side(Player.LANDSCAPE).nav_anchor == "C:/v/b.mp4"
 
     def test_state_files_without_loop_keys_load_as_unlooped(self, tmp_path):
         # A state file written before loops were tracked must still load.
@@ -188,8 +208,8 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.portrait_loop == ""
-        assert loaded.landscape_loop == ""
+        assert loaded.side(Player.PORTRAIT).loop == ""
+        assert loaded.side(Player.LANDSCAPE).loop == ""
 
     def test_state_files_without_filter_keys_load_as_unfiltered(self, tmp_path):
         # A state file written before filters existed must still load.
@@ -203,8 +223,8 @@ class TestSharedState:
         loaded = read_shared_state(state_file)
 
         assert loaded is not None
-        assert loaded.portrait_filter == ""
-        assert loaded.landscape_filter == ""
+        assert loaded.side(Player.PORTRAIT).filter == ""
+        assert loaded.side(Player.LANDSCAPE).filter == ""
 
 
 def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
@@ -233,49 +253,101 @@ def test_reading_the_state_file_does_not_drag_in_the_dispatcher():
         "lower this ceiling when it drops, never raise it")
 
 
-class TestTheSideLens:
-    """BridgeState.side / with_side — the one crossing between the flat
-    portrait_/landscape_ fields (which the INI keeps, so the dashboard and both
-    satellite HUD processes go on reading the same keys) and the per-side view
-    every reader and writer actually wants."""
+def test_the_round_trip_spells_no_field_of_the_record_by_hand():
+    """These names used to be written out four times over: as the record's
+    fields, as the keys the writer emits, as the keys the reader asks for, and
+    as the list a resume carries.  Nothing tied the four together, so a field
+    added to the record and forgotten in the writer was never saved at all, and
+    one forgotten in the reader came back at its default on every resume -- which
+    is how a HUD once described a session other than the one playing.  They are
+    derived from the record now, and this is what keeps them that way.
 
-    def test_side_reads_the_flat_fields_of_that_side_alone(self):
+    The two mode words are the exception and are named on purpose: a session
+    saved under a name the app has since dropped has to be translated to the mode
+    that name became, which is a fact about those two values and no others.
+    """
+    spelled_out = sorted(
+        {node.value for node in ast.walk(ast.parse(
+            Path(shared_state.__file__).read_text(encoding="utf-8")))
+         if isinstance(node, ast.Constant) and isinstance(node.value, str)}
+        & {f.name for f in fields(BridgeState)})
+
+    assert spelled_out == ["main_mode", "satellites_mode"], (
+        "the round trip names these fields by hand: " + ", ".join(spelled_out)
+        + " — derive them from the record instead, so one added to it is carried."
+    )
+
+
+def test_no_satellite_value_is_a_field_of_the_whole_state():
+    """A value one satellite carries belongs to :class:`SideState`, reached
+    through :meth:`BridgeState.side` — never to a field of its own beside the
+    session's.  Held because the pair used to answer to three names at once:
+    ``which`` 2 and 3 in signatures, ``locked2``/``locked3`` in the record,
+    ``portrait``/``landscape`` everywhere a person could read it, and forty-one
+    conditionals in between whose only job was to translate.  Every one of those
+    was a place a 2 could be written where a 3 belonged.  The legacy spellings
+    survive as INI keys, which is a wire format and a different thing.
+    """
+    stray = [f.name for f in fields(BridgeState)
+             if f.name.startswith(("portrait_", "landscape_"))
+             or f.name[-1:] in ("2", "3")]
+
+    assert stray == [], (
+        "these say a satellite's name in the state record: " + ", ".join(stray)
+        + " — put them on SideState and reach them through BridgeState.side."
+    )
+
+
+class TestTheSideLens:
+    """BridgeState.side / with_side — how a caller holding one satellite reaches
+    that satellite's state and nothing else."""
+
+    def test_side_reads_the_state_of_that_satellite_alone(self):
         state = BridgeState(
-            locked2=True, portrait_filter="alpha", portrait_f_mode=True,
-            portrait_latest=True, portrait_loop="seed",
-            portrait_map_anchor="a.mp4", portrait_widen_clip="w.mp4",
-            portrait_nav_anchor="n.mp4",
-            landscape_filter="beta gamma",
+            portrait=SideState(
+                locked=True, filter="alpha", f_mode=True, latest=True, loop="seed",
+                map_anchor="a.mp4", widen_clip="w.mp4", nav_anchor="n.mp4"),
+            landscape=SideState(filter="beta gamma"),
         )
-        portrait = state.side(2)
+        portrait = state.side(Player.PORTRAIT)
         assert (portrait.locked, portrait.filter, portrait.f_mode) == (True, "alpha", True)
         assert (portrait.latest, portrait.loop) == (True, "seed")
         assert (portrait.map_anchor, portrait.widen_clip, portrait.nav_anchor) == (
             "a.mp4", "w.mp4", "n.mp4")
-        landscape = state.side(3)
+        landscape = state.side(Player.LANDSCAPE)
         assert landscape.filter == "beta gamma"
         assert landscape.locked is False
 
-    def test_with_side_writes_only_that_sides_flat_fields(self):
-        state = BridgeState(landscape_filter="delta")
+    def test_with_side_leaves_the_other_satellite_where_it_was(self):
+        state = BridgeState(landscape=SideState(filter="delta"))
 
-        state = state.with_side(2, locked=True, loop="action", map_anchor="x.mp4")
+        state = state.with_side(Player.PORTRAIT, locked=True, loop="action",
+                                map_anchor="x.mp4")
 
-        assert (state.locked2, state.portrait_loop, state.portrait_map_anchor) == (
-            True, "action", "x.mp4")
-        assert (state.locked3, state.landscape_filter) == (False, "delta")
+        assert state.side(Player.PORTRAIT) == SideState(
+            locked=True, loop="action", map_anchor="x.mp4")
+        assert state.side(Player.LANDSCAPE) == SideState(filter="delta")
+
+    def test_with_side_refuses_a_name_no_satellite_carries(self):
+        """Every caller names the value it sets, so a misspelling is a write that
+        goes nowhere at all unless the record refuses it."""
+        with pytest.raises(TypeError):
+            BridgeState().with_side(Player.PORTRAIT, lokced=True)
 
     def test_a_default_side_state_means_the_side_sits_at_its_defaults(self):
-        assert BridgeState().side(3) == SideState()
-        assert BridgeState(landscape_loop="seed").side(3) != SideState()
+        assert BridgeState().side(Player.LANDSCAPE) == SideState()
+        assert BridgeState(landscape=SideState(loop="seed")).side(
+            Player.LANDSCAPE) != SideState()
 
     def test_the_lens_survives_the_ini_round_trip(self, tmp_path):
         state_file = tmp_path / "shared_bridge_state.ini"
-        state = BridgeState().with_side(3, filter="delta", f_mode=True, latest=True)
+        state = BridgeState().with_side(
+            Player.LANDSCAPE, filter="delta", f_mode=True, latest=True)
 
         write_shared_state(state_file, state)
 
-        assert read_shared_state(state_file).side(3) == state.side(3)
+        assert read_shared_state(state_file).side(Player.LANDSCAPE) == state.side(
+            Player.LANDSCAPE)
 
 
 def test_a_state_saved_before_video_mode_comes_back_in_video_mode(tmp_path: Path):

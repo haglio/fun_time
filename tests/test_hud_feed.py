@@ -14,7 +14,7 @@ from unittest.mock import patch
 from fun_time.bridge_records import BridgeConfig
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, SideState
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -82,7 +82,7 @@ class TestHudPublishing:
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-        state = replace(state, locked2=True, portrait_filter="alpha")
+        state = replace(state, portrait=SideState(locked=True, filter="alpha"))
 
         feed.publish(state)
 
@@ -128,7 +128,7 @@ class TestHudPublishing:
         for side in ("portrait", "landscape"):
             publish_satellite_status(tmp_path / f"{side}_status.txt",
                                      f"C:/v/{side}.mp4")
-        state = replace(state, portrait_f_mode=True)
+        state = replace(state, portrait=SideState(f_mode=True))
 
         feed.publish(state)
 

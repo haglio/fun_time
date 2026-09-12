@@ -34,6 +34,7 @@ from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import matching_funscript, playlist_entry_line
 from .player_status import is_broker_heartbeat_fresh, read_nau_status
+from .players import Player
 from .role_windows import WindowRoles
 from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -406,16 +407,16 @@ class DispatchLoopRunner:
             if self.state.omni_paused:
                 self._handle_omnipause_toggle()
         elif cmd == "portrait_lock_on":
-            if not self.state.locked2:
+            if not self.state.side(Player.PORTRAIT).locked:
                 self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_on":
-            if not self.state.locked3:
+            if not self.state.side(Player.LANDSCAPE).locked:
                 self._dispatch("landscape_lock", spoken_at)
         elif cmd == "portrait_lock_off":
-            if self.state.locked2:
+            if self.state.side(Player.PORTRAIT).locked:
                 self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_off":
-            if self.state.locked3:
+            if self.state.side(Player.LANDSCAPE).locked:
                 self._dispatch("landscape_lock", spoken_at)
         elif cmd == "broker_start":
             self._handle_broker_start()
@@ -532,8 +533,8 @@ class DispatchLoopRunner:
                 str(self.config.dashboard_state_file),
                 omni_paused=self.state.omni_paused,
                 voice_active=voice_active,
-                f_mode=(self.state.main_f_mode and self.state.portrait_f_mode
-                        and self.state.landscape_f_mode),
+                f_mode=(self.state.main_f_mode
+                        and all(self.state.side(p).f_mode for p in Player.SATELLITES)),
                 in_vr=self.config.vr_main_player,
             )
         except OSError as exc:

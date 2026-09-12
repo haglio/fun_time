@@ -67,20 +67,17 @@ class ModeSwitchFlowResult:
     log_message: str
 
 
-# The three players F-mode can be set on, each with its own flag, because it means
+# F-mode can be set on any of the three, each with its own flag, because it means
 # a different narrowing on each: the satellites drop to the favorites, the main
 # player to the videos a person hand-wrote a funscript for.
-MAIN_PLAYER = "main"
-PORTRAIT_PLAYER = "portrait"
-LANDSCAPE_PLAYER = "landscape"
-FMODE_PLAYERS = (MAIN_PLAYER, PORTRAIT_PLAYER, LANDSCAPE_PLAYER)
+FMODE_PLAYERS = (Player.MAIN, Player.PORTRAIT, Player.LANDSCAPE)
 
 
 @dataclass(frozen=True)
 class FModeFlowResult:
     """Which players were put into (or out of) F-mode, and what to say about it."""
 
-    players: tuple[str, ...]
+    players: tuple[Player, ...]
     enabled: bool
     log_message: str
 
@@ -198,7 +195,7 @@ class SatelliteFmodeInputs:
 
 def apply_fmode(
     *,
-    players: Sequence[str],
+    players: Sequence[Player],
     enabled: bool,
     main_sources: str,
     favs_file: str | Path,
@@ -217,7 +214,7 @@ def apply_fmode(
     the one all-three build this used to do.
     """
     named = tuple(player for player in FMODE_PLAYERS if player in players)
-    if MAIN_PLAYER in named:
+    if Player.MAIN in named:
         apply_main_fmode(
             enabled=enabled,
             main_sources=main_sources,
@@ -226,12 +223,11 @@ def apply_fmode(
             nau_cmd_file=nau_cmd_file,
             shapes=main_shapes,
         )
-    for player, which in ((PORTRAIT_PLAYER, Player.PORTRAIT),
-                          (LANDSCAPE_PLAYER, Player.LANDSCAPE)):
+    for player in Player.SATELLITES:
         if player in named:
-            side = satellites[which]
+            side = satellites[player]
             apply_satellite_fmode(
-                which=which,
+                which=player,
                 enabled=enabled,
                 sources=side.sources,
                 favs_file=favs_file,
@@ -245,7 +241,8 @@ def apply_fmode(
         players=named,
         enabled=enabled,
         log_message=(
-            f"F-mode {'enabled' if enabled else 'disabled'}: {', '.join(named) or 'nothing'}"
+            f"F-mode {'enabled' if enabled else 'disabled'}: "
+            f"{', '.join(player.label for player in named) or 'nothing'}"
         ),
     )
 

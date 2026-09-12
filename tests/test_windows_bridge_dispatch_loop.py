@@ -21,6 +21,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.media_metadata import normalize_path_key
+from fun_time.players import Player
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
@@ -28,7 +29,7 @@ from fun_time.role_windows import (
 )
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
-from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
+from fun_time.shared_state import BridgeState, SideState, read_shared_state, write_shared_state
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
@@ -469,7 +470,7 @@ class TestDispatchLoopRunner:
         """Voice 'lock' (active_lock_on) locks whichever side is active — here
         landscape, e.g. after the user navigated it with A/D."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(active_side=3, locked3=False)
+        runner.state = BridgeState(landscape=SideState(locked=False), active_side=3)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -499,7 +500,7 @@ class TestDispatchLoopRunner:
         that was is the sampler's timeline to answer; what the runner owes is
         putting its answer on the dispatch."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(active_side=2, locked2=False)
+        runner.state = BridgeState(portrait=SideState(locked=False), active_side=2)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
         with patch.object(runner.watch, "video_at", return_value="C:\\clips\\meant.mp4"), \
@@ -714,13 +715,13 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("landscape_lock", encoding="utf-8")
         state_file = tmp_path / "shared_state.ini"
 
-        new_state = BridgeState(locked3=True)
+        new_state = BridgeState(landscape=SideState(locked=True))
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])):
             runner.tick()
 
         loaded = read_shared_state(state_file)
         assert loaded is not None
-        assert loaded.locked3 is True
+        assert loaded.side(Player.LANDSCAPE).locked is True
 
     def test_quit_command_writes_exit_to_ahk(self, tmp_path):
         runner = make_runner(tmp_path)
@@ -1343,14 +1344,14 @@ class TestOpenRfbTab:
                 work_dir=r"C:\Chrome",
                 args='--profile-directory="Profile 2"'),
         )
-        runner.state = BridgeState(locked2=False, locked3=False)
+        runner.state = BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=False))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path=""):
             if cmd == "portrait_lock":
-                return replace(state, locked2=True), [WindowOp(op="open_rfb_tab", key="http://p")]
+                return replace(state, portrait=SideState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
             if cmd == "landscape_lock":
-                return replace(state, locked3=True), [WindowOp(op="open_rfb_tab", key="http://l")]
+                return replace(state, landscape=SideState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://l")]
             return state, []
 
         calls: list[tuple[str, object]] = []
@@ -2035,7 +2036,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked2=False)
+        runner.state = BridgeState(portrait=SideState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
@@ -2044,7 +2045,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_on_noop_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked2=True)
+        runner.state = BridgeState(portrait=SideState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
@@ -2053,7 +2054,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_on_dispatches_when_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked3=False)
+        runner.state = BridgeState(landscape=SideState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
@@ -2062,7 +2063,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_on_noop_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked3=True)
+        runner.state = BridgeState(landscape=SideState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
@@ -2134,7 +2135,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_off_unlocks_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked2=True)
+        runner.state = BridgeState(portrait=SideState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
@@ -2143,7 +2144,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked2=False)
+        runner.state = BridgeState(portrait=SideState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
@@ -2152,7 +2153,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_off_unlocks_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked3=True)
+        runner.state = BridgeState(landscape=SideState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
@@ -2161,7 +2162,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked3=False)
+        runner.state = BridgeState(landscape=SideState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
@@ -2494,7 +2495,7 @@ class TestBothSatelliteCommands:
         """"lock both" (both_lock_on) reuses the idempotent per-satellite lock:
         an already-locked side is left alone, so it only toggles the unlocked one."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked2=True, locked3=False)
+        runner.state = BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2506,7 +2507,7 @@ class TestBothSatelliteCommands:
 
     def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(locked2=True, locked3=True)
+        runner.state = BridgeState(landscape=SideState(locked=True), portrait=SideState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2523,7 +2524,7 @@ class TestHudPublishing:
 
     def test_the_tick_feeds_the_huds_the_state_it_is_holding(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="video", locked2=True)
+        runner.state = BridgeState(portrait=SideState(locked=True), main_mode="video")
 
         with patch.object(runner.hud, "publish_due") as publish:
             runner.tick()

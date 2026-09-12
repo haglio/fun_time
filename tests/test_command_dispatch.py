@@ -28,7 +28,7 @@ from fun_time.media_actions import ensure_in_favs
 from fun_time.media_metadata import normalize_path_key
 from fun_time.players import Player
 from fun_time.satellite_groups import cancel_lock
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, SideState
 
 
 def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
@@ -112,12 +112,7 @@ def _playlist(config: BridgeConfig, which: int) -> list[str]:
 
 
 def _make_state(**overrides) -> BridgeState:
-    defaults = dict(
-        locked2=False,
-        locked3=False,
-        main_mode="video",
-        omni_paused=False,
-    )
+    defaults = dict(main_mode="video", omni_paused=False)
     defaults.update(overrides)
     return BridgeState(**defaults)
 
@@ -134,7 +129,7 @@ def _tab_page(op_key: str) -> str:
 def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     """Lock defers the load after the same Ctrl+R page the RFB's own tabs use."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
 
     from fun_time.media_actions import WEB_PROVIDERS, make_web_url_from_path
 
@@ -143,7 +138,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
     assert _cmds(config, 2) == ["LOCK"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
@@ -152,7 +147,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
 
 def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
     from fun_time.media_actions import WEB_PROVIDERS
 
     video = tmp_path / "videos" / WEB_PROVIDERS[0].marker / "abc_123.mp4"
@@ -176,7 +171,7 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
 
         _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
         with patch("fun_time.command_dispatch.ensure_in_favs"):
-            _, ops = dispatch_command("portrait_lock", _make_state(locked2=False), config)
+            _, ops = dispatch_command("portrait_lock", _make_state(portrait=SideState(locked=False)), config)
         keys += [op.key for op in ops if op.op == "open_rfb_tab"]
 
     assert keys[0] == keys[1]
@@ -190,7 +185,7 @@ def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
     from fun_time.watch_stats import load_watch_stats
 
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
     video = tmp_path / "clip.mp4"
     video.write_text("x", encoding="utf-8")
 
@@ -204,7 +199,7 @@ def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
 
 def test_portrait_unlock_records_no_watch_event(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     _set_current(config, 2, str(tmp_path / "clip.mp4"))
     dispatch_command("portrait_lock", state, config)
@@ -217,7 +212,7 @@ def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: 
     """The page is written off the bridge config, which now carries the port
     the manifest names (bug 22)."""
     config = replace(_make_config(tmp_path), loopback_port=8771)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
 
     from fun_time.media_actions import WEB_PROVIDERS
 
@@ -231,30 +226,30 @@ def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: 
 
 def test_portrait_lock_no_open_rfb_tab_op_for_unknown_video(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
 
     _set_current(config, 2, r"C:\videos\other\xyz.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
 
 def test_portrait_lock_no_open_rfb_tab_op_when_unlocking(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
     new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.locked2 is False
+    assert new_state.side(Player.PORTRAIT).locked is False
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
 
 def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked3=False)
+    state = _make_state(landscape=SideState(locked=False))
 
     from fun_time.media_actions import WEB_PROVIDERS, make_web_url_from_path
 
@@ -263,7 +258,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
-    assert new_state.locked3 is True
+    assert new_state.side(Player.LANDSCAPE).locked is True
     assert _cmds(config, 3) == ["LOCK"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
@@ -286,7 +281,7 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     config = _make_config(tmp_path)
     config.regen_media_root = media_root
     config.regen_metadata_root = metadata_root
-    state = _make_state(locked3=False)
+    state = _make_state(landscape=SideState(locked=False))
 
     _set_current(config, 3, str(video))
     with patch("fun_time.command_dispatch.ensure_in_favs"):
@@ -302,25 +297,25 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
 
 def test_portrait_lock_toggles_lock_on(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.locked2 is True
-    assert new_state.locked3 is False
+    assert new_state.side(Player.PORTRAIT).locked is True
+    assert new_state.side(Player.LANDSCAPE).locked is False
     assert _cmds(config, 2) == ["LOCK"]
 
 
 def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     new_state, ops = dispatch_command("portrait_lock", state, config)
 
-    assert new_state.locked2 is False
+    assert new_state.side(Player.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["UNLOCK", "NEXT"]
 
 
@@ -329,13 +324,13 @@ def test_portrait_lock_toggles_lock_off(tmp_path: Path):
 
 def test_landscape_lock_toggles_lock_on(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked3=False)
+    state = _make_state(landscape=SideState(locked=False))
 
     _set_current(config, 3, "C:\\clips\\landscape.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
-    assert new_state.locked3 is True
+    assert new_state.side(Player.LANDSCAPE).locked is True
     assert _cmds(config, 3) == ["LOCK"]
 
 
@@ -347,7 +342,7 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     satellite can be a video on by then.  Locking brings back the video the user
     was actually looking at, and locks that."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
     meant = "C:\\clips\\meant.mp4"
     now_playing = "C:\\clips\\advanced_to.mp4"
 
@@ -358,7 +353,7 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK it.
     assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK"]
     assert favs.call_args[0][1] == meant
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
 
 
 def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path: Path):
@@ -366,7 +361,7 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
     on there is nothing to advance past — the condemned video is dropped from the
     playlist where it sits, and the innocent video now playing is left alone."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
     meant = "C:\\clips\\meant.mp4"
     now_playing = "C:\\clips\\advanced_to.mp4"
     _set_current(config, 2, now_playing)
@@ -388,7 +383,7 @@ def test_portrait_trash_discards_the_video_that_was_playing_when_spoken(tmp_path
 
 def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
@@ -397,7 +392,7 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
     ):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
-    assert new_state.locked2 is False
+    assert new_state.side(Player.PORTRAIT).locked is False
     assert _cmds(config, 2) == ["UNLOCK", "TRASH"]
 
 
@@ -406,7 +401,7 @@ def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path
     current clip and plays the next) and condemns the clip — favs removal +
     weird, this clip not being a favorite (``test_lock`` covers that branch)."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
 
     _set_current(config, 2, "C:\\clips\\portrait.mp4")
     with (
@@ -425,18 +420,18 @@ def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path
 
 def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     new_state, ops = dispatch_command("portrait_prev", state, config)
 
-    assert new_state.locked2 is False
+    assert new_state.side(Player.PORTRAIT).locked is False
     # A locked side unlocks first (repeat-one off), then steps back.
     assert _cmds(config, 2) == ["UNLOCK", "PREV"]
 
 
 def test_portrait_next_queues_next(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked2=False)
+    state = _make_state(portrait=SideState(locked=False))
 
     dispatch_command("portrait_next", state, config)
 
@@ -742,11 +737,11 @@ def test_funscript_nav_voice_phrases_are_split_for_vosk():
 
 def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked3=True)
+    state = _make_state(landscape=SideState(locked=True))
 
     new_state, ops = dispatch_command("landscape_prev", state, config)
 
-    assert new_state.locked3 is False
+    assert new_state.side(Player.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["UNLOCK", "PREV"]
 
 
@@ -755,11 +750,11 @@ def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
     invite is a side mix-up: the D key advancing the portrait player nobody
     was looking at while the landscape clip stays put."""
     config = _make_config(tmp_path)
-    state = _make_state(locked3=True)
+    state = _make_state(landscape=SideState(locked=True))
 
     new_state, _ops = dispatch_command("landscape_next", state, config)
 
-    assert new_state.locked3 is False
+    assert new_state.side(Player.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
     assert _cmds(config, 2) == []
 
@@ -768,7 +763,7 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
     """Same side-mix-up pin for the destructive sibling: a swapped side here
     would condemn whatever the portrait player happened to be showing."""
     config = _make_config(tmp_path)
-    state = _make_state(locked3=True)
+    state = _make_state(landscape=SideState(locked=True))
 
     _set_current(config, 3, "C:\\clips\\landscape.mp4")
     with (
@@ -777,7 +772,7 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
     ):
         new_state, _ops = dispatch_command("landscape_trash", state, config)
 
-    assert new_state.locked3 is False
+    assert new_state.side(Player.LANDSCAPE).locked is False
     assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
     assert _cmds(config, 2) == []
 
@@ -830,7 +825,7 @@ def test_portrait_command_sets_active_side_to_portrait(tmp_path: Path):
 
 def test_landscape_command_sets_active_side_to_landscape(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(active_side=2, locked3=False)
+    state = _make_state(landscape=SideState(locked=False), active_side=2)
 
     _set_current(config, 3, "C:\\clips\\l.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
@@ -882,7 +877,7 @@ def test_minimize_parks_that_players_window(tmp_path: Path):
     op names the role, and the side's playback — its lock, its loop, its playlist —
     is untouched, because the player goes on running where it cannot be seen."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     new_state, ops = dispatch_command("portrait_minimize", state, config)
 
@@ -987,7 +982,8 @@ def _fmode_result(**kwargs):
     return type("R", (), {
         "players": players,
         "enabled": enabled,
-        "log_message": f"F-mode {'enabled' if enabled else 'disabled'}: {', '.join(players)}",
+        "log_message": f"F-mode {'enabled' if enabled else 'disabled'}: "
+                       f"{', '.join(player.label for player in players)}",
     })()
 
 
@@ -1005,9 +1001,10 @@ def test_fmode_toggle_enables_every_player_from_disabled(tmp_path: Path):
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", _make_state(), config)
 
-    assert mock_fmode.call_args.kwargs["players"] == ("main", "portrait", "landscape")
-    assert (new_state.main_f_mode, new_state.portrait_f_mode,
-            new_state.landscape_f_mode) == (True, True, True)
+    assert mock_fmode.call_args.kwargs["players"] == (
+        Player.MAIN, Player.PORTRAIT, Player.LANDSCAPE)
+    assert (new_state.main_f_mode, new_state.side(Player.PORTRAIT).f_mode,
+            new_state.side(Player.LANDSCAPE).f_mode) == (True, True, True)
 
 
 def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_path: Path):
@@ -1015,45 +1012,44 @@ def test_fmode_toggle_narrows_the_rest_rather_than_lifting_what_is_narrowed(tmp_
     must finish the job, not undo the half of it that is done — otherwise one press
     leaves the room in the split state it was pressed to resolve."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_f_mode=True)
+    state = _make_state(portrait=SideState(f_mode=True))
 
     new_state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert (new_state.main_f_mode, new_state.portrait_f_mode,
-            new_state.landscape_f_mode) == (True, True, True)
+    assert (new_state.main_f_mode, new_state.side(Player.PORTRAIT).f_mode,
+            new_state.side(Player.LANDSCAPE).f_mode) == (True, True, True)
     # …and the player that was already narrowed is left out of the rebuild, so its
     # queue is not reshuffled for nothing.
-    assert mock_fmode.call_args.kwargs["players"] == ("main", "landscape")
+    assert mock_fmode.call_args.kwargs["players"] == (Player.MAIN, Player.LANDSCAPE)
 
 
 def test_fmode_toggle_lifts_it_once_every_player_is_in_it(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(main_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
+    state = _make_state(landscape=SideState(f_mode=True), portrait=SideState(f_mode=True), main_f_mode=True)
 
     new_state, _ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
-    assert (new_state.main_f_mode, new_state.portrait_f_mode,
-            new_state.landscape_f_mode) == (False, False, False)
+    assert (new_state.main_f_mode, new_state.side(Player.PORTRAIT).f_mode,
+            new_state.side(Player.LANDSCAPE).f_mode) == (False, False, False)
 
 
-@pytest.mark.parametrize(
-    "command, field",
-    [
-        ("main_fmode", "main_f_mode"),
-        ("portrait_fmode", "portrait_f_mode"),
-        ("landscape_fmode", "landscape_f_mode"),
-    ],
-)
-def test_a_named_player_goes_into_f_mode_alone(tmp_path: Path, command: str, field: str):
+def _f_modes(state: BridgeState) -> tuple[bool, bool, bool]:
+    """F-mode on each of the three players, in Player order."""
+    return (state.main_f_mode, state.side(Player.PORTRAIT).f_mode,
+            state.side(Player.LANDSCAPE).f_mode)
+
+
+@pytest.mark.parametrize("player", list(Player))
+def test_a_named_player_goes_into_f_mode_alone(tmp_path: Path, player: Player):
     """What each HUD's own F button posts: that player and no other."""
     config = _make_config(tmp_path)
 
-    new_state, _ops, mock_fmode = _dispatch_fmode(command, _make_state(), config)
+    new_state, _ops, mock_fmode = _dispatch_fmode(
+        f"{player.label}_fmode", _make_state(), config)
 
-    assert getattr(new_state, field) is True
-    assert [getattr(new_state, other) for other in
-            ("main_f_mode", "portrait_f_mode", "landscape_f_mode")].count(True) == 1
-    assert mock_fmode.call_args.kwargs["players"] == (command.removesuffix("_fmode"),)
+    assert list(_f_modes(new_state)).count(True) == 1
+    assert _f_modes(new_state)[list(Player).index(player)] is True
+    assert mock_fmode.call_args.kwargs["players"] == (player,)
 
 
 def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path):
@@ -1061,12 +1057,12 @@ def test_the_on_and_off_forms_assert_a_state_rather_than_toggling(tmp_path: Path
     config = _make_config(tmp_path)
 
     stays_on, _ops, _mock = _dispatch_fmode(
-        "portrait_fmode_on", _make_state(portrait_f_mode=True), config)
+        "portrait_fmode_on", _make_state(portrait=SideState(f_mode=True)), config)
     stays_off, _ops, _mock = _dispatch_fmode(
-        "portrait_fmode_off", _make_state(portrait_f_mode=False), config)
+        "portrait_fmode_off", _make_state(portrait=SideState(f_mode=False)), config)
 
-    assert stays_on.portrait_f_mode is True
-    assert stays_off.portrait_f_mode is False
+    assert stays_on.side(Player.PORTRAIT).f_mode is True
+    assert stays_off.side(Player.PORTRAIT).f_mode is False
 
 
 def test_asserting_the_state_a_player_is_already_in_rebuilds_nothing(tmp_path: Path):
@@ -1075,7 +1071,7 @@ def test_asserting_the_state_a_player_is_already_in_rebuilds_nothing(tmp_path: P
     config = _make_config(tmp_path)
 
     _state, _ops, mock_fmode = _dispatch_fmode(
-        "portrait_fmode_on", _make_state(portrait_f_mode=True), config)
+        "portrait_fmode_on", _make_state(portrait=SideState(f_mode=True)), config)
 
     assert mock_fmode.call_args.kwargs["players"] == ()
 
@@ -1099,7 +1095,7 @@ def test_fmode_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
     reads as "turned on".  Off is the loud state here — the library just went back
     to its full self — so it flashes red and says which way it went."""
     config = _make_config(tmp_path)
-    state = _make_state(main_f_mode=True, portrait_f_mode=True, landscape_f_mode=True)
+    state = _make_state(landscape=SideState(f_mode=True), portrait=SideState(f_mode=True), main_f_mode=True)
 
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -1122,7 +1118,7 @@ def test_fmode_passes_each_sides_current_order(tmp_path: Path):
     """A rebuild has to keep the side's order, and the two satellites can be in
     different ones, so each side's own ordering goes with it."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_latest=True, landscape_latest=False)
+    state = _make_state(landscape=SideState(latest=False), portrait=SideState(latest=True))
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -1155,8 +1151,8 @@ def test_filter_command_scopes_to_one_satellite(tmp_path: Path):
         mock_filter.return_value = _filter_result()
         new_state, ops = dispatch_command("filter_portrait_alpha", state, config)
 
-    assert new_state.portrait_filter == "alpha"
-    assert new_state.landscape_filter == ""  # the other satellite is untouched
+    assert new_state.side(Player.PORTRAIT).filter == "alpha"
+    assert new_state.side(Player.LANDSCAPE).filter == ""  # the other satellite is untouched
     assert mock_filter.call_count == 1
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["which"] == 2
@@ -1170,14 +1166,14 @@ def test_no_loop_returns_to_browse_keeping_the_filter(tmp_path: Path):
     """"no loop" reshapes the queue back to the browse but re-uses the
     satellite's own filter so it survives — unlike reset, which clears it."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha")
+    state = _make_state(portrait=SideState(filter="alpha"))
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]) as mock_browse:
         new_state, ops = dispatch_command("portrait_no_loop", state, config)
 
     # The browse is built with the CURRENT filter (kept), not cleared to "".
     assert mock_browse.call_args.kwargs["query"] == "alpha"
-    assert new_state.portrait_filter == "alpha"
+    assert new_state.side(Player.PORTRAIT).filter == "alpha"
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
@@ -1201,14 +1197,14 @@ def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_pa
     """A HUD double-click sends "<side>_lock_video|<path>": on an already-locked
     satellite (repeat-one) it just plays the picked clip, which keeps it locked."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
     path = "C:/vids/portrait/lock_me.mp4"
 
     new_state, _ops = dispatch_command(f"portrait_lock_video|{path}", state, config)
 
     # Already repeat-one: the double-click just moves the lock onto the picked clip.
     assert _cmds(config, 2) == [f"PLAY_FILE {path}"]
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
 
 
 # --- HUD keyboard navigation ---
@@ -1234,7 +1230,7 @@ def test_nav_right_switches_to_the_first_seed_and_freezes_the_anchor(tmp_path: P
     new_state, ops = dispatch_command("portrait_nav_right", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
-    assert new_state.portrait_nav_anchor == paths["subject_a"]
+    assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_a"]
     assert new_state.active_side == 2
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
@@ -1258,13 +1254,13 @@ def test_nav_continues_across_the_seed_row_from_the_frozen_anchor(tmp_path: Path
         "subject_b": _cycle_meta("222", "Alpha"),
         "subject_c": _cycle_meta("333", "Alpha"),
     })
-    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+    state = _make_state(portrait=SideState(nav_anchor=paths["subject_a"]))
 
     _set_current(config, 2, paths["subject_b"])
     new_state, _ops = dispatch_command("portrait_nav_right", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_c']}"]
-    assert new_state.portrait_nav_anchor == paths["subject_a"]  # the anchor held
+    assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the anchor held
 
 
 def test_nav_past_the_last_seed_wraps_round_to_the_anchor(tmp_path: Path):
@@ -1275,13 +1271,13 @@ def test_nav_past_the_last_seed_wraps_round_to_the_anchor(tmp_path: Path):
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
-    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+    state = _make_state(portrait=SideState(nav_anchor=paths["subject_a"]))
 
     _set_current(config, 2, paths["subject_b"])  # the row's only seed — its last
     new_state, _ops = dispatch_command("portrait_nav_right", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a']}"]
-    assert new_state.portrait_nav_anchor == paths["subject_a"]  # the ring kept its head
+    assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the ring kept its head
 
 
 def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
@@ -1292,7 +1288,7 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
-    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+    state = _make_state(portrait=SideState(nav_anchor=paths["subject_a"]))
 
     _set_current(config, 2, paths["subject_a"])
     _new_state, ops = dispatch_command("portrait_nav_down", state, config)
@@ -1311,13 +1307,13 @@ def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
         "subject_b": _cycle_meta("222", "Alpha"),
         "subject_b_zeta": _cycle_meta("222", "Zeta Massage"),
     })
-    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+    state = _make_state(portrait=SideState(nav_anchor=paths["subject_a"]))
 
     _set_current(config, 2, paths["subject_b"])
     new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b_zeta']}"]
-    assert new_state.portrait_nav_anchor == paths["subject_b"]  # re-rooted on the seed
+    assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_b"]  # re-rooted on the seed
 
 
 def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
@@ -1329,13 +1325,13 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
         "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
-    state = _make_state(portrait_nav_anchor=paths["subject_a"])
+    state = _make_state(portrait=SideState(nav_anchor=paths["subject_a"]))
 
     _set_current(config, 2, paths["subject_b"])
     new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == []
-    assert new_state.portrait_nav_anchor == paths["subject_a"]  # the map held still
+    assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
     dead_end = [op for op in ops if op.op == "notice"]
     assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
 
@@ -1347,13 +1343,13 @@ def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
     config, paths = _nav_config(tmp_path)
     # Frozen on a bogus anchor subject_a_zeta is not subject_a's; the live clip
     # subject_a is not on subject_a_zeta's seed/action map, so it re-anchors on subject_a.
-    state = _make_state(portrait_nav_anchor="C:/vids/portrait/gone.mp4")
+    state = _make_state(portrait=SideState(nav_anchor="C:/vids/portrait/gone.mp4"))
 
     _set_current(config, 2, paths["subject_a"])
     new_state, _ops = dispatch_command("portrait_nav_right", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
-    assert new_state.portrait_nav_anchor == paths["subject_a"]  # re-anchored on the live clip
+    assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # re-anchored on the live clip
 
 
 def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
@@ -1365,11 +1361,11 @@ def test_a_non_nav_side_command_clears_the_nav_anchor(tmp_path: Path):
     was retired rather than kept as a second way in.
     """
     config = _make_config(tmp_path)
-    state = _make_state(portrait_nav_anchor="C:/vids/portrait/anchor.mp4")
+    state = _make_state(portrait=SideState(nav_anchor="C:/vids/portrait/anchor.mp4"))
 
     new_state, _ops = dispatch_command("portrait_next", state, config)
 
-    assert new_state.portrait_nav_anchor == ""
+    assert new_state.side(Player.PORTRAIT).nav_anchor == ""
 
 
 @pytest.mark.parametrize("command", ["main_next", "main_prev", "main_lock"])
@@ -1384,13 +1380,12 @@ def test_a_main_player_command_leaves_both_satellite_anchors_alone(
     (bug 71).
     """
     config = _make_config(tmp_path)
-    state = _make_state(portrait_nav_anchor="C:/vids/portrait/anchor.mp4",
-                        landscape_nav_anchor="C:/vids/landscape/anchor.mp4")
+    state = _make_state(landscape=SideState(nav_anchor="C:/vids/landscape/anchor.mp4"), portrait=SideState(nav_anchor="C:/vids/portrait/anchor.mp4"))
 
     new_state, _ops = dispatch_command(command, state, config)
 
-    assert new_state.landscape_nav_anchor == "C:/vids/landscape/anchor.mp4"
-    assert new_state.portrait_nav_anchor == "C:/vids/portrait/anchor.mp4"
+    assert new_state.side(Player.LANDSCAPE).nav_anchor == "C:/vids/landscape/anchor.mp4"
+    assert new_state.side(Player.PORTRAIT).nav_anchor == "C:/vids/portrait/anchor.mp4"
 
 
 def test_landscape_nav_sets_the_active_side(tmp_path: Path):
@@ -1412,8 +1407,8 @@ def test_filter_command_both_scope_rebuilds_each_satellite(tmp_path: Path):
         mock_filter.return_value = _filter_result()
         new_state, _ops = dispatch_command("filter_both_beta_gamma", state, config)
 
-    assert new_state.portrait_filter == "beta gamma"
-    assert new_state.landscape_filter == "beta gamma"
+    assert new_state.side(Player.PORTRAIT).filter == "beta gamma"
+    assert new_state.side(Player.LANDSCAPE).filter == "beta gamma"
     assert {call.kwargs["which"] for call in mock_filter.call_args_list} == {2, 3}
 
 
@@ -1441,7 +1436,7 @@ def test_zero_match_filter_is_not_recorded_in_state(tmp_path: Path):
         mock_filter.return_value = _filter_result(count=0, applied=False)
         new_state, _ops = dispatch_command("filter_portrait_alpha", state, config)
 
-    assert new_state.portrait_filter == ""
+    assert new_state.side(Player.PORTRAIT).filter == ""
 
 
 def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
@@ -1450,20 +1445,20 @@ def test_clear_filter_command_resets_only_its_scope(tmp_path: Path):
     its own (``filter_portrait_clear``) that did exactly this; two ways in for one
     action is how the two drift, so the phrases joined the grid instead."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", landscape_filter="twirling")
+    state = _make_state(landscape=SideState(filter="twirling"), portrait=SideState(filter="alpha"))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
-    assert new_state.portrait_filter == ""
-    assert new_state.landscape_filter == "twirling"  # untouched
+    assert new_state.side(Player.PORTRAIT).filter == ""
+    assert new_state.side(Player.LANDSCAPE).filter == "twirling"  # untouched
     assert mock_filter.call_args.kwargs["query"] == ""
 
 
 def test_fmode_passes_active_filters(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", landscape_filter="twirling")
+    state = _make_state(landscape=SideState(filter="twirling"), portrait=SideState(filter="alpha"))
 
     _state, _ops, mock_fmode = _dispatch_fmode("fmode_toggle", state, config)
 
@@ -1478,7 +1473,7 @@ def test_recents_passes_the_sides_filter_and_roots(tmp_path: Path):
         regen_media_root=tmp_path / "media",
         regen_metadata_root=tmp_path / "metadata",
     )
-    state = _make_state(portrait_filter="alpha", landscape_filter="twirling")
+    state = _make_state(landscape=SideState(filter="twirling"), portrait=SideState(filter="alpha"))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
@@ -1499,8 +1494,8 @@ def test_recents_reorders_only_the_side_it_names(tmp_path: Path):
         state, ops = dispatch_command("portrait_latest", _make_state(), config)
 
     assert [call.kwargs["which"] for call in mock_filter.call_args_list] == [2]
-    assert state.portrait_latest is True
-    assert state.landscape_latest is False
+    assert state.side(Player.PORTRAIT).latest is True
+    assert state.side(Player.LANDSCAPE).latest is False
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
@@ -1508,32 +1503,31 @@ def test_shuffle_puts_one_side_back_without_touching_the_other(tmp_path: Path):
     """Latest' counterpart has to be sided too, or a side reloaded newest-first
     could never be shuffled back on its own."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_latest=True, landscape_latest=True)
+    state = _make_state(landscape=SideState(latest=True), portrait=SideState(latest=True))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("landscape_shuffle", state, config)
 
     assert mock_filter.call_args.kwargs["recent"] is False
-    assert new_state.landscape_latest is False
-    assert new_state.portrait_latest is True  # the other side keeps its order
+    assert new_state.side(Player.LANDSCAPE).latest is False
+    assert new_state.side(Player.PORTRAIT).latest is True  # the other side keeps its order
 
 
 def test_a_sided_reorder_drops_that_sides_lock_and_loop(tmp_path: Path):
     """The rebuild replaces the queue, so whatever the side was holding — a lock, a
     group loop, a widened row — goes with it."""
     config = _make_config(tmp_path)
-    state = _make_state(locked2=True, portrait_loop="seed",
-                        portrait_map_anchor="C:/v/a.mp4", portrait_widen_clip="C:/v/a.mp4")
+    state = _make_state(portrait=SideState(locked=True, loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4"))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("portrait_latest", state, config)
 
-    assert new_state.locked2 is False
-    assert new_state.portrait_loop == ""
-    assert new_state.portrait_map_anchor == ""
-    assert new_state.portrait_widen_clip == ""
+    assert new_state.side(Player.PORTRAIT).locked is False
+    assert new_state.side(Player.PORTRAIT).loop == ""
+    assert new_state.side(Player.PORTRAIT).map_anchor == ""
+    assert new_state.side(Player.PORTRAIT).widen_clip == ""
 
 
 def test_a_reorder_starts_the_side_at_the_top_of_the_new_order(tmp_path: Path):
@@ -1567,25 +1561,20 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
     order shuffled, F-mode dropped, any loop / widened row / frozen map dropped, and
     playing from the top of a fresh browse."""
     config = _make_config(tmp_path)
-    state = _make_state(
-        locked2=True, portrait_filter="alpha", portrait_latest=True,
-        portrait_f_mode=True,
-        portrait_loop="seed", portrait_map_anchor="C:/v/a.mp4",
-        portrait_widen_clip="C:/v/a.mp4", portrait_nav_anchor="C:/v/a.mp4",
-    )
+    state = _make_state(portrait=SideState(locked=True, filter="alpha", latest=True, f_mode=True, loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4", nav_anchor="C:/v/a.mp4"))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    assert new_state.locked2 is False
-    assert new_state.portrait_filter == ""
-    assert new_state.portrait_latest is False
-    assert new_state.portrait_f_mode is False
-    assert new_state.portrait_loop == ""
-    assert new_state.portrait_map_anchor == ""
-    assert new_state.portrait_widen_clip == ""
-    assert new_state.portrait_nav_anchor == ""
+    assert new_state.side(Player.PORTRAIT).locked is False
+    assert new_state.side(Player.PORTRAIT).filter == ""
+    assert new_state.side(Player.PORTRAIT).latest is False
+    assert new_state.side(Player.PORTRAIT).f_mode is False
+    assert new_state.side(Player.PORTRAIT).loop == ""
+    assert new_state.side(Player.PORTRAIT).map_anchor == ""
+    assert new_state.side(Player.PORTRAIT).widen_clip == ""
+    assert new_state.side(Player.PORTRAIT).nav_anchor == ""
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is False
     assert mock_filter.call_args.kwargs["start_at_top"] is True
@@ -1598,7 +1587,7 @@ def test_reset_rebuilds_the_side_wide_rather_than_still_in_f_mode(tmp_path: Path
     still holding a browse of the favorites alone while the HUD said the filter
     was off."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_f_mode=True)
+    state = _make_state(portrait=SideState(f_mode=True))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
@@ -1625,16 +1614,16 @@ def test_reset_leaves_a_side_that_is_already_at_its_defaults_alone(tmp_path: Pat
 
 
 @pytest.mark.parametrize("narrowed", [
-    {"locked2": True},
-    {"portrait_filter": "alpha"},
-    {"portrait_f_mode": True},
-    {"portrait_latest": True},
-    {"portrait_loop": "seed"},
-    {"portrait_map_anchor": "C:/v/a.mp4"},
-    {"portrait_widen_clip": "C:/v/a.mp4"},
+    SideState(locked=True),
+    SideState(filter="alpha"),
+    SideState(f_mode=True),
+    SideState(latest=True),
+    SideState(loop="seed"),
+    SideState(map_anchor="C:/v/a.mp4"),
+    SideState(widen_clip="C:/v/a.mp4"),
 ])
 def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
-    tmp_path: Path, narrowed: dict
+    tmp_path: Path, narrowed: SideState
 ):
     """Every one of these is something a reset takes off, so a side holding any
     one of them is not at its defaults.  A skip that read too few of them would
@@ -1644,7 +1633,8 @@ def test_reset_still_fires_for_any_one_thing_left_narrowing_the_side(
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
-        _state, ops = dispatch_command("portrait_reset", _make_state(**narrowed), config)
+        _state, ops = dispatch_command(
+            "portrait_reset", _make_state(portrait=narrowed), config)
 
     assert mock_filter.call_count == 1, narrowed
     assert [op.key for op in ops] == ["Reset"]
@@ -1654,7 +1644,7 @@ def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
     """Each side is judged on its own, so "both reset" with one side narrowed
     rebuilds that one and leaves the other's browse where it is."""
     config = _make_config(tmp_path)
-    state = _make_state(landscape_filter="alpha")
+    state = _make_state(landscape=SideState(filter="alpha"))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
@@ -1668,31 +1658,30 @@ def test_reset_skips_only_the_side_that_has_nothing_to_put_back(tmp_path: Path):
 
 def test_reset_leaves_the_other_side_alone(tmp_path: Path):
     config = _make_config(tmp_path)
-    state = _make_state(locked3=True, landscape_filter="alpha", landscape_latest=True,
-                        landscape_f_mode=True)
+    state = _make_state(landscape=SideState(locked=True, filter="alpha", latest=True, f_mode=True))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_reset", state, config)
 
-    assert new_state.locked3 is True
-    assert new_state.landscape_filter == "alpha"
-    assert new_state.landscape_latest is True
-    assert new_state.landscape_f_mode is True
+    assert new_state.side(Player.LANDSCAPE).locked is True
+    assert new_state.side(Player.LANDSCAPE).filter == "alpha"
+    assert new_state.side(Player.LANDSCAPE).latest is True
+    assert new_state.side(Player.LANDSCAPE).f_mode is True
 
 
 def test_no_filter_drops_the_filter_and_nothing_else(tmp_path: Path):
     """The narrow gesture: the filter goes and the side keeps the order it was
     browsing in, so it is not a way to lose your place in a Latest browse."""
     config = _make_config(tmp_path)
-    state = _make_state(portrait_filter="alpha", portrait_latest=True)
+    state = _make_state(portrait=SideState(filter="alpha", latest=True))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(count=10)
         new_state, _ops = dispatch_command("portrait_no_filter", state, config)
 
-    assert new_state.portrait_filter == ""
-    assert new_state.portrait_latest is True          # still its Latest order
+    assert new_state.side(Player.PORTRAIT).filter == ""
+    assert new_state.side(Player.PORTRAIT).latest is True          # still its Latest order
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is True
 
@@ -1822,12 +1811,12 @@ def test_portrait_cycle_action_keeps_an_active_lock(tmp_path: Path):
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
     })
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     _set_current(config, 2, paths["subject_zeta"])
     new_state, _ops = dispatch_command("portrait_cycle_action", state, config)
 
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
     # Cycling is "show this differently", not "move on": it switches the clip but
     # never releases the lock, so no UNLOCK is queued.
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_alpha']}"]
@@ -1838,12 +1827,12 @@ def test_portrait_cycle_seed_keeps_an_active_lock(tmp_path: Path):
         "subject_a": _cycle_meta("111", "Alpha"),
         "subject_b": _cycle_meta("222", "Alpha"),
     })
-    state = _make_state(locked2=True)
+    state = _make_state(portrait=SideState(locked=True))
 
     _set_current(config, 2, paths["subject_a"])
     new_state, _ops = dispatch_command("portrait_cycle_seed", state, config)
 
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
 
 
@@ -1937,7 +1926,7 @@ def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Pat
 
     assert not any(cmd.startswith("PLAY_FILE") for cmd in _cmds(config, 2))  # no jump
     assert _playlist(config, 2)[0] == c   # the clip on screen leads the looped queue
-    assert state.portrait_widen_clip == c
+    assert state.side(Player.PORTRAIT).widen_clip == c
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
@@ -1955,7 +1944,7 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
     _set_current(config, 2, c)
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.portrait_widen_clip == ""  # nothing widened
+    assert state.side(Player.PORTRAIT).widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
     assert notices[0].level == FAILED_NOTICE_LEVEL
@@ -1968,7 +1957,7 @@ def test_more_seeds_reports_widening_failed_when_the_library_holds_one_clip(tmp_
     _set_current(config, 2, paths["only"])
     state, ops = dispatch_command("portrait_more_seeds", _make_state(), config)
 
-    assert state.portrait_widen_clip == ""  # nothing widened
+    assert state.side(Player.PORTRAIT).widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
     assert notices[0].level == FAILED_NOTICE_LEVEL
@@ -1985,8 +1974,8 @@ def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])   # looping the widened pool
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
-    assert state.portrait_loop == "seed"
-    assert state.portrait_widen_clip == a
+    assert state.side(Player.PORTRAIT).loop == "seed"
+    assert state.side(Player.PORTRAIT).widen_clip == a
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]
 
 
@@ -2014,22 +2003,22 @@ def test_more_seeds_never_queues_a_clip_of_another_action(tmp_path: Path):
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, c])  # b does something else
     assert b not in _playlist(config, 2)
-    assert state.portrait_widen_clip == a
+    assert state.side(Player.PORTRAIT).widen_clip == a
 
 
 def test_more_seeds_during_a_seed_loop_widens_the_running_loop(tmp_path: Path):
     """Widening the row while a seed loop runs must widen the loop too, so the satellite
     cycles the wider pool the HUD now shows instead of only the exact family."""
     config, a, a2, b = _widened_loop_config(tmp_path)
-    state = _make_state(portrait_loop="seed")  # a seed loop is already running
+    state = _make_state(portrait=SideState(loop="seed"))  # a seed loop is already running
 
     _set_current(config, 2, a)
     new_state, ops = dispatch_command("portrait_more_seeds", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])  # re-looped wide
     assert "RELOAD_PLAYLIST" in _cmds(config, 2)
-    assert new_state.portrait_widen_clip == a
-    assert new_state.portrait_loop == "seed"
+    assert new_state.side(Player.PORTRAIT).widen_clip == a
+    assert new_state.side(Player.PORTRAIT).loop == "seed"
     assert [op.key for op in ops if op.op == "notice"] == ["More seeds"]  # keeps its own notice
 
 
@@ -2077,12 +2066,12 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
         sidecar.parent.mkdir(parents=True, exist_ok=True)
         sidecar.write_text(json.dumps(meta), encoding="utf-8")
     config = replace(config, landscape_sources=str(landscape_dir))
-    state = _make_state(locked3=True)
+    state = _make_state(landscape=SideState(locked=True))
 
     _set_current(config, 3, videos["subject_zeta"])
     new_state, _ops = dispatch_command("landscape_cycle_action", state, config)
 
-    assert new_state.locked3 is True, "cycling must not release the landscape lock"
+    assert new_state.side(Player.LANDSCAPE).locked is True, "cycling must not release the landscape lock"
     # Targets the landscape command file, keeping the lock (no UNLOCK queued)...
     assert _cmds(config, 3) == [f"PLAY_FILE {videos['subject_alpha']}"]
     assert _cmds(config, 2) == []  # ...and never touches the portrait side.
@@ -2193,14 +2182,14 @@ def test_recents_stays_newest_first_and_resets_the_lock(tmp_path: Path):
     config.regen_media_root = tmp_path / "media"
     config.regen_metadata_root = tmp_path / "metadata"
     # Already in Latest: asking again must keep newest-first, never toggle off.
-    state = _make_state(portrait_latest=True, locked2=True)
+    state = _make_state(portrait=SideState(latest=True, locked=True))
 
     with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
         mock_filter.return_value = _filter_result(applied=True)
         new_state, _ops = dispatch_command("portrait_latest", state, config)
 
-    assert new_state.portrait_latest is True
-    assert new_state.locked2 is False
+    assert new_state.side(Player.PORTRAIT).latest is True
+    assert new_state.side(Player.PORTRAIT).locked is False
     kwargs = mock_filter.call_args.kwargs
     assert kwargs["recent"] is True
     assert kwargs["f_mode_enabled"] is False
@@ -3100,14 +3089,14 @@ def test_a_widened_seed_loop_loops_the_loose_family_and_keeps_the_widen_anchor(t
     whole loose family (across its exact seed families) and keeps the widen anchor in
     state, so the HUD stays widened and frozen as the loop auto-advances the re-renders."""
     config, a, a2, b = _widened_loop_config(tmp_path)
-    state = _make_state(portrait_widen_clip=a)  # widened around the clip on screen
+    state = _make_state(portrait=SideState(widen_clip=a))  # widened around the clip on screen
 
     _set_current(config, 2, a)
     new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, a2, b])
-    assert new_state.portrait_loop == "seed"
-    assert new_state.portrait_widen_clip == a  # anchor kept so the HUD stays wide
+    assert new_state.side(Player.PORTRAIT).loop == "seed"
+    assert new_state.side(Player.PORTRAIT).widen_clip == a  # anchor kept so the HUD stays wide
 
 
 def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
@@ -3115,14 +3104,14 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
     only the exact family, so it must drop any stale widen anchor — otherwise the
     HUD would wrongly read the exact-family loop as a widened one."""
     config, a, b = _loop_config(tmp_path, axis="seed")
-    state = _make_state(portrait_widen_clip="C:/somewhere/else.mp4")  # stale, not on screen
+    state = _make_state(portrait=SideState(widen_clip="C:/somewhere/else.mp4"))  # stale, not on screen
 
     _set_current(config, 2, a)
     new_state, _ops = dispatch_command("portrait_seed_loop", state, config)
 
     assert sorted(_playlist(config, 2)) == sorted([a, b])  # exact family only
-    assert new_state.portrait_loop == "seed"
-    assert new_state.portrait_widen_clip == ""  # stale anchor dropped
+    assert new_state.side(Player.PORTRAIT).loop == "seed"
+    assert new_state.side(Player.PORTRAIT).widen_clip == ""  # stale anchor dropped
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
@@ -3136,7 +3125,7 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
 
     assert _playlist(config, 2) == []  # no queue reshape for a group of one
     assert _cmds(config, 2) == ["LOCK"]  # a group of one is really a single-video lock
-    assert new_state.locked2 is True
+    assert new_state.side(Player.PORTRAIT).locked is True
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Locked"]
     # Green, because a lock puts the clip in the favorites.
@@ -3151,8 +3140,8 @@ def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
-    assert state.portrait_loop == "action"
-    assert state.landscape_loop == ""
+    assert state.side(Player.PORTRAIT).loop == "action"
+    assert state.side(Player.LANDSCAPE).loop == ""
 
 
 def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
@@ -3161,8 +3150,8 @@ def test_seed_loop_records_the_loop_axis_in_state(tmp_path: Path):
     _set_current(config, 3, a)
     state, _ops = dispatch_command("landscape_seed_loop", _make_state(), config)
 
-    assert state.landscape_loop == "seed"
-    assert state.portrait_loop == ""
+    assert state.side(Player.LANDSCAPE).loop == "seed"
+    assert state.side(Player.PORTRAIT).loop == ""
 
 
 def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
@@ -3178,7 +3167,7 @@ def test_a_loop_anchors_on_the_clip_it_started_on(tmp_path: Path):
     _set_current(config, 2, b)  # the loop starts on the group's *second* item
     state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
 
-    assert state.portrait_map_anchor == b
+    assert state.side(Player.PORTRAIT).map_anchor == b
     assert _playlist(config, 2) == [b, a]  # the map's order is the queue's order
 
 
@@ -3191,11 +3180,11 @@ def test_single_video_lock_clears_a_prior_loop(tmp_path: Path):
     _set_current(config, 2, str(only))
     state, _ops = dispatch_command(
         "portrait_action_loop",
-        _make_state(portrait_loop="seed", portrait_widen_clip=str(only)), config,
+        _make_state(portrait=SideState(loop="seed", widen_clip=str(only))), config,
     )
 
-    assert state.portrait_loop == ""
-    assert state.portrait_widen_clip == ""  # the lock drops the widened row too
+    assert state.side(Player.PORTRAIT).loop == ""
+    assert state.side(Player.PORTRAIT).widen_clip == ""  # the lock drops the widened row too
 
 
 def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path):
@@ -3212,15 +3201,14 @@ def test_locking_holds_your_place_in_a_loop_rather_than_ending_it(tmp_path: Path
     with patch("fun_time.command_dispatch.ensure_in_favs"):
         state, _ops = dispatch_command(
             "portrait_lock",
-            _make_state(locked2=False, portrait_loop="action", portrait_map_anchor=clip,
-                        portrait_widen_clip=clip),
+            _make_state(portrait=SideState(locked=False, loop="action", map_anchor=clip, widen_clip=clip)),
             config,
         )
 
-    assert state.locked2 is True
-    assert state.portrait_loop == "action"      # still looping, just held
-    assert state.portrait_map_anchor == clip    # …over the same map
-    assert state.portrait_widen_clip == clip    # …and the same widened row
+    assert state.side(Player.PORTRAIT).locked is True
+    assert state.side(Player.PORTRAIT).loop == "action"      # still looping, just held
+    assert state.side(Player.PORTRAIT).map_anchor == clip    # …over the same map
+    assert state.side(Player.PORTRAIT).widen_clip == clip    # …and the same widened row
 
 
 def test_unlocking_leaves_the_loop_running(tmp_path: Path):
@@ -3233,12 +3221,12 @@ def test_unlocking_leaves_the_loop_running(tmp_path: Path):
     _set_current(config, 2, clip)
     state, _ops = dispatch_command(
         "portrait_lock",
-        _make_state(locked2=True, portrait_loop="seed", portrait_map_anchor=clip),
+        _make_state(portrait=SideState(locked=True, loop="seed", map_anchor=clip)),
         config,
     )
 
-    assert state.locked2 is False
-    assert state.portrait_loop == "seed"
+    assert state.side(Player.PORTRAIT).locked is False
+    assert state.side(Player.PORTRAIT).loop == "seed"
     assert "UNLOCK" in _cmds(config, 2)
 
 
@@ -3251,11 +3239,11 @@ def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=True)
         state, _ops = dispatch_command(
             "filter_portrait_alpha",
-            _make_state(portrait_loop="seed", portrait_widen_clip="C:/v/anchor.mp4"), config,
+            _make_state(portrait=SideState(loop="seed", widen_clip="C:/v/anchor.mp4")), config,
         )
 
-    assert state.portrait_loop == ""
-    assert state.portrait_widen_clip == ""
+    assert state.side(Player.PORTRAIT).loop == ""
+    assert state.side(Player.PORTRAIT).widen_clip == ""
 
 
 def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
@@ -3267,11 +3255,11 @@ def test_a_zero_match_filter_leaves_a_running_loop_alone(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=False)
         state, _ops = dispatch_command(
             "filter_portrait_alpha",
-            _make_state(portrait_loop="seed", portrait_widen_clip="C:/v/anchor.mp4"), config,
+            _make_state(portrait=SideState(loop="seed", widen_clip="C:/v/anchor.mp4")), config,
         )
 
-    assert state.portrait_loop == "seed"
-    assert state.portrait_widen_clip == "C:/v/anchor.mp4"
+    assert state.side(Player.PORTRAIT).loop == "seed"
+    assert state.side(Player.PORTRAIT).widen_clip == "C:/v/anchor.mp4"
 
 
 def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Path):
@@ -3287,13 +3275,12 @@ def test_no_loop_clears_the_loop_but_leaves_the_map_where_it_hangs(tmp_path: Pat
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=["C:/v/x.mp4"]):
         state, _ops = dispatch_command(
             "portrait_no_loop",
-            _make_state(portrait_loop="action", portrait_map_anchor="C:/v/anchor.mp4",
-                        portrait_widen_clip="C:/v/anchor.mp4"), config,
+            _make_state(portrait=SideState(loop="action", map_anchor="C:/v/anchor.mp4", widen_clip="C:/v/anchor.mp4")), config,
         )
 
-    assert state.portrait_loop == ""                            # the loop is off
-    assert state.portrait_map_anchor == "C:/v/anchor.mp4"       # the map stays put
-    assert state.portrait_widen_clip == "C:/v/anchor.mp4"       # …and stays widened
+    assert state.side(Player.PORTRAIT).loop == ""                            # the loop is off
+    assert state.side(Player.PORTRAIT).map_anchor == "C:/v/anchor.mp4"       # the map stays put
+    assert state.side(Player.PORTRAIT).widen_clip == "C:/v/anchor.mp4"       # …and stays widened
 
 
 def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
@@ -3326,7 +3313,7 @@ def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_pat
     _set_current(config, 2, playing)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
-        dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
+        dispatch_command("portrait_no_loop", _make_state(portrait=SideState(loop="seed")), config)
 
     # It heads the restored list, so the reload keeps it playing and the browse is
     # simply what comes up next.
@@ -3341,7 +3328,7 @@ def test_no_loop_leaves_a_browse_that_already_holds_the_clip_untouched(tmp_path:
     _set_current(config, 2, "C:/v/two.mp4")
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
-        dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
+        dispatch_command("portrait_no_loop", _make_state(portrait=SideState(loop="seed")), config)
 
     assert _playlist(config, 2) == browse
 
@@ -3352,11 +3339,11 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[]):
-        state, ops = dispatch_command("portrait_no_loop", _make_state(portrait_loop="seed"), config)
+        state, ops = dispatch_command("portrait_no_loop", _make_state(portrait=SideState(loop="seed")), config)
 
     assert _playlist(config, 2) == []  # empty browse never blanks the live queue
     assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
-    assert state.portrait_loop == ""
+    assert state.side(Player.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
@@ -3386,7 +3373,7 @@ def test_the_loop_key_starts_a_seed_loop_when_nothing_is_looping(tmp_path: Path)
     _set_current(config, 2, a)
     state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
-    assert state.portrait_loop == "seed"
+    assert state.side(Player.PORTRAIT).loop == "seed"
     assert _playlist(config, 2) == [a, c]
     assert [op.key for op in ops if op.op == "notice"] == ["Loop portrait: 2 seeds"]
 
@@ -3395,9 +3382,9 @@ def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
     config, a, b, _c = _cycle_config(tmp_path)
 
     _set_current(config, 2, a)
-    state, _ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+    state, _ops = dispatch_command("portrait_loop", _make_state(portrait=SideState(loop="seed")), config)
 
-    assert state.portrait_loop == "action"
+    assert state.side(Player.PORTRAIT).loop == "action"
     assert _playlist(config, 2) == [a, b]
 
 
@@ -3408,9 +3395,9 @@ def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
 
     _set_current(config, 2, a)
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
-        state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="action"), config)
+        state, ops = dispatch_command("portrait_loop", _make_state(portrait=SideState(loop="action")), config)
 
-    assert state.portrait_loop == ""
+    assert state.side(Player.PORTRAIT).loop == ""
     assert _playlist(config, 2) == [a, *browse]
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
@@ -3425,7 +3412,7 @@ def test_the_loop_key_wraps_from_off_back_round_to_the_seeds(tmp_path: Path):
         axes = []
         for _press in range(4):
             state, _ops = dispatch_command("portrait_loop", state, config)
-            axes.append(state.portrait_loop)
+            axes.append(state.side(Player.PORTRAIT).loop)
 
     assert axes == ["seed", "action", "", "seed"]
 
@@ -3443,7 +3430,7 @@ def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
     _set_current(config, 2, a)
     state, _ops = dispatch_command("portrait_loop", _make_state(), config)
 
-    assert state.portrait_loop == "action"
+    assert state.side(Player.PORTRAIT).loop == "action"
     assert _playlist(config, 2) == [a, b]
     assert "LOCK" not in _cmds(config, 2)
 
@@ -3460,8 +3447,8 @@ def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Pat
 
     browse.assert_not_called()  # the browse is never rebuilt by a press that locks
     assert _cmds(config, 2) == ["LOCK"]
-    assert state.locked2 is True
-    assert state.portrait_loop == ""
+    assert state.side(Player.PORTRAIT).locked is True
+    assert state.side(Player.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
 
 
@@ -3481,7 +3468,7 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
 
     browse.assert_not_called()
     assert _cmds(config, 2) == ["LOCK", "UNLOCK"]  # let go where it stands, no NEXT
-    assert state.locked2 is False
+    assert state.side(Player.PORTRAIT).locked is False
     assert [op.key for op in ops if op.op == "notice"] == ["Unlocked"]
 
 
@@ -3492,9 +3479,9 @@ def test_the_loop_key_ends_a_loop_the_clip_has_drifted_out_of(tmp_path: Path):
 
     _set_current(config, 2, a)
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=[a]):
-        state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+        state, ops = dispatch_command("portrait_loop", _make_state(portrait=SideState(loop="seed")), config)
 
-    assert state.portrait_loop == ""
+    assert state.side(Player.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
 
 
@@ -3504,7 +3491,7 @@ def test_the_loop_key_drives_only_its_own_side(tmp_path: Path):
     _set_current(config, 3, a)
     state, _ops = dispatch_command("landscape_loop", _make_state(), config)
 
-    assert (state.landscape_loop, state.portrait_loop) == ("seed", "")
+    assert (state.side(Player.LANDSCAPE).loop, state.side(Player.PORTRAIT).loop) == ("seed", "")
     assert _playlist(config, 3) == [a, c]
     assert _playlist(config, 2) == []
 
@@ -3515,10 +3502,10 @@ def test_the_loop_key_does_nothing_with_no_clip_on_screen(tmp_path: Path):
     config = _make_config(tmp_path)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
-        state, ops = dispatch_command("portrait_loop", _make_state(portrait_loop="seed"), config)
+        state, ops = dispatch_command("portrait_loop", _make_state(portrait=SideState(loop="seed")), config)
 
     browse.assert_not_called()
-    assert state.portrait_loop == "seed"
+    assert state.side(Player.PORTRAIT).loop == "seed"
     assert ops == []
 
 
@@ -3531,13 +3518,12 @@ def test_a_reorder_clears_only_its_own_sides_loop(tmp_path: Path):
         mock_filter.return_value = _filter_result(applied=True)
         state, _ops = dispatch_command(
             "portrait_latest",
-            _make_state(portrait_loop="seed", landscape_loop="action",
-                        portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+            _make_state(landscape=SideState(loop="action", widen_clip="C:/v/l.mp4"), portrait=SideState(loop="seed", widen_clip="C:/v/p.mp4")),
             config,
         )
 
-    assert (state.portrait_loop, state.portrait_widen_clip) == ("", "")
-    assert (state.landscape_loop, state.landscape_widen_clip) == ("action", "C:/v/l.mp4")
+    assert (state.side(Player.PORTRAIT).loop, state.side(Player.PORTRAIT).widen_clip) == ("", "")
+    assert (state.side(Player.LANDSCAPE).loop, state.side(Player.LANDSCAPE).widen_clip) == ("action", "C:/v/l.mp4")
 
 
 def test_fmode_clears_the_loop_of_every_side_it_rebuilds(tmp_path: Path):
@@ -3545,13 +3531,12 @@ def test_fmode_clears_the_loop_of_every_side_it_rebuilds(tmp_path: Path):
 
     state, _ops, _mock = _dispatch_fmode(
         "fmode_toggle",
-        _make_state(portrait_loop="seed", landscape_loop="action",
-                    portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+        _make_state(landscape=SideState(loop="action", widen_clip="C:/v/l.mp4"), portrait=SideState(loop="seed", widen_clip="C:/v/p.mp4")),
         config,
     )
 
-    assert (state.portrait_loop, state.landscape_loop) == ("", "")
-    assert (state.portrait_widen_clip, state.landscape_widen_clip) == ("", "")
+    assert (state.side(Player.PORTRAIT).loop, state.side(Player.LANDSCAPE).loop) == ("", "")
+    assert (state.side(Player.PORTRAIT).widen_clip, state.side(Player.LANDSCAPE).widen_clip) == ("", "")
 
 
 def test_a_sided_fmode_leaves_the_other_sides_loop_running(tmp_path: Path):
@@ -3560,13 +3545,12 @@ def test_a_sided_fmode_leaves_the_other_sides_loop_running(tmp_path: Path):
 
     state, _ops, _mock = _dispatch_fmode(
         "portrait_fmode",
-        _make_state(portrait_loop="seed", landscape_loop="action",
-                    portrait_widen_clip="C:/v/p.mp4", landscape_widen_clip="C:/v/l.mp4"),
+        _make_state(landscape=SideState(loop="action", widen_clip="C:/v/l.mp4"), portrait=SideState(loop="seed", widen_clip="C:/v/p.mp4")),
         config,
     )
 
-    assert (state.portrait_loop, state.portrait_widen_clip) == ("", "")
-    assert (state.landscape_loop, state.landscape_widen_clip) == ("action", "C:/v/l.mp4")
+    assert (state.side(Player.PORTRAIT).loop, state.side(Player.PORTRAIT).widen_clip) == ("", "")
+    assert (state.side(Player.LANDSCAPE).loop, state.side(Player.LANDSCAPE).widen_clip) == ("action", "C:/v/l.mp4")
 
 
 def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
@@ -3580,8 +3564,8 @@ def test_lock_action_filters_to_the_current_clips_action(tmp_path: Path):
         new_state, _ops = dispatch_command("portrait_lock_action", _make_state(), config)
 
     assert mock_filter.call_args.kwargs["query"] == "beta gamma"
-    assert new_state.portrait_filter == "beta gamma"
-    assert new_state.landscape_filter == ""
+    assert new_state.side(Player.PORTRAIT).filter == "beta gamma"
+    assert new_state.side(Player.LANDSCAPE).filter == ""
 
 
 def test_action_loop_groups_the_video_that_was_playing_when_spoken(tmp_path: Path):
@@ -3620,7 +3604,7 @@ def test_lock_action_without_metadata_says_so(tmp_path: Path):
         new_state, ops = dispatch_command("landscape_lock_action", _make_state(), config)
 
     mock_filter.assert_not_called()
-    assert new_state.landscape_filter == ""
+    assert new_state.side(Player.LANDSCAPE).filter == ""
     assert any(
         op.op == "notice" and "No action metadata" in op.key and op.source == "landscape"
         for op in ops
@@ -4016,18 +4000,18 @@ class TestOrigeneratorTransport:
         the same words drop both switches on its HUD.  One phrase, one meaning
         per mode -- and in video mode the player keeps it."""
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator", portrait_filter="alpha")
+        state = BridgeState(portrait=SideState(filter="alpha"), satellites_mode="origenerator")
 
         state, _ = dispatch_command("portrait_no_filter", state, config)
 
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]
-        assert state.portrait_filter == "alpha"     # the blacked player's own is left alone
+        assert state.side(Player.PORTRAIT).filter == "alpha"     # the blacked player's own is left alone
 
         with patch("fun_time.command_dispatch.apply_satellite_filter") as mock_filter:
             mock_filter.return_value = _filter_result(count=10)
             player_state, _ = dispatch_command(
-                "portrait_no_filter", BridgeState(portrait_filter="alpha"), config)
-        assert player_state.portrait_filter == ""
+                "portrait_no_filter", BridgeState(portrait=SideState(filter="alpha")), config)
+        assert player_state.side(Player.PORTRAIT).filter == ""
         assert _origenerator_cmds(config) == ["PORTRAIT_SAY:clear filter"]  # nothing more
 
     def test_every_spoken_phrase_has_a_command_to_dispatch(self, tmp_path):
@@ -4108,9 +4092,9 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
         patch("fun_time.command_dispatch.ensure_in_favs") as favs,
         caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
     ):
-        state, _ops = _toggle_lock(2, _make_state(locked2=False), config)
+        state, _ops = _toggle_lock(2, _make_state(portrait=SideState(locked=False)), config)
 
-    assert state.locked2 is True
+    assert state.side(Player.PORTRAIT).locked is True
     # Locking holds the current clip (LOCK) and does not advance past it.
     assert _cmds(config, 2) == ["LOCK"]
     assert favs.call_args[0][1] == "clip.mp4"
@@ -4122,9 +4106,9 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
     _set_current(config, 3, "clip.mp4")
 
     with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
-        state, _ops = _toggle_lock(3, _make_state(locked3=True), config)
+        state, _ops = _toggle_lock(3, _make_state(landscape=SideState(locked=True)), config)
 
-    assert state.locked3 is False
+    assert state.side(Player.LANDSCAPE).locked is False
     # Unlocking releases the hold (UNLOCK) and moves on rather than replaying (NEXT).
     assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
     assert "Unlocked landscape satellite" in caplog.text
@@ -4133,9 +4117,9 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
 def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    state = cancel_lock(2, _make_state(locked2=True), config)
+    state = cancel_lock(2, _make_state(portrait=SideState(locked=True)), config)
 
-    assert state.locked2 is False
+    assert state.side(Player.PORTRAIT).locked is False
     # A locked side is repeat-one; cancelling it queues UNLOCK to restore advance.
     assert _cmds(config, 2) == ["UNLOCK"]
 
@@ -4143,9 +4127,9 @@ def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
 def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    state = cancel_lock(2, _make_state(locked2=False), config)
+    state = cancel_lock(2, _make_state(portrait=SideState(locked=False)), config)
 
-    assert state.locked2 is False
+    assert state.side(Player.PORTRAIT).locked is False
     # Nothing was locked, so there is no hold to release — no verb is queued.
     assert _cmds(config, 2) == []
 
@@ -4157,7 +4141,7 @@ def test_locking_a_known_video_opens_an_rfb_tab(tmp_path: Path):
     _set_current(config, 2, rf"C:\videos\{WEB_PROVIDERS[0].marker}\abc_123.mp4")
 
     with patch("fun_time.command_dispatch.ensure_in_favs"):
-        _state, ops = _toggle_lock(2, _make_state(locked2=False), config)
+        _state, ops = _toggle_lock(2, _make_state(portrait=SideState(locked=False)), config)
 
     assert any(op.op == "open_rfb_tab" for op in ops)
 
@@ -4166,7 +4150,7 @@ def test_unlocking_opens_no_rfb_tab(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_current(config, 2, r"C:\videos\provider2\abc_123.mp4")
 
-    _state, ops = _toggle_lock(2, _make_state(locked2=True), config)
+    _state, ops = _toggle_lock(2, _make_state(portrait=SideState(locked=True)), config)
 
     assert not any(op.op == "open_rfb_tab" for op in ops)
 
@@ -4180,9 +4164,9 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
         patch("fun_time.command_dispatch.move_to_weird") as weird,
         caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"),
     ):
-        state, ops = _discard(3, _make_state(locked3=True), config)
+        state, ops = _discard(3, _make_state(landscape=SideState(locked=True)), config)
 
-    assert state.locked3 is False
+    assert state.side(Player.LANDSCAPE).locked is False
     # A locked discard drops the repeat-one hold (UNLOCK) then trashes the clip,
     # which advances into the playlist (TRASH).
     assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
@@ -4202,9 +4186,9 @@ def test_unlocked_discard_trashes_without_unlocking(tmp_path: Path):
         patch("fun_time.command_dispatch.remove_from_favs"),
         patch("fun_time.command_dispatch.move_to_weird"),
     ):
-        state, _ops = _discard(3, _make_state(locked3=False), config)
+        state, _ops = _discard(3, _make_state(landscape=SideState(locked=False)), config)
 
-    assert state.locked3 is False
+    assert state.side(Player.LANDSCAPE).locked is False
     # Nothing to release, so discard is a bare TRASH (drop current, play next).
     assert _cmds(config, 3) == ["TRASH"]
 
@@ -4226,9 +4210,9 @@ def test_discard_of_a_favorite_only_takes_it_out_of_the_favorites(tmp_path: Path
     _set_current(config, 3, str(video))
 
     with caplog.at_level(logging.INFO, logger="fun_time.command_dispatch"):
-        state, ops = _discard(3, _make_state(locked3=False), config)
+        state, ops = _discard(3, _make_state(landscape=SideState(locked=False)), config)
 
-    assert state.locked3 is False
+    assert state.side(Player.LANDSCAPE).locked is False
     # NEXT, not TRASH: it moves on from the clip but leaves it in the playlist,
     # so PREV comes straight back to it.
     assert _cmds(config, 3) == ["NEXT"]
@@ -4250,7 +4234,7 @@ def test_demoting_a_favorite_the_player_already_left_does_not_drag_it_back(tmp_p
     video = _favorite_clip(tmp_path, config, "spoken_about.mp4")
     _set_current(config, 3, str(tmp_path / "clips" / "advanced_to.mp4"))
 
-    _state, ops = _discard(3, _make_state(locked3=False), config, target_path=str(video))
+    _state, ops = _discard(3, _make_state(landscape=SideState(locked=False)), config, target_path=str(video))
 
     assert _cmds(config, 3) == []
     assert str(video) not in config.favs_file.read_text(encoding="utf-8")
@@ -4262,7 +4246,7 @@ def test_discard_with_no_clip_on_screen_announces_nothing(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_current(config, 2, "")
 
-    _state, ops = _discard(2, _make_state(locked2=False), config)
+    _state, ops = _discard(2, _make_state(portrait=SideState(locked=False)), config)
 
     assert ops == []
 
@@ -4275,10 +4259,10 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
     video = _favorite_clip(tmp_path, config, "twice.mp4")
     _set_current(config, 2, str(video))
 
-    _state, demote_ops = _discard(2, _make_state(locked2=False), config)
+    _state, demote_ops = _discard(2, _make_state(portrait=SideState(locked=False)), config)
     assert video.exists()
 
-    _state, condemn_ops = _discard(2, _make_state(locked2=False), config)
+    _state, condemn_ops = _discard(2, _make_state(portrait=SideState(locked=False)), config)
 
     assert [op.key for op in demote_ops] == ["Unfavorited"]
     assert [op.key for op in condemn_ops] == ["Marked weird"]
