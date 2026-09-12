@@ -26,7 +26,7 @@ from .library_handles import build_library_handles
 from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .lock_hud import prime_group_indexes
 from .loopback_server import ThreadingHTTPServer, serve_loopback
-from .manifest import LaunchManifest
+from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .overlay_progress import (
     CANCEL_FILENAME,
@@ -41,6 +41,7 @@ from .overlay_progress import (
 )
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
+from .runtime_flow import write_flag_file
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     HandoffTarget,
@@ -1007,10 +1008,21 @@ def _start_the_dispatch_loop(
     return dispatch_runner, dispatch_thread
 
 
+def silence_the_players(commands: CommandFiles) -> None:
+    for paused_file in (
+        commands.nau_paused_file, commands.audio_paused_file,
+        commands.portrait_paused_file, commands.landscape_paused_file,
+        commands.origenerator_paused_file,
+    ):
+        if paused_file.strip():
+            write_flag_file(paused_file, True)
+
+
 def _run_until_the_hotkeys_exit(
     ahk_proc: subprocess.Popen,
     *,
     state_dir: Path,
+    commands: CommandFiles,
     show_overlays: bool,
     rfb_hwnd: int,
     children: dict,
@@ -1042,7 +1054,8 @@ def _run_until_the_hotkeys_exit(
         logger.info("Interrupted — shutting down")
         exit_code = 1
     finally:
-        # The cover goes up first and stays up through everything below: the
+        silence_the_players(commands)
+        # Then the cover, up before anything closes and through all of it: the
         # controls stopping, the browser closing, and every child being killed.
         with _closing_screen(state_dir, enabled=show_overlays,
                              crossing=pending_handoff(state_dir)) as shutdown_progress:
@@ -1230,6 +1243,7 @@ def run_session(
     return _run_until_the_hotkeys_exit(
         ahk_proc,
         state_dir=state_dir,
+        commands=manifest.commands,
         show_overlays=env.show_overlays,
         rfb_hwnd=result.rfb_hwnd,
         children=children,
