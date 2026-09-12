@@ -13,7 +13,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from tkinter import ttk
-from typing import TYPE_CHECKING
 
 from .cover_palette import (
     BG,
@@ -23,6 +22,7 @@ from .cover_palette import (
     TROUGH,
     WORDMARK_MAGENTA,
 )
+from .icon_image import load_icon_image
 from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import (
     CANCEL_WORD,
@@ -34,24 +34,7 @@ from .overlay_progress import (
 from .project_paths import PROJECT_ICON
 from .win32 import create_hidden_topmost_window, find_window_by_title, set_always_on_top
 
-if TYPE_CHECKING:
-    from PIL.Image import Image as PILImage
-
-
 ICON_DISPLAY_SIZE = 128
-
-
-def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
-    """An ICO as an RGBA PIL Image at *size*, or None without the file or
-    Pillow."""
-    try:
-        from PIL import Image
-
-        img = Image.open(ico_path)
-        img = img.resize((size, size), Image.LANCZOS)  # largest, then downsample
-        return img.convert("RGBA")
-    except (ImportError, OSError):
-        return None  # PIL's UnidentifiedImageError is an OSError
 
 
 POLL_MS = 200
