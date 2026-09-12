@@ -11,7 +11,11 @@ import pytest
 from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.loading_screen import STALE_TIMEOUT_S
-from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, write_windows_bridge_manifest
+from fun_time.manifest import (
+    WINDOWS_BRIDGE_MANIFEST_FILENAME,
+    LaunchManifest,
+    write_windows_bridge_manifest,
+)
 from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -47,6 +51,7 @@ from fun_time.windows_bridge_orchestrator import (
     kill_recorded_child,
     open_event_log,
     run_session,
+    silence_the_players,
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
@@ -1053,7 +1058,8 @@ class TestClosingScreenLifecycle:
     one: raised before the first kill, dropped after the last."""
 
     def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
-             env: SessionEnvironment = ORDINARY_SESSION, crossing=None):
+             env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
+             at_cover_up=lambda: None):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1076,6 +1082,7 @@ class TestClosingScreenLifecycle:
                 if module not in str(cmd):
                     continue
                 events.append("cover_up")
+                at_cover_up()
                 if ready:
                     # What a real cover does the moment it is painted.
                     ready_file_for(progress).write_text("", encoding="utf-8")
@@ -1114,6 +1121,44 @@ class TestClosingScreenLifecycle:
             "close_browser", "kill:200", "kill:300", "kill:400",
             "kill:500", "kill:600", "kill:700", "kill:800",
         }
+
+    def test_every_sound_is_paused_before_the_cover_goes_up(self, cfg_factory, tmp_path):
+        paused_at_cover_up: dict[str, str] = {}
+
+        def read_the_sound_flags():
+            commands = LaunchManifest.read(tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands
+            for flag in map(Path, (
+                commands.nau_paused_file, commands.audio_paused_file,
+                commands.portrait_paused_file, commands.landscape_paused_file,
+                commands.origenerator_paused_file,
+            )):
+                paused_at_cover_up[flag.name] = (
+                    flag.read_text(encoding="utf-8").strip() if flag.exists() else "unwritten")
+
+        self._run(cfg_factory, tmp_path, events=[], at_cover_up=read_the_sound_flags)
+
+        assert paused_at_cover_up == {
+            "nau_paused.txt": "1",
+            "audio_paused.txt": "1",
+            "portrait_paused.txt": "1",
+            "landscape_paused.txt": "1",
+            "origenerator_paused.txt": "1",
+        }
+
+    def test_a_manifest_without_an_origenerator_flag_still_silences_the_rest(
+        self, cfg_factory, tmp_path,
+    ):
+        manifest_path = write_windows_bridge_manifest(
+            load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        commands = replace(LaunchManifest.read(manifest_path).commands,
+                           origenerator_paused_file="")
+
+        silence_the_players(commands)
+
+        assert [Path(flag).read_text(encoding="utf-8") for flag in (
+            commands.nau_paused_file, commands.audio_paused_file,
+            commands.portrait_paused_file, commands.landscape_paused_file,
+        )] == ["1", "1", "1", "1"]
 
     def test_nothing_is_killed_until_the_cover_says_it_is_painted(self, cfg_factory, tmp_path):
         """A tkinter process needs a moment to boot, and a cover that is not on

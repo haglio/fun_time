@@ -107,6 +107,7 @@ from fun_time.windows_bridge_orchestrator import (
     close_a_kept_origenerator,
     kill_recorded_child,
     open_event_log,
+    silence_the_players,
     start_hud_priming,
     stop_hotkey_script,
     write_pids_file,
@@ -646,6 +647,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         logger.info("Interrupted -- shutting down")
         exit_code = 1
     finally:
+        silence_the_players(commands)
         # This teardown's cover hangs in the headset (docs/entering-vr.md).
         held = False
         if (crossing := pending_handoff(state_dir)) is not None:

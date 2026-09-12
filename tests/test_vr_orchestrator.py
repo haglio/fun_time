@@ -809,6 +809,16 @@ class TestTheOnePin:
         stamp.assert_called_once_with()
 
 
+def _call_lines_in_run_vr_bridge() -> dict[str, int]:
+    import ast
+    import inspect
+
+    from fun_time_vr import orchestrator
+
+    tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+    return {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+
+
 class TestTheAudioCompanionInVr:
     """Launched as on the desktop, before the player so it is listening when
     Genau's role says which clip is up, and sent to the headset's output."""
@@ -828,17 +838,14 @@ class TestTheAudioCompanionInVr:
         assert given["audio_folder"] == "manifest.media.genau_audio"
 
     def test_it_is_launched_before_the_player_and_killed_with_it(self):
-        import ast
         import inspect
 
         from fun_time_vr import orchestrator
 
-        source = inspect.getsource(orchestrator.run_vr_bridge)
-        tree = ast.parse(source)
-        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+        calls = _call_lines_in_run_vr_bridge()
 
         assert calls["launch_audio_companion"] < calls["launch_vr_player"]
-        assert "for child in children.values():" in source
+        assert "for child in children.values():" in inspect.getsource(orchestrator.run_vr_bridge)
 
 
 class TestTheHeadsetsCover:
@@ -878,13 +885,7 @@ class TestTheHeadsetsCover:
         """Esc is the only way to call a launch off from inside a headset, and
         AHK's hook is the only route that does not need a window's focus -- so
         the script has to be up before there is anything to cancel."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
-        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+        calls = _call_lines_in_run_vr_bridge()
 
         assert calls["subprocess.Popen"] < calls["launch_vr_player"]
         # And the pids file, which is what takes the script's startup hold off,
@@ -894,13 +895,7 @@ class TestTheHeadsetsCover:
     def test_the_players_are_released_after_the_cover_comes_down(self):
         """Released before it and the first seconds of a video play under a
         panel nobody can see through."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
-        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+        calls = _call_lines_in_run_vr_bridge()
 
         assert calls["progress.finish"] < calls["release_the_players"]
 
@@ -1082,6 +1077,13 @@ class TestTheClosingCover:
         assert kills[-1] == "kill_recorded_child(children['vr_player_pid'])"
         assert "kill_recorded_child(children['audio_pid'])" in kills
 
+    def test_every_sound_is_paused_before_either_cover_goes_up(self):
+        calls = _call_lines_in_run_vr_bridge()
+
+        assert "silence_the_players" in calls, "the teardown never pauses the players"
+        assert calls["silence_the_players"] < calls["launch_crossing_cover"]
+        assert calls["silence_the_players"] < calls["_closing_cover"]
+
 
 class TestWaitingForTheRoom:
     """The cover comes down when the pictures are up, not when the first status
@@ -1131,13 +1133,7 @@ class TestWaitingForTheRoom:
         assert discarded, "the launch branches on a wait that is meant to be advisory"
 
     def test_the_room_is_waited_for_before_the_cover_comes_down(self):
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
-        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
-        calls = {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
+        calls = _call_lines_in_run_vr_bridge()
 
         assert calls["_wait_for_player"] < calls["_wait_for_the_room"]
         assert calls["_wait_for_the_room"] < calls["progress.finish"]
