@@ -126,7 +126,7 @@ def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
 # PyQt6 widget
 # ---------------------------------------------------------------------------
 from PyQt6.QtCore import QEvent, QObject, QPoint, QSize, Qt, QTimer
-from PyQt6.QtGui import QColor, QIcon
+from PyQt6.QtGui import QColor, QFontMetrics, QIcon
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -147,15 +147,17 @@ from shared_ui.colors import (
     RED,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    WHITE,
     hovered,
 )
 from shared_ui.fonts import FONT_UI, SIZE_SMALL, SIZE_TINY, make_font
 from shared_ui.icons import glyph_pixmap
 from shared_ui.spacing import (
     BUTTON_GAP,
+    BUTTON_PAD_H_TIGHT,
     BUTTON_RADIUS,
+    BUTTON_RADIUS_HUD,
     BUTTON_SIZE_HUD,
-    BUTTON_WORD_W,
 )
 
 # Short labels for the source toggles so the whole control strip fits one row.
@@ -297,22 +299,19 @@ class LogPanelWidget(QWidget):
             button.setToolTip(source)
             button.setCheckable(True)
             button.setChecked(source in self._filter.sources)
-            # The face the console's mode buttons wear, these being the same
-            # object: blue and bright on, resting ground and muted off, a step
-            # lighter under the pointer.
             button.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
-            # The family's word-button: what a console's Video/Genau pair is.
             button.setFont(make_font(FONT_UI, SIZE_TINY, bold=True))
-            button.setFixedSize(BUTTON_WORD_W, BUTTON_SIZE_HUD)
+            label = QFontMetrics(button.font()).horizontalAdvance(button.text())
+            button.setFixedSize(label + 2 * BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD)
             button.setStyleSheet(
                 "QToolButton {"
-                f" color: {TEXT_MUTED.name()};"
+                f" color: {TEXT_PRIMARY.name()};"
                 f" background: {BG_BUTTON.name()};"
-                " border: none; padding: 0px;"
-                f" border-radius: {BUTTON_RADIUS}px; }}"
+                f" border: 1px solid {TEXT_MUTED.name()}; padding: 0px;"
+                f" border-radius: {BUTTON_RADIUS_HUD}px; }}"
                 f" QToolButton:hover {{ background: {hovered(BG_BUTTON).name()}; }}"
-                f" QToolButton:checked {{ color: {TEXT_PRIMARY.name()};"
-                f" background: {BLUE.name()}; }}"
+                f" QToolButton:checked {{ color: {WHITE.name()};"
+                f" background: {BLUE.name()}; border-color: {BLUE.name()}; }}"
                 f" QToolButton:checked:hover {{ background: {hovered(BLUE).name()}; }}"
             )
             # Auto-raise is what a QToolBar does: a flat row, not framed ones.
