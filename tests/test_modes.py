@@ -156,7 +156,6 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
         main_sources=str(primary_root),
         favs_file=favs_file,
         state_dir=state_dir,
-        main_f_mode=True,
         rng=random.Random(1),
     )
 
