@@ -141,7 +141,7 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
         new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.side(Player.PORTRAIT).locked is True
-    assert _cmds(config, 2) == ["LOCK"]
+    assert _cmds(config, 2) == ["LOCK_ON"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
@@ -206,7 +206,7 @@ def test_portrait_unlock_records_no_watch_event(tmp_path: Path):
     _set_current(config, 2, str(tmp_path / "clip.mp4"))
     dispatch_command("portrait_lock", state, config)
 
-    assert _cmds(config, 2) == ["UNLOCK", "NEXT"]
+    assert _cmds(config, 2) == ["LOCK_OFF", "NEXT"]
     assert not (config.state_dir / "watch_stats.json").exists()
 
 
@@ -262,7 +262,7 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.side(Player.LANDSCAPE).locked is True
-    assert _cmds(config, 3) == ["LOCK"]
+    assert _cmds(config, 3) == ["LOCK_ON"]
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]
     assert len(rfb_ops) == 1
     assert f'"{make_web_url_from_path(path)}"' in _tab_page(rfb_ops[0].key)
@@ -308,7 +308,7 @@ def test_portrait_lock_toggles_lock_on(tmp_path: Path):
 
     assert new_state.side(Player.PORTRAIT).locked is True
     assert new_state.side(Player.LANDSCAPE).locked is False
-    assert _cmds(config, 2) == ["LOCK"]
+    assert _cmds(config, 2) == ["LOCK_ON"]
 
 
 def test_portrait_lock_toggles_lock_off(tmp_path: Path):
@@ -319,7 +319,7 @@ def test_portrait_lock_toggles_lock_off(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_lock", state, config)
 
     assert new_state.side(Player.PORTRAIT).locked is False
-    assert _cmds(config, 2) == ["UNLOCK", "NEXT"]
+    assert _cmds(config, 2) == ["LOCK_OFF", "NEXT"]
 
 
 # --- landscape_lock ---
@@ -334,7 +334,7 @@ def test_landscape_lock_toggles_lock_on(tmp_path: Path):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     assert new_state.side(Player.LANDSCAPE).locked is True
-    assert _cmds(config, 3) == ["LOCK"]
+    assert _cmds(config, 3) == ["LOCK_ON"]
 
 
 # --- back-dating a spoken command to the video it was meant for ---
@@ -353,8 +353,8 @@ def test_portrait_lock_returns_to_the_video_that_was_playing_when_spoken(tmp_pat
     with patch("fun_time.command_dispatch.ensure_in_favs") as favs:
         new_state, _ops = dispatch_command("portrait_lock", state, config, target_path=meant)
 
-    # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK it.
-    assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK"]
+    # Back-dated: bring the spoken video back (PLAY_FILE) then LOCK_ON it.
+    assert _cmds(config, 2) == [f"PLAY_FILE {meant}", "LOCK_ON"]
     assert favs.call_args[0][1] == meant
     assert new_state.side(Player.PORTRAIT).locked is True
 
@@ -396,7 +396,7 @@ def test_portrait_trash_unlocks_and_discards(tmp_path: Path):
         new_state, ops = dispatch_command("portrait_trash", state, config)
 
     assert new_state.side(Player.PORTRAIT).locked is False
-    assert _cmds(config, 2) == ["UNLOCK", "TRASH"]
+    assert _cmds(config, 2) == ["LOCK_OFF", "TRASH"]
 
 
 def test_portrait_trash_queues_a_trash_verb_and_condemns_the_clip(tmp_path: Path):
@@ -429,7 +429,7 @@ def test_portrait_prev_cancels_lock_and_queues_prev(tmp_path: Path):
 
     assert new_state.side(Player.PORTRAIT).locked is False
     # A locked side unlocks first (repeat-one off), then steps back.
-    assert _cmds(config, 2) == ["UNLOCK", "PREV"]
+    assert _cmds(config, 2) == ["LOCK_OFF", "PREV"]
 
 
 def test_portrait_next_queues_next(tmp_path: Path):
@@ -745,7 +745,7 @@ def test_landscape_prev_cancels_lock_and_queues_prev(tmp_path: Path):
     new_state, ops = dispatch_command("landscape_prev", state, config)
 
     assert new_state.side(Player.LANDSCAPE).locked is False
-    assert _cmds(config, 3) == ["UNLOCK", "PREV"]
+    assert _cmds(config, 3) == ["LOCK_OFF", "PREV"]
 
 
 def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
@@ -758,7 +758,7 @@ def test_landscape_next_drives_its_own_satellite_not_portrait(tmp_path: Path):
     new_state, _ops = dispatch_command("landscape_next", state, config)
 
     assert new_state.side(Player.LANDSCAPE).locked is False
-    assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
+    assert _cmds(config, 3) == ["LOCK_OFF", "NEXT"]
     assert _cmds(config, 2) == []
 
 
@@ -776,7 +776,7 @@ def test_landscape_trash_discards_from_its_own_satellite_not_portrait(tmp_path: 
         new_state, _ops = dispatch_command("landscape_trash", state, config)
 
     assert new_state.side(Player.LANDSCAPE).locked is False
-    assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
+    assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert _cmds(config, 2) == []
 
 
@@ -1581,7 +1581,7 @@ def test_reset_returns_the_side_to_every_default(tmp_path: Path):
     assert mock_filter.call_args.kwargs["query"] == ""
     assert mock_filter.call_args.kwargs["recent"] is False
     assert mock_filter.call_args.kwargs["start_at_top"] is True
-    assert "UNLOCK" in _cmds(config, 2)
+    assert "LOCK_OFF" in _cmds(config, 2)
 
 
 def test_reset_rebuilds_the_side_wide_rather_than_still_in_f_mode(tmp_path: Path):
@@ -3127,7 +3127,7 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     new_state, ops = dispatch_command("portrait_action_loop", _make_state(), config)
 
     assert _playlist(config, 2) == []  # no queue reshape for a group of one
-    assert _cmds(config, 2) == ["LOCK"]  # a group of one is really a single-video lock
+    assert _cmds(config, 2) == ["LOCK_ON"]  # a group of one is really a single-video lock
     assert new_state.side(Player.PORTRAIT).locked is True
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Locked"]
@@ -3230,7 +3230,7 @@ def test_unlocking_leaves_the_loop_running(tmp_path: Path):
 
     assert state.side(Player.PORTRAIT).locked is False
     assert state.side(Player.PORTRAIT).loop == "seed"
-    assert "UNLOCK" in _cmds(config, 2)
+    assert "LOCK_OFF" in _cmds(config, 2)
 
 
 def test_an_applied_filter_clears_a_running_loop(tmp_path: Path):
@@ -3463,7 +3463,7 @@ def test_the_loop_key_steps_over_an_axis_with_no_second_clip(tmp_path: Path):
 
     assert state.side(Player.PORTRAIT).loop == "action"
     assert _playlist(config, 2) == [a, b]
-    assert "LOCK" not in _cmds(config, 2)
+    assert "LOCK_ON" not in _cmds(config, 2)
 
 
 def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Path):
@@ -3477,7 +3477,7 @@ def test_the_loop_key_locks_when_neither_group_holds_a_second_clip(tmp_path: Pat
         state, ops = dispatch_command("portrait_loop", _make_state(), config)
 
     browse.assert_not_called()  # the browse is never rebuilt by a press that locks
-    assert _cmds(config, 2) == ["LOCK"]
+    assert _cmds(config, 2) == ["LOCK_ON"]
     assert state.side(Player.PORTRAIT).locked is True
     assert state.side(Player.PORTRAIT).loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Locked"]
@@ -3498,7 +3498,7 @@ def test_the_loop_key_lets_go_of_the_clip_it_locked(tmp_path: Path):
         state, ops = dispatch_command("portrait_loop", state, config)
 
     browse.assert_not_called()
-    assert _cmds(config, 2) == ["LOCK", "UNLOCK"]  # let go where it stands, no NEXT
+    assert _cmds(config, 2) == ["LOCK_ON", "LOCK_OFF"]  # let go where it stands, no NEXT
     assert state.side(Player.PORTRAIT).locked is False
     assert [op.key for op in ops if op.op == "notice"] == ["Unlocked"]
 
@@ -4127,7 +4127,7 @@ def test_toggle_lock_locks_and_favorites_when_unlocked(tmp_path: Path, caplog):
 
     assert state.side(Player.PORTRAIT).locked is True
     # Locking holds the current clip (LOCK) and does not advance past it.
-    assert _cmds(config, 2) == ["LOCK"]
+    assert _cmds(config, 2) == ["LOCK_ON"]
     assert favs.call_args[0][1] == "clip.mp4"
     assert "Locked portrait satellite" in caplog.text
 
@@ -4141,7 +4141,7 @@ def test_toggle_lock_unlocks_and_advances_when_locked(tmp_path: Path, caplog):
 
     assert state.side(Player.LANDSCAPE).locked is False
     # Unlocking releases the hold (UNLOCK) and moves on rather than replaying (NEXT).
-    assert _cmds(config, 3) == ["UNLOCK", "NEXT"]
+    assert _cmds(config, 3) == ["LOCK_OFF", "NEXT"]
     assert "Unlocked landscape satellite" in caplog.text
 
 
@@ -4152,7 +4152,7 @@ def test_cancel_lock_writes_unlock_only_when_currently_locked(tmp_path: Path):
 
     assert state.side(Player.PORTRAIT).locked is False
     # A locked side is repeat-one; cancelling it queues UNLOCK to restore advance.
-    assert _cmds(config, 2) == ["UNLOCK"]
+    assert _cmds(config, 2) == ["LOCK_OFF"]
 
 
 def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
@@ -4200,7 +4200,7 @@ def test_discard_of_a_non_favorite_unlocks_advances_and_moves_to_weird(tmp_path:
     assert state.side(Player.LANDSCAPE).locked is False
     # A locked discard drops the repeat-one hold (UNLOCK) then trashes the clip,
     # which advances into the playlist (TRASH).
-    assert _cmds(config, 3) == ["UNLOCK", "TRASH"]
+    assert _cmds(config, 3) == ["LOCK_OFF", "TRASH"]
     assert favs.call_args[0][1] == "odd.mp4"
     assert weird.call_args[0][1] == Path("odd.mp4")
     assert "Discarding from player 3: odd.mp4" in caplog.text

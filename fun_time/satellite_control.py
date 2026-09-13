@@ -1,10 +1,9 @@
-"""fun_time's side of the native satellite protocol: write commands, read status.
+"""fun_time's side of the native satellite protocol: what a satellite reports.
 
 The native satellite players (this repo's ``satellite`` package) are driven
-through a file quartet; this module is fun_time's end of it, the counterpart to
-the player's own runtime/status.  Commands are appended one verb per line to the
-player's command file (it drains them with ``player_core.file_channel``), and
-where the clip has got to is read back from the status file the player publishes.
+through a file quartet; verbs go in through ``player_core.file_channel``'s
+append (``satellite_groups.send_satellite``), and where the clip has got to is
+read back here from the status file the player publishes.
 
 Its sibling ``broker_control`` is the same idea for the OSR2 broker, with the
 one difference spelled out there: that channel holds a single verb, not a queue.
@@ -13,22 +12,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from pathlib import Path
-
-from player_core.file_channel import append_command
-
-
-def write_satellite_command(cmd_file: Path, verb: str) -> None:
-    """Queue *verb* for a satellite by appending it, one per line.
-
-    Appended rather than overwritten so a burst of commands issued before the
-    player next drains its file all survive, matching how the player reads
-    them — and through ``append_command``, whose retry is what survives the
-    moment the player CLAIMS the queue (a rename, during which Windows denies
-    the open outright).  A plain ``open("a")`` here lost that race for real:
-    an integration run died on ``PermissionError`` mid-append.
-    """
-    cmd_file.parent.mkdir(parents=True, exist_ok=True)
-    append_command(cmd_file, verb.rstrip("\n"))
 
 
 @dataclass(frozen=True)

@@ -1,7 +1,7 @@
 """Integration: navigate the native satellite player through its file protocol.
 
 Drives a real, launched native satellite (genau's ``satellite`` package) purely
-through the command/paused/status file quartet — ``write_satellite_command`` in,
+through the command/paused/status file quartet — ``append_command`` in,
 ``read_satellite_status`` out — the exact channel fun_time's dispatch loop uses.
 Complements ``test_satellite_native_integration`` (which proves basic
 play/lock/pause) by covering navigation inverses, wrap-around, discard, playlist
@@ -22,6 +22,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from player_core.file_channel import append_command
+from player_core.player_verbs import LOCK_ON, QUIT
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
@@ -29,7 +31,7 @@ from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import HudPanel
 from fun_time.modes import write_playlist_file
-from fun_time.satellite_control import read_satellite_status, write_satellite_command
+from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SideState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.windows_bridge_startup import launch_satellite
@@ -76,7 +78,7 @@ class _Satellite:
         self.log = log
 
     def send(self, verb: str) -> None:
-        write_satellite_command(self.cmd, verb)
+        append_command(self.cmd, verb)
 
     def log_tail(self, lines: int = 25) -> str:
         """The end of the player's own log, for a failure message.
@@ -146,7 +148,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         )
         yield sat
     finally:
-        write_satellite_command(cmd, "QUIT")
+        append_command(cmd, QUIT)
         time.sleep(1.0)
         subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
 
@@ -158,7 +160,7 @@ def satellite(tmp_path):
         # Lock so the clip on screen never auto-advances mid-test, making each
         # navigation's effect unambiguous.  A locked satellite still obeys NEXT/PREV
         # (they load a new clip); it just does not walk on its own.
-        sat.send("LOCK")
+        sat.send(LOCK_ON)
         _wait(lambda: read_satellite_status(sat.status).locked, timeout=10,
               desc="the satellite to lock")
         yield sat
@@ -393,7 +395,7 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
     """
     videos = library_videos("landscape", 8)
     with launched(tmp_path, videos[:3], width=1706, height=1410) as satellite:
-        satellite.send("LOCK")
+        satellite.send(LOCK_ON)
         _wait(lambda: read_satellite_status(satellite.status).locked, timeout=10,
               desc="the satellite to lock")
         config = _bridge_config(satellite, tmp_path)

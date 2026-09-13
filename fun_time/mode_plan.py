@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from player_core.player_verbs import DISPLAY_OFF, DISPLAY_ON
+
 # The main slot's two modes.  In both the Robot Hand is at work: in genau mode it
 # drives the OSR2 outright under Genau's clips, and in video mode the arbiter
 # hands the device between it and the video's funscript.  The axis is in the
@@ -44,7 +46,7 @@ def hud_verb(mode: str) -> str:
 
 def main_player_display_verb(mode: str) -> str:
     """Whether the main player paints in *mode* — :func:`hud_verb`'s mirror."""
-    return "DISPLAY_ON" if main_player_displays(mode) else "DISPLAY_OFF"
+    return DISPLAY_ON if main_player_displays(mode) else DISPLAY_OFF
 
 
 def build_mode_switch_plan(

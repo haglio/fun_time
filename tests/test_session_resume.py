@@ -239,7 +239,7 @@ class TestResumeSatelliteLocks:
 
         resume_satellite_locks([(portrait, True), (landscape, False)])
 
-        assert portrait.read_text(encoding="utf-8").split() == ["LOCK"]
+        assert portrait.read_text(encoding="utf-8").split() == ["LOCK_ON"]
         assert not landscape.exists()
 
     def test_queues_nothing_for_a_session_that_was_not_locked(self, tmp_path: Path):
@@ -259,7 +259,7 @@ class TestResumeSatelliteLocks:
 
         resume_satellite_locks([(portrait, True)])
 
-        assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK"]
+        assert portrait.read_text(encoding="utf-8").split() == ["RELOAD_PLAYLIST", "LOCK_ON"]
 
     def test_opens_on_defaults_when_the_playlists_were_built_fresh(self, tmp_path: Path):
         """Nothing to resume means the builder just wrote three fresh playlists

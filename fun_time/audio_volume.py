@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.file_channel import append_command
+from player_core.player_verbs import SET_VOLUME
 
 MIN_VOLUME = 0
 MAX_VOLUME = 100
@@ -61,7 +62,7 @@ def publish_audio_level(
     before the main player is up to drain any of them, and a whole-file write would land
     whichever went last and silently drop the other.
     """
-    verb = f"SET_VOLUME {volume} {int(muted)}"
+    verb = f"{SET_VOLUME} {volume} {int(muted)}"
     append_command(main_player_cmd_file, verb)
     append_command(genau_cmd_file, verb)
     write_volume(audio_volume_file, MIN_VOLUME if muted else volume)

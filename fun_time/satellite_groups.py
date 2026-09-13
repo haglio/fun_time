@@ -6,7 +6,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from player_core.player_verbs import play_file
+from player_core.file_channel import append_command
+from player_core.player_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file
 from player_core.playlist import PlaylistItem
 
 from .bridge_records import (
@@ -32,7 +33,7 @@ from .media_metadata import (
 from .modes import collect_video_files, write_playlist_file
 from .players import Player
 from .runtime_flow import satellite_browse_paths
-from .satellite_control import read_satellite_status, write_satellite_command
+from .satellite_control import read_satellite_status
 from .shared_state import BridgeState
 
 logger = logging.getLogger(__name__)
@@ -54,8 +55,12 @@ def satellite_current(config: BridgeConfig, player: Player) -> str:
 
 
 def send_satellite(config: BridgeConfig, player: Player, verb: str) -> None:
-    """Queue one verb on a satellite's command file for the player to drain."""
-    write_satellite_command(config.side(player).cmd_file, verb)
+    """Queue one verb on a satellite's command file for the player to drain.
+
+    Appended rather than overwritten so a burst issued before the player next
+    drains its file all survives, matching how the player reads them.
+    """
+    append_command(config.side(player).cmd_file, verb)
 
 
 def play_video(config: BridgeConfig, player: Player, path: str) -> None:
@@ -75,7 +80,7 @@ def cancel_lock(player: Player, state: BridgeState, config: BridgeConfig) -> Bri
     was not locked.
     """
     if state.side(player).locked:
-        send_satellite(config, player, "UNLOCK")
+        send_satellite(config, player, LOCK_OFF)
     return state.with_side(player, locked=False)
 
 
@@ -299,7 +304,7 @@ def group_loop(
         # LOCK this one.  Never a dead end — the loop buttons are still valid with
         # one video, they just mean "lock" then.  A lock is not a loop, so any
         # prior loop (and widened row) is dropped.
-        send_satellite(config, player, "LOCK")
+        send_satellite(config, player, LOCK_ON)
         state = state.with_side(player, locked=True)
         state = clear_side_grouping(state, player)
         # Green: locking a clip puts it in the favorites, so it says so in the
@@ -314,7 +319,7 @@ def group_loop(
     # comes up next becomes the group, which then cycles by auto-advance.
     items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
     write_playlist_file(config.side(player).playlist_file, items)
-    send_satellite(config, player, "RELOAD_PLAYLIST")
+    send_satellite(config, player, RELOAD_PLAYLIST)
     message = f"Loop {Player(player).label}: {len(items)} {axis}s"
     logger.info(message)
     state = state.with_side(player, loop=axis, map_anchor=current)
@@ -424,7 +429,7 @@ def no_loop(
     # queue keeps playing and just the flag clears.
     if browse:
         write_playlist_file(config.side(player).playlist_file, _browse_after(browse, current))
-        send_satellite(config, player, "RELOAD_PLAYLIST")
+        send_satellite(config, player, RELOAD_PLAYLIST)
     # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
     # keeps hanging exactly where it was and switching a loop off takes away the lit
     # button and the rectangle and nothing else; the map lets go by itself once the

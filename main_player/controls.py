@@ -21,11 +21,31 @@ from __future__ import annotations
 
 import logging
 import threading
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from player_core.control_registry import Control, Verb, act, bind
+from player_core.control_registry import Control, Verb, bind, look_up
+from player_core.player_verbs import (
+    DISPLAY_OFF,
+    DISPLAY_ON,
+    LOCK_OFF,
+    LOCK_ON,
+    NEXT,
+    PLAY_FILE,
+    PREV,
+    QUIT,
+    RELOAD_PLAYLIST,
+    SEEK_BACK,
+    SEEK_FWD,
+    SET_F_MODE,
+    SET_SPEED,
+    SET_TCODE_ENABLED,
+    SET_VOLUME,
+    SPEED_DOWN,
+    SPEED_UP,
+    TOGGLE_LOCK,
+)
 from player_core.playlist import item_from_line
 
 from .session import MAX_SPEED_RATE, MIN_SPEED_RATE
@@ -285,21 +305,21 @@ def _quit(controls: MainPlayerControls, _value: str) -> bool:
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="playlist_position",
-        verbs=(Verb("NEXT", _stepper(1)), Verb("PREV", _stepper(-1))),
+        verbs=(Verb(NEXT, _stepper(1)), Verb(PREV, _stepper(-1))),
     ),
     Control(
         name="playhead",
         verbs=(
-            Verb("SEEK_FWD", _seeker(SEEK_STEP_MS)),
-            Verb("SEEK_BACK", _seeker(-SEEK_STEP_MS)),
+            Verb(SEEK_FWD, _seeker(SEEK_STEP_MS)),
+            Verb(SEEK_BACK, _seeker(-SEEK_STEP_MS)),
         ),
     ),
     Control(
         name="speed",
         verbs=(
-            Verb("SPEED_UP", _speed_step(SPEED_STEP)),
-            Verb("SPEED_DOWN", _speed_step(-SPEED_STEP)),
-            Verb("SET_SPEED", _set_speed, takes_a_value=True),
+            Verb(SPEED_UP, _speed_step(SPEED_STEP)),
+            Verb(SPEED_DOWN, _speed_step(-SPEED_STEP)),
+            Verb(SET_SPEED, _set_speed, takes_a_value=True),
         ),
     ),
     # Held rather than tapped, then tapped as well: pressing marks the loop's in
@@ -318,31 +338,31 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="lock",
         verbs=(
-            Verb("TOGGLE_LOCK", _toggle_lock),
-            Verb("LOCK_ON", _lock_set(True)),
-            Verb("LOCK_OFF", _lock_set(False)),
+            Verb(TOGGLE_LOCK, _toggle_lock),
+            Verb(LOCK_ON, _lock_set(True)),
+            Verb(LOCK_OFF, _lock_set(False)),
         ),
     ),
     Control(name="version", verbs=(Verb("CYCLE_VERSION", _cycle_version),)),
     Control(
         name="playing_file",
-        verbs=(Verb("PLAY_FILE", _play_file, takes_a_value=True),),
+        verbs=(Verb(PLAY_FILE, _play_file, takes_a_value=True),),
     ),
     Control(
         name="tcode_output",
-        verbs=(Verb("SET_TCODE_ENABLED", _set_tcode_enabled, takes_a_value=True),),
+        verbs=(Verb(SET_TCODE_ENABLED, _set_tcode_enabled, takes_a_value=True),),
     ),
     Control(
         name="volume",
         needs=("set_volume_hud",),
-        verbs=(Verb("SET_VOLUME", _set_volume, takes_a_value=True),),
+        verbs=(Verb(SET_VOLUME, _set_volume, takes_a_value=True),),
     ),
     # Fun Time owns the playlist file and rewrites it whenever the room's
     # selection changes; this is how it says so.
     Control(
         name="playlist",
         needs=("reload_playlist",),
-        verbs=(Verb("RELOAD_PLAYLIST", _reload_playlist),),
+        verbs=(Verb(RELOAD_PLAYLIST, _reload_playlist),),
     ),
     Control(
         name="length_mode",
@@ -356,7 +376,7 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="f_mode",
         needs=("modes",),
-        verbs=(Verb("SET_F_MODE", _set_f_mode, takes_a_value=True),),
+        verbs=(Verb(SET_F_MODE, _set_f_mode, takes_a_value=True),),
     ),
     Control(
         name="compilation",
@@ -379,34 +399,15 @@ CONTROLS: tuple[Control, ...] = (
         name="display",
         needs=("set_display",),
         verbs=(
-            Verb("DISPLAY_ON", _display_set(True)),
-            Verb("DISPLAY_OFF", _display_set(False)),
+            Verb(DISPLAY_ON, _display_set(True)),
+            Verb(DISPLAY_OFF, _display_set(False)),
         ),
     ),
-    Control(name="quit", needs=("stop_event",), verbs=(Verb("QUIT", _quit),)),
+    Control(name="quit", needs=("stop_event",), verbs=(Verb(QUIT, _quit),)),
 )
 
 
 VERBS = bind(CONTROLS)
-
-
-def _look_up(command: str, verbs: Mapping[str, tuple[Control, Verb]],
-            controls: MainPlayerControls) -> bool:
-    """Look one line up in *verbs* and run what it names.
-
-    Not :func:`player_core.control_registry.look_up`, which upper-cases the
-    whole line: the main player's ``PLAY_FILE`` carries a path, and a path is the one value
-    in this family whose case is load-bearing.  So the keyword is upper-cased
-    and the value is left exactly as it arrived — the same reason the frame loop
-    drains this channel with ``uppercase=False``.
-    """
-    said = command.strip().split(None, 1)
-    if not said:
-        return False
-    declared = verbs.get(said[0].upper())
-    if declared is None:
-        return False
-    return act(*declared, controls, said[1].strip() if len(said) > 1 else "")
 
 
 def apply_command(command: str, controls: MainPlayerControls) -> None:
@@ -425,5 +426,5 @@ def apply_command(command: str, controls: MainPlayerControls) -> None:
     desktop main player simply logs it as unknown": verbs only FunTimeVR's player
     answers, sent to whoever holds the main slot.
     """
-    if not _look_up(command, VERBS, controls):
+    if not look_up(command, VERBS, controls):
         logger.warning("Unhandled command: %s", command.strip())

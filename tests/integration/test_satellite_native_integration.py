@@ -15,11 +15,13 @@ import sys
 import time
 
 import pytest
+from player_core.file_channel import append_command
+from player_core.player_verbs import LOCK_ON, NEXT, QUIT
 
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import SideInputs, build_hud_panel
-from fun_time.satellite_control import read_satellite_status, write_satellite_command
+from fun_time.satellite_control import read_satellite_status
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_satellites
@@ -87,10 +89,10 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
             timeout=30, desc="the satellite to start playing",
         )
         # Lock (stops auto-advance) so NEXT's effect on the clip is unambiguous.
-        write_satellite_command(cmd, "LOCK")
+        append_command(cmd, LOCK_ON)
         _wait(lambda: read_satellite_status(status).locked, timeout=10, desc="the satellite to lock")
         locked_clip = published_status(read_satellite_status, status).video
-        write_satellite_command(cmd, "NEXT")
+        append_command(cmd, NEXT)
         _wait(lambda: read_satellite_status(status).video not in ("", locked_clip),
               timeout=15, desc="NEXT to change the clip while locked")
         # The paused flag freezes playback.
@@ -102,7 +104,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
         assert first  # a real clip was playing
     finally:
-        write_satellite_command(cmd, "QUIT")
+        append_command(cmd, QUIT)
         time.sleep(1.0)
         subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
 
@@ -224,6 +226,6 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         assert after != before, (
             f"the satellite stopped publishing after the HUD redrew ({before} -> {after})")
     finally:
-        write_satellite_command(cmd, "QUIT")
+        append_command(cmd, QUIT)
         time.sleep(1.0)
         subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)

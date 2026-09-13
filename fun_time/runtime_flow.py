@@ -7,7 +7,7 @@ from pathlib import Path
 
 from app_support.file_channel import write_flag
 from player_core.file_channel import append_command
-from player_core.player_verbs import play_file
+from player_core.player_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
 from player_core.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
@@ -29,16 +29,8 @@ from .modes import (
 )
 from .omnipause import build_omnipause_plan
 from .players import Player
-from .satellite_control import write_satellite_command
 from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
-# Both the main player and the native satellites re-read their playlist file on this verb.
-RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
-# The main player's HUD says whether F-mode is on, and this is the only way it can know: the
-# playlist it is handed has already been narrowed, and a list of scripted videos
-# looks like any other.  The satellites need no such verb — fun_time draws their
-# HUD model itself.
-SET_F_MODE_CMD = "SET_F_MODE"
 # Puts the main player back into an A/B loop it was left running, bounds and all.  The only
 # piece of the main player's state a restart has to hand back rather than rebuild: a
 # loop is a range inside one video, so it dies with the player process while
@@ -145,7 +137,7 @@ def apply_main_fmode(
     # lands on the list the reload has just taken.  The main player's HUD has no other way
     # to know the flag: the playlist it is handed has already been narrowed,
     # and a list of scripted videos looks like any other.
-    verbs = [RELOAD_PLAYLIST_CMD, f"{SET_F_MODE_CMD} {int(enabled)}"]
+    verbs = [RELOAD_PLAYLIST, f"{SET_F_MODE} {int(enabled)}"]
     if start_at_top and paths:
         verbs.append(play_file(scripted_item(paths[0])))
     for verb in verbs:
@@ -179,7 +171,7 @@ def apply_satellite_fmode(
         filter_query=filter_query,
         metadata_root=regen_metadata_root,
     )
-    write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
+    append_command(Path(cmd_file), RELOAD_PLAYLIST)
 
 
 @dataclass(frozen=True)
@@ -313,9 +305,9 @@ def apply_satellite_filter(
         return SatelliteFilterFlowResult(0, False, f"Filter {label}: no matches for '{query}'")
     playlist_path = build_playlist_file_path(Path(state_dir), name)
     write_playlist_file(playlist_path, paths)
-    write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
+    append_command(Path(cmd_file), RELOAD_PLAYLIST)
     if start_at_top and paths:
-        write_satellite_command(Path(cmd_file), play_file(PlaylistItem(Path(paths[0]))))
+        append_command(Path(cmd_file), play_file(PlaylistItem(Path(paths[0]))))
     summary = "cleared" if not query else f"'{query}'"
     return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 

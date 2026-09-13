@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from player_core.file_channel import append_command
+from player_core.player_verbs import SET_F_MODE
 
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
@@ -44,7 +45,7 @@ from .process_identity import NAMER
 from .project_paths import PROJECT_ICON
 from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
-from .runtime_flow import SET_F_MODE_CMD, write_flag_file
+from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot, for_side
 from .satellites_mode import VIDEO_MODE
@@ -350,7 +351,7 @@ def seed_startup_states(
         volume=volume,
         muted=muted,
     )
-    append_command(Path(main_player_cmd_file), f"{SET_F_MODE_CMD} {int(f_mode)}")
+    append_command(Path(main_player_cmd_file), f"{SET_F_MODE} {int(f_mode)}")
 
 
 def reset_satellite_paused_states(

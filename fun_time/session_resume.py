@@ -12,6 +12,7 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
+from player_core.player_verbs import LOCK_ON
 from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 
 from .media_metadata import normalize_path_key
@@ -168,7 +169,7 @@ def resume_main_video(playlist_file: Path, video: str) -> bool:
 
 
 def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
-    """Queue LOCK on the command file of each satellite that was locked.
+    """Queue LOCK_ON on the command file of each satellite that was locked.
 
     *locks* pairs a satellite's command file with whether that side comes back
     locked.  A lock lives in the player process rather than in any file the new
@@ -178,7 +179,7 @@ def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
     """
     for command_file, locked in locks:
         if locked:
-            append_command(Path(command_file), "LOCK")
+            append_command(Path(command_file), LOCK_ON)
 
 
 def resume_main_loop(main_player_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
