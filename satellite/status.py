@@ -21,6 +21,7 @@ def status_fields(session) -> dict[str, str]:
             paused=session.is_paused,
             locked=session.is_locked,
             speed=session.speed,
+            picture=session.showing_picture,
         )),
         "playlist_length": str(session.playlist_length),
     }
