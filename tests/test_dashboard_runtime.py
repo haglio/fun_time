@@ -240,13 +240,13 @@ def test_read_main_player_status_parses_the_rate_the_main_player_plays_at(tmp_pa
     assert read_main_player_status(status_file).speed == 1.5
 
 
-def test_read_main_player_status_reads_no_rate_from_a_main_player_that_publishes_none(tmp_path: Path):
+def test_read_main_player_status_reads_no_published_rate_as_normal_speed(tmp_path: Path):
     status_file = tmp_path / "nau_status.txt"
     status_file.write_text("video=C:\\clip.mp4\nhas_funscript=1\n", encoding="utf-8")
 
-    assert read_main_player_status(status_file).speed is None
+    assert read_main_player_status(status_file).speed == 1.0
     assert read_main_player_status(status_file).has_funscript is True
-    assert read_main_player_status(tmp_path / "missing.txt").speed is None
+    assert read_main_player_status(tmp_path / "missing.txt").speed == 1.0
 
 
 def test_read_genau_status_names_the_clip_on_screen(tmp_path: Path):

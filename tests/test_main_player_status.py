@@ -35,17 +35,17 @@ class TestStatusFields:
     def test_key_order_is_the_published_file_order(self):
         # fun_time parses key=value lines, but the file's shape is the main player's
         # contract; pinning the order keeps a reordering from passing silently.
-        # The family's five lead, then the main player's own seven: handoff_touch_ms
+        # The family's six lead, then the main player's own six: handoff_touch_ms
         # is read by fun_time's dashboard runtime and its dispatch loop, and while
         # it was composed in a closure inside main_player.app's run loop this list
         # said ten and nothing noticed.
         assert list(status_fields(StubSession(), None)) == [
-            "video", "position_ms", "duration_ms", "paused", "locked",
+            "video", "position_ms", "duration_ms", "paused", "locked", "speed",
             "has_funscript", "funscript_resting", "state",
-            "loop_in_ms", "loop_out_ms", "handoff_touch_ms", "speed",
+            "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
         ]
 
-    def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self):
+    def test_the_six_every_player_leads_with_read_back_as_the_familys_record(self):
         from player_core.status import PlayerStatus, parse_status
 
         assert parse_status(status_fields(StubSession(), None)) == PlayerStatus(
