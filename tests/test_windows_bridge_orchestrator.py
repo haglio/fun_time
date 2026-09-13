@@ -5,7 +5,7 @@ import logging
 import threading
 from dataclasses import replace
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -151,35 +151,57 @@ class TestFixPostLoadingWindows:
         ):
             _fix_post_loading_windows(result)
 
-        promote.assert_called_once_with(222, True)  # only the buried one, once
+        promote.assert_called_once_with(222, True, under=0)  # only the buried one, once
 
-    def test_the_curtain_goes_back_on_top_after_the_bands_are_applied(self):
-        """Under the overlay is where this pass belongs — the bands are what
-        decides what the reveal looks like — and every promotion it makes
-        inserts ABOVE the overlay (HWND_TOPMOST inserts at the top of the
-        band).  So the overlay is put back on top after the pass, or the room
-        it is hiding shows through the moment it is banded."""
+    def test_a_player_still_buried_under_the_curtain_is_re_promoted_under_it(self):
         result = _fake_startup_result()
+        titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}
+        chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
+                               rect=(0, 0, 2560, 1410))
+        landscape = StackedWindow(hwnd=222, title="Landscape AI Player",
+                                  topmost=True, rect=(854, 0, 1706, 1410))
 
         with patch(
             "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
         ), patch(
             "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
         ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder",
+            side_effect=[[chrome, landscape], [landscape, chrome]],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ):
+            _fix_post_loading_windows(result, overlay_hwnd=77)
+
+        promote.assert_called_once_with(222, True, under=77)
+
+    def test_the_room_is_banded_under_the_curtain_and_the_curtain_left_alone(self):
+        """Under the overlay is where this pass belongs: the bands decide what
+        the reveal looks like."""
+        result = _fake_startup_result()
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
+        ) as apply, patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
             "fun_time.windows_bridge_orchestrator.wait_for_window_by_title", return_value=0
         ), patch(
             "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
         ), patch(
-            # The cover goes back through the sequencer's keep_the_cover_up,
-            # which both ends of startup share; a player is promoted through
-            # this module's own name.
             "fun_time.windows_bridge_sequencer.set_always_on_top"
-        ) as cover_back, patch(
+        ) as sequencer_banding, patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
         ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
-        cover_back.assert_called_once_with(77, True)
+        assert apply.call_args.kwargs["beneath"] == 77
+        sequencer_banding.assert_not_called()
 
     def test_the_curtain_is_not_a_burial(self):
         """The overlay covers both players by design, so counting it as a
@@ -214,8 +236,8 @@ class TestFixPostLoadingWindows:
         ):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
-        # The curtain put back, and nothing else: neither player is buried.
-        assert cover_back.call_args_list == [call(77, True)]
+        # Neither player is buried, and the curtain itself is never touched.
+        cover_back.assert_not_called()
         promote.assert_not_called()
         slept.assert_not_called()
 
@@ -253,7 +275,7 @@ class TestFixPostLoadingWindows:
             side_effect=lambda hwnd, _stack: [],
         ), patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top",
-            side_effect=lambda hwnd, on: promoted.append(hwnd),
+            side_effect=lambda hwnd, on, **_kw: promoted.append(hwnd),
         ), patch(
             "fun_time.windows_bridge_orchestrator._log_window_obstruction"
         ) as obstruction:
@@ -1729,7 +1751,7 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.find_window_by_pid", side_effect=lambda pid: pid_to_hwnd.get(pid, 0)), \
-             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v: topmost_calls.append((h, v))), \
+             patch("fun_time.windows_bridge_sequencer.set_always_on_top", side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), \
              patch("fun_time.windows_bridge_sequencer.minimize_window", side_effect=lambda h, **kw: hide_calls.append(h)), \
              patch("fun_time.windows_bridge_sequencer.disable_window_transitions"), \
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \

@@ -157,24 +157,6 @@ def _startup_role_hwnds(
     }
 
 
-def keep_the_cover_up(cover_hwnd: int) -> None:
-    """Put the loading cover back at the top of the topmost band.
-
-    Nothing keeps a topmost window above the OTHER topmost windows: every raise
-    a session makes — showing a player, moving it onto its rect, promoting it
-    into the band — inserts that window above the cover, and Windows gives a
-    window no say in being displaced.  So every call that can raise one is
-    followed by this.  The cover re-takes the top on its own timer as well (see
-    ``overlay_window.TOPMOST_POLL_MS``), which catches the windows that appear
-    of their own accord; this closes the ones we cause ourselves to the single
-    SetWindowPos that made them.
-
-    A zero hwnd is the no-cover case and does nothing.
-    """
-    if cover_hwnd:
-        set_always_on_top(cover_hwnd, True)
-
-
 def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
                         satellites_mode: str = VIDEO_MODE, *, beneath: int = 0) -> None:
     """Give each managed window its topmost flag from the shared ``role_topmost``
@@ -186,18 +168,13 @@ def apply_topmost_bands(role_hwnds: dict[str, int], mode: str,
     Genau's transparent HUD above the main player's video in video mode, and the policy says so
     outright ("Genau is promoted last").
 
-    *beneath* is the loading overlay, when this runs under it: every promotion
-    lands over it, so the cover goes back after each one (see
-    :func:`keep_the_cover_up`).  Only promotions need it -- a demotion drops out
-    of the topmost band entirely, already below the cover.
+    *beneath* is the loading overlay, when this runs under it: each promotion
+    lands directly under it, which keeps the same order one slot lower.
     """
     for role in MANAGED_ROLES:
         hwnd = role_hwnds.get(role, 0)
         if hwnd:
-            on_top = role_topmost(role, mode, satellites_mode)
-            set_always_on_top(hwnd, on_top)
-            if on_top:
-                keep_the_cover_up(beneath)
+            set_always_on_top(hwnd, role_topmost(role, mode, satellites_mode), under=beneath)
 
 
 def _apply_main_slot_visibility(main_player_hwnd: int, genau_hwnd: int, mode: str) -> None:
@@ -304,7 +281,6 @@ def run_startup_sequence(
     state_dir: str | Path,
     progress: ProgressReporter | None = None,
     hide_windows: bool = False,
-    cover_hwnd: int = 0,
     env: SessionEnvironment = ORDINARY_SESSION,
 ) -> StartupResult:
     """Run the full startup sequence, returning all PIDs and the layout plan.
@@ -312,8 +288,6 @@ def run_startup_sequence(
     When *hide_windows* is True, the satellite windows launch under the loading
     overlay and all positioning is deferred to the end so everything appears at
     once.  The window handles are returned in ``StartupResult.role_hwnds``.
-    *cover_hwnd* is that overlay's own window, so the raises this makes can put
-    it straight back on top (see :func:`keep_the_cover_up`); zero without one.
 
     Each ``progress.advance`` is a cancellation checkpoint: if the loading
     screen has dropped the cancel flag, the reporter raises ``StartupCancelled``
@@ -330,7 +304,6 @@ def run_startup_sequence(
             state_dir=state_dir,
             progress=progress,
             hide_windows=hide_windows,
-            cover_hwnd=cover_hwnd,
             launched=launched,
             env=env,
         )
@@ -782,7 +755,6 @@ def _hold_the_cover_for_the_hosted_app(
     m: LaunchManifest,
     *,
     core: _CoreSession,
-    cover_hwnd: int,
     progress: ProgressReporter,
 ) -> int:
     """Hold the curtain until the hosted app is ready — for its shows too, in
@@ -805,8 +777,10 @@ def _hold_the_cover_for_the_hosted_app(
         return 0
     hwnd = _wait_for_origenerator_window(core.origenerator_pid)
     if hwnd:
+        # Out of the band first: a restore puts a window at the top of its band,
+        # which for a topmost one is over the cover.  The banding pass puts it back.
+        set_always_on_top(hwnd, False)
         restore_window(hwnd, activate=False)
-        keep_the_cover_up(cover_hwnd)
     else:
         logger.warning(
             "Origenerator window not up within %.0fs; revealing without "
@@ -825,26 +799,17 @@ def _place_and_park_under_the_cover(
     rfb_hwnd: int,
     dashboard_pid: int,
     origenerator_hwnd: int,
-    cover_hwnd: int,
 ) -> dict[str, int]:
     """Place every window where the plan says and park the idle slot-mate.
 
-    Each move SHOWS the window as well as placing it, and showing one puts it at
-    the top of its band — over the cover, which is where the landscape player
-    was caught sitting for a tenth of a second on every startup.  The cover goes
-    straight back after each.
-
-    The topmost bands are deliberately NOT applied here: the overlay is topmost
-    and ``HWND_TOPMOST`` inserts above it, so each promotion would flash its
-    window over the overlay.  ``_fix_post_loading_windows`` applies them once the
-    overlay process has exited.  This is still the last moment the dashboard is
-    resolvable, and it is hidden (SW_HIDE) under the overlay, so its lookup
-    must include hidden windows.
+    Nothing here can show over the overlay: the players are still out of the
+    topmost band, and no move or show lifts a window above the band it is not
+    in.  ``_fix_post_loading_windows`` bands them, under the overlay.  This is
+    still the last moment the dashboard is resolvable, and it is hidden
+    (SW_HIDE) under the overlay, so its lookup must include hidden windows.
     """
     _move_window_to(portrait_hwnd, plan.portrait, "portrait satellite", activate=False)
-    keep_the_cover_up(cover_hwnd)
     _move_window_to(landscape_hwnd, plan.landscape, "landscape satellite", activate=False)
-    keep_the_cover_up(cover_hwnd)
     logger.info("Core windows positioned (deferred reveal)")
 
     dash_hwnd = (
@@ -875,7 +840,6 @@ def _settle_the_room_under_the_cover(
     plan: WindowLayoutPlan,
     rfb_hwnd: int,
     dashboard_pid: int,
-    cover_hwnd: int,
     progress: ProgressReporter,
 ) -> dict[str, int]:
     """Phase 4, on the path with a loading screen: everything at once, unseen."""
@@ -889,8 +853,7 @@ def _settle_the_room_under_the_cover(
         m, main_player_status_file=core.main_player_status_file, progress=progress)
 
     progress.advance("origenerator")
-    origenerator_hwnd = _hold_the_cover_for_the_hosted_app(
-        m, core=core, cover_hwnd=cover_hwnd, progress=progress)
+    origenerator_hwnd = _hold_the_cover_for_the_hosted_app(m, core=core, progress=progress)
 
     progress.advance("windows")
     role_hwnds = _place_and_park_under_the_cover(
@@ -901,7 +864,6 @@ def _settle_the_room_under_the_cover(
         rfb_hwnd=rfb_hwnd,
         dashboard_pid=dashboard_pid,
         origenerator_hwnd=origenerator_hwnd,
-        cover_hwnd=cover_hwnd,
     )
     progress.advance("finalizing")
     return role_hwnds
@@ -913,7 +875,6 @@ def _run_startup_phases(
     state_dir: str | Path,
     progress: ProgressReporter,
     hide_windows: bool,
-    cover_hwnd: int,
     launched: _LaunchedChildren,
     env: SessionEnvironment,
 ) -> StartupResult:
@@ -947,8 +908,7 @@ def _run_startup_phases(
     if hide_windows:
         role_hwnds = _settle_the_room_under_the_cover(
             m, core=core, plan=plan, rfb_hwnd=rfb_hwnd,
-            dashboard_pid=ui_pids["dashboard_pid"], cover_hwnd=cover_hwnd,
-            progress=progress)
+            dashboard_pid=ui_pids["dashboard_pid"], progress=progress)
 
     # A session with nothing to hide under starts playing as soon as it is
     # built.  One with a cover does NOT: the orchestrator calls this once the

@@ -320,13 +320,22 @@ def window_rect(hwnd: int) -> tuple[int, int, int, int] | None:
     return rect.left, rect.top, rect.right - rect.left, rect.lower - rect.top
 
 
-def set_always_on_top(hwnd: int, on_top: bool) -> None:
+def set_always_on_top(hwnd: int, on_top: bool, *, under: int = 0) -> None:
     """Set or clear the always-on-top flag for a window.
+
+    *under* is a topmost window a promotion lands directly beneath instead of at
+    the top of the band, so the window is never over it.  Windows makes the
+    window topmost there only if another topmost window sits below *under*.
 
     Through :func:`_without_hanging`: this is the call a stalled player froze the
     whole session on, because it waits for that player's own thread.
     """
-    insert_after = HWND_TOPMOST if on_top else HWND_NOTOPMOST
+    if not on_top:
+        insert_after = HWND_NOTOPMOST
+    elif under:
+        insert_after = ctypes.wintypes.HWND(under)
+    else:
+        insert_after = HWND_TOPMOST
     _without_hanging(
         _user32.SetWindowPos, hwnd, insert_after, 0, 0, 0, 0,
         SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE,
@@ -647,6 +656,25 @@ def set_taskbar_window_styles(hwnd: int) -> None:
         hwnd, 0, 0, 0, 0, 0,
         SWP_NOSIZE | SWP_NOMOVE | SWP_NOZORDER | SWP_FRAMECHANGED,
     )
+
+
+WS_POPUP = 0x80000000
+WS_EX_NOACTIVATE = 0x08000000
+_user32.CreateWindowExW.argtypes = [
+    ctypes.wintypes.DWORD, ctypes.wintypes.LPCWSTR, ctypes.wintypes.LPCWSTR,
+    ctypes.wintypes.DWORD, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_int,
+    ctypes.wintypes.HWND, ctypes.wintypes.HMENU, ctypes.wintypes.HINSTANCE,
+    ctypes.wintypes.LPVOID,
+]
+_user32.CreateWindowExW.restype = ctypes.wintypes.HWND
+
+
+def create_hidden_topmost_window() -> int:
+    """A topmost window that is never shown and never takes the focus, alive as
+    long as the thread that made it."""
+    return int(_user32.CreateWindowExW(
+        WS_EX_TOPMOST | WS_EX_TOOLWINDOW | WS_EX_NOACTIVATE, "STATIC", None,
+        WS_POPUP, 0, 0, 0, 0, None, None, None, None) or 0)
 
 
 def insert_below(hwnd: int, other_hwnd: int) -> None:

@@ -26,7 +26,7 @@ from .cover_palette import (
 from .monitors import MonitorInfo, virtual_desktop_rect
 from .overlay_progress import parse_progress
 from .project_paths import PROJECT_ICON
-from .win32 import find_window_by_title, set_always_on_top
+from .win32 import create_hidden_topmost_window, find_window_by_title, set_always_on_top
 
 if TYPE_CHECKING:
     from PIL.Image import Image as PILImage
@@ -167,6 +167,11 @@ class OverlayWindow:
         self._status_held = False
         self._title = title
         self._hwnd = 0
+
+        # Made first, so the cover goes up over it and it stays under the cover
+        # for good: a window put under the cover joins the topmost band only if
+        # some topmost window sits below the cover.
+        create_hidden_topmost_window()
 
         self._root = tk.Tk()
         self._root.title(title)

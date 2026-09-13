@@ -123,6 +123,20 @@ class TestSetAlwaysOnTop:
         args = mock.SetWindowPos.call_args[0]
         assert args[1] == HWND_NOTOPMOST
 
+    def test_under_a_window_it_lands_directly_beneath_it(self):
+        with patch("fun_time.win32._user32") as mock:
+            set_always_on_top(111, True, under=2**40 + 7)
+
+        insert_after = mock.SetWindowPos.call_args[0][1]
+        assert isinstance(insert_after, ctypes.c_void_p)
+        assert insert_after.value == 2**40 + 7
+
+    def test_a_demotion_leaves_the_band_whatever_it_was_under(self):
+        with patch("fun_time.win32._user32") as mock:
+            set_always_on_top(111, False, under=99)
+
+        assert mock.SetWindowPos.call_args[0][1] == HWND_NOTOPMOST
+
 
 class TestAWindowThatHasStoppedAnswering:
     """SetWindowPos and ShowWindow SEND messages to the thread owning the window
@@ -1024,6 +1038,16 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         flags = mock.SetWindowPos.call_args.args[6]
         assert flags & win32.SWP_NOZORDER
         assert not flags & win32.SWP_NOACTIVATE
+
+    def test_the_hidden_topmost_window_is_topmost_never_shown_and_never_focused(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.CreateWindowExW.return_value = 4242
+            assert win32.create_hidden_topmost_window() == 4242
+
+        ex_style, _class, _title, style = mock.CreateWindowExW.call_args.args[:4]
+        assert ex_style & win32.WS_EX_TOPMOST
+        assert ex_style & win32.WS_EX_NOACTIVATE
+        assert not style & 0x10000000  # WS_VISIBLE
 
     def test_an_insert_moves_and_resizes_nothing(self):
         with patch("fun_time.win32._user32") as mock:
