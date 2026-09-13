@@ -27,6 +27,7 @@ from .append_only import append_line
 from .checkout_overrides import genau_project_kwargs
 from .child_log import no_child_log
 from .config import load_config
+from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import EventLogHandler, start_event_log
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles
@@ -787,7 +788,8 @@ def clear_last_sessions_leftovers(
     dashboard_cmd_file = Path(commands.dashboard_cmd_file)
     for stale in (ahk_cmd_file, pids_file, dashboard_cmd_file,
                   dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
-                  Path(commands.dashboard_state_file), session_end_marker_path(state_dir)):
+                  Path(commands.dashboard_state_file), session_end_marker_path(state_dir),
+                  state_dir / REFERENCE_OPEN_FILENAME, state_dir / LIBRARY_OPEN_FILENAME):
         stale.unlink(missing_ok=True)
 
 
