@@ -4,6 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from player_core.playlist import PlaylistItem
+
 from main_player.clip_jumps import ClipJumps
 from main_player.clip_nav import ClipNav
 
@@ -27,8 +29,8 @@ class FakeSession:
 
     def __init__(self, current: Path, playlist=None) -> None:
         self.current_video = current
-        self.playlist = list(playlist or [(current, None)])
-        self.replaced: list[list[tuple[Path, Path | None]]] = []
+        self.playlist = list(playlist or [PlaylistItem(current)])
+        self.replaced: list[list[PlaylistItem]] = []
         self.played: list[tuple[Path, Path | None]] = []
         # A real session only restarts playback when it loads an index; swapping
         # the list around the clip on screen leaves this alone.
@@ -43,8 +45,8 @@ class FakeSession:
         self.playlist = list(playlist)
         self.loaded_first += 1
 
-    def play_file(self, video: Path, funscript: Path | None) -> None:
-        self.played.append((video, funscript))
+    def play_file(self, item) -> None:
+        self.played.append((item.path, item.funscript))
 
 
 class FakeNotices:
@@ -138,7 +140,7 @@ class TestResume:
         nav, first, second, scene = _world(tmp_path)
         # The resumed playlist leads with a video from the ordinary browse, and
         # does not contain the clip that was on screen at all.
-        jumps, session, _notices = _jumps(nav, scene, playlist=[(scene, None)])
+        jumps, session, _notices = _jumps(nav, scene, playlist=[PlaylistItem(scene)])
 
         jumps.resume("Vol6", second)
 
@@ -185,7 +187,7 @@ class TestEndCompilation:
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, _notices = _jumps(nav, second)
         jumps.play_compilation()
-        browse = [(second, None), (scene, None)]
+        browse = [PlaylistItem(second), PlaylistItem(scene)]
 
         jumps.end_compilation(browse)
 
@@ -201,7 +203,7 @@ class TestEndCompilation:
         nav, _first, second, scene = _world(tmp_path)
         jumps, session, _notices = _jumps(nav, second)
         jumps.play_compilation()
-        without_it = [(scene, None)]
+        without_it = [PlaylistItem(scene)]
 
         jumps.end_compilation(without_it)
 
@@ -212,7 +214,7 @@ class TestEndCompilation:
         nav, _first, _second, scene = _world(tmp_path)
         jumps, session, _notices = _jumps(nav, scene)
 
-        jumps.end_compilation([(scene, None)])
+        jumps.end_compilation([PlaylistItem(scene)])
 
         assert session.replaced == []
 

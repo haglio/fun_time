@@ -197,7 +197,7 @@ def _play_file(controls: MainPlayerControls, value: str) -> bool:
     item = item_from_line(value)
     if item is None:
         return False
-    controls.session.play_file(item.path, item.funscript)
+    controls.session.play_file(item)
     return True
 
 
