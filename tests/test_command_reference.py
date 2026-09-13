@@ -262,6 +262,16 @@ def test_the_bare_phrases_read_as_the_say_column():
         assert phrase in by_command[cmd].voice
 
 
+def test_the_satellite_grid_carries_a_players_own_playback_speed():
+    rows = _satellite_section().rows
+    nudge = next(r for r in rows if "portrait_speed_up" in r.commands)
+    rate = next(r for r in rows if "portrait_speed_50" in r.commands)
+
+    assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
+    assert {"active_speed_up", "both_speed_down", "landscape_speed_up"} <= set(nudge.commands)
+    assert {"active_speed_150", "both_speed_200", "landscape_speed_25"} <= set(rate.commands)
+
+
 def test_mode_named_nav_shows_friendly_names_in_the_legend():
     """The Video/Genau nav rows surface the mode-named phrases under their friendly
     names ("video next", "genau next") — never the raw vosk sound-alike ("go
@@ -297,7 +307,8 @@ def test_the_playback_nudge_is_its_own_spoken_row_ahead_of_the_absolute_sets():
     descs = [r.description for r in main_player_rows]
     nudge = next(r for r in main_player_rows if "main_player_speed_up" in r.commands)
     assert _keys(nudge) == ()
-    assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
+    assert nudge.voice == ("main playback speed up", "main playback slow down",
+                           "main playback speed down")
     assert descs.index(nudge.description) + 1 == next(
         i for i, d in enumerate(descs) if d.startswith("Set video speed")
     )

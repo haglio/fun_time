@@ -303,19 +303,25 @@ _SECTIONS: tuple[_Section, ...] = (
             # OSR2 — the way to nudge the rate through a Robot Hand stretch in
             # video mode, where the bare "speed up" goes to the motion instead.
             _Row(
-                "Nudge the video's playback rate up / down",
+                "Nudge the video's playback rate up / down — both satellites take "
+                "the rate it lands on",
                 (),
                 ("main_player_speed_up", "main_player_speed_down"),
+                voice_display=("main playback speed up", "main playback slow down",
+                               "main playback speed down"),
             ),
             _Row(
-                "Set video speed (0.25×–2×; the funscript follows)",
+                "Set video speed (0.25×–2×; the funscript follows, and so do both "
+                "satellites)",
                 (),
                 (
                     "speed_min", "speed_max",
                     "main_player_speed_25", "main_player_speed_50", "main_player_speed_75", "main_player_speed_100",
                     "main_player_speed_125", "main_player_speed_150", "main_player_speed_175", "main_player_speed_200",
                 ),
-                ("min speed", "max speed", "reset speed", "half speed", "double speed", "speed one point five ex"),
+                voice_display=("min speed", "max speed", "main reset speed",
+                               "main half speed", "main double speed",
+                               "main speed one point five ex"),
             ),
             _Row("Cycle through versions of the current video", ("V",), ("main_player_cycle_version",)),
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
@@ -443,6 +449,20 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Latest — reload newest-first", (), _sided("latest")),
             _Row("Shuffle — reshuffle (cancels Latest; keeps the filter)", (), _sided("shuffle")),
             _Row("F-Mode — browse only the favorites", (), _sided("fmode", "fmode_on", "fmode_off")),
+            _Row(
+                "Playback speed up / down — this player alone; when the main "
+                "player's rate changes, both take it",
+                (),
+                _sided("speed_up", "speed_down"),
+            ),
+            _Row(
+                "Set playback speed — 0.25× to 2×",
+                (),
+                _sided("speed_25", "speed_50", "speed_75", "speed_100",
+                       "speed_125", "speed_150", "speed_175", "speed_200"),
+                voice_display=("half speed", "double speed", "reset speed",
+                               "speed one point five ex"),
+            ),
             _Row("Reset — back to every default: no filter, no lock, no loop, no F-Mode, shuffled from the top", (), _sided("reset")),
         ),
         key_headers=("Portrait", "Landscape"),

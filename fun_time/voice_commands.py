@@ -200,12 +200,6 @@ def build_voice_commands(
         "slow down": "speed_down",
         "speed down": "speed_down",
         "speed up": "speed_up",
-        # Naming the playback pins the same nudge to the video no matter who has
-        # the OSR2 — the one thing the bare pair above cannot say; the same pair
-        # the console's playback arrows send.
-        "playback slow down": "main_player_speed_down",
-        "playback speed down": "main_player_speed_down",
-        "playback speed up": "main_player_speed_up",
         "amp down": "robot_hand_amplitude_down",
         "amp up": "robot_hand_amplitude_up",
         "center down": "robot_hand_center_down",
@@ -470,32 +464,31 @@ def build_voice_commands(
         for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
             commands[f"{_label} {_prefix}"] = f"{_cmd_prefix}_{_value}"
 
-    # The main player's video speed by spoken multiplier, routed to the main player (the video the user
-    # sees) when the main player drives the OSR2.  Encoded as percent-of-normal so the command
-    # name stays integer: "half speed" -> main_player_speed_50 -> 0.5x.
-    _MAIN_PLAYER_SPEED_MULTIPLIERS: dict[str, int] = {
-        "quarter speed": 25,
-        "half speed": 50,
-        "three quarter speed": 75,
-        "normal speed": 100,
-        "one and a half speed": 150,
-        "double speed": 200,
+    # A video's playback rate, said bare of the player last addressed or of the
+    # one named before or after it, the way every action the main player shares
+    # with a satellite is said.  A set rate is spelled in percent of normal.
+    _PLAYBACK_SPEEDS: dict[str, str] = {
+        "playback speed up": "speed_up",
+        "playback speed down": "speed_down",
+        "playback slow down": "speed_down",
+        "quarter speed": "speed_25",
+        "half speed": "speed_50",
+        "three quarter speed": "speed_75",
+        "normal speed": "speed_100",
+        "one and a half speed": "speed_150",
+        "double speed": "speed_200",
+        "reset speed": "speed_100",
+        **{f"speed {_spoken} ex": f"speed_{_pct}" for _spoken, _pct in (
+            ("point two five", 25), ("point five", 50), ("point seven five", 75),
+            ("one", 100), ("one point two five", 125), ("one point five", 150),
+            ("one point seven five", 175), ("two", 200))},
     }
-    for _phrase, _pct in _MAIN_PLAYER_SPEED_MULTIPLIERS.items():
-        commands[_phrase] = f"main_player_speed_{_pct}"
-
-    # The literal "speed <n> ex" form: "speed one ex" -> 1x, "speed one point five
-    # ex" -> 1.5x, "speed point two five ex" -> 0.25x — every 0.25 stop.
-    _MAIN_PLAYER_SPEED_SPOKEN: dict[str, int] = {
-        "point two five": 25, "point five": 50, "point seven five": 75,
-        "one": 100, "one point two five": 125, "one point five": 150,
-        "one point seven five": 175, "two": 200,
-    }
-    for _spoken, _pct in _MAIN_PLAYER_SPEED_SPOKEN.items():
-        commands[f"speed {_spoken} ex"] = f"main_player_speed_{_pct}"
-
-    # "reset speed" snaps the video back to 1x.
-    commands["reset speed"] = "main_player_speed_100"
+    for _phrase, _act in _PLAYBACK_SPEEDS.items():
+        commands[_phrase] = f"active_{_act}"
+        for _side, _player in (("portrait", "portrait"), ("landscape", "landscape"),
+                              ("both", "both"), ("main", "main_player")):
+            commands[f"{_side} {_phrase}"] = f"{_player}_{_act}"
+            commands[f"{_phrase} {_side}"] = f"{_player}_{_act}"
 
     # "min speed"/"max speed" drive whichever engine currently owns the OSR2 (the main player's
     # video or Genau's motion); the amp/center extremes above stay Genau-only.
