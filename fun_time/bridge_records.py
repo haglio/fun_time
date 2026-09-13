@@ -2,7 +2,6 @@
 :class:`WindowOp` out — below the dispatcher and its handler modules."""
 from __future__ import annotations
 
-import logging
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
@@ -10,22 +9,10 @@ from pathlib import Path
 from app_support import state_files
 
 from .config import RegenConfig
-from .event_log import FAVORITE, NOTICE, SOURCE_SYSTEM
+from .event_log import NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
 from .player_status import genau_enabled_path
 from .players import Player
-
-# A notice that reports a command had no effect ("No other seeds") is logged at
-# ERROR so the log panel and the on-player flash render it red, not white — the
-# user asked to tell a command that did something from one that hit a dead end at
-# a glance.
-FAILED_NOTICE_LEVEL = logging.ERROR
-
-# The other end of the same trick: a notice about the favorites — locking a clip
-# into them, taking one back out, turning their filter on — is logged a level
-# above NOTICE so it flashes green, which is what green means everywhere in this
-# app.  Everything else a command announces is a plain white NOTICE.
-FAVORITE_NOTICE_LEVEL = FAVORITE
 
 
 @dataclass
@@ -199,5 +186,5 @@ class WindowOp:
     source: str = SOURCE_SYSTEM
     # The log level a ``notice`` op is logged at — NOTICE (white) for a normal
     # confirmation, FAVORITE (green) for one about the favorites or a funscript,
-    # ERROR (red) for a command that hit a dead end.
+    # WARNING (yellow) for a dead end, ERROR (red) for a failure.
     level: int = NOTICE

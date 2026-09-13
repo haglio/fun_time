@@ -10,19 +10,14 @@ from urllib.request import url2pathname
 
 import pytest
 
-from fun_time.bridge_records import (
-    FAILED_NOTICE_LEVEL,
-    FAVORITE_NOTICE_LEVEL,
-    BridgeConfig,
-    WindowOp,
-)
+from fun_time.bridge_records import BridgeConfig, WindowOp
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
     dispatch_command,
     routes_to_origenerator,
 )
-from fun_time.event_log import NOTICE
+from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.loopback_server import omnipause_url
 from fun_time.media_actions import ensure_in_favs
 from fun_time.media_metadata import normalize_path_key
@@ -1090,7 +1085,7 @@ def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
     # At the favorites' own level, so it flashes green: F-mode is the filter over
     # them, and green is what the favorites and the funscripts own.
     assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="system",
-                            level=FAVORITE_NOTICE_LEVEL)]
+                            level=FAVORITE)]
 
 
 def test_fmode_flashes_a_plain_white_notice_when_it_turns_off(tmp_path: Path):
@@ -1113,7 +1108,7 @@ def test_a_sided_fmode_flashes_on_that_players_own_display(tmp_path: Path):
     _state, ops, _mock = _dispatch_fmode("landscape_fmode", _make_state(), config)
 
     assert ops == [WindowOp(op="notice", key="F-Mode enabled", source="landscape",
-                            level=FAVORITE_NOTICE_LEVEL)]
+                            level=FAVORITE)]
 
 
 def test_fmode_passes_each_sides_current_order(tmp_path: Path):
@@ -1297,7 +1292,7 @@ def test_nav_onto_an_axis_with_nowhere_to_go_is_a_dead_end(tmp_path: Path):
 
     assert _cmds(config, 2) == []  # an empty axis: nothing switched
     dead_end = [op for op in ops if op.op == "notice"]
-    assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
+    assert dead_end and dead_end[0].level == logging.WARNING
 
 
 def test_nav_down_from_a_seed_dives_into_that_seeds_own_acts(tmp_path: Path):
@@ -1335,7 +1330,7 @@ def test_nav_down_from_a_seed_with_no_other_acts_is_a_dead_end(tmp_path: Path):
     assert _cmds(config, 2) == []
     assert new_state.side(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the map held still
     dead_end = [op for op in ops if op.op == "notice"]
-    assert dead_end and dead_end[0].level == FAILED_NOTICE_LEVEL
+    assert dead_end and dead_end[0].level == logging.WARNING
 
 
 def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
@@ -1788,11 +1783,11 @@ def test_portrait_cycle_action_notices_when_video_has_no_siblings(tmp_path: Path
     assert _cmds(config, 2) == []
     dead_end = [op for op in ops if op.op == "notice"]
     assert [op.key for op in dead_end] == ["No other actions"]
-    # A command that hit a dead end reads red, not green.
-    assert dead_end[0].level == FAILED_NOTICE_LEVEL == logging.ERROR
+    # A dead end is a warning, so it reads yellow: red is kept for errors.
+    assert dead_end[0].level == logging.WARNING
 
 
-def test_a_successful_cycle_action_notice_is_an_ordinary_green_notice(tmp_path: Path):
+def test_a_successful_cycle_action_notice_is_an_ordinary_white_notice(tmp_path: Path):
     config, paths = _make_grouped_config(tmp_path, {
         "subject_zeta": _cycle_meta("111", "Zeta Massage"),
         "subject_alpha": _cycle_meta("111", "Alpha"),
@@ -1882,7 +1877,7 @@ def test_portrait_cycle_seed_notices_without_seed_siblings(tmp_path: Path):
     assert _cmds(config, 2) == []
     dead_end = [op for op in ops if op.op == "notice"]
     assert [op.key for op in dead_end] == ["No other seeds"]
-    assert dead_end[0].level == FAILED_NOTICE_LEVEL
+    assert dead_end[0].level == logging.WARNING
 
 
 def _scene_meta(*, image_seed: str, quality: str) -> dict:
@@ -1909,7 +1904,7 @@ def test_portrait_cycle_seed_no_longer_auto_widens(tmp_path: Path):
     assert _cmds(config, 2) == []
     dead = [op for op in ops if op.op == "notice"]
     assert [op.key for op in dead] == ["No other seeds"]
-    assert dead[0].level == FAILED_NOTICE_LEVEL
+    assert dead[0].level == logging.WARNING
 
 
 def test_more_seeds_widens_the_display_without_switching_the_video(tmp_path: Path):
@@ -1949,7 +1944,7 @@ def test_more_seeds_dead_ends_when_nothing_else_does_this_act(tmp_path: Path):
     assert state.side(Player.PORTRAIT).widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
-    assert notices[0].level == FAILED_NOTICE_LEVEL
+    assert notices[0].level == logging.WARNING
 
 
 def test_more_seeds_reports_widening_failed_when_the_library_holds_one_clip(tmp_path: Path):
@@ -1962,7 +1957,7 @@ def test_more_seeds_reports_widening_failed_when_the_library_holds_one_clip(tmp_
     assert state.side(Player.PORTRAIT).widen_clip == ""  # nothing widened
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Widening net failed"]
-    assert notices[0].level == FAILED_NOTICE_LEVEL
+    assert notices[0].level == logging.WARNING
 
 
 def test_more_seeds_starts_looping_the_seeds_it_widened(tmp_path: Path):
@@ -2110,7 +2105,7 @@ def test_portrait_wrong_action_strikes_the_act_out_of_the_sidecar(tmp_path: Path
 
 def test_wrong_action_reports_a_dead_end_when_the_clip_has_no_act(tmp_path: Path):
     """A clip nobody has labeled yet has no wrong act to remove — it is already
-    waiting to be named — so the command flashes red like every other dead end."""
+    waiting to be named — so the command flashes yellow like every other dead end."""
     config, paths = _make_grouped_config(tmp_path, {"unlabeled": {"video": {"prompt": "p"}}})
     state = _make_state()
 
@@ -2118,7 +2113,7 @@ def test_wrong_action_reports_a_dead_end_when_the_clip_has_no_act(tmp_path: Path
     _new_state, ops = dispatch_command("portrait_wrong_action", state, config)
 
     assert [(op.key, op.level) for op in ops if op.op == "notice"] == [
-        ("No action to remove", FAILED_NOTICE_LEVEL)
+        ("No action to remove", logging.WARNING)
     ]
     assert "wrong_action" not in _sidecar_video(config, paths["unlabeled"])
 
@@ -3131,7 +3126,7 @@ def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     notices = [op for op in ops if op.op == "notice"]
     assert [op.key for op in notices] == ["Locked"]
     # Green, because a lock puts the clip in the favorites.
-    assert [op.level for op in notices] == [FAVORITE_NOTICE_LEVEL]
+    assert [op.level for op in notices] == [FAVORITE]
 
 
 def test_action_loop_records_the_loop_axis_in_state(tmp_path: Path):
@@ -3973,7 +3968,7 @@ class TestSatellitesModeSwitch:
         config = _make_config(tmp_path)
         state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
         assert state.satellites_mode == "video"
-        assert any(op.op == "notice" and op.level == FAILED_NOTICE_LEVEL for op in ops)
+        assert any(op.op == "notice" and op.level == logging.WARNING for op in ops)
 
     def test_omnipaused_switch_is_state_only(self, tmp_path):
         config = _origenerator_config(tmp_path)
@@ -4298,7 +4293,7 @@ def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):
     assert [op.key for op in condemn_ops] == ["Marked weird"]
     # And in different colors: undoing a favoriting is one of the things green
     # is kept for, condemning a clip that was never a favorite is not.
-    assert [op.level for op in demote_ops] == [FAVORITE_NOTICE_LEVEL]
+    assert [op.level for op in demote_ops] == [FAVORITE]
     assert [op.level for op in condemn_ops] == [NOTICE]
     assert _cmds(config, 2) == ["NEXT", "TRASH"]
     assert not video.exists()

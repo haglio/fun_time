@@ -134,8 +134,8 @@ def notice(logger: logging.Logger, message: str, *, source: str, level: int = NO
     headset (:mod:`fun_time_vr.notices`).
 
     *level* defaults to NOTICE (a normal announcement, white); pass FAVORITE for
-    one about the favorites or a funscript, which reads green, or a louder level
-    (WARNING/ERROR) for a command that failed or hit a dead end, amber and red.
+    one about the favorites or a funscript, which reads green, WARNING for a
+    command that hit a dead end (yellow), or ERROR for a failure (red).
     """
     logger.log(level, message, extra={"source": source})
 

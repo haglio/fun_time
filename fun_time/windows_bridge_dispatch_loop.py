@@ -17,7 +17,7 @@ from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
 from player_core.player_verbs import play_file
 
-from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
+from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import PARK_CMD, write_broker_command
 from .child_log import no_child_log
 from .clipper_save import save_clip_session
@@ -65,7 +65,7 @@ logger = logging.getLogger(__name__)
 # What the main player's own notice levels mean here.  The main player has no palette — it names the kind
 # of thing that happened and this side picks the color, the same way the ops
 # raised in :mod:`fun_time.command_dispatch` do.
-_MAIN_PLAYER_NOTICE_LEVELS = {"error": FAILED_NOTICE_LEVEL, "favorite": FAVORITE}
+_MAIN_PLAYER_NOTICE_LEVELS = {"error": logging.ERROR, "favorite": FAVORITE}
 
 
 
