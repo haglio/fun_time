@@ -280,9 +280,14 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     config.regen_media_root = media_root
     config.regen_metadata_root = metadata_root
     state = _make_state(landscape=SideState(locked=False))
+    from fun_time.content import WebProvider
+
+    providers = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
     _set_current(config, 3, str(video))
-    with patch("fun_time.command_dispatch.ensure_in_favs"):
+    with patch("fun_time.command_dispatch.ensure_in_favs"), patch(
+        "fun_time.command_dispatch.load_web_providers", return_value=providers
+    ):
         new_state, ops = dispatch_command("landscape_lock", state, config)
 
     rfb_ops = [op for op in ops if op.op == "open_rfb_tab"]

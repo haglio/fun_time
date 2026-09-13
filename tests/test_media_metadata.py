@@ -20,7 +20,6 @@ from fun_time.media_metadata import (
     metadata_path_for,
     normalize_path_key,
     path_matches_query,
-    records_no_generation,
     reject_action,
     seed_family_items,
     seed_group_key,
@@ -271,18 +270,6 @@ def test_watch_weight_of_reads_the_stamped_weight_and_defaults_to_one():
     assert watch_weight_of({"video": {"type": "short"}}) == 1.0
     assert watch_weight_of({"watch": "eight"}) == 1.0
     assert watch_weight_of({"watch": {"weight": "heavy"}}) == 1.0
-
-
-def test_records_no_generation_looks_past_the_kind_and_the_watching():
-    assert records_no_generation({"video": {"type": "short"}})
-    assert records_no_generation({
-        "video": {"type": "short"},
-        "watch": {"completions": 1, "skips": 0, "locks": 0, "weight": 1.26},
-        "favorite": True,
-    })
-    assert not records_no_generation({"video": {"type": "short", "prompt": "a prompt"}})
-    assert not records_no_generation({"video": {"type": "short"}, "source_image": {"seed": "1"}})
-    assert not records_no_generation({})
 
 
 def test_build_group_index_reads_each_clips_scene_tags(tmp_path: Path):

@@ -69,21 +69,7 @@ def video_type_of(payload: dict) -> str:
     return EXCERPT if isinstance(payload.get("clip"), dict) else ""
 
 
-# What Evolver stamps on every library video's sidecar, generation or not:
-# the kind, the ``watch`` block summing every app's viewing with the playback
-# weight the shuffled builds use, and a favorite flag.  None of it says how the
-# clip was made, so anything reading a sidecar as evidence of a recorded
-# generation asks :func:`records_no_generation` first.
 WATCH_BLOCK = "watch"
-FAVORITE_FIELD = "favorite"
-_STAMPED_KEYS = frozenset({WATCH_BLOCK, FAVORITE_FIELD})
-
-
-def records_no_generation(payload: dict) -> bool:
-    if set(payload) - _STAMPED_KEYS != {"video"}:
-        return False
-    video = payload["video"]
-    return isinstance(video, dict) and set(video) == {"type"}
 
 
 def watch_weight_of(payload: dict) -> float:
