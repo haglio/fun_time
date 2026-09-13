@@ -20,6 +20,7 @@ import pytest
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
+from player_core.playhead import PlayheadHudPainter, clip_playhead, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import (
     CHIP_H,
@@ -455,14 +456,17 @@ class TestThePanelUnderThePointer:
             target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
             controls=_SlotControls(
-                position=1_000.0, duration=600_000.0, hud=VolumeHud(volume=70, muted=False),
+                position=1_000.0, duration=600_000.0,
+                playhead=video_playhead(1_000.0, 600_000.0, 30.0),
+                hud=VolumeHud(volume=70, muted=False),
                 seek=seeks.append, scrub_duration_ms=600_000.0),
         )
         genau = SimpleNamespace(
             texture=SimpleNamespace(ready=True, aspect=4 / 3),
             # Genau's bar counts frames, and its seek takes the fraction read out.
             controls=_SlotControls(
-                position=5, duration=20, hud=VolumeHud(volume=70, muted=False),
+                position=5, duration=20, playhead=clip_playhead(5, 20),
+                hud=VolumeHud(volume=70, muted=False),
                 seek=seeks.append, scrub_duration_ms=1.0),
             role=SimpleNamespace(
                 console_hud=ConsoleHud(
@@ -588,6 +592,17 @@ class TestThePanelUnderThePointer:
         assert flat.unit._row is None
         assert np.array_equal(
             np.asarray(wrapped.unit._image)[-TIMELINE_HEIGHT:], wrapped.unit._row)
+
+    def test_a_wrapped_videos_row_says_where_that_video_is(self, tmp_path):
+        p = self._unit(tmp_path, wrapped=True)
+
+        p.unit.pump(threading.Event(), 0.0)
+
+        pill = PlayheadHudPainter().bgra(p.primary.controls.playhead)
+        x, y = readout_xy(pill.shape[1], win_w=PANEL_WIDTH_PX, win_h=TIMELINE_HEIGHT,
+                          timeline_h=TIMELINE_HEIGHT)
+        drawn = p.unit._row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
+        assert np.abs(drawn - pill[:, :, [2, 1, 0, 3]]).max() <= 1
 
     def test_a_squeeze_on_the_row_seeks_the_video_the_wrap_is_showing(self, tmp_path):
         p = self._unit(tmp_path, wrapped=True)

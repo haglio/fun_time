@@ -4,6 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 from player_core.volume import (
     CHIP_H,
@@ -152,8 +153,9 @@ class TestTheRowOfItsOwn:
         console, which is itself blended over whatever the wrap is showing."""
         width, height = self._SIZE
 
-        row = paint_row(1_000.0, 10_000.0, VolumeHud(volume=70, muted=False),
-                        VolumeHudPainter(), self._SIZE)
+        row = paint_row(1_000.0, 10_000.0, video_playhead(1_000.0, 10_000.0, 30.0),
+                        VolumeHud(volume=70, muted=False), self._SIZE,
+                        volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
 
         assert row.shape == (height, width, 4)
         assert row[height // 2, bar_track_x(width)[0] + 3, 3] > 0  # the scrubber's track
@@ -167,11 +169,24 @@ class TestTheRowOfItsOwn:
         the eye through a texture, and the swap is the last thing paint_row does."""
         x = bar_track_x(self._SIZE[0])[0] + 3
 
-        row = paint_row(1_000.0, 10_000.0, VolumeHud(), VolumeHudPainter(), self._SIZE)
+        row = paint_row(1_000.0, 10_000.0, None, VolumeHud(), self._SIZE,
+                        volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
         bgra = progress_bar_bgra(1_000.0, 10_000.0, None, self._SIZE[0])
 
         assert row[self._SIZE[1] // 2, x, :3].tolist() == bgra[
             self._SIZE[1] // 2, x, 2::-1].tolist()
+
+    def test_it_shows_where_the_video_is_at_its_left_end(self):
+        width, height = self._SIZE
+        playhead = video_playhead(1_000.0, 10_000.0, 30.0)
+
+        row = paint_row(1_000.0, 10_000.0, playhead, VolumeHud(), self._SIZE,
+                        volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
+
+        pill = PlayheadHudPainter().bgra(playhead)
+        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=height)
+        drawn = row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
+        assert np.abs(drawn - pill[:, :, [2, 1, 0, 3]]).max() <= 1
 
 
 class TestWhichControlAPressLandsOn:
