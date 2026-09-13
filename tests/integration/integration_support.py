@@ -717,6 +717,10 @@ def checkout_project_dirs() -> str:
     return os.pathsep.join(raw.get("paths", {}).get("genau_project_dirs", []))
 
 
+def environment_with_this_checkouts_siblings() -> dict[str, str]:
+    return {**os.environ, "PYTHONPATH": checkout_project_dirs()}
+
+
 def point_the_main_player_at(config: dict, videos_dir: Path) -> None:
     main_player = config.setdefault("main_player", {})
     main_player["videos_dir"] = str(videos_dir)

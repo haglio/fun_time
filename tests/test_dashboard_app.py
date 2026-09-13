@@ -1468,12 +1468,15 @@ def test_the_two_collaborators_that_claim_to_be_qt_free_are():
     import subprocess
     import sys
 
+    from tests.integration.integration_support import environment_with_this_checkouts_siblings
+
     def loads_qt(module: str) -> bool:
         result = subprocess.run(
             [sys.executable, "-c",
              f"import sys, {module}; print(any(m.startswith('PyQt6') for m in sys.modules))"],
             capture_output=True, text=True,
             cwd=str(Path(__file__).resolve().parent.parent),
+            env=environment_with_this_checkouts_siblings(),
         )
         assert result.returncode == 0, result.stderr
         return result.stdout.strip() == "True"
