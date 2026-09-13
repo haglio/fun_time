@@ -2,7 +2,12 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_SIZE_HUD
+from shared_ui.spacing import (
+    BUTTON_GAP,
+    BUTTON_GROUP_GAP,
+    BUTTON_MARK_INSET_HUD,
+    BUTTON_SIZE_HUD,
+)
 
 
 @dataclass(frozen=True)
@@ -22,6 +27,10 @@ class Rect:
     y: int
     width: int
     height: int
+
+
+def mark_side(rect: Rect) -> int:
+    return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET_HUD
 
 
 def add_rect_arguments(parser, *, prefix: str = "") -> None:

@@ -22,7 +22,7 @@ from shared_ui.colors import (
 )
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_SMALL, make_font
 from shared_ui.icons import glyph_pixmap
-from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_RADIUS_HUD
+from shared_ui.spacing import BUTTON_RADIUS_HUD
 
 from fun_time.command_reference import render_reference_html
 from fun_time.config import LayoutConfig
@@ -45,6 +45,7 @@ from fun_time.dashboard_layout import (
     add_rect_arguments,
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
+    mark_side,
     rect_from_arguments,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
@@ -185,8 +186,7 @@ class MarkCache:
         ink = color or COLOR_TEXT
         key = (name, rect.width, rect.height, ink.rgba())
         if key not in self._marks:
-            side = min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET_HUD
-            self._marks[key] = glyph_pixmap(name, side, ink)
+            self._marks[key] = glyph_pixmap(name, mark_side(rect), ink)
         return self._marks[key]
 
 

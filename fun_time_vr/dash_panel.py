@@ -23,14 +23,14 @@ from shared_ui.palette import (
     MAGENTA,
     TEXT_MUTED,
     TEXT_PRIMARY,
+    WHITE,
     hovered,
 )
 from shared_ui.spacing import (
     BUTTON_GAP,
     BUTTON_GROUP_GAP,
-    BUTTON_ICON,
     BUTTON_PAD_H_TIGHT,
-    BUTTON_RADIUS,
+    BUTTON_RADIUS_HUD,
     BUTTON_SIZE_HUD,
 )
 
@@ -42,7 +42,7 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     VOICE_TOGGLE,
 )
-from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
+from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout, mark_side
 from fun_time.event_log import (
     LEVEL_NAMES,
     LEVELS_BY_NAME,
@@ -163,13 +163,16 @@ def dash_height() -> int:
     return _log_top() + LOG_ROWS * _ROW_H + PAD
 
 
-def _slab(draw, rect: Rect, ground, *, border=BORDER_SUBTLE) -> None:
-    """A rounded slab on a subtle edge, the shape the desktop's bar draws."""
+def _slab(draw, rect: Rect, ground, edge) -> None:
     draw.rounded_rectangle(
         (rect.x, rect.y, rect.x + rect.width - 1, rect.y + rect.height - 1),
-        radius=BUTTON_RADIUS, fill=(*ground, 255),
-        outline=None if border is None else (*border, 255),
+        radius=BUTTON_RADIUS_HUD, fill=(*ground, 255), outline=(*edge, 255),
     )
+
+
+def _button(draw, rect: Rect, fill, hover: tuple[int, int] | None) -> None:
+    edge = TEXT_MUTED if fill == BG_BUTTON else fill
+    _slab(draw, rect, hovered(fill) if _on(rect, hover) else fill, edge)
 
 
 def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> None:
@@ -188,7 +191,7 @@ def _arrow_down(size: int) -> Image.Image:
 def _paint_dial(panel, draw, state: DashState, font,
                 hover: tuple[int, int] | None = None) -> None:  # chrome's field
     rect = dial_rect()
-    _slab(draw, rect, hovered(BG_BUTTON) if _on(rect, hover) else BG_BUTTON)
+    _button(draw, rect, BG_BUTTON, hover)
     _label(draw, rect, verbosity_name(state.verbosity), font, TEXT_PRIMARY, left=True)
     panel.alpha_composite(
         _arrow_down(_ARROW_PX),
@@ -204,7 +207,7 @@ def _paint_open_list(draw, state: DashState, font) -> None:
     rects = list(stops.values())
     frame = Rect(rects[0].x, rects[0].y, rects[0].width,
                  rects[-1].y + rects[-1].height - rects[0].y)
-    _slab(draw, frame, BG_TERTIARY, border=BORDER_SUBTLE)
+    _slab(draw, frame, BG_TERTIARY, BORDER_SUBTLE)
     for action, rect in stops.items():
         name = action[len(VERBOSITY_STOP):]
         chosen = LEVELS_BY_NAME[name] == state.verbosity
@@ -216,9 +219,10 @@ def _paint_open_list(draw, state: DashState, font) -> None:
         _label(draw, rect, name, font, TEXT_PRIMARY, left=True)
 
 
-def _chip(draw, rect: Rect, label: str, *, on: bool, font, ground=None) -> None:
-    _slab(draw, rect, ground if ground is not None else (BLUE if on else BG_BUTTON))
-    _label(draw, rect, label, font, TEXT_PRIMARY if on else TEXT_MUTED)
+def _chip(draw, rect: Rect, label: str, *, on: bool, font,
+          hover: tuple[int, int] | None) -> None:
+    _button(draw, rect, BLUE if on else BG_BUTTON, hover)
+    _label(draw, rect, label, font, WHITE if on else TEXT_PRIMARY)
 
 
 def _on(rect: Rect, point: tuple[int, int] | None) -> bool:  # is the ray on it
@@ -231,9 +235,6 @@ def _on(rect: Rect, point: tuple[int, int] | None) -> bool:  # is the ray on it
 def paint_dash(state: DashState, records,
                hover: tuple[int, int] | None = None) -> Image.Image:
     """The bar, the filter row, the log rows, the dial; *hover* lights one."""
-    def ground(rect: Rect, color):
-        return hovered(color) if _on(rect, hover) else color
-
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
@@ -255,8 +256,8 @@ def paint_dash(state: DashState, records,
     for action, mark in marks.items():
         rect = actions[action]
         color, on = grounds.get(action, (BG_BUTTON, False))
-        _slab(draw, rect, ground(rect, color if on else BG_BUTTON))
-        size = min(BUTTON_ICON, min(rect.width, rect.height))
+        _button(draw, rect, color if on else BG_BUTTON, hover)
+        size = mark_side(rect)
         panel.alpha_composite(
             glyph_image(mark, size, MAGENTA if action == FMODE_TOGGLE else TEXT_PRIMARY),
             (rect.x + (rect.width - size) // 2, rect.y + (rect.height - size) // 2),
@@ -265,8 +266,7 @@ def paint_dash(state: DashState, records,
     _paint_dial(panel, draw, state, small, hover=hover)
     for source, rect in source_chips().items():
         on = source in state.sources
-        _chip(draw, rect, SOURCE_LABELS[source], on=on,
-              font=small, ground=ground(rect, BLUE if on else BG_BUTTON))
+        _chip(draw, rect, SOURCE_LABELS[source], on=on, font=small, hover=hover)
 
     rows = [r for r in records if state.accepts(r)][-LOG_ROWS:]
     for index, record in enumerate(rows):
