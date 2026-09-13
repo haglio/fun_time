@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import logging
+import os
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -1169,10 +1170,12 @@ class TestKeepingTheHostedApp:
 
 def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
                    env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
-                   at_cover_up=lambda: None, asked_to_end: bool = False):
+                   at_cover_up=lambda: None, asked_to_end: bool = False,
+                   overrides: dict | None = None,
+                   launches: dict[str, dict] | None = None):
     from fun_time.session_end import SESSION_END_MARKER
 
-    cfg = load_config(cfg_factory())
+    cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
@@ -1192,6 +1195,8 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
     fake_overlay_proc.wait.return_value = 0
 
     def fake_popen(cmd, **kwargs):
+        if launches is not None:
+            launches[" ".join(map(str, cmd))] = kwargs
         for module, progress in (
             ("closing_screen", state_dir / SHUTDOWN_PROGRESS_FILENAME),
             ("transition_screen", crossing_progress_path(state_dir)),
@@ -1413,6 +1418,21 @@ class TestClosingScreenLifecycle:
                        env=SessionEnvironment(integration=True, show_overlays=False))
 
         assert "cover_up" not in events
+
+    @pytest.mark.parametrize("cover", ["loading_screen", "closing_screen", "transition_screen"])
+    def test_a_cover_runs_the_sibling_checkouts_the_session_names(
+        self, cfg_factory, tmp_path, cover,
+    ):
+        sibling = tmp_path / "sibling_checkout"
+        sibling.mkdir()
+        launches: dict[str, dict] = {}
+
+        _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
+                       crossing=VR if cover == "transition_screen" else None,
+                       overrides={"paths": {"genau_project_dirs": [str(sibling)]}})
+
+        (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
+        assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
 
 
 @pytest.mark.real_startup_waits

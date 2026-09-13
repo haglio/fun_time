@@ -19,6 +19,7 @@ from fun_time.closing_screen import WINDOW_TITLE
 from fun_time.overlay_progress import SHUTDOWN_PROGRESS_FILENAME, ready_file_for
 from fun_time.win32 import find_window_by_title
 from fun_time.windows_bridge_orchestrator import _closing_screen
+from tests.integration.integration_support import checkout_project_dirs
 
 pytestmark = [
     # The cover is a real window on a real desktop, and the wait for it is the
@@ -39,7 +40,8 @@ def test_the_real_cover_is_on_screen_for_the_whole_teardown(tmp_path: Path):
     state_dir = tmp_path / "state"
     state_dir.mkdir()
 
-    with _closing_screen(state_dir, enabled=True) as progress:
+    with _closing_screen(state_dir, enabled=True,
+                         project_dirs=checkout_project_dirs()) as progress:
         assert find_window_by_title(WINDOW_TITLE, exact=True), (
             "the cover was not on screen when teardown was let go"
         )
