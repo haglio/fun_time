@@ -107,11 +107,13 @@ class FurniturePointer:
         self, *, seek: Callable[[float], None], mute: Callable[[bool], None] | None = None,
         set_volume: Callable[[int], None] | None = None,
         picture: Callable[[], None] | None = None,
+        picture_on_screen: Callable[[], bool] = lambda: False,
     ) -> None:
         self._seek = seek
         self._mute = mute
         self._set_volume = set_volume
         self._picture = picture
+        self._picture_on_screen = picture_on_screen
         self._holding = ""
         self._asked = -1
 
@@ -120,6 +122,8 @@ class FurniturePointer:
     ) -> None:
         self.release()
         part = furniture_at(u, v, size=size)
+        if part == SCRUBBER and self._picture_on_screen():
+            part = None
         if part == SCRUBBER:
             self._holding = SCRUBBER
             self._seek(scrub_at(u, v, size=size, duration_ms=duration_ms))
