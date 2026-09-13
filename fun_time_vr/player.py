@@ -48,6 +48,7 @@ from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.genau_notifier import GenauNotifier
+from player_core.playhead import PlayheadHud, PlayheadHudPainter, clip_playhead, video_playhead
 from player_core.playlist import read_playlist
 from player_core.render_player import MpvRenderPlayer
 from player_core.status import StatusWriter
@@ -298,6 +299,7 @@ def _wraps_the_viewer(role) -> bool:
 class _SlotControls:  # what the row shows and does, said by the player in the slot
     position: float
     duration: float
+    playhead: PlayheadHud | None
     hud: VolumeHud
     seek: Callable[[float], None]
     scrub_duration_ms: float  # 1.0 for Genau, which counts frames and seeks by fraction
@@ -467,6 +469,8 @@ class _MainUnit(_VideoUnit):
     def controls(self) -> _SlotControls:
         return _SlotControls(
             position=self.role.position_ms, duration=self.role.duration_ms,
+            playhead=video_playhead(
+                self.role.position_ms, self.role.duration_ms, self.player.frame_rate),
             hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
             seek=self.role.seek_to, scrub_duration_ms=self.role.duration_ms,
         )
@@ -752,7 +756,7 @@ class _GenauUnit:
     def controls(self) -> _SlotControls:
         played, of = self.role.playhead
         return _SlotControls(
-            position=played, duration=of,
+            position=played, duration=of, playhead=clip_playhead(played, of),
             hud=VolumeHud(volume=self.role.volume, muted=self.role.muted),
             seek=self.role.seek, scrub_duration_ms=1.0,
         )
@@ -862,6 +866,7 @@ class _PanelUnit:
         self._notices = notices
         self._painter = panel_painter()
         self._row_painter = VolumeHudPainter()
+        self._readout_painter = PlayheadHudPainter()
         self._post = lambda command: append_command(dashboard_cmd_file, command)
         self._pointer = PanelPointer(self._painter, post=self._post)
         self._furniture = FurniturePointer(
@@ -948,8 +953,9 @@ class _PanelUnit:
             return
         if row_key != self._row_key:
             self._row = None if row_key is None else paint_row(
-                self._controls.position, self._controls.duration, self._controls.hud,
-                self._row_painter, (PANEL_WIDTH_PX, TIMELINE_HEIGHT))
+                self._controls.position, self._controls.duration, self._controls.playhead,
+                self._controls.hud, (PANEL_WIDTH_PX, TIMELINE_HEIGHT),
+                volume_painter=self._row_painter, readout_painter=self._readout_painter)
         image = paint_panel(self._painter, hud, hover=hover, notices=lines, row=self._row)
         self._pointer.painted(
             image.size, strip_height=0 if slot is not None else NOTICE_STRIP_HEIGHT)
@@ -963,7 +969,7 @@ class _PanelUnit:
             return None
         size = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
         return (scrubber_state(*size, controls.position, controls.duration),
-                chip_state(*size, controls.hud))
+                controls.playhead, chip_state(*size, controls.hud))
 
     def render_latest_frame(self) -> None:
         with self._lock:
