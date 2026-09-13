@@ -56,6 +56,14 @@ class MainPlayerStatus(PlayerStatus):
     # exactly where the picture drew the blue ending.  None when there is no
     # chosen touch (a raised floor takes the ramp and flips at once).
     handoff_touch_ms: int | None = None
+    # The video's place in the library, as only the main player knows it; the
+    # console's buttons for these are lit from here, dim from a player that
+    # says nothing.
+    length_mode: str = ""
+    compilation: str = ""
+    has_compilation: bool = False
+    has_other_versions: bool = False
+    jump_to: str = ""
 
     @property
     def funscript_driving(self) -> bool:
@@ -107,6 +115,11 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
             handoff_touch_ms=_status_touch(values),
+            length_mode=values.get("length_mode", "").strip(),
+            compilation=values.get("compilation", "").strip(),
+            has_compilation=_status_bool(values, "has_compilation"),
+            has_other_versions=_status_bool(values, "has_other_versions"),
+            jump_to=values.get("jump_to", "").strip(),
         )
     except (OSError, ValueError):
         return fallback or MainPlayerStatus()

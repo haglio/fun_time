@@ -8,11 +8,26 @@ which FunTimeVR's main role keeps in step.
 """
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
 
-def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
+@dataclass(frozen=True)
+class LibraryStatus:
+    """The video's place in the library, as only this player knows it; Fun
+    Time lights the console's buttons for these from what is published."""
+
+    length_mode: str = ""
+    compilation: str = ""
+    has_compilation: bool = False
+    has_other_versions: bool = False
+    jump_to: str = ""
+
+
+def status_fields(session, handoff_touch_ms: int | None, *,
+                  library: LibraryStatus | None = None) -> dict[str, str]:
     """Everything the main player publishes about itself, in the order it is written.
 
     *handoff_touch_ms* is the touch-down the trace has chosen for the boundary
@@ -22,6 +37,7 @@ def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
     publish an empty field on every tick, and the arbiter would go on ending
     Genau's turn wherever its own read of the wave put it.
     """
+    library = library or LibraryStatus()
     loop_in_ms, loop_out_ms = session.loop_bounds or (0, 0)
     return {
         # Whether the video repeats rather than ending is the main player's own
@@ -51,4 +67,9 @@ def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
         # when the trace has chosen none: zero is a real media time, and the
         # arbiter reading one would end the turn at the top of the video.
         "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
+        "length_mode": library.length_mode,
+        "compilation": library.compilation,
+        "has_compilation": "1" if library.has_compilation else "0",
+        "has_other_versions": "1" if library.has_other_versions else "0",
+        "jump_to": library.jump_to,
     }

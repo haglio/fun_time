@@ -17,7 +17,7 @@ import pytest
 
 from main_player.cli import build_parser
 from main_player.controls import apply_command
-from main_player.status import status_fields
+from main_player.status import LibraryStatus, status_fields
 
 
 class StubSession:
@@ -47,9 +47,16 @@ class FakeGate:
         return self.touch
 
 
-def _writer(args, gate):
+class FakeModes:
+    """What the status file asks of the modes: the video's place in the library."""
+
+    def __init__(self, library: LibraryStatus | None = None) -> None:
+        self.library_status = library or LibraryStatus()
+
+
+def _writer(args, gate, modes=None):
     from main_player.app import _status_writer
-    return _status_writer(args, gate)
+    return _status_writer(args, gate, modes or FakeModes())
 
 
 def _args(status_file: Path):
@@ -89,6 +96,24 @@ class TestTheStatusFileMainPlayerPublishes:
         writer.write(StubSession())
 
         assert "handoff_touch_ms=\n" in status.read_text(encoding="utf-8")
+
+    def test_a_status_carries_the_videos_place_in_the_library_as_the_modes_say_it(self, tmp_path):
+        """Asked of the modes as the status is written, like the touch: the
+        compilation and the versions move under the player, and Fun Time lights
+        the console's buttons off what is published."""
+        status = tmp_path / "main_player_status.txt"
+        modes = FakeModes()
+        writer = _writer(_args(status), FakeGate(), modes)
+
+        modes.library_status = LibraryStatus(length_mode="shorts", compilation="Vol 3",
+                                             has_compilation=True, jump_to="scene")
+        writer.write(StubSession())
+
+        text = status.read_text(encoding="utf-8")
+        assert "length_mode=shorts\n" in text
+        assert "compilation=Vol 3\n" in text
+        assert "has_compilation=1\n" in text
+        assert "jump_to=scene\n" in text
 
 def _run_body() -> ast.FunctionDef:
     """`_run`'s syntax tree.
