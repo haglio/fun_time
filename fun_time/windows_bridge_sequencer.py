@@ -36,6 +36,7 @@ from .satellite_slot import SatelliteSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .shortcuts import resolve_shortcut
+from .standalone_origenerator import take_it_over, the_open_origenerator
 from .win32 import (
     disable_window_transitions,
     find_windows_by_class,
@@ -66,6 +67,7 @@ from .windows_bridge_startup import (
     launch_origenerator,
     launch_ui_companions,
     origenerator_interpreter,
+    origenerator_session_args,
     start_core_session,
 )
 
@@ -560,43 +562,53 @@ def _launch_the_hosted_origenerator(
     up once this app's status file says it has arrived.
     """
     origenerator_dir = m.runtime.origenerator_dir.strip()
-    origenerator_pid = 0
-    adopted = _adopt_a_kept_origenerator(m) if origenerator_dir else 0
+    if not origenerator_dir:
+        return 0
+    adopted = _adopt_a_kept_origenerator(m)
     if adopted:
         launched.pids.append(adopted)
         return adopted
-    if origenerator_dir:
-        # A "1" a prior OmniPause stranded opens every show frozen while the
-        # room runs, and an unread verb lands on this session: the app reads
-        # both on its first tick, and a room never opens paused.
-        write_flag_file(m.commands.origenerator_paused_file, False)
-        origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
-        origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
-        origenerator_cmd_file.write_text("", encoding="utf-8")
-        # And the status file: last session's answers the readiness wait before
-        # this app has drawn anything.
-        Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
-        players = _the_players_it_is_handed(m)
-        for player in players.values():
-            # Last session's panels, which would put a show that is not
-            # running on a side the moment the mode is entered.
-            Path(player.hud_file).unlink(missing_ok=True)
+    # A "1" a prior OmniPause stranded opens every show frozen while the
+    # room runs, and an unread verb lands on this session: the app reads
+    # both on its first tick, and a room never opens paused.
+    write_flag_file(m.commands.origenerator_paused_file, False)
+    origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
+    origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+    origenerator_cmd_file.write_text("", encoding="utf-8")
+    # And the status file: last session's answers the readiness wait before
+    # this app has drawn anything.
+    Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
+    players = _the_players_it_is_handed(m)
+    for player in players.values():
+        # Last session's panels, which would put a show that is not
+        # running on a side the moment the mode is entered.
+        Path(player.hud_file).unlink(missing_ok=True)
+    contract = dict(
+        layout_plan=plan,
+        command_file=m.commands.origenerator_cmd_file,
+        paused_file=m.commands.origenerator_paused_file,
+        status_file=m.commands.origenerator_status_file,
+        dashboard_cmd_file=m.commands.dashboard_cmd_file,
+        players=players,
+    )
+    origenerator_pid = the_open_origenerator(origenerator_dir)
+    if origenerator_pid:
+        take_it_over(origenerator_dir, pid=origenerator_pid,
+                     args=origenerator_session_args(**contract))
+        logger.info("Took over the Origenerator already open from %s (pid %d)",
+                    origenerator_dir, origenerator_pid)
+    else:
         origenerator_pid = launch_origenerator(
             python_exe=(m.executables.origenerator_python_exe.strip()
                         or origenerator_interpreter(origenerator_dir)),
             origenerator_dir=origenerator_dir,
-            layout_plan=plan,
-            command_file=m.commands.origenerator_cmd_file,
-            paused_file=m.commands.origenerator_paused_file,
-            status_file=m.commands.origenerator_status_file,
-            dashboard_cmd_file=m.commands.dashboard_cmd_file,
-            players=players,
             # It imports player_core too (the shows' HUD is the players'
             # shared one), so a named checkout reaches it like everyone else.
             project_dirs=project_dirs,
+            **contract,
         )
-        launched.pids.append(origenerator_pid)
         logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
+    launched.pids.append(origenerator_pid)
     return origenerator_pid
 
 

@@ -16,6 +16,7 @@ machine's one ComfyUI, GPU queue, or gallery database — the same reason
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import textwrap
 import time
@@ -42,7 +43,7 @@ from fun_time.win32 import (
     wait_for_window_by_title,
     windows_obscuring,
 )
-from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows
+from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows, kill_process_tree
 from fun_time.windows_bridge_sequencer import StartupResult
 from fun_time.windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
@@ -75,11 +76,15 @@ pytestmark = [
 # the app is up: a stub that stayed silent there would leave origenerator mode
 # closed for the whole run.  Its shows are the real app's shape too: a list
 # written for each player it was handed, the verb that makes that player read
-# it, and a panel for the session to put on the player.
+# it, and a panel for the session to put on the player.  Launched without
+# --fun-time it opens on its own, as he opens the real one, offers itself to a
+# session and answers a takeover.
 _STUB_MAIN = textwrap.dedent(
     """
     import argparse
     import ctypes
+    import json
+    import os
     import tkinter as tk
     from ctypes import wintypes
     from pathlib import Path
@@ -92,6 +97,7 @@ _STUB_MAIN = textwrap.dedent(
     PICTURES = Path(__file__).resolve().parent.parent / "pictures"
 
     parser = argparse.ArgumentParser()
+    parser.add_argument("--fun-time", action="store_true")
     for flag in ("--x", "--y", "--width", "--height"):
         parser.add_argument(flag, type=int, default=0)
     parser.add_argument("--command-file")
@@ -105,6 +111,9 @@ _STUB_MAIN = textwrap.dedent(
     root.withdraw()  # the main window arrives only after the "boot"
 
     booted = False
+    state_dir = Path(__file__).resolve().parent.parent / "state"
+    offer = state_dir / "fun_time_offer.txt"
+    takeover = state_dir / "fun_time_takeover.json"
 
     user32 = ctypes.WinDLL("user32")
     user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
@@ -117,13 +126,8 @@ _STUB_MAIN = textwrap.dedent(
                             max(args.width, 120), max(args.height, 80),
                             0x0014)  # SWP_NOZORDER | SWP_NOACTIVATE
 
-    splash = tk.Toplevel(root)
-    splash.title("Origenerator")  # the caption twin the session must survive
-    splash.geometry("200x80+10+10")
-
-    def finish_boot():
+    def park_as_hosted():
         global booted
-        splash.destroy()
         root.title("Origenerator")
         root.geometry(
             f"{max(args.width, 120)}x{max(args.height, 80)}+{args.x}+{args.y}")
@@ -139,6 +143,48 @@ _STUB_MAIN = textwrap.dedent(
     def handed(side, name):
         value = getattr(args, f"{side}_{name}")
         return Path(value) if value else None
+
+    def this_process_created_at():
+        kernel32 = ctypes.windll.kernel32
+        kernel32.GetCurrentProcess.restype = wintypes.HANDLE
+        kernel32.GetProcessTimes.argtypes = (
+            [wintypes.HANDLE] + [ctypes.POINTER(wintypes.FILETIME)] * 4)
+        times = [wintypes.FILETIME() for _ in range(4)]
+        kernel32.GetProcessTimes(kernel32.GetCurrentProcess(),
+                                 *[ctypes.byref(t) for t in times])
+        return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
+
+    def answer_a_takeover():
+        global args
+        if booted or not takeover.exists():
+            return
+        try:
+            asked = json.loads(takeover.read_text(encoding="utf-8"))
+            takeover.unlink()
+        except (OSError, ValueError):
+            return
+        if asked.get("pid") != os.getpid():
+            return
+        offer.unlink(missing_ok=True)
+        args, _unused = parser.parse_known_args(asked["args"])
+        park_as_hosted()
+
+    if args.fun_time:
+        splash = tk.Toplevel(root)
+        splash.title("Origenerator")  # the caption twin the session must survive
+        splash.geometry("200x80+10+10")
+
+        def finish_boot():
+            splash.destroy()
+            park_as_hosted()
+
+        root.after(3000, finish_boot)
+    else:
+        root.title("Origenerator")
+        root.geometry("640x480+40+40")
+        root.deiconify()
+        state_dir.mkdir(parents=True, exist_ok=True)
+        offer.write_text(f"{os.getpid()} {this_process_created_at()}", encoding="utf-8")
 
     def open_shows():
         for side in SIDES:
@@ -168,6 +214,7 @@ _STUB_MAIN = textwrap.dedent(
             "".join(f"{line}\\n" for line in lines), encoding="utf-8")
 
     def poll():
+        answer_a_takeover()
         command_file = Path(args.command_file) if args.command_file else None
         if command_file is not None and command_file.exists():
             try:
@@ -186,7 +233,6 @@ _STUB_MAIN = textwrap.dedent(
         publish_status()
         root.after(150, poll)
 
-    root.after(3000, finish_boot)
     root.after(150, poll)
     root.mainloop()
     """
@@ -217,6 +263,11 @@ def _host_stub(config_path: Path, stub_root: Path) -> None:
     config_path.write_text(json.dumps(raw), encoding="utf-8")
 
 
+def _parked_main_window(pid: int) -> int:
+    hwnd = find_window_for_process(pid, "Origenerator")
+    return hwnd if hwnd and is_window_minimized(hwnd) else 0
+
+
 @pytest.fixture(scope="module")
 def hosted_session():
     """A real session hosting the stub app, plus that app's main HWND.
@@ -239,11 +290,8 @@ def hosted_session():
         # wears the same caption but is a normal visible window.
         deadline = time.monotonic() + 20.0
         hwnd = 0
-        while time.monotonic() < deadline:
-            hwnd = find_window_for_process(pid, "Origenerator")
-            if hwnd and is_window_minimized(hwnd):
-                break
-            hwnd = 0
+        while not hwnd and time.monotonic() < deadline:
+            hwnd = _parked_main_window(pid)
             time.sleep(0.2)
         stderr_file = session.config.paths.state_dir / "orchestrator_stderr.log"
         stderr_tail = stderr_file.read_text(encoding="utf-8", errors="replace")[-2000:] \
@@ -466,3 +514,36 @@ def _panel_of(hud_file: Path, player: Player):
         return None
     panel = parse_hud(hud_file.read_text(encoding="utf-8"))
     return panel if panel is not None and panel.lock_label == f"Stub {player.label} show" else None
+
+
+def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doubled():
+    temp_root = build_integration_temp_root()
+    stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
+    config_path = build_integration_config(temp_root)
+    _host_stub(config_path, stub_root)
+    # By path rather than -m: a session's start reaps every `-m origenerator`
+    # an earlier run left on this desktop, and this one is meant to be open.
+    open_app = subprocess.Popen(
+        [sys.executable, str(stub_root / "origenerator" / "__main__.py")], cwd=str(stub_root))
+    session = FunTimeIntegrationSession(config_path)
+    try:
+        offer = stub_root / "state" / "fun_time_offer.txt"
+        # The pid the app names for itself, not the Popen's: a venv's python.exe
+        # is a launcher, and the app is the interpreter it starts.
+        offered_pid = int(_wait(lambda: offer.exists() and offer.read_text(
+            encoding="utf-8").split(), timeout=20, desc="the open app to offer itself")[0])
+        session.start()
+
+        assert session.read_child_pids().get("origenerator_pid") == offered_pid
+        hwnd = _wait(lambda: _parked_main_window(offered_pid),
+                     timeout=20, desc="the open app's window to be parked by the takeover")
+        session.write_dashboard_command("origenerator_activate")
+        session.wait_for_log("Satellites switched to origenerator mode")
+        _wait(lambda: not is_window_minimized(hwnd),
+              timeout=10, desc="the taken-over window to be restored")
+        _wait(lambda: is_window_topmost(hwnd),
+              timeout=10, desc="the taken-over window to join the topmost band")
+    finally:
+        session.stop()
+        kill_process_tree(open_app.pid)
+        retire_temp_root(temp_root)
