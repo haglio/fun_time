@@ -1453,6 +1453,37 @@ class TestStartupCancellation:
         # reveal, so no dispatch loop was ever started to publish what it warmed.
         mock_priming.assert_called_once()
 
+    def test_a_session_that_fails_while_opening_takes_down_everything_it_launched(
+        self, cfg_factory, tmp_path,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        killed: list[int] = []
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=killed.append), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner",
+                   side_effect=TypeError("a caller the last refactor missed")), \
+             pytest.raises(TypeError):
+            run_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert set(killed) == {200, 300, 400, 500, 600, 700, 800}
+        assert (state_dir / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+
     def test_stale_cancel_flag_is_cleared_before_startup(self, cfg_factory, tmp_path):
         """A cancel flag left over from a previous session must not abort this
         one — it is cleared before the loading screen launches."""
