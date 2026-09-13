@@ -623,7 +623,7 @@ class _SatelliteUnit(_VideoUnit):
             placement,
         )
         commands = manifest.commands
-        self.player = player
+        self.player_name = player
         self.notice_screen = player  # its notices flash over its own picture
         self._notices = notices
         self.cmd_file = Path(commands.player_file(player, "cmd"))
@@ -1398,7 +1398,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _unit_name(unit: object) -> str:
-    player = getattr(unit, "player", "")
+    player = getattr(unit, "player_name", "")
     return f"{type(unit).__name__}[{player}]" if player else type(unit).__name__
 
 
@@ -1598,9 +1598,9 @@ def _panes(
     for unit in satellites:
         if not unit.target.ready:
             continue
-        hud = (Screen(hud_screen_name(unit.player), unit.hud_screen.placement,
+        hud = (Screen(hud_screen_name(unit.player_name), unit.hud_screen.placement,
                       unit.hud_texture.aspect, pressable=True),) if unit.hud_ready else ()
-        panes.append(Pane((Screen(unit.player, unit.screen.placement, unit.target.aspect,
+        panes.append(Pane((Screen(unit.player_name, unit.screen.placement, unit.target.aspect,
                                   movable=True, resizable=True, pressable=True,
                                   picture=True), *hud)))
     if panel.texture.ready:  # pressed, never dragged: it rides on what is above it
@@ -1633,8 +1633,8 @@ def _flat_draws(
                 DASH: (dash.screen, dash.texture, True),
                 REFERENCE: (reference.screen, reference.texture, True)}
     for unit in satellites:
-        pictures[unit.player] = (unit.screen, unit.target, False)
-        pictures[hud_screen_name(unit.player)] = (unit.hud_screen, unit.hud_texture, True)
+        pictures[unit.player_name] = (unit.screen, unit.target, False)
+        pictures[hud_screen_name(unit.player_name)] = (unit.hud_screen, unit.hud_texture, True)
     return [(hanging.mesh, picture.texture, blend)
             for hanging, picture, blend in (pictures[screen.name] for screen in screens
                                             if not screen.immersive and screen.name not in as_quads)
@@ -1850,7 +1850,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
     units = [main_unit, genau, *satellites, dash, panel, reference, cover]  # dash first:
     pumped = [notices, *units, keeper, posts]  # the console hangs off where it ended up
-    hanging = {unit.player: (unit.screen,) for unit in satellites} | {
+    hanging = {unit.player_name: (unit.screen,) for unit in satellites} | {
         MAIN: (main_unit.screen, genau.screen), DASH: (dash,)}
     pointer = Pointer(on_its_controls=on_its_controls)
     thumbs = Thumbs()
@@ -1996,7 +1996,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         )
                         if quad is not None:
                             quads.append(quad)
-                            as_quads.add(MAIN if unit is main_unit else unit.player)
+                            as_quads.add(MAIN if unit is main_unit else unit.player_name)
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(

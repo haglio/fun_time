@@ -1728,7 +1728,7 @@ class TestWhatThePointerCanReach:
 def _a_satellite(player: str, *, hud: bool = False):
     placement = DEFAULT_LAYOUT[player]
     return SimpleNamespace(
-        player=player, target=SimpleNamespace(ready=True, aspect=16 / 9),
+        player_name=player, target=SimpleNamespace(ready=True, aspect=16 / 9),
         screen=SimpleNamespace(placement=placement), hud_ready=hud,
         hud_screen=SimpleNamespace(placement=attached_below(
             placement, aspect=16 / 9, width_deg=20.0, hanging_aspect=6.0)),
