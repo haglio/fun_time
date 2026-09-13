@@ -14,6 +14,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from player_core.playlist import PlaylistItem
+
 logger = logging.getLogger(__name__)
 
 
@@ -66,6 +68,9 @@ class ClipJumps:
             )
         return self._reachable
 
+    def _item(self, video: Path) -> PlaylistItem:
+        return PlaylistItem(video, self._funscripts.get(video))
+
     def resume(self, compilation: str, video: Path | None) -> None:
         """Come back to *video* inside *compilation*, when the two still agree.
 
@@ -81,7 +86,7 @@ class ClipJumps:
             return
         if self._nav.compilation_of(video) != compilation:
             return
-        self._session.play_file(video, self._funscripts.get(video))
+        self._session.play_file(self._item(video))
         self._enter(video)
 
     def leave_compilation(self) -> None:
@@ -90,7 +95,7 @@ class ClipJumps:
         compilation is no longer what is on screen."""
         self._compilation = ""
 
-    def end_compilation(self, playlist: list[tuple[Path, Path | None]]) -> None:
+    def end_compilation(self, playlist: list[PlaylistItem]) -> None:
         """Leave the compilation for *playlist*, without interrupting the video.
 
         Leaving is about what "next" will reach, not about what is playing, so
@@ -102,12 +107,12 @@ class ClipJumps:
             return
         self._compilation = ""
         current = self._session.current_video
-        if current not in {video for video, _fs in playlist}:
+        if current not in {item.path for item in playlist}:
             # A quarter of a compilation's clips are non-canonical versions of
             # their group, so the mode's own playlist does not carry them.
             # Letting one of those fall out would make leaving yank the video
             # away, which is the one thing leaving must not do.
-            playlist = [(current, self._funscripts.get(current)), *playlist]
+            playlist = [self._item(current), *playlist]
         self._session.replace_playlist(playlist)
 
     def play_compilation(self) -> None:
@@ -128,9 +133,7 @@ class ClipJumps:
         siblings = self._nav.compilation_playlist(current)
         if not siblings:
             return False
-        self._session.replace_playlist(
-            [(video, self._funscripts.get(video)) for video in siblings]
-        )
+        self._session.replace_playlist([self._item(video) for video in siblings])
         self._compilation = self._nav.compilation_of(current)
         return True
 
@@ -152,5 +155,5 @@ class ClipJumps:
             logger.info("%s: nothing matches %s", what, self._session.current_video.name)
             self._notices.say(f"{what} not available", level="warning")
             return
-        self._session.play_file(target, self._funscripts.get(target))
+        self._session.play_file(self._item(target))
         self._notices.say(what, level="notice")

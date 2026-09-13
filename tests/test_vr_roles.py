@@ -33,6 +33,11 @@ class FakePlayer:
         # loop_file — the option the real one is constructed with.
         self.loop_file = True
         self.eof = False
+        self.paces: list[float] = []
+        self.showing_picture = False
+
+    def set_pace(self, seconds: float) -> None:
+        self.paces.append(seconds)
 
     def load(self, path: Path) -> None:
         self.loaded.append(Path(path))
@@ -178,6 +183,19 @@ class TestPlaybackVerbs:
         assert player.speed == MIN_SPEED
         role.apply_command("SET_SPEED 1.5", on_quit=_never_quits)
         assert player.speed == 1.5
+
+    def test_set_pace_is_how_long_a_picture_holds_the_headset_screen(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+
+        assert role.apply_command("SET_PACE 2.5", on_quit=_never_quits) is True
+        assert player.paces == [2.5]
+
+    def test_the_status_says_when_the_headset_screen_shows_a_picture(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+
+        player.showing_picture = True
+
+        assert role.status_fields(None)["picture"] == "1"
 
     def test_set_volume_carries_level_and_mute_once_audio_is_live(self, role_parts):
         role, player = role_parts.role, role_parts.player
@@ -386,6 +404,17 @@ class TestTCode:
         role.tick(now=1.1)
 
         assert driver.updates or driver.parks
+
+    def test_unpausing_a_still_picture_drives_the_device_at_once(self, role_parts):
+        role, driver, player = role_parts.role, role_parts.driver, role_parts.player
+        role.apply_command("NEXT", on_quit=_never_quits)  # scene two: no funscript
+        player.showing_picture = True
+        role.set_paused(True)
+        role.set_paused(False)
+
+        role.tick(now=1.0)
+
+        assert driver.parks == 1
 
     def test_a_picture_that_has_moved_once_is_not_asked_again(self, role_parts):
         """The gate is the resume's own edge, not a per-tick liveness check: a

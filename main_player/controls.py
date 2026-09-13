@@ -39,12 +39,14 @@ from player_core.player_verbs import (
     SEEK_BACK,
     SEEK_FWD,
     SET_F_MODE,
+    SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
     SET_VOLUME,
     SPEED_DOWN,
     SPEED_UP,
     TOGGLE_LOCK,
+    pace_seconds,
 )
 from player_core.playlist import item_from_line
 
@@ -195,7 +197,7 @@ def _play_file(controls: MainPlayerControls, value: str) -> bool:
     item = item_from_line(value)
     if item is None:
         return False
-    controls.session.play_file(item.path, item.funscript)
+    controls.session.play_file(item)
     return True
 
 
@@ -300,6 +302,14 @@ def _quit(controls: MainPlayerControls, _value: str) -> bool:
     return True
 
 
+def _set_pace(controls: MainPlayerControls, value: str) -> bool:
+    seconds = pace_seconds(value)
+    if seconds is None:
+        return False
+    controls.session.set_pace(seconds)
+    return True
+
+
 # One entry per thing a person can move.  Add a control by adding a record here;
 # nothing else in the app needs to learn its name.
 CONTROLS: tuple[Control, ...] = (
@@ -307,6 +317,7 @@ CONTROLS: tuple[Control, ...] = (
         name="playlist_position",
         verbs=(Verb(NEXT, _stepper(1)), Verb(PREV, _stepper(-1))),
     ),
+    Control(name="pace", verbs=(Verb(SET_PACE, _set_pace, takes_a_value=True),)),
     Control(
         name="playhead",
         verbs=(

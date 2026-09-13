@@ -50,7 +50,7 @@ class Pointer:
                 return
             if on_readout(mx, my, win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT):
                 return
-            if my >= win_h - TIMELINE_HEIGHT:
+            if my >= win_h - TIMELINE_HEIGHT and not self._session.showing_picture:
                 self._session.seek_to(
                     time_at(mx, win_w=win_w, duration_ms=self._session.duration_ms))
                 return

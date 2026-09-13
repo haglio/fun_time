@@ -19,7 +19,7 @@ from player_core.status import PlayerStatus, parse_status
 
 @dataclass(frozen=True)
 class SatelliteStatus(PlayerStatus):
-    """The family's five, and how many clips the satellite's playlist holds."""
+    """The family's six, and how many clips the satellite's playlist holds."""
 
     playlist_length: int = 0
 

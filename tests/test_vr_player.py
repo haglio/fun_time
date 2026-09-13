@@ -254,6 +254,7 @@ class _OverlayPlayer:
     def __init__(self):
         self.overlays: list[tuple[int, int, int]] = []
         self.removed: list[int] = []
+        self.showing_picture = False
 
     def overlay(self, ident, x, y, _bgra):
         self.overlays.append((ident, x, y))
@@ -276,6 +277,17 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
                                  aspect=width / height)
     unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
     return unit, player
+
+
+def test_a_picture_has_no_timeline_so_its_scrubber_comes_off_once_and_the_chip_stays():
+    unit, player = _unit_with_pixels()
+    player.showing_picture = True
+
+    unit.overlay_furniture(0.0, 0.0, VolumeHud(), VolumeHudPainter())
+    unit.overlay_furniture(0.0, 0.0, VolumeHud(), VolumeHudPainter())
+
+    assert len(player.overlays) == 1  # the chip alone
+    assert len(player.removed) == 1  # the bar, taken off once
 
 
 def test_the_readout_goes_up_beside_the_scrubber_at_the_controls_own_size():

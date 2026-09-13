@@ -107,6 +107,15 @@ class TestTheScrubber:
 
         assert player.seeks == [DURATION_MS]
 
+    def test_under_a_picture_the_bottom_row_is_the_picture_and_seeks_nothing(self, tmp_path):
+        pointer, player, _hud = _pointer(tmp_path, hud_takes=False)
+        player.showing_picture = True
+
+        _press(pointer, BAR_MIDPOINT)
+
+        assert player.seeks == []
+        assert _asked(tmp_path) == [OMNIPAUSE_TOGGLE]
+
     def test_a_press_on_the_video_seeks_nothing_and_reaches_the_hud(self, tmp_path):
         pointer, player, hud = _pointer(tmp_path)
 

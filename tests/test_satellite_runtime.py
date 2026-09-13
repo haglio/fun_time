@@ -11,6 +11,7 @@ from player_core.player_verbs import (
     PREV,
     QUIT,
     RELOAD_PLAYLIST,
+    SET_PACE,
     TRASH,
 )
 
@@ -29,6 +30,13 @@ def _controls(tmp_path, *, entries=3, **wired) -> SatelliteControls:
 
 
 class TestApplyCommand:
+    def test_set_pace_is_how_long_a_picture_holds_the_screen(self, tmp_path):
+        session, player = make_satellite_session(tmp_path)
+        controls = SatelliteControls(session, reload_playlist=_never_reloads)
+
+        assert apply_command(f"{SET_PACE} 2.5", controls) is True
+        assert player.pace_s == 2.5
+
     def test_next_and_prev_navigate(self, tmp_path):
         controls = _controls(tmp_path)
         assert apply_command(NEXT, controls) is True
@@ -103,5 +111,6 @@ def test_every_verb_the_satellite_answers_is_spelled_by_the_family():
     control that drifted."""
     from player_core import player_verbs
 
-    assert set(VERBS) == {NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, PLAY_FILE, RELOAD_PLAYLIST, QUIT}
+    assert set(VERBS) == {
+        NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT}
     assert all(getattr(player_verbs, verb) == verb for verb in VERBS)

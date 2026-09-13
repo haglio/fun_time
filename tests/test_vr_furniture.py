@@ -227,7 +227,7 @@ class TestWhichControlAPressLandsOn:
 
 
 class TestASqueezeOnAVideosOwnControls:
-    def _pointer(self, *, silent=False, picture=True):
+    def _pointer(self, *, silent=False, picture=True, on_a_picture=False):
         seeks: list[float] = []
         posted: list[str] = []
 
@@ -240,11 +240,20 @@ class TestASqueezeOnAVideosOwnControls:
             set_volume=None if silent else (
                 lambda level: posted.append(f"audio_set_volume|{level}")),
             picture=(lambda: posted.append("omnipause_toggle")) if picture else None,
+            picture_on_screen=lambda: on_a_picture,
         )
         return SimpleNamespace(pointer=pointer, seeks=seeks, posted=posted)
 
     def _press(self, p, uv, *, muted=False):
         p.pointer.press(*uv, size=_SIZE, duration_ms=10_000.0, muted=muted)
+
+    def test_under_a_picture_the_scrubber_row_is_the_picture(self):
+        p = self._pointer(on_a_picture=True)
+
+        self._press(p, _on_the_scrubber())
+
+        assert p.seeks == []
+        assert p.posted == ["omnipause_toggle"]
 
     def test_a_press_on_the_scrubber_seeks_there(self):
         p = self._pointer()

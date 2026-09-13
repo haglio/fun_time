@@ -172,17 +172,17 @@ def _run(args) -> int:
         # present) powers version cycling, the length modes, and folding each
         # video's versions to a single rotation slot.
         source = library_source(args, on_progress=loading.update)
-        pairs = resolve_playlist(args, source=source)
+        items = resolve_playlist(args, source=source)
     except LoadingCanceled:
         logger.info("Closed while loading; never started playback")
         pygame.quit()
         return 0
-    if not pairs:
-        logger.error("No videos in the playlist Fun Time passed")
+    if not items:
+        logger.error("Nothing to play in the playlist Fun Time passed")
         pygame.quit()
         return 1
-    scripted = sum(1 for _, fs in pairs if fs is not None)
-    logger.info("Found %d video(s), %d with funscripts", len(pairs), scripted)
+    scripted = sum(1 for item in items if item.funscript is not None)
+    logger.info("Found %d item(s), %d with funscripts", len(items), scripted)
 
     clock = pygame.time.Clock()
     paused_file = args.paused_file

@@ -13,10 +13,12 @@ import os
 import subprocess
 import sys
 import time
+from pathlib import Path
 
 import pytest
+from PIL import Image
 from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_ON, NEXT, QUIT
+from player_core.player_verbs import LOCK_ON, NEXT, QUIT, SET_PACE
 
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
@@ -225,6 +227,62 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         after = published_status(read_satellite_status, status).position_ms
         assert after != before, (
             f"the satellite stopped publishing after the HUD redrew ({before} -> {after})")
+    finally:
+        append_command(cmd, QUIT)
+        time.sleep(1.0)
+        subprocess.run(["taskkill", "/F", "/PID", str(pid)], capture_output=True)
+
+
+def _pictures(folder: Path, count: int) -> list[Path]:
+    folder.mkdir(parents=True, exist_ok=True)
+    pictures = [folder / f"picture {i}.png" for i in range(count)]
+    for i, picture in enumerate(pictures):
+        Image.new("RGB", (480, 640), (60 * i % 256, 90, 160)).save(picture)
+    return pictures
+
+
+def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tmp_path):
+    cfg = load_config(real_config_path())
+    playlist = tmp_path / "portrait_playlist.tsv"
+    playlist.write_text(
+        "".join(f"{picture}\n" for picture in _pictures(tmp_path / "pictures", 3)),
+        encoding="utf-8")
+    cmd = tmp_path / "portrait_cmd.txt"
+    status = tmp_path / "portrait_status.txt"
+    append_command(cmd, f"{SET_PACE} 0")
+
+    pid = launch_satellite(
+        python_exe=str(cfg.paths.python_exe),
+        satellite_module="satellite",
+        title="Portrait AI Player",
+        role="Portrait",
+        playlist_file=playlist, command_file=cmd,
+        paused_file=tmp_path / "portrait_paused.txt", status_file=status,
+        log_file=tmp_path / "portrait_satellite.log",
+        x=0, y=0, width=480, height=640,
+        project_dirs=checkout_project_dirs(),
+    )
+    try:
+        first = _wait(
+            lambda: (lambda s: s.video if s.picture else None)(read_satellite_status(status)),
+            timeout=30, desc="the satellite to show a picture",
+        )
+        # Past the four seconds a player opens at, so only the nought can be holding it.
+        time.sleep(6.0)
+        assert published_status(read_satellite_status, status).video == first, (
+            "a picture held at a pace of nought moved on")
+
+        append_command(cmd, f"{SET_PACE} 1")
+        _wait(lambda: read_satellite_status(status).video not in ("", first),
+              timeout=10, desc="the picture to move on at a one-second pace")
+
+        append_command(cmd, LOCK_ON)
+        _wait(lambda: read_satellite_status(status).locked, timeout=10,
+              desc="the satellite to lock")
+        held = published_status(read_satellite_status, status).video
+        time.sleep(3.0)
+        assert published_status(read_satellite_status, status).video == held, (
+            "a locked picture moved on at a one-second pace")
     finally:
         append_command(cmd, QUIT)
         time.sleep(1.0)

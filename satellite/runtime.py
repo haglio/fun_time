@@ -24,7 +24,9 @@ from player_core.player_verbs import (
     PREV,
     QUIT,
     RELOAD_PLAYLIST,
+    SET_PACE,
     TRASH,
+    pace_seconds,
 )
 from player_core.playlist import item_from_line
 
@@ -87,6 +89,14 @@ def _quit(controls: SatelliteControls, _value: str) -> bool:
     return True
 
 
+def _set_pace(controls: SatelliteControls, value: str) -> bool:
+    seconds = pace_seconds(value)
+    if seconds is None:
+        return False
+    controls.session.set_pace(seconds)
+    return True
+
+
 CONTROLS: tuple[Control, ...] = (
     Control(
         name="playlist_position",
@@ -101,6 +111,7 @@ CONTROLS: tuple[Control, ...] = (
         name="playing_file",
         verbs=(Verb(PLAY_FILE, _play_file, takes_a_value=True),),
     ),
+    Control(name="pace", verbs=(Verb(SET_PACE, _set_pace, takes_a_value=True),)),
     Control(
         name="playlist",
         needs=("reload_playlist",),

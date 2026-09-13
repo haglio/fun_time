@@ -15,6 +15,7 @@ import logging
 from pathlib import Path
 
 from player_core.funscript import load as load_funscript
+from player_core.playlist import PlaylistItem
 
 from .session_loops import SessionLoops
 
@@ -48,12 +49,12 @@ MAX_VOLUME = 100
 class PlayerSession:
     def __init__(
         self,
-        playlist: list[tuple[Path, Path | None]],
+        playlist: list[PlaylistItem],
         *,
         player,
         tcode,
         start_paused: bool = False,
-        version_index: dict[Path, list[tuple[Path, Path | None]]] | None = None,
+        version_index: dict[Path, list[PlaylistItem]] | None = None,
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
@@ -137,7 +138,7 @@ class PlayerSession:
 
     @property
     def current_video(self) -> Path:
-        return self._playlist[self._index][0]
+        return self._playlist[self._index].path
 
     @property
     def position_ms(self) -> float:
@@ -146,6 +147,13 @@ class PlayerSession:
     @property
     def duration_ms(self) -> float:
         return self._player.duration_ms
+
+    def set_pace(self, seconds: float) -> None:
+        self._player.set_pace(seconds)
+
+    @property
+    def showing_picture(self) -> bool:
+        return self._player.showing_picture
 
     @property
     def loop_state(self) -> str:
@@ -247,19 +255,19 @@ class PlayerSession:
         self._tcode_enabled = enabled
 
     @property
-    def playlist(self) -> list[tuple[Path, Path | None]]:
+    def playlist(self) -> list[PlaylistItem]:
         return list(self._playlist)
 
     def step(self, delta: int) -> None:
         self.load(self._index + delta)
 
-    def play_file(self, video_path: Path, funscript_path: Path | None) -> None:
-        """Jump to *video_path*, inserting it after the current entry if new."""
-        for i, (vid, _fs) in enumerate(self._playlist):
-            if vid == video_path:
+    def play_file(self, item: PlaylistItem) -> None:
+        """Jump to *item*, inserting it after the current entry if new."""
+        for i, queued in enumerate(self._playlist):
+            if queued.path == item.path:
                 self.load(i)
                 return
-        self._playlist.insert(self._index + 1, (video_path, funscript_path))
+        self._playlist.insert(self._index + 1, item)
         self.load(self._index + 1)
 
     @property
@@ -279,7 +287,7 @@ class PlayerSession:
         versions = self._version_index.get(self.current_video)
         if versions is None or len(versions) <= 1:
             return None
-        if self.current_video not in [video for video, _fs in versions]:
+        if self.current_video not in [version.path for version in versions]:
             return None
         return versions
 
@@ -296,12 +304,12 @@ class PlayerSession:
         versions = self._other_versions()
         if versions is None:
             return
-        videos = [vid for vid, _fs in versions]
+        videos = [version.path for version in versions]
         self._playlist[self._index] = versions[
             (videos.index(self.current_video) + 1) % len(versions)]
         self.load(self._index)
 
-    def load_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
+    def load_playlist(self, playlist: list[PlaylistItem]) -> None:
         """Swap in a new playlist AND jump to its first video.
 
         Used by the length-mode toggle, where the point is to visibly land on
@@ -313,7 +321,7 @@ class PlayerSession:
         self._playlist = list(playlist)
         self.load(0)
 
-    def replace_playlist(self, playlist: list[tuple[Path, Path | None]]) -> None:
+    def replace_playlist(self, playlist: list[PlaylistItem]) -> None:
         """Swap in a new playlist, keeping the current video only if it survives.
 
         If the current video is still in the new list, playback continues on it
@@ -324,10 +332,10 @@ class PlayerSession:
         """
         if not playlist:
             return
-        current_entry = self._playlist[self._index]
+        current = self.current_video
         self._playlist = list(playlist)
-        for i, (vid, _fs) in enumerate(self._playlist):
-            if vid == current_entry[0]:
+        for i, item in enumerate(self._playlist):
+            if item.path == current:
                 self._index = i
                 return
         # Current video was filtered out — jump to the new list's first entry.
@@ -458,14 +466,14 @@ class PlayerSession:
 
     def load(self, index: int) -> None:
         self._index = index % len(self._playlist)
-        vid_path, fs_path = self._playlist[self._index]
-        logger.info("Loading: %s", vid_path.name)
+        item = self._playlist[self._index]
+        logger.info("Loading: %s", item.path.name)
         # A seek still waiting on the outgoing file belonged to that file; the
         # incoming one starts at the top unless the caller asks otherwise.
         self._pending_seek_ms = None
-        self._funscript = load_funscript(fs_path) if fs_path is not None else None
+        self._funscript = load_funscript(item.funscript) if item.funscript is not None else None
         self._loops.open(self._funscript)
-        self._player.load(vid_path)
+        self._player.load(item.path)
         self._player.set_paused(self._paused)
         self._take_the_device_over()
         self._last_pos_ms = 0.0

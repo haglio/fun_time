@@ -205,9 +205,12 @@ def _run(args, playlist: list[Path]) -> int:
             if blackout_size is not None:
                 blackout_size = None
                 player.remove_overlay(_OV_BLACKOUT)
-            scrubber = progress_bar_bgra(
-                session.position_ms, session.duration_ms, None, win_w)
-            player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
+            if session.showing_picture:
+                player.remove_overlay(_OV_SCRUBBER)
+            else:
+                scrubber = progress_bar_bgra(
+                    session.position_ms, session.duration_ms, None, win_w)
+                player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
             vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
             player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
             readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)

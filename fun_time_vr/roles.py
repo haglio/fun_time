@@ -29,12 +29,14 @@ from player_core.player_verbs import (
     SEEK_BACK,
     SEEK_FWD,
     SET_F_MODE,
+    SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
     SET_VOLUME,
     SPEED_DOWN,
     SPEED_UP,
     TOGGLE_LOCK,
+    pace_seconds,
 )
 from player_core.playlist import item_from_line, read_playlist
 from player_core.status import PlayerStatus
@@ -44,8 +46,8 @@ from .projection import next_projection, resolve_projection, save_projection
 
 logger = logging.getLogger(__name__)
 
-# The desktop main player's own steps and clamps (main_player.controls / main_player.session), so the primary feels
-# identical in and out of the headset.
+# The desktop main player's own steps and clamps (main_player.controls /
+# main_player.session), so the primary feels identical in and out of the headset.
 SEEK_STEP_MS = 10_000
 SPEED_STEP = 0.25
 MIN_SPEED = 0.25
@@ -238,10 +240,10 @@ class MainRole:
         # Un-pausing is a request, not a picture; the device led it on every reveal.
         self._held_at = None if paused else self._player.position_ms
 
-    def _the_picture_is_moving(self) -> bool:
+    def _the_screen_has_resumed(self) -> bool:
         if self._held_at is None:
             return True
-        if self._player.position_ms == self._held_at:
+        if self._player.position_ms == self._held_at and not self._player.showing_picture:
             return False
         self._held_at = None
         return True
@@ -253,7 +255,7 @@ class MainRole:
         self._step_at_eof()
         if self._paused or not self._tcode_enabled:
             return
-        if not self._the_picture_is_moving():
+        if not self._the_screen_has_resumed():
             return
         if self._funscript is not None:
             self._driver.update(
@@ -296,6 +298,7 @@ class MainRole:
                 duration_ms=int(self._player.duration_ms),
                 paused=self._paused,
                 locked=self._locked,
+                picture=self._player.showing_picture,
             )),
             "has_funscript": "1" if self.has_funscript else "0",
             "funscript_resting": "1" if self._funscript_resting() else "0",
@@ -353,6 +356,13 @@ class MainRole:
                 self._set_speed(float(value))
             except ValueError:
                 return False
+        return True
+
+    def set_pace_from(self, value: str) -> bool:
+        seconds = pace_seconds(value)
+        if seconds is None:
+            return False
+        self._player.set_pace(seconds)
         return True
 
     def set_volume_from(self, value: str) -> bool:
@@ -467,6 +477,10 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="volume",
         verbs=(Verb(SET_VOLUME, _reads(MainRole.set_volume_from), takes_a_value=True),),
+    ),
+    Control(
+        name="pace",
+        verbs=(Verb(SET_PACE, _reads(MainRole.set_pace_from), takes_a_value=True),),
     ),
     Control(
         name="playing_file",

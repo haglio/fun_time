@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.funscript import Funscript
+from player_core.playlist import PlaylistItem
 
 from main_player.session import (
     MAX_SPEED_RATE,
@@ -32,7 +33,12 @@ class FakePlayer:
         self.seeks: list[float] = []
         self.speeds: list[float] = []
         self.volumes: list[int] = []
+        self.paces: list[float] = []
+        self.showing_picture = False
         self.closed = False
+
+    def set_pace(self, seconds: float) -> None:
+        self.paces.append(seconds)
 
     def load(self, path: Path) -> None:
         self.opened.append(path)
@@ -101,13 +107,29 @@ def _make_session(tmp_path, *, scripted=True, start_paused=False, duration_ms=60
         if scripted:
             fs = tmp_path / f"v{i}.funscript"
             fs.write_text(_FS_JSON)
-        playlist.append((vid, fs))
+        playlist.append(PlaylistItem(vid, fs))
     player = FakePlayer(duration_ms=duration_ms)
     tcode = FakeTCode()
     session = PlayerSession(
         playlist, player=player, tcode=tcode, start_paused=start_paused,
     )
     return session, player, tcode
+
+
+class TestPictures:
+    def test_the_pace_a_source_sets_reaches_the_player(self, tmp_path):
+        session, player, _ = _make_session(tmp_path)
+
+        session.set_pace(2.5)
+
+        assert player.paces == [2.5]
+
+    def test_the_session_shows_a_picture_when_its_player_does(self, tmp_path):
+        session, player, _ = _make_session(tmp_path, scripted=False)
+
+        player.showing_picture = True
+
+        assert session.showing_picture is True
 
 
 class TestFunscriptResting:
@@ -701,7 +723,7 @@ class TestPlayFile:
         session, player, tcode = _make_session(tmp_path, entries=3)
         target = tmp_path / "v2.mp4"
 
-        session.play_file(target, tmp_path / "v2.funscript")
+        session.play_file(PlaylistItem(target, tmp_path / "v2.funscript"))
 
         assert session.current_video == target
         assert session.index == 2
@@ -711,7 +733,7 @@ class TestPlayFile:
         newv = tmp_path / "picked.mp4"
         newv.write_text("x")
 
-        session.play_file(newv, None)
+        session.play_file(PlaylistItem(newv))
 
         assert session.current_video == newv
         assert session.index == 1
@@ -724,7 +746,7 @@ class TestReplacePlaylist:
         v0, v1 = tmp_path / "v0.mp4", tmp_path / "v1.mp4"
         session.step(1)  # now on v1
 
-        session.replace_playlist([(v0, None), (v1, None)])
+        session.replace_playlist([PlaylistItem(v0), PlaylistItem(v1)])
 
         assert session.current_video == v1
 
@@ -733,7 +755,7 @@ class TestReplacePlaylist:
         other = tmp_path / "other.mp4"
         other.write_text("x")
 
-        session.replace_playlist([(other, None)])
+        session.replace_playlist([PlaylistItem(other)])
 
         # A filtered-out current video must not linger on screen: playback jumps
         # straight to the new list's first entry, mirroring how the satellites
@@ -751,20 +773,20 @@ class TestCycleVersion:
         solo = tmp_path / "solo.mp4"
         for path in (big, small, solo):
             path.write_text("x")
-        versions = [(big, None), (small, None)]
+        versions = [PlaylistItem(big), PlaylistItem(small)]
 
         paired = PlayerSession(
-            [(big, None)], player=FakePlayer(), tcode=FakeTCode(),
+            [PlaylistItem(big)], player=FakePlayer(), tcode=FakeTCode(),
             version_index={big: versions, small: versions},
         )
         alone = PlayerSession(
-            [(solo, None)], player=FakePlayer(), tcode=FakeTCode(),
-            version_index={solo: [(solo, None)]},
+            [PlaylistItem(solo)], player=FakePlayer(), tcode=FakeTCode(),
+            version_index={solo: [PlaylistItem(solo)]},
         )
         # A family the current video is mapped to without being in: Fun Time
         # writes the playlist from its own selection, so that happens.
         stranger = PlayerSession(
-            [(solo, None)], player=FakePlayer(), tcode=FakeTCode(),
+            [PlaylistItem(solo)], player=FakePlayer(), tcode=FakeTCode(),
             version_index={solo: versions},
         )
 
@@ -777,8 +799,8 @@ class TestCycleVersion:
         vid.write_text("x")
         player = FakePlayer()
         session = PlayerSession(
-            [(vid, None)], player=player, tcode=FakeTCode(),
-            version_index={vid: [(vid, None)]},
+            [PlaylistItem(vid)], player=player, tcode=FakeTCode(),
+            version_index={vid: [PlaylistItem(vid)]},
         )
         before = list(player.opened)
         session.cycle_version()
@@ -795,10 +817,10 @@ class TestCycleVersion:
         small = tmp_path / "Jane-540.mp4"
         for p in (big, small):
             p.write_text("x")
-        versions = [(big, None), (small, None)]
+        versions = [PlaylistItem(big), PlaylistItem(small)]
         player = FakePlayer()
         session = PlayerSession(
-            [(big, None)], player=player, tcode=FakeTCode(),
+            [PlaylistItem(big)], player=player, tcode=FakeTCode(),
             version_index={big: versions, small: versions},
         )
 
@@ -822,10 +844,10 @@ class TestCycleVersion:
         small = tmp_path / "Jane Doe - scene one-540.mp4"
         for path in (original, upscale, small):
             path.write_text("x")
-        versions = [(original, None), (upscale, None), (small, None)]
+        versions = [PlaylistItem(original), PlaylistItem(upscale), PlaylistItem(small)]
         player = FakePlayer()
         session = PlayerSession(
-            [(original, None)], player=player, tcode=FakeTCode(),
+            [PlaylistItem(original)], player=player, tcode=FakeTCode(),
             version_index={video: versions for video, _fs in versions},
         )
 
@@ -843,10 +865,10 @@ class TestCycleVersion:
         upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
         for path in (original, upscale):
             path.write_text("x")
-        versions = [(original, None), (upscale, None)]
+        versions = [PlaylistItem(original), PlaylistItem(upscale)]
         player = FakePlayer()
         session = PlayerSession(
-            [(original, None)], player=player, tcode=FakeTCode(),
+            [PlaylistItem(original)], player=player, tcode=FakeTCode(),
             version_index={video: versions for video, _fs in versions},
         )
         opened_before = len(player.opened)
@@ -864,10 +886,10 @@ class TestCycleVersion:
         upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
         for path in (stranger, original, upscale):
             path.write_text("x")
-        versions = [(original, None), (upscale, None)]
+        versions = [PlaylistItem(original), PlaylistItem(upscale)]
         player = FakePlayer()
         session = PlayerSession(
-            [(stranger, None)], player=player, tcode=FakeTCode(),
+            [PlaylistItem(stranger)], player=player, tcode=FakeTCode(),
             version_index={stranger: versions},
         )
 
@@ -884,10 +906,10 @@ class TestCycleVersion:
         b = tmp_path / "b.mp4"
         for p in (x, a1, a2, b):
             p.write_text("x")
-        versions = [(a1, None), (a2, None)]
+        versions = [PlaylistItem(a1), PlaylistItem(a2)]
         player = FakePlayer()
         session = PlayerSession(
-            [(x, None), (a1, None), (b, None)], player=player, tcode=FakeTCode(),
+            [PlaylistItem(x), PlaylistItem(a1), PlaylistItem(b)], player=player, tcode=FakeTCode(),
             version_index={a1: versions, a2: versions},
         )
         session.step(1)
@@ -907,7 +929,7 @@ class TestLoadPlaylist:
         a = tmp_path / "a.mp4"; a.write_text("x")
         b = tmp_path / "b.mp4"; b.write_text("x")
 
-        session.load_playlist([(a, None), (b, None)])
+        session.load_playlist([PlaylistItem(a), PlaylistItem(b)])
 
         assert session.index == 0
         assert session.current_video == a
