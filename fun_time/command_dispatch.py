@@ -27,6 +27,7 @@ from player_core.player_verbs import (
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
+from .content import load_web_providers
 from .event_log import (
     FAVORITE,
     NOTICE,
@@ -268,9 +269,11 @@ def _toggle_lock(
     if plan.open_rfb_tab and current_path:
         # Resolved exactly like an RFB startup tab, and deferred after the same
         # Ctrl+R landing page, so a lock never drops a heavy generate page on you.
+        providers = load_web_providers()
         target = target_for_fav(
-            FavEntry(local_path=current_path, web_url=make_web_url_from_path(current_path)),
+            FavEntry(local_path=current_path, web_url=make_web_url_from_path(current_path, providers)),
             config.regen,
+            providers,
         )
         if target.url:
             uri = write_lock_tab_page(

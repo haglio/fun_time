@@ -14,6 +14,7 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from app_support.overlay import backfilled
 
@@ -66,6 +67,14 @@ class WebProvider:
 
     marker: str
     gallery_url: str
+
+    def serves(self, url: str) -> bool:
+        return urlparse(url).hostname == urlparse(self.gallery_url).hostname
+
+
+def provider_that_made(video_path: str | Path, providers: tuple[WebProvider, ...]) -> WebProvider | None:
+    folders = str(video_path).replace("/", "\\").lower()
+    return next((provider for provider in providers if f"\\{provider.marker}\\" in folders), None)
 
 
 @functools.cache

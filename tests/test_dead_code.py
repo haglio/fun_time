@@ -119,6 +119,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
+# 8171 since 2026-09-15, measured on the merged tree: the regenerate URL
+# stopped reading a list of Evolver's stamps and asked the sidecar for a prompt,
+# and the paragraphs defending that list and the resolver's old eligibility
+# went with it.
 # 8187 since 2026-09-13, when Esc came to call off what every cover covers and a
 # crossing's way back said so in names and tests.
 # 8188 since 2026-09-13, when the hotkey script stayed up over the closing cover
@@ -163,7 +167,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 8187
+MAX_PROSE_LINES = 8171
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
