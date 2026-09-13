@@ -13,6 +13,7 @@ from fun_time.overlay_progress import (
     NullProgress,
     Phase,
     PhaseProgress,
+    Progress,
     StartupCancelled,
     cancel_file_for,
     parse_progress,
@@ -25,6 +26,23 @@ TWO_PHASES = (
     Phase("slow", "Slow...", 9.0),
     Phase("done", "Done...", 0.0),
 )
+
+
+class TestWhatEscWouldCancel:
+    def test_a_line_carries_the_words_under_its_bar(self):
+        assert parse_progress("3/7|Preparing services...|Press Esc to cancel opening Fun Time") == (
+            Progress(step=3, total=7, message="Preparing services...",
+                     hint="Press Esc to cancel opening Fun Time"))
+
+    def test_a_writer_given_those_words_puts_them_under_every_phase(self, tmp_path: Path):
+        progress_file = tmp_path / "progress.txt"
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES,
+                                 hint="Press Esc to cancel opening Fun Time")
+
+        progress.advance("slow")
+
+        assert parse_progress(progress_file.read_text(encoding="utf-8")) == Progress(
+            step=100, total=1000, message="Slow...", hint="Press Esc to cancel opening Fun Time")
 
 
 class TestPhaseProgress:

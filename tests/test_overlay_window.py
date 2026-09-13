@@ -73,7 +73,7 @@ class _FakeLabel:
         self.text = kwargs.get("text", self.text)
 
 
-def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0, cancel=None,
+def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0,
            title: str = "Fun Time Loading") -> OverlayWindow:
     """The overlay's live loops over fakes standing in for Tk.
 
@@ -89,9 +89,9 @@ def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0, cancel=None,
     window = OverlayWindow.__new__(OverlayWindow)
     window._progress_file = tmp_path / "progress.txt"
     window._stale_timeout_s = stale_timeout_s
-    window._cancel = cancel
     window._last_modified = 0.0
     window._status_held = False
+    window._offering = False
     window._title = title
     window._hwnd = 0
     window._root = _FakeRoot()
@@ -101,22 +101,6 @@ def _cover(tmp_path: Path, *, stale_timeout_s: float = 5.0, cancel=None,
         hint_label=_FakeLabel(),
     )
     return window
-
-
-def _cancel_option(**overrides):
-    """A CancelOption whose two callables record what was asked of them."""
-    from fun_time.overlay_window import CancelOption
-
-    asked: list[str] = []
-    fields = dict(
-        hint="Press Esc to cancel",
-        pending="Cancelling...",
-        request=lambda: asked.append("request"),
-        requested=lambda: False,
-    )
-    fields.update(overrides)
-    option = CancelOption(**fields)
-    return option, asked
 
 
 class TestTheCoverComesDown:
@@ -248,61 +232,112 @@ class TestTheCoverKeepsTheTopOfItsBand:
             window._stay_on_top()  # must not raise
 
 
-class TestTheWayOutStartupOffers:
-    """Startup's cover can be called off; shutdown's cannot, and that is the
-    only difference between the two."""
+class TestWhatEscWouldCancel:
+    def test_the_words_under_the_bar_are_the_lines_own(self, tmp_path: Path):
+        window = _cover(tmp_path)
+        window._progress_file.write_text(
+            "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
 
-    def test_escape_asks_the_orchestrator_to_stop_and_says_so(self, tmp_path: Path):
-        cancel, asked = _cancel_option()
-        window = _cover(tmp_path, cancel=cancel)
+        window._poll()
 
-        window._on_escape()
+        assert window._content.hint_label.text == "Press Esc to cancel opening Fun Time"
 
-        assert asked == ["request"]
-        assert window._content.status_label.text == "Cancelling..."
+    def test_while_it_offers_esc_the_flag_turns_it_to_canceling(self, tmp_path: Path):
+        """The hotkey script drops the flag without any key reaching this window."""
+        from fun_time.overlay_progress import cancel_file_for
+
+        window = _cover(tmp_path)
+        window._progress_file.write_text(
+            "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
+        cancel_file_for(window._progress_file).write_text("cancel\n", encoding="utf-8")
+
+        window._poll()
+
+        assert window._content.status_label.text == "Canceling..."
         assert window._content.hint_label.text == ""
 
-    def test_a_second_escape_asks_nothing_more(self, tmp_path: Path):
-        cancel, asked = _cancel_option()
-        window = _cover(tmp_path, cancel=cancel)
+    def test_a_cover_offering_nothing_goes_on_showing_its_own_words(self, tmp_path: Path):
+        """The way back after an Esc offers no second one, and the flag that
+        started it can still be lying there."""
+        from fun_time.overlay_progress import cancel_file_for
+
+        window = _cover(tmp_path)
+        window._progress_file.write_text("2/6|Launching companions...", encoding="utf-8")
+        cancel_file_for(window._progress_file).write_text("cancel\n", encoding="utf-8")
+
+        window._poll()
+
+        assert window._content.status_label.text == "Launching companions..."
+        assert window._content.hint_label.text == ""
+
+    def test_esc_on_a_cover_offering_it_drops_the_flag_itself(self, tmp_path: Path):
+        """The route that needs the focus, for the moment before the hotkey
+        script is up to take the key."""
+        from fun_time.overlay_progress import cancel_file_for
+
+        window = _cover(tmp_path)
+        window._progress_file.write_text(
+            "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
+        window._poll()
 
         window._on_escape()
+
+        assert cancel_file_for(window._progress_file).exists()
+        assert window._content.status_label.text == "Canceling..."
+        assert window._content.hint_label.text == ""
+
+    def test_a_second_esc_asks_nothing_more(self, tmp_path: Path):
+        from fun_time.overlay_progress import cancel_file_for
+
+        window = _cover(tmp_path)
+        window._progress_file.write_text(
+            "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
+        window._poll()
+        window._on_escape()
+        cancel_file_for(window._progress_file).unlink()
+
         window._on_escape()
 
-        assert asked == ["request"]
+        assert not cancel_file_for(window._progress_file).exists()
 
-    def test_the_words_hold_against_a_step_message_still_in_flight(self, tmp_path: Path):
+    def test_the_words_hold_against_a_phase_still_in_flight(self, tmp_path: Path):
         """A phase written just before the cancel would otherwise flip the line
         back to business as usual while the teardown runs."""
-        cancel, _asked = _cancel_option()
-        window = _cover(tmp_path, cancel=cancel)
+        window = _cover(tmp_path)
+        window._progress_file.write_text(
+            "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
+        window._poll()
         window._on_escape()
 
         window._progress_file.write_text("2/6|Launching companions...", encoding="utf-8")
         window._poll()
 
-        assert window._content.status_label.text == "Cancelling..."
+        assert window._content.status_label.text == "Canceling..."
+        assert window._content.hint_label.text == ""
 
-    def test_a_cancel_the_hotkey_script_asked_for_is_picked_up_here(self, tmp_path: Path):
-        """Esc reaches the orchestrator two ways, and the global hook is the one
-        that works when something else has the focus — no key ever reaches this
-        window, so the flag on disk is what the words follow."""
-        cancel, _asked = _cancel_option(requested=lambda: True)
-        window = _cover(tmp_path, cancel=cancel)
-        window._progress_file.write_text("1/6|Preparing services...", encoding="utf-8")
+    def test_esc_on_a_cover_offering_nothing_does_nothing(self, tmp_path: Path):
+        from fun_time.overlay_progress import cancel_file_for
 
-        window._poll()
-
-        assert window._content.status_label.text == "Cancelling..."
-
-    def test_a_cover_with_no_way_out_answers_escape_with_nothing(self, tmp_path: Path):
-        """Shutdown's, which also never takes the keyboard focus."""
         window = _cover(tmp_path)
+        window._progress_file.write_text("2/4|Closing players...", encoding="utf-8")
+        window._poll()
 
         window._on_escape()
 
-        assert window._status_held is False
-        assert window._content.status_label.text is None
+        assert not cancel_file_for(window._progress_file).exists()
+        assert window._content.status_label.text == "Closing players..."
+
+    def test_esc_never_takes_a_cover_down(self, tmp_path: Path):
+        """The cover is there to hide the room while it changes shape; a key
+        that uncovered it was never wanted."""
+        window = _cover(tmp_path)
+        for line in ("1/6|Preparing services...|Press Esc to cancel opening Fun Time",
+                     "2/4|Closing players..."):
+            window._progress_file.write_text(line, encoding="utf-8")
+            window._poll()
+            window._on_escape()
+
+        assert not window._root.destroyed
 
 
 class TestLoadingTheIcon:

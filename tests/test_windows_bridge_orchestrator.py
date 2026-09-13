@@ -2136,6 +2136,30 @@ class TestThePlayersStartWhenTheCoverIsGone:
         )
 
 
+class TestWhatEscCancelsAtTheLoadingScreen:
+    @staticmethod
+    def _opened_line(state_dir):
+        from fun_time.overlay_progress import parse_progress
+        from fun_time.windows_bridge_orchestrator import _open_the_cover
+
+        with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
+             patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+                   return_value=0):
+            cover = _open_the_cover(state_dir, show_overlays=True)
+        cover.progress.advance("services")
+        return parse_progress(cover.progress_file.read_text(encoding="utf-8"))
+
+    def test_a_launch_says_esc_cancels_opening_fun_time(self, tmp_path):
+        assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
+
+    def test_a_launch_coming_back_from_a_crossing_offers_no_esc(self, tmp_path):
+        from fun_time.session_handoff import VR, raise_crossing_cover
+
+        raise_crossing_cover(tmp_path, VR)
+
+        assert self._opened_line(tmp_path).hint == ""
+
+
 class TestEscOnTheWayBackFromACancelledCrossing:
     """A launch that IS a crossing coming back cannot be cancelled.  Esc is what
     called the crossing off; there is nowhere further back to go, and cancelling

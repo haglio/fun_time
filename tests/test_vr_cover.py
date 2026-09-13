@@ -16,6 +16,7 @@ import pytest
 
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
+    CANCELING,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
@@ -24,8 +25,6 @@ from fun_time.overlay_progress import (
 )
 from fun_time.session_handoff import hold_the_headset, release_the_headset
 from fun_time_vr.cover import (
-    CANCEL_HINT,
-    CANCELLING_STATUS,
     CLOSING_STATUS,
     COVER_CLEAR,
     COVER_DWELL_S,
@@ -59,11 +58,15 @@ class _Clock:
         return self.now
 
 
+ESC_WORDS = "Press Esc to cancel opening Fun Time VR"
+
+
 def _startup_writer(state_dir: Path, *, cancellable: bool = True) -> PhaseProgress:
     return PhaseProgress(
         state_dir / PROGRESS_FILENAME,
         phases=VR_STARTUP_PHASES,
         cancel_file=state_dir / CANCEL_FILENAME if cancellable else None,
+        hint=ESC_WORDS if cancellable else "",
     )
 
 
@@ -119,7 +122,7 @@ class TestWhatTheCoverShows:
 
         assert cover is not None
         assert cover.status == "Waiting for players..."
-        assert cover.hint == CANCEL_HINT
+        assert cover.hint == ESC_WORDS
         assert 0.0 < cover.fraction < 1.0
         assert not cover.closing
 
@@ -160,7 +163,19 @@ class TestWhatTheCoverShows:
         cover = CoverWatcher(tmp_path).read()
 
         assert cover is not None
-        assert cover.status == CANCELLING_STATUS
+        assert cover.status == CANCELING
+        assert cover.hint == ""
+
+    def test_a_cover_offering_no_esc_goes_on_showing_its_phases(self, tmp_path: Path):
+        """The way back after an Esc offers no second one, and the flag that
+        started it can still be lying there."""
+        _startup_writer(tmp_path, cancellable=False).advance("players")
+        (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == "Waiting for players..."
         assert cover.hint == ""
 
     def test_a_phase_still_in_flight_cannot_flip_the_words_back(self, tmp_path: Path):
@@ -171,12 +186,12 @@ class TestWhatTheCoverShows:
         progress.advance("companions")
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         watcher = CoverWatcher(tmp_path)
-        assert watcher.read().status == CANCELLING_STATUS
+        assert watcher.read().status == CANCELING
 
         (tmp_path / PROGRESS_FILENAME).write_text("70/1030|Waiting for players...",
                                                   encoding="utf-8")
 
-        assert watcher.read().status == CANCELLING_STATUS
+        assert watcher.read().status == CANCELING
 
     def test_the_cancelling_words_survive_the_flag_being_cleared(self, tmp_path: Path):
         """The orchestrator drops the flag at the END of the teardown it starts;
@@ -185,11 +200,11 @@ class TestWhatTheCoverShows:
         cancel_file = tmp_path / CANCEL_FILENAME
         cancel_file.write_text("cancel\n", encoding="utf-8")
         watcher = CoverWatcher(tmp_path)
-        assert watcher.read().status == CANCELLING_STATUS
+        assert watcher.read().status == CANCELING
 
         cancel_file.unlink()
 
-        assert watcher.read().status == CANCELLING_STATUS
+        assert watcher.read().status == CANCELING
 
     def test_a_teardown_outranks_a_startup_file_left_lying_around(self, tmp_path: Path):
         _startup_writer(tmp_path).advance("players")
@@ -365,8 +380,8 @@ class TestTheReadyFlag:
 
 class TestPainting:
     @pytest.mark.parametrize("cover", [
-        Cover(status="Waiting for players...", fraction=0.4, hint=CANCEL_HINT),
-        Cover(status=CANCELLING_STATUS, fraction=0.4),
+        Cover(status="Waiting for players...", fraction=0.4, hint=ESC_WORDS),
+        Cover(status=CANCELING, fraction=0.4),
         Cover(status="Closing players...", fraction=1.0, closing=True),
         Cover(status="", fraction=0.0),
     ])

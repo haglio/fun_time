@@ -17,7 +17,7 @@ from app_support.win32 import is_mutex_held, mutex_name
 
 from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import load_config
-from fun_time.overlay_progress import parse_progress
+from fun_time.overlay_progress import CANCELING, parse_progress
 from fun_time.process_identity import NAMER
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 
@@ -37,7 +37,6 @@ HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
 HEADSET_HELD_NAME = "vr_headset_held.flag"
 _STOP_RUNTIME = "stop_runtime"
 _CROSSING_MESSAGES = {"vr": "Entering VR...", "desktop": "Returning to Fun Time..."}
-CANCELLING_CROSSING = "Cancelling..."
 
 # The first expires only on a session wedged holding the mutex; the second is
 # what both launchers allow a session to report in.
@@ -218,7 +217,7 @@ def keep_the_crossing_cover(state_dir: str | Path) -> None:
 def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
     path = crossing_progress_path(state_dir)
     if path.exists():
-        path.write_text(f"1/2|{CANCELLING_CROSSING}\n", encoding="utf-8")
+        path.write_text(f"1/2|{CANCELING}\n", encoding="utf-8")
 
 
 def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subprocess.Popen:

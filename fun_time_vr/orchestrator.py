@@ -61,7 +61,9 @@ from fun_time.orchestrator import (
     validate_config,
 )
 from fun_time.overlay_progress import (
+    CANCEL_ENTERING_VR,
     CANCEL_FILENAME,
+    CANCEL_OPENING_FUN_TIME_VR,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
@@ -87,6 +89,7 @@ from fun_time.session_handoff import (
     pending_handoff,
     release_the_headset,
     request_handoff,
+    returning_from_a_crossing,
     say_the_crossing_is_cancelled,
 )
 from fun_time.session_resume import (
@@ -344,6 +347,8 @@ class _Cover:
         self.cancel_file.unlink(missing_ok=True)
         self.progress: ProgressReporter = PhaseProgress(
             self.progress_file, phases=VR_STARTUP_PHASES, cancel_file=self.cancel_file,
+            hint=(CANCEL_ENTERING_VR if returning_from_a_crossing(state_dir)
+                  else CANCEL_OPENING_FUN_TIME_VR),
         )
 
     def clear(self) -> None:
@@ -394,16 +399,17 @@ def _cancel_vr_startup(
     """Tear down a launch the user called off, then exit, then the monitors."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
     quitting = _cancel_was_a_quit(cover.cancel_file)  # before cover.clear() takes it
+    crossed_in = returning_from_a_crossing(state_dir)
     _take_down_the_launch(
         state_dir=state_dir, children=children, ahk_proc=ahk_proc,
         ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
     )
-    if quitting:
-        logger.info("Cancelled by the quit chord; taking the monitors back")
-        drop_crossing_cover(state_dir)  # nothing is coming to do it for us
-    else:
+    if crossed_in and not quitting:
         logger.info("Cancelled; handing back to Fun Time")
         request_handoff(state_dir, DESKTOP)  # it drops the cover once it is up
+    else:
+        logger.info("Cancelled; closing")
+        drop_crossing_cover(state_dir)  # nothing is coming to do it for us
     return 0  # a clean, user-initiated exit, as the desktop's cancel is
 
 

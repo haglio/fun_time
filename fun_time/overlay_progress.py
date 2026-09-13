@@ -8,7 +8,7 @@ phases, and the writer on the orchestrator's side.
 
 Esc reaches an orchestrator two ways — a cover's binding, which needs the focus,
 and the hotkey script's hook, which does not — so a cover follows the FLAG, not
-a keypress, and stays up reading "Cancelling..." until the teardown finishes.
+a keypress, and stays up reading "Canceling..." until the teardown finishes.
 """
 from __future__ import annotations
 
@@ -19,10 +19,14 @@ from typing import Protocol, runtime_checkable
 PROGRESS_FILENAME = "startup_progress.txt"
 SHUTDOWN_PROGRESS_FILENAME = "shutdown_progress.txt"
 
-# The loading screen drops this flag beside the progress file when the user
-# presses Esc; the orchestrator's progress reporter watches for it and raises
+# A cover whose line offers Esc drops this flag beside its progress file when the
+# key lands on it; the orchestrator's progress reporter watches for it and raises
 # StartupCancelled at the next phase boundary so startup unwinds.
 CANCEL_FILENAME = "startup_cancel.flag"
+CANCELING = "Canceling..."
+CANCEL_OPENING_FUN_TIME = "Press Esc to cancel opening Fun Time"
+CANCEL_OPENING_FUN_TIME_VR = "Press Esc to cancel opening Fun Time VR"
+CANCEL_ENTERING_VR = "Press Esc to cancel entering VR"
 
 # The closing screen drops this flag beside its own progress file once it is
 # painted over every monitor.  Teardown waits for it before killing anything:
@@ -39,6 +43,7 @@ class Progress:
     step: int = 0
     total: int = 1
     message: str = ""
+    hint: str = ""
     done: bool = False
     malformed: bool = False
 
@@ -49,13 +54,9 @@ def parse_progress(text: str) -> Progress:
     if text == "DONE":
         return Progress(done=True)
     try:
-        parts = text.split("|", 1)
-        step_str, total_str = parts[0].split("/")
-        return Progress(
-            step=int(step_str),
-            total=int(total_str),
-            message=parts[1] if len(parts) > 1 else "",
-        )
+        position, message, hint = (text.split("|", 2) + ["", ""])[:3]
+        step_str, total_str = position.split("/")
+        return Progress(step=int(step_str), total=int(total_str), message=message, hint=hint)
     except (ValueError, IndexError):
         return Progress(malformed=True)
 
@@ -167,10 +168,12 @@ class PhaseProgress:
         *,
         phases: tuple[Phase, ...] = STARTUP_PHASES,
         cancel_file: Path | None = None,
+        hint: str = "",
     ) -> None:
         self._progress_file = progress_file
         self._phases = phases
         self._cancel_file = cancel_file
+        self._hint = hint
 
     @property
     def cancelled(self) -> bool:
@@ -184,10 +187,9 @@ class PhaseProgress:
         # work ALREADY done, so only a weightless final phase reaches the total.
         done = round(sum(p.weight for p in self._phases[:entered]) * 100)
         total = round(sum(p.weight for p in self._phases) * 100)
+        line = f"{done}/{total}|{self._phases[entered].message}"
         self._progress_file.write_text(
-            f"{done}/{total}|{self._phases[entered].message}",
-            encoding="utf-8",
-        )
+            f"{line}|{self._hint}" if self._hint else line, encoding="utf-8")
 
     def _phase_index(self, key: str) -> int:
         for index, phase in enumerate(self._phases):
