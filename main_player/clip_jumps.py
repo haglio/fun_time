@@ -114,7 +114,7 @@ class ClipJumps:
         """Reorder the playlist to just the current clip's compilation, in order."""
         current = self._session.current_video
         if not self._enter(current):
-            self._notices.say("not a compilation clip")
+            self._notices.say("not a compilation clip", level="warning")
             return
         self._notices.say(
             f"compilation: {len(self._session.playlist)} clips", level="notice")
@@ -150,7 +150,7 @@ class ClipJumps:
         """
         if target is None:
             logger.info("%s: nothing matches %s", what, self._session.current_video.name)
-            self._notices.say(f"{what} not available")
+            self._notices.say(f"{what} not available", level="warning")
             return
         self._session.play_file(target, self._funscripts.get(target))
         self._notices.say(what, level="notice")

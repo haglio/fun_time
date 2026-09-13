@@ -40,7 +40,7 @@ class FunscriptJumps:
             else funscript.next_active_ms(int(self._session.position_ms))
         )
         if target is None:
-            self._notices.say("no funscripting ahead")
+            self._notices.say("no funscripting ahead", level="warning")
             return
         self._session.seek_to(target)
         self._notices.say("funscript jump", level="favorite")
@@ -56,7 +56,7 @@ class FunscriptJumps:
         """
         entry = self._next_funscripted_entry()
         if entry is None:
-            self._notices.say("no other funscripted video")
+            self._notices.say("no other funscripted video", level="warning")
             return
         index, video = entry
         self._session.load(index)

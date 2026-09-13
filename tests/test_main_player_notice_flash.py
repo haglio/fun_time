@@ -52,9 +52,9 @@ def _write(path: Path, seq: int, level: str, message: str) -> None:
 class TestReadMainPlayerNotice:
     def test_reads_a_published_notice(self, tmp_path):
         path = tmp_path / "main_player_notice.txt"
-        _write(path, 3, "error", "full video not available")
+        _write(path, 3, "warning", "full video not available")
 
-        assert read_main_player_notice(path) == (3.0, "error", "full video not available")
+        assert read_main_player_notice(path) == (3.0, "warning", "full video not available")
 
     def test_missing_file_is_empty(self, tmp_path):
         assert read_main_player_notice(tmp_path / "nope.txt") == (0, "", "")
@@ -67,14 +67,14 @@ class TestReadMainPlayerNotice:
 
 
 class TestFlashMainPlayerNotice:
-    """The loop flashes each notice exactly once, red for an error level."""
+    """The loop flashes each notice exactly once, in the color its kind names."""
 
     def _loop(self, tmp_path):
         return _runner(tmp_path)  # built before any notice exists: seq latch 0
 
     def test_flashes_once_then_stays_quiet(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
-        _write(tmp_path / "main_player_notice.txt", 1, "error", "full video not available")
+        _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
 
         with caplog.at_level(logging.DEBUG):
             loop._flash_main_player_notice()
@@ -84,29 +84,32 @@ class TestFlashMainPlayerNotice:
 
         assert len(first) == 1
         assert len(again) == 1  # the repeat tick adds nothing
-        assert first[0].levelno == logging.ERROR
+        assert first[0].levelno == logging.WARNING
 
     def test_main_player_names_the_kind_and_this_side_picks_the_color(self, tmp_path, caplog):
         """The main player has no palette.  It says a funscript jump is about a funscript, and
         the level it lands at here is what makes it green — an ordinary jump, which
-        says nothing, lands white."""
+        says nothing, lands white, and a jump with nowhere to go is a warning."""
         loop = self._loop(tmp_path)
         with caplog.at_level(logging.DEBUG):
             _write(tmp_path / "main_player_notice.txt", 1, "favorite", "funscript jump")
             loop._flash_main_player_notice()
             _write(tmp_path / "main_player_notice.txt", 2, "notice", "full video")
             loop._flash_main_player_notice()
+            _write(tmp_path / "main_player_notice.txt", 3, "warning", "money shot not available")
+            loop._flash_main_player_notice()
 
         by_message = {r.message: r.levelno for r in caplog.records}
         assert by_message["funscript jump"] == FAVORITE
         assert by_message["full video"] == NOTICE
+        assert by_message["money shot not available"] == logging.WARNING
 
     def test_a_new_sequence_flashes_again(self, tmp_path, caplog):
         loop = self._loop(tmp_path)
-        _write(tmp_path / "main_player_notice.txt", 1, "error", "full video not available")
+        _write(tmp_path / "main_player_notice.txt", 1, "warning", "full video not available")
         with caplog.at_level(logging.DEBUG):
             loop._flash_main_player_notice()
-            _write(tmp_path / "main_player_notice.txt", 2, "error", "money shot not available")
+            _write(tmp_path / "main_player_notice.txt", 2, "warning", "money shot not available")
             loop._flash_main_player_notice()
 
         assert any("money shot not available" in r.message for r in caplog.records)
@@ -118,7 +121,7 @@ def test_a_notice_from_a_previous_session_does_not_flash_on_open(tmp_path):
     the real constructor's own: the runner is built AFTER the stale notice
     landed, exactly as a fresh session opens over last session's file."""
     path = tmp_path / "main_player_notice.txt"
-    _write(path, 500, "error", "stale from last time")
+    _write(path, 500, "warning", "stale from last time")
 
     loop = _runner(tmp_path)
 

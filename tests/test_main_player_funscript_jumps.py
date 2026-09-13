@@ -52,7 +52,7 @@ class FakeNotices:
     def __init__(self) -> None:
         self.said: list[tuple[str, str]] = []
 
-    def say(self, message: str, *, level: str = "error") -> bool:
+    def say(self, message: str, *, level: str) -> bool:
         self.said.append((message, level))
         return True
 
@@ -98,7 +98,7 @@ class TestJumpToFunscript:
         jumps.jump_to_funscript()
 
         assert session.seeks == []
-        assert notices.said == [("no funscripting ahead", "error")]
+        assert notices.said == [("no funscripting ahead", "warning")]
 
     def test_an_unscripted_video_has_nowhere_to_jump(self, tmp_path):
         video = tmp_path / "beta.mp4"
@@ -108,7 +108,7 @@ class TestJumpToFunscript:
         jumps.jump_to_funscript()
 
         assert session.seeks == []
-        assert notices.said == [("no funscripting ahead", "error")]
+        assert notices.said == [("no funscripting ahead", "warning")]
 
     def test_it_never_goes_backward_into_the_run_already_playing(self, tmp_path):
         """Mid-run, "next" is the run after this one — a jump that landed on the
@@ -196,7 +196,7 @@ class TestNextFunscripted:
 
         assert session.loads == []
         assert session.seeks == []
-        assert notices.said == [("no other funscripted video", "error")]
+        assert notices.said == [("no other funscripted video", "warning")]
 
     def test_an_entirely_unscripted_playlist_says_so(self, tmp_path):
         session = FakeSession([
@@ -207,4 +207,4 @@ class TestNextFunscripted:
         jumps.next_funscripted()
 
         assert session.loads == []
-        assert notices.said == [("no other funscripted video", "error")]
+        assert notices.said == [("no other funscripted video", "warning")]
