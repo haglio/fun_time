@@ -318,7 +318,16 @@ class TestHandleRecognition:
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
 
-    def test_unrecognized_speech_reports_what_it_heard_in_red(self, tmp_path, monkeypatch):
+    @pytest.mark.parametrize("recognition, report", [
+        (Recognition(unrecognized_text="full length please"),
+         "unrecognized voice command: full length please"),
+        (Recognition(refused_phrase="skip"), "not sure enough of: skip"),
+    ])
+    def test_speech_it_could_not_act_on_is_reported_as_a_warning(
+        self, tmp_path, monkeypatch, recognition, report,
+    ):
+        """Nothing failed: the room was heard, just not well enough to act on,
+        so the report reads yellow and red is kept for errors."""
         import logging
 
         vc = self._controller(tmp_path)
@@ -326,9 +335,9 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0)
+        vc._handle_recognition(recognition, spoken_at=1.0)
 
-        assert seen == [("unrecognized voice command: full length please", "system", logging.ERROR)]
+        assert seen == [(report, "system", logging.WARNING)]
 
     @pytest.mark.parametrize("heard, source", [
         ("portrait full length please", "portrait"),
@@ -341,7 +350,7 @@ class TestHandleRecognition:
     ):
         """A phrase the grammar rejected can still say who it was for, in either
         order — that satellite is where the user is looking, so that is where the
-        red report belongs, rather than on the main player."""
+        report belongs, rather than on the main player."""
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",
