@@ -1194,3 +1194,31 @@ class TestEscDuringTheLongWait:
 
         assert len(waits) == 2
         assert all(call.endswith(", progress)") for call in waits), waits
+
+
+class TestWhatAPreviousSessionLeft:
+    def test_its_files_are_gone_before_the_hotkey_script_goes_up(self, config):
+        from unittest.mock import patch
+
+        from fun_time.session_environment import SessionEnvironment
+        from fun_time_vr import orchestrator
+
+        class HotkeyScriptWentUp(Exception):
+            pass
+
+        snapshot = config.dashboard_state_file
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        snapshot.write_text("[session]\nvr=0\n", encoding="utf-8")
+        there_when_it_went_up: list[bool] = []
+
+        def hotkey_script(*args, **kwargs):
+            there_when_it_went_up.append(snapshot.exists())
+            raise HotkeyScriptWentUp
+
+        with patch.object(orchestrator, "open_event_log"), \
+             patch.object(orchestrator, "add_dispatch_file_handler"), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen", side_effect=hotkey_script), \
+             pytest.raises(HotkeyScriptWentUp):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert there_when_it_went_up == [False]

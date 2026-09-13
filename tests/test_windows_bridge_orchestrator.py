@@ -1554,6 +1554,37 @@ class TestStartupCancellation:
 
         assert there_when_startup_ran == [False]
 
+    def test_every_file_a_previous_session_leaves_is_cleared_and_its_state_is_kept(
+        self, cfg_factory, tmp_path,
+    ):
+        from fun_time.press_channel import PRESS_PORT_FILENAME
+        from fun_time.shared_state import shared_state_path
+        from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
+
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        commands = LaunchManifest.read(manifest_path).commands
+        state_dir = tmp_path / "state"
+        pids_file, ahk_cmd_file = state_dir / "bridge_pids.ini", state_dir / "ahk_cmd.txt"
+        dashboard_cmd_file = Path(commands.dashboard_cmd_file)
+        leftovers = [
+            pids_file, ahk_cmd_file, dashboard_cmd_file,
+            dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
+            Path(commands.dashboard_state_file),
+        ]
+        state = shared_state_path(state_dir)
+        for path in [*leftovers, state]:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("left by the last session", encoding="utf-8")
+
+        clear_last_sessions_leftovers(
+            state_dir, commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
+
+        assert [path for path in leftovers if path.exists()] == []
+        assert state.exists()
+
 
 class TestHotkeyScriptGoesUpFirst:
     """The hotkey script is launched before the startup sequence runs, not after
