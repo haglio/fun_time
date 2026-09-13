@@ -1385,7 +1385,7 @@ class TestOrigeneratorUnderTheOverlay:
     came from timing the reveal on things that are not readiness: first nothing
     at all (the window arrived in front of him after the reveal), then the
     window (which is built before the regions are filled, and says nothing
-    about a video-mode session whose "generator mode" then went unanswered for
+    about a video-mode session whose "origenerator mode" then went unanswered for
     twenty seconds).  The signal is the app's own status file, which it writes
     from its poll of the session's channels.
     """
@@ -1445,7 +1445,7 @@ class TestOrigeneratorUnderTheOverlay:
 
         It waits because the hosted app is a child of every session, parked or
         not, and a room revealed while one is still booting is a room that
-        looks finished and cannot answer "generator mode" for another twenty
+        looks finished and cannot answer "origenerator mode" for another twenty
         seconds.  It waits no further because there is nothing of the app to
         see in this mode: the window stays parked, and parked is the mode's own
         state rather than a window to place.

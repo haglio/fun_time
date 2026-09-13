@@ -275,6 +275,7 @@ def test_mode_named_nav_shows_friendly_names_in_the_legend():
     for row in rows:
         for phrase in row.voice:
             assert "now mode" not in phrase and "go now" not in phrase, phrase
+            assert "aura generator" not in phrase, phrase
 
 
 def test_main_player_video_rows_show_main_nav_in_both_orders():
@@ -410,7 +411,7 @@ def test_voice_phrases_are_derived_from_voice_commands():
     for section in _SECTIONS:
         for row in section.rows:
             if row.voice_display is not None:
-                continue  # deliberate display alias (e.g. show "genau" not "go now")
+                continue
             built = _display_voice(row, merge_scopes=section.merge_scopes)
             # Phrases are shown under their friendly mode name (sound-alikes rewritten),
             # and with the scope word folded away where the scopes share a row.

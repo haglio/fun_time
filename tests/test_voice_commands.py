@@ -95,7 +95,7 @@ class TestVoiceCommands:
             "main video mode": "main_video_activate",
             "satellite video mode": "satellites_video_activate",
             "satellites video mode": "satellites_video_activate",
-            "generator mode": "origenerator_activate",
+            "aura generator mode": "origenerator_activate",
             "start broker": "broker_start",
             "stop broker": "broker_stop",
             "next main": "main_next",
@@ -190,7 +190,7 @@ class TestVoiceCommands:
         # show can narrow to; the app hears it on its own mic, but this model
         # has no such token, so the relayed phrase is "enhanced only" (and the
         # way back out is the room's own "clear filter", routed to the show).
-        oov_words = {"genau", "hotkeys", "unmute", "upscales", "upscaled"}
+        oov_words = {"genau", "origenerator", "hotkeys", "unmute", "upscales", "upscaled"}
         for phrase in VOICE_COMMANDS:
             offenders = oov_words & set(phrase.split())
             assert not offenders, f"{phrase!r} uses out-of-vocabulary {sorted(offenders)}"
@@ -250,6 +250,10 @@ class TestVoiceCommands:
         # Said as a mode too, the way "video mode" is: "genau mode" is heard as
         # "go now mode".
         assert VOICE_COMMANDS["go now mode"] == "genau_activate"
+
+    def test_aura_generator_mode_is_shown_as_origenerator_mode(self):
+        assert VOICE_COMMANDS["aura generator mode"] == "origenerator_activate"
+        assert friendly_voice("aura generator mode") == "origenerator mode"
 
     def test_dead_genau_phrases_removed(self):
         for phrase in ("enable genau", "disable genau"):

@@ -70,8 +70,7 @@ class _Row:
     commands: tuple[str, ...] = ()
     literal_voice: tuple[str, ...] = ()
     # When set, the Say column shows exactly these phrases instead of the ones
-    # derived from ``commands`` — for presenting a friendlier label than the
-    # recognizer's actual phrase (e.g. show "genau" while it listens for "go now").
+    # derived from ``commands``.
     voice_display: tuple[str, ...] | None = None
     # Keys for a second key column, in a section that declares two.
     hotkeys_alt: tuple[str, ...] = ()
@@ -140,7 +139,6 @@ _SECTIONS: tuple[_Section, ...] = (
                 "driving the OSR2",
                 ("G",),
                 ("genau_activate",),
-                voice_display=("genau", "genau mode"),
             ),
             _Row(
                 "Video mode on the main player — the video under Genau's HUD, "
