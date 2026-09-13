@@ -41,6 +41,7 @@ from fun_time_vr.pointer import (
     handle_extent,
     handle_vertices,
     head_position,
+    held_controllers,
     laser_vertices,
     scene_ray,
     screen_uv,
@@ -201,6 +202,15 @@ class TestTheRayInTheScene:
 
     def test_the_head_is_between_the_eyes(self):
         assert head_position([(-0.03, 1.6, 0.0), (0.03, 1.6, 0.1)]) == pytest.approx((0.0, 1.6, 0.05))
+
+    def test_each_tracked_hand_holds_a_controller_where_it_is_and_as_it_is_turned(self):
+        turned = yaw_rotation_matrix(math.pi / 2)
+        hands = {LEFT: HandInput(), RIGHT: HandInput(aim=((-0.5, 0.0, 0.0), _FACING_LEFT))}
+
+        ((origin, rotation),) = held_controllers(hands, head=(0.0, 0.0, 0.0), scene_rotation=turned)
+
+        assert origin == pytest.approx((0.0, 0.0, -0.5), abs=1e-6)
+        np.testing.assert_allclose(rotation, np.eye(3), atol=1e-6)
 
 
 class TestTheHandles:

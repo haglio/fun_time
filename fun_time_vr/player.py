@@ -95,6 +95,7 @@ from .console_panel import (
     panel_hud,
     panel_painter,
 )
+from .controller_mesh import controllers_strip
 from .cover import (
     COVER_CLEAR,
     COVER_WIDTH_DEG,
@@ -152,6 +153,7 @@ from .pointer import (
     cursor_vertices,
     handle_vertices,
     head_position,
+    held_controllers,
     laser_vertices,
     surface_pixel,
 )
@@ -218,6 +220,7 @@ HANDLE_COLOR = (0.85, 0.85, 0.9, 0.35)
 HOT_HANDLE_COLOR = (0.3, 0.6, 1.0, 0.85)
 LASER_COLOR = (1.0, 1.0, 1.0, 0.55)
 CURSOR_COLOR = (1.0, 1.0, 1.0, 0.9)
+CONTROLLER_COLOR = (0.8, 0.8, 0.85, 1.0)
 
 
 def _show_error_popup(message: str) -> None:
@@ -1297,9 +1300,14 @@ class _PointerDrawing:
         self._laser = ScreenMesh()
         self._cursor = ScreenMesh()
         self._handles = [ScreenMesh() for _ in range(3)]
+        self._controllers = ScreenMesh()
         self._visible: list[tuple[ScreenMesh, tuple[float, float, float, float]]] = []
+        self._holding = False
 
-    def update(self, frame: Frame, screens: Sequence[Screen]) -> None:
+    def update(
+        self, frame: Frame, screens: Sequence[Screen],
+        held: Sequence[tuple[np.ndarray, np.ndarray]],
+    ) -> None:
         self._visible = []
         if frame.hover is not None:
             screen = next((s for s in screens if s.name == frame.hover.screen), None)
@@ -1320,13 +1328,19 @@ class _PointerDrawing:
         if frame.point is not None and frame.hover is not None:
             self._cursor.upload(cursor_vertices(frame.point))
             self._visible.append((self._cursor, CURSOR_COLOR))
+        controllers = controllers_strip(held)
+        self._holding = len(controllers) > 0
+        if self._holding:
+            self._controllers.upload(controllers)
 
     def draw(self, renderer: SceneRenderer, view_proj: np.ndarray) -> None:
         for mesh, color in self._visible:
             renderer.draw_solid(mesh, view_proj, color)
+        if self._holding:  # last: in the hand, so nearer than anything else in the scene
+            renderer.draw_shaded(self._controllers, view_proj, CONTROLLER_COLOR)
 
     def close(self) -> None:
-        for mesh in (self._laser, self._cursor, *self._handles):
+        for mesh in (self._laser, self._cursor, *self._handles, self._controllers):
             mesh.close()
 
 
@@ -1884,15 +1898,12 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 )
                 screens = _pointable_screens(
                     primary, genau, satellites, panel, dash, reference)
+                head = head_position([
+                    (view.pose.position.x, view.pose.position.y, view.pose.position.z)
+                    for view in views
+                ])
                 frame = pointer.frame(
-                    session.hands,
-                    head=head_position([
-                        (view.pose.position.x, view.pose.position.y, view.pose.position.z)
-                        for view in views
-                    ]),
-                    scene_rotation=scene_rotation,
-                    screens=screens,
-                )
+                    session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
                 for name, placement in frame.moved.items():
                     for screen in hanging[name]:
                         screen.placement = placement
@@ -1903,7 +1914,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own
                              *satellites, panel, dash, reference):
                     unit.point(frame)
-                pointing.update(frame, screens)
+                pointing.update(frame, screens, held_controllers(
+                    session.hands, head=head, scene_rotation=scene_rotation))
                 mode = immersive_mode(primary.role.projection)
                 in_scene = {PRIMARY, PORTRAIT, LANDSCAPE}
                 if use_layers:

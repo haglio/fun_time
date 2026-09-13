@@ -59,8 +59,8 @@
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
     session, say) shows nothing in the headset. What the panel and the satellite
     HUDs draw is unaffected: those are in-scene surfaces, not windows.
-  - With `vr.compositor_layers` on, the controllers' laser, the handles and the
-    spot the laser lands on draw in the projection layer, which the runtime
+  - With `vr.compositor_layers` on, the controllers, their laser, the handles and
+    the spot the laser lands on draw in the projection layer, which the runtime
     composites beneath the satellites' quads; the pointer still works there,
     unseen. Off (the default, and the only mode the bundled runtime shows
     screens in) everything draws in one layer and the chrome sits on top.
