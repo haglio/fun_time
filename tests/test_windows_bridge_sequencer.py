@@ -440,7 +440,7 @@ class TestRunStartupSequence:
         move_calls: list[tuple] = []
         topmost_calls: list[tuple] = []
 
-        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), move_window=dict(side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v)))):
+        with _sequencer_stubs(wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), move_window=dict(side_effect=lambda hwnd, x, y, w, h, **_kw: move_calls.append((hwnd, x, y, w, h))), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v)))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         # The two satellite windows are positioned immediately in normal mode.
@@ -500,7 +500,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("genau")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("genau")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == [2525]
@@ -584,7 +584,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("video")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("video")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == []
@@ -896,63 +896,44 @@ class TestLoadingScreenStartup:
         }
 
 
-class TestTheCoverStaysOnTopWhileTheRoomIsBanded:
-    """Every promotion in the banding walk lands ABOVE the cover, so the cover
-    has to be put back after each one.
-
-    ``HWND_TOPMOST`` inserts at the top of the topmost band, and the cover is
-    itself topmost — so a window promoted while it is up is over it until
-    something puts it back.  Left to the cover's own 200ms poll, that is a
-    window flashing through the scrim, and there is one per managed role.
-    """
+class TestTheRoomIsBandedUnderTheCover:
+    """A promotion made while the cover is up goes straight under it, so no
+    window is ever over the cover waiting for the cover to take the top back --
+    which, on a loaded machine, it does late."""
 
     ROLE_HWNDS = {"rfb": 11, "portrait": 22, "landscape": 33, "dashboard": 44,
                   "main_player": 55, "genau": 66}
     COVER = 999
 
     def _calls(self, **kwargs):
-        calls: list[tuple[int, bool]] = []
+        calls: list[tuple[int, bool, int]] = []
         with patch("fun_time.windows_bridge_sequencer.set_always_on_top",
-                   side_effect=lambda h, v: calls.append((h, v))):
+                   side_effect=lambda h, v, *, under=0: calls.append((h, v, under))):
             windows_bridge_sequencer.apply_topmost_bands(
                 dict(self.ROLE_HWNDS), "main_player", **kwargs)
         return calls
 
-    def test_the_cover_goes_back_on_top_after_every_promotion(self):
-        calls = self._calls(beneath=self.COVER)
+    def test_every_promotion_names_the_cover_to_sit_under(self):
+        promotions = [(h, under) for h, on, under in self._calls(beneath=self.COVER) if on]
 
-        promotions = [i for i, (h, on) in enumerate(calls)
-                      if on and h != self.COVER]
         assert promotions, "nothing was promoted, so this proves nothing"
-        for index in promotions:
-            assert calls[index + 1] == (self.COVER, True), (
-                f"{calls[index]} was left above the cover until the next "
-                "SetWindowPos, which is long enough to see"
-            )
+        assert all(under == self.COVER for _h, under in promotions)
 
     def test_the_walk_still_promotes_in_role_order(self):
-        """Interleaving the cover must not disturb who ends up above whom: the
-        order of the promotions is what puts Genau's HUD over the main player's video."""
-        banded = [h for h, on in self._calls(beneath=self.COVER)
-                  if on and h != self.COVER]
-        plain = [h for h, on in self._calls() if on]
+        """Each lands directly under the cover, so the last one promoted is still
+        the highest: the order is what puts Genau's HUD over the main player's video."""
+        banded = [h for h, on, _under in self._calls(beneath=self.COVER) if on]
+        plain = [h for h, on, _under in self._calls() if on]
 
         assert banded == plain
 
-    def test_a_demotion_needs_no_cover_re_assert(self):
-        """Dropping out of the topmost band lands below the cover already, so
-        there is nothing to put back — and re-asserting anyway would spend a
-        SetWindowPos on every window the mode is hiding."""
-        calls = self._calls(beneath=self.COVER)
+    def test_the_walk_touches_only_the_windows_it_bands(self):
+        assert {h for h, _on, _under in self._calls(beneath=self.COVER)} <= set(
+            self.ROLE_HWNDS.values())
 
-        for index, (hwnd, on_top) in enumerate(calls):
-            if not on_top:
-                assert calls[index + 1:index + 2] != [(self.COVER, True)]
-
-    def test_without_a_cover_nothing_extra_is_touched(self):
-        """The re-band after the cover has gone, and the integration path, walk
-        exactly the windows they are given."""
-        assert all(h in self.ROLE_HWNDS.values() for h, _on in self._calls())
+    def test_without_a_cover_a_promotion_goes_to_the_top_of_the_band(self):
+        """The re-band after the cover has gone, and the path with no cover."""
+        assert all(under == 0 for _h, _on, under in self._calls())
 
 
 class TestPhase4Reveal:
@@ -971,7 +952,7 @@ class TestPhase4Reveal:
             status = Path(manifest["commands"][key])
             status.parent.mkdir(parents=True, exist_ok=True)
             status.write_text("video=a.mp4\nposition_ms=250\n", encoding="utf-8")
-        topmost_tracker = (lambda h, v: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v: None)
+        topmost_tracker = (lambda h, v, **_kw: topmost_calls.append((h, v))) if topmost_calls is not None else (lambda h, v, **_kw: None)
         hide_calls = self._hide_calls = []
 
         with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(mode)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_map.get(title, 0)), set_always_on_top=dict(side_effect=topmost_tracker), minimize_window=dict(side_effect=lambda h, **kw: hide_calls.append(h))):

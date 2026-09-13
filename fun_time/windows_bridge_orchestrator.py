@@ -91,7 +91,6 @@ from .windows_bridge_sequencer import (
     StartupResult,
     apply_startup_window_state,
     apply_topmost_bands,
-    keep_the_cover_up,
     release_the_players,
     run_startup_sequence,
 )
@@ -559,9 +558,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
     ``overlay_hwnd`` is the loading screen's own window when this runs UNDER the
     curtain, which is where it belongs: the bands decide what the reveal looks
     like, so applying them afterwards is watching the room sort itself out.
-    Handed the overlay, this keeps it on top across the pass (``HWND_TOPMOST``
-    inserts at the top of the band, so each promotion lands over it until it is
-    put back) and leaves it out of the "is this player buried?" test.
+    Handed the overlay, this bands every window under it and leaves it out of
+    the "is this player buried?" test.
     """
     dash_hwnd = 0
     if result.dashboard_pid:
@@ -625,7 +623,6 @@ def _fix_post_loading_windows(result: StartupResult, *,
         satellites_mode=result.satellites_mode,
         beneath=overlay_hwnd,
     )
-    keep_the_cover_up(overlay_hwnd)
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
     # target's own thread, the satellites are at their busiest now, and a
@@ -692,10 +689,8 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
     Chrome sat over the landscape player until the next full re-band.  So walk
     the real z-order and re-promote whoever is still buried.
 
-    The loading overlay covers everything on purpose, so it is not a burial:
-    left in the test, this loop would spend every pass re-promoting windows
-    that are exactly where they belong — and it is put back on top after every
-    single promotion, since each one lands above it.
+    The loading overlay covers everything on purpose, so it is not a burial,
+    and a re-promotion made while it is up goes under it.
     """
     for _ in range(passes):
         stack = iter_zorder()
@@ -707,11 +702,7 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
             break
         for name, hwnd in buried:
             logger.info("The %s region is still buried; re-asserting its band", name)
-            set_always_on_top(hwnd, True)
-            # After each one, not after the batch: the promotion lands above the
-            # cover, and anything left there until the next window's turn shows
-            # through it.
-            keep_the_cover_up(overlay_hwnd)
+            set_always_on_top(hwnd, True, under=overlay_hwnd)
         time.sleep(wait_s)
 
 
@@ -781,9 +772,7 @@ def start_hud_priming(
 
 @dataclass(frozen=True)
 class _Cover:
-    """The loading screen, or the absence of one on the path without a curtain.
-    Its window is resolved as it opens, not at the reveal: startup's phases
-    raise windows long before then (``keep_the_cover_up``)."""
+    """The loading screen, or the absence of one on the path without a curtain."""
 
     process: subprocess.Popen | None
     progress: ProgressReporter
@@ -1145,7 +1134,7 @@ def run_session(
 
     # --- Launch loading screen (normal mode only) ---
     cover = _open_the_cover(state_dir, show_overlays=env.show_overlays)
-    progress, overlay_hwnd = cover.progress, cover.hwnd
+    progress = cover.progress
 
     if env.integration:
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
@@ -1172,7 +1161,6 @@ def run_session(
             state_dir=state_dir,
             progress=progress,
             hide_windows=env.show_overlays,
-            cover_hwnd=overlay_hwnd,
             env=env,
         )
     except StartupCancelled as cancelled:
