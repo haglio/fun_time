@@ -126,11 +126,8 @@ def build_voice_commands(
         # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
-        #
-        # Recognizer listens for "go now" (reliably recognized); the reference
-        # displays this as "genau" via the row's voice_display override.
+
         "go now": "genau_activate",
-        # ...and said as a mode, the way video mode is; shown as "genau mode".
         "go now mode": "genau_activate",
         # Video mode, said of a side or of neither: the bare phrase puts the
         # main slot AND the satellites on their players, each side's own phrase
@@ -141,7 +138,7 @@ def build_voice_commands(
         "satellites video mode": "satellites_video_activate",
         # The satellite side's other mode, spoken as explicit modes rather than a
         # toggle, so a phrase misheard twice cannot land on the opposite.
-        "generator mode": "origenerator_activate",
+        "aura generator mode": "origenerator_activate",
         "start broker": "broker_start",
         "stop broker": "broker_stop",
         # "main next" / "next main" are generated with the satellite grid
@@ -407,7 +404,7 @@ def build_voice_commands(
     _MODE_NAV: dict[str, tuple[str, str]] = {
         # recognizer base -> (next command, previous command)
         "video": ("main_next", "main_prev"),
-        "go now": ("genau_next_clip", "genau_prev_clip"),  # displayed "genau"
+        "go now": ("genau_next_clip", "genau_prev_clip"),
     }
     for _base, (_next_cmd, _prev_cmd) in _MODE_NAV.items():
         commands[f"{_base} next"] = _next_cmd
@@ -577,6 +574,7 @@ SELF_REPORTING_COMMANDS = frozenset({
 # rewrite reaches the derived phrases the word sits inside ("next fun scripted").
 _VOICE_DISPLAY_ALIASES: tuple[tuple[str, str], ...] = (
     ("go now", "genau"),
+    ("aura generator", "origenerator"),
     ("hot keys", "hotkeys"),
     ("un mute", "unmute"),
     ("un pause", "unpause"),
