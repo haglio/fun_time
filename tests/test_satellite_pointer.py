@@ -132,6 +132,20 @@ class TestTheScrubber:
         assert hud.presses == []
         assert _asked(tmp_path) == []
 
+    def test_above_a_row_too_narrow_to_share_the_readout_is_not_the_picture(self, tmp_path):
+        """400 across leaves the readout a line of its own above the row, over the
+        picture: a press on it neither seeks nor asks the room to pause."""
+        from player_core.playhead import readout_xy
+
+        pointer, player, hud = _pointer(tmp_path, hud_takes=False)
+        x, y = readout_xy(131, win_w=400, win_h=WIN_H, timeline_h=TIMELINE_HEIGHT)
+
+        pointer.press(x + 20, y + CHIP_H // 2, win_w=400, win_h=WIN_H)
+
+        assert player.seeks == []
+        assert hud.presses == []
+        assert _asked(tmp_path) == []
+
 
 class TestThePicture:
     """A satellite has no pause of its own to give — its paused state is the

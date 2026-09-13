@@ -52,6 +52,7 @@ from player_core.playhead import (
     PlayheadHud,
     PlayheadHudPainter,
     clip_playhead,
+    lower_edge_height,
     readout_xy,
     video_playhead,
 )
@@ -193,6 +194,7 @@ PRIMARY_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
 
 PANEL_DOCK_FALLBACK_ASPECT = 16 / 9  # the primary's shape until it decodes one
+_WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
 
 # GenauVR's rate and deadzone, but not its sign: our stick away lowers.
 TILT_RATE_DEG_S = 85.0
@@ -939,9 +941,9 @@ class _PanelUnit:
 
     def _on_the_row(self, v: float) -> float | None:
         height = self._panel_height  # v in the ROW's own, or None: it is the last rows
-        if self._row is None or v * height > TIMELINE_HEIGHT:
+        if self._row is None or v * height > _WRAPPED_ROW_SIZE[1]:
             return None
-        return v * height / TIMELINE_HEIGHT
+        return v * height / _WRAPPED_ROW_SIZE[1]
 
     def _take_presses(self) -> None:
         for event in self._presses.drain():
@@ -963,7 +965,7 @@ class _PanelUnit:
         controls = self._controls
         if controls is None:
             return
-        size = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+        size = _WRAPPED_ROW_SIZE
         if kind == PRESS:
             self._furniture.press(u, v, size=size, duration_ms=controls.scrub_duration_ms,
                                   muted=controls.hud.muted)
@@ -995,7 +997,7 @@ class _PanelUnit:
         if row_key != self._row_key:
             self._row = None if row_key is None else paint_row(
                 self._controls.position, self._controls.duration, self._controls.playhead,
-                self._controls.hud, (PANEL_WIDTH_PX, TIMELINE_HEIGHT),
+                self._controls.hud, _WRAPPED_ROW_SIZE,
                 volume_painter=self._row_painter, readout_painter=self._readout_painter)
         image = paint_panel(self._painter, hud, hover=hover, notices=lines, row=self._row)
         self._pointer.painted(
@@ -1008,7 +1010,7 @@ class _PanelUnit:
         controls = self._controls
         if controls is None:
             return None
-        size = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+        size = _WRAPPED_ROW_SIZE
         return (scrubber_state(*size, controls.position, controls.duration),
                 controls.playhead, chip_state(*size, controls.hud))
 

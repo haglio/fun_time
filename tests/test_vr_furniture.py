@@ -4,7 +4,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
+from player_core.playhead import PlayheadHudPainter, lower_edge_height, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, progress_bar_bgra
 from player_core.volume import (
     CHIP_H,
@@ -122,47 +122,53 @@ class TestTheRowOfItsOwn:
     """A video that wraps the viewer carries no controls in its own frame -- baked
     in they ride round the nadir with it -- so the same two are painted on a strip
     the console carries along its lower edge instead.  It stands in for a video's
-    last row, and these hold it to that: same height, same hit map, so nothing
+    last rows, and these hold it to that: same height, same hit map, so nothing
     moves under the hand when the projection changes."""
 
-    _SIZE = (PANEL_WIDTH_PX, TIMELINE_HEIGHT)
+    _SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
 
-    def test_it_is_hit_exactly_as_a_videos_last_row_is(self):
-        """The row IS that row: read any other way, the scrubber and the chip
-        would move the moment a video was watched wrapped instead of flat."""
+    def test_it_is_hit_exactly_as_a_videos_last_rows_are(self):
+        """The strip IS those rows: read any other way, the scrubber, the chip and
+        the readout would move the moment a video was watched wrapped instead of
+        flat."""
         picture = control_size(PANEL_WIDTH_DEG, PANEL_WIDTH_PX / 400)
-        halfway_down = TIMELINE_HEIGHT / 2  # from the lower edge, in both
+        # From the lower edge, in both: halfway up the row, and halfway up the
+        # readout's line above it.
+        heights = (TIMELINE_HEIGHT / 2, self._SIZE[1] - CHIP_H / 2)
 
         # Asked where each control actually is, rather than at fractions that
         # slide off it the moment the panel is resized.
         on_each = (_on_the_scrubber(self._SIZE)[0],
                    _on_the_chip("mute", self._SIZE)[0],
-                   _on_the_chip("volume", self._SIZE)[0])
+                   _on_the_chip("volume", self._SIZE)[0],
+                   _uv(bar_track_x(PANEL_WIDTH_PX)[0] + 20, 0, self._SIZE)[0])
 
         found = set()
-        for u in (0.05, 0.3, 0.99, *on_each):
-            on_the_row = furniture_at(u, halfway_down / self._SIZE[1], size=self._SIZE)
-            in_the_picture = furniture_at(u, halfway_down / picture[1], size=picture)
-            assert (u, on_the_row) == (u, in_the_picture)
-            found.add(on_the_row)
+        for up in heights:
+            for u in (0.05, 0.3, 0.99, *on_each):
+                on_the_row = furniture_at(u, up / self._SIZE[1], size=self._SIZE)
+                in_the_picture = furniture_at(u, up / picture[1], size=picture)
+                assert (u, up, on_the_row) == (u, up, in_the_picture)
+                found.add(on_the_row)
 
-        assert found == {READOUT, SCRUBBER, MUTE, VOLUME}  # and all four were reached
+        assert found >= {READOUT, SCRUBBER, MUTE, VOLUME}  # and all four were reached
 
     def test_it_paints_both_controls_and_stays_clear_between_them(self):
         """Transparent where it draws nothing: the strip is composited onto the
         console, which is itself blended over whatever the wrap is showing."""
         width, height = self._SIZE
+        in_the_row = height - TIMELINE_HEIGHT // 2
 
         row = paint_row(1_000.0, 10_000.0, video_playhead(1_000.0, 10_000.0, 30.0),
                         VolumeHud(volume=70, muted=False), self._SIZE,
                         volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
 
         assert row.shape == (height, width, 4)
-        assert row[height // 2, bar_track_x(width)[0] + 3, 3] > 0  # the scrubber's track
-        assert row[height // 2, chip_xy(win_w=width, win_h=height,
-                                        timeline_h=height)[0] + 5, 3] > 0  # the chip
-        assert row[height // 2, bar_track_x(width)[1] + 3, 3] == 0  # the gap they leave
-        assert row[0, 0, 3] == 0  # and the corner outside the track
+        assert row[in_the_row, bar_track_x(width)[0] + 3, 3] > 0  # the scrubber's track
+        assert row[in_the_row, chip_xy(win_w=width, win_h=height,
+                                       timeline_h=TIMELINE_HEIGHT)[0] + 5, 3] > 0  # the chip
+        assert row[in_the_row, bar_track_x(width)[1] + 3, 3] == 0  # the gap they leave
+        assert row[0, width - 1, 3] == 0  # and the corner outside them all
 
     def test_it_comes_back_rgba_for_the_texture_it_becomes(self):
         """Every other row is handed to mpv or blended as BGRA; this one reaches
@@ -173,10 +179,11 @@ class TestTheRowOfItsOwn:
                         volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
         bgra = progress_bar_bgra(1_000.0, 10_000.0, None, self._SIZE[0])
 
-        assert row[self._SIZE[1] // 2, x, :3].tolist() == bgra[
-            self._SIZE[1] // 2, x, 2::-1].tolist()
+        assert row[self._SIZE[1] - TIMELINE_HEIGHT // 2, x, :3].tolist() == bgra[
+            TIMELINE_HEIGHT // 2, x, 2::-1].tolist()
 
-    def test_it_shows_where_the_video_is_at_its_left_end(self):
+    def test_it_shows_where_the_video_is_on_the_line_above_its_bar(self):
+        """380 across is too narrow for the readout to share the bar's row."""
         width, height = self._SIZE
         playhead = video_playhead(1_000.0, 10_000.0, 30.0)
 
@@ -184,8 +191,9 @@ class TestTheRowOfItsOwn:
                         volume_painter=VolumeHudPainter(), readout_painter=PlayheadHudPainter())
 
         pill = PlayheadHudPainter().bgra(playhead)
-        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=height)
+        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
         drawn = row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
+        assert y == 0
         assert np.abs(drawn - pill[:, :, [2, 1, 0, 3]]).max() <= 1
 
 
@@ -206,6 +214,16 @@ class TestWhichControlAPressLandsOn:
         x0 = bar_track_x(_SIZE[0])[0]
 
         assert furniture_at(*_uv(x0 // 2, _SIZE[1] - TIMELINE_HEIGHT // 2), size=_SIZE) == READOUT
+
+    def test_on_a_satellites_screen_the_readout_is_the_line_above_the_row(self):
+        """A satellite's usual 28 degrees is too narrow for the readout to share
+        its row, so the readout sits on the picture just above it."""
+        size = control_size(28.0, 16 / 9)
+        x, y = readout_xy(131, win_w=size[0], win_h=size[1], timeline_h=TIMELINE_HEIGHT)
+
+        assert furniture_at(*_uv(x + 20, y + CHIP_H // 2, size), size=size) == READOUT
+        assert furniture_at(*_uv(bar_track_x(size[0])[0], size[1] - TIMELINE_HEIGHT // 2, size),
+                            size=size) == SCRUBBER
 
 
 class TestASqueezeOnAVideosOwnControls:
