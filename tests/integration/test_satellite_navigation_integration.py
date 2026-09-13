@@ -36,6 +36,7 @@ from fun_time.windows_bridge_startup import launch_satellite
 
 from .integration_support import (
     checkout_project_dirs,
+    published_status,
     real_config_path,
     sample_library_clips,
 )
@@ -91,7 +92,7 @@ class _Satellite:
         return "\n".join(text.splitlines()[-lines:])
 
     def video(self) -> str:
-        return read_satellite_status(self.status).video
+        return published_status(read_satellite_status, self.status).video
 
     def wait_for_video(self, *, other_than: str = "", timeout: float = 15.0) -> str:
         return _wait(
@@ -356,7 +357,7 @@ def _decoding(satellite: _Satellite) -> bool:
     showing a black window reads exactly that way, so this is what tells a clip
     still being drawn from an empty video output.
     """
-    status = read_satellite_status(satellite.status)
+    status = published_status(read_satellite_status, satellite.status)
     return status.duration_ms > 0 and status.position_ms > 0
 
 

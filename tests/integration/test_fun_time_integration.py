@@ -23,6 +23,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    published_status,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -418,9 +419,9 @@ def test_fun_time_omnipause_freezes_the_satellites(
         description="Landscape satellite to report paused under OmniPause",
     )
     # The playhead must not advance while paused.
-    pos_a = read_satellite_status(portrait_status).position_ms
+    pos_a = published_status(read_satellite_status, portrait_status).position_ms
     time.sleep(1.2)
-    pos_b = read_satellite_status(portrait_status).position_ms
+    pos_b = published_status(read_satellite_status, portrait_status).position_ms
     assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
 
     # Restore the shared session.
@@ -628,7 +629,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
     # file that was never going there.  A lock is repeat-one, which closes that.
     isolated_integration_session.write_dashboard_command("portrait_lock_on")
     isolated_integration_session.wait_for_new_log("Locked portrait satellite", timeout=12)
-    held = read_satellite_status(status_file).video
+    held = published_status(read_satellite_status, status_file).video
     # Take the clip out of the favorites the way the app does, so the discard
     # below meets an ordinary library file rather than a favorite.
     remove_from_favs(isolated_integration_session.favs_file, held)

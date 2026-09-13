@@ -43,6 +43,7 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     library_clips,
+    published_status,
     readable_at_speed,
     sample_library_clips,
     stall_per_transition,
@@ -251,7 +252,8 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         )
 
         # Commands travel the file channel through the worker thread.
-        first_video = read_main_player_status(Path(commands.main_player_status_file)).video
+        first_video = published_status(
+            read_main_player_status, Path(commands.main_player_status_file)).video
         append_command(Path(commands.main_player_cmd_file), "NEXT")
         _wait(
             lambda: read_main_player_status(Path(commands.main_player_status_file)).video
@@ -303,10 +305,12 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             lambda: read_satellite_status(Path(commands.portrait_status_file)).paused,
             timeout=10, desc="the portrait satellite to report paused",
         )
-        position_before = read_satellite_status(Path(commands.portrait_status_file)).position_ms
+        position_before = published_status(
+            read_satellite_status, Path(commands.portrait_status_file)).position_ms
         run_frames(90, measure=False)
         time.sleep(0.3)  # one worker tick past the last status write
-        position_after = read_satellite_status(Path(commands.portrait_status_file)).position_ms
+        position_after = published_status(
+            read_satellite_status, Path(commands.portrait_status_file)).position_ms
         assert position_after == position_before, (
             f"paused satellite kept playing ({position_before} -> {position_after})"
         )
@@ -407,7 +411,8 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
         _wait(lambda: read_main_player_status(Path(commands.main_player_status_file)).duration_ms,
               timeout=30, desc="the main player to open its video")
         run_frames(120)
-        assert read_main_player_status(Path(commands.main_player_status_file)).paused, (
+        assert published_status(
+            read_main_player_status, Path(commands.main_player_status_file)).paused, (
             "the main player should still be holding where genau mode left it"
         )
 

@@ -26,6 +26,7 @@ from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_sate
 
 from .integration_support import (
     checkout_project_dirs,
+    published_status,
     real_config_path,
     sample_library_clips,
 )
@@ -88,16 +89,16 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         # Lock (stops auto-advance) so NEXT's effect on the clip is unambiguous.
         write_satellite_command(cmd, "LOCK")
         _wait(lambda: read_satellite_status(status).locked, timeout=10, desc="the satellite to lock")
-        locked_clip = read_satellite_status(status).video
+        locked_clip = published_status(read_satellite_status, status).video
         write_satellite_command(cmd, "NEXT")
         _wait(lambda: read_satellite_status(status).video not in ("", locked_clip),
               timeout=15, desc="NEXT to change the clip while locked")
         # The paused flag freezes playback.
         paused.write_text("1", encoding="utf-8")
         _wait(lambda: read_satellite_status(status).paused, timeout=10, desc="the satellite to report paused")
-        pos_a = read_satellite_status(status).position_ms
+        pos_a = published_status(read_satellite_status, status).position_ms
         time.sleep(1.2)
-        pos_b = read_satellite_status(status).position_ms
+        pos_b = published_status(read_satellite_status, status).position_ms
         assert pos_b == pos_a, f"paused satellite kept playing ({pos_a} -> {pos_b})"
         assert first  # a real clip was playing
     finally:
@@ -217,9 +218,9 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         # Republish a changed panel: the player must re-render and composite it
         # without disturbing playback.
         publish(locked=True)
-        before = read_satellite_status(status).position_ms
+        before = published_status(read_satellite_status, status).position_ms
         time.sleep(2.0)
-        after = read_satellite_status(status).position_ms
+        after = published_status(read_satellite_status, status).position_ms
         assert after != before, (
             f"the satellite stopped publishing after the HUD redrew ({before} -> {after})")
     finally:
