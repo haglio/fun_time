@@ -24,6 +24,7 @@ import pygame
 from app_support.win32 import set_app_user_model_id
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
+from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.sdl_hints import deliver_the_focusing_click
 from player_core.session_quit import quit_gesture
 from player_core.status import StatusWriter
@@ -46,6 +47,7 @@ logger = logging.getLogger(__name__)
 _OV_BLACKOUT = 5
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
+_OV_READOUT = 13
 
 # Fun Time's own icon, so a satellite's Alt-Tab entry and taskbar button say
 # which application it belongs to.  Without one, pygame supplies its own logo and
@@ -137,6 +139,7 @@ def _run(args, playlist: list[Path]) -> int:
     # The main player's is only the heatmap, which needs a script a satellite's clips lack.
     volume = SatelliteVolume(player, live=not audio_muted(args))
     volume_painter = VolumeHudPainter()
+    readout_painter = PlayheadHudPainter()
     pointer = Pointer(session=session, volume=volume, hud=hud,
                       dashboard_cmd_file=args.dashboard_cmd_file)
     # The window size the blackout frame was last composited for, or None while
@@ -191,6 +194,7 @@ def _run(args, playlist: list[Path]) -> int:
                 blackout_size = (win_w, win_h)
                 player.remove_overlay(_OV_SCRUBBER)
                 player.remove_overlay(_OV_VOLUME)
+                player.remove_overlay(_OV_READOUT)
                 black = np.zeros((win_h, win_w, 4), dtype=np.uint8)
                 black[:, :, 3] = 255  # opaque black; BGR stays zero
                 player.overlay(_OV_BLACKOUT, 0, 0, black)
@@ -203,6 +207,13 @@ def _run(args, playlist: list[Path]) -> int:
             player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
             vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
             player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
+            readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)
+            if readout is None:
+                player.remove_overlay(_OV_READOUT)
+            else:
+                pill = readout_painter.bgra(readout)
+                player.overlay(_OV_READOUT, *readout_xy(
+                    pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
 
         clock.tick(60)
 
