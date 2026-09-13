@@ -30,6 +30,7 @@ class FakeSatellitePlayer:
         self.volume = 100
         self.muted = True
         self.seeks: list[float] = []
+        self.speed = 1.0
 
     # --- the interface SatelliteSession drives -------------------------------
     def load(self, path: Path) -> None:
@@ -69,6 +70,9 @@ class FakeSatellitePlayer:
 
     def set_muted(self, muted: bool) -> None:
         self.muted = muted
+
+    def set_speed(self, speed: float) -> None:
+        self.speed = speed
 
     def close(self) -> None:
         self.closed = True

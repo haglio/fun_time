@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from player_core.playback_rate import MAX_RATE, MIN_RATE
+
 from tests.satellite_fakes import make_satellite_session as _make_session
 
 
@@ -257,6 +259,29 @@ class TestPlaybackClock:
 
         assert session.position_ms == 3_200.0
         assert session.duration_ms == 8_000.0
+
+
+class TestSpeed:
+    def test_a_satellite_opens_at_normal_speed(self, tmp_path):
+        session, _player = _make_session(tmp_path)
+
+        assert session.speed == 1.0
+
+    def test_a_rate_set_on_the_satellite_reaches_its_player(self, tmp_path):
+        session, player = _make_session(tmp_path)
+
+        session.set_speed(1.5)
+
+        assert session.speed == player.speed == 1.5
+
+    def test_a_rate_past_either_end_is_held_at_that_end(self, tmp_path):
+        session, player = _make_session(tmp_path)
+
+        session.set_speed(9.0)
+        assert session.speed == player.speed == MAX_RATE
+
+        session.set_speed(0.01)
+        assert session.speed == player.speed == MIN_RATE
 
 
 class TestClose:

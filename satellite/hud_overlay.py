@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import logging
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -59,6 +60,7 @@ class HudOverlay:
         self._published = ""          # the raw panel text last rendered
         self._model: HudModel | None = None
         self._video = ""              # the file the player last said it was on
+        self._playback_speed: float | None = None
         self._hover_loop = ""
         self._hover_tip = ""
         self._hover_pos = (0, 0)
@@ -82,7 +84,7 @@ class HudOverlay:
         return (self._model is not None
                 and self._model.satellites_mode == "origenerator")
 
-    def tick(self, video: str = "") -> None:
+    def tick(self, video: str = "", playback_speed: float | None = None) -> None:
         """Re-read the published panel, redraw if it or the clip on screen moved,
         and post a due click.
 
@@ -93,8 +95,9 @@ class HudOverlay:
         alone would sit on a clip that had already rolled past.
         """
         text = self._read()
-        redraw = video != self._video
+        redraw = video != self._video or playback_speed != self._playback_speed
         self._video = video
+        self._playback_speed = playback_speed
         if text is not None and text != self._published:
             self._published = text
             model = parse_hud(text) if text else None
@@ -176,7 +179,9 @@ class HudOverlay:
             self.close()
             return
         rendered = self._renderer.render(
-            self._model, video=self._video, hover_loop=self._hover_loop,
+            replace(self._model,
+                    playback_speed=None if self.display_suppressed else self._playback_speed),
+            video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )
         self.targets = rendered.targets

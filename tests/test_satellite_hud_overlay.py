@@ -87,6 +87,43 @@ def test_tick_redraws_when_the_clip_on_screen_changes(tmp_path: Path, panel: Pat
     assert player.overlays[overlay.overlay_id][2] is not first
 
 
+def test_the_players_own_rate_brings_a_speed_row_whose_buttons_post_this_sides_speed(
+        tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+    overlay.tick(playback_speed=1.0)
+    rect = dict((name, r) for r, name in overlay.targets.control)["speed_up"]
+
+    overlay.press(rect[0] + MARGIN + 2, rect[1] + MARGIN + 2)
+
+    assert _commands(tmp_path) == ["portrait_speed_up"]
+
+
+def test_tick_redraws_when_the_players_rate_changes(tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+    overlay = _overlay(tmp_path, panel, player)
+
+    overlay.tick(playback_speed=1.0)
+    first = player.overlays[overlay.overlay_id][2]
+    overlay.tick(playback_speed=1.0)
+    assert player.overlays[overlay.overlay_id][2] is first
+
+    overlay.tick(playback_speed=1.5)
+    assert player.overlays[overlay.overlay_id][2] is not first
+
+
+def test_no_speed_row_while_origenerator_mode_blacks_the_player_out(tmp_path: Path, panel: Path):
+    player = FakeSatellitePlayer()
+    panel.write_text(panel.read_text(encoding="utf-8").replace(
+        '"side": "portrait"',
+        '"side": "portrait", "satellites_mode": "origenerator"'), encoding="utf-8")
+    overlay = _overlay(tmp_path, panel, player)
+
+    overlay.tick(playback_speed=1.0)
+
+    assert "speed_up" not in [name for _rect, name in overlay.targets.control]
+
+
 def test_no_panel_file_means_no_overlay(tmp_path: Path):
     """A satellite fun_time hasn't published a HUD for (an integration run, or
     before the first publish) simply shows no map."""
