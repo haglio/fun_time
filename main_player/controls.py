@@ -26,6 +26,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from player_core.control_registry import Control, Verb, bind, look_up
+from player_core.playback_rate import RATE_STEP, parse_rate
 from player_core.player_verbs import (
     DISPLAY_OFF,
     DISPLAY_ON,
@@ -48,11 +49,8 @@ from player_core.player_verbs import (
 )
 from player_core.playlist import item_from_line
 
-from .session import MAX_SPEED_RATE, MIN_SPEED_RATE
-
 __all__ = [
     "SEEK_STEP_MS",
-    "SPEED_STEP",
     "VERBS",
     "MainPlayerControls",
     "apply_command",
@@ -61,7 +59,6 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 SEEK_STEP_MS = 10_000
-SPEED_STEP = 0.25
 
 
 @dataclass
@@ -110,16 +107,10 @@ def _set_speed(controls: MainPlayerControls, value: str) -> bool:
     False on a value it cannot read as a rate, which :func:`apply_command`
     turns into the log line; the rate is left where it was.
     """
-    key = value.lower()
-    if key == "min":
-        controls.session.set_speed(MIN_SPEED_RATE)
-    elif key == "max":
-        controls.session.set_speed(MAX_SPEED_RATE)
-    else:
-        try:
-            controls.session.set_speed(float(value))
-        except ValueError:
-            return False
+    rate = parse_rate(value)
+    if rate is None:
+        return False
+    controls.session.set_speed(rate)
     return True
 
 
@@ -317,8 +308,8 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="speed",
         verbs=(
-            Verb(SPEED_UP, _speed_step(SPEED_STEP)),
-            Verb(SPEED_DOWN, _speed_step(-SPEED_STEP)),
+            Verb(SPEED_UP, _speed_step(RATE_STEP)),
+            Verb(SPEED_DOWN, _speed_step(-RATE_STEP)),
             Verb(SET_SPEED, _set_speed, takes_a_value=True),
         ),
     ),

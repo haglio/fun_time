@@ -4,9 +4,9 @@ import threading
 from pathlib import Path
 
 import pytest
+from player_core.playback_rate import MAX_RATE, MIN_RATE, RATE_STEP
 
-from main_player.controls import SEEK_STEP_MS, SPEED_STEP, VERBS, MainPlayerControls, apply_command
-from main_player.session import MAX_SPEED_RATE, MIN_SPEED_RATE
+from main_player.controls import SEEK_STEP_MS, VERBS, MainPlayerControls, apply_command
 
 
 class SpySession:
@@ -206,7 +206,7 @@ class TestApplyCommand:
         apply_command("SPEED_DOWN", MainPlayerControls(session))
 
         assert session.calls == [
-            ("adjust_speed", SPEED_STEP), ("adjust_speed", -SPEED_STEP),
+            ("adjust_speed", RATE_STEP), ("adjust_speed", -RATE_STEP),
         ]
 
     def test_set_speed_absolute_and_extremes(self):
@@ -217,8 +217,8 @@ class TestApplyCommand:
         apply_command("SET_SPEED 1.5", MainPlayerControls(session))
 
         assert session.calls == [
-            ("set_speed", MIN_SPEED_RATE),
-            ("set_speed", MAX_SPEED_RATE),
+            ("set_speed", MIN_RATE),
+            ("set_speed", MAX_RATE),
             ("set_speed", 1.5),
         ]
 

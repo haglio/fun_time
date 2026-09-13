@@ -32,6 +32,7 @@ class StubSession:
     loop_bounds = None
     is_paused = False
     locked = True
+    speed = 1.0
 
 
 class FakeGate:

@@ -15,6 +15,7 @@ import logging
 from pathlib import Path
 
 from player_core.funscript import load as load_funscript
+from player_core.playback_rate import clamp_rate
 
 from .session_loops import SessionLoops
 
@@ -32,12 +33,6 @@ _EOF_WRAP_START_MS = 250
 # the whole video to the start and flashes the opening frames.  Wide enough that
 # a tick reliably lands inside it at 60 fps, small enough to still feel instant.
 _EOF_MARGIN_MS = 100
-
-# Playback-rate bounds for the speed control (mpv's ``speed`` multiplier, where
-# 1.0 is normal). The funscript follows a speed change automatically because it
-# is driven off mpv's clock, which advances at the playback rate.
-MIN_SPEED_RATE = 0.25
-MAX_SPEED_RATE = 2.0
 
 # Volume bounds for the audio control, on mpv's ``volume`` scale: a percentage
 # of the source's own level, where 100 is untouched and 0 is silent.
@@ -215,7 +210,7 @@ class PlayerSession:
         its own.  The in-flight T-Code move is the one thing that does not, and
         waiting out a now-mistimed one is what taking the device over avoids.
         """
-        speed = max(MIN_SPEED_RATE, min(MAX_SPEED_RATE, speed))
+        speed = clamp_rate(speed)
         if speed == self._speed:
             return
         self._speed = speed
