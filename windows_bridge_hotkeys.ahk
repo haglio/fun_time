@@ -328,12 +328,26 @@ QueueCommand(cmd) {
         Log("QueueCommand dropped (file busy): " . cmd)
 }
 
-AppendWithRetry(text, path, attempts := 5, delayMs := 5) {
+AppendWithRetry(text, path, attempts := 5, delayMs := 5, access := "exclusive") {
     ; FileAppend past transient Windows sharing violations (error 32) that occur
     ; when another process briefly holds the file. Returns true once written.
+    ; "append-only" is for a file another process appends to as well: FileAppend
+    ; takes the file exclusively, and a plain shared append can land on the
+    ; offset the other writer just filled.  A handle with FILE_APPEND_DATA and
+    ; no FILE_WRITE_DATA writes at the end of the file every time.
     loop attempts {
         try {
-            FileAppend(text, path, "UTF-8-RAW")
+            if (access = "append-only") {
+                handle := DllCall("CreateFileW", "Str", path, "UInt", 0x0004 | 0x00100000,
+                                  "UInt", 7, "Ptr", 0, "UInt", 4, "UInt", 0x80, "Ptr", 0, "Ptr")
+                if (handle = -1)
+                    throw OSError(A_LastError)
+                target := FileOpen(handle, "h", "UTF-8-RAW")
+                target.Write(text)
+                target.Close()
+            } else {
+                FileAppend(text, path, "UTF-8-RAW")
+            }
             return true
         }
         Sleep(delayMs)
@@ -390,5 +404,5 @@ RequireManifestValue(section, key) {
 Log(msg) {
     global WINDOWS_BRIDGE_LOG_FILE
     line := FormatTime(, "yyyy-MM-dd HH:mm:ss") . " " . msg . "`r`n"
-    AppendWithRetry(line, WINDOWS_BRIDGE_LOG_FILE, 3, 50)
+    AppendWithRetry(line, WINDOWS_BRIDGE_LOG_FILE, 3, 50, "append-only")
 }
