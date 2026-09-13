@@ -28,13 +28,27 @@ def head_position(eye_positions: Sequence[Vec3]) -> Vec3:
     return tuple(np.mean(np.array(eye_positions, dtype=np.float64), axis=0))
 
 
-def scene_ray(aim: AimPose, *, head: Vec3, scene_rotation: np.ndarray) -> Ray:
+def _scene_pose(
+    aim: AimPose, *, head: Vec3, scene_rotation: np.ndarray,
+) -> tuple[np.ndarray, np.ndarray]:
     position, orientation = aim
     unturn = np.asarray(scene_rotation, dtype=np.float64)[:3, :3].T
     origin = unturn @ (np.array(position, dtype=np.float64) - np.array(head, dtype=np.float64))
-    direction = unturn @ (quat_to_rotation_matrix(*orientation) @ _FORWARD)
+    return origin, unturn @ quat_to_rotation_matrix(*orientation)
+
+
+def scene_ray(aim: AimPose, *, head: Vec3, scene_rotation: np.ndarray) -> Ray:
+    origin, rotation = _scene_pose(aim, head=head, scene_rotation=scene_rotation)
+    direction = rotation @ _FORWARD
     direction /= np.linalg.norm(direction)
     return Ray(origin=tuple(origin), direction=tuple(direction))
+
+
+def held_controllers(
+    hands: Mapping[str, HandInput], *, head: Vec3, scene_rotation: np.ndarray,
+) -> list[tuple[np.ndarray, np.ndarray]]:
+    return [_scene_pose(hand.aim, head=head, scene_rotation=scene_rotation)
+            for hand in hands.values() if hand.aim is not None]
 
 
 @dataclass(frozen=True)

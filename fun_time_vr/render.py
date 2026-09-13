@@ -57,6 +57,16 @@ void main() {
 }
 """
 
+_SHADED_FRAGMENT_SHADER = """
+#version 330 core
+in vec2 frag_uv;
+out vec4 frag_color;
+uniform vec4 color;
+void main() {
+    frag_color = vec4(color.rgb * frag_uv.x, color.a);
+}
+"""
+
 _FULLSCREEN_VERTEX_SHADER = """
 #version 330 core
 out vec2 screen_pos;
@@ -324,6 +334,25 @@ class ScreenMesh:
         GL.glDeleteBuffers(1, [self._vbo])
 
 
+class _TintProgram:
+    def __init__(self, fragment_shader: str) -> None:
+        self.program = _compile_program(_QUAD_VERTEX_SHADER, fragment_shader)
+        self._view_proj = GL.glGetUniformLocation(self.program, "view_proj")
+        self._color = GL.glGetUniformLocation(self.program, "color")
+
+    def draw(
+        self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
+    ) -> None:
+        GL.glUseProgram(self.program)
+        GL.glUniformMatrix4fv(self._view_proj, 1, GL.GL_TRUE, view_proj)
+        GL.glUniform4f(self._color, *color)
+        GL.glEnable(GL.GL_BLEND)
+        GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
+        mesh.draw()
+        GL.glDisable(GL.GL_BLEND)
+        GL.glUseProgram(0)
+
+
 class SceneRenderer:
     """Draws one eye's view: the immersive wrap or the primary screen, then
     the satellite screens over it (painter's order keeps them on top)."""
@@ -341,9 +370,8 @@ class SceneRenderer:
         self._imm_tex = GL.glGetUniformLocation(self._immersive_program, "video_tex")
         self._copy_program = _compile_program(_FULLSCREEN_VERTEX_SHADER, _COPY_FRAGMENT_SHADER)
         self._copy_tex = GL.glGetUniformLocation(self._copy_program, "video_tex")
-        self._solid_program = _compile_program(_QUAD_VERTEX_SHADER, _SOLID_FRAGMENT_SHADER)
-        self._solid_view_proj = GL.glGetUniformLocation(self._solid_program, "view_proj")
-        self._solid_color = GL.glGetUniformLocation(self._solid_program, "color")
+        self._solid = _TintProgram(_SOLID_FRAGMENT_SHADER)
+        self._shaded = _TintProgram(_SHADED_FRAGMENT_SHADER)
 
         self._fullscreen_vao = GL.glGenVertexArrays(1)
 
@@ -395,14 +423,12 @@ class SceneRenderer:
         self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
     ) -> None:
         """A strip in one flat color, blended over the scene: the pointer's chrome."""
-        GL.glUseProgram(self._solid_program)
-        GL.glUniformMatrix4fv(self._solid_view_proj, 1, GL.GL_TRUE, view_proj)
-        GL.glUniform4f(self._solid_color, *color)
-        GL.glEnable(GL.GL_BLEND)
-        GL.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA)
-        mesh.draw()
-        GL.glDisable(GL.GL_BLEND)
-        GL.glUseProgram(0)
+        self._solid.draw(mesh, view_proj, color)
+
+    def draw_shaded(
+        self, mesh: ScreenMesh, view_proj: np.ndarray, color: tuple[float, float, float, float],
+    ) -> None:
+        self._shaded.draw(mesh, view_proj, color)
 
     def copy_texture(self, texture: int) -> None:
         """Fill the bound framebuffer's viewport with *texture*, byte-for-byte.
@@ -430,5 +456,6 @@ class SceneRenderer:
         GL.glDeleteProgram(self._quad_program)
         GL.glDeleteProgram(self._immersive_program)
         GL.glDeleteProgram(self._copy_program)
-        GL.glDeleteProgram(self._solid_program)
+        GL.glDeleteProgram(self._solid.program)
+        GL.glDeleteProgram(self._shaded.program)
         GL.glDeleteVertexArrays(1, [self._fullscreen_vao])

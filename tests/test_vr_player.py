@@ -87,6 +87,7 @@ from fun_time_vr.player import (
     _MainUnit,
     _PanelUnit,
     _pointable_screens,
+    _PointerDrawing,
     _SatelliteUnit,
     _scene_is_up,
     _SlotControls,
@@ -101,6 +102,7 @@ from fun_time_vr.pointer import (
     Frame,
     Hover,
     PressEvent,
+    Ray,
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.scene import Placement, attached_below, surface_vertices
@@ -1431,6 +1433,41 @@ class TestEveryHangingScreenIsDrawn:
     def test_and_stays_out_of_them_while_it_is_down(self):
         """It covers the picture, so it is drawn only while it is asked for."""
         assert "reference" not in self._draw(showing=False).screens
+
+
+class _FakeChromeRenderer:
+    """Records the pointer's draws in order: what is drawn later lands on top."""
+
+    def __init__(self) -> None:
+        self.drawn: list[str] = []
+
+    def draw_solid(self, *_args) -> None:
+        self.drawn.append("flat")
+
+    def draw_shaded(self, *_args) -> None:
+        self.drawn.append("solid")
+
+
+_IN_HAND = (np.array([0.2, -0.3, -0.4]), np.eye(3))
+
+
+class TestWhatThePointerDraws:
+    def _drawn(self, *updates) -> list[str]:
+        renderer = _FakeChromeRenderer()
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            pointing = _PointerDrawing()
+            for frame, held in updates:
+                pointing.update(frame, [], held)
+            pointing.draw(renderer, np.eye(4, dtype=np.float32))
+        return renderer.drawn
+
+    def test_the_controller_is_drawn_over_the_laser_that_leaves_it(self):
+        laser = Ray(origin=(0.2, -0.3, -0.4), direction=(0.0, 0.0, -1.0))
+
+        assert self._drawn((Frame(ray=laser), [_IN_HAND])) == ["flat", "solid"]
+
+    def test_a_controller_that_loses_tracking_stops_being_drawn(self):
+        assert self._drawn((Frame(), [_IN_HAND]), (Frame(), [])) == []
 
 
 
