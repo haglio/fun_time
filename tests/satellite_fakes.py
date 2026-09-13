@@ -20,6 +20,7 @@ class FakeSatellitePlayer:
         self.playlist_pos = 0
         self.duration_ms = duration_ms
         self.position_ms = 0.0
+        self.frame_rate = 25.0
         self.paused = False
         self.loop_file = False
         self.closed = False

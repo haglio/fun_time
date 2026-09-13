@@ -18,7 +18,9 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import numpy as np
 from PIL import Image
+from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import chip_xy
 
@@ -110,8 +112,22 @@ def test_one_pass_plays_publishes_and_paints_then_quit_ends_it_cleanly(tmp_path)
     assert player.opened[0] == clips[0]                    # the first clip is up
     status = (tmp_path / "status.txt").read_text(encoding="utf-8")
     assert f"video={clips[0]}" in status                   # published for the loop
-    assert len(player.overlays) == 2                       # scrubber + volume chip
+    assert len(player.overlays) == 3                       # scrubber, volume chip, readout
     assert player.closed and fake.quit_called              # a clean teardown
+
+
+def test_one_pass_puts_up_where_the_clip_is_and_how_long_it_runs(tmp_path):
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    _code, player, _fake = _run_loop(tmp_path, args)
+
+    pill = PlayheadHudPainter().bgra(
+        video_playhead(0.0, player.duration_ms, player.frame_rate))
+    at = readout_xy(pill.shape[1], win_w=640, win_h=480, timeline_h=TIMELINE_HEIGHT)
+    assert any((x, y) == at and np.array_equal(bgra, pill)
+               for x, y, bgra in player.overlays.values())
 
 
 def test_commands_drain_and_act_before_the_frame_is_published(tmp_path):
