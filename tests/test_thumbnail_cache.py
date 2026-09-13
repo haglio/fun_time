@@ -62,6 +62,18 @@ def test_thumbnail_for_extracts_a_frame_scaled_within_bounds(tmp_path: Path):
         assert img.size[0] / img.size[1] == pytest.approx(64 / 48, abs=0.2)
 
 
+def test_thumbnail_for_makes_a_still_of_a_picture(tmp_path: Path):
+    picture = tmp_path / "picture.png"
+    Image.new("RGB", (64, 96), (200, 30, 30)).save(picture)
+
+    thumb = thumbnail_for(picture, tmp_path / "cache", max_size=32)
+
+    assert thumb is not None and thumb.is_file()
+    with Image.open(thumb) as img:
+        assert max(img.size) <= 32
+        assert img.size[0] / img.size[1] == pytest.approx(64 / 96, abs=0.2)
+
+
 def test_thumbnail_for_reuses_the_cached_file(tmp_path: Path):
     video = tmp_path / "clip.mp4"
     _make_video(video)
