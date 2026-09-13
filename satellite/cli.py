@@ -18,7 +18,8 @@ from player_core.playlist import read_playlist
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="A native satellite video player")
     p.add_argument("--playlist", type=Path, default=None,
-                   help="Video (or video<TAB>funscript) list to play; funscripts are ignored")
+                   help="Video or picture list to play, one per line; a funscript "
+                        "column after a TAB is ignored")
     p.add_argument("--command-file", type=Path, default=None,
                    help="Poll this file for orchestrator commands")
     p.add_argument("--paused-file", type=Path, default=None,

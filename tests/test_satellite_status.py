@@ -18,6 +18,12 @@ class TestStatusFields:
         assert fields["paused"] == "0"
         assert fields["locked"] == "1"
 
+    def test_a_satellite_showing_a_picture_says_so(self, tmp_path):
+        session, player = make_satellite_session(tmp_path)
+        player.showing_picture = True
+
+        assert status_fields(session)["picture"] == "1"
+
     def test_publishes_how_many_clips_a_discard_left_in_the_playlist(self, tmp_path):
         session, _player = make_satellite_session(tmp_path, entries=2)
 
@@ -35,6 +41,7 @@ class TestStatusFields:
             duration_ms = 0.0
             is_paused = False
             is_locked = False
+            showing_picture = False
             playlist_length = 1
             speed = 1.0
 

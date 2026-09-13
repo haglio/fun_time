@@ -31,6 +31,8 @@ class FakeSatellitePlayer:
         self.muted = True
         self.seeks: list[float] = []
         self.speed = 1.0
+        self.pace_s: float | None = None
+        self.showing_picture = False
 
     # --- the interface SatelliteSession drives -------------------------------
     def load(self, path: Path) -> None:
@@ -60,6 +62,9 @@ class FakeSatellitePlayer:
 
     def set_loop_file(self, loop: bool) -> None:
         self.loop_file = loop
+
+    def set_pace(self, seconds: float) -> None:
+        self.pace_s = seconds
 
     def seek_ms(self, ms: float) -> None:
         self.seeks.append(ms)
