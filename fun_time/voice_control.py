@@ -135,6 +135,8 @@ GRAMMAR_ALTERNATIVES = 5
 # a satellite nudge and a bad one for quitting the room.
 NO_REPAIR_INTO: frozenset[str] = frozenset({"quit"})
 
+SILENT_UTTERANCE_PEAK = 300  # every phantom the log ever showed peaked under it; speech clears it
+
 
 @dataclass(frozen=True)
 class Hypothesis:
@@ -191,9 +193,12 @@ class Recognition:
     refused_phrase: str | None = None
     unrecognized_text: str | None = None
     heard: str | None = None
+    silent_reading: str | None = None
 
 
-def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float) -> Recognition:
+def interpret_recognition(
+    grammar_json: str, free_json: str, *, threshold: float, peak: int,
+) -> Recognition:
     """Combine the grammar and free recognizers' takes on one utterance.
 
     The grammar recognizer is the authority, and its first reading that is a
@@ -204,6 +209,8 @@ def interpret_recognition(grammar_json: str, free_json: str, *, threshold: float
     and any reading vosk scored."""
     hypotheses = _hypotheses(grammar_json)
     spoken = next((h.text for h in hypotheses if h.text != "[unk]"), None)
+    if peak < SILENT_UTTERANCE_PEAK:
+        return Recognition(silent_reading=spoken)
     for rank, hypothesis in enumerate(hypotheses):
         if hypothesis.text == "[unk]":
             continue
@@ -380,7 +387,7 @@ class VoiceController:
             return False
         return append_command(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
 
-    def _handle_recognition(self, interp: Recognition, *, spoken_at: float, peak: int = 0) -> None:
+    def _handle_recognition(self, interp: Recognition, *, spoken_at: float, peak: int) -> None:
         """Act on one interpreted utterance -- and say which of its ends it reached.
 
         Every finalized utterance leaves one log line naming its outcome and the
@@ -428,6 +435,8 @@ class VoiceController:
                     source=_source_for_heard_text(interp.unrecognized_text),
                     level=logging.WARNING,
                 )
+        elif interp.silent_reading:
+            logger.info("Voice: ignored %r read from silence (peak %d)", interp.silent_reading, peak)
         else:
             logger.debug("Voice: an utterance ended with nothing in it (peak %d)", peak)
 
@@ -531,16 +540,16 @@ class VoiceController:
                     if free_rec.AcceptWaveform(data):
                         free_json = free_rec.Result()
                     if grammar_final:
+                        peak = level.take_utterance()
                         interp = interpret_recognition(
                             rec.Result(),
                             free_json or free_rec.FinalResult(),
                             threshold=self.confidence_threshold,
+                            peak=peak,
                         )
                         free_json = ""
                         spoken_at = onset.take(fallback=block_started_at)
-                        self._handle_recognition(
-                            interp, spoken_at=spoken_at, peak=level.take_utterance(),
-                        )
+                        self._handle_recognition(interp, spoken_at=spoken_at, peak=peak)
                     else:
                         onset.note_block(
                             block_started_at=block_started_at,
