@@ -22,6 +22,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from player_core.playback_rate import clamp_rate
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,6 +41,7 @@ class SatelliteSession:
         self._player = player
         self._paused = start_paused
         self._locked = False
+        self._speed = 1.0
         self._index = 0
         self.load(0)
 
@@ -88,6 +91,14 @@ class SatelliteSession:
             return
         self._paused = paused
         self._player.set_paused(paused)
+
+    @property
+    def speed(self) -> float:
+        return self._speed
+
+    def set_speed(self, speed: float) -> None:
+        self._speed = clamp_rate(speed)
+        self._player.set_speed(self._speed)
 
     def set_locked(self, locked: bool) -> None:
         """Lock the satellite onto its current clip (repeat-one) or release it.

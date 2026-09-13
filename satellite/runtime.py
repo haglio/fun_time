@@ -4,8 +4,8 @@ fun_time writes one verb per line to the satellite's command file; the run loop
 drains them and looks each one up here.  Pause is NOT a verb — it rides its own
 flag file (like the main player), so a paused satellite is a settled state rather
 than a verb race.  A satellite is silent and unscripted, so its vocabulary is the
-part of the family's (:mod:`player_core.player_verbs`) that is about the list and
-the clip on screen: no sound, no rate, no funscript.
+part of the family's (:mod:`player_core.player_verbs`) that is about the list,
+the clip on screen and the rate it plays at: no sound, no funscript.
 """
 from __future__ import annotations
 
@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from player_core.control_registry import Control, Verb, bind, look_up
+from player_core.playback_rate import RATE_STEP, parse_rate
 from player_core.player_verbs import (
     LOCK_OFF,
     LOCK_ON,
@@ -24,6 +25,9 @@ from player_core.player_verbs import (
     PREV,
     QUIT,
     RELOAD_PLAYLIST,
+    SET_SPEED,
+    SPEED_DOWN,
+    SPEED_UP,
     TRASH,
 )
 from player_core.playlist import item_from_line
@@ -68,6 +72,21 @@ def _discard(controls: SatelliteControls, _value: str) -> bool:
     return True
 
 
+def _speed_step(delta: float) -> Act:
+    def act(controls: SatelliteControls, _value: str) -> bool:
+        controls.session.set_speed(controls.session.speed + delta)
+        return True
+    return act
+
+
+def _set_speed(controls: SatelliteControls, value: str) -> bool:
+    rate = parse_rate(value)
+    if rate is None:
+        return False
+    controls.session.set_speed(rate)
+    return True
+
+
 def _play_file(controls: SatelliteControls, value: str) -> bool:
     """``PLAY_FILE`` carries one playlist line; a satellite drops its funscript."""
     item = item_from_line(value)
@@ -97,6 +116,14 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(Verb(LOCK_ON, _lock_set(True)), Verb(LOCK_OFF, _lock_set(False))),
     ),
     Control(name="clip", verbs=(Verb(TRASH, _discard),)),
+    Control(
+        name="speed",
+        verbs=(
+            Verb(SPEED_UP, _speed_step(RATE_STEP)),
+            Verb(SPEED_DOWN, _speed_step(-RATE_STEP)),
+            Verb(SET_SPEED, _set_speed, takes_a_value=True),
+        ),
+    ),
     Control(
         name="playing_file",
         verbs=(Verb(PLAY_FILE, _play_file, takes_a_value=True),),

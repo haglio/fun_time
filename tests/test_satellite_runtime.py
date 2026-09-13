@@ -11,6 +11,9 @@ from player_core.player_verbs import (
     PREV,
     QUIT,
     RELOAD_PLAYLIST,
+    SET_SPEED,
+    SPEED_DOWN,
+    SPEED_UP,
     TRASH,
 )
 
@@ -96,6 +99,31 @@ class TestApplyCommand:
         assert apply_command(f"{NEXT} 5", controls) is False
         assert controls.session.current_video.name == "v0.mp4"
 
+    def test_speed_up_and_down_move_the_rate_a_step_at_a_time(self, tmp_path):
+        controls = _controls(tmp_path)
+
+        assert apply_command(SPEED_UP, controls) is True
+        assert controls.session.speed == 1.25
+        assert apply_command(SPEED_DOWN, controls) is True
+        assert controls.session.speed == 1.0
+
+    def test_set_speed_takes_either_end_of_the_range_or_a_multiplier(self, tmp_path):
+        controls = _controls(tmp_path)
+
+        assert apply_command(f"{SET_SPEED} max", controls) is True
+        assert controls.session.speed == 2.0
+        assert apply_command(f"{SET_SPEED} min", controls) is True
+        assert controls.session.speed == 0.25
+        assert apply_command(f"{SET_SPEED} 1.5", controls) is True
+        assert controls.session.speed == 1.5
+
+    def test_a_set_speed_naming_no_rate_is_refused_and_leaves_the_rate_alone(self, tmp_path):
+        controls = _controls(tmp_path)
+
+        assert apply_command(f"{SET_SPEED} fast", controls) is False
+        assert apply_command(SET_SPEED, controls) is False
+        assert controls.session.speed == 1.0
+
 
 def test_every_verb_the_satellite_answers_is_spelled_by_the_family():
     """A satellite has no verbs of its own: everything it answers is a verb any
@@ -103,5 +131,8 @@ def test_every_verb_the_satellite_answers_is_spelled_by_the_family():
     control that drifted."""
     from player_core import player_verbs
 
-    assert set(VERBS) == {NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, PLAY_FILE, RELOAD_PLAYLIST, QUIT}
+    assert set(VERBS) == {
+        NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,
+        PLAY_FILE, RELOAD_PLAYLIST, QUIT,
+    }
     assert all(getattr(player_verbs, verb) == verb for verb in VERBS)
