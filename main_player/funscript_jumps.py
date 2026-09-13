@@ -16,6 +16,8 @@ from __future__ import annotations
 
 import logging
 
+from player_core.modes import NoticeLevel
+
 logger = logging.getLogger(__name__)
 
 
@@ -40,10 +42,10 @@ class FunscriptJumps:
             else funscript.next_active_ms(int(self._session.position_ms))
         )
         if target is None:
-            self._notices.say("no funscripting ahead", level="warning")
+            self._notices.say("no funscripting ahead", level=NoticeLevel.WARNING)
             return
         self._session.seek_to(target)
-        self._notices.say("funscript jump", level="favorite")
+        self._notices.say("funscript jump", level=NoticeLevel.HIGHLIGHT)
 
     def next_funscripted(self) -> None:
         """Move to the next playlist entry that has a funscript, at its action.
@@ -56,7 +58,7 @@ class FunscriptJumps:
         """
         entry = self._next_funscripted_entry()
         if entry is None:
-            self._notices.say("no other funscripted video", level="warning")
+            self._notices.say("no other funscripted video", level=NoticeLevel.WARNING)
             return
         index, video = entry
         self._session.load(index)
@@ -68,7 +70,7 @@ class FunscriptJumps:
             # None means the action starts promptly, and the video already does.
             self._session.seek_to(onset)
         logger.info("Next funscripted: %s", video.name)
-        self._notices.say("next funscripted", level="favorite")
+        self._notices.say("next funscripted", level=NoticeLevel.HIGHLIGHT)
 
     def _next_funscripted_entry(self):
         """``(index, video)`` of the next scripted entry, or None if we are it."""

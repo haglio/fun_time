@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
+from player_core.modes import NoticeLevel, read_mode
 from player_core.player_verbs import play_file
 
 from .bridge_records import BridgeConfig, Op, WindowOp
@@ -65,11 +66,11 @@ logger = logging.getLogger(__name__)
 # What the main player's own notice levels mean here.  The main player has no palette — it names the kind
 # of thing that happened and this side picks the color, the same way the ops
 # raised in :mod:`fun_time.command_dispatch` do.
-_MAIN_PLAYER_NOTICE_LEVELS = {"warning": logging.WARNING, "favorite": FAVORITE}
+_MAIN_PLAYER_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
 
 
 
-def read_main_player_notice(path) -> tuple[float, str, str]:
+def read_main_player_notice(path) -> tuple[float, NoticeLevel, str]:
     """the main player's latest one-shot notice as (sequence, level, message).
 
     The main player bumps the sequence whenever it raises one; (0, "", "") means there is
@@ -82,7 +83,9 @@ def read_main_player_notice(path) -> tuple[float, str, str]:
             for line in path.read_text(encoding="utf-8").splitlines()
             if "=" in line
         )
-        return float(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
+        return (float(values.get("seq", "0")),
+                read_mode(NoticeLevel, values.get("level", ""), NoticeLevel.NOTICE),
+                values.get("message", ""))
     except (OSError, ValueError):
         return 0, "", ""
 
@@ -331,9 +334,9 @@ class DispatchLoopRunner:
     def _flash_main_player_notice(self) -> None:
         """Surface anything the main player has raised since the last tick, once.
 
-        The main player names the kind rather than the color: "warning" for a request with
-        nowhere to go, "favorite" for one about a funscript — which is what green
-        is kept for here — and anything else is an ordinary white notice.
+        The main player names the kind rather than the color: a warning for a request
+        with nowhere to go, a highlight for one about a funscript — which is what
+        green is kept for here — and anything else is an ordinary white notice.
         """
         path = getattr(self.config, "main_player_notice_file", None)
         if path is None:
