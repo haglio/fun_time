@@ -16,6 +16,7 @@ class StubSession:
         self.loop_bounds = None
         self.is_paused = False
         self.locked = True
+        self.speed = 1.0
 
 
 class TestStatusFields:
@@ -34,14 +35,14 @@ class TestStatusFields:
     def test_key_order_is_the_published_file_order(self):
         # fun_time parses key=value lines, but the file's shape is the main player's
         # contract; pinning the order keeps a reordering from passing silently.
-        # The family's five lead, then the main player's own six: handoff_touch_ms
+        # The family's five lead, then the main player's own seven: handoff_touch_ms
         # is read by fun_time's dashboard runtime and its dispatch loop, and while
         # it was composed in a closure inside main_player.app's run loop this list
         # said ten and nothing noticed.
         assert list(status_fields(StubSession(), None)) == [
             "video", "position_ms", "duration_ms", "paused", "locked",
             "has_funscript", "funscript_resting", "state",
-            "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
+            "loop_in_ms", "loop_out_ms", "handoff_touch_ms", "speed",
         ]
 
     def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self):
@@ -105,3 +106,10 @@ class TestStatusFields:
         session.position_ms = 12345.9
 
         assert status_fields(session, None)["position_ms"] == "12345"
+
+
+def test_the_rate_the_video_plays_at_is_published_for_the_satellites_to_take():
+    session = StubSession()
+    session.speed = 1.25
+
+    assert status_fields(session, None)["speed"] == "1.25"

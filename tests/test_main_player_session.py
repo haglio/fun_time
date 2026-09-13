@@ -3,11 +3,10 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.funscript import Funscript
+from player_core.playback_rate import MAX_RATE, MIN_RATE
 
 from main_player.session import (
-    MAX_SPEED_RATE,
     MAX_VOLUME,
-    MIN_SPEED_RATE,
     MIN_VOLUME,
     PlayerSession,
 )
@@ -962,10 +961,10 @@ class TestSpeed:
         session, player, tcode = _make_session(tmp_path)
 
         session.set_speed(99.0)
-        assert session.speed == MAX_SPEED_RATE
+        assert session.speed == MAX_RATE
 
         session.set_speed(0.001)
-        assert session.speed == MIN_SPEED_RATE
+        assert session.speed == MIN_RATE
 
     def test_adjust_speed_steps_relative_and_clamps(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)

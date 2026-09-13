@@ -50,4 +50,5 @@ def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
         # when the trace has chosen none: zero is a real media time, and the
         # arbiter reading one would end the turn at the top of the video.
         "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
+        "speed": f"{session.speed:g}",
     }
