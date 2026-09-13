@@ -568,7 +568,7 @@ class TestThePanelUnderThePointer:
         quiet = np.asarray(p.unit._image).copy()
 
         p.event_log.write_text(json.dumps(
-            {"ts": 1.0, "level": logging.ERROR, "source": "system",
+            {"ts": 1.0, "level": logging.WARNING, "source": "system",
              "msg": "unrecognized voice command: portrait net"}) + "\n", encoding="utf-8")
         p.notices.pump(None, 1.0)
         p.unit.pump(threading.Event(), 1.0)

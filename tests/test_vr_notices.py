@@ -68,7 +68,7 @@ class TestWhatItPicksUp:
         path = _log(tmp_path)
         board = NoticeBoard(path)
         _write(path, "Voice command: landscape_next", level=logging.INFO)
-        _write(path, "unrecognized voice command: portrait net", level=logging.ERROR)
+        _write(path, "unrecognized voice command: portrait net", level=logging.WARNING)
 
         board.pump(None, now=1.0)
 

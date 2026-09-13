@@ -363,7 +363,7 @@ class VoiceController:
         level the microphone delivered, so a command that misses says where it
         died instead of leaving the same silence as an unplugged microphone.  On
         screen it stays quieter: a white confirmation over the player a
-        dispatched command addresses, a red report over the player a refused or
+        dispatched command addresses, a yellow report over the player a refused or
         unmatched phrase named -- the confirmation only when the command really
         dispatched, the reports only while the room is being listened to.
         """
@@ -393,7 +393,7 @@ class VoiceController:
                     logger,
                     f"not sure enough of: {friendly_voice(interp.refused_phrase)}",
                     source=_source_for_heard_text(interp.refused_phrase),
-                    level=logging.ERROR,
+                    level=logging.WARNING,
                 )
         elif interp.unrecognized_text:
             logger.info("Unrecognized speech: %s (peak %d)", interp.unrecognized_text, peak)
@@ -402,7 +402,7 @@ class VoiceController:
                     logger,
                     f"unrecognized voice command: {interp.unrecognized_text}",
                     source=_source_for_heard_text(interp.unrecognized_text),
-                    level=logging.ERROR,
+                    level=logging.WARNING,
                 )
         else:
             logger.debug("Voice: an utterance ended with nothing in it (peak %d)", peak)
