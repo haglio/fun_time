@@ -34,7 +34,7 @@ from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
-from .session_handoff import forget_the_kept_origenerator, kept_origenerator
+from .session_handoff import KeptOrigenerator, forget_the_kept_origenerator, kept_origenerator
 from .shortcuts import resolve_shortcut
 from .standalone_origenerator import take_it_over, the_open_origenerator
 from .win32 import (
@@ -97,6 +97,7 @@ class StartupResult:
     audio_pid: int
     # The hosted Origenerator's process, or 0 for a session with none configured.
     origenerator_pid: int = 0
+    origenerator_taken_over: bool = False
     # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
@@ -229,6 +230,14 @@ class _LaunchedChildren:
 
     pids: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
+    origenerator_taken_over: bool = False
+
+    def hosts(self, origenerator_pid: int, *, taken_over: bool) -> int:
+        if taken_over:
+            self.origenerator_taken_over = True
+        else:
+            self.pids.append(origenerator_pid)
+        return origenerator_pid
 
 
 def release_the_players(m: LaunchManifest, main_mode: str) -> None:
@@ -294,6 +303,7 @@ def run_startup_sequence(
     except StartupCancelled as cancelled:
         cancelled.launched_pids = launched.pids
         cancelled.rfb_hwnd = launched.rfb_hwnd
+        cancelled.origenerator_taken_over = launched.origenerator_taken_over
         raise
 
 
@@ -322,6 +332,7 @@ class _CoreSession:
     genau_pid: int
     main_player_pid: int
     origenerator_pid: int
+    origenerator_taken_over: bool
     # The main player's status file, dropped once phase 1 has spent last session's copy —
     # phase 4 holds the overlay on the new one appearing.
     main_player_status_file: Path
@@ -516,21 +527,18 @@ def _launch_the_main_slot_players(
     return genau_pid, main_player_pid, main_player_status_file
 
 
-def _adopt_a_kept_origenerator(m: LaunchManifest) -> int:
-    """A hosted app the session before this one left running, or 0.  Only its
+def _adopt_a_kept_origenerator(m: LaunchManifest) -> KeptOrigenerator | None:
+    """A hosted app the session before this one left running, or None.  Only its
     boot is skipped, and its status file is left alone (docs/entering-vr.md)."""
     state_dir = Path(m.commands.origenerator_status_file).parent
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
-    if kept is None:
-        return 0
-    pid, created_at = kept
-    if get_process_creation_time(pid) != created_at:
-        return 0  # gone since, or that pid is somebody else's now
+    if kept is None or get_process_creation_time(kept.pid) != kept.created_at:
+        return None  # gone since, or that pid is somebody else's now
     write_flag_file(m.commands.origenerator_paused_file, False)
     Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
-    logger.info("Adopted the hosted Origenerator left running (pid %d)", pid)
-    return pid
+    logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
+    return kept
 
 
 def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
@@ -564,10 +572,9 @@ def _launch_the_hosted_origenerator(
     origenerator_dir = m.runtime.origenerator_dir.strip()
     if not origenerator_dir:
         return 0
-    adopted = _adopt_a_kept_origenerator(m)
-    if adopted:
-        launched.pids.append(adopted)
-        return adopted
+    kept = _adopt_a_kept_origenerator(m)
+    if kept is not None:
+        return launched.hosts(kept.pid, taken_over=kept.taken_over)
     # A "1" a prior OmniPause stranded opens every show frozen while the
     # room runs, and an unread verb lands on this session: the app reads
     # both on its first tick, and a room never opens paused.
@@ -597,19 +604,18 @@ def _launch_the_hosted_origenerator(
                      args=origenerator_session_args(**contract))
         logger.info("Took over the Origenerator already open from %s (pid %d)",
                     origenerator_dir, origenerator_pid)
-    else:
-        origenerator_pid = launch_origenerator(
-            python_exe=(m.executables.origenerator_python_exe.strip()
-                        or origenerator_interpreter(origenerator_dir)),
-            origenerator_dir=origenerator_dir,
-            # It imports player_core too (the shows' HUD is the players'
-            # shared one), so a named checkout reaches it like everyone else.
-            project_dirs=project_dirs,
-            **contract,
-        )
-        logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
-    launched.pids.append(origenerator_pid)
-    return origenerator_pid
+        return launched.hosts(origenerator_pid, taken_over=True)
+    origenerator_pid = launch_origenerator(
+        python_exe=(m.executables.origenerator_python_exe.strip()
+                    or origenerator_interpreter(origenerator_dir)),
+        origenerator_dir=origenerator_dir,
+        # It imports player_core too (the shows' HUD is the players'
+        # shared one), so a named checkout reaches it like everyone else.
+        project_dirs=project_dirs,
+        **contract,
+    )
+    logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
+    return launched.hosts(origenerator_pid, taken_over=False)
 
 
 def _launch_core_media(
@@ -646,6 +652,7 @@ def _launch_core_media(
         genau_pid=genau_pid,
         main_player_pid=main_player_pid,
         origenerator_pid=origenerator_pid,
+        origenerator_taken_over=launched.origenerator_taken_over,
         main_player_status_file=main_player_status_file,
     )
 
@@ -885,6 +892,7 @@ def _run_startup_phases(
         genau_pid=core.genau_pid,
         audio_pid=ui_pids["audio_pid"],
         origenerator_pid=core.origenerator_pid,
+        origenerator_taken_over=core.origenerator_taken_over,
         main_mode=core.main_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,

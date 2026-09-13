@@ -1015,7 +1015,7 @@ class TestKeepingTheHostedApp:
         closed.assert_not_called()
         assert children["origenerator_pid"].pid not in killed
         assert kept_origenerator(tmp_path) == (
-            children["origenerator_pid"].pid, children["origenerator_pid"].created_at,
+            children["origenerator_pid"].pid, children["origenerator_pid"].created_at, False,
         )
 
     def test_a_crossing_closes_its_shows_on_the_channel_it_was_launched_with(
@@ -1069,12 +1069,14 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator.hide_window"), \
              patch("fun_time.windows_bridge_orchestrator._shutdown_children",
                    side_effect=then_the_quit_chord), \
-             patch("fun_time.windows_bridge_orchestrator.close_a_kept_origenerator") as closed:
+             patch("fun_time.windows_bridge_orchestrator."
+                   "let_go_of_a_kept_origenerator") as closed:
             state_dir = _run_a_session(
                 cfg_factory, tmp_path, events=[], asked_to_end=True,
                 at_cover_up=lambda: flag.write_text("cancel\n", encoding="utf-8"))
 
-        closed.assert_called_once_with(state_dir)
+        assert closed.call_count == 1
+        assert closed.call_args.args[0] == state_dir
 
     def test_an_ordinary_quit_closes_it_and_leaves_no_record(self, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
@@ -1085,6 +1087,49 @@ class TestKeepingTheHostedApp:
 
         closed.assert_called_once()
         assert kept_origenerator(tmp_path) is None
+
+    def test_an_ordinary_quit_hands_a_taken_over_app_back_instead_of_closing_it(self, tmp_path):
+        killed: list[int] = []
+        channel = tmp_path / "origenerator_cmd.txt"
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child",
+                   side_effect=lambda child: killed.append(child.pid)), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+                   ) as closed:
+            _shutdown_children(
+                0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
+                NullProgress(), state_dir=tmp_path, release_origenerator_via=channel)
+
+        closed.assert_not_called()
+        assert 7071 not in killed
+        assert channel.read_text(encoding="utf-8").split() == ["RELEASE"]
+
+    def test_a_session_that_took_the_app_over_hands_it_back_when_it_ends(
+        self, cfg_factory, tmp_path,
+    ):
+        events: list[str] = []
+        _run_a_session(cfg_factory, tmp_path, events=events,
+                       result=replace(_fake_startup_result(), origenerator_taken_over=True))
+
+        channel = Path(LaunchManifest.read(
+            tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
+        assert channel.read_text(encoding="utf-8").split() == ["RELEASE"]
+        assert "kill:800" not in events
+
+    def test_a_crossing_keeps_a_taken_over_app_as_one_to_hand_back(self, tmp_path):
+        channel = tmp_path / "origenerator_cmd.txt"
+        with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+                   return_value=4242), \
+             patch("fun_time.windows_bridge_orchestrator.hide_window"):
+            _shutdown_children(
+                0, _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
+                NullProgress(), state_dir=tmp_path,
+                keep_origenerator_via=channel, release_origenerator_via=channel)
+
+        assert kept_origenerator(tmp_path).taken_over
+        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
 
     def test_a_window_that_cannot_be_found_is_closed_rather_than_kept(self, tmp_path):
         """Nothing to park means nothing to adopt, so it goes the ordinary way
@@ -1110,7 +1155,8 @@ class TestKeepingTheHostedApp:
         with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
                    return_value=None), \
              patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
-            windows_bridge_orchestrator.close_a_kept_origenerator(tmp_path)
+            windows_bridge_orchestrator.let_go_of_a_kept_origenerator(
+                tmp_path, tmp_path / "origenerator_cmd.txt")
 
         killed.assert_not_called()
         assert kept_origenerator(tmp_path) is None
@@ -1122,10 +1168,26 @@ class TestKeepingTheHostedApp:
              patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
                    ) as closed, \
              patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
-            windows_bridge_orchestrator.close_a_kept_origenerator(tmp_path)
+            windows_bridge_orchestrator.let_go_of_a_kept_origenerator(
+                tmp_path, tmp_path / "origenerator_cmd.txt")
 
         closed.assert_called_once()
         killed.assert_called_once()
+        assert kept_origenerator(tmp_path) is None
+
+    def test_a_kept_app_that_was_taken_over_is_handed_back_not_closed(self, tmp_path):
+        channel = tmp_path / "origenerator_cmd.txt"
+        keep_the_origenerator(tmp_path, pid=999999, created_at=1, taken_over=True)
+        with patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+                   return_value=1), \
+             patch("fun_time.windows_bridge_orchestrator._close_origenerator_gracefully"
+                   ) as closed, \
+             patch("fun_time.windows_bridge_orchestrator.kill_recorded_child") as killed:
+            windows_bridge_orchestrator.let_go_of_a_kept_origenerator(tmp_path, channel)
+
+        closed.assert_not_called()
+        killed.assert_not_called()
+        assert channel.read_text(encoding="utf-8").split() == ["RELEASE"]
         assert kept_origenerator(tmp_path) is None
 
 
@@ -1133,7 +1195,8 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
                    env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
                    at_cover_up=lambda: None, asked_to_end: bool = False,
                    overrides: dict | None = None,
-                   launches: dict[str, dict] | None = None):
+                   launches: dict[str, dict] | None = None,
+                   result: StartupResult | None = None):
     from fun_time.session_end import SESSION_END_MARKER
 
     cfg = load_config(cfg_factory(overrides))
@@ -1175,7 +1238,8 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
         return fake_ahk_proc
 
     with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-               side_effect=start_up), \
+               side_effect=start_up if result is None else None,
+               return_value=result), \
          patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
          patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
                side_effect=lambda pid: pid * 10), \
@@ -1674,6 +1738,43 @@ class TestStartupCancellation:
         # Priming is kicked off before the sequence, but the run bailed before the
         # reveal, so no dispatch loop was ever started to publish what it warmed.
         mock_priming.assert_called_once()
+
+    def test_a_cancel_after_taking_over_an_open_origenerator_hands_it_back(
+        self, cfg_factory, tmp_path,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+
+        def sequence_then_flag(**kwargs):
+            state_dir.mkdir(parents=True, exist_ok=True)
+            cancel_file_for(state_dir / PROGRESS_FILENAME).write_text("", encoding="utf-8")
+            return replace(_fake_startup_result(), origenerator_taken_over=True)
+
+        fake_proc = MagicMock()
+        fake_proc.wait.return_value = 0
+        killed: list[int] = []
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   side_effect=sequence_then_flag), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=killed.append), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
+                   return_value=(None, threading.Event())), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
+            run_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+            )
+
+        assert 800 not in killed
+        channel = Path(LaunchManifest.read(manifest_path).commands.origenerator_cmd_file)
+        assert channel.read_text(encoding="utf-8").split() == ["RELEASE"]
 
     def test_a_session_that_fails_while_opening_takes_down_everything_it_launched(
         self, cfg_factory, tmp_path,

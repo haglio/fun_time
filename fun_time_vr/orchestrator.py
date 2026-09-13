@@ -116,8 +116,8 @@ from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
-    close_a_kept_origenerator,
     kill_recorded_child,
+    let_go_of_a_kept_origenerator,
     open_event_log,
     silence_the_players,
     start_hud_priming,
@@ -399,6 +399,7 @@ def _take_down_the_launch(
 def _cancel_vr_startup(
     *,
     state_dir: Path,
+    origenerator_cmd_file: Path,
     children: dict[str, ChildProcess],
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
@@ -419,7 +420,8 @@ def _cancel_vr_startup(
     else:
         logger.info("Canceled; closing")
         drop_crossing_cover(state_dir)  # nothing is coming to do it for us
-        close_a_kept_origenerator(state_dir)  # nor to adopt what Fun Time parked
+        # nor to adopt what Fun Time parked
+        let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
     return 0  # a clean, user-initiated exit, as the desktop's cancel is
 
 
@@ -615,6 +617,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         return _cancel_vr_startup(
             state_dir=state_dir, children=children, ahk_proc=ahk_proc,
             ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
+            origenerator_cmd_file=Path(manifest.commands.origenerator_cmd_file),
         )
 
     try:
@@ -722,7 +725,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             if not held:
                 kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
             if crossing is None and not back_to_vr:  # nothing will come to adopt it
-                close_a_kept_origenerator(state_dir)
+                let_go_of_a_kept_origenerator(state_dir, Path(commands.origenerator_cmd_file))
             if crossing is None:  # else it hears Esc until the relay has read the flag
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
         if not held and not back_to_vr:

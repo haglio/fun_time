@@ -9,6 +9,7 @@ import sys
 import time
 from dataclasses import dataclass
 from pathlib import Path
+from typing import NamedTuple
 
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
@@ -184,20 +185,27 @@ def release_the_headset(state_dir: str | Path) -> None:
         (Path(state_dir) / name).unlink(missing_ok=True)
 
 
-def keep_the_origenerator(state_dir: str | Path, *, pid: int, created_at: int) -> None:
+class KeptOrigenerator(NamedTuple):
+    pid: int
+    created_at: int
+    taken_over: bool
+
+
+def keep_the_origenerator(state_dir: str | Path, *, pid: int, created_at: int,
+                          taken_over: bool = False) -> None:
     """Record the hosted app a crossing leaves running."""
     (Path(state_dir) / KEPT_ORIGENERATOR_NAME).write_text(
-        f"{pid} {created_at}\n", encoding="utf-8",
+        f"{pid} {created_at} {int(taken_over)}\n", encoding="utf-8",
     )
 
 
-def kept_origenerator(state_dir: str | Path) -> tuple[int, int] | None:
-    """``(pid, created_at)`` of a hosted app left running, or None."""
+def kept_origenerator(state_dir: str | Path) -> KeptOrigenerator | None:
+    """The hosted app a crossing left running, or None."""
     try:
-        pid, created_at = (
+        pid, created_at, taken_over = (
             Path(state_dir) / KEPT_ORIGENERATOR_NAME
         ).read_text(encoding="utf-8").split()
-        return int(pid), int(created_at)
+        return KeptOrigenerator(int(pid), int(created_at), taken_over == "1")
     except (OSError, ValueError):
         return None
 
@@ -390,17 +398,17 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
     show_alert("Fun Time", message, level=Level.ERROR, icon=PROJECT_ICON)
 
 
-def _uncover_what_was_waiting(state_dir: Path) -> None:
+def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
     drop_crossing_cover(state_dir)
     release_the_headset(state_dir)
-    from fun_time.windows_bridge_orchestrator import close_a_kept_origenerator
+    from fun_time.windows_bridge_orchestrator import let_go_of_a_kept_origenerator
 
-    close_a_kept_origenerator(Path(state_dir))
+    let_go_of_a_kept_origenerator(Path(state_dir), origenerator_cmd_file)
 
 
-def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
+def _give_up(reason: str, log_file: Path, config) -> int:
     """Report a crossing that did not happen, and uncover what was waiting."""
-    _uncover_what_was_waiting(state_dir)
+    _uncover_what_was_waiting(config.paths.state_dir, config.origenerator_cmd_file)
     report_a_failed_crossing(reason, log_file)
     return 1
 
@@ -415,7 +423,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
         return _give_up(
             "The session that was running never finished shutting down, so "
             f"{target.app_name} could not take over.",
-            log_file, state_dir,
+            log_file, config,
         )
     flag = cancel_file_for(crossing_progress_path(state_dir))
     asked = what_the_flag_asks(flag) if cancelable else ""
@@ -423,7 +431,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
         flag.unlink(missing_ok=True)
     if asked == QUIT_WORD:
         logger.info("The quit chord called the crossing off")
-        _uncover_what_was_waiting(state_dir)
+        _uncover_what_was_waiting(state_dir, config.origenerator_cmd_file)
         return 0
     if asked == CANCEL_WORD:
         target, cancelable = (DESKTOP if target is VR else VR), False
@@ -440,7 +448,7 @@ def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     )
     reason = wait_for_the_session_to_come_up(target, session, state_dir=state_dir)
     if reason:
-        return _give_up(reason, log_file, state_dir)
+        return _give_up(reason, log_file, config)
     logger.info("%s is up (pid=%d)", target.app_name, session.pid)
     return 0
 

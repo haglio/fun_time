@@ -8,6 +8,7 @@ from .win32_process import get_process_creation_time
 
 OFFER_NAME = "fun_time_offer.txt"
 TAKEOVER_NAME = "fun_time_takeover.json"
+RELEASE = "RELEASE"
 
 
 def _state_dir(origenerator_dir: str | Path) -> Path:
