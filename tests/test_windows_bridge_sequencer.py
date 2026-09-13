@@ -31,7 +31,6 @@ from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
 )
-from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from fun_time.windows_bridge_sequencer import (
     NAU_LOAD_TIMEOUT_S,
     ORIGENERATOR_BOOT_TIMEOUT_S,
@@ -1221,8 +1220,7 @@ class TestMaybeLaunchRandomFavsBrowser:
             _maybe_launch_random_favs_browser(m, plan, env=SessionEnvironment())
 
         assert set(launch_kwargs) == {"shortcut"}
-        assert launch_kwargs["shortcut"] == ChromeShortcut(
-            target="chrome.exe", work_dir="", args="")
+        assert launch_kwargs["shortcut"] == Shortcut("chrome.exe")
 
 
 class TestResolveSatelliteHwnds:

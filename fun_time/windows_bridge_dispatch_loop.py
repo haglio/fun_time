@@ -40,6 +40,7 @@ from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
 from .shared_state import BridgeState, read_shared_state, write_shared_state
+from .shortcuts import Shortcut
 from .voice_commands import parse_command_line
 from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
 from .watch_sampling import WatchSampler
@@ -52,7 +53,7 @@ from .win32 import (
     window_rect,
 )
 from .window_roles import visible_roles
-from .windows_bridge_random_favs_browser import ChromeShortcut, open_rfb_tab
+from .windows_bridge_random_favs_browser import open_rfb_tab
 from .windows_bridge_startup import launch_broker_tray, stop_broker_processes
 
 logger = logging.getLogger(__name__)
@@ -195,7 +196,7 @@ class DispatchLoopRunner:
         env: SessionEnvironment = ORDINARY_SESSION,
         manifest_path: Path | None = None,
         hud_publisher: HudPublisher | None = None,
-        rfb_shortcut: ChromeShortcut | None = None,
+        rfb_shortcut: Shortcut | None = None,
         sync_interval_ms: int = 200,
     ) -> None:
         self.config = config
@@ -216,7 +217,7 @@ class DispatchLoopRunner:
         # This loop holds the state each player's own HUD is drawn from (locks,
         # filters, loops) and already ticks, so it is what feeds them.
         self.hud = HudFeed(config=config, publisher=hud_publisher)
-        self.rfb_shortcut = rfb_shortcut
+        self.rfb_shortcut = rfb_shortcut or Shortcut()
         self.sync_interval_s = sync_interval_ms / 1000
         self.state = BridgeState()
         self._last_sync = 0.0
@@ -493,7 +494,7 @@ class DispatchLoopRunner:
             return
         urls = self._pending_rfb_urls
         self._pending_rfb_urls = []
-        if not urls or self.rfb_shortcut is None or not self.rfb_shortcut.target:
+        if not urls or not self.rfb_shortcut.target:
             return
         if not window_exists(self.windows.rfb_hwnd):
             logger.warning(
