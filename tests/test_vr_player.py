@@ -1228,9 +1228,10 @@ class TestTheClipsOwnControls:
         unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
         unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
         unit._volume_painter = VolumeHudPainter()
+        unit._readout_painter = PlayheadHudPainter()
         unit._control_size = None
-        unit._scrubber_shown = unit._chip_shown = None
-        unit._bar = unit._chip = None
+        unit._scrubber_shown = unit._chip_shown = unit._readout_shown = None
+        unit._bar = unit._chip = unit._readout = None
         return unit
 
     def _uploading(self, projection):
@@ -1290,6 +1291,18 @@ class TestTheClipsOwnControls:
         unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
 
         assert unit._control_size == control_size(DEFAULT_LAYOUT[PRIMARY].width_deg, 640 / 360)
+
+    def test_the_clip_says_which_frame_is_up_beside_its_bar(self):
+        unit = self._unit()
+
+        furnished = unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
+
+        width, height = unit._control_size
+        factor = 640 / width
+        pill = PlayheadHudPainter().bgra(clip_playhead(5, 20))
+        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
+        middle = (round((y + pill.shape[0] / 2) * factor), round((x + pill.shape[1] / 2) * factor))
+        assert furnished[middle].max() > 0
 
 class _FakeRenderer:
     """Records which meshes were drawn, so a screen nobody draws is visible."""

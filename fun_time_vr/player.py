@@ -772,9 +772,10 @@ class _GenauUnit:
             picture=lambda: self._post(OMNIPAUSE_TOGGLE),
         )
         self._volume_painter = VolumeHudPainter()
+        self._readout_painter = PlayheadHudPainter()
         self._control_size: tuple[int, int] | None = None
-        self._scrubber_shown = self._chip_shown = None
-        self._bar = self._chip = None
+        self._scrubber_shown = self._chip_shown = self._readout_shown = None
+        self._bar = self._chip = self._readout = None
 
     def _post(self, command: str) -> None:
         append_command(self._dashboard_cmd_file, command)
@@ -816,10 +817,20 @@ class _GenauUnit:
             self._chip_shown = chip
             self._chip = scaled(self._volume_painter.bgra(hud), factor)
         x, y = chip_xy(win_w=size[0], win_h=size[1], timeline_h=TIMELINE_HEIGHT)
-        return with_furniture(frame, (
+        pieces = [
             (self._bar, 0, height - self._bar.shape[0]),
             (self._chip, round(x * factor), round(y * factor)),
-        ))
+        ]
+        playhead = clip_playhead(played, of)
+        if playhead is not None:
+            pill = self._readout_painter.bgra(playhead)
+            if (playhead, size, factor) != self._readout_shown:
+                self._readout_shown = (playhead, size, factor)
+                self._readout = scaled(pill, factor)
+            rx, ry = readout_xy(pill.shape[1], win_w=size[0], win_h=size[1],
+                                timeline_h=TIMELINE_HEIGHT)
+            pieces.append((self._readout, round(rx * factor), round(ry * factor)))
+        return with_furniture(frame, pieces)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """The presses only: the engine turns its channels on its own thread."""
