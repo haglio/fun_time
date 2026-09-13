@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -332,6 +333,21 @@ class TestInterpretRecognition:
             first_choice = interpret_recognition(_ranked(rescue), "", threshold=0.7, peak=SPOKEN)
             assert first_choice.command == VOICE_COMMANDS[rescue]
 
+    def test_a_miss_carries_what_the_unrestricted_recognizer_heard(self):
+        under_the_bar = interpret_recognition(
+            _ranked("both"), _scored("pause", 0.3), threshold=0.7, peak=SPOKEN)
+        assert under_the_bar.unrecognized_text == "both"
+        assert under_the_bar.free_text == "pause"
+
+        refused = interpret_recognition(
+            _scored("skip", 0.3), _scored("skip it", 0.3), threshold=0.7, peak=SPOKEN)
+        assert refused.refused_phrase == "skip"
+        assert refused.free_text == "skip it"
+
+        nothing_free = interpret_recognition(
+            _ranked("both"), json.dumps({"text": "[unk]"}), threshold=0.7, peak=SPOKEN)
+        assert nothing_free.free_text is None
+
     def test_a_reading_from_silence_is_ignored_not_rescued(self):
         interp = interpret_recognition(_ranked("half", "help"), "", threshold=0.7, peak=9)
         assert interp == Recognition(silent_reading="half")
@@ -475,6 +491,17 @@ class TestHandleRecognition:
             Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == ["system"]
+
+    def test_a_miss_is_logged_beside_the_unrestricted_reading(self, tmp_path, monkeypatch, caplog):
+        vc = self._controller(tmp_path)
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
+        caplog.set_level(logging.INFO, logger="fun_time.voice_control")
+        vc._handle_recognition(
+            Recognition(unrecognized_text="both", free_text="pause"), spoken_at=1.0, peak=SPOKEN)
+        vc._handle_recognition(
+            Recognition(refused_phrase="skip", free_text="skip it"), spoken_at=1.0, peak=SPOKEN)
+        assert "Unrecognized speech: both (unrestricted reading 'pause', peak 2000)" in caplog.text
+        assert "unrestricted reading 'skip it'" in caplog.text
 
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
