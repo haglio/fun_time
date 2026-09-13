@@ -118,6 +118,9 @@ class Painter:
             record_in_ms=session.record_in_ms,
             position_ms=session.position_ms,
         )
+        if session.showing_picture:
+            self._player.remove_overlay(_OV_HEATMAP)
+            return
         hb = heatmap_bgra(self._heatmap, session.position_ms, session.loop_bounds, win_w)
         if hb is None:
             # Unscripted video: a plain clickable progress bar instead, still
