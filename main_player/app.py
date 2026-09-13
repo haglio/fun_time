@@ -117,18 +117,20 @@ def _open_window(args):
     return screen
 
 
-def _status_writer(args, drive_gate) -> StatusWriter:
+def _status_writer(args, drive_gate, modes) -> StatusWriter:
     """The status file this player publishes.
 
     Every status carries the touch-down the trace chose for the boundary in
     play, so the arbiter ends Genau's turn where the picture drew it ending.
     The gate is asked for it as each status is written rather than when this is
     built: the choice is made while the frame is painted, and the writer
-    publishes at its own throttled cadence in between.
+    publishes at its own throttled cadence in between; *modes* is asked the
+    same way for the video's place in the library.
     """
     return StatusWriter(
         args.status_file,
-        lambda session: status_fields(session, drive_gate.handoff_touch()))
+        lambda session: status_fields(session, drive_gate.handoff_touch(),
+                                      library=modes.library_status))
 
 
 def _controls(session, stop_event, *, modes, jumps, funscript_jumps, volume,
@@ -214,7 +216,6 @@ def _run(args) -> int:
     # makes it choose one.
     drive_gate = DriveGate(session)
 
-    status_writer = _status_writer(args, drive_gate)
     stop_event = threading.Event()
     # Every control on this HUD asks Fun Time rather than acting; so does
     # the close button.  See main_player.dashboard.
@@ -255,6 +256,7 @@ def _run(args) -> int:
     # The length filter, the compilation and Fun Time's own narrowing, as the
     # console draws them and the memory keeps them.  See main_player.modes.
     modes = Modes(source, session, jumps, remembered=remembered.length_mode)
+    status_writer = _status_writer(args, drive_gate, modes)
     # RELOAD_PLAYLIST: Fun Time owns the playlist file and rewrites it whenever
     # the room's selection changes.
     take_up_playlist = partial(

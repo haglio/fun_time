@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from main_player.status import status_fields
+from main_player.status import LibraryStatus, status_fields
 
 
 class StubSession:
@@ -43,6 +43,7 @@ class TestStatusFields:
             "video", "position_ms", "duration_ms", "paused", "locked", "speed",
             "has_funscript", "funscript_resting", "state",
             "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
+            "length_mode", "compilation", "has_compilation", "has_other_versions", "jump_to",
         ]
 
     def test_the_six_every_player_leads_with_read_back_as_the_familys_record(self):
@@ -106,6 +107,23 @@ class TestStatusFields:
         session.position_ms = 12345.9
 
         assert status_fields(session, None)["position_ms"] == "12345"
+
+    def test_the_videos_place_in_the_library_is_published_for_the_consoles_buttons(self):
+        """Fun Time lights the compilation, version and clip-jump buttons, and
+        draws the length pair, from these lines -- only this player knows them,
+        and a player that says nothing leaves them dim."""
+        library = LibraryStatus(length_mode="full", compilation="Vol 3",
+                                has_compilation=True, has_other_versions=True, jump_to="clip")
+
+        fields = status_fields(StubSession(), None, library=library)
+        unsaid = status_fields(StubSession(), None)
+
+        assert [fields[key] for key in ("length_mode", "compilation", "has_compilation",
+                                        "has_other_versions", "jump_to")] == [
+            "full", "Vol 3", "1", "1", "clip"]
+        assert [unsaid[key] for key in ("length_mode", "compilation", "has_compilation",
+                                        "has_other_versions", "jump_to")] == [
+            "", "", "0", "0", ""]
 
 
 def test_the_rate_the_video_plays_at_is_published_for_the_satellites_to_take():

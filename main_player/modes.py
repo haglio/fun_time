@@ -25,6 +25,7 @@ from player_core.console_hud import ModeHud
 from .library import NONE
 from .library_source import DEFAULT_MODE, LENGTH_MODES, length_mode_rebuilds, next_length_mode
 from .mode_memory import RememberedMode
+from .status import LibraryStatus
 
 logger = logging.getLogger(__name__)
 
@@ -126,9 +127,13 @@ class Modes:
             position=self._session.index + 1,
             total=len(self._session.playlist),
             f_mode=self.f_mode,
-            # What the console's own buttons can do from here.  Only this player
-            # knows: the compilation and the scene a clip came from are answers
-            # about the library, and Fun Time has no view of either.
+        )
+
+    @property
+    def library_status(self) -> LibraryStatus:
+        return LibraryStatus(
+            length_mode=self.length_mode,
+            compilation=self._jumps.compilation,
             has_compilation=self._jumps.has_compilation,
             has_other_versions=self._session.has_other_versions,
             jump_to=self._jumps.jump_to,
