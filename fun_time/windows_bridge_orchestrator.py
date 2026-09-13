@@ -21,6 +21,7 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 
+from .append_only import append_line
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
 from .hud_transport import HudPublisher
@@ -445,13 +446,6 @@ def _take_down_the_startup(
 
 
 class _AppendOnWriteHandler(logging.Handler):
-    """Logging handler that opens/closes the file on each write.
-
-    AHK's Log() function uses FileAppend which also opens/closes per write.
-    Using a persistent file handle (like RotatingFileHandler) would hold a
-    Windows file lock and block AHK from writing to the same log file.
-    """
-
     def __init__(self, log_path: Path):
         super().__init__()
         self.log_path = log_path
@@ -459,9 +453,7 @@ class _AppendOnWriteHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             ts = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            msg = f"{ts} {record.getMessage()}\r\n"
-            with self.log_path.open("a", encoding="utf-8") as fh:
-                fh.write(msg)
+            append_line(self.log_path, f"{ts} {record.getMessage()}\r\n")
         except Exception:  # logging must never take the app down
             pass
 
