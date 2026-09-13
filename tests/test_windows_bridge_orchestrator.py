@@ -1807,6 +1807,32 @@ class TestStartupCancellation:
         assert [path for path in leftovers if path.exists()] == []
         assert state.exists()
 
+    def test_a_panel_the_last_session_left_up_does_not_open_over_this_one(
+        self, cfg_factory, tmp_path,
+    ):
+        from app_support.file_channel import read_flag, write_flag
+
+        from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
+        from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
+
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        commands = LaunchManifest.read(manifest_path).commands
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        for name in (REFERENCE_OPEN_FILENAME, LIBRARY_OPEN_FILENAME):
+            write_flag(state_dir / name, True)
+
+        clear_last_sessions_leftovers(
+            state_dir, commands,
+            pids_file=state_dir / "bridge_pids.ini", ahk_cmd_file=state_dir / "ahk_cmd.txt",
+        )
+
+        for name in (REFERENCE_OPEN_FILENAME, LIBRARY_OPEN_FILENAME):
+            assert not read_flag(state_dir / name, default=False), name
+
 
 class TestHotkeyScriptGoesUpFirst:
     """The hotkey script is launched before the startup sequence runs, not after
