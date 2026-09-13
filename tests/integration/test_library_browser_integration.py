@@ -19,11 +19,16 @@ from pathlib import Path
 import pytest
 from PIL import Image, ImageDraw
 from PyQt6.QtCore import QEvent, QPointF, Qt, QTimer
-from PyQt6.QtGui import QFontDatabase, QMouseEvent
+from PyQt6.QtGui import QFontDatabase, QMouseEvent, QTextDocumentFragment
 from PyQt6.QtWidgets import QApplication, QWidget
 
 from fun_time.config import load_config
-from fun_time.library_browser import WINDOW_TITLE, LibraryBrowserWindow, browse_library
+from fun_time.library_browser import (
+    TOP_LEVEL_NAME,
+    WINDOW_TITLE,
+    LibraryBrowserWindow,
+    browse_library,
+)
 from fun_time.library_handles import CLIPS_SUFFIX, LibraryHandle
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
@@ -195,7 +200,8 @@ def test_opening_a_folder_takes_a_double_click_too(tmp_path: Path):
 
         _double_click(window, 0)
 
-        assert window.windowTitle().endswith(SECTIONS[0])
+        words = QTextDocumentFragment.fromHtml(window.header.text()).toPlainText()
+        assert words == f"{TOP_LEVEL_NAME} / {SECTIONS[0]}"
     finally:
         window.close()
 

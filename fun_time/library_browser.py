@@ -10,8 +10,7 @@ The folder being shown is put up twice, side by side.  The grid of tiles is the
 half you walk, ordered the way the library ranks itself — biggest source folder
 first, cuts after the videos they came out of — which is the order to browse
 in and the wrong one to *find* in.  So the left sidebar is the other order: the
-same folder as a plain list of names, A to Z, each letter's names under a
-heading of that letter, for when the title is already in mind.
+letters A to Z, each opening onto its names when clicked.
 
 It runs as its own process (``python -m fun_time.library_browser``) because the
 bridge that opens it has no Qt event loop, exactly as the native dialog did.
@@ -22,7 +21,9 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import html
 import queue
+import string
 import subprocess
 import threading
 from collections.abc import Callable, Sequence
@@ -32,10 +33,18 @@ from pathlib import Path
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPalette, QPixmap
-from PyQt6.QtWidgets import QAbstractItemView, QHBoxLayout, QListWidget, QListWidgetItem, QWidget
+from PyQt6.QtWidgets import (
+    QAbstractItemView,
+    QHBoxLayout,
+    QLabel,
+    QListWidget,
+    QListWidgetItem,
+    QVBoxLayout,
+    QWidget,
+)
 from shared_ui.chrome import family_stylesheet
-from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, TEXT_MUTED, TEXT_PRIMARY
-from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, SIZE_SMALL, make_font
+from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, BLUE_LIGHT, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 
 from .library_handles import LibraryHandle, build_library_handles, handle_for
 from .library_tree import Folder, SubFolder, folder_at, folder_of
@@ -44,6 +53,7 @@ from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnai
 from .win32 import force_foreground_window
 
 WINDOW_TITLE = "Fun Time Library"
+TOP_LEVEL_NAME = "Library"
 
 # Tile size. Wide enough for a 16:9 still at the thumbnail cache's own longest
 # edge, tall enough to carry two lines of title under it — library titles run
@@ -62,6 +72,9 @@ SIDEBAR_WIDTH = 220
 # that open on a digit or a bracket, and each of those under a heading of its own
 # first character would be an index with more headings in it than names.
 NON_LETTER_HEADING = "#"
+
+OPEN_MARK = "▾"
+CLOSED_MARK = "▸"
 
 # What the tile that goes back up is called, at the two places it can appear.
 UP_LABEL = "back"
@@ -260,18 +273,12 @@ class LibraryGrid(BrowseList):
 
 
 class FolderIndex(BrowseList):
-    """The folder as a plain list of names, A to Z, under a heading per letter.
+    """The folder's letters, A to Z, each opening onto its names when clicked.
 
-    The grid beside this is in the library's own ranking, which is the order to
-    look *through* a folder in and no help at all when the title is already in
-    mind: an alphabetical walk across it is a walk across a wrapped grid of
-    stills.  So the same folder goes up again here as text alone, sorted by
-    name, with the letter each group files under standing over it.
-
-    Choosing a name moves the grid to it, and so does clicking the letter over a
-    group.  The grid moves this back only when a browse opens (:meth:`reveal`):
-    an index that re-scrolled on every change of the grid's selection would
-    slide out from under the walk that caused it.
+    Choosing a name moves the grid to it, and so does clicking a letter.  The
+    grid moves this back only when a browse opens (:meth:`reveal`): an index
+    that re-scrolled on every change of the grid's selection would slide out
+    from under the walk that caused it.
     """
 
     def __init__(
@@ -291,14 +298,11 @@ class FolderIndex(BrowseList):
             f" border: none; border-right: 1px solid {BG_PRIMARY.name()}; }}"
             " QListWidget::item { padding: 2px 6px; }"
             f" QListWidget::item:selected {{ background-color: {BLUE.name()}; }}"
-            # The letter headings, which are the only rows here that are disabled
-            # — they stand over the names rather than reading as more of them.
-            f" QListWidget::item:disabled {{ color: {TEXT_MUTED.name()}; }}"
         )
 
-        # One entry per widget row: which grid row that line stands for, or None
-        # for a letter heading, which stands for nothing you can open.
-        self.grid_rows: list[int | None] = []
+        # One line per widget row: a letter, or a name and the grid row it opens.
+        self.lines: list[IndexLine] = []
+        self._open_heading: int | None = None
         self.currentItemChanged.connect(self._reveal)
         self.itemActivated.connect(self._activate)
 
@@ -306,19 +310,18 @@ class FolderIndex(BrowseList):
         """List *rows* — the grid's, in its order — alphabetically under headings."""
         # Cleared before the widget is, so the currentItemChanged that clearing
         # fires cannot be answered against a mapping for the folder just left.
-        self.grid_rows = []
+        self.lines = []
         self.clear()
         for line in alphabetical_index(rows):
-            self._add_line(
-                self._heading_item(line.label) if line.is_heading
-                else self._name_item(line.label),
-                line.row,
-            )
+            self._add_line(line)
         self._hold_to_the_sidebars_width()
+        self._open_only(None)
 
-    def _add_line(self, item: QListWidgetItem, row: int | None) -> None:
-        self.grid_rows.append(row)
-        self.addItem(item)
+    def _add_line(self, line: IndexLine) -> None:
+        self.lines.append(line)
+        self.addItem(
+            self._heading_item(line.label) if line.is_heading else self._name_item(line.label)
+        )
 
     def _hold_to_the_sidebars_width(self) -> None:
         """Hand every line a width Qt will stretch, rather than lay the list out to.
@@ -336,11 +339,9 @@ class FolderIndex(BrowseList):
             self.item(row).setSizeHint(QSize(1, self.sizeHintForRow(row)))
 
     def _heading_item(self, letter: str) -> QListWidgetItem:
-        # Flagless: the arrows and the type-ahead skip a disabled row, and the
-        # stylesheet mutes the only ones here.
         item = QListWidgetItem(letter)
         item.setFlags(Qt.ItemFlag.NoItemFlags)
-        item.setFont(make_font(FONT_UI, SIZE_SMALL, bold=True))
+        item.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
         return item
 
     def _name_item(self, name: str) -> QListWidgetItem:
@@ -351,36 +352,59 @@ class FolderIndex(BrowseList):
         return item
 
     def reveal(self, grid_row: int) -> None:
-        row = next((r for r, g in enumerate(self.grid_rows) if g == grid_row), None)
+        row = next((r for r, line in enumerate(self.lines) if line.row == grid_row), None)
         if row is None:
             return
+        self._open_only(self._heading_above(row))
         self.setCurrentRow(row)
         self.scrollToItem(self.item(row), QAbstractItemView.ScrollHint.PositionAtCenter)
+
+    def _heading_above(self, row: int) -> int:
+        return next(r for r in range(row, -1, -1) if self.lines[r].is_heading)
 
     def mousePressEvent(self, event) -> None:  # Qt override
         # A disabled row gets no click signal, so a heading answers one here.
         item = self.itemAt(event.position().toPoint())
         row = self.row(item) if item is not None else -1
-        if not (0 <= row < len(self.grid_rows)) or self.grid_rows[row] is not None:
+        if not (0 <= row < len(self.lines)) or not self.lines[row].is_heading:
             super().mousePressEvent(event)
             return
-        first = self._first_name_under(row)
-        if first is not None:
-            self.setCurrentRow(first)
-            self._reveal(self.item(first))  # silent when it is already current
+        if not self._has_names(row):
+            return
+        if row == self._open_heading:
+            self._open_only(None)
+            return
+        self._open_only(row)
+        self.setCurrentRow(row + 1)
+        self._reveal(self.item(row + 1))  # silent when it is already current
 
-    def _first_name_under(self, heading_row: int) -> int | None:
-        return next(
-            (row for row in range(heading_row + 1, len(self.grid_rows))
-             if self.grid_rows[row] is not None),
-            None,
-        )
+    def _open_only(self, heading_row: int | None) -> None:
+        self._open_heading = heading_row
+        heading = None
+        for row, line in enumerate(self.lines):
+            if line.is_heading:
+                heading = row
+                self.item(row).setText(self._letter_label(row))
+                self.item(row).setForeground(TEXT_PRIMARY if self._has_names(row) else TEXT_MUTED)
+            else:
+                self.setRowHidden(row, heading != heading_row)
+
+    def _letter_label(self, row: int) -> str:
+        letter = self.lines[row].label
+        if row == self._open_heading:
+            return f"{letter} {OPEN_MARK}"
+        if self._has_names(row):
+            return f"{letter} {CLOSED_MARK}"
+        return letter
+
+    def _has_names(self, row: int) -> bool:
+        return row + 1 < len(self.lines) and not self.lines[row + 1].is_heading
 
     def _grid_row(self, item: QListWidgetItem | None) -> int | None:
         if item is None:
             return None
         row = self.row(item)
-        return self.grid_rows[row] if 0 <= row < len(self.grid_rows) else None
+        return self.lines[row].row if 0 <= row < len(self.lines) else None
 
     def _reveal(self, item: QListWidgetItem | None, _previous: object = None) -> None:
         row = self._grid_row(item)
@@ -426,6 +450,7 @@ class LibraryBrowserWindow(QWidget):
         # a plain window it earns its own indicator, and — declaring no identity
         # of its own — Windows hangs that off whatever app it can pair it with.
         self.setWindowFlags(Qt.WindowType.Tool)
+        self.setWindowTitle(WINDOW_TITLE)
         self._handles = tuple(handles)
         self._on_pick = on_pick
         self._on_close = on_close
@@ -437,11 +462,18 @@ class LibraryBrowserWindow(QWidget):
         self.index = FolderIndex(
             go_up=self.go_up, on_reveal=self.grid.reveal, on_activate=self._activate,
         )
-        layout = QHBoxLayout(self)
+        self.header = folder_header()
+        self.header.linkActivated.connect(self._open_depth)
+        halves = QHBoxLayout()
+        halves.setContentsMargins(0, 0, 0, 0)
+        halves.setSpacing(0)
+        halves.addWidget(self.index)
+        halves.addWidget(self.grid, 1)
+        layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
-        layout.addWidget(self.index)
-        layout.addWidget(self.grid, 1)
+        layout.addWidget(self.header)
+        layout.addLayout(halves, 1)
         # Painted through the palette rather than a stylesheet: a QWidget
         # subclass draws neither its own background nor a stylesheet's unless it
         # paints one, and this is the sliver the two lists do not cover.
@@ -471,9 +503,12 @@ class LibraryBrowserWindow(QWidget):
         """Show *path* in both halves: its folder tiles, or the videos it holds."""
         folder = folder_at(self._handles, path)
         self._path = folder.path
-        self.setWindowTitle(f"{WINDOW_TITLE} — {folder.title}" if folder.title else WINDOW_TITLE)
+        self.header.setText(breadcrumbs(folder.path))
         self.grid.show_folder(folder)
         self.index.show_rows(self.grid.rows)
+
+    def _open_depth(self, depth: str) -> None:
+        self.open_folder(self._path[: int(depth)])
 
     def go_up(self) -> None:
         """Leave the folder being shown for the one that holds it."""
@@ -543,15 +578,37 @@ def alphabetical_index(rows: Sequence[object]) -> list[IndexLine]:
         ((name_of(what), row) for row, what in enumerate(rows) if what is not None),
         key=lambda named_row: (named_row[0].casefold(), named_row[0]),
     )
-    lines: list[IndexLine] = []
-    heading = ""
+    groups: dict[str, list[IndexLine]] = {}
     for name, row in named:
-        letter = initial_letter(name)
-        if letter != heading:
-            heading = letter
-            lines.append(IndexLine(letter))
-        lines.append(IndexLine(name, row))
+        groups.setdefault(initial_letter(name), []).append(IndexLine(name, row))
+    lines: list[IndexLine] = []
+    every_letter = {NON_LETTER_HEADING, *string.ascii_uppercase, *groups}
+    for letter in sorted(every_letter, key=lambda letter: (letter != NON_LETTER_HEADING, letter)):
+        lines.append(IndexLine(letter))
+        lines.extend(groups.get(letter, ()))
     return lines
+
+
+def breadcrumbs(path: Sequence[str]) -> str:
+    steps = [html.escape(step) for step in (TOP_LEVEL_NAME, *path)]
+    link_style = f"color: {BLUE_LIGHT.name()}; text-decoration: none;"
+    links = [
+        f'<a href="{depth}" style="{link_style}">{step}</a>'
+        for depth, step in enumerate(steps[:-1])
+    ]
+    return " / ".join([*links, steps[-1]])
+
+
+def folder_header() -> QLabel:
+    header = QLabel()
+    header.setTextFormat(Qt.TextFormat.RichText)
+    header.setTextInteractionFlags(Qt.TextInteractionFlag.LinksAccessibleByMouse)
+    header.setFont(make_font(FONT_UI, SIZE_HEADING, bold=True))
+    header.setStyleSheet(
+        f"QLabel {{ background-color: {BG_SECONDARY.name()}; color: {TEXT_PRIMARY.name()};"
+        " padding: 8px 12px; }"
+    )
+    return header
 
 
 def fitted_icon(still: str | Path) -> QIcon:
