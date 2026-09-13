@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 from unittest.mock import patch
 
+from app_support.launcher import launchers
 from app_support.process_identity_check import assert_the_app_names_its_process
 
 from fun_time.process_identity import NAMER, prepare_orchestrator_launcher
@@ -55,14 +56,15 @@ class TestTheStringsOtherLanguagesMatchOn:
         assert NAMER.process_name_pattern in run.call_args.args[0][-1]
 
     def test_the_launcher_looks_for_the_name_the_namer_gives_the_orchestrator(self):
-        # launch.vbs greps the venv for this file by name and runs it if it is
+        # launch.vbs looks in the venv for this file by name and runs it if it is
         # there.  A namer that starts producing anything else does not fail --
         # the launcher quietly falls back to the plain interpreter and the
         # orchestrator goes back to being an anonymous row, for good.
-        named = NAMER.exe_name("python.exe", "Orchestrator")
+        (desktop,) = [spec for spec in launchers(PROJECT_DIR) if spec.file == "launch.vbs"]
+        named = NAMER.exe_name(desktop.interpreter, "Orchestrator")
 
         assert named == "FunTime-Orchestrator.exe"
-        assert named in (PROJECT_DIR / "launch.vbs").read_text(encoding="utf-8")
+        assert desktop.named_interpreter == named
 
 
 class TestTheRolesThisRepoLaunches:

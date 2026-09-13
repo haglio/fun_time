@@ -1,181 +1,137 @@
-' Runs Fun Time from a branch worktree, so an agent's unlanded work can be seen
-' on the real screen before it goes into a pull request.
-'
-' Not double-clicked directly: an agent with a branch to show makes a
-' "Verify <branch>.lnk" beside this file, and that shortcut passes the worktree
-' in. fun_time/branch_session.py is the whole design, including why a branch
-' session REPLACES the live one instead of running beside it -- start one while
-' Fun Time is open and Fun Time's own "already running" message turns it away.
+' Rendered from [tool.haglio.launchers."launch_branch.vbs"] in pyproject.toml.
+' Change the spec, then run  python -m app_support.launcher --write  in this
+' folder: the suite fails on a launcher that differs from its spec.
+
+Option Explicit
+
+Dim fso, shell, root, app, interpreter, directory, arguments, checkout, label, logPath, readyFile, exitedFlag, notePath, noteText
 
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
-
-scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-
-If WScript.Arguments.Count < 1 Then
-  MsgBox "There is nothing to run here on its own." & vbCrLf & vbCrLf & _
-         "An agent with a branch for you to look at leaves a ""Verify <branch>"" " & _
-         "shortcut in this folder, and names it for you. Double-click that instead.", _
-         vbInformation, "Fun Time"
-  WScript.Quit 1
-End If
-
-worktree = WScript.Arguments(0)
-
-' Which session this shortcut is for. The VR flavour passes "--vr" after the
-' branch, so one launcher serves both and there is one sweep, one stale check
-' and one failure dialog to keep right instead of two.
-isVR = False
-For argIndex = 1 To WScript.Arguments.Count - 1
-  If LCase(WScript.Arguments(argIndex)) = "--vr" Then isVR = True
-Next
-
-If WScript.Arguments.Count > 1 And LCase(WScript.Arguments(1)) <> "--vr" Then
-  branchLabel = WScript.Arguments(1)
+root = fso.GetParentFolderName(WScript.ScriptFullName)
+Decide
+If shell.Environment("Process").Item("HAGLIO_LAUNCHER_DRY_RUN") = "1" Then
+  Report
 Else
-  branchLabel = worktree
+  Launch
 End If
 
-If isVR Then
-  appName = "Fun Time VR"
-  sessionFlag = " --vr"
-Else
-  appName = "Fun Time"
-  sessionFlag = ""
-End If
-
-If Not fso.FolderExists(worktree) Then
-  MsgBox "That branch's worktree is gone:" & vbCrLf & worktree & vbCrLf & vbCrLf & _
-         "It was probably deleted when the branch landed, in which case the work " & _
-         "is already in Fun Time. This shortcut can be deleted.", vbCritical, appName
-  WScript.Quit 1
-End If
-
-' The venv pin launch.vbs makes, for the same reason: fun_time imports its
-' sibling packages -- app_support, player_core -- and those are editable installs
-' that exist only in .venv. A python taken from PATH dies while importing, before
-' any logging is configured, so the launch never happens and never says why. It
-' is the PRIMARY checkout's venv: a worktree has none of its own.
-pythonExe = fso.BuildPath(scriptDir, ".venv\Scripts\python.exe")
-If Not fso.FileExists(pythonExe) Then
-  MsgBox appName & "'s virtual environment is missing:" & vbCrLf & pythonExe, vbCritical, appName
-  WScript.Quit 1
-End If
-
-' Every sentinel this launch is judged by lives in the WORKTREE's state dir. The
-' names are launch.vbs's, kept apart by directory instead of by name -- which is
-' the same thing that keeps the branch session's command files, playlists and
-' logs out of the live session's state.
-stateDir = fso.BuildPath(worktree, "state")
-If Not fso.FolderExists(stateDir) Then fso.CreateFolder stateDir
-' FunTimeVR's orchestrator drops vr_launcher.ready, not the desktop marker, so
-' a VR launch watched for the wrong file would pop "failed to start" over a
-' session that had come up perfectly well.  Spelled out either side rather than
-' built from a stem, so every name a launcher answers to can still be grepped.
-If isVR Then
-  launchLog = LaunchLogIn(stateDir, "vr_launcher")
-  readyFile = fso.BuildPath(stateDir, "vr_launcher.ready")
-  exitedFlag = fso.BuildPath(stateDir, "vr_launcher.exited")
-Else
-  launchLog = LaunchLogIn(stateDir, "launcher")
-  readyFile = fso.BuildPath(stateDir, "launcher.ready")
-  exitedFlag = fso.BuildPath(stateDir, "launcher.exited")
-End If
-' branch_session leaves this when a launch fails on a worktree older than
-' the Fun Time he runs -- the usual reason a launcher that worked once
-' stops working, and a failure that is nothing he did. Cleared first so a
-' previous launch's note cannot explain this one.
-outOfDateNote = fso.BuildPath(stateDir, "branch_out_of_date.txt")
-If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
-If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
-If fso.FileExists(outOfDateNote) Then fso.DeleteFile outOfDateNote
-
-' Run from the primary: this launcher and the config it writes are main's code,
-' and only the session underneath it is the branch's (branch_session starts the
-' orchestrator with its working directory in the worktree).
-cmd = "cmd /c cd /d """ & scriptDir & """ && """ & pythonExe & _
-      """ -m fun_time.branch_session """ & worktree & """" & sessionFlag & " >> """ & launchLog & _
-      """ 2>&1 & type nul > """ & exitedFlag & """"
-shell.Run cmd, 0, False
-
-' Watch the sentinels, exactly as launch.vbs does. A good launch drops readyFile
-' within a second or two; a crash trips exitedFlag first; a launch wedged before
-' it can do either trips the timeout.
-pollMs = 250
-maxWaitMs = 45000
-waited = 0
-started = False
-Do
-  If fso.FileExists(readyFile) Then
-    started = True
-    Exit Do
+Sub Decide()
+  Dim index
+  app = "Fun Time"
+  If WScript.Arguments.Count = 0 Then
+    Refuse "There is nothing to run here on its own." & vbCrLf & vbCrLf & "An agent with a branch for you to look at leaves a ""Verify <branch>"" shortcut in this folder, and names it for you. Double-click that instead.", vbInformation
   End If
-  If fso.FileExists(exitedFlag) Then Exit Do
-  If waited >= maxWaitMs Then Exit Do
-  WScript.Sleep pollMs
-  waited = waited + pollMs
-Loop
-
-If Not started Then
-  outOfDate = LastLinesOf(outOfDateNote, 20)
-  If Len(outOfDate) > 0 Then
-    MsgBox outOfDate & vbCrLf & "The full log is at:" & vbCrLf & launchLog, _
-           vbExclamation, appName
-  Else
-    msg = appName & " failed to start on " & branchLabel & "." & vbCrLf & vbCrLf & _
-          "See the full log at:" & vbCrLf & launchLog
-    tail = LastLinesOf(launchLog, 15)
-    If Len(tail) > 0 Then msg = msg & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
-    MsgBox msg, vbCritical, appName
-  End If
-End If
-
-' The first of <name>.log, <name>-2.log ... that opens for writing, and a banner
-' in it naming this launch.
-'
-' The redirect below is cmd's, and cmd holds the file it redirects into for as
-' long as the session runs -- Windows lets nobody else write it meanwhile. So
-' does every child of that session launched without a redirect of its own,
-' because an unset stdout is an INHERITED one: Chrome, the broker tray, an
-' Origenerator kept across a crossing. While one of those outlives its session
-' the file stays held, and a launch redirecting into it fails INSIDE cmd, before
-' python is run at all -- no window, no log line anywhere, not even the "already
-' running" refusal, which only the interpreter that never started could show. The
-' click does nothing, and the app comes up only once the stray has gone: the
-' launch that takes two clicks. So take the next free name rather than not
-' launch, and leave the held one to whatever is still writing into it.
-'
-' Appended to rather than overwritten, and banner-stamped, because the retry
-' used to erase the failed launch's traceback -- the one record of why the first
-' click did nothing. Rolled aside at a megabyte, as the app's own logs are.
-Function LaunchLogIn(dirPath, stem)
-  Dim i, candidate, ts
-  For i = 1 To 9
-    If i = 1 Then
-      candidate = fso.BuildPath(dirPath, stem & ".log")
-    Else
-      candidate = fso.BuildPath(dirPath, stem & "-" & i & ".log")
-    End If
-    RollIfOversize candidate
-    On Error Resume Next
-    Set ts = fso.OpenTextFile(candidate, 8, True)
-    If Err.Number = 0 Then
-      Err.Clear
-      On Error GoTo 0
-      ts.WriteLine "===== " & Now & " launch"
-      ts.Close
-      LaunchLogIn = candidate
-      Exit Function
-    End If
-    Err.Clear
-    On Error GoTo 0
+  checkout = WScript.Arguments(0)
+  label = checkout
+  logPath = fso.BuildPath(checkout, "state\launcher.log")
+  readyFile = fso.BuildPath(checkout, "state\launcher.ready")
+  exitedFlag = fso.BuildPath(checkout, "state\launcher.exited")
+  notePath = fso.BuildPath(checkout, "state\branch_out_of_date.txt")
+  arguments = "-m fun_time.branch_session """ & checkout & """"
+  For index = 1 To WScript.Arguments.Count - 1
+    Select Case LCase(WScript.Arguments(index))
+      Case "--vr"
+        app = "Fun Time VR"
+        logPath = fso.BuildPath(checkout, "state\vr_launcher.log")
+        readyFile = fso.BuildPath(checkout, "state\vr_launcher.ready")
+        exitedFlag = fso.BuildPath(checkout, "state\vr_launcher.exited")
+        notePath = fso.BuildPath(checkout, "state\branch_out_of_date.txt")
+        arguments = arguments & " --vr"
+      Case Else
+        If index = 1 Then label = WScript.Arguments(index)
+    End Select
   Next
-  LaunchLogIn = fso.BuildPath(dirPath, stem & ".log")
+  If Not fso.FolderExists(checkout) Then
+    Refuse "That branch's worktree is gone:" & vbCrLf & checkout & vbCrLf & vbCrLf & "It was probably deleted when the branch landed, in which case the work is already in Fun Time. This shortcut can be deleted.", vbCritical
+  End If
+  interpreter = fso.BuildPath(root, ".venv\Scripts\python.exe")
+  directory = root
+End Sub
+
+Sub Report()
+  WScript.Echo "app: " & app
+  WScript.Echo "checkout: " & checkout
+  WScript.Echo "label: " & label
+  WScript.Echo "interpreter: " & interpreter
+  WScript.Echo "directory: " & directory
+  WScript.Echo "arguments: " & arguments
+  WScript.Echo "log: " & logPath
+  WScript.Echo "ready: " & readyFile
+  WScript.Echo "exited: " & exitedFlag
+  WScript.Echo "note: " & notePath
+  WScript.Echo "command: " & Command()
+End Sub
+
+Sub Launch()
+  If Not fso.FileExists(interpreter) Then
+    Refuse app & "'s virtual environment is missing:" & vbCrLf & interpreter, vbCritical
+  End If
+  logPath = FreeLog(logPath)
+  Note logPath, "===== " & Now & " launch: " & Command()
+  If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
+  If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
+  If fso.FileExists(notePath) Then fso.DeleteFile notePath
+  shell.Run Command(), 0, False
+  If Not Started() Then
+    noteText = LastLinesOf(notePath, 20)
+    If Len(noteText) > 0 Then
+      Refuse noteText & vbCrLf & "The full log is at:" & vbCrLf & logPath, vbExclamation
+    Else
+      Refuse FailedStart(), vbCritical
+    End If
+  End If
+End Sub
+
+Function Command()
+  Command = "cmd /c cd /d " & Quote(directory) & " && " & Quote(interpreter) & " " & arguments & " >> " & Quote(logPath) & " 2>&1 & type nul > " & Quote(exitedFlag)
 End Function
 
-' Move a log past a megabyte aside to <name>.1, keeping one generation.
-' Best-effort: a stray child still holding it makes Windows refuse the rename,
-' and housekeeping must never cost a launch.
+Function Quote(text)
+  Quote = Chr(34) & text & Chr(34)
+End Function
+
+Sub Tell(message, icon)
+  If LCase(fso.GetFileName(WScript.FullName)) = "cscript.exe" Then
+    WScript.Echo "dialog: " & message
+  Else
+    MsgBox message, icon, app
+  End If
+End Sub
+
+Sub Refuse(message, icon)
+  Tell message, icon
+  WScript.Quit 1
+End Sub
+
+Function FreeLog(preferred)
+  Dim folder, candidate, index
+  folder = fso.GetParentFolderName(preferred)
+  If Not fso.FolderExists(folder) Then fso.CreateFolder folder
+  For index = 1 To 9
+    candidate = preferred
+    If index > 1 Then
+      candidate = fso.BuildPath(folder, fso.GetBaseName(preferred) & "-" & index & "." & fso.GetExtensionName(preferred))
+    End If
+    RollIfOversize candidate
+    If CanAppend(candidate) Then
+      FreeLog = candidate
+      Exit Function
+    End If
+  Next
+  FreeLog = preferred
+End Function
+
+Function CanAppend(path)
+  Dim stream
+  On Error Resume Next
+  Set stream = fso.OpenTextFile(path, 8, True)
+  CanAppend = (Err.Number = 0)
+  If CanAppend Then stream.Close
+  Err.Clear
+  On Error GoTo 0
+End Function
+
 Sub RollIfOversize(path)
   On Error Resume Next
   If fso.FileExists(path) Then
@@ -188,26 +144,57 @@ Sub RollIfOversize(path)
   On Error GoTo 0
 End Sub
 
-' Return the tail of a text file (up to maxLines non-blank-terminated lines), so
-' a failure dialog can show what landed in the log without making the user go
-' open it.
-Function LastLinesOf(path, maxLines)
-  Dim out : out = ""
-  If fso.FileExists(path) Then
-    Dim ts, body, parts, hi, lo, i
-    Set ts = fso.OpenTextFile(path, 1)
-    If Not ts.AtEndOfStream Then body = ts.ReadAll
-    ts.Close
-    parts = Split(Replace(body, vbCr, ""), vbLf)
-    hi = UBound(parts)
-    Do While hi >= 0 And Trim(parts(hi)) = ""
-      hi = hi - 1
-    Loop
-    lo = hi - maxLines + 1
-    If lo < 0 Then lo = 0
-    For i = lo To hi
-      out = out & parts(i) & vbCrLf
-    Next
+Sub Note(path, line)
+  Dim stream
+  On Error Resume Next
+  Set stream = fso.OpenTextFile(path, 8, True)
+  stream.WriteLine line
+  stream.Close
+  Err.Clear
+  On Error GoTo 0
+End Sub
+
+Function Started()
+  Dim waited
+  waited = 0
+  Started = False
+  Do
+    If fso.FileExists(readyFile) Then
+      Started = True
+      Exit Function
+    End If
+    If fso.FileExists(exitedFlag) Or waited >= 45000 Then Exit Function
+    WScript.Sleep 250
+    waited = waited + 250
+  Loop
+End Function
+
+Function FailedStart()
+  Dim tail
+  FailedStart = app & " failed to start on " & label & "." & vbCrLf & vbCrLf & "See the full log at:" & vbCrLf & logPath
+  tail = LastLinesOf(logPath, 15)
+  If Len(tail) > 0 Then
+    FailedStart = FailedStart & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
   End If
-  LastLinesOf = out
+End Function
+
+Function LastLinesOf(path, count)
+  Dim stream, body, lines, first, last, index
+  LastLinesOf = ""
+  If Not fso.FileExists(path) Then Exit Function
+  Set stream = fso.OpenTextFile(path, 1)
+  body = ""
+  If Not stream.AtEndOfStream Then body = stream.ReadAll
+  stream.Close
+  lines = Split(Replace(body, vbCr, ""), vbLf)
+  last = UBound(lines)
+  Do While last >= 0
+    If Trim(lines(last)) <> "" Then Exit Do
+    last = last - 1
+  Loop
+  first = last - count + 1
+  If first < 0 Then first = 0
+  For index = first To last
+    LastLinesOf = LastLinesOf & lines(index) & vbCrLf
+  Next
 End Function
