@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 from shared_ui.palette import BG_BUTTON, BG_TERTIARY, BLUE
-from shared_ui.spacing import BUTTON_ICON, BUTTON_SIZE_HUD
+from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_SIZE_HUD
 
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
@@ -83,13 +83,23 @@ class TestItIsTheDesktopsBar:
         assert SOURCE_LABELS[SOURCE_PORTRAIT] == "Sat"
         assert not np.array_equal(labelled, bare)
 
-    def test_a_control_is_the_family_button_size_and_corner(self):
-        """One rule across the family: the same square, the same corner, the
-        same mark inside it, whichever app is drawing it."""
+    def test_a_control_is_the_huds_square_with_its_mark_inset_as_a_huds_is(
+            self, monkeypatch):
+        from fun_time_vr import dash_panel
+
+        asked: list[tuple[str, int]] = []
+        drawn = dash_panel.glyph_image
+
+        def recording(name: str, size: int, color):
+            asked.append((name, size))
+            return drawn(name, size, color)
+
+        monkeypatch.setattr(dash_panel, "glyph_image", recording)
+        paint_dash(DashState(), [])
         rect = dash_actions()[QUIT_BUTTON]
 
         assert rect.width == rect.height == BUTTON_SIZE_HUD
-        assert min(BUTTON_ICON, rect.width) == BUTTON_ICON
+        assert ("power", BUTTON_SIZE_HUD - 2 * BUTTON_MARK_INSET_HUD) in asked
 
     def test_a_row_reads_the_way_the_log_panel_writes_it(self):
         row = format_row(_record("portrait next", source=SOURCE_PORTRAIT))
@@ -256,18 +266,31 @@ class TestItLooksLikeADropdown:
 
         assert apex > open_end  # the point is below the two arms
 
-    def test_every_control_wears_the_same_bordered_slab(self):
-        """This panel is a copy of the desktop's bar, and the bar draws every
-        control on a rounded slab with a subtle edge.  Drawn bare here, the two
-        read as different apps a head-turn apart."""
-        from shared_ui.palette import BORDER_SUBTLE
+    def test_every_control_wears_the_huds_edge(self):
+        from shared_ui.palette import TEXT_MUTED
 
-        painted = np.asarray(paint_dash(DashState(), []))
-        dial, chip = dash_actions()[VERBOSITY_CHIP], dash_actions()[SOURCE_MAIN]
+        painted = np.asarray(paint_dash(DashState(voice_active=True), []))
+        actions = dash_actions()
 
-        for rect in (dial, chip):
-            edge = painted[rect.y + rect.height // 2, rect.x, :3]
-            assert np.array_equal(edge, np.array(BORDER_SUBTLE)), rect
+        for action, edge in ((QUIT_BUTTON, TEXT_MUTED), (VERBOSITY_CHIP, TEXT_MUTED),
+                             (VOICE_TOGGLE, BLUE), (SOURCE_MAIN, BLUE)):
+            rect = actions[action]
+            pixel = painted[rect.y + rect.height // 2, rect.x, :3]
+            assert np.array_equal(pixel, np.asarray(edge, dtype=pixel.dtype)), action
+
+    def test_a_windows_label_is_bright_off_and_white_on(self):
+        painted = np.asarray(paint_dash(
+            DashState(sources=frozenset(SOURCES) - {SOURCE_MAIN}), []))
+        actions = dash_actions()
+
+        def brightest(action: str) -> int:
+            rect = actions[action]
+            inside = painted[rect.y + 2:rect.y + rect.height - 2,
+                             rect.x + 2:rect.x + rect.width - 2, :3]
+            return int(inside.min(axis=2).max())
+
+        assert brightest(SOURCE_MAIN) > 200
+        assert brightest(SOURCE_PORTRAIT) >= 250
 
     def test_the_level_reads_from_the_left_as_a_field_does(self):
         """Centered is how a button labels itself; a field's value starts at its
