@@ -2,11 +2,12 @@
 
 The dispatcher only raises the ``save_clip`` op (tests/test_command_dispatch.py);
 the loop runs it on a worker thread (tests/test_windows_bridge_dispatch_loop.py).
-What runs is pinned here: the exact command line, the toast on success, the
-silence on failure.
+What runs is pinned here: the exact command line, the toast on success, and on
+failure no toast of its own, only the error it logs.
 """
 from __future__ import annotations
 
+import logging
 import subprocess
 from pathlib import Path
 from unittest.mock import patch
@@ -76,7 +77,7 @@ def test_the_save_runs_clippers_venv_on_main_players_video_and_position(tmp_path
     assert "test" in message
 
 
-def test_a_failed_save_answers_empty_so_nothing_flashes(tmp_path: Path):
+def test_a_failed_save_answers_empty(tmp_path: Path):
     config = _make_config(tmp_path)
     config.main_player_status_file.write_text(
         "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
@@ -90,6 +91,27 @@ def test_a_failed_save_answers_empty_so_nothing_flashes(tmp_path: Path):
         message = save_clip_session(config)
 
     assert message == ""
+
+
+@pytest.mark.parametrize("failure", [
+    {"return_value": subprocess.CompletedProcess(["clipper"], 1, stdout="", stderr="ffprobe failed")},
+    {"side_effect": subprocess.TimeoutExpired(cmd="clipper", timeout=10)},
+])
+def test_a_failed_save_is_logged_as_an_error(tmp_path: Path, caplog, failure):
+    """The save that was asked for did not happen, and the log line is the only
+    word of it that flashes, so it reads red rather than a warning's yellow."""
+    config = _make_config(tmp_path)
+    config.main_player_status_file.write_text(
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\n", encoding="utf-8",
+    )
+
+    with patch("fun_time.clipper_save._clipper_python", return_value="python"), \
+         patch("fun_time.clipper_save.subprocess.run", **failure), \
+         caplog.at_level(logging.DEBUG, logger="fun_time.clipper_save"):
+        save_clip_session(config)
+
+    assert [r.levelno for r in caplog.records if r.name == "fun_time.clipper_save"] == [
+        logging.ERROR]
 
 
 def test_no_video_playing_means_no_subprocess_at_all(tmp_path: Path):
