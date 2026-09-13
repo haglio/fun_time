@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -23,6 +22,7 @@ from pathlib import Path
 import pytest
 
 from fun_time import win32_loader
+from tests.integration.integration_support import environment_with_this_checkouts_siblings
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
@@ -42,12 +42,6 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 """
 
-_RUN_THE_CHECKOUTS_THIS_BRANCH_NAMES = """
-import tests  # bound first: a sibling checkout put ahead of this one has a tests package too
-from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
-apply_genau_dirs_to_sys_path()
-"""
-
 
 PACKAGE_MODULES = tuple(
     f"fun_time.{path.stem}"
@@ -59,16 +53,16 @@ PACKAGE_MODULES = tuple(
 def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProcess:
     """Run *body* in a child whose ``ctypes`` has had its Windows half removed.
 
-    ``PYTHONPATH`` is dropped so the child cannot pick up a shim that fakes that
-    surface back in, the way a run on a developer's non-Windows machine does.
-    The checkout's own sibling override still applies, as it does at every
-    launch: a branch leaning on an unlanded player_core imports that one.
+    ``PYTHONPATH`` names only the sibling checkouts this branch runs, so the
+    child cannot pick up a shim that fakes that surface back in, the way a run
+    on a developer's non-Windows machine does -- and the checkout's own sibling
+    override still applies, as it does at every launch: a branch leaning on an
+    unlanded player_core imports that one.
     """
-    env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     return subprocess.run(
-        [sys.executable, "-c",
-         _STRIP_WIN32_FROM_CTYPES + _RUN_THE_CHECKOUTS_THIS_BRANCH_NAMES + body],
-        cwd=str(REPO_DIR), env=env, capture_output=True, text=True, timeout=180,
+        [sys.executable, "-c", _STRIP_WIN32_FROM_CTYPES + body],
+        cwd=str(REPO_DIR), env=environment_with_this_checkouts_siblings(),
+        capture_output=True, text=True, timeout=180,
     )
 
 
