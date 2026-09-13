@@ -41,6 +41,15 @@ class TestStatusFields:
             "video", "position_ms", "duration_ms", "paused", "locked", "playlist_length",
         ]
 
+    def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
+        from player_core.status import PlayerStatus, parse_status
+
+        session, player = make_satellite_session(tmp_path)
+        player.position_ms = 1_500.0
+
+        assert parse_status(status_fields(session)) == PlayerStatus(
+            video=str(tmp_path / "v0.mp4"), position_ms=1500, duration_ms=5000)
+
     def test_flags_follow_the_session(self, tmp_path):
         session, _player = make_satellite_session(tmp_path)
         session.set_paused(True)

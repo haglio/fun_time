@@ -1,21 +1,25 @@
 """What a satellite publishes in its status file for the dispatch loop.
 
 fun_time reads its current clip, playhead and pause/lock state from here — the
-watch-sampler and the lock HUD's own model both do — which is what the retired
-VLC satellites needed an HTTP status.xml poll for.  The throttled writing itself
-is :class:`player_core.status.StatusWriter`; this module is only the field set,
-because these keys are a satellite's own contract with the dispatch loop (the main player
-publishes a different set, and ``locked`` is meaningless to it).
+watch-sampler and the lock HUD's own model both do.  The five lines every player
+leads with are :class:`player_core.status.PlayerStatus`; a satellite adds how
+many clips its playlist holds, which the dispatch loop reads to know when a loop
+is down to one.
 """
 from __future__ import annotations
+
+from player_core.status import PlayerStatus
+from player_core.status import status_fields as player_status_fields
 
 
 def status_fields(session) -> dict[str, str]:
     return {
-        "video": str(session.current_video),
-        "position_ms": str(int(session.position_ms)),
-        "duration_ms": str(int(session.duration_ms)),
-        "paused": "1" if session.is_paused else "0",
-        "locked": "1" if session.is_locked else "0",
+        **player_status_fields(PlayerStatus(
+            video=str(session.current_video),
+            position_ms=int(session.position_ms),
+            duration_ms=int(session.duration_ms),
+            paused=session.is_paused,
+            locked=session.is_locked,
+        )),
         "playlist_length": str(session.playlist_length),
     }

@@ -34,15 +34,21 @@ class TestStatusFields:
     def test_key_order_is_the_published_file_order(self):
         # fun_time parses key=value lines, but the file's shape is the main player's
         # contract; pinning the order keeps a reordering from passing silently.
-        # Eleven, not ten: handoff_touch_ms is read by fun_time's dashboard
-        # runtime and its dispatch loop, and while it was composed in a closure
-        # inside main_player.app's run loop this list said ten and nothing noticed.
+        # The family's five lead, then the main player's own six: handoff_touch_ms
+        # is read by fun_time's dashboard runtime and its dispatch loop, and while
+        # it was composed in a closure inside main_player.app's run loop this list
+        # said ten and nothing noticed.
         assert list(status_fields(StubSession(), None)) == [
-            "video", "position_ms", "duration_ms",
+            "video", "position_ms", "duration_ms", "paused", "locked",
             "has_funscript", "funscript_resting", "state",
-            "loop_in_ms", "loop_out_ms", "paused", "locked",
-            "handoff_touch_ms",
+            "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
         ]
+
+    def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self):
+        from player_core.status import PlayerStatus, parse_status
+
+        assert parse_status(status_fields(StubSession(), None)) == PlayerStatus(
+            video=str(Path("C:/vids/clip.mp4")), position_ms=12345, duration_ms=60000, locked=True)
 
     def test_the_chosen_touch_is_published_as_whole_milliseconds(self):
         assert status_fields(StubSession(), 4200.7)["handoff_touch_ms"] == "4200"

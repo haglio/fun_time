@@ -37,6 +37,8 @@ from player_core.player_verbs import (
     TOGGLE_LOCK,
 )
 from player_core.playlist import item_from_line, read_playlist
+from player_core.status import PlayerStatus
+from player_core.status import status_fields as player_status_fields
 
 from .projection import next_projection, resolve_projection, save_projection
 
@@ -288,14 +290,16 @@ class MainRole:
         *handoff_touch_ms* is where the console panel drew Genau's turn ending
         (None for none, published empty: zero is a real media time)."""
         return {
-            "video": str(self.current_video),
-            "position_ms": str(int(self._player.position_ms)),
-            "duration_ms": str(int(self._player.duration_ms)),
+            **player_status_fields(PlayerStatus(
+                video=str(self.current_video),
+                position_ms=int(self._player.position_ms),
+                duration_ms=int(self._player.duration_ms),
+                paused=self._paused,
+                locked=self._locked,
+            )),
             "has_funscript": "1" if self.has_funscript else "0",
             "funscript_resting": "1" if self._funscript_resting() else "0",
             "state": "normal",
-            "paused": "1" if self._paused else "0",
-            "locked": "1" if self._locked else "0",
             "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
         }
 
