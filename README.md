@@ -507,7 +507,7 @@ Genau (the `../genau` project) consumes and clears this file.
 
 Written by the Python dispatch loop when the main player control commands are dispatched; the main player consumes and clears it.
 
-Commands (the full set `main_player/controls.py` answers to):
+Commands (the full set `main_player/controls.py` answers to). The verbs every player in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `player_core.player_verbs` (see "The player contract" in `../player_core`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT`. The main player's own verbs are spelled in its registry:
 
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
@@ -547,7 +547,7 @@ Cleared before every browse, so abandoning one never replays the last pick.
 
 ### `main_player_playlist.tsv`
 
-One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also sends the main player `RELOAD_PLAYLIST` and `SET_F_MODE`, on one write — the command file is overwritten, not appended).
+One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also queues `RELOAD_PLAYLIST` and `SET_F_MODE` on the main player's command file). Every playlist is written and read through `player_core.playlist`, one `PlaylistItem` per line.
 
 ### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`
 
