@@ -50,6 +50,8 @@ from fun_time.event_log import (
     SOURCES,
     EventRecord,
 )
+from fun_time.icon_image import load_icon_image
+from fun_time.project_paths import PROJECT_ICON
 
 from .console_panel import level_color
 
@@ -182,6 +184,11 @@ def _label(draw, rect: Rect, text: str, font, ink, *, left: bool = False) -> Non
     draw.text((x, rect.y + 3), text, font=font, fill=(*ink, 255))
 
 
+@cache
+def _app_mark(size: int) -> Image.Image | None:
+    return load_icon_image(PROJECT_ICON, size)
+
+
 def _arrow_down(size: int) -> Image.Image:
     """The family's chevron turned DOWN -- Pillow rotates counter-clockwise, so
     the sign is what decides which way it ends up."""
@@ -241,6 +248,9 @@ def paint_dash(state: DashState, records,
     actions = dash_actions()
     body, small = _font(_FONT_PX), _font(_SMALL_PX)
 
+    mark = _app_mark(bar.app_icon.height)
+    if mark is not None:
+        panel.alpha_composite(mark, (bar.app_icon.x, bar.app_icon.y))
     draw.text((bar.app_title.x, bar.app_title.y + 4), "Fun Time",
               font=body, fill=(*MAGENTA, 255))
     marks = {

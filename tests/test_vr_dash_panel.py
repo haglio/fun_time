@@ -73,6 +73,16 @@ class TestItIsTheDesktopsBar:
         for source in SOURCES:
             assert source in actions
 
+    def test_the_apps_mark_leads_the_bar(self):
+        from shared_ui.palette import MAGENTA
+
+        icon = compute_dashboard_bar_layout().app_icon
+        painted = np.asarray(paint_dash(DashState(), [])).astype(int)
+        region = painted[icon.y:icon.y + icon.height, icon.x:icon.x + icon.width, :3]
+        inked = np.abs(region - np.asarray(MAGENTA)).sum(axis=2) < 60
+
+        assert inked.sum() > icon.width * icon.height // 8
+
     def test_a_window_wears_the_short_name_the_log_panel_gives_it(self):
         """"Sat" and "Land", not "portrait" and "landscape": the same row of
         word-buttons, reading the same, in both apps."""
