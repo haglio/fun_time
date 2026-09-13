@@ -27,7 +27,8 @@ class TestReadSatelliteStatus:
     def test_parses_the_status_fields(self, tmp_path):
         status = tmp_path / "portrait_status.txt"
         status.write_text(
-            "video=C:/clips/a.mp4\nposition_ms=1500\nduration_ms=5000\npaused=0\nlocked=1\n",
+            "video=C:/clips/a.mp4\nposition_ms=1500\nduration_ms=5000\npaused=0\nlocked=1\n"
+            "playlist_length=3\n",
             encoding="utf-8",
         )
 
@@ -39,6 +40,7 @@ class TestReadSatelliteStatus:
             duration_ms=5000,
             paused=False,
             locked=True,
+            playlist_length=3,
         )
 
     def test_missing_file_is_an_empty_status(self, tmp_path):

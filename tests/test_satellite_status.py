@@ -18,6 +18,13 @@ class TestStatusFields:
         assert fields["paused"] == "0"
         assert fields["locked"] == "1"
 
+    def test_publishes_how_many_clips_a_discard_left_in_the_playlist(self, tmp_path):
+        session, _player = make_satellite_session(tmp_path, entries=2)
+
+        session.discard()
+
+        assert status_fields(session)["playlist_length"] == "1"
+
     def test_key_order_is_the_published_file_order(self):
         # The dispatch loop parses key=value lines, but the file's shape is this
         # player's contract; pinning the order keeps a reordering from passing
@@ -28,9 +35,10 @@ class TestStatusFields:
             duration_ms = 0.0
             is_paused = False
             is_locked = False
+            playlist_length = 1
 
         assert list(status_fields(Stub())) == [
-            "video", "position_ms", "duration_ms", "paused", "locked",
+            "video", "position_ms", "duration_ms", "paused", "locked", "playlist_length",
         ]
 
     def test_flags_follow_the_session(self, tmp_path):

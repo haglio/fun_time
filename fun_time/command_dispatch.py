@@ -70,6 +70,7 @@ from .satellite_groups import (
     clear_side_grouping,
     cycle_variant,
     group_loop,
+    is_single_video_loop,
     loop_cycle,
     more_seeds,
     navigate_hud,
@@ -1346,8 +1347,9 @@ _MODE_SWITCH_COMMANDS: dict[str, str] = {
 
 def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Advance a satellite; navigation moves on, so a repeat-one lock goes first."""
     state = cancel_lock(player, state, config)
+    if verb == "NEXT" and is_single_video_loop(player, state, config):
+        state, _loop_off = no_loop(player, state, config)
     send_satellite(config, player, verb)
     return state, []
 
