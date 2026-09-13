@@ -8,8 +8,10 @@ import logging
 import math
 import threading
 import time
+import wave
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
+from datetime import datetime
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -97,29 +99,32 @@ def has_partial_text(raw_json: str) -> bool:
     return bool(json.loads(raw_json).get("partial", "").strip())
 
 
-class UtteranceOnset:
-    """When the speech Vosk is currently decoding began.
+class Utterance:
+    """The speech vosk is currently decoding: when it began, and its audio.
 
-    Speech began at the first block of the current unbroken run of partials; a
+    It began at the first block of the current unbroken run of partials; a
     block that leaves the partial empty ends the run, so a false start cannot
     back-date the utterance that follows it.
     """
 
     def __init__(self) -> None:
         self._started_at: float | None = None
+        self._blocks: list[bytes] = []
 
-    def note_block(self, *, block_started_at: float, has_partial: bool) -> None:
+    def note_block(self, pcm: bytes, *, block_started_at: float, has_partial: bool) -> None:
         if not has_partial:
             self._started_at = None
-        elif self._started_at is None:
+            self._blocks.clear()
+            return
+        if self._started_at is None:
             self._started_at = block_started_at
+        self._blocks.append(pcm)
 
-    def take(self, *, fallback: float) -> float:
-        """Consume the onset for the utterance just recognized; *fallback* covers
-        a phrase recognized from the very block that carried it."""
-        started_at = self._started_at
+    def take(self, *, final_block: bytes, fallback: float) -> tuple[float, bytes]:
+        started_at, audio = self._started_at, b"".join(self._blocks) + final_block
         self._started_at = None
-        return fallback if started_at is None else started_at
+        self._blocks.clear()
+        return (fallback if started_at is None else started_at), audio
 
 
 # How many of the recognizer's ranked readings the phrase list gets to filter.
@@ -241,6 +246,26 @@ def interpret_recognition(
     return Recognition()
 
 
+MISS_CLIPS_KEPT = 500
+
+
+def save_miss_audio(
+    directory: Path, pcm: bytes, *, sample_rate: int,
+    keep: int = MISS_CLIPS_KEPT, now: datetime | None = None,
+) -> Path:
+    directory.mkdir(parents=True, exist_ok=True)
+    stamp = (now or datetime.now()).strftime("%Y-%m-%d_%H-%M-%S_%f")
+    path = directory / f"{stamp}.wav"
+    with wave.open(str(path), "wb") as clip:
+        clip.setnchannels(1)
+        clip.setsampwidth(2)
+        clip.setframerate(sample_rate)
+        clip.writeframes(pcm)
+    for stale in sorted(directory.glob("*.wav"))[:-keep]:
+        stale.unlink()
+    return path
+
+
 # Blocks arrive twice a second, so ten seconds of nothing is the stream gone.
 AUDIO_STALL_S = 10.0
 
@@ -341,6 +366,7 @@ class VoiceController:
         sample_rate: int = 16000,
     ) -> None:
         self.cmd_file = Path(cmd_file)
+        self.miss_dir = self.cmd_file.parent / "voice_misses"
         self.model_path = model_path
         self.confidence_threshold = confidence_threshold
         self.device_name = device_name
@@ -396,7 +422,13 @@ class VoiceController:
             return False
         return append_command(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
 
-    def _handle_recognition(self, interp: Recognition, *, spoken_at: float, peak: int) -> None:
+    def _keep_miss(self, audio: bytes) -> None:
+        if audio and self._is_listening():
+            save_miss_audio(self.miss_dir, audio, sample_rate=self.sample_rate)
+
+    def _handle_recognition(
+        self, interp: Recognition, *, spoken_at: float, peak: int, audio: bytes = b"",
+    ) -> None:
         """Act on one interpreted utterance -- and say which of its ends it reached.
 
         Every finalized utterance leaves one log line naming its outcome and the
@@ -426,6 +458,7 @@ class VoiceController:
                     source=_source_for_command(interp.command, self.active_side()),
                 )
         elif interp.refused_phrase:
+            self._keep_miss(audio)
             logger.info("Voice: heard %r but its confidence was under %.2f "
                         "(unrestricted reading %r, peak %d)",
                         interp.refused_phrase, self.confidence_threshold, interp.free_text or "", peak)
@@ -437,6 +470,7 @@ class VoiceController:
                     level=logging.WARNING,
                 )
         elif interp.unrecognized_text:
+            self._keep_miss(audio)
             logger.info("Unrecognized speech: %s (unrestricted reading %r, peak %d)",
                         interp.unrecognized_text, interp.free_text or "", peak)
             if self._is_listening():
@@ -496,7 +530,7 @@ class VoiceController:
                 logger.debug("audio status: %s", status)
             audio_q.put((bytes(indata), time.monotonic()))
 
-        onset = UtteranceOnset()
+        utterance = Utterance()
         level = CaptureLevel()
         device = self._resolve_device()
 
@@ -559,10 +593,13 @@ class VoiceController:
                             peak=peak,
                         )
                         free_json = ""
-                        spoken_at = onset.take(fallback=block_started_at)
-                        self._handle_recognition(interp, spoken_at=spoken_at, peak=peak)
+                        spoken_at, audio = utterance.take(
+                            final_block=data, fallback=block_started_at)
+                        self._handle_recognition(
+                            interp, spoken_at=spoken_at, peak=peak, audio=audio)
                     else:
-                        onset.note_block(
+                        utterance.note_block(
+                            data,
                             block_started_at=block_started_at,
                             has_partial=has_partial_text(rec.PartialResult()),
                         )
