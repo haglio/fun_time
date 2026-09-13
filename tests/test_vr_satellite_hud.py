@@ -75,7 +75,7 @@ _HUD_SIZE = (200, 100)
 
 
 class TestAPressOnASatellite:
-    def _pointer(self):
+    def _pointer(self, *, on_a_picture=False):
         hud, seeks, levels, asked = _FakeHud(), [], [], []
         volume = VolumeHud(volume=70, muted=True)
         pointer = SatellitePointer(
@@ -83,9 +83,19 @@ class TestAPressOnASatellite:
             volume=lambda: volume, mute=lambda muted: levels.append(("mute", muted)),
             set_volume=lambda level: levels.append(("level", level)),
             picture=lambda: asked.append("omnipause_toggle"),
+            picture_on_screen=lambda: on_a_picture,
         )
         return SimpleNamespace(pointer=pointer, hud=hud, seeks=seeks, levels=levels,
                                asked=asked)
+
+    def test_under_a_picture_a_squeeze_on_the_scrubber_row_is_the_pictures(self):
+        p = self._pointer(on_a_picture=True)
+        v = 1 - (_PICTURE_SIZE[1] - TIMELINE_HEIGHT // 2) / _PICTURE_SIZE[1]
+
+        p.pointer.press(PICTURE, 0.5, v, size=_PICTURE_SIZE)
+
+        assert p.seeks == []
+        assert p.asked == ["omnipause_toggle"]
 
     def test_a_press_on_the_hud_reaches_its_map_at_the_inset_the_desktop_draws_it_at(self):
         p = self._pointer()

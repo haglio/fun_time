@@ -189,6 +189,8 @@ _OV_VOLUME = 12
 _OV_TOAST = 13
 _OV_READOUT = 14
 
+_NO_TIMELINE = object()
+
 # Longest texture side each video gets: near-native for the primary, and for
 # a satellite's 28° of view well above what the headset resolves there.
 PRIMARY_VIDEO_CAP_PX = 4096
@@ -372,11 +374,15 @@ class _VideoUnit:
             return
         width, height = self.control_size()
         factor = self.target.width / width
-        scrubber = scrubber_state(width, height, position_ms, duration_ms)
+        scrubber = (_NO_TIMELINE if self.player.showing_picture
+                    else scrubber_state(width, height, position_ms, duration_ms))
         if scrubber != self._scrubber_shown:
             self._scrubber_shown = scrubber
-            bar = scaled(progress_bar_bgra(position_ms, duration_ms, None, width), factor)
-            self.player.overlay(_OV_SCRUBBER, 0, self.target.height - bar.shape[0], bar)
+            if scrubber is _NO_TIMELINE:
+                self.player.remove_overlay(_OV_SCRUBBER)
+            else:
+                bar = scaled(progress_bar_bgra(position_ms, duration_ms, None, width), factor)
+                self.player.overlay(_OV_SCRUBBER, 0, self.target.height - bar.shape[0], bar)
         chip = chip_state(width, height, volume_hud)
         if chip != self._chip_shown:
             self._chip_shown = chip
@@ -490,6 +496,7 @@ class _MainUnit(_VideoUnit):
             mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
             set_volume=lambda level: self._post(f"audio_set_volume|{level}"),
             picture=lambda: self._post(OMNIPAUSE_TOGGLE),
+            picture_on_screen=lambda: self.player.showing_picture,
         )
 
     def _post(self, command: str) -> None:
@@ -643,6 +650,7 @@ class _SatelliteUnit(_VideoUnit):
             volume=lambda: self.volume.hud,
             mute=self._toggle_mute, set_volume=self._set_volume,
             picture=lambda: self._post(OMNIPAUSE_TOGGLE),
+            picture_on_screen=lambda: self.session.showing_picture,
         )
         self._volume_painter = VolumeHudPainter()
 
