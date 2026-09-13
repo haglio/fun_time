@@ -44,7 +44,7 @@ apply_genau_dirs_to_sys_path()
 
 _RUN_THE_CHECKOUTS_THIS_BRANCH_NAMES = """
 import tests  # bound first: a sibling checkout put ahead of this one has a tests package too
-from fun_time.branch_session import apply_genau_dirs_to_sys_path
+from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 apply_genau_dirs_to_sys_path()
 """
 
