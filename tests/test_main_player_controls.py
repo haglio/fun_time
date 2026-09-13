@@ -56,6 +56,9 @@ class SpySession:
     def set_volume(self, volume: int) -> None:
         self.calls.append(("set_volume", volume))
 
+    def set_pace(self, seconds: float) -> None:
+        self.calls.append(("set_pace", seconds))
+
 
 class SpyModes:
     """Stands in for :class:`main_player.modes.Modes` -- the length filter, the way out
@@ -221,6 +224,14 @@ class TestApplyCommand:
             ("set_speed", MAX_SPEED_RATE),
             ("set_speed", 1.5),
         ]
+
+    def test_set_pace_hands_the_seconds_a_picture_holds_to_the_session(self):
+        session = SpySession()
+
+        apply_command("SET_PACE 2.5", MainPlayerControls(session))
+        apply_command("SET_PACE 0", MainPlayerControls(session))
+
+        assert session.calls == [("set_pace", 2.5), ("set_pace", 0.0)]
 
     def test_a_set_speed_it_cannot_read_leaves_the_rate_alone(self):
         session = SpySession()
@@ -538,7 +549,7 @@ ACCEPTED_COMMANDS = [
     "RELOAD_PLAYLIST", "TOGGLE_LENGTH_MODE", "SET_LENGTH_MODE shorts",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
     "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED", "END_COMPILATION",
-    "SET_TCODE_ENABLED 1", "SET_F_MODE 1",
+    "SET_TCODE_ENABLED 1", "SET_F_MODE 1", "SET_PACE 2.5", "SET_PACE 0",
     "DISPLAY_ON", "DISPLAY_OFF",
     "QUIT",
 ]
@@ -596,7 +607,7 @@ class TestTheVerbsFunTimeCanSend:
     @pytest.mark.parametrize(
         "command",
         ["SET_SPEED", "SET_VOLUME", "SET_LOOP", "PLAY_FILE",
-         "SET_LENGTH_MODE", "SET_TCODE_ENABLED", "SET_F_MODE"])
+         "SET_LENGTH_MODE", "SET_TCODE_ENABLED", "SET_F_MODE", "SET_PACE"])
     def test_a_verb_that_wants_a_value_is_refused_without_one(self, command, caplog):
         with caplog.at_level("WARNING", logger="main_player.controls"):
             apply_command(command, _fully_wired())
