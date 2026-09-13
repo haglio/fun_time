@@ -17,6 +17,7 @@ from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
 from fun_time.players import Player
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITES_VIDEO_MODE
 from fun_time.shared_state import (
+    _LAST_SESSIONS_KEYS,
     SHARED_STATE_FILENAME,
     BridgeState,
     SatelliteState,
@@ -266,6 +267,9 @@ def test_the_round_trip_spells_no_field_of_the_record_by_hand():
     is how a HUD once described a session other than the one playing.  They are
     derived from the record now, and this is what keeps them that way.
 
+    The one place today's spelling is written down is the table that rewrites
+    last session's keys into it, since that is what the derivation is being
+    pointed at; nothing else may name a field.
     """
     spelled_out = sorted(
         {node.value for node in ast.walk(ast.parse(
@@ -273,7 +277,7 @@ def test_the_round_trip_spells_no_field_of_the_record_by_hand():
          if isinstance(node, ast.Constant) and isinstance(node.value, str)}
         & {f.name for f in fields(BridgeState)})
 
-    assert spelled_out == [], (
+    assert spelled_out == sorted(set(_LAST_SESSIONS_KEYS.values()) & {f.name for f in fields(BridgeState)}), (
         "the round trip names these fields by hand: " + ", ".join(spelled_out)
         + " — derive them from the record instead, so one added to it is carried."
     )
@@ -281,7 +285,7 @@ def test_the_round_trip_spells_no_field_of_the_record_by_hand():
 
 def test_no_satellite_value_is_a_field_of_the_whole_state():
     """A value one satellite carries belongs to :class:`SatelliteState`, reached
-    through :meth:`BridgeState.player` — never to a field of its own beside the
+    through :meth:`BridgeState.satellite` — never to a field of its own beside the
     session's.  Held because the pair used to answer to three names at once:
     ``which`` 2 and 3 in signatures, ``portrait_locked``/``landscape_locked`` in the record,
     ``portrait``/``landscape`` everywhere a person could read it, and forty-one
