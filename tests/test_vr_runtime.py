@@ -11,6 +11,7 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+from fun_time_vr import vr_runtime
 from fun_time_vr.vr_runtime import (
     _QUIT_SERVICES,
     Probe,
@@ -24,6 +25,7 @@ from fun_time_vr.vr_runtime import (
     runtime_was_running,
     stop_runtime,
 )
+from tests.sleeps import sleeps_in
 
 
 def _xr_exceptions():
@@ -153,7 +155,7 @@ def test_ensure_ready_starts_the_runtime_and_waits_for_the_headset(tmp_path):
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=launcher),
         patch("fun_time_vr.vr_runtime.process_running", return_value=False),
         patch("fun_time_vr.vr_runtime.start_runtime") as start,
-        patch("fun_time_vr.vr_runtime.time.sleep"),
+        sleeps_in(vr_runtime),
     ):
         assert ensure_ready().readiness is Readiness.READY
     start.assert_called_once_with(launcher)
@@ -169,7 +171,7 @@ def test_ensure_ready_does_not_restart_a_runtime_that_is_already_up(tmp_path):
         patch("fun_time_vr.vr_runtime.runtime_launcher", return_value=launcher),
         patch("fun_time_vr.vr_runtime.process_running", return_value=True),
         patch("fun_time_vr.vr_runtime.start_runtime") as start,
-        patch("fun_time_vr.vr_runtime.time.sleep"),
+        sleeps_in(vr_runtime),
     ):
         assert ensure_ready().readiness is Readiness.NO_HEADSET
     start.assert_not_called()

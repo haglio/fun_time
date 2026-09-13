@@ -43,6 +43,7 @@ from fun_time.windows_bridge_sequencer import (
     release_the_players,
     run_startup_sequence,
 )
+from tests.sleeps import sleeps_in
 
 FAKE_MONITORS = [
     MonitorInfo(x=0, y=0, width=2560, height=1392),
@@ -1337,8 +1338,8 @@ class TestWaitForNauLoaded:
             status_file.write_text("video=clip.mp4\n", encoding="utf-8")
 
         # Absent on the first look, so it can only return by polling again.
-        with patch("fun_time.windows_bridge_sequencer.time.sleep",
-                   side_effect=nau_finishes_loading):
+        with sleeps_in(windows_bridge_sequencer) as slept:
+            slept.side_effect = nau_finishes_loading
             assert _wait_for_nau_loaded(status_file, NullProgress()) is True
 
     def test_a_status_file_naming_no_video_is_not_a_loaded_nau(self, tmp_path):
@@ -1349,7 +1350,7 @@ class TestWaitForNauLoaded:
         status_file = tmp_path / "nau_status.txt"
         status_file.write_text("", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+        with sleeps_in(windows_bridge_sequencer):
             assert _wait_for_nau_loaded(
                 status_file, NullProgress(), timeout_s=0.3,
             ) is False
@@ -1358,7 +1359,7 @@ class TestWaitForNauLoaded:
         """A crashed Nau must not wedge startup under an overlay forever: the
         wait is bounded, and past its budget the session is revealed without it.
         """
-        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+        with sleeps_in(windows_bridge_sequencer):
             assert _wait_for_nau_loaded(
                 tmp_path / "never.txt", NullProgress(), timeout_s=0.0,
             ) is False
@@ -1374,7 +1375,7 @@ class TestWaitForNauLoaded:
             def advance(self, phase: str) -> None: pass
             def finish(self) -> None: pass
 
-        with patch("fun_time.windows_bridge_sequencer.time.sleep") as slept:
+        with sleeps_in(windows_bridge_sequencer) as slept:
             with pytest.raises(StartupCancelled):
                 _wait_for_nau_loaded(tmp_path / "never.txt", Cancelled())
 
@@ -1601,7 +1602,7 @@ class TestWaitingForTheHostedApp:
         status = tmp_path / "origenerator_status.txt"
         status.write_text("portrait_active=0\nlandscape_active=0\n", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+        with sleeps_in(windows_bridge_sequencer):
             assert _wait_for_the_hosted_app(
                 status, self._progress(), shows=False) is True
 
@@ -1612,7 +1613,7 @@ class TestWaitingForTheHostedApp:
         status = tmp_path / "origenerator_status.txt"
         status.write_text("portrait_active=1\nlandscape_active=0\n", encoding="utf-8")
 
-        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+        with sleeps_in(windows_bridge_sequencer):
             assert _wait_for_the_hosted_app(
                 status, self._progress(), shows=True, timeout_s=1.0) is False
 
@@ -1621,7 +1622,7 @@ class TestWaitingForTheHostedApp:
                 status, self._progress(), shows=True) is True
 
     def test_a_boot_that_never_arrives_gives_up_rather_than_wedging_startup(self, tmp_path):
-        with patch("fun_time.windows_bridge_sequencer.time.sleep"):
+        with sleeps_in(windows_bridge_sequencer):
             assert _wait_for_the_hosted_app(
                 tmp_path / "never.txt", self._progress(), shows=False, timeout_s=1.0,
             ) is False
@@ -1629,7 +1630,7 @@ class TestWaitingForTheHostedApp:
     def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self, tmp_path):
         """The longest stretch of startup is the likeliest one for Esc to be
         pressed during, and the overlay covering it says it can be."""
-        with patch("fun_time.windows_bridge_sequencer.time.sleep") as slept:
+        with sleeps_in(windows_bridge_sequencer) as slept:
             with pytest.raises(StartupCancelled):
                 _wait_for_the_hosted_app(
                     tmp_path / "never.txt", self._progress(cancelled=True), shows=False)
