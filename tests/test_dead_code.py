@@ -190,7 +190,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # open onto their names, and its docstrings shrank to what that leaves true.
 # 8072 since 2026-09-18, when a spoken command OmniPause drops began saying so
 # on screen, and the docstring listing what voice flashes gave way to the tests.
-MAX_PROSE_LINES = 8054
+# 8049 since 2026-09-18, when the headset dashboard came back to a default
+# spot a test measures, and the paragraph that had worked it out went.
+MAX_PROSE_LINES = 8049
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

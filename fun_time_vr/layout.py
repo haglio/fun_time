@@ -30,9 +30,7 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
     PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
     # The dashboard with the console under it, the video having wrapped the viewer:
     PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
-    # Above the main player and clear of the console: a wide panel anywhere
-    # lower covers a satellite.
-    DASH: Placement(azimuth_deg=0.0, elevation_deg=52.0, width_deg=40.0),
+    DASH: Placement(azimuth_deg=0.0, elevation_deg=33.1, width_deg=40.0),
     # A table to read: dead ahead and wide, over the picture while it is up.
     REFERENCE: Placement(azimuth_deg=0.0, elevation_deg=6.0, width_deg=54.0),
 }

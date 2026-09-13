@@ -97,6 +97,7 @@ from fun_time_vr.player import (
     build_parser,
 )
 from fun_time_vr.pointer import (
+    HANDLE_DEG,
     PRESS,
     RELEASE,
     SURFACE,
@@ -106,7 +107,7 @@ from fun_time_vr.pointer import (
     Ray,
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
-from fun_time_vr.scene import Placement, attached_below, surface_vertices
+from fun_time_vr.scene import RADIUS, Placement, attached_below, surface_vertices
 from main_player.play_points import play_points_filename
 
 
@@ -1729,9 +1730,13 @@ class TestWhereTheDashboardHangs:
 
 
 class TestWhereItHangsToStart:
-    def test_the_dash_opens_above_the_main_player(self):
-        assert DEFAULT_LAYOUT[DASH].azimuth_deg == 0.0
-        assert DEFAULT_LAYOUT[DASH].elevation_deg > 0
+    def test_the_dash_opens_centered_over_the_main_player(self):
+        assert DEFAULT_LAYOUT[DASH].azimuth_deg == DEFAULT_LAYOUT[PRIMARY].azimuth_deg
 
-    def test_it_clears_the_main_player_and_the_console_riding_on_it(self):
-        assert DEFAULT_LAYOUT[DASH].elevation_deg > DEFAULT_LAYOUT[PRIMARY].elevation_deg
+    def test_it_opens_two_reposition_handles_above_the_main_players_top(self):
+        main_top = surface_vertices(DEFAULT_LAYOUT[PRIMARY], aspect=16 / 9)[:, 1].max()
+        dash_lower_edge = surface_vertices(
+            DEFAULT_LAYOUT[DASH], aspect=DASH_WIDTH_PX / dash_height())[:, 1].min()
+
+        assert dash_lower_edge - main_top == pytest.approx(
+            2 * RADIUS * np.radians(HANDLE_DEG), rel=0.05)
