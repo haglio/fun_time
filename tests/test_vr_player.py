@@ -20,7 +20,13 @@ import pytest
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
-from player_core.playhead import PlayheadHudPainter, clip_playhead, readout_xy, video_playhead
+from player_core.playhead import (
+    PlayheadHudPainter,
+    clip_playhead,
+    lower_edge_height,
+    readout_xy,
+    video_playhead,
+)
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import (
     CHIP_H,
@@ -462,6 +468,9 @@ class TestTheLayoutKeeper:
         assert read_layout(path)[PORTRAIT] == moved
 
 
+_WRAPPED_ROW_H = lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT)
+
+
 class _FakePanelTexture:
     """A FrameTexture with real numbers where the panel does arithmetic on them."""
 
@@ -543,7 +552,7 @@ class TestThePanelUnderThePointer:
 
     def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
         """A point in the ROW's own pixels, as a point on the panel."""
-        return self._uv(unit, x, unit._image.size[1] - TIMELINE_HEIGHT + y)
+        return self._uv(unit, x, unit._image.size[1] - _WRAPPED_ROW_H + y)
 
     def _press(self, room, uv):
         room.unit.point(Frame(events=(
@@ -628,7 +637,7 @@ class TestThePanelUnderThePointer:
 
         assert flat.unit._row is None
         assert np.array_equal(
-            np.asarray(wrapped.unit._image)[-TIMELINE_HEIGHT:], wrapped.unit._row)
+            np.asarray(wrapped.unit._image)[-_WRAPPED_ROW_H:], wrapped.unit._row)
 
     def test_a_wrapped_videos_row_says_where_that_video_is(self, tmp_path):
         p = self._unit(tmp_path, wrapped=True)
@@ -636,7 +645,7 @@ class TestThePanelUnderThePointer:
         p.unit.pump(threading.Event(), 0.0)
 
         pill = PlayheadHudPainter().bgra(p.primary.controls.playhead)
-        x, y = readout_xy(pill.shape[1], win_w=PANEL_WIDTH_PX, win_h=TIMELINE_HEIGHT,
+        x, y = readout_xy(pill.shape[1], win_w=PANEL_WIDTH_PX, win_h=_WRAPPED_ROW_H,
                           timeline_h=TIMELINE_HEIGHT)
         drawn = p.unit._row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
         assert np.abs(drawn - pill[:, :, [2, 1, 0, 3]]).max() <= 1
@@ -646,11 +655,19 @@ class TestThePanelUnderThePointer:
         p.unit.pump(threading.Event(), 0.0)
         left, right = bar_track_x(PANEL_WIDTH_PX)
 
-        self._press(p, self._row_uv(p.unit, left, TIMELINE_HEIGHT // 2))
+        self._press(p, self._row_uv(p.unit, left, _WRAPPED_ROW_H - TIMELINE_HEIGHT // 2))
         assert p.seeks[-1] == pytest.approx(0.0, abs=3_000)
 
-        self._press(p, self._row_uv(p.unit, right - 1, TIMELINE_HEIGHT // 2))
+        self._press(p, self._row_uv(p.unit, right - 1, _WRAPPED_ROW_H - TIMELINE_HEIGHT // 2))
         assert p.seeks[-1] == pytest.approx(600_000.0, rel=0.02)
+
+    def test_a_squeeze_on_the_rows_readout_does_not_seek(self, tmp_path):
+        p = self._unit(tmp_path, wrapped=True)
+        p.unit.pump(threading.Event(), 0.0)
+
+        self._press(p, self._row_uv(p.unit, bar_track_x(PANEL_WIDTH_PX)[0] + 20, CHIP_H // 2))
+
+        assert p.seeks == []
 
     def test_it_seeks_genaus_clip_by_fraction_while_genau_has_the_scene(self, tmp_path):
         """Its bar counts frames, not milliseconds; read as a time, a squeeze
@@ -659,7 +676,7 @@ class TestThePanelUnderThePointer:
         p.unit.pump(threading.Event(), 0.0)
 
         self._press(p, self._row_uv(p.unit, bar_track_x(PANEL_WIDTH_PX)[1] - 1,
-                                    TIMELINE_HEIGHT // 2))
+                                    _WRAPPED_ROW_H - TIMELINE_HEIGHT // 2))
 
         assert p.seeks[-1] == pytest.approx(1.0, abs=0.02)
 
@@ -668,7 +685,7 @@ class TestThePanelUnderThePointer:
         it the way every other player's row does rather than setting it here."""
         p = self._unit(tmp_path, wrapped=True)
         p.unit.pump(threading.Event(), 0.0)
-        x, y = chip_xy(win_w=PANEL_WIDTH_PX, win_h=TIMELINE_HEIGHT, timeline_h=TIMELINE_HEIGHT)
+        x, y = chip_xy(win_w=PANEL_WIDTH_PX, win_h=_WRAPPED_ROW_H, timeline_h=TIMELINE_HEIGHT)
 
         self._press(p, self._row_uv(p.unit, x + SPEAKER_W // 2, y + CHIP_H // 2))
         self._press(p, self._row_uv(p.unit, x + CHIP_W - PAD, y + CHIP_H // 2))
@@ -697,8 +714,8 @@ class TestThePanelUnderThePointer:
 
         assert p.unit._row is not row
         assert np.array_equal(  # the console above the row is the same pixels
-            np.asarray(p.unit._image)[:-TIMELINE_HEIGHT],
-            np.asarray(painted)[:-TIMELINE_HEIGHT])
+            np.asarray(p.unit._image)[:-_WRAPPED_ROW_H],
+            np.asarray(painted)[:-_WRAPPED_ROW_H])
 
     def test_a_wrapped_console_hangs_from_the_dashboard_instead(self, tmp_path):
         """No picture to dock to, so it docks to the one thing above it -- which
@@ -733,7 +750,7 @@ class TestThePanelUnderThePointer:
         wrapped.unit.pump(threading.Event(), 0.0)
 
         assert wrapped.unit._image.height == (
-            flat.unit._image.height - NOTICE_STRIP_HEIGHT + TIMELINE_HEIGHT)
+            flat.unit._image.height - NOTICE_STRIP_HEIGHT + _WRAPPED_ROW_H)
 
 
 # --- The cover the roles arrive and leave under ---------------------------
