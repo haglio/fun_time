@@ -18,6 +18,12 @@ class TestStatusFields:
         assert fields["paused"] == "0"
         assert fields["locked"] == "1"
 
+    def test_a_satellite_showing_a_picture_says_so(self, tmp_path):
+        session, player = make_satellite_session(tmp_path)
+        player.showing_picture = True
+
+        assert status_fields(session)["picture"] == "1"
+
     def test_publishes_how_many_clips_a_discard_left_in_the_playlist(self, tmp_path):
         session, _player = make_satellite_session(tmp_path, entries=2)
 
@@ -35,13 +41,15 @@ class TestStatusFields:
             duration_ms = 0.0
             is_paused = False
             is_locked = False
+            showing_picture = False
             playlist_length = 1
 
         assert list(status_fields(Stub())) == [
-            "video", "position_ms", "duration_ms", "paused", "locked", "playlist_length",
+            "video", "position_ms", "duration_ms", "paused", "locked", "picture",
+            "playlist_length",
         ]
 
-    def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
+    def test_the_six_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
         from player_core.status import PlayerStatus, parse_status
 
         session, player = make_satellite_session(tmp_path)

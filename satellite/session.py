@@ -75,6 +75,10 @@ class SatelliteSession:
     def duration_ms(self) -> float:
         return self._player.duration_ms
 
+    @property
+    def showing_picture(self) -> bool:
+        return self._player.showing_picture
+
     def step(self, delta: int) -> None:
         """Navigate *delta* items (next = +1, prev = -1), wrapping the playlist."""
         self.load(self._index + delta)
@@ -88,6 +92,9 @@ class SatelliteSession:
             return
         self._paused = paused
         self._player.set_paused(paused)
+
+    def set_pace(self, seconds: float) -> None:
+        self._player.set_pace(seconds)
 
     def set_locked(self, locked: bool) -> None:
         """Lock the satellite onto its current clip (repeat-one) or release it.
