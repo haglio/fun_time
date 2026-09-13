@@ -244,6 +244,10 @@ The satellite voice commands can be spoken with or without naming a side. The si
 
 Every player says whether it is the one those bare words would reach: the **dot** at the head of its HUD is green on the active player and gray on the others. It is always drawn — an absent dot could not be told from an idle one — so exactly one dot is lit at any moment. Each satellite reads its own off the panel the dispatch loop publishes; the main player is told over `SET_ACTIVE`, appended to its command file so the message cannot displace a queued verb.
 
+### Playback speed
+
+Every player has its own playback speed: the main player's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the main player's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the main player's changes again. Spoken, a playback speed phrase — "playback speed up", "half speed", "reset speed", "speed one point five ex" — reaches the player you last addressed, and "main", "portrait", "landscape" or "both" before or after it aims it at that player. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the main player does.
+
 ### Modes
 
 The main stack runs in one of two modes, each selected by its own hotkey (see the popup): **Video** (`H`) and **Genau** (`G`). `\` offsets the Robot Hand's motion by a quarter cycle in either. `N` opens the **library browser** (see below); the chosen video plays in the main player, paired with its funscript when one exists at the mirrored path. Everything keeps playing while you browse — the browser only drops the topmost bands so it is not buried, and never enters OmniPause.
@@ -532,7 +536,7 @@ Flag file — the main player's pause channel. Mode switches and OmniPause write
 
 ### `main_player_status.txt`
 
-Written by the main player: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, and `paused`. Read by `clipper_save` (for the current video/time in video mode) and by the dashboard.
+Written by the main player: the current `video`, `position_ms`, `duration_ms`, `has_funscript`, `state`, `paused`, and `speed` (the rate the video plays at). Read by `clipper_save` (for the current video/time in video mode), by the dashboard, and by the dispatch loop, which sets both satellites to `speed` whenever it changes.
 
 ### `watch_stats.json`
 
