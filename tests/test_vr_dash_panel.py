@@ -384,3 +384,13 @@ class TestWhatItDraws:
         muted = np.asarray(paint_dash(DashState(voice_active=False), []))
 
         assert not np.array_equal(live, muted)
+
+    def test_the_question_mark_lights_while_the_reference_is_open(self):
+        rect = dash_actions()[HELP_REFERENCE]
+
+        def edge(state: DashState) -> tuple[int, ...]:
+            painted = np.asarray(paint_dash(state, []))
+            return tuple(int(value) for value in painted[rect.y + rect.height // 2, rect.x, :3])
+
+        assert edge(DashState(reference_open=True)) == BLUE
+        assert edge(DashState()) != BLUE

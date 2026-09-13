@@ -867,6 +867,24 @@ def test_help_reference_close_press_closes_reference_dialog(dashboard_window, da
     assert window._reference.dialog is None or not window._reference.dialog.isVisible()
 
 
+def test_the_question_mark_is_lit_exactly_while_the_reference_is_open(dashboard_window):
+    from shared_ui.colors import TEXT_MUTED
+
+    help_button = compute_dashboard_bar_layout().help_button
+
+    def edge():
+        return next(item.outline for item in dashboard_window._widget._scene.rects
+                    if item.rect == help_button)
+
+    dashboard_window._on_action("help_reference")
+    try:
+        assert edge() == BLUE
+    finally:
+        dashboard_window._reference.dialog.close()
+
+    assert edge() == TEXT_MUTED
+
+
 def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
     """The same trigger opens the popup, then closes it on the next invocation."""
     from unittest.mock import MagicMock
