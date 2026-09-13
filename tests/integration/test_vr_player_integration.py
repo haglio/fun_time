@@ -38,6 +38,7 @@ from fun_time_vr.layout import (
     read_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
+from fun_time_vr.scheduling import ahead_of_background_work
 
 from .integration_support import (
     build_integration_config,
@@ -56,6 +57,13 @@ pytestmark = [
     pytest.mark.skipif(os.environ.get("FUN_TIME_RUN_INTEGRATION") != "1",
                        reason="Set FUN_TIME_RUN_INTEGRATION=1 to run"),
 ]
+
+
+@pytest.fixture(autouse=True)
+def _the_frame_loop_runs_ahead_of_background_work_as_the_headset_session_does():
+    with ahead_of_background_work():
+        yield
+
 
 # One headset refresh period at the Crystal Super's 90Hz.
 FRAME_BUDGET_MS = 1000.0 / 90.0

@@ -1119,6 +1119,22 @@ def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
 
     assert ast.unparse(note) == "cover_seen.note(covered and session.focused)"
 
+
+def test_the_headset_session_runs_ahead_of_background_work():
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player.main))
+    (scheduled,) = [n for n in ast.walk(tree)
+                    if isinstance(n, ast.With)
+                    and [ast.unparse(item.context_expr) for item in n.items]
+                    == ["ahead_of_background_work()"]]
+
+    assert ast.unparse(scheduled.body) == "return _run(manifest, vr)"
+
+
 class TestTheMainSlotUnderThePointer:
     """The main player moves and zooms by the same handles the satellites do, so
     it is one of the screens the pointer is handed — but only while what fills

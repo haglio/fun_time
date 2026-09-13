@@ -178,6 +178,7 @@ from .scene import (
     quad_layer_placement,
     surface_vertices,
 )
+from .scheduling import ahead_of_background_work
 from .toast import toast_bgra
 
 logger = logging.getLogger(__name__)
@@ -1333,7 +1334,8 @@ def main(argv: list[str] | None = None) -> int:
         logger.error("VR not available: %s", ready.readiness.value)
         _show_error_popup(vr_runtime.explain(ready))
         return 1
-    return _run(manifest, vr)
+    with ahead_of_background_work():
+        return _run(manifest, vr)
 
 
 def _unit_name(unit: object) -> str:
