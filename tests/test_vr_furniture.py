@@ -18,6 +18,7 @@ from player_core.volume import (
 from fun_time_vr.console_panel import PANEL_WIDTH_DEG, PANEL_WIDTH_PX
 from fun_time_vr.furniture import (
     MUTE,
+    READOUT,
     SCRUBBER,
     VOLUME,
     FurniturePointer,
@@ -144,7 +145,7 @@ class TestTheRowOfItsOwn:
             assert (u, on_the_row) == (u, in_the_picture)
             found.add(on_the_row)
 
-        assert found == {SCRUBBER, MUTE, VOLUME}  # and all three were reached
+        assert found == {READOUT, SCRUBBER, MUTE, VOLUME}  # and all four were reached
 
     def test_it_paints_both_controls_and_stays_clear_between_them(self):
         """Transparent where it draws nothing: the strip is composited onto the
@@ -185,6 +186,11 @@ class TestWhichControlAPressLandsOn:
 
     def test_the_picture_itself_is_nothing(self):
         assert furniture_at(0.5, 0.5, size=_SIZE) is None
+
+    def test_left_of_the_track_is_the_readout(self):
+        x0 = bar_track_x(_SIZE[0])[0]
+
+        assert furniture_at(*_uv(x0 // 2, _SIZE[1] - TIMELINE_HEIGHT // 2), size=_SIZE) == READOUT
 
 
 class TestASqueezeOnAVideosOwnControls:
@@ -261,6 +267,17 @@ class TestASqueezeOnAVideosOwnControls:
 
         assert p.seeks == []
         assert p.posted == ["omnipause_toggle"]  # and the drag adds nothing
+
+    def test_the_readout_neither_seeks_nor_is_the_picture(self):
+        """Saturated like a margin, a squeeze on the time would throw the video
+        back to its start."""
+        p = self._pointer()
+        width, height = _SIZE
+
+        self._press(p, _uv(bar_track_x(width)[0] // 2, height - TIMELINE_HEIGHT // 2))
+
+        assert p.seeks == []
+        assert p.posted == []
 
     def test_a_picture_nobody_is_listening_to_asks_for_nothing(self):
         p = self._pointer(picture=None)
