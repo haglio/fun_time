@@ -15,7 +15,7 @@ import numpy as np
 # the radius sets apparent scale only.
 RADIUS = 2.0
 
-PRIMARY_WIDTH_DEG = 72.0
+MAIN_WIDTH_DEG = 72.0
 
 
 @dataclass(frozen=True)
@@ -25,7 +25,7 @@ class Placement:
     width_deg: float
 
 
-PRIMARY_PLACEMENT = Placement(0.0, 0.0, PRIMARY_WIDTH_DEG)
+MAIN_PLACEMENT = Placement(0.0, 0.0, MAIN_WIDTH_DEG)
 
 
 def center_height(placement: Placement, radius: float = RADIUS) -> float:

@@ -69,9 +69,9 @@ from fun_time_vr.layout import (
     DASH,
     DEFAULT_LAYOUT,
     LANDSCAPE,
+    MAIN,
     PANEL,
     PORTRAIT,
-    PRIMARY,
     REFERENCE,
     read_layout,
     vr_reset_layout,
@@ -213,7 +213,7 @@ def faked_collaborators():
 
 def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         tmp_path, faked_collaborators):
-    """The primary reads four paths and one device name out of the session it
+    """The main unit reads four paths and one device name out of the session it
     was handed; a spelling that no longer resolves raises here rather than on
     the headset, where the unit is built with no console to say so."""
     manifest = _manifest_for_a_vr_session(tmp_path)
@@ -222,7 +222,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, placement=DEFAULT_LAYOUT[PRIMARY])
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, placement=DEFAULT_LAYOUT[MAIN])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.main_player_cmd_file)
@@ -235,7 +235,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         Path(commands.state_dir) / play_points_filename("main_player"))
     # The one that is not a path, and the one that had no field to land in at
     # all until this branch: without it `route_audio` never asks mpv for the
-    # headset's sink, and the primary's sound stays on the room speakers.
+    # headset's sink, and the main player's sound stays on the room speakers.
     assert unit._audio_device == "Example Headset"
 
 
@@ -295,7 +295,7 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     # suite's, and overlay_furniture reads only these three fields of it.
     unit.target = SimpleNamespace(ready=True, width=width, height=height,
                                  aspect=width / height)
-    unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
+    unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN])
     return unit, player
 
 
@@ -567,7 +567,7 @@ class TestThePanelUnderThePointer:
     def _unit(self, tmp_path, *, wrapped=False, showing=False):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
         seeks: list[float] = []
-        primary = SimpleNamespace(
+        main_unit = SimpleNamespace(
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), title="Jane Doe - Alpha Study",
                 position_ms=1_000.0, duration_ms=600_000.0,
@@ -577,7 +577,7 @@ class TestThePanelUnderThePointer:
             drive_gate=SimpleNamespace(
                 readout=lambda published, device_drives_itself=False: published),
             target=SimpleNamespace(ready=True, aspect=16 / 9),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
             controls=_SlotControls(
                 position=1_000.0, duration=600_000.0,
                 playhead=video_playhead(1_000.0, 600_000.0, 30.0),
@@ -608,10 +608,10 @@ class TestThePanelUnderThePointer:
         dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=560 / 218),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PANEL]))
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
-            unit = _PanelUnit(primary, genau, dash,
+            unit = _PanelUnit(main_unit, genau, dash,
                               dashboard_cmd_file=command_file, notices=notices)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
-                               event_log=event_log, notices=notices, primary=primary,
+                               event_log=event_log, notices=notices, main_unit=main_unit,
                                dash=dash)
 
     @staticmethod
@@ -686,12 +686,12 @@ class TestThePanelUnderThePointer:
             p.unit.render_latest_frame()
             docked = p.unit.screen.placement
 
-            p.primary.screen.placement = Placement(
+            p.main_unit.screen.placement = Placement(
                 azimuth_deg=-40.0, elevation_deg=12.0, width_deg=110.0)
             p.unit.render_latest_frame()
             followed = p.unit.screen.placement
 
-        assert docked.azimuth_deg == DEFAULT_LAYOUT[PRIMARY].azimuth_deg
+        assert docked.azimuth_deg == DEFAULT_LAYOUT[MAIN].azimuth_deg
         assert docked.elevation_deg < 0.0  # under the picture, never over it
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
@@ -721,7 +721,7 @@ class TestThePanelUnderThePointer:
 
         p.unit.pump(threading.Event(), 0.0)
 
-        pill = PlayheadHudPainter().bgra(p.primary.controls.playhead)
+        pill = PlayheadHudPainter().bgra(p.main_unit.controls.playhead)
         x, y = readout_xy(pill.shape[1], win_w=PANEL_WIDTH_PX, win_h=_WRAPPED_ROW_H,
                           timeline_h=TIMELINE_HEIGHT)
         drawn = p.unit._row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
@@ -1032,7 +1032,7 @@ def _picture(painted):
 
 def _room(*, main=True, portrait=True, landscape=True, panel=True, genau_showing=False):
     return dict(
-        primary=SimpleNamespace(target=_picture(main)),
+        main_unit=SimpleNamespace(target=_picture(main)),
         genau=SimpleNamespace(texture=_picture(main),
                               role=SimpleNamespace(showing=genau_showing)),
         satellites=[SimpleNamespace(target=_picture(portrait)),
@@ -1057,7 +1057,7 @@ class TestWhenTheRoomIsUp:
         read as up almost as soon as the loop began, the cover came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         room = _room()
-        room["primary"] = SimpleNamespace(target=SimpleNamespace(
+        room["main_unit"] = SimpleNamespace(target=SimpleNamespace(
             ready=True, has_picture=False,
         ))
 
@@ -1083,7 +1083,7 @@ class TestWhenTheRoomIsUp:
         paused under it, so asking the video for a picture would hold the
         cover over a room that is finished."""
         room = _room(genau_showing=True)
-        room["primary"] = SimpleNamespace(target=_picture(False))
+        room["main_unit"] = SimpleNamespace(target=_picture(False))
 
         assert _scene_is_up(**room)
 
@@ -1259,25 +1259,25 @@ class TestTheMainSlotUnderThePointer:
             picture=True, displayed=True, projection=FLAT,
             showing=False, clip=True, clip_projection=FLAT,
         ) | overrides
-        primary = SimpleNamespace(
+        main_unit = SimpleNamespace(
             target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9),
             role=SimpleNamespace(
                 displayed=settings["displayed"], projection=settings["projection"]),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
         )
         genau = SimpleNamespace(
             texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
             role=SimpleNamespace(
                 showing=settings["showing"], projection=settings["clip_projection"]),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
         )
-        return primary, genau
+        return main_unit, genau
 
     def test_the_primary_offers_both_handles(self):
         screen = _main_slot_screen(*self._units())
 
-        assert (screen.name, screen.movable, screen.resizable) == (PRIMARY, True, True)
-        assert screen.placement == DEFAULT_LAYOUT[PRIMARY]
+        assert (screen.name, screen.movable, screen.resizable) == (MAIN, True, True)
+        assert screen.placement == DEFAULT_LAYOUT[MAIN]
         assert screen.aspect == 16 / 9
 
     def test_a_flat_main_player_is_a_picture_a_squeeze_clicks_or_carries(self):
@@ -1288,7 +1288,7 @@ class TestTheMainSlotUnderThePointer:
         under the hand through a switch into video mode and back."""
         screen = _main_slot_screen(*self._units(showing=True))
 
-        assert screen.name == PRIMARY
+        assert screen.name == MAIN
         assert screen.aspect == 4 / 3
 
     @pytest.mark.parametrize("state", [
@@ -1328,7 +1328,7 @@ class TestTheMainSlotUnderThePointer:
         is pressed, never dragged: it rides on the main player now."""
         screens = self._the_room_around_the_slot()
 
-        assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
+        assert [screen.name for screen in screens] == [MAIN, LANDSCAPE, PANEL]
         console = screens[-1]
         assert (console.pressable, console.movable, console.resizable) == (True, False, False)
 
@@ -1363,7 +1363,7 @@ class TestWhichSlotAsksForARow:
 
     def test_it_is_genaus_own_while_genau_has_the_scene(self):
         """Genau's bar counts frames and its seek takes a fraction, so a row
-        asking the primary instead would scrub a video nobody is watching."""
+        asking the main player instead would scrub a video nobody is watching."""
         units = TestTheMainSlotUnderThePointer()._units(
             showing=True, clip_projection=EQUIRECT_180_SBS, projection=EQUIRECT_180_SBS)
 
@@ -1378,7 +1378,7 @@ class TestTheClipsOwnControls:
     def _unit(self, *, played=5, of=20, volume=70, muted=False):
         unit = _GenauUnit.__new__(_GenauUnit)
         unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
-        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
+        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN])
         unit._volume_painter = VolumeHudPainter()
         unit._readout_painter = PlayheadHudPainter()
         unit._control_size = None
@@ -1393,7 +1393,7 @@ class TestTheClipsOwnControls:
         unit.role.projection = projection
         uploaded: list = []
         unit.texture = SimpleNamespace(aspect=16 / 9, upload=uploaded.append)
-        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY],
+        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN],
                                       rehang=lambda _aspect: None)
         unit.render_latest_frame()
         return clip, uploaded[-1]
@@ -1442,7 +1442,7 @@ class TestTheClipsOwnControls:
 
         unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
 
-        assert unit._control_size == control_size(DEFAULT_LAYOUT[PRIMARY].width_deg, 640 / 360)
+        assert unit._control_size == control_size(DEFAULT_LAYOUT[MAIN].width_deg, 640 / 360)
 
     def test_the_clip_says_which_frame_is_up_beside_its_bar(self):
         unit = self._unit()
@@ -1497,23 +1497,23 @@ class TestEveryHangingScreenIsDrawn:
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
-        primary = SimpleNamespace(
+        main_unit = SimpleNamespace(
             target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9),
-            screen=SimpleNamespace(ready=True, mesh=PRIMARY, placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(ready=True, mesh=MAIN, placement=DEFAULT_LAYOUT[MAIN]),
             role=SimpleNamespace(displayed=True, projection=projection or FLAT),
         )
         genau = SimpleNamespace(
             role=SimpleNamespace(showing=False, projection=FLAT),
             texture=SimpleNamespace(ready=False, texture=object(), aspect=4 / 3),
-            screen=SimpleNamespace(ready=False, mesh="genau", placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(ready=False, mesh="genau", placement=DEFAULT_LAYOUT[MAIN]),
         )
         panel, dash = _hanging(PANEL, 1.2), _hanging(DASH, 2.5)
         reference = _hanging(REFERENCE, 1.7)
         reference.showing = showing
         screens = (stacking or Stacking()).arrange(
-            _panes(primary, genau, [], panel, dash, reference))
+            _panes(main_unit, genau, [], panel, dash, reference))
         _draw_eyes(
-            session, renderer, primary, genau, [], panel, dash, reference,
+            session, renderer, main_unit, genau, [], panel, dash, reference,
             SimpleNamespace(draw=lambda *_a: None), self._views(), np.eye(4, dtype=np.float64),
             screens=screens, as_quads=set(),
         )
@@ -1539,12 +1539,12 @@ class TestEveryHangingScreenIsDrawn:
 
         drawn = self._draw(projection=FLAT, stacking=stacking).screens
 
-        assert drawn.index(PRIMARY) < drawn.index(DASH) < drawn.index(PANEL)
+        assert drawn.index(MAIN) < drawn.index(DASH) < drawn.index(PANEL)
 
     def test_a_video_wrapped_round_the_viewer_is_drawn_first_however_it_was_taken(self):
         """Taken hold of while it was a flat screen, the wrap is still drawn before them."""
         stacking = Stacking()
-        stacking.take(PRIMARY)
+        stacking.take(MAIN)
 
         drawn = self._draw(projection=EQUIRECT_180_SBS, stacking=stacking).screens
 
@@ -1602,17 +1602,17 @@ def _a_panel(*, ready=True):
 def _slot(*, wrapped=False):
     """The two players sharing the main slot, as the dashboard reads them."""
     projection = EQUIRECT_180_SBS if wrapped else FLAT
-    primary = SimpleNamespace(
+    main_unit = SimpleNamespace(
         target=SimpleNamespace(ready=True, aspect=16 / 9),
         role=SimpleNamespace(displayed=True, projection=projection),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
     )
     genau = SimpleNamespace(
         texture=SimpleNamespace(ready=True, aspect=4 / 3),
         role=SimpleNamespace(showing=False, projection=projection),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
     )
-    return primary, genau
+    return main_unit, genau
 
 
 def _a_dash(tmp_path, *, wrapped=False, texture=None):
@@ -1680,8 +1680,8 @@ class TestWhatThePointerCanReach:
         panel = _a_panel()
         dash = _a_dash(tmp_path, wrapped=wrapped,
                        texture=SimpleNamespace(ready=True, aspect=2.5))
-        primary, genau = _slot(wrapped=wrapped)
-        primary.target = SimpleNamespace(ready=False, aspect=16 / 9)
+        main_unit, genau = _slot(wrapped=wrapped)
+        main_unit.target = SimpleNamespace(ready=False, aspect=16 / 9)
         genau.texture = SimpleNamespace(ready=False, aspect=4 / 3)
         reference = SimpleNamespace(
             showing=reference_showing,
@@ -1689,7 +1689,7 @@ class TestWhatThePointerCanReach:
             screen=SimpleNamespace(placement=_UNDER_THE_DASH),
         )
         return {s.name: s for s in Stacking().arrange(_panes(
-            primary, genau, [], panel, dash, reference))}
+            main_unit, genau, [], panel, dash, reference))}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)
@@ -1751,27 +1751,27 @@ class TestWhatComesForwardTogether:
         stacking = Stacking()
         dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
-        stacking.take(PRIMARY)
+        stacking.take(MAIN)
         stacking.take(REFERENCE)
 
         assert self._arranged(stacking, [], dash=dash, reference_up=True) == [
-            PRIMARY, DASH, REFERENCE]
+            MAIN, DASH, REFERENCE]
 
     def test_a_satellites_hud_brings_its_picture_forward_with_it(self):
         stacking = Stacking()
-        stacking.take(PRIMARY)
+        stacking.take(MAIN)
         stacking.take(hud_screen_name(LANDSCAPE))
 
         assert self._arranged(stacking, [_a_satellite(LANDSCAPE, hud=True)]) == [
-            PRIMARY, LANDSCAPE, hud_screen_name(LANDSCAPE)]
+            MAIN, LANDSCAPE, hud_screen_name(LANDSCAPE)]
 
     def test_the_console_comes_forward_with_the_main_player_it_hangs_under(self):
         stacking = Stacking()
         stacking.take(LANDSCAPE)
-        stacking.take(PRIMARY)
+        stacking.take(MAIN)
 
         assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], panel=_a_panel()) == [
-            LANDSCAPE, PRIMARY, PANEL]
+            LANDSCAPE, MAIN, PANEL]
 
     def test_the_dashboard_brings_no_console_forward_while_a_video_wraps_the_viewer(self, tmp_path):
         """The console hangs from it then, but what stands in front is the dashboard's
@@ -1782,7 +1782,7 @@ class TestWhatComesForwardTogether:
         stacking.take(DASH)
 
         assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], panel=_a_panel(), dash=dash,
-                              wrapped=True) == [PRIMARY, PANEL, LANDSCAPE, DASH]
+                              wrapped=True) == [MAIN, PANEL, LANDSCAPE, DASH]
 
 
 class TestTheReferenceUnderTheDashboard:
@@ -1857,7 +1857,7 @@ class TestWhereTheDashboardHangs:
         nothing: dragging the player must leave the dashboard alone."""
         dash = self._placed(tmp_path)
 
-        dash._primary.screen.placement = Placement(
+        dash._main_unit.screen.placement = Placement(
             azimuth_deg=-40.0, elevation_deg=-25.0, width_deg=90.0)
         with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
@@ -1909,10 +1909,10 @@ class TestWhereTheDashboardHangs:
 
 class TestWhereItHangsToStart:
     def test_the_dash_opens_centered_over_the_main_player(self):
-        assert DEFAULT_LAYOUT[DASH].azimuth_deg == DEFAULT_LAYOUT[PRIMARY].azimuth_deg
+        assert DEFAULT_LAYOUT[DASH].azimuth_deg == DEFAULT_LAYOUT[MAIN].azimuth_deg
 
     def test_it_opens_two_reposition_handles_above_the_main_players_top(self):
-        main_top = surface_vertices(DEFAULT_LAYOUT[PRIMARY], aspect=16 / 9)[:, 1].max()
+        main_top = surface_vertices(DEFAULT_LAYOUT[MAIN], aspect=16 / 9)[:, 1].max()
         dash_lower_edge = surface_vertices(
             DEFAULT_LAYOUT[DASH], aspect=DASH_WIDTH_PX / dash_height())[:, 1].min()
 

@@ -125,11 +125,12 @@ from .layout import (
     DASH,
     LANDSCAPE,
     LAYOUT_FILENAME,
+    MAIN,
     PANEL,
     PLAYERS,
     PORTRAIT,
-    PRIMARY,
     REFERENCE,
+    migrate_layout,
     read_layout,
     rearranged,
     vr_reset_layout,
@@ -202,12 +203,12 @@ _OV_READOUT = 14
 
 _NO_TIMELINE = object()
 
-# Longest texture side each video gets: near-native for the primary, and for
+# Longest texture side each video gets: near-native for the main player, and for
 # a satellite's 28° of view well above what the headset resolves there.
-PRIMARY_VIDEO_CAP_PX = 4096
+MAIN_VIDEO_CAP_PX = 4096
 SATELLITE_VIDEO_CAP_PX = 2048
 
-PANEL_DOCK_FALLBACK_ASPECT = 16 / 9  # the primary's shape until it decodes one
+PANEL_DOCK_FALLBACK_ASPECT = 16 / 9  # the main player's shape until it decodes one
 _WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
 
 # The file-channel worker's cadence: the dispatch loop polls these same files
@@ -447,7 +448,7 @@ class _VideoUnit:
 
 
 class _MainUnit(_VideoUnit):
-    notice_screen = PRIMARY  # NOT `screen`, which every unit uses for its _HangingScreen
+    notice_screen = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
@@ -460,7 +461,7 @@ class _MainUnit(_VideoUnit):
                 contexts,
                 lambda: MpvRenderPlayer(
                     contexts.get_proc_address, muted=True, loop_file=True),
-                PRIMARY_VIDEO_CAP_PX, name="primary-video", perf=perf,
+                MAIN_VIDEO_CAP_PX, name="main-video", perf=perf,
             ),
             placement,
         )
@@ -495,7 +496,7 @@ class _MainUnit(_VideoUnit):
         self._notices = notices
         self._watch = PlaybackWatch()
         self._unhandled: set[str] = set()
-        self._presses = _Presses(PRIMARY)
+        self._presses = _Presses(MAIN)
         self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
         self._pointer = FurniturePointer(
             seek=self.role.seek_to,
@@ -522,11 +523,11 @@ class _MainUnit(_VideoUnit):
         self._presses.point(frame)
 
     def route_audio(self) -> None:
-        """Give the primary its sound on the first frame the headset is WORN.
+        """Give the main player its sound on the first frame the headset is WORN.
 
         Routed earlier — at construction, or on VISIBLE with the headset on its
         stand — the parked endpoint takes the stream without consuming it and
-        mpv's audio clock never ticks, freezing the primary on frame 1; FOCUSED
+        mpv's audio clock never ticks, freezing the main player on frame 1; FOCUSED
         means a human is wearing it, endpoints draining.  When it wedges anyway,
         :mod:`fun_time_vr.playback_watch` is what notices.
         """
@@ -755,7 +756,7 @@ class _SatelliteUnit(_VideoUnit):
 
 
 class _GenauUnit:
-    """Genau's surface: the frame its engine chose, on the primary's screen or
+    """Genau's surface: the frame its engine chose, on the main player's screen or
     wrapped round the viewer by the clip's projection.  Its scrubber and volume
     slider are blended into that frame -- there is no mpv under it to paint."""
 
@@ -786,7 +787,7 @@ class _GenauUnit:
         self.texture = FrameTexture()
         self.screen = _HangingScreen(placement)
         self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
-        self._presses = _Presses(PRIMARY)
+        self._presses = _Presses(MAIN)
         self._pointer = FurniturePointer(
             seek=self.role.seek,
             mute=lambda muted: self._post("audio_unmute" if muted else "audio_mute"),
@@ -916,10 +917,10 @@ class _PanelUnit:
     dock to and no edge for a scrubber, carrying that video's row and docked to the dash."""
 
     def __init__(
-        self, primary: _MainUnit, genau: _GenauUnit, dash, *,
+        self, main_unit: _MainUnit, genau: _GenauUnit, dash, *,
         dashboard_cmd_file: Path, notices: NoticeBoard,
     ) -> None:
-        self._primary = primary
+        self._main_unit = main_unit
         self._genau = genau
         self._dash = dash
         self._notices = notices
@@ -942,7 +943,7 @@ class _PanelUnit:
         self._row = None
         self._uploaded = None
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(primary.screen.placement)
+        self.screen = _HangingScreen(main_unit.screen.placement)
 
     def _seek(self, position: float) -> None:
         if self._controls is not None:
@@ -989,17 +990,17 @@ class _PanelUnit:
             self._furniture.drag(u, v, size=size, duration_ms=controls.scrub_duration_ms)
 
     def pump(self, stop: threading.Event, now: float) -> None:
-        slot = _wrapped_slot(self._primary, self._genau)
+        slot = _wrapped_slot(self._main_unit, self._genau)
         self._controls = None if slot is None else slot.controls  # the roles' thread
         self._take_presses()
-        genau, main = self._genau.role, self._primary.role
+        genau, main = self._genau.role, self._main_unit.role
         clip = genau.current_clip
         hud = panel_hud(
             genau.console_hud,
             video_title=main.title,
             clip_title=clip.stem if clip is not None else "",
             loading=genau.loading,
-            drive_gate=self._primary.drive_gate,
+            drive_gate=self._main_unit.drive_gate,
             scripted_filter=main.scripted_filter,
             playback_speed=main.speed,
         )
@@ -1034,11 +1035,11 @@ class _PanelUnit:
         if not _upload(self):
             return
         # Every frame: what it hangs from moves, and its repaints are seconds apart.
-        wrapped = _wrapped_slot(self._primary, self._genau) is not None
+        wrapped = _wrapped_slot(self._main_unit, self._genau) is not None
         under, aspect, gap = (
             (self._dash.screen.placement, self._dash.texture.aspect, 0.0) if wrapped else
-            (self._primary.screen.placement,
-             self._primary.target.aspect if self._primary.target.ready
+            (self._main_unit.screen.placement,
+             self._main_unit.target.aspect if self._main_unit.target.ready
              else PANEL_DOCK_FALLBACK_ASPECT, HUD_GAP_DEG))
         self.screen.placement = attached_below(
             under, aspect=aspect, width_deg=PANEL_WIDTH_DEG,
@@ -1054,11 +1055,11 @@ class _PanelUnit:
 class _DashUnit:
     # Painted like the console; the pair's handle while it carries one, and a spot for that.
 
-    def __init__(self, primary: _MainUnit, genau: _GenauUnit, *, placement: Placement,
+    def __init__(self, main_unit: _MainUnit, genau: _GenauUnit, *, placement: Placement,
                  wrapped_placement: Placement, dashboard_cmd_file: Path,
                  notices: NoticeBoard, dashboard_state_file: Path,
                  reference_flag: Path) -> None:
-        self._primary = primary
+        self._main_unit = main_unit
         self._genau = genau
         self._notices = notices
         self._state_file = dashboard_state_file
@@ -1077,7 +1078,7 @@ class _DashUnit:
 
     @property
     def carrying_the_console(self) -> bool:  # a wrapped slot leaves it the only handle
-        return _wrapped_slot(self._primary, self._genau) is not None
+        return _wrapped_slot(self._main_unit, self._genau) is not None
 
     @property
     def layout_key(self) -> str:  # which remembered spot a drag lands in
@@ -1549,10 +1550,10 @@ class _SaysWhenItFirstMoves:  # places the OSR2's first move against the rest of
         self._sink.close()
 
 
-def _scene_is_up(primary, genau, satellites: Sequence, panel) -> bool:
+def _scene_is_up(main_unit, genau, satellites: Sequence, panel) -> bool:
     """Every picture the session opens with RENDERED, not merely sized
     (``has_picture``, never ``ready``); the main slot counts once."""
-    main = genau.texture if genau.role.showing else primary.target
+    main = genau.texture if genau.role.showing else main_unit.target
     return bool(
         main.has_picture
         and panel.texture.has_picture
@@ -1560,39 +1561,39 @@ def _scene_is_up(primary, genau, satellites: Sequence, panel) -> bool:
     )
 
 
-def _main_slot_screen(primary: _MainUnit, genau: _GenauUnit) -> Screen | None:
-    """The main slot's picture: the primary's, or Genau's clip while it has the
+def _main_slot_screen(main_unit: _MainUnit, genau: _GenauUnit) -> Screen | None:
+    """The main slot's picture: the main player's, or Genau's clip while it has the
     scene.  A screen hanging in the slot while it is flat; wrapped round the
     viewer otherwise, which has no rectangle to move, resize or aim at."""
     if genau.role.showing:
         if not genau.texture.ready:
             return None
         screen, aspect, projection = genau.screen, genau.texture.aspect, genau.role.projection
-    elif primary.target.ready and primary.role.displayed:
+    elif main_unit.target.ready and main_unit.role.displayed:
         screen, aspect, projection = (
-            primary.screen, primary.target.aspect, primary.role.projection)
+            main_unit.screen, main_unit.target.aspect, main_unit.role.projection)
     else:
         return None
     if immersive_mode(projection) is not None:
-        return Screen(PRIMARY, screen.placement, aspect, pressable=True, immersive=True)
-    return Screen(PRIMARY, screen.placement, aspect, movable=True, resizable=True,
+        return Screen(MAIN, screen.placement, aspect, pressable=True, immersive=True)
+    return Screen(MAIN, screen.placement, aspect, movable=True, resizable=True,
                   pressable=True, picture=True)
 
 
-def _wrapped_slot(primary: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
+def _wrapped_slot(main_unit: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
     # Whichever player wraps the viewer in the main slot; None when it hangs on a screen.
     if genau.role.showing:
         return genau if genau.texture.ready and _wraps_the_viewer(genau.role) else None
-    if primary.target.ready and primary.role.displayed and _wraps_the_viewer(primary.role):
-        return primary
+    if main_unit.target.ready and main_unit.role.displayed and _wraps_the_viewer(main_unit.role):
+        return main_unit
     return None
 
 
 def _panes(
-    primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
+    main_unit: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
     panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit,
 ) -> list[Pane]:
-    main = _main_slot_screen(primary, genau)
+    main = _main_slot_screen(main_unit, genau)
     panes = [Pane((main,))] if main is not None else []  # first, so the rest win the overlap
     for unit in satellites:
         if not unit.target.ready:
@@ -1605,7 +1606,7 @@ def _panes(
     if panel.texture.ready:  # pressed, never dragged: it rides on what is above it
         panes.append(Pane((Screen(
             PANEL, panel.screen.placement, panel.texture.aspect, pressable=True),),
-            docked_to=PRIMARY))
+            docked_to=MAIN))
     dashboard = []
     if dash.texture.ready:
         dashboard.append(Screen(DASH, dash.screen.placement, dash.texture.aspect,
@@ -1618,16 +1619,16 @@ def _panes(
     return panes
 
 
-def _slot_picture(primary: _MainUnit, genau: _GenauUnit):
-    return (genau.screen, genau.texture) if genau.role.showing else (primary.screen, primary.target)
+def _slot_picture(main_unit: _MainUnit, genau: _GenauUnit):
+    return (genau.screen, genau.texture) if genau.role.showing else (main_unit.screen, main_unit.target)
 
 
 def _flat_draws(
-    primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
+    main_unit: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
     panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit, *,
     screens: Sequence[Screen], as_quads: set[str],
 ) -> list[tuple[ScreenMesh, int, bool]]:
-    pictures = {PRIMARY: (*_slot_picture(primary, genau), False),
+    pictures = {MAIN: (*_slot_picture(main_unit, genau), False),
                 PANEL: (panel.screen, panel.texture, True),
                 DASH: (dash.screen, dash.texture, True),
                 REFERENCE: (reference.screen, reference.texture, True)}
@@ -1643,7 +1644,7 @@ def _flat_draws(
 def _draw_eyes(
     session,
     renderer: SceneRenderer,
-    primary: _MainUnit,
+    main_unit: _MainUnit,
     genau: _GenauUnit,
     satellites: list[_SatelliteUnit],
     panel: _PanelUnit,
@@ -1659,8 +1660,8 @@ def _draw_eyes(
     """Render the projection layer's two eyes: a video wrapping the viewer, then
     *screens* back to front, less those the compositor took as quads, then the
     pointer's chrome over all of it.  *scene_rotation* is where they all sit."""
-    wrap = _wrapped_slot(primary, genau)
-    flat = _flat_draws(primary, genau, satellites, panel, dash, reference,
+    wrap = _wrapped_slot(main_unit, genau)
+    flat = _flat_draws(main_unit, genau, satellites, panel, dash, reference,
                        screens=screens, as_quads=as_quads)
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
@@ -1682,7 +1683,7 @@ def _draw_eyes(
         if wrap is not None:
             inv32 = np.ascontiguousarray(np.linalg.inv(view_proj), dtype=np.float32)
             renderer.draw_immersive(immersive_mode(wrap.role.projection),
-                                    _slot_picture(primary, genau)[1].texture, inv32, eye_index)
+                                    _slot_picture(main_unit, genau)[1].texture, inv32, eye_index)
         for mesh, texture, blend in flat:
             renderer.draw_screen(mesh, texture, view_proj32, blend=blend)
         pointing.draw(renderer, view_proj32)
@@ -1808,6 +1809,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     commands = manifest.commands
     state_dir = Path(commands.dashboard_cmd_file).parent
     layout_path = state_dir / LAYOUT_FILENAME
+    migrate_layout(layout_path)
     layout = read_layout(layout_path)
     # Before the players and refreshed between them: each opens media.
     cover = _CoverUnit(state_dir)
@@ -1815,10 +1817,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     # One read of the event log per tick, pumped before anything that shows a
     # notice off it: the console's strip and every screen's own toast.
     notices = NoticeBoard(event_log_path(state_dir))
-    primary = _MainUnit(manifest, vr, contexts, placement=layout[PRIMARY],
+    main_unit = _MainUnit(manifest, vr, contexts, placement=layout[MAIN],
                         notices=notices, perf=perf)
     _present_the_cover(session, renderer, cover)
-    genau = _GenauUnit(manifest, vr, stop, placement=layout[PRIMARY])
+    genau = _GenauUnit(manifest, vr, stop, placement=layout[MAIN])
     _present_the_cover(session, renderer, cover)
     satellites = [
         _SatelliteUnit(player, manifest, contexts, vr=vr, placement=layout[player],
@@ -1828,7 +1830,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     _present_the_cover(session, renderer, cover)
     reference_flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
-        primary, genau,
+        main_unit, genau,
         placement=layout[DASH],
         wrapped_placement=layout[PANEL],
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
@@ -1837,7 +1839,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         reference_flag=reference_flag,
     )
     panel = _PanelUnit(
-        primary, genau, dash,
+        main_unit, genau, dash,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
     )
@@ -1846,10 +1848,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
-    units = [primary, genau, *satellites, dash, panel, reference, cover]  # dash first:
+    units = [main_unit, genau, *satellites, dash, panel, reference, cover]  # dash first:
     pumped = [notices, *units, keeper, posts]  # the console hangs off where it ended up
     hanging = {unit.player: (unit.screen,) for unit in satellites} | {
-        PRIMARY: (primary.screen, genau.screen), DASH: (dash,)}
+        MAIN: (main_unit.screen, genau.screen), DASH: (dash,)}
     pointer = Pointer(on_its_controls=on_its_controls)
     thumbs = Thumbs()
     stacking = Stacking()
@@ -1901,7 +1903,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 unit.render_latest_frame()
             # The only place that sees the room fill in, and whether anyone
             # had the headset on while it did.
-            room_is_up = _scene_is_up(primary, genau, satellites, panel)
+            room_is_up = _scene_is_up(main_unit, genau, satellites, panel)
             cover.anchor_settled = cover_seen.dwelt and session.views_tracked
             cover.awaiting_wearer = room_is_up and not session.focused  # set before he looks
             scene_ready.note(room_is_up and cover_seen.dwelt)
@@ -1923,9 +1925,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 _draw_cover(session, renderer, cover, views)
             elif should_render and views:
                 if session.focused:
-                    for unit in (primary, *satellites):
+                    for unit in (main_unit, *satellites):
                         unit.route_audio()
-                if primary.role.recenter.take():
+                if main_unit.role.recenter.take():
                     scene_yaw = yaw_of_orientation((
                         views[0].pose.orientation.x, views[0].pose.orientation.y,
                         views[0].pose.orientation.z, views[0].pose.orientation.w,
@@ -1934,15 +1936,15 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
                 reset = {}
-                if primary.role.layout_reset.take():
+                if main_unit.role.layout_reset.take():
                     reset = vr_reset_layout()
                     pointer.let_go()
                     logger.info(
                         "Put the players and the dashboard back in their default spots and sizes")
                 session.sync_controller(display_time)
-                scene_rotation = _scene_rotation(scene_yaw, primary.role.tilt_deg)
+                scene_rotation = _scene_rotation(scene_yaw, main_unit.role.tilt_deg)
                 screens = stacking.arrange(_panes(
-                    primary, genau, satellites, panel, dash, reference))
+                    main_unit, genau, satellites, panel, dash, reference))
                 head = head_position([
                     (view.pose.position.x, view.pose.position.y, view.pose.position.z)
                     for view in views
@@ -1954,8 +1956,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 thumb = thumbs.frame(session.hands, pointer, elapsed_s=frame_dt)
                 posts.post(thumb.commands)
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
-                primary.role.nudge_tilt(lift_deg)
-                scene_pitch_deg = primary.role.tilt_deg
+                main_unit.role.nudge_tilt(lift_deg)
+                scene_pitch_deg = main_unit.role.tilt_deg
                 scene_rotation = _scene_rotation(scene_yaw, scene_pitch_deg)
                 players = {name: frame.moved.get(name, hanging[name][0].placement)
                            for name in PLAYERS}
@@ -1975,7 +1977,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         keeper.place(name, placement)
                 if frame.settled or thumb.settled or reset:
                     keeper.settle()
-                for unit in ((genau if genau.role.showing else primary),  # the slot's own
+                for unit in ((genau if genau.role.showing else main_unit),  # the slot's own
                              *satellites, panel, dash, reference):
                     unit.point(frame)
                 pointing.update(frame, screens, held_controllers(
@@ -1984,9 +1986,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if use_layers:
                     # The mpv-backed screens as quads, out of the scene as each is
                     # taken -- and a picture wrapping the view is never taken.
-                    for index, unit in enumerate([primary, *satellites]):
-                        if unit is primary and (
-                                _wraps_the_viewer(primary.role) or genau.role.showing):
+                    for index, unit in enumerate([main_unit, *satellites]):
+                        if unit is main_unit and (
+                                _wraps_the_viewer(main_unit.role) or genau.role.showing):
                             continue
                         quad = _update_quad_layer(
                             session, renderer, index, unit,
@@ -1994,11 +1996,11 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         )
                         if quad is not None:
                             quads.append(quad)
-                            as_quads.add(PRIMARY if unit is primary else unit.player)
+                            as_quads.add(MAIN if unit is main_unit else unit.player)
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(
-                    session, renderer, primary, genau, satellites, panel, dash, reference,
+                    session, renderer, main_unit, genau, satellites, panel, dash, reference,
                     pointing, views, scene_rotation,
                     screens=screens, as_quads=as_quads,
                 )
