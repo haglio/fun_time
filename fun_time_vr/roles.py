@@ -240,10 +240,10 @@ class MainRole:
         # Un-pausing is a request, not a picture; the device led it on every reveal.
         self._held_at = None if paused else self._player.position_ms
 
-    def _the_picture_is_moving(self) -> bool:
+    def _the_screen_has_resumed(self) -> bool:
         if self._held_at is None:
             return True
-        if self._player.position_ms == self._held_at:
+        if self._player.position_ms == self._held_at and not self._player.showing_picture:
             return False
         self._held_at = None
         return True
@@ -255,7 +255,7 @@ class MainRole:
         self._step_at_eof()
         if self._paused or not self._tcode_enabled:
             return
-        if not self._the_picture_is_moving():
+        if not self._the_screen_has_resumed():
             return
         if self._funscript is not None:
             self._driver.update(
