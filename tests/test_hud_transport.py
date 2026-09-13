@@ -5,7 +5,9 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
-from fun_time.hud_transport import HudPublisher, hud_payload
+from player_core.satellite_hud import HudCell
+
+from fun_time.hud_transport import HudPublisher, hud_model
 from fun_time.lock_hud import ACTION_LIMIT, HudPanel
 
 
@@ -26,34 +28,34 @@ def _thumb(path: str) -> Path:
 
 def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        payload = hud_payload(_panel(), Path("C:/state/thumbs"))
+        model = hud_model(_panel(), Path("C:/state/thumbs"))
 
-    assert payload["side"] == "portrait"
-    assert payload["locked"] is True
-    assert payload["lock_label"] == "Locked"
-    assert payload["current_action"] == "alpha"
-    assert payload["corner"] == {"path": "C:/v/cur.mp4", "thumb": str(_thumb("C:/v/cur.mp4"))}
-    assert payload["seeds"] == [{"path": "C:/v/s1.mp4", "thumb": str(_thumb("C:/v/s1.mp4"))}]
-    assert payload["actions"] == [
-        {"path": "C:/v/a1.mp4", "thumb": str(_thumb("C:/v/a1.mp4")), "label": "gamma"}
-    ]
+    assert model.side == "portrait"
+    assert model.locked is True
+    assert model.lock_label == "Locked"
+    assert model.current_action == "alpha"
+    assert model.corner == HudCell(path="C:/v/cur.mp4", thumb=str(_thumb("C:/v/cur.mp4")))
+    assert model.seeds == (HudCell(path="C:/v/s1.mp4", thumb=str(_thumb("C:/v/s1.mp4"))),)
+    assert model.actions == (
+        HudCell(path="C:/v/a1.mp4", thumb=str(_thumb("C:/v/a1.mp4")), label="gamma"),
+    )
 
 
 def test_hud_payload_carries_whether_this_side_is_the_active_one():
     """The player draws the dot; only fun_time knows which side has the floor."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        active = hud_payload(_panel(active=True), Path("C:/state/thumbs"))
-        idle = hud_payload(_panel(active=False), Path("C:/state/thumbs"))
+        active = hud_model(_panel(active=True), Path("C:/state/thumbs"))
+        idle = hud_model(_panel(active=False), Path("C:/state/thumbs"))
 
-    assert active["active"] is True
-    assert idle["active"] is False
+    assert active.active is True
+    assert idle.active is False
 
 def test_hud_payload_carries_whether_the_clip_is_a_favorite():
     """The dashboard's panel said this by turning green; the HUD marks it instead,
     so the flag has to reach the player along with the map."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        assert hud_payload(_panel(is_favorite=True), Path("C:/t"))["is_favorite"] is True
-        assert hud_payload(_panel(), Path("C:/t"))["is_favorite"] is False
+        assert hud_model(_panel(is_favorite=True), Path("C:/t")).is_favorite is True
+        assert hud_model(_panel(), Path("C:/t")).is_favorite is False
 
 
 def test_hud_payload_carries_which_browse_order_the_side_is_in():
@@ -61,9 +63,9 @@ def test_hud_payload_carries_which_browse_order_the_side_is_in():
     order it is in — so a satellite gets the pair, and the origenerator-mode
     panel, whose player is black and paused under a show, gets neither."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        assert hud_payload(_panel(latest=True), Path("C:/t"))["latest"] is True
-        assert hud_payload(_panel(latest=False), Path("C:/t"))["latest"] is False
-        assert hud_payload(_panel(), Path("C:/t"))["latest"] is None
+        assert hud_model(_panel(latest=True), Path("C:/t")).latest is True
+        assert hud_model(_panel(latest=False), Path("C:/t")).latest is False
+        assert hud_model(_panel(), Path("C:/t")).latest is None
 
 
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
@@ -71,19 +73,19 @@ def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():
     placeholder); a sibling whose frame the prewarm hasn't produced simply isn't
     on the map yet, exactly as the Qt HUD skipped it."""
     with patch("fun_time.hud_transport.cached_thumbnail", return_value=None):
-        payload = hud_payload(_panel(), Path("C:/state/thumbs"))
+        payload = hud_model(_panel(), Path("C:/state/thumbs"))
 
-    assert payload["corner"] == {"path": "C:/v/cur.mp4", "thumb": ""}
-    assert payload["seeds"] == []
-    assert payload["actions"] == []
+    assert payload.corner == HudCell(path="C:/v/cur.mp4", thumb="")
+    assert payload.seeds == ()
+    assert payload.actions == ()
 
 
 def test_hud_payload_has_no_corner_when_nothing_is_playing():
     with patch("fun_time.hud_transport.cached_thumbnail", return_value=None):
-        payload = hud_payload(
+        payload = hud_model(
             _panel(current="", seed_siblings=[], action_siblings=[]), Path("C:/t"))
 
-    assert payload["corner"] is None
+    assert payload.corner is None
 
 
 def test_hud_payload_marks_the_cell_actually_on_screen():
@@ -91,10 +93,10 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
     payload names that cell so the player lights it instead of the corner."""
     panel = _panel(active_loop="seed", playing="C:/v/s1.mp4")
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        payload = hud_payload(panel, Path("C:/t"))
+        payload = hud_model(panel, Path("C:/t"))
 
-    assert payload["playing"] == ["seed", 0]
-    assert payload["active_loop"] == "seed"
+    assert payload.playing == ("seed", 0)
+    assert payload.active_loop == "seed"
 
 
 def test_a_running_loop_publishes_every_item_it_cycles():
@@ -106,10 +108,10 @@ def test_a_running_loop_publishes_every_item_it_cycles():
     panel = _panel(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        payload = hud_payload(panel, Path("C:/t"))
+        payload = hud_model(panel, Path("C:/t"))
 
-    assert [cell["path"] for cell in payload["seeds"]] == seeds
-    assert payload["playing"] == ["seed", 9]
+    assert [cell.path for cell in payload.seeds] == seeds
+    assert payload.playing == ("seed", 9)
 
 
 def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
@@ -121,11 +123,11 @@ def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
 
     with patch("fun_time.hud_transport.cached_thumbnail",
                side_effect=lambda p, _d: None if p == "C:/v/s1.mp4" else _thumb(p)):
-        payload = hud_payload(panel, Path("C:/t"))
+        payload = hud_model(panel, Path("C:/t"))
 
-    assert [cell["path"] for cell in payload["seeds"]] == seeds
-    assert payload["seeds"][1]["thumb"] == ""
-    assert payload["playing"] == ["seed", 2]
+    assert [cell.path for cell in payload.seeds] == seeds
+    assert payload.seeds[1].thumb == ""
+    assert payload.playing == ("seed", 2)
 
 
 def test_the_axis_a_loop_is_not_running_on_stays_capped():
@@ -135,9 +137,9 @@ def test_the_axis_a_loop_is_not_running_on_stays_capped():
     panel = _panel(active_loop="seed", action_siblings=actions, action_labels=tuple("x" * 9))
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        payload = hud_payload(panel, Path("C:/t"))
+        payload = hud_model(panel, Path("C:/t"))
 
-    assert len(payload["actions"]) == ACTION_LIMIT
+    assert len(payload.actions) == ACTION_LIMIT
 
 
 def test_hud_payload_falls_back_to_the_corner_for_an_off_map_clip():
@@ -145,9 +147,9 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_clip():
     the corner stays bright rather than nothing at all."""
     panel = _panel(playing="C:/v/elsewhere.mp4")
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        payload = hud_payload(panel, Path("C:/t"))
+        payload = hud_model(panel, Path("C:/t"))
 
-    assert payload["playing"] == ["corner", 0]
+    assert payload.playing == ("corner", 0)
 
 
 def test_publish_writes_the_file_only_when_the_panel_changes(tmp_path: Path):
@@ -195,5 +197,5 @@ def test_payload_carries_the_satellites_mode(tmp_path):
     panel = HudPanel(side="portrait", locked=False, lock_label="", current="",
                      seed_siblings=[], action_siblings=[],
                      satellites_mode="origenerator")
-    payload = hud_payload(panel, tmp_path)
-    assert payload["satellites_mode"] == "origenerator"
+    payload = hud_model(panel, tmp_path)
+    assert payload.satellites_mode == "origenerator"

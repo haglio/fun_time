@@ -9,10 +9,12 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.console import console_text
+
 from .bridge_records import BridgeConfig
 from .hud_transport import HudPublisher
 from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
-from .main_player_console import console_payload
+from .main_player_console import console_model
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
     genau_status_path,
@@ -109,7 +111,7 @@ class HudFeed:
         # can see for itself.
         main_player = read_main_player_status(self.config.main_player_status_file)
         shapes_offered = bool(source_roots(self.config.vr_library_dirs))
-        self.publisher.publish_payload("main_player", console_payload(
+        self.publisher.publish_text("main_player", console_text(console_model(
             mode=state.main_mode,
             active=state.active_side == Player.MAIN,
             f_mode=state.main_f_mode,
@@ -130,7 +132,7 @@ class HudFeed:
             record=main_player.state,
             main_player_locked=main_player.locked,
             genau=read_genau_status(genau_status_path(self.config.state_dir)),
-        ))
+        )))
 
     def _favs_content(self) -> str:
         """The favorites file, re-read only when it has actually changed.
