@@ -15,7 +15,8 @@ import json
 from pathlib import Path
 from urllib.parse import quote
 
-from .media_metadata import load_metadata, metadata_path_for, records_no_generation
+from .content import WebProvider, provider_that_made
+from .media_metadata import load_metadata, metadata_path_for
 
 # (label, metadata key) in display order for the floating note / auto-fill.
 _IMAGE_SETTINGS = [
@@ -73,26 +74,28 @@ def build_regen_url(metadata: dict, *, video_url: str, image_url: str) -> str:
     return f"{base}#ft={encoded}"
 
 
+def _records_a_prompt(metadata: dict) -> bool:
+    video = metadata.get("video") or {}
+    source = metadata.get("source_image") or {}
+    return bool(video.get("prompt") or source.get("positive_prompt"))
+
+
 def regen_url_for_video(
     video_path: str | Path,
     *,
     metadata_root: str | Path | None,
     video_url: str,
     image_url: str,
+    providers: tuple[WebProvider, ...],
 ) -> str:
-    """Return the regenerate URL for a provider video, or "" if it has none.
-
-    Eligibility is decided by the sidecar alone: a clip with no metadata JSON
-    under *metadata_root* (anything outside the regen library — a fav from a
-    gallery-only provider, a local import) maps to no sidecar and falls back to
-    its stored link.  So does one whose sidecar records only what KIND of video
-    it is — every library video has that now, and it says nothing about how the
-    clip was generated, which is the whole of what a regenerate URL carries.
-    """
+    maker = provider_that_made(video_path, providers)
+    if maker is None:
+        return ""
     meta_path = metadata_path_for(video_path, metadata_root)
     if meta_path is None or not meta_path.is_file():
         return ""
     metadata = load_metadata(meta_path)
-    if not metadata.get("video") or records_no_generation(metadata):
+    if not _records_a_prompt(metadata):
         return ""
-    return build_regen_url(metadata, video_url=video_url, image_url=image_url)
+    url = build_regen_url(metadata, video_url=video_url, image_url=image_url)
+    return url if maker.serves(url) else ""

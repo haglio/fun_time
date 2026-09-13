@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from urllib.parse import unquote
 
+from fun_time.content import WebProvider
 from fun_time.media_metadata import metadata_path_for
 from fun_time.regen import (
     build_payload,
@@ -13,6 +14,7 @@ from fun_time.regen import (
 
 VIDEO_URL = "https://example.com/video"
 IMAGE_URL = "https://example.com/create"
+_PROVIDERS = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
 IMAGE_META = {
     "video": {
@@ -129,7 +131,8 @@ def test_regen_url_for_video_returns_image_url_for_source_image(tmp_path: Path):
     _, metadata_root, video = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
 
     url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
+        providers=_PROVIDERS,
     )
 
     assert url.startswith(IMAGE_URL + "#ft=")
@@ -140,7 +143,8 @@ def test_regen_url_for_video_returns_empty_for_non_provider(tmp_path: Path):
     provider2 = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider2" / "x.mp4"
 
     url = regen_url_for_video(
-        provider2, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        provider2, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
+        providers=_PROVIDERS,
     )
 
     assert url == ""
@@ -155,7 +159,8 @@ def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_a_kind(tmp
     )
 
     url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
+        providers=_PROVIDERS,
     )
 
     assert url == ""
@@ -170,7 +175,8 @@ def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_the_stamps
     )
 
     url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
+        providers=_PROVIDERS,
     )
 
     assert url == ""
@@ -184,7 +190,8 @@ def test_regen_url_for_video_returns_empty_when_metadata_absent(tmp_path: Path):
     video.write_text("x", encoding="utf-8")
 
     url = regen_url_for_video(
-        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL
+        video, metadata_root=metadata_root, video_url=VIDEO_URL, image_url=IMAGE_URL,
+        providers=_PROVIDERS,
     )
 
     assert url == ""

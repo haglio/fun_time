@@ -14,7 +14,7 @@ Configuration lives in `fun_time_config.json` under `random_favs_browser` (the C
 
 ### Where a tab actually goes
 
-A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. Favorites with no metadata sidecar (a provider that keeps its galleries, or anything scraped before sidecars existed) fall back to their stored gallery link. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
+A favorite's gallery link is usually dead — the generation provider does not keep old generations around. So each tab resolves to the provider's **regenerate** page, with the video's original prompts packed into a `#ft=` fragment that the userscript below fills in. That page can only recreate a video its own site made from a recorded prompt. Every other favorite falls back to its stored gallery link — a video from another provider (whichever provider's library folder holds it, on the site its gallery link names), or one whose sidecar records no prompt — and a favorite with no gallery link either, such as a video Origenerator made, opens no tab at all. `target_for_fav` in `fun_time/random_favs_browser.py` is the single resolver; both the startup tabs and the lock hotkey go through it, so they cannot drift apart.
 
 ### Which window the tab lands in
 
@@ -36,7 +36,7 @@ It is **not** the video the favorite records. Every library video exists twice: 
 
 When you lock an AI video, or open one of its favorites in the Random Favs Browser, Fun Time opens the provider's **generate** page (instead of the now-dead gallery link) with the original prompts/settings packed into the URL fragment (`#ft=…`). A Tampermonkey userscript reads that fragment and fills the generate form — prompts, seed, and whatever settings it can match — then pins a floating note listing every field so anything it could not set can be entered by hand. Text-to-video and image-to-video are handled slightly differently (an image-to-video regen makes the image first, then the video from it), and the script re-applies fields for a few seconds because the form re-mounts during hydration.
 
-The prompts/settings come from per-video metadata JSON mirrored under `regen.metadata_root`; the paths and the two generate URLs are configured in `fun_time_config.json` under `regen`. Videos without a metadata sidecar fall back to their stored gallery link.
+The prompts/settings come from per-video metadata JSON mirrored under `regen.metadata_root`; the paths and the two generate URLs are configured in `fun_time_config.json` under `regen`. Videos the generate site did not make, or whose sidecar records no prompt, fall back to their stored gallery link.
 
 The autofill script is **provider-specific** — its `@match` host and its form selectors target one particular generation site — so the real `fun_time/static/regen_autofill.user.js` is git-ignored and kept out of the public repo. A committed template, `fun_time/static/regen_autofill.example.user.js`, documents the `#ft=` payload shape and the auto-update wiring; copy it to `regen_autofill.user.js` and adapt the selectors to your provider.
 

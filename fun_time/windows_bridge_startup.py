@@ -20,6 +20,7 @@ from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .child_log import no_child_log, open_child_log
 from .config import load_config
+from .content import load_web_providers
 from .mode_plan import STARTUP_MAIN_MODE, hud_verb, main_player_display_verb
 from .modes import (
     PLAYLIST_MAIN_PLAYER,
@@ -275,7 +276,7 @@ def prepare_random_favs_browser_manifest(config_path: str | Path, output_path: s
     heavy generate pages do not all load at startup.
     """
     config = load_config(config_path)
-    profile_directory, targets = build_manifest(config)
+    profile_directory, targets = build_manifest(config, load_web_providers())
     urls = (
         write_tab_pages(
             tabs_dir(config.paths.state_dir), targets, loopback_port=config.loopback_port)

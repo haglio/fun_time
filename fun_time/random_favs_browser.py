@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import TypeVar
 
 from .config import ProjectConfig, RegenConfig
+from .content import WebProvider
 from .favs_csv import hyperlink_parts
 from .media_renditions import original_rendition
 from .regen import regen_url_for_video
@@ -77,15 +78,12 @@ def load_favs_entries(favs_file: Path) -> list[FavEntry]:
     return entries
 
 
-def target_for_fav(entry: FavEntry, regen: RegenConfig) -> TabTarget:
+def target_for_fav(entry: FavEntry, regen: RegenConfig, providers: tuple[WebProvider, ...]) -> TabTarget:
     """Resolve the page a favorite should open, and the clip it shows meanwhile.
 
-    A provider video with a metadata sidecar targets the generate page carrying its
-    original prompts (``#ft=``), which the autofill userscript reads to fill the
-    form and raise its floating note.  Everything else falls back to the stored
-    gallery link.  The label stays short (a regenerate URL runs to kilobytes of
-    encoded payload).  Both the RFB's startup tabs and the lock hotkey resolve
-    their tabs through here, so they can never drift apart.
+    The label stays short (a regenerate URL runs to kilobytes of encoded
+    payload).  Both the RFB's startup tabs and the lock hotkey resolve their
+    tabs through here, so they can never drift apart.
 
     The clip is the video's pre-upscale original: a thumbnail has no use for
     hundreds of megabytes of HEVC when a couple of megabytes of H.264 says the
@@ -96,6 +94,7 @@ def target_for_fav(entry: FavEntry, regen: RegenConfig) -> TabTarget:
         metadata_root=regen.metadata_root,
         video_url=regen.generate_video_url,
         image_url=regen.generate_image_url,
+        providers=providers,
     )
     return TabTarget(
         url=regen_url or entry.web_url,
@@ -115,7 +114,7 @@ def choose_random(items: list[_T], count: int, rng: random.Random | None = None)
     return chooser.sample(items, count)
 
 
-def build_manifest(config: ProjectConfig) -> tuple[str, list[TabTarget]]:
+def build_manifest(config: ProjectConfig, providers: tuple[WebProvider, ...]) -> tuple[str, list[TabTarget]]:
     browser = config.random_favs_browser
     if not browser.enabled:
         return "", []
@@ -127,7 +126,7 @@ def build_manifest(config: ProjectConfig) -> tuple[str, list[TabTarget]]:
     targets = [
         target
         for target in (
-            target_for_fav(entry, config.regen)
+            target_for_fav(entry, config.regen, providers)
             for entry in load_favs_entries(config.paths.favs_file)
         )
         if target.url

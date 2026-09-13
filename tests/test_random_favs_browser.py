@@ -5,6 +5,7 @@ import random
 from pathlib import Path
 
 from fun_time.config import load_config
+from fun_time.content import WebProvider
 from fun_time.random_favs_browser import (
     FavEntry,
     build_manifest,
@@ -16,6 +17,8 @@ from fun_time.random_favs_browser import (
     write_manifest,
 )
 from fun_time.rfb_tab_page import TabTarget
+
+_PROVIDERS = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
 
 def test_resolve_profile_directory_finds_named_profile(tmp_path: Path):
@@ -73,7 +76,7 @@ def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path)
         }
     )
 
-    profile_name, targets = build_manifest(load_config(cfg_path))
+    profile_name, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
     assert profile_name == "Profile 2"
     assert sorted(target.url for target in targets) == [
         "https://example.com/1",
@@ -111,24 +114,24 @@ def test_a_disabled_browser_declines_to_launch(cfg_factory, tmp_path: Path):
     """random_favs_browser.enabled is a documented public config key (clipper
     reads it too), and turning it off must mean no profile and no tabs."""
     cfg_path = _decline_config(cfg_factory, tmp_path, enabled=False)
-    assert build_manifest(load_config(cfg_path)) == ("", [])
+    assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
 def test_a_missing_local_state_declines_to_launch(cfg_factory, tmp_path: Path):
     """No Chrome Local State file — a machine without that Chrome profile
     store — reads as 'no profile', not as a crash."""
     cfg_path = _decline_config(cfg_factory, tmp_path, local_state=False)
-    assert build_manifest(load_config(cfg_path)) == ("", [])
+    assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
 def test_an_unmatched_profile_name_declines_to_launch(cfg_factory, tmp_path: Path):
     cfg_path = _decline_config(cfg_factory, tmp_path, profile_name="Nobody Here")
-    assert build_manifest(load_config(cfg_path)) == ("", [])
+    assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("", [])
 
 
 def test_an_empty_favs_list_opens_no_tabs_but_keeps_the_profile(cfg_factory, tmp_path: Path):
     cfg_path = _decline_config(cfg_factory, tmp_path, urls=())
-    assert build_manifest(load_config(cfg_path)) == ("Profile 2", [])
+    assert build_manifest(load_config(cfg_path), _PROVIDERS) == ("Profile 2", [])
 
 
 def test_write_manifest_writes_profile_then_urls(tmp_path: Path):
@@ -177,17 +180,51 @@ def _regen_cfg(cfg_factory, tmp_path: Path, favs_rows: str) -> Path:
 
 
 # Where the library actually keeps an upscaled video, mirrored by its sidecar.
-_UPSCALED = Path("2_outbox") / "upscaled_by_orientation" / "portrait" / "provider"
+_UPSCALED = Path("2_outbox") / "upscaled_by_orientation" / "portrait"
 
 
-def _write_sidecar(tmp_path: Path, name: str, metadata: dict) -> Path:
-    video = tmp_path / "videos" / "videos" / "2D" / "AI" / _UPSCALED / name
+def _write_sidecar(tmp_path: Path, name: str, metadata: dict, *, source: str = "provider") -> Path:
+    video = tmp_path / "videos" / "videos" / "2D" / "AI" / _UPSCALED / source / name
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_bytes(b"")
-    sidecar = tmp_path / "videos" / "metadata" / "2D" / "AI" / _UPSCALED / Path(name).with_suffix(".json")
+    sidecar = tmp_path / "videos" / "metadata" / "2D" / "AI" / _UPSCALED / source / Path(name).with_suffix(".json")
     sidecar.parent.mkdir(parents=True, exist_ok=True)
     sidecar.write_text(json.dumps(metadata), encoding="utf-8")
     return video
+
+
+def test_build_manifest_opens_no_tab_for_a_favorite_no_provider_made(cfg_factory, tmp_path: Path):
+    video = _write_sidecar(tmp_path, "clip_topaz.mp4", {"video": {"prompt": "P"}}, source="homemade")
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), ""))
+
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
+
+    assert targets == []
+
+
+def test_build_manifest_opens_another_sites_favorite_at_its_gallery(cfg_factory, tmp_path: Path):
+    video = _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "P"}}, source="provider2")
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), "https://example.net/image/abc"))
+    providers = (*_PROVIDERS, WebProvider(marker="provider2", gallery_url="https://example.net/image/{id}"))
+
+    _, targets = build_manifest(load_config(cfg_path), providers)
+
+    assert [target.url for target in targets] == ["https://example.net/image/abc"]
+
+
+def test_build_manifest_opens_a_favorite_with_no_recorded_prompt_at_its_gallery(cfg_factory, tmp_path: Path):
+    stamped_by_evolver = {
+        "video": {"type": "short", "action": "Alpha", "duration_seconds": 5.0},
+        "provenance": {"upscale": {"recipe": "example"}},
+        "watch": {"weight": 1.0},
+        "favorite": True,
+    }
+    video = _write_sidecar(tmp_path, "abc_topaz.mp4", stamped_by_evolver)
+    cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), "https://example.com/image/abc"))
+
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
+
+    assert [target.url for target in targets] == ["https://example.com/image/abc"]
 
 
 def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_factory, tmp_path: Path):
@@ -195,7 +232,7 @@ def test_build_manifest_targets_the_regenerate_page_when_metadata_exists(cfg_fac
     video = _write_sidecar(tmp_path, "abc_topaz.mp4", {"video": {"prompt": "A PROMPT"}})
     cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), "https://example.com/image/abc"))
 
-    _, targets = build_manifest(load_config(cfg_path))
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
 
     assert len(targets) == 1
     assert targets[0].url.startswith("https://example.com/video#ft=")
@@ -212,7 +249,7 @@ def test_build_manifest_plays_the_original_not_the_upscale(cfg_factory, tmp_path
     original.write_bytes(b"")
     cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(upscaled), "https://example.com/image/abc"))
 
-    _, targets = build_manifest(load_config(cfg_path))
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
 
     assert targets[0].video_path == str(original)
 
@@ -225,7 +262,7 @@ def test_build_manifest_falls_back_to_the_gallery_link_without_metadata(cfg_fact
         _fav_row("C:\\media\\provider2\\abc.mp4", "https://example.net/image/abc"),
     )
 
-    _, targets = build_manifest(load_config(cfg_path))
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
 
     assert targets == [
         TabTarget(
@@ -240,7 +277,7 @@ def test_build_manifest_labels_a_gallery_less_fav_with_its_filename(cfg_factory,
     video = _write_sidecar(tmp_path, "def_topaz.mp4", {"video": {"prompt": "P"}})
     cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row(str(video), ""))
 
-    _, targets = build_manifest(load_config(cfg_path))
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
 
     assert targets[0].label == "def_topaz.mp4"
 
@@ -249,7 +286,7 @@ def test_build_manifest_drops_favs_with_nowhere_to_go(cfg_factory, tmp_path: Pat
     """A non-Provider local file with no gallery link yields no tab at all."""
     cfg_path = _regen_cfg(cfg_factory, tmp_path, _fav_row("C:\\media\\other\\abc.mp4", ""))
 
-    _, targets = build_manifest(load_config(cfg_path))
+    _, targets = build_manifest(load_config(cfg_path), _PROVIDERS)
 
     assert targets == []
 

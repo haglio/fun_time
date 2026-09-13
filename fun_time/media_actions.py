@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .content import WebProvider, load_web_providers
+from .content import WebProvider, load_web_providers, provider_that_made
 from .favs_csv import FAVS_HEADER, hyperlink_cell
 
 
@@ -29,18 +29,12 @@ def make_web_url_from_path(
 ) -> str:
     if not full_path:
         return ""
-    if providers is None:
-        providers = load_web_providers()
-
-    path = full_path.replace("/", "\\")
-    name_no_ext = Path(path).stem
+    provider = provider_that_made(full_path, load_web_providers() if providers is None else providers)
+    if provider is None:
+        return ""
+    name_no_ext = Path(full_path.replace("/", "\\")).stem
     image_id = name_no_ext.rsplit("_", 1)[0] if "_" in name_no_ext else name_no_ext
-    lower_path = path.lower()
-
-    for provider in providers:
-        if f"\\{provider.marker}\\" in lower_path:
-            return provider.gallery_url.format(id=image_id)
-    return ""
+    return provider.gallery_url.format(id=image_id)
 
 
 def make_local_cell(full_path: str) -> str:
