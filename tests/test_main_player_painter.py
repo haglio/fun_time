@@ -96,6 +96,7 @@ class FakeSession:
         self.loop_bounds = bounds
         self.loop_state = "looping" if bounds is not None else "normal"
         self.record_in_ms = None
+        self.showing_picture = False
 
 
 def _frame(height: int = 10, width: int = 20):
@@ -167,6 +168,16 @@ class TestWhatOneFramePutsUp:
 
         assert len(heatmap.colors) == TRACK_W
         assert player.up[0].shape[1] == WIN_W
+
+    def test_a_picture_has_no_timeline_so_the_frame_takes_the_bar_down(self):
+        session = FakeSession(scripted=False)
+        session.showing_picture = True
+        painter, player = _painter(session)
+
+        _paint(painter)
+
+        assert ("remove", 0) in player.calls
+        assert 0 not in player.up
 
     def test_an_unscripted_video_gets_the_plain_bar_in_the_same_place(self):
         """Every video has a clickable timeline; without a funscript there is no

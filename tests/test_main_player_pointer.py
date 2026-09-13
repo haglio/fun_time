@@ -35,6 +35,7 @@ class SpySession:
     def __init__(self, duration_ms: float = DURATION_MS) -> None:
         self.duration_ms = duration_ms
         self.seeks: list[float] = []
+        self.showing_picture = False
 
     def seek_to(self, position_ms: float) -> None:
         self.seeks.append(position_ms)
@@ -161,6 +162,14 @@ class TestPressingTheTimeline:
 
         assert bits.session.seeks == [pytest.approx(DURATION_MS / 2, abs=ONE_TRACK_PIXEL_MS)]
         assert bits.asks() == []
+
+    def test_under_a_picture_the_row_is_the_picture_and_asks_the_room_to_pause(self, bits):
+        bits.session.showing_picture = True
+
+        bits.press(TRACK_MIDDLE)
+
+        assert bits.session.seeks == []
+        assert bits.asks() == [OMNIPAUSE_TOGGLE]
 
     def test_the_start_of_the_track_is_the_start_of_the_video(self, bits):
         bits.press(TRACK_START)

@@ -60,7 +60,7 @@ class Pointer:
             return
         if on_readout(mx, my, win_w=win_w, win_h=win_h, timeline_h=row_h):
             return
-        if my >= win_h - row_h:
+        if my >= win_h - row_h and not self._session.showing_picture:
             self._session.seek_to(self._time_at(mx, win_w))
         else:
             self._dashboard.post(OMNIPAUSE_TOGGLE)
