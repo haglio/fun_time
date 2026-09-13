@@ -1,25 +1,25 @@
 """The console panel Fun Time publishes for the main player's HUD to draw."""
 from __future__ import annotations
 
-import json
+from player_core.console import ConsoleModel, console_text
 
 from fun_time.main_player_console import (
     OSR2_AUTO,
     OSR2_FUNSCRIPT,
     OSR2_OFF,
     OSR2_ROBOT_HAND,
-    console_payload,
+    console_model,
     osr2_state,
 )
 from fun_time.player_status import GenauStatus
 
 
-def _payload(**overrides) -> dict:
+def _payload(**overrides) -> ConsoleModel:
     base = dict(mode="video", active=False, osr2_mode="controlled",
                 funscript_driving=False, broker=False, main_player_locked=True,
                 genau=GenauStatus())
     base.update(overrides)
-    return console_payload(**base)
+    return console_model(**base)
 
 
 class TestOsr2State:
@@ -59,24 +59,24 @@ class TestPayload:
     def test_carries_the_room_the_player_cannot_see(self):
         payload = _payload(mode="video", active=True, broker=True, osr2_mode="auto")
 
-        assert payload["mode"] == "video"
-        assert payload["active"] is True
-        assert payload["broker"] is True
-        assert payload["osr2"] == OSR2_AUTO
+        assert payload.mode == "video"
+        assert payload.active is True
+        assert payload.broker is True
+        assert payload.osr2 == OSR2_AUTO
 
     def test_carries_genaus_own_switches_for_the_control_row(self):
         payload = _payload(genau=GenauStatus(cruise_active=True, shape="sawtooth"),
                            )
 
-        assert payload["cruise"] is True
-        assert payload["shape"] == "sawtooth"
+        assert payload.cruise is True
+        assert payload.shape == "sawtooth"
 
     def test_carries_main_players_loop_machine_for_the_record_button(self):
         """The console is drawn in genau mode too, by a player with no loop machine
         to ask — so where the main player is in the gesture rides here with the rest of the
         room, and the record button can say which press comes next."""
-        assert _payload(record="recording")["record"] == "recording"
-        assert _payload()["record"] == "normal"
+        assert _payload(record="recording").record == "recording"
+        assert _payload().record == "normal"
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
         """One padlock on the console, so one flag: the main player's hold on its video where
@@ -85,27 +85,27 @@ class TestPayload:
         held_clip = GenauStatus(locked=True)
         loose_clip = GenauStatus(locked=False)
 
-        assert _payload(mode="video", main_player_locked=True, genau=loose_clip)["locked"] is True
-        assert _payload(mode="video", main_player_locked=False, genau=held_clip)["locked"] is False
+        assert _payload(mode="video", main_player_locked=True, genau=loose_clip).locked is True
+        assert _payload(mode="video", main_player_locked=False, genau=held_clip).locked is False
 
-        assert _payload(mode="genau", main_player_locked=False, genau=held_clip)["locked"] is True
-        assert _payload(mode="genau", main_player_locked=True, genau=loose_clip)["locked"] is False
+        assert _payload(mode="genau", main_player_locked=False, genau=held_clip).locked is True
+        assert _payload(mode="genau", main_player_locked=True, genau=loose_clip).locked is False
 
     def test_genaus_own_arming_and_hold_are_no_longer_published(self):
         """They were two flags for one behavior, and the padlock they fed sat
         beside the main player's on the same console."""
         payload = _payload()
 
-        assert "auto_advance" not in payload
-        assert "clip_locked" not in payload
+        assert not hasattr(payload, "auto_advance")
+        assert not hasattr(payload, "clip_locked")
 
 
 def test_the_panel_carries_the_main_players_browse_order():
     """Latest and Shuffle are the orchestrator's to set — a spoken word or a key it
     owns — and the main player cannot tell which way round the playlist it was handed was built,
     so the order rides the panel exactly as F-mode does."""
-    assert _payload(latest=True)["latest"] is True
-    assert _payload()["latest"] is False
+    assert _payload(latest=True).latest is True
+    assert _payload().latest is False
 
 
 def test_the_order_reported_is_the_order_of_whoever_is_showing():
@@ -114,21 +114,21 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     folder in where Genau is.  They are separate flags because a Genau reorder
     rewrites nothing of the main player's — reporting the main player's in genau mode said "Shuffle" at
     someone who had just asked Genau for the latest."""
-    assert _payload(mode="video", latest=True, genau_latest=False)["latest"] is True
-    assert _payload(mode="video", latest=False, genau_latest=True)["latest"] is False
+    assert _payload(mode="video", latest=True, genau_latest=False).latest is True
+    assert _payload(mode="video", latest=False, genau_latest=True).latest is False
 
-    assert _payload(mode="genau", latest=False, genau_latest=True)["latest"] is True
-    assert _payload(mode="genau", latest=True, genau_latest=False)["latest"] is False
+    assert _payload(mode="genau", latest=False, genau_latest=True).latest is True
+    assert _payload(mode="genau", latest=True, genau_latest=False).latest is False
 
 
 def test_the_panel_says_which_shapes_of_video_the_browse_may_reach():
     """Two flags with a third answer: None where the rotation holds one shape,
     which is every session outside the headset, and the console then draws no pair
     of buttons for a choice there is none to make."""
-    assert _payload()["plays_vr"] is None and _payload()["plays_flat"] is None
+    assert _payload().plays_vr is None and _payload().plays_flat is None
 
     headset = _payload(plays_vr=True, plays_flat=False)
-    assert (headset["plays_vr"], headset["plays_flat"]) == (True, False)
+    assert (headset.plays_vr, headset.plays_flat) == (True, False)
 
 
 class TestTheReadoutTheWordLeaves:
@@ -152,7 +152,7 @@ class TestTheReadoutTheWordLeaves:
         from player_core.drive_readout import DriveHud
 
         panel = tmp_path / "main_player_console.json"
-        panel.write_text(json.dumps(payload), encoding="utf-8")
+        panel.write_text(console_text(payload), encoding="utf-8")
         console = read_console(panel)
         assert console is not None
 
