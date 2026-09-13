@@ -192,7 +192,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # on screen, and the docstring listing what voice flashes gave way to the tests.
 # 8049 since 2026-09-18, when the headset dashboard came back to a default
 # spot a test measures, and the paragraph that had worked it out went.
-MAX_PROSE_LINES = 8049
+# 8041 since 2026-09-18, measured on the merged tree: the VR screens stopped
+# being drawn in one fixed order and the docstrings reciting that order went,
+# and the hotkey reference gave up its own spot to hang from the dashboard.
+MAX_PROSE_LINES = 8041
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

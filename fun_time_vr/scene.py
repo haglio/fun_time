@@ -3,9 +3,6 @@ flat rectangle that carries it, square on to the viewer with its middle on one
 cylinder around the head.  Immersive projections (equirect/fisheye) don't use
 these at all — they fill the view from a shader — so this module is the whole
 of the "windowed" layout.
-
-The satellites draw after (so over) the primary, which keeps them visible when a
-VR video wraps the hemisphere at their back, and lets them overlap its edges.
 """
 from __future__ import annotations
 
@@ -124,6 +121,30 @@ def attached_below(
     center = (lower - radius * math.radians(gap_deg)
               - half_width(width_deg, radius) / hanging_aspect)
     return Placement(placement.azimuth_deg, elevation_at(center, radius), width_deg)
+
+
+_ON_THE_EDGE = 1e-6
+
+
+def encloses(outer: Placement, inner: Placement, *, outer_aspect: float, inner_aspect: float) -> bool:
+    upper_left, lower_left, upper_right, _lower_right = _corners(outer, outer_aspect)
+    across, up = upper_right - upper_left, upper_left - lower_left
+    middle = (lower_left + upper_right) / 2.0
+    away = np.cross(across, up)
+    away *= np.sign(np.dot(away, middle))
+    for corner in _corners(inner, inner_aspect):
+        depth = np.dot(corner, away)
+        if depth <= 0.0:
+            return False
+        seen = corner * np.dot(middle, away) / depth - middle
+        if (abs(np.dot(seen, across) / np.dot(across, across)) > 0.5 + _ON_THE_EDGE
+                or abs(np.dot(seen, up) / np.dot(up, up)) > 0.5 + _ON_THE_EDGE):
+            return False
+    return True
+
+
+def _corners(placement: Placement, aspect: float) -> np.ndarray:
+    return surface_vertices(placement, aspect=aspect)[:, :3].astype(np.float64)
 
 
 def surface_vertices(

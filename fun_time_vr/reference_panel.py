@@ -23,6 +23,7 @@ from fun_time.dashboard_layout import Rect
 __all__ = [
     "NEXT_PAGE",
     "PREV_PAGE",
+    "REFERENCE_WIDTH_DEG",
     "REFERENCE_WIDTH_PX",
     "ReferencePointer",
     "ReferenceState",
@@ -34,6 +35,7 @@ __all__ = [
 ]
 
 REFERENCE_WIDTH_PX = 760
+REFERENCE_WIDTH_DEG = 54.0
 
 PREV_PAGE = "reference_prev"
 NEXT_PAGE = "reference_next"

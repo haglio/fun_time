@@ -336,6 +336,7 @@ class Frame:
     settled: bool = False
     events: tuple[PressEvent, ...] = ()
     carried: tuple[float, float] = (0.0, 0.0)
+    taken: str | None = None
 
 
 def _hover_at(point: SurfacePoint, screens: Sequence[Screen]) -> tuple[Screen, Hover] | None:
@@ -426,6 +427,7 @@ class Pointer:
             return self._off_every_screen(aim, ray, point, screens, edge, scene_rotation)
         screen, hover = under
         events: tuple[PressEvent, ...] = ()
+        taken = screen.name if edge == PRESS else None
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
             self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
                                        aspect=screen.aspect))
@@ -436,7 +438,7 @@ class Pointer:
         elif edge == PRESS and screen.pressable:
             self._pressing = screen
             events = (PressEvent(PRESS, screen.name, hover.u, hover.v),)
-        return Frame(ray=ray, point=point, hover=hover, events=events)
+        return Frame(ray=ray, point=point, hover=hover, taken=taken, events=events)
 
     def _off_every_screen(self, aim: AimPose, ray: Ray, point: SurfacePoint | None,
                           screens: Sequence[Screen], edge: str | None,
