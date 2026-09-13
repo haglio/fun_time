@@ -23,6 +23,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    published_speed,
     published_status,
 )
 
@@ -427,6 +428,35 @@ def test_fun_time_omnipause_freezes_the_satellites(
     # Restore the shared session.
     s.write_dashboard_command("omnipause_toggle")
     s.wait_for_new_log("OmniPause: leaving", timeout=12)
+
+
+def test_fun_time_the_satellites_take_the_main_players_playback_speed(
+    shared_integration_session: FunTimeIntegrationSession,
+):
+    s = shared_integration_session
+    statuses = [s.config.paths.state_dir / f"{side}_status.txt"
+                for side in ("portrait", "landscape")]
+    s.write_dashboard_command("main_video_activate")
+    s.write_dashboard_command("play")
+    s.wait_until(
+        lambda: s.read_main_player_status().video != "" and s.read_main_player_status().speed == 1.0,
+        timeout=15,
+        description="the main player to be playing at normal speed",
+    )
+
+    s.write_dashboard_command("main_player_speed_150")
+    s.wait_until(
+        lambda: all(published_speed(status) == "1.5" for status in statuses),
+        timeout=15,
+        description="both satellites to take the main player's one and a half speed",
+    )
+
+    s.write_dashboard_command("main_player_speed_100")
+    s.wait_until(
+        lambda: all(published_speed(status) == "1" for status in statuses),
+        timeout=15,
+        description="both satellites back at normal speed with the main player",
+    )
 
 
 def test_fun_time_main_player_nudge_seeks_playback(shared_integration_session: FunTimeIntegrationSession):

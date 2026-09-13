@@ -22,4 +22,5 @@ def status_fields(session) -> dict[str, str]:
             locked=session.is_locked,
         )),
         "playlist_length": str(session.playlist_length),
+        "speed": f"{session.speed:g}",
     }
