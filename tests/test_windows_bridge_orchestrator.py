@@ -1526,6 +1526,34 @@ class TestStartupCancellation:
         # Startup ran to completion: the stale flag was not honored as a cancel.
         assert [c for c in popen_cmds if "ahk.exe" in str(c)]
 
+    def test_a_new_session_never_shows_the_last_ones_dashboard(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        snapshot = Path(LaunchManifest.read(manifest_path).commands.dashboard_state_file)
+        snapshot.parent.mkdir(parents=True, exist_ok=True)
+        snapshot.write_text("[session]\nvr=1\n", encoding="utf-8")
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        there_when_startup_ran: list[bool] = []
+
+        def sequence(**kwargs):
+            there_when_startup_ran.append(snapshot.exists())
+            return _fake_startup_result()
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=sequence), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
+            run_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state", project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert there_when_startup_ran == [False]
+
 
 class TestHotkeyScriptGoesUpFirst:
     """The hotkey script is launched before the startup sequence runs, not after
