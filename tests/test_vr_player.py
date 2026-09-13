@@ -1203,7 +1203,7 @@ class TestTheMainSlotUnderThePointer:
         edge — and the console under them all — has to win the ray.  The console
         is pressed, never dragged: it rides on the main player now."""
         satellite = SimpleNamespace(
-            player=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
+            player_name=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
         )
         panel = _a_panel()

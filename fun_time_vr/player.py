@@ -607,7 +607,7 @@ class _SatelliteUnit(_VideoUnit):
             placement,
         )
         commands = manifest.commands
-        self.player = player
+        self.player_name = player
         self.notice_screen = player  # its notices flash over its own picture
         self._notices = notices
         self.cmd_file = Path(commands.player_file(player, "cmd"))
@@ -1340,7 +1340,7 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _unit_name(unit: object) -> str:
-    player = getattr(unit, "player", "")
+    player = getattr(unit, "player_name", "")
     return f"{type(unit).__name__}[{player}]" if player else type(unit).__name__
 
 
@@ -1530,10 +1530,10 @@ def _pointable_screens(
     for unit in satellites:
         if not unit.target.ready:
             continue
-        screens.append(Screen(unit.player, unit.screen.placement, unit.target.aspect,
+        screens.append(Screen(unit.player_name, unit.screen.placement, unit.target.aspect,
                               movable=True, resizable=True, pressable=True))
         if unit.hud_ready:
-            screens.append(Screen(hud_screen_name(unit.player), unit.hud_screen.placement,
+            screens.append(Screen(hud_screen_name(unit.player_name), unit.hud_screen.placement,
                                   unit.hud_texture.aspect, pressable=True))
     if panel.texture.ready:  # pressed, never dragged: it rides on what is above it
         screens.append(Screen(
@@ -1600,7 +1600,7 @@ def _draw_eyes(
             elif MAIN in in_scene and main_unit.screen.ready:
                 renderer.draw_screen(main_unit.screen.mesh, main_unit.target.texture, view_proj32)
         for satellite in satellites:
-            if satellite.player in in_scene and satellite.target.ready and satellite.screen.ready:
+            if satellite.player_name in in_scene and satellite.target.ready and satellite.screen.ready:
                 renderer.draw_screen(
                     satellite.screen.mesh, satellite.target.texture, view_proj32)
         for satellite in satellites:
@@ -1777,7 +1777,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     cover_seen = CoverSeen()
     units = [main_unit, genau, *satellites, dash, panel, reference, cover]  # dash first:
     pumped = [notices, *units, keeper]  # the console hangs off where it ended up
-    hanging = {unit.player: (unit.screen,) for unit in satellites} | {
+    hanging = {unit.player_name: (unit.screen,) for unit in satellites} | {
         MAIN: (main_unit.screen, genau.screen), DASH: (dash,),
         REFERENCE: (reference.screen,)}
     pointer = Pointer()
@@ -1906,7 +1906,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         )
                         if quad is not None:
                             quads.append(quad)
-                            in_scene.discard(MAIN if unit is main_unit else unit.player)
+                            in_scene.discard(MAIN if unit is main_unit else unit.player_name)
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(
