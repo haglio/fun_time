@@ -201,6 +201,7 @@ class Recognition:
     unrecognized_text: str | None = None
     heard: str | None = None
     silent_reading: str | None = None
+    free_text: str | None = None
 
 
 def interpret_recognition(
@@ -216,6 +217,8 @@ def interpret_recognition(
     spoken = next((h.text for h in hypotheses if h.text != "[unk]"), None)
     if peak < SILENT_UTTERANCE_PEAK:
         return Recognition(silent_reading=spoken)
+    heard, heard_confidences = _text_and_confidences(free_json)
+    free_text = heard if heard and heard != "[unk]" else None
     for rank, hypothesis in enumerate(hypotheses):
         if hypothesis.text == "[unk]":
             continue
@@ -225,17 +228,16 @@ def interpret_recognition(
         if hypothesis.confidences and not _clears(hypothesis.confidences, threshold):
             # Scored, and under the bar.  A lower-ranked reading is less likely
             # still, so this ends the search rather than falling through to one.
-            return Recognition(refused_phrase=hypothesis.text, heard=spoken)
+            return Recognition(refused_phrase=hypothesis.text, heard=spoken, free_text=free_text)
         if rank and (
             _holds_or_ends_the_room(command) or not _shares_a_word(hypothesis.text, spoken)
         ):
             continue
         return Recognition(command=command, phrase=hypothesis.text, rank=rank, heard=spoken)
     if spoken:
-        return Recognition(unrecognized_text=spoken, heard=spoken)
-    heard, heard_confidences = _text_and_confidences(free_json)
-    if heard and heard != "[unk]" and _clears(heard_confidences, threshold):
-        return Recognition(unrecognized_text=heard)
+        return Recognition(unrecognized_text=spoken, heard=spoken, free_text=free_text)
+    if free_text and _clears(heard_confidences, threshold):
+        return Recognition(unrecognized_text=free_text)
     return Recognition()
 
 
@@ -424,8 +426,9 @@ class VoiceController:
                     source=_source_for_command(interp.command, self.active_side()),
                 )
         elif interp.refused_phrase:
-            logger.info("Voice: heard %r but its confidence was under %.2f (peak %d)",
-                        interp.refused_phrase, self.confidence_threshold, peak)
+            logger.info("Voice: heard %r but its confidence was under %.2f "
+                        "(unrestricted reading %r, peak %d)",
+                        interp.refused_phrase, self.confidence_threshold, interp.free_text or "", peak)
             if self._is_listening():
                 notice(
                     logger,
@@ -434,7 +437,8 @@ class VoiceController:
                     level=logging.WARNING,
                 )
         elif interp.unrecognized_text:
-            logger.info("Unrecognized speech: %s (peak %d)", interp.unrecognized_text, peak)
+            logger.info("Unrecognized speech: %s (unrestricted reading %r, peak %d)",
+                        interp.unrecognized_text, interp.free_text or "", peak)
             if self._is_listening():
                 notice(
                     logger,
