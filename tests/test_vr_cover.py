@@ -20,10 +20,18 @@ from fun_time.overlay_progress import (
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     SHUTDOWN_READY_FILENAME,
+    STARTUP_PHASES,
     PhaseProgress,
     StartupCancelled,
 )
-from fun_time.session_handoff import hold_the_headset, release_the_headset
+from fun_time.session_handoff import (
+    DESKTOP,
+    drop_crossing_cover,
+    hold_the_headset,
+    raise_crossing_cover,
+    release_the_headset,
+    say_the_crossing_is_cancelled,
+)
 from fun_time_vr.cover import (
     CLOSING_STATUS,
     COVER_CLEAR,
@@ -59,6 +67,7 @@ class _Clock:
 
 
 ESC_WORDS = "Press Esc to cancel opening Fun Time VR"
+CLOSING_ESC_WORDS = "Press Esc to cancel closing Fun Time VR"
 
 
 def _startup_writer(state_dir: Path, *, cancellable: bool = True) -> PhaseProgress:
@@ -166,6 +175,16 @@ class TestWhatTheCoverShows:
         assert cover.status == CANCELING
         assert cover.hint == ""
 
+    def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
+        _startup_writer(tmp_path).advance("players")
+        (tmp_path / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == "Waiting for players..."
+        assert cover.hint == ESC_WORDS
+
     def test_a_cover_offering_no_esc_goes_on_showing_its_phases(self, tmp_path: Path):
         """The way back after an Esc offers no second one, and the flag that
         started it can still be lying there."""
@@ -216,6 +235,25 @@ class TestWhatTheCoverShows:
         assert cover.closing
         assert cover.status == "Closing companions..."
 
+    def test_the_closing_cover_says_what_esc_would_cancel(self, tmp_path: Path):
+        PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES,
+                      hint=CLOSING_ESC_WORDS).advance("companions")
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == "Closing companions..."
+        assert cover.hint == CLOSING_ESC_WORDS
+
+    def test_esc_turns_the_closing_cover_to_canceling(self, tmp_path: Path):
+        PhaseProgress(tmp_path / SHUTDOWN_PROGRESS_FILENAME, phases=VR_SHUTDOWN_PHASES,
+                      hint=CLOSING_ESC_WORDS).advance("companions")
+        (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover == Cover(status=CANCELING, fraction=cover.fraction, closing=True)
+
     def test_the_player_can_raise_the_closing_cover_with_no_file_at_all(
             self, tmp_path: Path):
         """Its own window closed, or an interrupt: nobody is going to write a
@@ -258,6 +296,53 @@ class TestTheHeldCover:
         hold_the_headset(tmp_path, stop_runtime=False)
 
         assert watcher.read().status == HELD_STATUS
+
+    def test_it_says_what_esc_would_cancel_on_the_crossing_it_covers(self, tmp_path: Path):
+        raise_crossing_cover(tmp_path, DESKTOP)
+        hold_the_headset(tmp_path, stop_runtime=False)
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == HELD_STATUS
+        assert cover.hint == "Press Esc to cancel exiting VR"
+
+    def test_under_fun_time_s_loading_screen_it_says_what_that_screen_offers(
+        self, tmp_path: Path,
+    ):
+        """The desktop takes the crossing cover down as its own comes up, and
+        its launch is still the crossing he can call off."""
+        raise_crossing_cover(tmp_path, DESKTOP)
+        hold_the_headset(tmp_path, stop_runtime=False)
+        PhaseProgress(tmp_path / PROGRESS_FILENAME, phases=STARTUP_PHASES,
+                      hint="Press Esc to cancel exiting VR").advance("services")
+        drop_crossing_cover(tmp_path)
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == HELD_STATUS
+        assert cover.hint == "Press Esc to cancel exiting VR"
+
+    def test_esc_turns_it_to_canceling(self, tmp_path: Path):
+        raise_crossing_cover(tmp_path, DESKTOP)
+        hold_the_headset(tmp_path, stop_runtime=False)
+        (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover == Cover(status=CANCELING, fraction=1.0, closing=True)
+
+    def test_a_crossing_turned_back_says_so_once_the_flag_is_spent(self, tmp_path: Path):
+        raise_crossing_cover(tmp_path, DESKTOP)
+        hold_the_headset(tmp_path, stop_runtime=False)
+        say_the_crossing_is_cancelled(tmp_path)
+
+        cover = CoverWatcher(tmp_path).read()
+
+        assert cover is not None
+        assert cover.status == CANCELING
+        assert cover.hint == ""
 
     def test_releasing_it_hands_the_view_back(self, tmp_path: Path):
         hold_the_headset(tmp_path, stop_runtime=False)

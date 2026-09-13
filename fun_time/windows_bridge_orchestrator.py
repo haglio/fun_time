@@ -11,6 +11,7 @@ import configparser
 import contextlib
 import datetime
 import logging
+import os
 import subprocess
 import sys
 import threading
@@ -33,8 +34,10 @@ from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .overlay_progress import (
+    CANCEL_CLOSING_FUN_TIME,
     CANCEL_FILENAME,
     CANCEL_OPENING_FUN_TIME,
+    CANCEL_WORD,
     PROGRESS_FILENAME,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -43,6 +46,7 @@ from .overlay_progress import (
     ProgressReporter,
     StartupCancelled,
     ready_file_for,
+    what_the_flag_asks,
 )
 from .players import Player
 from .press_channel import PRESS_PORT_FILENAME
@@ -53,6 +57,8 @@ from .satellites_mode import CLOSE_SHOWS, origenerator_shows
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
+    DESKTOP,
+    VR,
     HandoffTarget,
     crossing_progress_path,
     drop_crossing_cover,
@@ -60,8 +66,10 @@ from .session_handoff import (
     keep_the_origenerator,
     kept_origenerator,
     launch_crossing_cover,
+    launch_the_way_back_cover,
     pending_handoff,
     release_the_headset,
+    request_handoff,
     returning_from_a_crossing,
 )
 from .shared_state import shared_state_path
@@ -331,6 +339,7 @@ def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
 @contextlib.contextmanager
 def _closing_screen(
     state_dir: Path, *, enabled: bool, crossing: HandoffTarget | None = None,
+    esc_cancels: str = "",
 ) -> Iterator[ProgressReporter]:
     """Cover every monitor while the session comes down, then uncover it.
 
@@ -356,7 +365,7 @@ def _closing_screen(
         progress: ProgressReporter = NullProgress()  # the wording is the crossing's
         proc = launch_crossing_cover(state_dir, crossing)
     else:
-        progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES)
+        progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels)
         # Written before the screen is launched so it has something to read from
         # its first poll, and so its staleness clock starts here, not never.
         progress.advance("controls")
@@ -412,6 +421,7 @@ def _take_down_the_startup(
     cover: _Cover,
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
+    canceled: bool = False,
 ) -> int:
     """Tear down a startup that is not becoming a session, then exit.
 
@@ -419,11 +429,19 @@ def _take_down_the_startup(
     down; these were launched seconds ago, so their PIDs are still theirs.  The
     hotkey script first: left running, it would go on swallowing every key it binds.
     """
+    state_dir = cover.progress_file.parent
+    back_to = cover.turns_back_to if (
+        canceled and what_the_flag_asks(cover.cancel_file) == CANCEL_WORD) else None
     logger.info("%s; tearing down %d launched child(ren)", reason, len(pids))
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     for pid in pids:
         kill_process_tree(pid)
     close_window(rfb_hwnd)
+    if back_to is not None:
+        logger.info("Going back to %s", back_to.app_name)
+        way_back = launch_the_way_back_cover(state_dir)
+        _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
+        request_handoff(state_dir, back_to, cancelable=False)
     # Only now that the windows under it are gone: drop the overlay.
     cover.progress.finish()
     if cover.process is not None:
@@ -434,7 +452,9 @@ def _take_down_the_startup(
             logger.warning("Loading screen did not exit, killed")
     cover.progress_file.unlink(missing_ok=True)
     cover.cancel_file.unlink(missing_ok=True)
-    drop_crossing_cover(cover.progress_file.parent)  # else: no way out of an empty machine
+    if back_to is None:
+        drop_crossing_cover(state_dir)  # else: no way out of an empty machine
+        release_the_headset(state_dir)
     return _CANCELLED_EXIT_CODE
 
 
@@ -775,6 +795,7 @@ class _Cover:
     hwnd: int
     progress_file: Path
     cancel_file: Path
+    turns_back_to: HandoffTarget | None
 
 
 def clear_last_sessions_leftovers(
@@ -803,17 +824,21 @@ def clear_last_sessions_leftovers(
         stale.unlink(missing_ok=True)
 
 
-def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
+def _open_the_cover(state_dir: Path, *, show_overlays: bool, cancelable: bool = True) -> _Cover:
     """The loading screen over every monitor, its window resolved."""
-    # A return is uncancellable: cancelling here closed the app under him.
     returning = returning_from_a_crossing(state_dir)
+    esc_cancels = ("" if not cancelable
+                   else DESKTOP.crossing_hint if returning
+                   else CANCEL_OPENING_FUN_TIME)
+    turns_back_to = VR if returning and esc_cancels else None
     progress_file = state_dir / PROGRESS_FILENAME
     cancel_file = state_dir / CANCEL_FILENAME
     # Clear a cancel flag left over from a previous session so it can't abort
     # this one before the user has touched anything.
-    cancel_file.unlink(missing_ok=True)
+    if turns_back_to is None:
+        cancel_file.unlink(missing_ok=True)
     if not show_overlays:
-        return _Cover(None, NullProgress(), 0, progress_file, cancel_file)
+        return _Cover(None, NullProgress(), 0, progress_file, cancel_file, turns_back_to)
 
     loading_proc = subprocess.Popen(
         [
@@ -835,9 +860,8 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
     drop_crossing_cover(state_dir)
     return _Cover(
         loading_proc,
-        PhaseProgress(progress_file, cancel_file=None if returning else cancel_file,
-                      hint="" if returning else CANCEL_OPENING_FUN_TIME),
-        overlay_hwnd, progress_file, cancel_file,
+        PhaseProgress(progress_file, cancel_file=cancel_file, hint=esc_cancels),
+        overlay_hwnd, progress_file, cancel_file, turns_back_to,
     )
 
 
@@ -1052,8 +1076,10 @@ def _run_until_the_hotkeys_exit(
     """
     voice_controller, voice_thread = voice
     dispatch_runner, dispatch_thread = dispatch
+    asked = False
     try:
         exit_code = _wait_for_the_session_to_end(ahk_proc, state_dir)
+        asked = session_end_marker_path(state_dir).exists()
         # WHY the session is ending, which the log could not say before.  A
         # session that vanishes and one the user quit produce the same lines
         # from here down -- the closing screen goes up either way, and the
@@ -1068,10 +1094,13 @@ def _run_until_the_hotkeys_exit(
         exit_code = 1
     finally:
         silence_the_players(commands)
+        crossing = pending_handoff(state_dir)
+        esc_cancels = (CANCEL_CLOSING_FUN_TIME
+                       if asked and show_overlays and crossing is None else "")
         # Then the cover, up before anything closes and through all of it: the
         # controls stopping, the browser closing, and every child being killed.
-        with _closing_screen(state_dir, enabled=show_overlays,
-                             crossing=pending_handoff(state_dir)) as shutdown_progress:
+        with _closing_screen(state_dir, enabled=show_overlays, crossing=crossing,
+                             esc_cancels=esc_cancels) as shutdown_progress:
             if voice_controller is not None:
                 voice_controller.stop()
             if voice_thread is not None:
@@ -1086,12 +1115,22 @@ def _run_until_the_hotkeys_exit(
                 loopback_server.shutdown()
                 loopback_server.server_close()
             logger.info("The session is over — shutting down child processes")
-            crossing_over = pending_handoff(state_dir) is not None
+            flag = state_dir / CANCEL_FILENAME
+            parking = crossing is not None or (
+                bool(esc_cancels) and what_the_flag_asks(flag) == CANCEL_WORD)
             _shutdown_children(
                 rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
-                keep_origenerator_via=origenerator_cmd_file if crossing_over else None,
+                keep_origenerator_via=origenerator_cmd_file if parking else None,
             )
-            stop_hotkey_script(ahk_proc, ahk_cmd_file)
+            if crossing is None:  # else it hears Esc until the relay has read the flag
+                stop_hotkey_script(ahk_proc, ahk_cmd_file)
+            if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
+                logger.info("Esc called the quit off; opening Fun Time again")
+                way_back = launch_the_way_back_cover(state_dir)
+                _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
+                request_handoff(state_dir, DESKTOP, cancelable=False)
+            elif crossing is None:  # the quit chord after an Esc that had parked it
+                close_a_kept_origenerator(state_dir)
 
     return exit_code
 
@@ -1104,6 +1143,7 @@ def run_session(
     state_dir: str | Path,
     project_dir: str | Path,
     env: SessionEnvironment = ORDINARY_SESSION,
+    cancelable: bool = True,
 ) -> int:
     """Open a session, hold it, and close it.
 
@@ -1142,7 +1182,7 @@ def run_session(
                                   pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
 
     # --- Launch loading screen (normal mode only) ---
-    cover = _open_the_cover(state_dir, show_overlays=env.show_overlays)
+    cover = _open_the_cover(state_dir, show_overlays=env.show_overlays, cancelable=cancelable)
     progress = cover.progress
 
     if env.integration:
@@ -1153,7 +1193,7 @@ def run_session(
     # Esc has to reach us from the cover onward, and AHK's hooks are the only
     # keys here that do not care which window holds the focus (see
     # overlay_progress).  The script holds its other keys until the pids file.
-    command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file)]
+    command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file), str(os.getpid())]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
     ahk_proc = subprocess.Popen(command, cwd=project_dir, **no_child_log())
 
@@ -1179,6 +1219,7 @@ def run_session(
         return _take_down_the_startup(
             "Startup cancelled by user", pids=cancelled.launched_pids,
             rfb_hwnd=cancelled.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            canceled=True,
         )
 
     launched = [getattr(result, key) for key in _CHILD_PID_KEYS]
@@ -1190,6 +1231,7 @@ def run_session(
         return _take_down_the_startup(
             "Startup cancelled by user", pids=launched,
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            canceled=True,
         )
 
     logger.info(

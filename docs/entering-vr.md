@@ -63,8 +63,8 @@ So the crossing goes through a relay, `fun_time.session_handoff`:
 
 1. The dispatch loop answers `enter_vr` / `exit_vr` by writing
    `state/session_handoff.txt` and then ending the session exactly as `quit`
-   does — "exit" on the AHK command channel. Said of the session already
-   running, it posts a notice and stays put instead.
+   does — "end_session" on the AHK command channel. Said of the session
+   already running, it posts a notice and stays put instead.
 2. The orchestrator's `main`, after teardown and as its very last act, takes
    that request off the disk and spawns the relay, detached.
 3. The relay waits for the mutex to come free. That is the outgoing session
@@ -155,6 +155,29 @@ than a delay:
 A relay whose crossing failed releases the hold too, and the player gives up on
 its own after three minutes: a headset under a panel forever is worse than the
 runtime's own view.
+
+## Esc calls off what a cover is covering
+
+Every cover says what Esc would cancel, and takes one Esc:
+
+- **Opening Fun Time or Fun Time VR** — the launch comes down and nothing opens.
+- **Entering VR** — the room goes back to Fun Time.
+- **Exiting VR** — the room goes back into Fun Time VR.
+- **Closing Fun Time or Fun Time VR** — the teardown finishes under its cover
+  and the same app opens again.
+
+Going back is a crossing of its own, started with `--no-cancel`: its covers
+offer no Esc, so a second press never sends the room back the other way.
+Ctrl+Alt+Q ends everything at any of these points instead.
+
+Esc is heard by the hotkey script, which needs no focus, and lands as the word
+`cancel` in the cancel flag (the quit chord writes `quit`). Over a crossing the
+script outlives the session that started it: the relay reads the flag once
+that session has let go, and the arriving session's own script replaces it
+(`#SingleInstance Force`). If nothing arrives, the script exits by itself once
+its orchestrator is gone and the crossing cover's file is done or stale. On
+the way back into VR the old player holds the headset covered until the new
+session reaps it.
 
 ## The taskbar
 

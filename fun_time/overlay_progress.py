@@ -23,10 +23,15 @@ SHUTDOWN_PROGRESS_FILENAME = "shutdown_progress.txt"
 # key lands on it; the orchestrator's progress reporter watches for it and raises
 # StartupCancelled at the next phase boundary so startup unwinds.
 CANCEL_FILENAME = "startup_cancel.flag"
+CANCEL_WORD = "cancel"
+QUIT_WORD = "quit"
 CANCELING = "Canceling..."
 CANCEL_OPENING_FUN_TIME = "Press Esc to cancel opening Fun Time"
 CANCEL_OPENING_FUN_TIME_VR = "Press Esc to cancel opening Fun Time VR"
 CANCEL_ENTERING_VR = "Press Esc to cancel entering VR"
+CANCEL_EXITING_VR = "Press Esc to cancel exiting VR"
+CANCEL_CLOSING_FUN_TIME = "Press Esc to cancel closing Fun Time"
+CANCEL_CLOSING_FUN_TIME_VR = "Press Esc to cancel closing Fun Time VR"
 
 # The closing screen drops this flag beside its own progress file once it is
 # painted over every monitor.  Teardown waits for it before killing anything:
@@ -65,6 +70,14 @@ def cancel_file_for(progress_file: str | Path) -> Path:
     """The cancel flag pairing with *progress_file*, its sibling in the state
     dir.  Every end derives it this way, so none has to be told."""
     return Path(progress_file).with_name(CANCEL_FILENAME)
+
+
+def what_the_flag_asks(cancel_file: Path) -> str:
+    try:
+        words = cancel_file.read_text(encoding="utf-8").split()
+    except OSError:
+        return ""
+    return QUIT_WORD if QUIT_WORD in words else CANCEL_WORD
 
 
 def ready_file_for(progress_file: str | Path) -> Path:
@@ -177,7 +190,10 @@ class PhaseProgress:
 
     @property
     def cancelled(self) -> bool:
-        return self._cancel_file is not None and self._cancel_file.exists()
+        if self._cancel_file is None:
+            return False
+        asked = what_the_flag_asks(self._cancel_file)
+        return asked == QUIT_WORD or (asked == CANCEL_WORD and bool(self._hint))
 
     def advance(self, phase: str) -> None:
         if self.cancelled:

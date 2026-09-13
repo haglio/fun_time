@@ -40,6 +40,5 @@ headset_hold_asked
 headset_hold_stops_the_runtime
 report_the_headset_held
 headset_is_held
-say_the_crossing_is_cancelled  # session_handoff; the VR orchestrator's cancel says it
 CANCEL_OPENING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's launch cover says it
-CANCEL_ENTERING_VR  # overlay_progress; the VR orchestrator's cover for a crossing says it
+CANCEL_CLOSING_FUN_TIME_VR  # overlay_progress; the VR orchestrator's closing cover says it

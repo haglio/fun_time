@@ -6,7 +6,10 @@ import pytest
 
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
+    CANCEL_OPENING_FUN_TIME,
+    CANCEL_WORD,
     PROGRESS_FILENAME,
+    QUIT_WORD,
     SHUTDOWN_PHASES,
     SHUTDOWN_READY_FILENAME,
     STARTUP_PHASES,
@@ -19,6 +22,7 @@ from fun_time.overlay_progress import (
     parse_progress,
     ready_file_for,
     startup_still_building,
+    what_the_flag_asks,
 )
 
 TWO_PHASES = (
@@ -26,6 +30,23 @@ TWO_PHASES = (
     Phase("slow", "Slow...", 9.0),
     Phase("done", "Done...", 0.0),
 )
+
+
+class TestWhatTheFlagAsks:
+    def test_the_quit_chord_outranks_an_esc_pressed_before_it(self, tmp_path: Path):
+        flag = tmp_path / CANCEL_FILENAME
+        flag.write_text("cancel\nquit\n", encoding="utf-8")
+
+        assert what_the_flag_asks(flag) == QUIT_WORD
+
+    def test_esc_alone_asks_for_a_cancel(self, tmp_path: Path):
+        flag = tmp_path / CANCEL_FILENAME
+        flag.write_text("cancel\ncancel\n", encoding="utf-8")
+
+        assert what_the_flag_asks(flag) == CANCEL_WORD
+
+    def test_no_flag_asks_nothing(self, tmp_path: Path):
+        assert what_the_flag_asks(tmp_path / CANCEL_FILENAME) == ""
 
 
 class TestWhatEscWouldCancel:
@@ -43,6 +64,25 @@ class TestWhatEscWouldCancel:
 
         assert parse_progress(progress_file.read_text(encoding="utf-8")) == Progress(
             step=100, total=1000, message="Slow...", hint="Press Esc to cancel opening Fun Time")
+
+    def test_a_launch_offering_no_esc_is_not_called_off_by_one(self, tmp_path: Path):
+        progress_file = tmp_path / PROGRESS_FILENAME
+        cancel_file_for(progress_file).write_text("cancel\n", encoding="utf-8")
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES,
+                                 cancel_file=cancel_file_for(progress_file))
+
+        progress.advance("slow")
+
+        assert not progress.cancelled
+
+    def test_the_quit_chord_calls_off_even_a_launch_offering_no_esc(self, tmp_path: Path):
+        progress_file = tmp_path / PROGRESS_FILENAME
+        cancel_file_for(progress_file).write_text("quit\n", encoding="utf-8")
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES,
+                                 cancel_file=cancel_file_for(progress_file))
+
+        with pytest.raises(StartupCancelled):
+            progress.advance("slow")
 
 
 class TestPhaseProgress:
@@ -153,7 +193,8 @@ class TestPhaseProgressCancellation:
         cancel_file = cancel_file_for(progress_file)
         cancel_file.write_text("", encoding="utf-8")
 
-        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file)
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file,
+                                 hint=CANCEL_OPENING_FUN_TIME)
 
         with pytest.raises(StartupCancelled):
             progress.advance("quick")
@@ -163,7 +204,8 @@ class TestPhaseProgressCancellation:
         cancel_file = cancel_file_for(progress_file)
         cancel_file.write_text("", encoding="utf-8")
 
-        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file)
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file,
+                                 hint=CANCEL_OPENING_FUN_TIME)
         with pytest.raises(StartupCancelled):
             progress.advance("quick")
 
@@ -174,15 +216,18 @@ class TestPhaseProgressCancellation:
         progress_file = tmp_path / "progress.txt"
         cancel_file = cancel_file_for(progress_file)
 
-        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file)
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file,
+                                 hint=CANCEL_OPENING_FUN_TIME)
         progress.advance("quick")
 
-        assert progress_file.read_text(encoding="utf-8") == "0/1000|Quick..."
+        assert progress_file.read_text(encoding="utf-8") == (
+            f"0/1000|Quick...|{CANCEL_OPENING_FUN_TIME}")
 
     def test_cancelled_reflects_the_flag(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"
         cancel_file = cancel_file_for(progress_file)
-        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file)
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES, cancel_file=cancel_file,
+                                 hint=CANCEL_OPENING_FUN_TIME)
 
         assert progress.cancelled is False
         cancel_file.write_text("", encoding="utf-8")

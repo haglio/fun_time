@@ -811,12 +811,16 @@ class TestRunPythonOrchestratedBridge:
                 project_dir=tmp_path,
             )
 
+        import os
+
         # Find the AHK launch command (not the loading screen one)
         ahk_cmd = [c for c in popen_cmds if "ahk.exe" in str(c)][0]
         assert ahk_cmd[0] == "C:\\ahk.exe"
         assert ahk_cmd[1] == "C:\\hotkeys.ahk"
         assert ahk_cmd[2] == str(manifest_path)
         assert ahk_cmd[3].endswith(".ini")
+        # What it watches to know, after a crossing, that its session is gone.
+        assert ahk_cmd[4] == str(os.getpid())
 
 
 class TestLoadingScreenLifecycle:
@@ -1065,6 +1069,51 @@ class TestKeepingTheHostedApp:
         assert channel.exists(), "the parked app was never told to close its shows"
         assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
 
+    def test_esc_on_the_closing_screen_parks_it_for_fun_time_coming_back(
+        self, cfg_factory, tmp_path,
+    ):
+        """Fun Time is coming straight back, and this boot is its longest wait."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+
+        def esc():
+            (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+                   return_value=4242), \
+             patch("fun_time.windows_bridge_orchestrator.hide_window"):
+            _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
+                           at_cover_up=esc)
+
+        channel = Path(LaunchManifest.read(
+            tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
+        assert channel.exists(), "the hosted app was closed rather than parked"
+        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
+
+    def test_a_quit_that_goes_on_after_all_closes_what_esc_had_parked(
+        self, cfg_factory, tmp_path,
+    ):
+        """The quit chord after the Esc: nothing is coming back to adopt it."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+
+        flag = tmp_path / "state" / CANCEL_FILENAME
+        real_shutdown = windows_bridge_orchestrator._shutdown_children
+
+        def then_the_quit_chord(*args, **kwargs):
+            real_shutdown(*args, **kwargs)
+            flag.write_text("cancel\nquit\n", encoding="utf-8")
+
+        with patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+                   return_value=4242), \
+             patch("fun_time.windows_bridge_orchestrator.hide_window"), \
+             patch("fun_time.windows_bridge_orchestrator._shutdown_children",
+                   side_effect=then_the_quit_chord), \
+             patch("fun_time.windows_bridge_orchestrator.close_a_kept_origenerator") as closed:
+            state_dir = _run_a_session(
+                cfg_factory, tmp_path, events=[], asked_to_end=True,
+                at_cover_up=lambda: flag.write_text("cancel\n", encoding="utf-8"))
+
+        closed.assert_called_once_with(state_dir)
+
     def test_an_ordinary_quit_closes_it_and_leaves_no_record(self, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
@@ -1120,7 +1169,9 @@ class TestKeepingTheHostedApp:
 
 def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
                    env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
-                   at_cover_up=lambda: None):
+                   at_cover_up=lambda: None, asked_to_end: bool = False):
+    from fun_time.session_end import SESSION_END_MARKER
+
     cfg = load_config(cfg_factory())
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1129,6 +1180,11 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
     if crossing is not None:
         state_dir.mkdir(parents=True, exist_ok=True)
         request_handoff(state_dir, crossing)
+
+    def start_up(**_kwargs):
+        if asked_to_end:  # after the leftovers go, as the quit chord's marker lands
+            (state_dir / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
+        return _fake_startup_result()
 
     fake_ahk_proc = MagicMock()
     fake_ahk_proc.wait.return_value = 0
@@ -1153,7 +1209,7 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
         return fake_ahk_proc
 
     with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-               return_value=_fake_startup_result()), \
+               side_effect=start_up), \
          patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
          patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
                side_effect=lambda pid: pid * 10), \
@@ -1287,6 +1343,14 @@ class TestClosingScreenLifecycle:
         assert progress.read_text(encoding="utf-8").strip() != "DONE"
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
+    def test_a_crossing_leaves_the_hotkey_script_listening_for_esc(self, cfg_factory, tmp_path):
+        """While the room changes over nothing else hears Esc; the relay reads
+        what it dropped once this session has let go."""
+        state_dir = _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
+
+        mailbox = state_dir / "ahk_cmd.txt"
+        assert not (mailbox.exists() and mailbox.read_text(encoding="utf-8") == "exit")
+
     def test_an_ordinary_quit_still_takes_its_own_cover_down(self, cfg_factory, tmp_path):
         events: list[str] = []
 
@@ -1294,6 +1358,51 @@ class TestClosingScreenLifecycle:
 
         assert not crossing_progress_path(state_dir).exists()
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
+
+    def test_a_quit_he_asked_for_says_esc_cancels_closing_fun_time(self, cfg_factory, tmp_path):
+        from fun_time.overlay_progress import parse_progress
+
+        said: list[str] = []
+
+        def read_the_closing_line():
+            said.append(parse_progress((tmp_path / "state" / SHUTDOWN_PROGRESS_FILENAME)
+                                       .read_text(encoding="utf-8")).hint)
+
+        _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
+                       at_cover_up=read_the_closing_line)
+
+        assert said == ["Press Esc to cancel closing Fun Time"]
+
+    def test_esc_on_the_closing_screen_opens_fun_time_again_offering_no_esc(
+        self, cfg_factory, tmp_path,
+    ):
+        from fun_time.overlay_progress import CANCEL_FILENAME
+        from fun_time.session_handoff import DESKTOP, take_handoff_request
+
+        def esc():
+            (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        state_dir = _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
+                                   at_cover_up=esc)
+
+        taken = take_handoff_request(state_dir)
+        assert taken is not None, "Esc let the quit go on"
+        assert (taken.target, taken.cancelable) == (DESKTOP, False)
+
+    def test_the_quit_chord_on_the_closing_screen_lets_the_quit_go_on(
+        self, cfg_factory, tmp_path,
+    ):
+        """Even after an Esc: the chord means end everything."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+        from fun_time.session_handoff import pending_handoff
+
+        def esc_then_the_quit_chord():
+            (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\nquit\n", encoding="utf-8")
+
+        state_dir = _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True,
+                                   at_cover_up=esc_then_the_quit_chord)
+
+        assert pending_handoff(state_dir) is None
 
     def test_no_closing_screen_in_integration_mode(self, cfg_factory, tmp_path):
         """An integration run has no eyes on it and no desktop of its own to
@@ -1355,6 +1464,34 @@ class TestWaitForClosingScreen:
         assert "anyway" in caplog.text
 
 
+def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None, before=None):
+    from fun_time.overlay_progress import CANCEL_FILENAME
+    from fun_time.session_handoff import DESKTOP, raise_crossing_cover
+
+    cfg = load_config(cfg_factory())
+    manifest_path = write_windows_bridge_manifest(
+        cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+    )
+    state_dir = tmp_path / "state"
+    raise_crossing_cover(state_dir, DESKTOP)
+    (state_dir / CANCEL_FILENAME).write_text(f"{word}\n", encoding="utf-8")
+    if before is not None:
+        before(state_dir)
+
+    with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+               side_effect=StartupCancelled(launched_pids=[300], rfb_hwnd=0)), \
+         patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=popen), \
+         patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+               return_value=0), \
+         patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
+         patch("fun_time.windows_bridge_orchestrator.close_window"):
+        run_session(
+            manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+            state_dir=state_dir, project_dir=tmp_path,
+        )
+    return state_dir
+
+
 class TestStartupCancellation:
     """Pressing Esc aborts startup: the half-built session is torn down, the
     hotkey script that read the Esc is taken back out, and the dispatch loop
@@ -1411,6 +1548,59 @@ class TestStartupCancellation:
         mock_runner.assert_not_called()
         # The overlay is brought down after teardown.
         fake_loading_proc.wait.assert_called()
+
+    def test_esc_on_a_launch_arriving_from_vr_goes_back_into_vr_offering_no_esc(
+        self, cfg_factory, tmp_path,
+    ):
+        """The Exit VR loading screen said Esc cancels exiting VR."""
+        from fun_time.session_handoff import take_handoff_request
+
+        state_dir = _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, word="cancel")
+
+        taken = take_handoff_request(state_dir)
+        assert taken is not None, "Esc closed the app instead of going back into VR"
+        assert taken.target is VR
+        assert taken.cancelable is False
+
+    def test_the_monitors_stay_covered_on_the_way_back_into_vr(self, cfg_factory, tmp_path):
+        """The loading screen goes with this launch, and nothing else would be
+        on the monitors until the headset session is up."""
+        from fun_time.overlay_progress import CANCELING, parse_progress
+
+        events: list[str] = []
+        real_finish = PhaseProgress.finish
+
+        def launched(cmd, **_kwargs):
+            if "transition_screen" in str(cmd):
+                events.append("way back cover")
+            return MagicMock()
+
+        def finished(self):
+            real_finish(self)
+            events.append("loading screen down")
+
+        with patch.object(PhaseProgress, "finish", finished):
+            state_dir = _cancel_a_launch_arriving_from_vr(
+                cfg_factory, tmp_path, word="cancel", popen=launched)
+
+        assert "way back cover" in events, "the monitors were left bare"
+        assert events.index("way back cover") < events.index("loading screen down")
+        line = parse_progress(crossing_progress_path(state_dir).read_text(encoding="utf-8"))
+        assert (line.message, line.hint, line.done) == (CANCELING, "", False)
+
+    def test_the_quit_chord_on_a_launch_arriving_from_vr_lets_the_headset_go(
+        self, cfg_factory, tmp_path,
+    ):
+        """Nothing is coming back for it: held, it would hang under "Returning
+        to Fun Time..." for minutes after everything else had closed."""
+        from fun_time.session_handoff import headset_hold_asked, hold_the_headset, pending_handoff
+
+        state_dir = _cancel_a_launch_arriving_from_vr(
+            cfg_factory, tmp_path, word="quit",
+            before=lambda state_dir: hold_the_headset(state_dir, stop_runtime=True))
+
+        assert not headset_hold_asked(state_dir)
+        assert pending_handoff(state_dir) is None
 
     def test_cancel_flag_after_a_finished_sequence_tears_down_the_full_result(self, cfg_factory, tmp_path):
         """The user can hit Esc in the sliver between the last checkpoint and the
@@ -2185,26 +2375,70 @@ class TestTheSessionEndsOnItsMarker:
 
 class TestWhatEscCancelsAtTheLoadingScreen:
     @staticmethod
-    def _opened_line(state_dir):
-        from fun_time.overlay_progress import parse_progress
+    def _opened_cover(state_dir, *, cancelable=True):
         from fun_time.windows_bridge_orchestrator import _open_the_cover
 
         with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
                    return_value=0):
-            cover = _open_the_cover(state_dir, show_overlays=True)
+            return _open_the_cover(state_dir, show_overlays=True, cancelable=cancelable)
+
+    @classmethod
+    def _opened_line(cls, state_dir, *, cancelable=True):
+        from fun_time.overlay_progress import parse_progress
+
+        cover = cls._opened_cover(state_dir, cancelable=cancelable)
         cover.progress.advance("services")
         return parse_progress(cover.progress_file.read_text(encoding="utf-8"))
 
     def test_a_launch_says_esc_cancels_opening_fun_time(self, tmp_path):
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
 
-    def test_a_launch_coming_back_from_a_crossing_offers_no_esc(self, tmp_path):
-        from fun_time.session_handoff import VR, raise_crossing_cover
+    def test_a_launch_arriving_from_vr_says_esc_cancels_exiting_vr(self, tmp_path):
+        """He asked for the desktop from inside the headset: until it is up,
+        Esc takes him back into VR."""
+        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
 
-        raise_crossing_cover(tmp_path, VR)
+        raise_crossing_cover(tmp_path, DESKTOP)
 
-        assert self._opened_line(tmp_path).hint == ""
+        assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
+
+    def test_a_launch_on_the_way_back_offers_no_esc(self, tmp_path):
+        """Esc already called the crossing off; a second would send him back
+        the other way for as long as he kept pressing it."""
+        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
+
+        raise_crossing_cover(tmp_path, DESKTOP)
+
+        assert self._opened_line(tmp_path, cancelable=False).hint == ""
+
+    def test_an_esc_pressed_while_the_room_changed_over_calls_the_arrival_off(
+        self, tmp_path,
+    ):
+        """Nothing but the hotkey script left over from the session he left was
+        listening then, and the flag it dropped is his answer to this launch."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
+
+        raise_crossing_cover(tmp_path, DESKTOP)
+        (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        cover = self._opened_cover(tmp_path)
+
+        assert cover.progress.cancelled
+
+    def test_a_launch_on_the_way_back_clears_the_esc_that_sent_it(self, tmp_path):
+        from fun_time.overlay_progress import CANCEL_FILENAME
+        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
+
+        raise_crossing_cover(tmp_path, DESKTOP)
+        flag = tmp_path / CANCEL_FILENAME
+        flag.write_text("cancel\n", encoding="utf-8")
+
+        cover = self._opened_cover(tmp_path, cancelable=False)
+
+        assert not flag.exists()
+        assert not cover.progress.cancelled
 
 
 class TestEscOnTheWayBackFromACancelledCrossing:
@@ -2230,21 +2464,6 @@ class TestEscOnTheWayBackFromACancelledCrossing:
         assert returning_from_a_crossing(tmp_path), (
             "DONE is the other session's word that it is up, not a deletion"
         )
-
-    def test_a_return_launch_is_built_with_no_cancel_file(self):
-        """The loading screen needs real monitors, so this reads the decision
-        rather than making one: without it Esc closed the app on the way back."""
-        import ast
-        import inspect
-
-        from fun_time.windows_bridge_orchestrator import _open_the_cover
-
-        tree = ast.parse(inspect.getsource(_open_the_cover).lstrip())
-        (progress,) = [n for n in ast.walk(tree)
-                       if isinstance(n, ast.Call) and ast.unparse(n.func) == "PhaseProgress"]
-        (cancel,) = [kw for kw in progress.keywords if kw.arg == "cancel_file"]
-
-        assert ast.unparse(cancel.value) == "None if returning else cancel_file"
 
 
 class TestStartingVoice:

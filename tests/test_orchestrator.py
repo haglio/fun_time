@@ -390,6 +390,20 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
             integration=True, show_overlays=False, dashboard_enabled=False)
 
 
+class TestTheWayBackOffersNoEsc:
+    def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, cfg_path: Path):
+        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
+             patch("fun_time.orchestrator.install_exception_logging"), \
+             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.ensure_runtime_files"), \
+             patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.prepare_orchestrator_launcher"), \
+             patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_bridge:
+            main(["--config", str(cfg_path), "--no-cancel"])
+
+        assert run_bridge.call_args.kwargs["cancelable"] is False
+
+
 class TestMainCheckFlag:
     def test_main_check_returns_zero_without_launching_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
