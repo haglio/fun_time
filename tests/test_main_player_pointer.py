@@ -11,7 +11,8 @@ from pathlib import Path
 
 import pytest
 from player_core.funscript import Funscript
-from player_core.timeline import bar_track_x
+from player_core.playhead import lower_edge_height
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 
 from main_player.dashboard import Dashboard
 from main_player.overlay import HeatmapStrip
@@ -166,10 +167,28 @@ class TestPressingTheTimeline:
 
         assert bits.session.seeks == [pytest.approx(0.0)]
 
-    def test_the_track_is_inset_so_the_left_edge_is_still_the_start(self, bits):
-        """The track starts a margin in from the window edge; a press in that
-        margin saturates rather than seeking to a negative time."""
-        bits.press((2, 590))
+    def test_a_press_on_the_readout_neither_seeks_nor_pauses_the_room(self, bits):
+        """The readout sits in the row, left of the track: saturated like a
+        margin, a press on the time would throw the video back to its start."""
+        bits.press((_TRACK_X0 // 2, 590))
+
+        assert bits.session.seeks == []
+        assert bits.asks() == []
+
+    def test_above_a_row_too_narrow_to_share_the_readout_is_not_the_video(self, bits):
+        """400 across leaves the readout a line of its own above the row, over the
+        picture: a press on it is not a press on the video."""
+        top = 600 - lower_edge_height(400, timeline_h=TIMELINE_HEIGHT)
+
+        bits.press((bar_track_x(400)[0] + 20, top + 11), win_w=400)
+
+        assert bits.session.seeks == []
+        assert bits.asks() == []
+
+    def test_on_a_row_too_narrow_to_share_the_left_edge_is_still_the_start(self, bits):
+        """The readout has its own line there, so the track keeps its margin; a
+        press in that margin saturates rather than seeking to a negative time."""
+        bits.press((2, 590), win_w=400)
 
         assert bits.session.seeks == [pytest.approx(0.0)]
 
