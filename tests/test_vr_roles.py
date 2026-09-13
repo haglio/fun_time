@@ -5,10 +5,11 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from player_core.playback_rate import MAX_RATE, MIN_RATE
 
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
-from fun_time_vr.roles import MAX_SPEED, MIN_SPEED, TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
+from fun_time_vr.roles import TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
 
 
 def _never_quits() -> None:
@@ -165,17 +166,17 @@ class TestPlaybackVerbs:
         assert player.speed == 1.25
         for _ in range(10):
             role.apply_command("SPEED_UP", on_quit=_never_quits)
-        assert player.speed == MAX_SPEED
+        assert player.speed == MAX_RATE
         for _ in range(20):
             role.apply_command("SPEED_DOWN", on_quit=_never_quits)
-        assert player.speed == MIN_SPEED
+        assert player.speed == MIN_RATE
 
     def test_set_speed_takes_min_max_and_numbers(self, role_parts):
         role, player = role_parts.role, role_parts.player
         role.apply_command("SET_SPEED max", on_quit=_never_quits)
-        assert player.speed == MAX_SPEED
+        assert player.speed == MAX_RATE
         role.apply_command("SET_SPEED min", on_quit=_never_quits)
-        assert player.speed == MIN_SPEED
+        assert player.speed == MIN_RATE
         role.apply_command("SET_SPEED 1.5", on_quit=_never_quits)
         assert player.speed == 1.5
 
@@ -592,6 +593,13 @@ class TestStatus:
 
     def test_no_touch_publishes_an_empty_field_rather_than_a_zero(self, role_parts):
         assert role_parts.role.status_fields(None)["handoff_touch_ms"] == ""
+
+    def test_the_rate_the_video_plays_at_is_published_for_the_satellites_to_take(self, role_parts):
+        role = role_parts.role
+
+        role.apply_command("SPEED_UP", on_quit=_never_quits)
+
+        assert role.status_fields(None)["speed"] == "1.25"
 
 
 class TestWhatTheDriveGateReadsOffIt:
