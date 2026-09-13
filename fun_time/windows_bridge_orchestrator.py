@@ -408,39 +408,37 @@ def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
         logger.warning("Hotkey script did not exit after cancel, killed")
 
 
-def _cancel_startup(
+def _take_down_the_startup(
+    reason: str,
     *,
     pids: list[int],
     rfb_hwnd: int,
-    loading_proc: subprocess.Popen | None,
+    cover: _Cover,
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
-    progress: ProgressReporter,
-    progress_file: Path,
-    cancel_file: Path,
 ) -> int:
-    """Tear down a startup the user aborted from the loading screen, then exit.
+    """Tear down a startup that is not becoming a session, then exit.
 
     Kills every child so far and closes the browser *before* the overlay comes
     down; these were launched seconds ago, so their PIDs are still theirs.  The
-    hotkey script first: it is what read the Esc that got us here.
+    hotkey script first: left running, it would go on swallowing every key it binds.
     """
-    logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(pids))
+    logger.info("%s; tearing down %d launched child(ren)", reason, len(pids))
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     for pid in pids:
         kill_process_tree(pid)
     close_window(rfb_hwnd)
     # Only now that the windows under it are gone: drop the overlay.
-    progress.finish()
-    if loading_proc is not None:
+    cover.progress.finish()
+    if cover.process is not None:
         try:
-            loading_proc.wait(timeout=3.0)
+            cover.process.wait(timeout=3.0)
         except subprocess.TimeoutExpired:
-            loading_proc.kill()
-            logger.warning("Loading screen did not exit after cancel, killed")
-    progress_file.unlink(missing_ok=True)
-    cancel_file.unlink(missing_ok=True)
-    drop_crossing_cover(progress_file.parent)  # else: no way out of an empty machine
+            cover.process.kill()
+            logger.warning("Loading screen did not exit, killed")
+    cover.progress_file.unlink(missing_ok=True)
+    cover.cancel_file.unlink(missing_ok=True)
+    drop_crossing_cover(cover.progress_file.parent)  # else: no way out of an empty machine
     return _CANCELLED_EXIT_CODE
 
 
@@ -918,6 +916,20 @@ def _reveal_the_room(
     _settle_the_players(owners, passes=3, wait_s=0.4)
 
 
+def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> ThreadingHTTPServer | None:
+    """Serve the Provider autofill userscript so Tampermonkey can auto-update it
+    instead of needing a hand-paste after every edit, and answer the RFB tab
+    pages when they ask whether the session is paused.  A busy port (a leftover
+    server) is not worth failing startup over."""
+    try:
+        server = serve_loopback(port=port, omni_paused=lambda: dispatch_runner.state.omni_paused)
+    except OSError:
+        logger.warning("Loopback server not started (port %d busy)", port, exc_info=True)
+        return None
+    logger.info("Loopback server started on 127.0.0.1:%d", port)
+    return server
+
+
 def _start_voice_control(
     config_path: str, *, dashboard_cmd_file: Path, dispatch_runner: DispatchLoopRunner,
 ) -> tuple[VoiceController | None, threading.Thread | None]:
@@ -1130,8 +1142,7 @@ def run_session(
 
     # --- Launch loading screen (normal mode only) ---
     cover = _open_the_cover(state_dir, show_overlays=env.show_overlays)
-    loading_proc, progress, overlay_hwnd = cover.process, cover.progress, cover.hwnd
-    progress_file, cancel_file = cover.progress_file, cover.cancel_file
+    progress, overlay_hwnd = cover.progress, cover.hwnd
 
     if env.integration:
         ahk_cmd_file.write_text("suspend_hotkeys", encoding="utf-8")
@@ -1165,33 +1176,20 @@ def run_session(
         # Esc during a phase: the sequence handed back exactly what it had
         # launched.  Tear it down, take the hotkey script back out, and exit
         # before the dispatch loop ever starts.
-        return _cancel_startup(
-            pids=cancelled.launched_pids,
-            rfb_hwnd=cancelled.rfb_hwnd,
-            loading_proc=loading_proc,
-            ahk_proc=ahk_proc,
-            ahk_cmd_file=ahk_cmd_file,
-            progress=progress,
-            progress_file=progress_file,
-            cancel_file=cancel_file,
+        return _take_down_the_startup(
+            "Startup cancelled by user", pids=cancelled.launched_pids,
+            rfb_hwnd=cancelled.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
         )
+
+    launched = [getattr(result, key) for key in _CHILD_PID_KEYS]
 
     # Esc can also land in the sliver after the last checkpoint but before the
     # reveal: the sequence finished, yet the flag is set.  Tear the full result
     # down rather than reveal a session the user asked to abort.
     if progress.cancelled:
-        return _cancel_startup(
-            pids=[
-                result.nau_pid, result.portrait_pid, result.landscape_pid,
-                result.dashboard_pid, result.genau_pid, result.audio_pid,
-            ],
-            rfb_hwnd=result.rfb_hwnd,
-            loading_proc=loading_proc,
-            ahk_proc=ahk_proc,
-            ahk_cmd_file=ahk_cmd_file,
-            progress=progress,
-            progress_file=progress_file,
-            cancel_file=cancel_file,
+        return _take_down_the_startup(
+            "Startup cancelled by user", pids=launched,
+            rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
         )
 
     logger.info(
@@ -1200,52 +1198,43 @@ def run_session(
         result.dashboard_pid, result.genau_pid, result.audio_pid,
     )
 
-    # --- Close loading screen (normal mode only) ---
-    # The sequencer already positioned all windows in Phase 4 (the reveal).
-    if env.show_overlays:
-        _reveal_the_room(result, manifest=manifest, cover=cover,
-                         hud_publisher=hud_publisher, hud_primed=hud_primed)
-
-    # The session is up and its windows are placed.  Writing this file records
-    # the children for teardown and, by appearing, hands the keyboard over: the
-    # hotkey script watches for it and takes its startup hold off, so the keys go
-    # live exactly when there is a session for them to drive.
-    children = identify_children(result)
-    write_pids_file(pids_file, children)
-
-    dispatch_runner, dispatch_thread = _start_the_dispatch_loop(
-        result,
-        manifest=manifest,
-        manifest_path=manifest_path,
-        bridge_config=bridge_config,
-        state_dir=state_dir,
-        dashboard_cmd_file=dashboard_cmd_file,
-        ahk_cmd_file=ahk_cmd_file,
-        dashboard_enabled=dashboard_enabled,
-        hud_publisher=hud_publisher,
-        env=env,
-    )
-
-    # Serve the Provider autofill userscript so Tampermonkey can auto-update it
-    # instead of needing a hand-paste after every edit, and answer the RFB tab
-    # pages when they ask whether the session is paused. The port comes from
-    # config so a session started alongside another can serve somewhere of its
-    # own; a busy one (a leftover server) is not worth failing startup over.
-    loopback_port = manifest.loopback_port
-    loopback_server = None
     try:
-        loopback_server = serve_loopback(
-            port=loopback_port, omni_paused=lambda: dispatch_runner.state.omni_paused)
-        logger.info("Loopback server started on 127.0.0.1:%d", loopback_port)
-    except OSError:
-        logger.warning("Loopback server not started (port %d busy)", loopback_port, exc_info=True)
+        # The sequencer already positioned all windows in Phase 4 (the reveal).
+        if env.show_overlays:
+            _reveal_the_room(result, manifest=manifest, cover=cover,
+                             hud_publisher=hud_publisher, hud_primed=hud_primed)
 
-    # --- Optional voice control ---
-    voice_controller, voice_thread = _start_voice_control(
-        manifest.runtime.config_path,
-        dashboard_cmd_file=dashboard_cmd_file,
-        dispatch_runner=dispatch_runner,
-    )
+        # The session is up and its windows are placed.  Writing this file records
+        # the children for teardown and, by appearing, hands the keyboard over: the
+        # hotkey script watches for it and takes its startup hold off, so the keys
+        # go live exactly when there is a session for them to drive.
+        children = identify_children(result)
+        write_pids_file(pids_file, children)
+
+        dispatch_runner, dispatch_thread = _start_the_dispatch_loop(
+            result,
+            manifest=manifest,
+            manifest_path=manifest_path,
+            bridge_config=bridge_config,
+            state_dir=state_dir,
+            dashboard_cmd_file=dashboard_cmd_file,
+            ahk_cmd_file=ahk_cmd_file,
+            dashboard_enabled=dashboard_enabled,
+            hud_publisher=hud_publisher,
+            env=env,
+        )
+        loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
+        voice_controller, voice_thread = _start_voice_control(
+            manifest.runtime.config_path,
+            dashboard_cmd_file=dashboard_cmd_file,
+            dispatch_runner=dispatch_runner,
+        )
+    except BaseException:
+        _take_down_the_startup(
+            "The session failed while opening", pids=launched,
+            rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+        )
+        raise
 
     return _run_until_the_hotkeys_exit(
         ahk_proc,
