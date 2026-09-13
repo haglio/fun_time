@@ -29,7 +29,7 @@ def build_parser(config) -> argparse.ArgumentParser:
     ap.add_argument("--audio-folder", default=str(config.paths.audio_dir))
     ap.add_argument("--host", default=config.audio_companion.host)
     ap.add_argument("--port", type=int, default=config.audio_companion.port)
-    ap.add_argument("--mode-file", default=str(config.genau_mode_file))
+    ap.add_argument("--mode-file", default=str(config.broker_mode_file))
     ap.add_argument("--paused-file", default=str(config.audio_paused_file))
     ap.add_argument("--volume-file", default=str(config.audio_volume_file))
     ap.add_argument("--audio-device", default=None,

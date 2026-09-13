@@ -11,7 +11,7 @@ from app_support import state_files
 from .config import RegenConfig
 from .event_log import NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
-from .player_status import genau_enabled_path
+from .player_status import broker_auto_enabled_path
 from .players import Player
 
 
@@ -35,7 +35,7 @@ class BridgeConfig:
     main_sources: str
     portrait_sources: str
     landscape_sources: str
-    genau_mode_file: Path
+    broker_mode_file: Path
     genau_cmd_file: Path
     genau_paused_file: Path
     audio_paused_file: Path
@@ -107,9 +107,9 @@ class BridgeConfig:
         return self.broker_state_dir or self.state_dir
 
     @property
-    def genau_enabled_file(self) -> Path:
+    def broker_auto_enabled_file(self) -> Path:
         """Our switch for whether the broker may hand the OSR2 to Genau."""
-        return genau_enabled_path(self.broker_state)
+        return broker_auto_enabled_path(self.broker_state)
 
     @property
     def genau_drive_file(self) -> Path:

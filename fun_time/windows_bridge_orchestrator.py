@@ -975,7 +975,7 @@ def _start_the_dispatch_loop(
     """Hand the finished session to the loop that runs it, on its own thread.
 
     Genau startup detection rides the loop's first sync tick: if the broker has
-    already written genau_mode.txt = "1" (it infers auto mode within ~4 s from
+    already written broker_mode.txt = "1" (it infers auto mode within ~4 s from
     BPM and motion), the sync sees the entering transition and hands the main
     player over to Genau naturally.
     """

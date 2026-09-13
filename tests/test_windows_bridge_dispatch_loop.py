@@ -93,7 +93,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         main_sources="",
         portrait_sources="",
         landscape_sources="",
-        genau_mode_file=tmp_path / "rh_mode.txt",
+        broker_mode_file=tmp_path / "rh_mode.txt",
         genau_cmd_file=tmp_path / "rh_cmd.txt",
         genau_paused_file=tmp_path / "rh_paused.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",

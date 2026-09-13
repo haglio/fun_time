@@ -61,7 +61,7 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
         main_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
         landscape_sources=str(tmp_path / "landscape"),
-        genau_mode_file=state_dir / "genau_mode.txt",
+        broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
@@ -2571,36 +2571,36 @@ def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
 
 
 def test_genau_toggle_auto_flips_genau_enabled_flag(tmp_path: Path):
-    from fun_time.command_dispatch import read_genau_enabled
+    from fun_time.command_dispatch import read_broker_auto_enabled
     config = _make_config(tmp_path)
     state = _make_state()
-    flag = config.genau_enabled_file
+    flag = config.broker_auto_enabled_file
 
     # Missing flag means takeover allowed; first toggle suppresses it.
-    assert read_genau_enabled(flag) is True
+    assert read_broker_auto_enabled(flag) is True
     dispatch_command("genau_toggle_auto", state, config)
     assert flag.read_text(encoding="utf-8").strip() == "0"
-    assert read_genau_enabled(flag) is False
+    assert read_broker_auto_enabled(flag) is False
 
     # Toggling again re-allows takeover.
     dispatch_command("genau_toggle_auto", state, config)
     assert flag.read_text(encoding="utf-8").strip() == "1"
-    assert read_genau_enabled(flag) is True
+    assert read_broker_auto_enabled(flag) is True
 
 
 def test_genau_toggle_auto_writes_the_flag_the_broker_actually_reads(tmp_path: Path):
     """The switch is ours; the file is the broker's, so it goes where the broker
     looks — not into the state dir of whichever session flipped it."""
-    from fun_time.command_dispatch import read_genau_enabled
+    from fun_time.command_dispatch import read_broker_auto_enabled
     broker_state = tmp_path / "primary_state"
     broker_state.mkdir()
     config = replace(_make_config(tmp_path), broker_state_dir=broker_state)
 
     dispatch_command("genau_toggle_auto", _make_state(), config)
 
-    assert (broker_state / "genau_enabled.txt").read_text(encoding="utf-8").strip() == "0"
-    assert not (config.state_dir / "genau_enabled.txt").exists()
-    assert read_genau_enabled(config.genau_enabled_file) is False
+    assert (broker_state / "broker_auto_enabled.txt").read_text(encoding="utf-8").strip() == "0"
+    assert not (config.state_dir / "broker_auto_enabled.txt").exists()
+    assert read_broker_auto_enabled(config.broker_auto_enabled_file) is False
 
 
 def test_genau_toggle_auto_does_not_write_genau_cmd_file(tmp_path: Path):

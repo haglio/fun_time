@@ -43,7 +43,7 @@ from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .player_status import (
     genau_status_path,
-    read_genau_enabled,
+    read_broker_auto_enabled,
     read_genau_status,
     read_main_player_status,
 )
@@ -235,9 +235,9 @@ def _parse_numeric_command(command: str) -> str | None:
     return None
 
 
-def _toggle_genau_enabled(path: Path) -> None:
+def _toggle_broker_auto_enabled(path: Path) -> None:
     """Flip the persisted allow/suppress flag; the broker syncs it each tick."""
-    write_flag(path, not read_genau_enabled(path))
+    write_flag(path, not read_broker_auto_enabled(path))
 
 
 def _toggle_lock(
@@ -1525,7 +1525,7 @@ def _genau_toggle_auto(state: BridgeState, config: BridgeConfig,
                        _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Flip whether Genau may take over while OSR2 is in auto mode.  The broker
     reads this persisted flag each tick, so a plain file write is enough."""
-    _toggle_genau_enabled(config.genau_enabled_file)
+    _toggle_broker_auto_enabled(config.broker_auto_enabled_file)
     return state, []
 
 

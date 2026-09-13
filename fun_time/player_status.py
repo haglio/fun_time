@@ -14,12 +14,12 @@ from app_support.file_channel import read_flag, read_key_values, stamp_age
 from player_core.status import PlayerStatus, parse_status
 
 
-def genau_enabled_path(state_dir: Path) -> Path:
+def broker_auto_enabled_path(state_dir: Path) -> Path:
     """Path to the broker-shared flag for whether Genau may take over OSR2 auto mode."""
-    return state_dir / state_files.GENAU_ENABLED
+    return state_dir / state_files.BROKER_AUTO_ENABLED
 
 
-def read_genau_enabled(path: Path) -> bool:
+def read_broker_auto_enabled(path: Path) -> bool:
     """True (takeover allowed) unless the flag file holds '0': the broker's own read."""
     return read_flag(path, default=True)
 

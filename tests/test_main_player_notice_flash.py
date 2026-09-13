@@ -22,7 +22,7 @@ def _runner(tmp_path: Path) -> DispatchLoopRunner:
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
         "portrait_playlist_file", "landscape_cmd_file", "landscape_paused_file",
         "landscape_status_file", "landscape_playlist_file", "favs_file",
-        "genau_mode_file", "genau_cmd_file", "genau_paused_file",
+        "broker_mode_file", "genau_cmd_file", "genau_paused_file",
         "audio_paused_file", "audio_volume_file", "main_player_cmd_file",
         "main_player_paused_file", "main_player_status_file", "dashboard_state_file",
     )
