@@ -677,7 +677,7 @@ class DashboardWindow(QMainWindow):
         # Closing this window ends the WHOLE session; a stray Alt+F4 lands here.
         mark_session_end(self._state_dir, "the dashboard window was closed")
         try:
-            self._ahk_cmd_file.write_text("exit", encoding="utf-8")
+            self._ahk_cmd_file.write_text("end_session", encoding="utf-8")
         except OSError:
             pass
         self._stop_background_work()

@@ -1231,6 +1231,17 @@ def test_the_machine_picks_the_port_so_two_sessions_never_collide(
         other.close()
 
 
+def test_closing_the_window_asks_the_hotkey_script_to_end_the_session(dashboard_app_config):
+    """Not to exit: a script that exits takes Esc with it, and Esc over the
+    closing cover is how a quit gets called off."""
+    window = build_dashboard_window(dashboard_app_config)
+
+    window.close()
+
+    ahk_cmd_file = dashboard_app_config.state_dir / "ahk_cmd.txt"
+    assert ahk_cmd_file.read_text(encoding="utf-8") == "end_session"
+
+
 def test_closing_the_window_ends_the_listener(dashboard_app_config):
     """Several dashboards are built and closed in one test process; a listener
     left blocked in recvfrom would outlive every one of them."""

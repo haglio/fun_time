@@ -50,10 +50,7 @@ from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
 from .satellites_mode import CLOSE_SHOWS, origenerator_shows
-from .session_end import (
-    mark_session_end,
-    session_end_marker_path,
-)
+from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     HandoffTarget,
@@ -392,12 +389,10 @@ _CANCELLED_EXIT_CODE = 0
 def stop_hotkey_script(proc: subprocess.Popen, ahk_cmd_file: Path) -> None:
     """Bring the hotkey script down through its own mailbox, then insist.
 
-    ``exit`` is what every other end of a session uses, and it lets AHK release
-    its keyboard hook on the way out.  One that ignored it would outlive the
-    launch it was hooked into and go on swallowing every key it binds — Esc
-    above all — with nothing left to hand them to.
+    ``exit`` lets AHK release its keyboard hook on the way out.  One that
+    ignored it would outlive the launch it was hooked into and go on swallowing
+    every key it binds — Esc above all — with nothing left to hand them to.
     """
-    mark_session_end(ahk_cmd_file.parent, "the launch was called off")
     try:
         ahk_cmd_file.write_text("exit", encoding="utf-8")
     except OSError:
@@ -1024,10 +1019,22 @@ def silence_the_players(commands: CommandFiles) -> None:
             write_flag_file(paused_file, True)
 
 
+def _wait_for_the_session_to_end(
+    ahk_proc: subprocess.Popen, state_dir: Path, *, poll_s: float = 0.1,
+) -> int:
+    marker = session_end_marker_path(state_dir)
+    while ahk_proc.poll() is None:
+        if marker.exists():
+            return 0
+        time.sleep(poll_s)
+    return ahk_proc.wait()
+
+
 def _run_until_the_hotkeys_exit(
     ahk_proc: subprocess.Popen,
     *,
     state_dir: Path,
+    ahk_cmd_file: Path,
     commands: CommandFiles,
     show_overlays: bool,
     rfb_hwnd: int,
@@ -1039,23 +1046,22 @@ def _run_until_the_hotkeys_exit(
 ) -> int:
     """Hold the session open, then take it down — in that order, always.
 
-    The hotkey script's exit IS the session ending, so this is where the
-    session lives out its life; the teardown is in a ``finally`` because an
-    interrupt has to bring the children down exactly as a quit does.
+    The hotkey script marking the end, or going, IS the session ending, so this
+    is where the session lives out its life; the teardown is in a ``finally``
+    because an interrupt has to bring the children down exactly as a quit does.
     """
     voice_controller, voice_thread = voice
     dispatch_runner, dispatch_thread = dispatch
     try:
-        exit_code = ahk_proc.wait()
+        exit_code = _wait_for_the_session_to_end(ahk_proc, state_dir)
         # WHY the session is ending, which the log could not say before.  A
         # session that vanishes and one the user quit produce the same lines
-        # from here down -- the hotkey script exits either way, the closing
-        # screen goes up either way, and the orchestrator returns 0 either way
-        # -- so a report of "it crashed" had nothing in the log to confirm or
-        # deny it.  The quit chord stamps a marker on its way out (see
-        # windows_bridge_hotkeys.ahk, EndSession); no marker and the script is
-        # gone anyway means it went down on its own.
-        logger.info("Hotkey script exited with code %s (%s)", exit_code,
+        # from here down -- the closing screen goes up either way, and the
+        # orchestrator returns 0 either way -- so a report of "it crashed" had
+        # nothing in the log to confirm or deny it.  Every asked-for end leaves
+        # a marker (see windows_bridge_hotkeys.ahk, MarkSessionEnd); no marker
+        # and the script is gone anyway means it went down on its own.
+        logger.info("The session ended with code %s (%s)", exit_code,
                     _describe_session_end(state_dir, exit_code))
     except KeyboardInterrupt:
         logger.info("Interrupted — shutting down")
@@ -1079,12 +1085,13 @@ def _run_until_the_hotkeys_exit(
                 # next session cannot have.
                 loopback_server.shutdown()
                 loopback_server.server_close()
-            logger.info("AHK exited — shutting down child processes")
+            logger.info("The session is over — shutting down child processes")
             crossing_over = pending_handoff(state_dir) is not None
             _shutdown_children(
                 rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
                 keep_origenerator_via=origenerator_cmd_file if crossing_over else None,
             )
+            stop_hotkey_script(ahk_proc, ahk_cmd_file)
 
     return exit_code
 
@@ -1232,6 +1239,7 @@ def run_session(
     return _run_until_the_hotkeys_exit(
         ahk_proc,
         state_dir=state_dir,
+        ahk_cmd_file=ahk_cmd_file,
         commands=manifest.commands,
         show_overlays=env.show_overlays,
         rfb_hwnd=result.rfb_hwnd,

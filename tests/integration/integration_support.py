@@ -230,11 +230,11 @@ class FunTimeIntegrationSession:
         return read_recorded_children(self.config.paths.state_dir)
 
     def quit_gracefully(self, timeout: float = 15.0) -> int:
-        """Simulate the Ctrl+Alt+Q quit path by killing the AHK process.
+        """Simulate the Ctrl+Alt+Q quit path by telling the AHK process to exit.
 
-        Killing AHK is functionally identical to AHK's ExitApp() — both
-        cause ahk_proc.wait() to return, triggering the orchestrator's
-        finally block which calls _shutdown_children().
+        In a live session ``exit`` marks the session's end and exits, and
+        either one ends the orchestrator's wait, triggering the finally block
+        which calls _shutdown_children().
 
         The command is re-sent until the process goes.  ``ahk_cmd.txt`` is a
         one-slot mailbox that AHK reads-and-deletes on a 150ms timer, and the

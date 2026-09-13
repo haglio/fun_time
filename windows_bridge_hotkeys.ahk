@@ -52,6 +52,8 @@ STARTUP_CANCEL_FILE := STATE_DIR . "\startup_cancel.flag"
 ; "stop" ask startup to unwind instead of doing their session jobs.  WatchStartup
 ; lifts it.
 global StartupPhase := true
+; Its twin at the other end: set when the session ends, never lifted.
+global EndingPhase := false
 
 ; --- Setup ---
 
@@ -244,22 +246,23 @@ SC034::QueueCommand("genau_next_clip")
 ; fully up, and it would take Esc's cancel with it: a script that has exited
 ; hooks nothing.
 EndSession() {
-    global StartupPhase
-    if (StartupPhase) {
+    global StartupPhase, EndingPhase
+    if (StartupPhase || EndingPhase) {
         ; Mid-startup this cannot exit: the orchestrator is still building a
-        ; session that has to come down first.  The word in the flag is what
-        ; tells the two keys apart there -- Esc means "put me back", this means
-        ; "end everything" -- and the session-end marker cannot, a crossing
-        ; having already left one of its own.
+        ; session that has to come down first -- and once the session is ending
+        ; there is nothing left to end.  The word in the flag is what tells the
+        ; two keys apart -- Esc means "put me back", this means "end everything"
+        ; -- and the session-end marker cannot, a crossing having already left
+        ; one of its own.
         RequestStartupCancel("quit")
         return
     }
-    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
     ; Marked because everything the orchestrator sees from here is identical
-    ; whether this was asked for or not: the script exits, the closing screen
-    ; goes up, the session comes down with code 0.  Without it a session that
-    ; died on its own reads exactly like one the user quit.
-    ExitApp()
+    ; whether this was asked for or not: the closing screen goes up and the
+    ; session comes down with code 0.  Without it a session that died on its
+    ; own reads exactly like one the user quit.
+    MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")
+    EndTheSession()
 }
 
 ; The note the orchestrator reads to tell an asked-for end from an unexpected
@@ -275,7 +278,7 @@ MarkSessionEnd(reason) {
 ; say no more than that it was asked -- so a spoken "quit", a crossing to the
 ; headset and the dashboard window's close box all read identically, and "what
 ; ended that session?" had no answer.  Whatever asked writes its own phrase
-; before it sends the exit (fun_time\session_end.py); this keeps it.
+; before it asks for the end (fun_time\session_end.py); this keeps it.
 KeepOrMarkSessionEnd(reason) {
     global STATE_DIR
     if (FileExist(STATE_DIR . "\session_end.txt"))
@@ -283,11 +286,22 @@ KeepOrMarkSessionEnd(reason) {
     MarkSessionEnd(reason)
 }
 
-; Esc calls the launch off while the session is still assembling, and pauses it
-; once it is up.
+; The session ends here and the script does not: Esc and the quit chord stay
+; live over the closing cover, and the orchestrator stops the script once its
+; teardown has read what they asked for.
+EndTheSession() {
+    global EndingPhase, StartupSuspended, STARTUP_CANCEL_FILE
+    try FileDelete(STARTUP_CANCEL_FILE)
+    EndingPhase := true
+    StartupSuspended := false
+    Suspend true
+}
+
+; Esc calls the launch off while the session is still assembling, and the end
+; off once it is ending; in between it pauses the session.
 PauseOrCancelStartup() {
-    global StartupPhase
-    if (StartupPhase) {
+    global StartupPhase, EndingPhase
+    if (StartupPhase || EndingPhase) {
         RequestStartupCancel("cancel")
         return
     }
@@ -370,7 +384,7 @@ AppendWithRetry(text, path, attempts := 5, delayMs := 5, access := "exclusive") 
 }
 
 ProcessAhkCommand() {
-    global AHK_CMD_FILE, StartupSuspended
+    global AHK_CMD_FILE, StartupSuspended, StartupPhase, EndingPhase
     if !FileExist(AHK_CMD_FILE)
         return
     try {
@@ -387,8 +401,12 @@ ProcessAhkCommand() {
     } else if (action = "unsuspend_hotkeys") {
         Suspend false
         StartupSuspended := false
+    } else if (action = "end_session") {
+        KeepOrMarkSessionEnd("an end asked on the AHK command channel")
+        EndTheSession()
     } else if (action = "exit") {
-        KeepOrMarkSessionEnd("an exit on the AHK command channel")
+        if (!StartupPhase && !EndingPhase)
+            KeepOrMarkSessionEnd("an exit on the AHK command channel")
         ExitApp()
     }
 }

@@ -36,11 +36,11 @@ def test_ctrl_alt_q_ends_the_whole_session():
     """The way out of a session, and the reason no player has one of its own.
 
     Every window a session opens comes down together, and this line is the whole
-    mechanism: the orchestrator sits on ``ahk_proc.wait()``, so the script
-    exiting is what releases ``_shutdown_children``.  Take the binding away and
-    each player is on its own again — which is the failure the satellites' "no
-    key here ends this player" comment and genau's ``quits_this_player`` are both
-    written against.
+    mechanism: the orchestrator waits for the session-end marker (or the script
+    going), so the chord marking the end is what releases ``_shutdown_children``.
+    Take the binding away and each player is on its own again — which is the
+    failure the satellites' "no key here ends this player" comment and genau's
+    ``quits_this_player`` are both written against.
 
     The integration suite cannot stand in for this: ``quit_gracefully`` puts
     ``exit`` in the AHK mailbox rather than pressing anything, so it exercises
@@ -49,8 +49,8 @@ def test_ctrl_alt_q_ends_the_whole_session():
     assert "^!q::EndSession()" in script_text(), (
         "nothing binds Ctrl+Alt+Q to ending the session"
     )
-    assert "ExitApp()" in function_source("EndSession"), (
-        "the chord no longer exits the script, so nothing releases the orchestrator"
+    assert "EndTheSession(" in function_source("EndSession"), (
+        "the chord no longer ends the session, so nothing releases the orchestrator"
     )
 
 
@@ -96,6 +96,53 @@ def test_the_region_shows_do_not_gate_the_hotkeys():
     gate = function_source("OrigeneratorHasKeyboard")
     assert '"Origenerator Portrait"' not in gate
     assert '"Origenerator Landscape"' not in gate
+
+
+class TestTheSessionEndsButTheScriptStays:
+    """Esc over the closing cover is how a quit gets called off, and a script
+    that has exited hooks nothing -- so ending a session leaves it running,
+    with only Esc and the quit chord live, until the orchestrator stops it."""
+
+    def test_end_session_on_the_mailbox_ends_the_session_without_exiting(self):
+        body = function_source("ProcessAhkCommand")
+        assert '(action = "end_session")' in body, "the mailbox has no end_session"
+        branch = body[body.index('(action = "end_session")'):]
+        branch = branch[:branch.index("}")]
+
+        assert "EndTheSession(" in branch
+        assert "ExitApp" not in branch
+
+    def test_esc_over_the_closing_cover_drops_the_cancel_flag(self):
+        body = function_source("PauseOrCancelStartup")
+        guard = body[:body.index('RequestStartupCancel("cancel")')]
+
+        assert "EndingPhase" in guard
+
+    def test_the_quit_chord_over_the_closing_cover_says_quit_in_the_flag(self):
+        """So a teardown can tell "end everything" from a cancel."""
+        body = function_source("EndSession")
+        guard = body[:body.index('RequestStartupCancel("quit")')]
+
+        assert "EndingPhase" in guard
+
+    def test_ending_the_session_clears_a_cancel_flag_from_before_it_ended(self):
+        """Nothing in a live session drops the flag, so one lying there when the
+        session ends is from before it was up, and would read as Esc calling
+        this end off."""
+        body = function_source("EndTheSession")
+
+        assert "FileDelete(STARTUP_CANCEL_FILE)" in body
+        assert body.index("FileDelete(STARTUP_CANCEL_FILE)") < body.index("EndingPhase := true")
+
+    def test_the_exit_that_stops_the_script_marks_only_a_live_session(self):
+        """The orchestrator stops the script after a cancelled launch and after
+        every teardown; a marker written then is found by the next session and
+        read as its own end."""
+        body = function_source("ProcessAhkCommand")
+        exit_branch = body[body.index('(action = "exit")'):]
+        guard = exit_branch[:exit_branch.index("MarkSessionEnd(")]
+
+        assert "StartupPhase" in guard and "EndingPhase" in guard
 
 
 class TestStartupPhase:

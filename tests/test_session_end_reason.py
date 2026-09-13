@@ -65,33 +65,41 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     every asked-for END stamps the marker, so one that does NOT is exactly the
     unexpected one.
 
-    Mid-startup the quit chord cannot exit -- the orchestrator is still building
-    a session that has to come down first -- so it asks startup to unwind and
-    says "quit" in the cancel flag instead.  Not through this marker: crossing
-    over leaves one of those too, so reading it made every Esc look like a quit.
-    """
-    body = _hotkey_script()
+    An end the session asked for -- the quit chord, or end_session on the
+    mailbox -- leaves the script running over the closing cover, where Esc can
+    still call it off; the marker is what tells the orchestrator it ended.  Only
+    the mailbox's exit marks and exits at once.
 
-    assert SESSION_END_MARKER in body
-    lines = body.splitlines()
-    callers = [
-        i for i, line in enumerate(lines)
-        if ("MarkSessionEnd(" in line or "KeepOrMarkSessionEnd(" in line)
-        and "(reason)" not in line
-    ]
-    assert len(callers) == 2  # the quit chord, and the command channel's exit
-    for index in callers:
-        assert any("ExitApp" in line for line in lines[index:index + 6])
+    Mid-startup the quit chord cannot end anything -- the orchestrator is still
+    building a session that has to come down first -- so it asks startup to
+    unwind and says "quit" in the cancel flag instead.  Not through this marker:
+    crossing over leaves one of those too, so reading it made every Esc look
+    like a quit.
+    """
+    from tests.ahk_script import function_source
+
+    assert SESSION_END_MARKER in _hotkey_script()
+    chord = function_source("EndSession")
+    assert chord.index('MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")') < chord.index(
+        "EndTheSession()")
+    ending = function_source("EndTheSession")
+    assert "MarkSessionEnd(" not in ending and "ExitApp" not in ending
+    mailbox = function_source("ProcessAhkCommand")
+    asked = mailbox[mailbox.index('(action = "end_session")'):mailbox.index('(action = "exit")')]
+    assert asked.index("KeepOrMarkSessionEnd(") < asked.index("EndTheSession()")
+    exit_branch = mailbox[mailbox.index('(action = "exit")'):]
+    assert "KeepOrMarkSessionEnd(" in exit_branch and "ExitApp()" in exit_branch
 
 
 def test_the_command_channel_keeps_the_phrase_whatever_asked_left():
     """The channel is how EVERY end but the quit chord arrives, and all it can
     say for itself is that it was asked.  A spoken "quit", a crossing to the
     headset and the dashboard window's close box each stamp their own phrase
-    before sending the exit; overwriting it here would put them all back under
-    the one line that cannot tell them apart."""
+    before asking for the end; overwriting it here would put them all back
+    under the one line that cannot tell them apart."""
     body = _hotkey_script()
 
+    assert 'KeepOrMarkSessionEnd("an end asked on the AHK command channel")' in body
     assert 'KeepOrMarkSessionEnd("an exit on the AHK command channel")' in body
     assert "if (FileExist(STATE_DIR" in body
     # The chord is the one caller that IS the asker, so it still writes over
@@ -106,17 +114,19 @@ def _hotkey_script() -> str:
     return script.read_text(encoding="utf-8")
 
 
-def test_everything_that_sends_the_exit_says_what_asked_first():
-    """The rule the phrases depend on, over the whole package: writing "exit"
-    to the hotkey script's mailbox ends the session, and every place that does
-    it stamps the marker first.  One that does not puts its end back under the
-    command channel's own line, which cannot tell a spoken "quit" from a
-    crossing to the headset from a window someone closed."""
+def test_everything_that_asks_for_the_end_says_what_asked_first():
+    """The rule the phrases depend on, over the whole package: writing
+    "end_session" to the hotkey script's mailbox ends the session, and every
+    place that does it stamps the marker first.  One that does not puts its end
+    back under the command channel's own line, which cannot tell a spoken
+    "quit" from a crossing to the headset from a window someone closed.  The
+    exit is left to stopping a script whose session never began or is over."""
     import ast
     from pathlib import Path
 
     package = Path(__file__).resolve().parents[1] / "fun_time"
     unmarked = []
+    exits = []
     for path in sorted(package.rglob("*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for holder in ast.walk(tree):
@@ -128,16 +138,19 @@ def test_everything_that_sends_the_exit_says_what_asked_first():
                 and node.func.id == "mark_session_end"
             ]
             for node in ast.walk(holder):
-                if not _writes_the_exit(node):
+                if _writes_to_the_mailbox(node, "exit"):
+                    exits.append(holder.name)
+                if not _writes_to_the_mailbox(node, "end_session"):
                     continue
                 if not any(mark < node.lineno for mark in marks):
                     unmarked.append(f"{path.name}:{node.lineno} in {holder.name}")
 
     assert unmarked == [], (
-        "these send the exit without saying what asked: " + ", ".join(unmarked))
+        "these ask for the end without saying what asked: " + ", ".join(unmarked))
+    assert exits == ["stop_hotkey_script"]
 
 
-def _writes_the_exit(node) -> bool:
+def _writes_to_the_mailbox(node, word: str) -> bool:
     import ast
 
     return (
@@ -146,7 +159,7 @@ def _writes_the_exit(node) -> bool:
         and node.func.attr == "write_text"
         and bool(node.args)
         and isinstance(node.args[0], ast.Constant)
-        and node.args[0].value == "exit"
+        and node.args[0].value == word
     )
 
 
