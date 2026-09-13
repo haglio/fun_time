@@ -13,8 +13,6 @@ import threading
 import time
 from pathlib import Path
 
-from app_support.file_channel import read_key_values
-
 from fun_time.branch_session import _apply_genau_checkout_override
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
@@ -77,13 +75,6 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
         sleep(0.01)
         status = read(path)
     return status
-
-
-def published_speed(status_file: Path) -> str:
-    try:
-        return read_key_values(status_file).get("speed", "").strip()
-    except OSError:
-        return ""
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")

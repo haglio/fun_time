@@ -293,12 +293,12 @@ class MainRole:
                 duration_ms=int(self._player.duration_ms),
                 paused=self._paused,
                 locked=self._locked,
+                speed=self._speed,
             )),
             "has_funscript": "1" if self.has_funscript else "0",
             "funscript_resting": "1" if self._funscript_resting() else "0",
             "state": "normal",
             "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
-            "speed": f"{self._speed:g}",
         }
 
     def close(self) -> None:

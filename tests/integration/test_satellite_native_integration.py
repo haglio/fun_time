@@ -28,7 +28,6 @@ from fun_time.windows_bridge_startup import launch_satellite, reap_orphaned_sate
 
 from .integration_support import (
     checkout_project_dirs,
-    published_speed,
     published_status,
     real_config_path,
     sample_library_clips,
@@ -97,7 +96,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         _wait(lambda: read_satellite_status(status).video not in ("", locked_clip),
               timeout=15, desc="NEXT to change the clip while locked")
         append_command(cmd, f"{SET_SPEED} 2")
-        _wait(lambda: published_speed(status) == "2",
+        _wait(lambda: read_satellite_status(status).speed == 2.0,
               timeout=10, desc="the satellite to report double speed")
         # The paused flag freezes playback.
         paused.write_text("1", encoding="utf-8")

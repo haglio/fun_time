@@ -40,7 +40,7 @@ class TestStatusFields:
 
         assert list(status_fields(Stub())) == [
             "video", "position_ms", "duration_ms", "paused", "locked",
-            "playlist_length", "speed",
+            "speed", "playlist_length",
         ]
 
     def test_the_rate_the_satellite_plays_at_is_published(self, tmp_path):
@@ -49,7 +49,7 @@ class TestStatusFields:
 
         assert status_fields(session)["speed"] == "1.5"
 
-    def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
+    def test_the_six_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
         from player_core.status import PlayerStatus, parse_status
 
         session, player = make_satellite_session(tmp_path)

@@ -45,14 +45,15 @@ def test_a_rate_the_satellites_were_already_given_is_not_sent_again(tmp_path):
     assert _sent(tmp_path, "portrait") == ["SET_SPEED 1.5"]
 
 
-def test_a_status_naming_no_rate_neither_sends_one_nor_swallows_the_next_change(tmp_path):
+def test_a_status_that_cannot_be_read_sends_nothing_and_keeps_the_last_rate(tmp_path):
     speeds = _speeds(tmp_path)
     _main_plays_at(tmp_path, "1")
     speeds.take_the_main_players_rate()
-    (tmp_path / "main_player_status.txt").write_text("video=C:\\clip.mp4\n", encoding="utf-8")
+    _main_plays_at(tmp_path, "1.5")
     speeds.take_the_main_players_rate()
-    assert _sent(tmp_path, "portrait") == []
 
+    (tmp_path / "main_player_status.txt").unlink()
+    speeds.take_the_main_players_rate()
     _main_plays_at(tmp_path, "1.5")
     speeds.take_the_main_players_rate()
 
