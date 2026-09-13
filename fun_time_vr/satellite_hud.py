@@ -15,8 +15,8 @@ HUD = "hud"
 HUD_GAP_DEG = 0.6
 
 
-def hud_screen_name(side: str) -> str:
-    return f"{side}/{HUD}"
+def hud_screen_name(player: str) -> str:
+    return f"{player}/{HUD}"
 
 
 def screen_kind(name: str) -> str:

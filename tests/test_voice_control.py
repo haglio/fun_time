@@ -508,7 +508,7 @@ class TestHandleRecognition:
         it drives portrait -- and the confirmation belongs over portrait, not
         over the main player the command's own name resolves to."""
         vc = self._controller(tmp_path)
-        vc.active_side = lambda: 2  # Player.PORTRAIT
+        vc.active_player = lambda: 2  # Player.PORTRAIT
         seen = []
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))
@@ -521,7 +521,7 @@ class TestHandleRecognition:
     def test_a_bare_command_with_the_main_player_active_confirms_over_it(
             self, tmp_path, monkeypatch):
         vc = self._controller(tmp_path)
-        vc.active_side = lambda: 1  # Player.MAIN
+        vc.active_player = lambda: 1  # Player.MAIN
         seen = []
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))
@@ -534,7 +534,7 @@ class TestHandleRecognition:
     def test_a_named_command_ignores_which_player_is_active(self, tmp_path, monkeypatch):
         """"Landscape next" says who it is for; the active side has no say."""
         vc = self._controller(tmp_path)
-        vc.active_side = lambda: 2
+        vc.active_player = lambda: 2
         seen = []
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))

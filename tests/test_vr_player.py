@@ -21,6 +21,7 @@ from app_support.file_channel import write_flag
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
+from player_core.modes import MainMode
 from player_core.playhead import (
     PlayheadHudPainter,
     clip_playhead,
@@ -238,10 +239,10 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
     assert unit._audio_device == "Example Headset"
 
 
-@pytest.mark.parametrize("side", ["portrait", "landscape"])
+@pytest.mark.parametrize("player", ["portrait", "landscape"])
 def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
-        side, tmp_path, faked_collaborators):
-    """Six paths per side, five of them asked for by side rather than spelled
+        player, tmp_path, faked_collaborators):
+    """Six paths per player, five of them asked for by player rather than spelled
     out — and the sixth, the dashboard's command file, shared with the desktop."""
     manifest = _manifest_for_a_vr_session(tmp_path)
 
@@ -251,18 +252,18 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     )
 
     unit = _SatelliteUnit(
-        side, manifest, _NO_GL_CONTEXTS, vr=vr, placement=DEFAULT_LAYOUT[side])
+        player, manifest, _NO_GL_CONTEXTS, vr=vr, placement=DEFAULT_LAYOUT[player])
 
     commands = manifest.commands
-    assert unit.cmd_file == Path(commands.side_file(side, "cmd"))
-    assert unit.paused_file == Path(commands.side_file(side, "paused"))
-    assert unit.playlist_file == Path(commands.side_file(side, "playlist"))
+    assert unit.cmd_file == Path(commands.player_file(player, "cmd"))
+    assert unit.paused_file == Path(commands.player_file(player, "paused"))
+    assert unit.playlist_file == Path(commands.player_file(player, "playlist"))
     assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
-        commands.side_file(side, "status"))
+        commands.player_file(player, "status"))
     assert faked_collaborators["PlayPoints"].call_args.args[0] == (
-        Path(commands.state_dir) / play_points_filename(side))
+        Path(commands.state_dir) / play_points_filename(player))
     hud = faked_collaborators["HudOverlay"].call_args.kwargs
-    assert hud["hud_file"] == Path(commands.side_file(side, "hud"))
+    assert hud["hud_file"] == Path(commands.player_file(player, "hud"))
     assert hud["command_file"] == Path(commands.dashboard_cmd_file)
     # The HUD paints into a surface of its own, hanging under the picture, not
     # into the video through mpv as the desktop satellite's does.
@@ -570,7 +571,7 @@ class TestThePanelUnderThePointer:
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), title="Jane Doe - Alpha Study",
                 position_ms=1_000.0, duration_ms=600_000.0,
-                volume=70, muted=False, seek_to=seeks.append, f_mode=False,
+                volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
                 speed=1.25, displayed=True, projection=projection,
             ),
             drive_gate=SimpleNamespace(
@@ -592,7 +593,7 @@ class TestThePanelUnderThePointer:
                 seek=seeks.append, scrub_duration_ms=1.0),
             role=SimpleNamespace(
                 console_hud=ConsoleHud(
-                    console=ConsoleModel(mode="video", broker=True, locked=False),
+                    console=ConsoleModel(main_mode=MainMode.VIDEO, broker=True, locked=False),
                     drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
                                    position=1000, advance_interval=10,
                                    waveform=tuple([0.5] * 80), trace_seconds=12.0),
@@ -623,7 +624,7 @@ class TestThePanelUnderThePointer:
         in the console's, which the announcement strip above pushes down -- and
         that strip is left off while the dashboard sits over the console."""
         (x, y, w, h), _button = next(
-            (rect, button) for rect, button in unit._painter.buttons if button.action == action)
+            (rect, button) for rect, button in unit._painter.buttons if button.command == action)
         return self._uv(unit, x + w // 2, y + h // 2 + strip)
 
     def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
@@ -1724,10 +1725,10 @@ class TestWhatThePointerCanReach:
         assert screens[PANEL].pressable and not screens[PANEL].movable
 
 
-def _a_satellite(side: str, *, hud: bool = False):
-    placement = DEFAULT_LAYOUT[side]
+def _a_satellite(player: str, *, hud: bool = False):
+    placement = DEFAULT_LAYOUT[player]
     return SimpleNamespace(
-        side=side, target=SimpleNamespace(ready=True, aspect=16 / 9),
+        player=player, target=SimpleNamespace(ready=True, aspect=16 / 9),
         screen=SimpleNamespace(placement=placement), hud_ready=hud,
         hud_screen=SimpleNamespace(placement=attached_below(
             placement, aspect=16 / 9, width_deg=20.0, hanging_aspect=6.0)),

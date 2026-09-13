@@ -165,7 +165,7 @@ def _a_panel() -> str:
     from fun_time.lock_hud import HudPanel
 
     return hud_text(hud_model(HudPanel(
-        side="portrait", locked=False, lock_label="Shuffle", current="",
+        player="portrait", locked=False, lock_label="Shuffle", current="",
         seed_siblings=[], action_siblings=[], active=True, latest=False,
         satellites_mode="video",
     ), Path("C:/t")))
@@ -197,7 +197,7 @@ class TestThePressReachesTheDesktopsOwnMap:
 
     @staticmethod
     def _rect_of(hud, action: str):
-        return next(rect for rect, button in hud.targets.buttons if button.action == action)
+        return next(rect for rect, button in hud.targets.buttons if button.command == action)
 
     def test_a_squeeze_on_the_lock_posts_the_lock(self, tmp_path):
         hud, surface, pointer, command_file = self._hud(tmp_path)

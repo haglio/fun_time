@@ -38,7 +38,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
 def test_side_bundles_one_satellites_channel(tmp_path: Path):
     config = _make_config(tmp_path)
 
-    portrait, landscape = config.side(2), config.side(3)
+    portrait, landscape = config.satellite(2), config.satellite(3)
 
     assert portrait.cmd_file == config.portrait_cmd_file
     assert portrait.paused_file == config.portrait_paused_file

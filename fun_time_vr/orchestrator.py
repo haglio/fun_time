@@ -302,7 +302,7 @@ def stock_the_playlists(
     metadata_root: Path,
     vr_library_dirs,
     resumed: bool,
-    main_f_mode: bool,
+    main_scripted_filter: bool,
     main_recent: bool,
     main_video: str = "",
 ) -> None:
@@ -326,7 +326,7 @@ def stock_the_playlists(
     if not main_playlist_has_vr(main_player_playlist, vr_library_dirs):
         build_main_playlist(
             main_player_playlist, manifest.media.main_player_library_sources,
-            f_mode=main_f_mode, recent=main_recent,
+            scripted_filter=main_scripted_filter, recent=main_recent,
         )
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"
@@ -538,14 +538,14 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             commands.genau_paused_file, commands.audio_paused_file,
             commands.main_player_paused_file, commands.audio_volume_file,
             commands.genau_cmd_file, main_player_cmd_file=commands.main_player_cmd_file,
-            volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
+            volume=carried.volume, muted=carried.muted, scripted_filter=carried.main_scripted_filter,
             mode=carried.main_mode,
         )
         # A lock lives in the player process, so it has to be re-sent; the roles read
         # the satellites' own command files, and the VR player is not up yet.
         resume_satellite_locks([
-            (Path(commands.portrait_cmd_file), carried.side(Player.PORTRAIT).locked),
-            (Path(commands.landscape_cmd_file), carried.side(Player.LANDSCAPE).locked),
+            (Path(commands.portrait_cmd_file), carried.satellite(Player.PORTRAIT).locked),
+            (Path(commands.landscape_cmd_file), carried.satellite(Player.LANDSCAPE).locked),
         ])
         stock_the_playlists(
             manifest,
@@ -553,7 +553,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             metadata_root=bridge_config.regen_metadata_root,
             vr_library_dirs=config.vr.library_dirs,
             resumed=resumed,
-            main_f_mode=carried.main_f_mode,
+            main_scripted_filter=carried.main_scripted_filter,
             main_recent=carried.main_latest,
             main_video=main_player_status.video,
         )

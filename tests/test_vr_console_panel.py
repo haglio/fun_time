@@ -8,10 +8,11 @@ from types import SimpleNamespace
 import numpy as np
 from PIL import ImageFont
 from player_core.console import ConsoleModel
-from player_core.console_hud import OSR2_ROBOT_HAND, ConsoleHud, ConsolePainter, ModeHud
+from player_core.console_hud import ConsoleHud, ConsolePainter, ModeHud
 from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
 from player_core.hud_status import F_MODE_LABEL
+from player_core.modes import MainMode, Osr2State
 
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time_vr.console_panel import (
@@ -39,7 +40,7 @@ def _engine_console(mode: str, osr2: str = "robot_hand") -> ConsoleHud:
     drive under it."""
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
-        console=ConsoleModel(mode=mode, osr2=osr2, broker=True, locked=False),
+        console=ConsoleModel(main_mode=mode, osr2=osr2, broker=True, locked=False),
         drive=_drive(),
     )
 
@@ -60,9 +61,9 @@ class FakeGate:
 
 
 def _hud(engine, *, gate=None, video_title="feature", clip_title="scene one", loading=None,
-         f_mode=False, playback_speed=1.0):
+         scripted_filter=False, playback_speed=1.0):
     return panel_hud(engine, video_title=video_title, clip_title=clip_title,
-                     loading=loading, drive_gate=gate or FakeGate(), f_mode=f_mode,
+                     loading=loading, drive_gate=gate or FakeGate(), scripted_filter=scripted_filter,
                      playback_speed=playback_speed)
 
 
@@ -121,7 +122,7 @@ class TestTheDeviceRunningItself:
     def test_the_gate_is_told_under_a_video(self):
         gate = FakeGate()
 
-        _hud(_engine_console("video", osr2="auto"), gate=gate)
+        _hud(_engine_console("video", osr2=Osr2State.AUTO), gate=gate)
 
         assert gate.told_the_device_drives_itself == [True]
 
@@ -130,14 +131,14 @@ class TestTheDeviceRunningItself:
         mode, so its forecasts are voided there rather than left standing."""
         gate = FakeGate()
 
-        _hud(_engine_console("genau", osr2="auto"), gate=gate)
+        _hud(_engine_console("genau", osr2=Osr2State.AUTO), gate=gate)
 
         assert gate.told_the_device_drives_itself == [True]
 
     def test_every_other_state_composes_as_before(self):
         gate = FakeGate()
 
-        _hud(_engine_console("video", osr2="funscript"), gate=gate)
+        _hud(_engine_console("video", osr2=Osr2State.FUNSCRIPT), gate=gate)
 
         assert gate.told_the_device_drives_itself == [False]
 
@@ -152,18 +153,18 @@ class TestFModeOnTheStatusLine:
     """
 
     def test_the_line_says_it_under_a_video(self):
-        assert F_MODE_LABEL in _hud(_engine_console("video"), f_mode=True).status_line
+        assert F_MODE_LABEL in _hud(_engine_console("video"), scripted_filter=True).status_line
 
     def test_the_line_leaves_it_out_when_it_is_off(self):
-        assert F_MODE_LABEL not in _hud(_engine_console("video"), f_mode=False).status_line
+        assert F_MODE_LABEL not in _hud(_engine_console("video"), scripted_filter=False).status_line
 
     def test_it_is_the_main_players_flag_and_so_not_said_over_a_clip(self):
         """In genau mode the slot belongs to Genau's own two filters, which ride
         in the console the engine composed; the main player's playlist is not
         what is on screen and its narrowing is not what the line describes."""
-        hud = _hud(_engine_console("genau"), f_mode=True)
+        hud = _hud(_engine_console("genau"), scripted_filter=True)
 
-        assert hud.modes.f_mode is False
+        assert hud.modes.scripted_filter is False
 
     def test_genaus_own_filter_still_fills_the_slot_in_genau_mode(self):
         engine = replace(
@@ -171,7 +172,7 @@ class TestFModeOnTheStatusLine:
             console=replace(_engine_console("genau").console, favorites_filter=True),
         )
 
-        assert F_MODE_LABEL in _hud(engine, f_mode=False).status_line
+        assert F_MODE_LABEL in _hud(engine, scripted_filter=False).status_line
 
 
 class TestWhoseReadoutItDraws:
@@ -245,7 +246,7 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
     # The rows the headset can show: its main player publishes no length mode,
     # so the length pair is never among them, while the shapes pair always is.
     widest = max(
-        _row_width(console_rows(MainSlot(mode=mode, latest=False,
+        _row_width(console_rows(MainSlot(main_mode=mode, latest=False,
                                          plays_vr=True, plays_flat=True)))
         for mode in ("video", "genau")
     )
@@ -358,7 +359,7 @@ def _live_console() -> ConsoleHud:
     """Video mode with the Robot Hand on the device, so the readout's bars take a press."""
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
-        console=ConsoleModel(mode="video", broker=True, locked=False, osr2=OSR2_ROBOT_HAND),
+        console=ConsoleModel(main_mode=MainMode.VIDEO, broker=True, locked=False, osr2=Osr2State.ROBOT_HAND),
         drive=_drive(),
     )
 
@@ -385,7 +386,7 @@ class TestAPressOnThePanel:
         """A button's middle, in the PANEL's pixels: the painter places its
         buttons in the console's, which the strip above pushes down."""
         (x, y, w, h), _button = next(
-            (rect, button) for rect, button in p.painter.buttons if button.action == action)
+            (rect, button) for rect, button in p.painter.buttons if button.command == action)
         return self._uv(p.size, x + w // 2, y + h // 2 + NOTICE_STRIP_HEIGHT)
 
     def test_a_button_posts_its_command(self):

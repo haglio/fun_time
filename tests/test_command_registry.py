@@ -24,7 +24,7 @@ from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
     _MAIN_EQUIVALENTS,
     expand_group_command,
-    resolve_active_side_command,
+    resolve_active_player_command,
 )
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
@@ -127,7 +127,7 @@ def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     residues: set[str] = set()
     for value in set(VOICE_COMMANDS.values()):
         for side in (1, 2, 3):
-            for command in expand_group_command(resolve_active_side_command(value, side)):
+            for command in expand_group_command(resolve_active_player_command(value, side)):
                 (residues if command.startswith("active_") else targets).add(command)
     return frozenset(targets), frozenset(residues)
 
@@ -164,14 +164,17 @@ def _console_verbs() -> frozenset[str]:
 def _satellite_verbs() -> frozenset[str]:
     """Every verb a satellite HUD button Fun Time declares can post, over both
     sides and every state the declaration takes."""
-    from fun_time.satellite_buttons import side_rows
+    from player_core.modes import SatellitesMode
+
+    from fun_time.satellite_buttons import player_rows
 
     return frozenset(
-        button.action
-        for side in ("portrait", "landscape")
+        button.command
+        for player in ("portrait", "landscape")
         for latest in (None, False, True)
-        for mode in ("", "video", "origenerator")
-        for row in side_rows(side, locked=True, f_mode=True, latest=latest, mode=mode)
+        for satellites_mode in (None, *SatellitesMode)
+        for row in player_rows(player, locked=True, favorites_filter=True, latest=latest,
+                               satellites_mode=satellites_mode)
         for button in row
     )
 
@@ -294,7 +297,7 @@ def test_the_session_keeps_only_the_players_own_controls_in_origenerator_mode():
     side_commands = {command for command in command_dispatch._HANDLERS
                      if command.startswith(("portrait_", "landscape_"))}
     kept = {command for command in side_commands
-            if not command_dispatch._about_a_side(command)}
+            if not command_dispatch._about_a_satellite(command)}
 
     assert kept == {
         f"{side}_{own}"

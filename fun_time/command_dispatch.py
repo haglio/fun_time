@@ -18,6 +18,7 @@ from player_core.console import (
 )
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
+from player_core.modes import LengthMode, LoopState
 from player_core.player_verbs import (
     LOCK_OFF,
     LOCK_ON,
@@ -89,7 +90,7 @@ from .satellites_mode import (
     origenerator_shows,
     toggled_satellites_mode,
 )
-from .shared_state import BridgeState, SideState
+from .shared_state import BridgeState, SatelliteState
 from .voice_commands import ORIGENERATOR_PHRASES
 from .watch_stats import record_watch_event, watch_stats_path
 from .window_roles import visible_main_slot_roles
@@ -180,7 +181,7 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
     return "genau"
 
 
-_DEFAULT_LENGTH_MODE = "mixed"
+_DEFAULT_LENGTH_MODE = LengthMode.MIXED
 
 _MAIN_PLAYER_CMD_MAP = {
     "main_player_record_down": "RECORD_DOWN",
@@ -231,7 +232,7 @@ def _parse_numeric_command(command: str) -> str | None:
 def _toggle_lock(
     player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.side(player).locked
+    locked = state.satellite(player).locked
     current_path = satellite_current(config, player)
     # "Lock" names the video the speaker had in front of them.  If the satellite
     # auto-advanced while the phrase was being recognized, bring that video back
@@ -273,13 +274,13 @@ def _toggle_lock(
     # back into cycling that group.  The loop therefore stays in state — a lock is a
     # pause at one position *inside* the loop, and the HUD goes on drawing the loop
     # (lit button, group rectangle, frozen map) with the held clip ringed.
-    return state.with_side(player, locked=plan.next_locked), lock_ops
+    return state.with_satellite(player, locked=plan.next_locked), lock_ops
 
 
 def _discard(
     player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:
-    locked = state.side(player).locked
+    locked = state.satellite(player).locked
     current_path = satellite_current(config, player)
     # "Weird" judges the video the speaker saw.  When the satellite advanced
     # while the phrase was being recognized, jump back to the condemned clip
@@ -328,7 +329,7 @@ def _discard(
         if plan.notice_message
         else []
     )
-    return state.with_side(player, locked=False), discard_ops
+    return state.with_satellite(player, locked=False), discard_ops
 
 
 # The satellite and the variation axis each cycle command reaches.
@@ -484,7 +485,7 @@ def _dispatch_lock_video(
     just moves the lock onto it; when unlocked, toggling the lock with the target
     both switches to it and locks it (the same back-dating a spoken "lock" uses).
     """
-    if state.side(player).locked:
+    if state.satellite(player).locked:
         return switch_to_video(player, path, state, config)
     return _toggle_lock(player, state, config, target_path=path)
 
@@ -542,7 +543,7 @@ _MAIN_SELECTING_COMMANDS = frozenset(
 )
 
 
-def command_side(command: str) -> Player | None:
+def command_player(command: str) -> Player | None:
     """The player a command addresses, or None if it addresses no player.
 
     The main (the main player) player is selected by its own next/prev navigation, by its
@@ -584,17 +585,17 @@ def dispatch_command(
     if minimize_ops is not None:
         return state, minimize_ops
 
-    # Any explicit side command (voice or keyboard nav) becomes the active side,
-    # so a later side-agnostic "active_*" command knows which player to drive.
-    side = command_side(command)
-    if side is not None:
-        state = replace(state, active_side=side)
-        # Every side command except a navigation step ends keyboard navigation on
-        # that side, so its map re-homes on the live clip; nav commands manage
+    # Any command naming a player (voice or keyboard nav) makes it the active
+    # player, so a later player-agnostic "active_*" command knows which to drive.
+    player = command_player(command)
+    if player is not None:
+        state = replace(state, active_player=player)
+        # Every player command except a navigation step ends keyboard navigation on
+        # that player, so its map re-homes on the live clip; nav commands manage
         # their own anchor.  The main player has none, so its commands end
         # nobody's.
-        if not _is_hud_nav_command(command) and side is not Player.MAIN:
-            state = state.with_side(side, nav_anchor="")
+        if not _is_hud_nav_command(command) and player is not Player.MAIN:
+            state = state.with_satellite(player, nav_anchor="")
 
     # In origenerator mode what is said to a side is the hosted app's to
     # answer -- ahead of the handler lookup, whose player handlers it shadows.
@@ -813,14 +814,14 @@ _FMODE_NOTICE_SOURCE = {
 
 def _player_f_mode(state: BridgeState, player: Player) -> bool:
     """Whether *player* is in F-mode — the main slot's own flag, or its side's."""
-    return state.main_f_mode if player is Player.MAIN else state.side(player).f_mode
+    return state.main_scripted_filter if player is Player.MAIN else state.satellite(player).favorites_filter
 
 
 def _with_f_mode(state: BridgeState, players: tuple[Player, ...], enabled: bool) -> BridgeState:
     """*state* with each of *players* put into F-mode, or out of it."""
     for player in players:
-        state = (replace(state, main_f_mode=enabled) if player is Player.MAIN
-                 else state.with_side(player, f_mode=enabled))
+        state = (replace(state, main_scripted_filter=enabled) if player is Player.MAIN
+                 else state.with_satellite(player, favorites_filter=enabled))
     return state
 
 
@@ -863,10 +864,10 @@ def _dispatch_fmode(
         main_player_cmd_file=config.main_player_cmd_file,
         satellites={
             player: SatelliteFmodeInputs(
-                sources=config.side(player).sources,
-                cmd_file=config.side(player).cmd_file,
-                recent=state.side(player).latest,
-                filter_query=state.side(player).filter,
+                sources=config.satellite(player).sources,
+                cmd_file=config.satellite(player).cmd_file,
+                recent=state.satellite(player).latest,
+                filter_query=state.satellite(player).filter,
             )
             for player in Player.SATELLITES
         },
@@ -931,7 +932,7 @@ def _dispatch_main_reorder(
     if on_main_player:
         state = replace(state, main_latest=recent)
         apply_main_fmode(
-            enabled=state.main_f_mode,
+            enabled=state.main_scripted_filter,
             main_sources=config.main_sources,
             recent=recent,
             state_dir=config.state_dir,
@@ -977,7 +978,7 @@ def _dispatch_main_projection(
         append_command(config.main_player_cmd_file, _MAIN_LOCK_COMMANDS["main_lock_on"])
     else:
         apply_main_fmode(
-            enabled=state.main_f_mode,
+            enabled=state.main_scripted_filter,
             main_sources=config.main_sources,
             recent=state.main_latest,
             state_dir=config.state_dir,
@@ -994,12 +995,12 @@ def _dispatch_main_projection(
 def main_player_at_defaults(
     state: BridgeState, config: BridgeConfig, status: MainPlayerStatus
 ) -> bool:
-    if state.main_f_mode or state.main_latest or main_video_shapes(state, config).narrows:
+    if state.main_scripted_filter or state.main_latest or main_video_shapes(state, config).narrows:
         return False
     if not main_player_displays(state.main_mode):
         return True
-    return (not status.locked and status.state == "normal" and status.speed == 1.0
-            and status.length_mode in ("", _DEFAULT_LENGTH_MODE) and not status.compilation)
+    return (not status.locked and status.loop_state is LoopState.NORMAL and status.speed == 1.0
+            and status.length_mode in (None, _DEFAULT_LENGTH_MODE) and not status.compilation)
 
 
 def _dispatch_main_reset(
@@ -1010,11 +1011,11 @@ def _dispatch_main_reset(
             state, config, read_main_player_status(config.main_player_status_file)):
         logger.info("Reset main player: already at its defaults")
         return state, []
-    if state.main_f_mode or state.main_latest or main_video_shapes(state, config).narrows:
+    if state.main_scripted_filter or state.main_latest or main_video_shapes(state, config).narrows:
         state = replace(
-            state, main_f_mode=False, main_latest=False, main_plays_vr=True, main_plays_flat=True)
+            state, main_scripted_filter=False, main_latest=False, main_plays_vr=True, main_plays_flat=True)
         apply_main_fmode(
-            enabled=state.main_f_mode,
+            enabled=state.main_scripted_filter,
             main_sources=config.main_sources,
             recent=state.main_latest,
             state_dir=config.state_dir,
@@ -1040,14 +1041,14 @@ def _dispatch_reorder(
     same way.  The rebuild replaces the queue, which drops the side's lock and any
     group loop (with the widened row that rode on it).
     """
-    state = state.with_side(player, latest=recent)
+    state = state.with_satellite(player, latest=recent)
     # From the top of the new order: asking for the latest is asking to see what has
     # just arrived, and the reload alone would leave the clip on screen playing with
     # the new order applying only after it.
-    result = _rebuild_side(player, state.side(player).filter, state, config, start_at_top=True)
-    state = state.with_side(player, locked=False)
+    result = _rebuild_satellite(player, state.satellite(player).filter, state, config, start_at_top=True)
+    state = state.with_satellite(player, locked=False)
     state = clear_side_grouping(state, player)
-    side = Player(player).label
+    player_name = Player(player).label
     # The order's own word and nothing else.  The toast flashes on the player it
     # was said to, and this is what that player's HUD calls the order it is now
     # in, so naming the player and then spelling the order out a second time
@@ -1056,18 +1057,18 @@ def _dispatch_reorder(
     # use.  The dispatch owns the toast the way it owns F-mode's, so a spoken
     # reorder is not echoed on top of it (see SELF_REPORTING_COMMANDS).
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
-    logger.info("%s: %s (%d clips)", label, side, result.count)
+    logger.info("%s: %s (%d clips)", label, player_name, result.count)
     return state, [WindowOp(op="notice", key=label, source=satellite_source(player))]
 
 
-def satellite_at_defaults(side: SideState) -> bool:
-    return replace(side, nav_anchor="") == SideState()
+def satellite_at_defaults(side: SatelliteState) -> bool:
+    return replace(side, nav_anchor="") == SatelliteState()
 
 
 def room_at_defaults(state: BridgeState, config: BridgeConfig, status: MainPlayerStatus) -> bool:
     return (main_player_at_defaults(state, config, status)
             and not hosting_origenerator(state, config)
-            and all(satellite_at_defaults(state.side(player)) for player in Player.SATELLITES))
+            and all(satellite_at_defaults(state.satellite(player)) for player in Player.SATELLITES))
 
 
 def _dispatch_reset(
@@ -1095,24 +1096,24 @@ def _dispatch_reset(
     ops: list[WindowOp] = []
     for player in players:
         # Every default is the empty value of its field, so "already reset" is
-        # the side's whole SideState sitting at the default — a narrowing the
+        # the side's whole SatelliteState sitting at the default — a narrowing the
         # reset clears cannot be one this test forgets.  (The nav anchor is
         # already gone: every side command that is not itself a nav step clears
         # it on the way in, so no reset has ever seen one set.)
-        if satellite_at_defaults(state.side(player)):
+        if satellite_at_defaults(state.satellite(player)):
             logger.info("Reset %s: already at its defaults", satellite_source(player))
             continue
         state = cancel_lock(player, state, config)
-        state = state.with_side(
-            player, latest=False, filter="", f_mode=False, nav_anchor="")
+        state = state.with_satellite(
+            player, latest=False, filter="", favorites_filter=False, nav_anchor="")
         state = clear_side_grouping(state, player)
-        result = _rebuild_side(player, "", state, config, start_at_top=True)
+        result = _rebuild_satellite(player, "", state, config, start_at_top=True)
         logger.info("Reset %s: %s", satellite_source(player), result.log_message)
         ops.append(WindowOp(op="notice", key="Reset", source=satellite_source(player)))
     return state, ops
 
 
-def _rebuild_side(
+def _rebuild_satellite(
     player: Player, query: str, state: BridgeState, config: BridgeConfig,
     *, start_at_top: bool = False,
 ) -> SatelliteFilterFlowResult:
@@ -1124,16 +1125,16 @@ def _rebuild_side(
     reset — since the reload otherwise keeps the clip on screen and carries on from
     where it sat, leaving the new order to apply only after it.
     """
-    side = state.side(player)
+    satellite = state.satellite(player)
     return apply_satellite_filter(
         player=player,
         query=query,
-        f_mode_enabled=side.f_mode,
-        recent=side.latest,
-        sources=config.side(player).sources,
+        favorites_filter=satellite.favorites_filter,
+        recent=satellite.latest,
+        sources=config.satellite(player).sources,
         favs_file=config.favs_file,
         state_dir=config.state_dir,
-        cmd_file=config.side(player).cmd_file,
+        cmd_file=config.satellite(player).cmd_file,
         start_at_top=start_at_top,
         regen_metadata_root=config.regen_metadata_root,
     )
@@ -1150,14 +1151,14 @@ def _dispatch_set_filter(
     """
     ops: list[WindowOp] = []
     for player in players:
-        result = _rebuild_side(player, query, state, config)
+        result = _rebuild_satellite(player, query, state, config)
         # Only remember a filter that actually selected videos: a zero-match
         # filter left the current playlist alone, so recording it would let the
         # next F-mode/reorder rebuild blank the satellite.  A filter that *did* rebuild
         # also replaced any loop's sub-playlist, so the loop (and its widened row)
         # is gone; a zero-match one touched nothing, so a running loop survives it.
         if result.applied:
-            state = state.with_side(player, filter=query)
+            state = state.with_satellite(player, filter=query)
             state = clear_side_grouping(state, player)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
@@ -1174,7 +1175,7 @@ def _dispatch_set_filter(
 _THE_PLAYERS_OWN = ("_minimize", "_speed_")
 
 
-def _about_a_side(command: str) -> bool:
+def _about_a_satellite(command: str) -> bool:
     """Whether *command* is said to one satellite side, about what it plays."""
     head = command.removeprefix("filter_")
     if not head.startswith(("portrait_", "landscape_")):
@@ -1207,13 +1208,13 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     """Whether *command* is bound for the hosted app rather than the session.
 
     In origenerator mode everything said to a side about what it plays goes
-    there (:func:`_about_a_side`), and so does the app's own spoken vocabulary,
+    there (:func:`_about_a_satellite`), and so does the app's own spoken vocabulary,
     as the words themselves: the session hears them for the whole room and the
     hosted app matches them.  Public because the dispatch loop asks the same
     question -- its watch tracking must not book a show's step or cull against
     a library video.
     """
-    if command not in _ORIGENERATOR_SPEECH and not _about_a_side(command):
+    if command not in _ORIGENERATOR_SPEECH and not _about_a_satellite(command):
         return False
     return hosting_origenerator(state, config)
 
@@ -1238,8 +1239,8 @@ def _origenerator_transport(
         return None
     spoken = _ORIGENERATOR_SPEECH.get(command)
     if spoken is not None:
-        side_name, phrase = spoken
-        append_command(config.origenerator_cmd_file, f"{side_name.upper()}_SAY:{phrase}")
+        player_name, phrase = spoken
+        append_command(config.origenerator_cmd_file, f"{player_name.upper()}_SAY:{phrase}")
         return []
     append_command(config.origenerator_cmd_file, command)
     return []
@@ -1291,7 +1292,7 @@ def _dispatch_satellites_switch(
         target_mode=target,
         omni_paused=state.omni_paused,
         origenerator_cmd_file=config.origenerator_cmd_file,
-        sides=[config.side(player) for player in Player.SATELLITES],
+        channels=[config.satellite(player) for player in Player.SATELLITES],
     )
     state = replace(state, satellites_mode=result.next_mode)
     if result.is_transition:

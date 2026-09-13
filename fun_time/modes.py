@@ -165,7 +165,7 @@ class VideoShapes:
                            plays_vr=self.plays_vr, plays_flat=self.plays_flat)
 
 
-def build_main_playlist_paths(main_sources: str, f_mode: bool, *,
+def build_main_playlist_paths(main_sources: str, scripted_filter: bool, *,
                               recent: bool = False,
                               rng: random.Random | None = None,
                               shapes: VideoShapes | None = None) -> list[str]:
@@ -179,7 +179,7 @@ def build_main_playlist_paths(main_sources: str, f_mode: bool, *,
 
     """
     files = collect_video_files(main_sources)
-    if f_mode:
+    if scripted_filter:
         files = [full_path for full_path in files if has_handcrafted_funscript(full_path)]
     if shapes is not None:
         files = shapes.keep(files)
@@ -284,7 +284,7 @@ def _collapse_recent(
 
 def build_satellite_playlist_paths(
     source_spec: str,
-    f_mode: bool,
+    favorites_filter: bool,
     favs_file: Path,
     *,
     filter_query: str = "",
@@ -293,7 +293,7 @@ def build_satellite_playlist_paths(
     metadata_root: Path | None = None,
 ) -> list[str]:
     files = collect_video_files(source_spec)
-    if f_mode:
+    if favorites_filter:
         favs_content = read_favs_content(favs_file)
         files = [full_path for full_path in files if is_favorite_path(full_path, favs_content)]
     # An act filter narrows to videos whose recorded act matches; it needs the
@@ -363,7 +363,7 @@ def build_one_satellite_playlist(
     name: str,
     favs_file: Path,
     state_dir: Path,
-    f_mode: bool,
+    favorites_filter: bool,
     recent: bool,
     filter_query: str = "",
     rng: random.Random | None = None,
@@ -371,7 +371,7 @@ def build_one_satellite_playlist(
 ) -> None:
     """Build and write the playlist file a single satellite plays from."""
     paths = build_satellite_playlist_paths(
-        sources, f_mode, favs_file, filter_query=filter_query, recent=recent, rng=rng,
+        sources, favorites_filter, favs_file, filter_query=filter_query, recent=recent, rng=rng,
         metadata_root=metadata_root,
     )
     write_playlist_file(build_playlist_file_path(state_dir, name), paths)
@@ -384,7 +384,7 @@ class SatelliteBuild:
     three is a sided command and the two satellites can be in different states."""
 
     sources: str
-    f_mode: bool = False
+    favorites_filter: bool = False
     recent: bool = False
     filter_query: str = ""
 
@@ -403,17 +403,17 @@ def build_satellite_playlists(
     when *metadata_root* is given)."""
     build_one_satellite_playlist(
         sources=portrait.sources, name=PLAYLIST_PORTRAIT, favs_file=favs_file,
-        state_dir=state_dir, f_mode=portrait.f_mode, recent=portrait.recent,
+        state_dir=state_dir, favorites_filter=portrait.favorites_filter, recent=portrait.recent,
         filter_query=portrait.filter_query, rng=rng, metadata_root=metadata_root,
     )
     build_one_satellite_playlist(
         sources=landscape.sources, name=PLAYLIST_LANDSCAPE, favs_file=favs_file,
-        state_dir=state_dir, f_mode=landscape.f_mode, recent=landscape.recent,
+        state_dir=state_dir, favorites_filter=landscape.favorites_filter, recent=landscape.recent,
         filter_query=landscape.filter_query, rng=rng, metadata_root=metadata_root,
     )
 
 
-def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
+def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filter: bool,
                         recent: bool = False) -> None:
     """Build and write the main player's playlist alone.
 
@@ -422,12 +422,12 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, f_mode: bool,
     rebuilt — the satellites' library is the same whichever app is running,
     while the main player's is what the two apps disagree about.
 
-    *f_mode* is the session's, not off: the satellites' playlists came back
+    *scripted_filter* is the session's, not off: the satellites' playlists came back
     built under it, and one player quietly holding the whole library while the
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
     write_main_player_playlist_file(
-        playlist_file, build_main_playlist_paths(main_sources, f_mode, recent=recent))
+        playlist_file, build_main_playlist_paths(main_sources, scripted_filter, recent=recent))
 
 
 def build_all_playlists(

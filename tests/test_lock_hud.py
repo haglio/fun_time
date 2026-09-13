@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 
 from fun_time.lock_hud import (
-    SideInputs,
+    SatelliteInputs,
     build_hud_panel,
     build_panels,
     cell_path,
@@ -46,10 +46,10 @@ def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     )
 
 
-def _panel(side: str = "portrait", *, index, active: bool = False,
+def _panel(player: str = "portrait", *, index, active: bool = False,
            satellites_mode: str = "", **side_fields):
-    """One side's panel, built from the SideInputs production builds."""
-    return build_hud_panel(SideInputs(side, **side_fields), index=index,
+    """One player's panel, built from the SatelliteInputs production builds."""
+    return build_hud_panel(SatelliteInputs(player, **side_fields), index=index,
                            active=active, satellites_mode=satellites_mode)
 
 
@@ -58,7 +58,7 @@ def test_panel_gathers_action_and_seed_siblings_and_labels_the_lock():
 
     panel = _panel("portrait", locked=True, current=CUR, index=index)
 
-    assert panel.side == "portrait"
+    assert panel.player == "portrait"
     assert panel.locked is True
     assert panel.lock_label == "Locked · Shuffle"
     assert panel.current == CUR
@@ -379,7 +379,7 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
 
 def test_the_status_line_holds_every_state_the_side_is_in():
     """One line to read the satellite off: the lock, what is looping, which order its
-    browse is in, and the filter.  Anything the HUD knows about how the side is
+    browse is in, and the filter.  Anything the HUD knows about how the player is
     behaving belongs up there, not spread around the panel."""
     index = _index(current=CUR, seed_sibs=[S1])
 
@@ -395,11 +395,11 @@ def test_the_status_line_holds_every_state_the_side_is_in():
 
 def test_the_status_line_says_when_f_mode_is_narrowing_the_library():
     """F-mode is a filtering layer of its own — favorites only — sitting under
-    whatever else the side is doing.  Left off the line, a side that has been cut
+    whatever else the player is doing.  Left off the line, a player that has been cut
     to a handful of clips looks identical to one browsing everything."""
     index = _index(current=CUR, seed_sibs=[S1])
 
-    on = _panel("portrait", locked=False, current=CUR, index=index, f_mode=True)
+    on = _panel("portrait", locked=False, current=CUR, index=index, favorites_filter=True)
     off = _panel("portrait", locked=False, current=CUR, index=index)
 
     assert on.lock_label == "Unlocked · Shuffle · F-Mode"
@@ -414,7 +414,7 @@ def test_f_mode_sits_before_the_filter_so_the_filter_stays_last():
 
     panel = _panel(
         "portrait", locked=False, current=CUR, index=index,
-        f_mode=True, filter_query="beta gamma",
+        favorites_filter=True, filter_query="beta gamma",
     )
 
     assert panel.lock_label == "Unlocked · Shuffle · F-Mode · beta gamma"
@@ -437,7 +437,7 @@ def test_the_status_line_names_the_axis_that_is_looping():
 def test_the_lock_word_stands_down_while_a_loop_runs():
     """A loop is repeat-all over a group, so the lock is off and saying so is noise.
     The browse order stays on the line: the moment the loop ends, that is what the
-    side goes back to playing."""
+    player goes back to playing."""
     index = _index(current=CUR, seed_sibs=[S1])
 
     panel = _panel(
@@ -824,7 +824,7 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
 
 
 def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
-    """Priming builds each side's real index up front and caches it, so a later
+    """Priming builds each player's real index up front and caches it, so a later
     read serves it from memory — no per-clip rebuild during the session."""
     from fun_time.media_metadata import cached_group_index
 
@@ -846,33 +846,33 @@ def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(
-        SideInputs("portrait", sources=sources, current=current, locked=True,
+        SatelliteInputs("portrait", sources=sources, current=current, locked=True,
                    filter_query="beta gamma"),
-        SideInputs("landscape"),
+        SatelliteInputs("landscape"),
         metadata_root=metadata_root,
     )
 
-    assert portrait.side == "portrait" and portrait.locked is True
+    assert portrait.player == "portrait" and portrait.locked is True
     assert portrait.action_siblings == [sibling]
     assert portrait.filter_query == "beta gamma"
-    assert landscape.side == "landscape" and landscape.locked is False
+    assert landscape.player == "landscape" and landscape.locked is False
     assert landscape.action_siblings == [] and landscape.seed_siblings == []
     assert landscape.filter_query == ""
 
 
-def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
+def test_build_panels_marks_only_the_active_player_active(tmp_path: Path):
     """A bare "lock" or "next" goes to whichever player was addressed last, and
     nothing on screen said which that was — so each panel carries whether it is
-    the one those words would reach.  Exactly one side can be it."""
+    the one those words would reach.  Exactly one player can be it."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
-    def actives(active_side: str) -> tuple[bool, bool]:
+    def actives(active_player: str) -> tuple[bool, bool]:
         portrait, landscape = build_panels(
-            SideInputs("portrait", sources=sources, current=current),
-            SideInputs("landscape", sources=sources, current=current),
-            metadata_root=metadata_root, active_side=active_side,
+            SatelliteInputs("portrait", sources=sources, current=current),
+            SatelliteInputs("landscape", sources=sources, current=current),
+            metadata_root=metadata_root, active_player=active_player,
         )
         return portrait.active, landscape.active
 
@@ -883,21 +883,21 @@ def test_build_panels_marks_only_the_active_side_active(tmp_path: Path):
 
 def test_build_panels_says_f_mode_on_the_side_that_is_in_it(tmp_path: Path):
     """F-mode is sided now — each satellite has its own button for it — so the
-    status line says it on the side it is on, and the other panel stays silent."""
+    status line says it on the player it is on, and the other panel stays silent."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     current = _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")
 
     portrait, landscape = build_panels(
-        SideInputs("portrait", sources=sources, current=current, f_mode=True),
-        SideInputs("landscape", sources=sources, current=current),
+        SatelliteInputs("portrait", sources=sources, current=current, favorites_filter=True),
+        SatelliteInputs("landscape", sources=sources, current=current),
         metadata_root=metadata_root,
     )
 
     assert "F-Mode" in portrait.lock_label
     assert "F-Mode" not in landscape.lock_label
-    # …and the flag itself rides along, so the side's own button can light.
-    assert (portrait.f_mode, landscape.f_mode) == (True, False)
+    # …and the flag itself rides along, so the player's own button can light.
+    assert (portrait.favorites_filter, landscape.favorites_filter) == (True, False)
 
 
 def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
@@ -909,8 +909,8 @@ def test_build_panels_threads_the_loop_kind_onto_the_panel(tmp_path: Path):
     sources = str(media_root / "portrait")
 
     portrait, _landscape = build_panels(
-        SideInputs("portrait", sources=sources, current=b, loop_axis="seed"),
-        SideInputs("landscape"),
+        SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed"),
+        SatelliteInputs("landscape"),
         metadata_root=metadata_root,
     )
 
@@ -929,8 +929,8 @@ def test_build_panels_threads_the_nav_anchor_onto_the_panel(tmp_path: Path):
 
     # Navigation began from a; the satellite has since switched to its seed sibling b.
     portrait, _landscape = build_panels(
-        SideInputs("portrait", sources=sources, current=b, nav_anchor=a),
-        SideInputs("landscape"),
+        SatelliteInputs("portrait", sources=sources, current=b, nav_anchor=a),
+        SatelliteInputs("landscape"),
         metadata_root=metadata_root,
     )
 
@@ -956,8 +956,8 @@ def test_build_panels_keeps_a_widened_seed_loop_wide_across_the_loose_family(tmp
     # Widened around `a`; the loop has auto-advanced to `b`, a loose-family re-render
     # that is not in a's exact seed family {a, a2}.
     portrait, _landscape = build_panels(
-        SideInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_clip=a),
-        SideInputs("landscape"),
+        SatelliteInputs("portrait", sources=sources, current=b, loop_axis="seed", widen_clip=a),
+        SatelliteInputs("landscape"),
         metadata_root=metadata_root,
     )
 

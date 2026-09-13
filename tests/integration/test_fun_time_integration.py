@@ -6,8 +6,9 @@ import time
 from pathlib import Path
 
 import pytest
+from player_core.modes import LoopState
 
-from fun_time.config import SideFiles
+from fun_time.config import SatelliteFiles
 from fun_time.media_actions import remove_from_favs
 from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
@@ -543,25 +544,25 @@ def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_sessio
         timeout=15,
         description="the main player status file to report a current video",
     )
-    assert s.read_main_player_status().state == "normal"
+    assert s.read_main_player_status().loop_state is LoopState.NORMAL
 
     s.write_dashboard_command("main_player_record_tap")
     s.wait_until(
-        lambda: s.read_main_player_status().state == "recording",
+        lambda: s.read_main_player_status().loop_state is LoopState.RECORDING,
         timeout=10,
         description="the main player to enter recording state",
     )
 
     s.write_dashboard_command("main_player_record_tap")
     s.wait_until(
-        lambda: s.read_main_player_status().state == "looping",
+        lambda: s.read_main_player_status().loop_state is LoopState.LOOPING,
         timeout=10,
         description="the main player to enter looping state",
     )
 
     s.write_dashboard_command("main_player_loop_cancel")
     s.wait_until(
-        lambda: s.read_main_player_status().state == "normal",
+        lambda: s.read_main_player_status().loop_state is LoopState.NORMAL,
         timeout=10,
         description="the main player to return to normal state",
     )
@@ -600,7 +601,7 @@ def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(sha
     s.wait_for_new_log("Dispatching command: main_nudge_next", timeout=10)
 
 
-def _held_still(session: FunTimeIntegrationSession, side: SideFiles) -> SatelliteStatus:
+def _held_still(session: FunTimeIntegrationSession, side: SatelliteFiles) -> SatelliteStatus:
     session.wait_until(
         lambda: bool(read_satellite_status(side.status_file).video),
         timeout=30,
@@ -615,7 +616,7 @@ def _held_still(session: FunTimeIntegrationSession, side: SideFiles) -> Satellit
     return published_status(read_satellite_status, side.status_file)
 
 
-def _showing(side: SideFiles) -> Path:
+def _showing(side: SatelliteFiles) -> Path:
     return Path(read_satellite_status(side.status_file).video or "x").resolve()
 
 
@@ -627,7 +628,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     list, the file stays in the library, and the clip stays in the rotation —
     W then A comes straight back to it."""
     s = isolated_integration_session
-    landscape = s.config.side(Player.LANDSCAPE)
+    landscape = s.config.satellite(Player.LANDSCAPE)
     held = _held_still(s, landscape)
 
     s.write_dashboard_command("landscape_trash")

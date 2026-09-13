@@ -13,7 +13,7 @@ from player_core.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
 
-from .bridge_records import SideChannel
+from .bridge_records import SatelliteChannel
 from .broker_control import write_broker_command
 from .mode_plan import build_mode_switch_plan
 from .modes import (
@@ -169,7 +169,7 @@ def apply_satellite_fmode(
         name=PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
-        f_mode=enabled,
+        favorites_filter=enabled,
         recent=recent,
         filter_query=filter_query,
         metadata_root=regen_metadata_root,
@@ -219,16 +219,16 @@ def apply_fmode(
         )
     for player in Player.SATELLITES:
         if player in named:
-            side = satellites[player]
+            satellite = satellites[player]
             apply_satellite_fmode(
                 player=player,
                 enabled=enabled,
-                sources=side.sources,
+                sources=satellite.sources,
                 favs_file=favs_file,
                 state_dir=state_dir,
-                cmd_file=side.cmd_file,
-                recent=side.recent,
-                filter_query=side.filter_query,
+                cmd_file=satellite.cmd_file,
+                recent=satellite.recent,
+                filter_query=satellite.filter_query,
                 regen_metadata_root=regen_metadata_root,
             )
     return FModeFlowResult(
@@ -244,7 +244,7 @@ def apply_fmode(
 def satellite_browse_paths(
     *,
     query: str,
-    f_mode_enabled: bool,
+    favorites_filter: bool,
     recent: bool,
     sources: str,
     favs_file: str | Path,
@@ -257,7 +257,7 @@ def satellite_browse_paths(
     target "no loop" reshapes the queue back to when a group loop ends.
     """
     return build_satellite_playlist_paths(
-        sources, f_mode_enabled, Path(favs_file),
+        sources, favorites_filter, Path(favs_file),
         filter_query=query, recent=recent, metadata_root=regen_metadata_root,
     )
 
@@ -273,7 +273,7 @@ def apply_satellite_filter(
     *,
     player: Player,
     query: str,
-    f_mode_enabled: bool,
+    favorites_filter: bool,
     recent: bool,
     sources: str,
     favs_file: str | Path,
@@ -284,7 +284,7 @@ def apply_satellite_filter(
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite under *query*.
 
-    Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
+    Ordering follows the caller's ``recent``/``favorites_filter`` just like a full rebuild,
     so the filtered playlist still honors Latest vs Shuffle and F-mode.  A
     non-empty query that matches nothing leaves the current playlist in place
     rather than blanking the satellite; ``query == ""`` clears the filter.  The
@@ -301,7 +301,7 @@ def apply_satellite_filter(
     label = Player(player).label
     name = PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
-        query=query, f_mode_enabled=f_mode_enabled, recent=recent,
+        query=query, favorites_filter=favorites_filter, recent=recent,
         sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,
     )
     if query and not paths:
@@ -328,13 +328,13 @@ def apply_satellites_switch(
     target_mode: str,
     omni_paused: bool,
     origenerator_cmd_file: str | Path | None,
-    sides: Sequence[SideChannel],
+    channels: Sequence[SatelliteChannel],
 ) -> SatellitesSwitchFlowResult:
     """Switch the satellite side between video and origenerator mode.
 
     Like the main slot's switch, nothing is torn down, and nothing pauses: in
     origenerator mode the two players show the hosted app's slideshows.
-    Entering keeps each side's own list aside for the way back, lets go of the
+    Entering keeps each player's own list aside for the way back, lets go of the
     session's hold on the player -- what holds is the app's to say now -- and
     tells the app to fill both, so the mode opens playing rather than empty.
     Leaving tells it to let go; the players come home once it has (see
@@ -353,9 +353,9 @@ def apply_satellites_switch(
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), CLOSE_SHOWS)
     else:
-        for side in sides:
-            keep_aside(side)
-            append_command(Path(side.cmd_file), LOCK_OFF)
+        for channel in channels:
+            keep_aside(channel)
+            append_command(Path(channel.cmd_file), LOCK_OFF)
         # Both players come up playing, the way they are playing the moment
         # video mode is entered: a mode that opened onto two players with
         # nothing new on them asked the user to go and start it.  The hosted

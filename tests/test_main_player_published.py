@@ -19,7 +19,7 @@ VIDEO_MODE = "video"
 
 
 def _console_file(path: Path, mode: str = VIDEO_MODE, **over) -> Path:
-    payload = {"mode": mode, "active": True, "osr2": "off"}
+    payload = {"main_mode": mode, "active": True, "osr2": "off"}
     payload.update(over)
     path.write_text(json.dumps(payload), encoding="utf-8")
     return path
@@ -44,7 +44,7 @@ class TestReadingTheConsole:
 
         published.refresh()
 
-        assert published.console.mode == GENAU_MODE
+        assert published.console.main_mode == GENAU_MODE
 
     def test_a_torn_read_keeps_the_panel_that_was_there(self, files):
         """Fun Time replaces this file while the player polls it, so a lost race
@@ -57,7 +57,7 @@ class TestReadingTheConsole:
         console_file.write_text("{ half a fi", encoding="utf-8")
         published.refresh()
 
-        assert published.console.mode == GENAU_MODE
+        assert published.console.main_mode == GENAU_MODE
 
     def test_a_file_that_vanished_keeps_it_too(self, files):
         console_file, drive_file = files
@@ -68,7 +68,7 @@ class TestReadingTheConsole:
         console_file.unlink()
         published.refresh()
 
-        assert published.console.mode == GENAU_MODE
+        assert published.console.main_mode == GENAU_MODE
 
 
 class TestReadingTheMotion:

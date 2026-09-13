@@ -18,6 +18,7 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import ConsolePainter, ModeHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
+from player_core.modes import LengthMode, LoopState, Osr2State
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import VolumeHud
@@ -79,8 +80,8 @@ class SpyGate:
 
 
 class FakeModes:
-    hud = ModeHud(video="gamma reel", length_mode="mixed", compilation="",
-                  position=1, total=3, f_mode=False)
+    hud = ModeHud(video="gamma reel", length_mode=LengthMode.MIXED, compilation="",
+                  position=1, total=3, scripted_filter=False)
 
 
 class FakeVolume:
@@ -96,7 +97,7 @@ class FakeSession:
         self.position_ms = 2000.0
         self.speed = 1.0
         self.loop_bounds = bounds
-        self.loop_state = "looping" if bounds is not None else "normal"
+        self.loop_state = LoopState.LOOPING if bounds is not None else LoopState.NORMAL
         self.record_in_ms = None
         self.showing_picture = False
 
@@ -232,14 +233,14 @@ class TestTheConsolePanel:
         """In auto mode the OSR2 drives on its own firmware and the script's
         T-Code is dropped at the broker, so folding the script into the picture
         draws a plan for a device nothing here has."""
-        panel = _console(FakeSession(), [], osr2="auto")
+        panel = _console(FakeSession(), [], osr2=Osr2State.AUTO)
 
         panel.bgra(hover=None)
 
         assert panel._drive_gate.told_the_device_drives_itself == [True]
 
     def test_the_gate_composes_the_script_in_every_other_state(self):
-        panel = _console(FakeSession(), [], osr2="funscript")
+        panel = _console(FakeSession(), [], osr2=Osr2State.FUNSCRIPT)
 
         panel.bgra(hover=None)
 
@@ -305,7 +306,7 @@ class TestTheLoopsOwnTwoFrames:
         painter, player = _painter(session, player=SpyPlayer(_frame()))
         _paint(painter)
 
-        session.loop_bounds, session.loop_state = None, "normal"
+        session.loop_bounds, session.loop_state = None, LoopState.NORMAL
         _paint(painter)
 
         assert [c for c in player.calls if c[0] == "remove"] == [

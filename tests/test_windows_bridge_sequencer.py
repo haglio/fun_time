@@ -9,6 +9,7 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from player_core.modes import MainMode
 
 from fun_time import windows_bridge_sequencer
 from fun_time.config import LayoutConfig, load_config
@@ -95,7 +96,7 @@ def _fake_core(**kwargs):
     return "video"
 
 
-def _fake_core_in(mode: str):
+def _fake_core_in(mode: MainMode):
     """A core session that resumes into *mode* — what its real one returns."""
     def launch(**kwargs):
         _write_result(kwargs["result_file"], CORE_PIDS)
@@ -265,7 +266,7 @@ class TestRunStartupSequence:
         state = cfg.paths.state_dir
         for side in ("portrait", "landscape"):
             slot = core_called[side]
-            assert slot.side.label == side
+            assert slot.player.label == side
             assert slot.cmd_file == str(state / f"{side}_cmd.txt")
             assert slot.paused_file == str(state / f"{side}_paused.txt")
             assert slot.status_file == str(state / f"{side}_status.txt")
@@ -505,14 +506,14 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("genau")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.GENAU)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == [2525]
         assert {h for h, on in topmost_calls if on} == {3030, 4040, 6060}
         # Handed on, because the post-overlay z-order pass has to re-assert the
         # same policy and it runs from the orchestrator, out of reach of this.
-        assert result.main_mode == "genau"
+        assert result.main_mode is MainMode.GENAU
 
     def test_a_genau_session_is_revealed_by_starting_genau_not_main_player(self, cfg_factory, tmp_path):
         """The reveal starts whichever player owns the display, and only that
@@ -589,7 +590,7 @@ class TestRunStartupSequence:
         topmost_calls: list[tuple] = []
         minimized: list[int] = []
 
-        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in("video")), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
+        with _sequencer_stubs(start_core_session=dict(side_effect=_fake_core_in(MainMode.VIDEO)), wait_for_window_by_title=dict(side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)), set_always_on_top=dict(side_effect=lambda h, v, **_kw: topmost_calls.append((h, v))), minimize_window=dict(side_effect=lambda h, **_kw: minimized.append(h))):
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert minimized == []
@@ -1362,9 +1363,9 @@ class TestOrigeneratorLaunch:
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
-        stale = cfg.side(Player.PORTRAIT).origenerator_hud_file
+        stale = cfg.satellite(Player.PORTRAIT).origenerator_hud_file
         stale.parent.mkdir(parents=True, exist_ok=True)
-        stale.write_text('{"side": "portrait"}', encoding="utf-8")
+        stale.write_text('{"player": "portrait"}', encoding="utf-8")
         captured = {}
 
         def capture(**kwargs):
@@ -1375,7 +1376,7 @@ class TestOrigeneratorLaunch:
             run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         for player in Player.SATELLITES:
-            files = cfg.side(player)
+            files = cfg.satellite(player)
             assert captured["players"][player.label] == HandedPlayer(
                 playlist_file=str(files.playlist_file), cmd_file=str(files.cmd_file),
                 status_file=str(files.status_file),

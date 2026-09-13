@@ -7,6 +7,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.console import OSR2_DRIVING, ConsoleModel
+from player_core.modes import MainMode, Osr2State
 
 from .console_buttons import MainSlot, console_rows, osr2_controls
 from .mode_plan import main_player_displays
@@ -19,13 +20,9 @@ MAIN_PLAYER_CONSOLE_FILENAME = "main_player_console.json"
 # *driving* right now — not merely present, so a scripted video's quiet stretch,
 # where the Robot Hand fills in, reads as the hand rather than as its funscript,
 # and not merely loaded, so a main player paused off screen in genau mode drives nothing.
-OSR2_OFF = "off"
-OSR2_AUTO = "auto"
-OSR2_FUNSCRIPT = "funscript"
-OSR2_ROBOT_HAND = "robot_hand"
 
 
-def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
+def osr2_state(*, main_mode: MainMode, osr2_mode: str, funscript_driving: bool) -> Osr2State:
     """Which of the OSR2 states has the device, for the console to badge.
 
     Only a main player that is *on screen* can be driving: ``funscript_driving`` is read
@@ -37,17 +34,17 @@ def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
     draggable band on the drive readout went dead.
     """
     if osr2_mode == "off":
-        return OSR2_OFF
+        return Osr2State.OFF
     if osr2_mode == "auto":
-        return OSR2_AUTO
-    if funscript_driving and main_player_displays(mode):
-        return OSR2_FUNSCRIPT
-    return OSR2_ROBOT_HAND
+        return Osr2State.AUTO
+    if funscript_driving and main_player_displays(main_mode):
+        return Osr2State.FUNSCRIPT
+    return Osr2State.ROBOT_HAND
 
 
 def console_model(
     *,
-    mode: str,
+    main_mode: MainMode,
     active: bool,
     osr2_mode: str,
     broker: bool,
@@ -55,7 +52,7 @@ def console_model(
     osr2_control: str = OSR2_DRIVING,
     genau: GenauStatus,
     genau_pace_s: int = 0,
-    f_mode: bool = False,
+    scripted_filter: bool = False,
     latest: bool = False,
     genau_latest: bool = False,
     plays_vr: bool | None = None,
@@ -67,13 +64,13 @@ def console_model(
     order are one flag each, resolved to whichever player is on the main slot;
     the shape flags are the headset's filter, None where the rotation holds one
     shape; *genau_pace_s* is Genau's clip pace, off its drive readout."""
-    video = main_player_displays(mode)
+    video = main_player_displays(main_mode)
     slot = MainSlot(
-        mode=mode,
+        main_mode=main_mode,
         locked=main_player.locked if video else genau.locked,
-        f_mode=f_mode,
+        scripted_filter=scripted_filter,
         latest=latest if video else genau_latest,
-        record=main_player.state,
+        loop_state=main_player.loop_state,
         cruise=genau.cruise_active,
         learned=genau.learned_active,
         shape=genau.shape,
@@ -89,9 +86,9 @@ def console_model(
         nothing_to_reset=nothing_to_reset,
     )
     return ConsoleModel(
-        mode=mode,
+        main_mode=main_mode,
         active=active,
-        osr2=osr2_state(mode=mode, osr2_mode=osr2_mode,
+        osr2=osr2_state(main_mode=main_mode, osr2_mode=osr2_mode,
                         funscript_driving=main_player.funscript_driving),
         osr2_control=slot.osr2_control,  # beside what has the device, what is DONE to it
         locked=slot.locked,

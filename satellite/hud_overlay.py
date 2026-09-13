@@ -93,8 +93,8 @@ class HudOverlay:
             model = parse_hud(text) if text else None
             if model is not None:
                 if self._renderer is None:
-                    self._renderer = HudRenderer(model.side)
-                    self._clicks = HudClicks(model.side)
+                    self._renderer = HudRenderer(model.player)
+                    self._clicks = HudClicks(model.player)
                 # The published panel is authoritative for the loop's lit state:
                 # a clip auto-advancing inside a loop must not unlight it, and a
                 # loop fun_time ended must not stay lit.

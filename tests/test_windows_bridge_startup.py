@@ -11,6 +11,8 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
+from player_core.modes import MainMode
+
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
 from fun_time.child_log import no_child_log
@@ -21,7 +23,7 @@ from fun_time.project_paths import PROJECT_ICON
 from fun_time.satellite_slot import SatelliteSlot
 from fun_time.shared_state import (
     BridgeState,
-    SideState,
+    SatelliteState,
     read_shared_state,
     shared_state_path,
     write_shared_state,
@@ -537,7 +539,7 @@ def test_seed_startup_states_tells_main_player_whether_f_mode_is_on(tmp_path: Pa
     scripted videos looks like any other, so its HUD can only know from being
     told — and it is told alongside the level, not instead of it: both verbs
     have to survive on a channel nothing has drained yet."""
-    _seed_startup_states(tmp_path, f_mode=True)
+    _seed_startup_states(tmp_path, scripted_filter=True)
 
     assert _main_player_verbs(tmp_path) == ["DISPLAY_ON", "SET_VOLUME 100 0", "SET_F_MODE 1"]
 
@@ -563,7 +565,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
         portrait=SatelliteSlot(
-            side=Player.PORTRAIT,
+            player=Player.PORTRAIT,
             sources=str(tmp_path / "portrait_a"),
             cmd_file=state_dir / "portrait_cmd.txt",
             paused_file=state_dir / "portrait_paused.txt",
@@ -574,7 +576,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
             rect=WindowRect(x=2560, y=0, width=1440, height=2500),
         ),
         landscape=SatelliteSlot(
-            side=Player.LANDSCAPE,
+            player=Player.LANDSCAPE,
             sources=str(tmp_path / "landscape_a"),
             cmd_file=state_dir / "landscape_cmd.txt",
             paused_file=state_dir / "landscape_paused.txt",
@@ -631,7 +633,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         main_player_cmd_file=state_dir / "main_player_cmd.txt",
         volume=MAX_VOLUME,
         muted=False,
-        f_mode=False,
+        scripted_filter=False,
         mode="video",
     )
     prepare.assert_called_once_with("fun_time_config.json", tmp_path / "browser_manifest.txt")
@@ -744,7 +746,7 @@ def test_start_core_session_opens_the_primary_slot_in_the_mode_it_was_left_in(tm
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(
-        shared_state_path(kwargs["state_dir"]), BridgeState(main_mode="genau")
+        shared_state_path(kwargs["state_dir"]), BridgeState(main_mode=MainMode.GENAU)
     )
 
     assert _run_start_core_session(kwargs) == "genau"
@@ -765,7 +767,7 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     kwargs = _start_core_session_kwargs(tmp_path)
     left_on = _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "main_player_status.txt").write_text(
-        f"video={left_on['main_player'][1]}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        f"video={left_on['main_player'][1]}\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
@@ -783,7 +785,7 @@ def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path:
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     (kwargs["state_dir"] / "main_player_status.txt").write_text(
-        f"video={tmp_path / 'deleted.mp4'}\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        f"video={tmp_path / 'deleted.mp4'}\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
@@ -811,17 +813,17 @@ def test_start_core_session_reopens_in_the_mode_the_resumed_playlists_were_built
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(landscape=SideState(latest=True), portrait=SideState(f_mode=True, filter="alpha", loop="seed", map_anchor="C:/v/a.mp4"), main_f_mode=True))
+    write_shared_state(state_file, BridgeState(landscape=SatelliteState(latest=True), portrait=SatelliteState(favorites_filter=True, filter="alpha", loop="seed", map_anchor="C:/v/a.mp4"), main_scripted_filter=True))
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(state_file)
     assert state is not None
-    assert (state.main_f_mode, state.side(Player.PORTRAIT).f_mode) == (True, True)
-    assert state.side(Player.PORTRAIT).filter == "alpha"
-    assert state.side(Player.LANDSCAPE).latest is True
-    assert state.side(Player.PORTRAIT).loop == "seed"
-    assert state.side(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
+    assert (state.main_scripted_filter, state.satellite(Player.PORTRAIT).favorites_filter) == (True, True)
+    assert state.satellite(Player.PORTRAIT).filter == "alpha"
+    assert state.satellite(Player.LANDSCAPE).latest is True
+    assert state.satellite(Player.PORTRAIT).loop == "seed"
+    assert state.satellite(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
     # fun_time draws the satellites' HUD model and the dashboard's off that
     # state, but the main player's own HUD can only know F-mode from being told — so it is
     # told, or the main player is the one display that comes back saying nothing.
@@ -857,13 +859,13 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
     kwargs = _start_core_session_kwargs(tmp_path)
     _seed_resumable_session(kwargs)
     write_shared_state(
-        shared_state_path(kwargs["state_dir"]), BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=True))
+        shared_state_path(kwargs["state_dir"]), BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
     )
 
     _run_start_core_session(kwargs)
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
-    assert (state.side(Player.PORTRAIT).locked, state.side(Player.LANDSCAPE).locked) == (True, False)
+    assert (state.satellite(Player.PORTRAIT).locked, state.satellite(Player.LANDSCAPE).locked) == (True, False)
     assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK_ON"]
     assert not kwargs["landscape"].cmd_file.exists()
 
@@ -874,7 +876,7 @@ def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_p
     what clears an OmniPause a crash left stranded."""
     kwargs = _start_core_session_kwargs(tmp_path)
     state_file = shared_state_path(kwargs["state_dir"])
-    write_shared_state(state_file, BridgeState(main_f_mode=True, omni_paused=True))
+    write_shared_state(state_file, BridgeState(main_scripted_filter=True, omni_paused=True))
 
     _run_start_core_session(kwargs)
 
@@ -897,14 +899,14 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
         f"{vr_clip}\n{left_on['main_player'][0]}\n", encoding="utf-8"
     )
     write_shared_state(
-        shared_state_path(state_dir), BridgeState(main_f_mode=True, main_latest=True)
+        shared_state_path(state_dir), BridgeState(main_scripted_filter=True, main_latest=True)
     )
 
     with patch("fun_time.windows_bridge_startup.build_main_playlist") as rebuild:
         _run_start_core_session(kwargs)
 
     rebuild.assert_called_once_with(
-        state_dir / "main_player_playlist.tsv", kwargs["main_sources"], f_mode=True, recent=True
+        state_dir / "main_player_playlist.tsv", kwargs["main_sources"], scripted_filter=True, recent=True
     )
 
 
@@ -1004,7 +1006,7 @@ def test_start_core_session_hands_the_main_loop_back_across_a_crossing(tmp_path:
         f"{vr_clip}\n{watching}\n", encoding="utf-8"
     )
     (state_dir / "main_player_status.txt").write_text(
-        f"video={watching}\nstate=looping\nloop_in_ms=1000\nloop_out_ms=4000\n",
+        f"video={watching}\nloop_state=looping\nloop_in_ms=1000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
@@ -1726,7 +1728,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
             portrait=SatelliteSlot(
-                side=Player.PORTRAIT,
+                player=Player.PORTRAIT,
                 sources=str(tmp_path / "portrait_a"),
                 cmd_file=state_dir / "portrait_cmd.txt",
                 paused_file=state_dir / "portrait_paused.txt",
@@ -1737,7 +1739,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
                 rect=portrait_rect,
             ),
             landscape=SatelliteSlot(
-                side=Player.LANDSCAPE,
+                player=Player.LANDSCAPE,
                 sources=str(tmp_path / "landscape_a"),
                 cmd_file=state_dir / "landscape_cmd.txt",
                 paused_file=state_dir / "landscape_paused.txt",

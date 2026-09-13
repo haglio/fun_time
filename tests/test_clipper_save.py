@@ -51,7 +51,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
 def test_the_save_runs_clippers_venv_on_main_players_video_and_position(tmp_path: Path):
     config = _make_config(tmp_path)
     config.main_player_status_file.write_text(
-        "video=C:\\videos\\test.mp4\nposition_ms=42500\nstate=normal\npaused=0\n",
+        "video=C:\\videos\\test.mp4\nposition_ms=42500\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 

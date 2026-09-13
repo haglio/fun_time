@@ -16,12 +16,12 @@ from pathlib import Path
 from fun_time.players import Player
 from tests.integration.test_origenerator_mode_integration import _leave_the_mode
 
-# How many looks at a side the hosted app takes to answer the OPEN_SHOWS the
+# How many looks at a player the hosted app takes to answer the OPEN_SHOWS the
 # switch sent it — a couple, as it does on a machine with other work on it.
 _LOOKS_BEFORE_THE_APP_ANSWERS = 2
 
 
-class _Side:
+class _Satellite:
     """One player's playlist and status files, as the session addresses them."""
 
     def __init__(self, room: _Room, player: Player, own_clip: Path, picture: Path):
@@ -58,7 +58,7 @@ class _Paths:
 class _Room:
     """A session whose hosted app takes a couple of looks to take the players.
 
-    Addressing a side — which every poll of that side does — is what moves the
+    Addressing a player — which every poll of that player does — is what moves the
     room on, so the room runs on the suite's own polling rather than on a clock
     another agent's machine would keep differently.
     """
@@ -69,7 +69,7 @@ class _Room:
         pictures = tmp_path / "pictures"
         pictures.mkdir()
         folders = {}
-        self._sides = {}
+        self._satellites = {}
         self.pressed = False
         self.presses: list[str] = []
         self.taken_when_pressed: bool | None = None
@@ -77,21 +77,21 @@ class _Room:
             folder = tmp_path / player.label
             folder.mkdir()
             folders[player] = folder
-            self._sides[player] = _Side(
+            self._satellites[player] = _Satellite(
                 self, player, folder / f"{player.label}-clip-one.mp4",
                 pictures / f"{player.label}.png")
         self.config = self
         self.paths = _Paths(folders[Player.PORTRAIT], folders[Player.LANDSCAPE])
 
-    def side(self, player: Player) -> _Side:
-        side = self._sides[player]
-        side.looked_at()
-        return side
+    def satellite(self, player: Player) -> _Satellite:
+        satellite = self._satellites[player]
+        satellite.looked_at()
+        return satellite
 
     def write_dashboard_command(self, command: str) -> None:
         self.presses.append(command)
         self.taken_when_pressed = all(
-            side.taken for side in self._sides.values())
+            satellite.taken for satellite in self._satellites.values())
         self.pressed = True
 
 

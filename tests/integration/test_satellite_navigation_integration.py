@@ -32,7 +32,7 @@ from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import HudPanel
 from fun_time.modes import write_playlist_file
 from fun_time.satellite_control import read_satellite_status
-from fun_time.shared_state import BridgeState, SideState
+from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.windows_bridge_startup import launch_satellite
 
@@ -345,7 +345,7 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     assert playing not in browse
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
-        dispatch_command("portrait_no_loop", BridgeState(portrait=SideState(loop="seed")), config)
+        dispatch_command("portrait_no_loop", BridgeState(portrait=SatelliteState(loop="seed")), config)
 
     _drained(satellite)
     time.sleep(0.5)
@@ -362,7 +362,7 @@ def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite, tmp_pat
           timeout=10, desc="the loop to hold only the clip on screen")
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
-        dispatch_command("portrait_next", BridgeState(portrait=SideState(loop="seed", locked=True)), config)
+        dispatch_command("portrait_next", BridgeState(portrait=SatelliteState(loop="seed", locked=True)), config)
 
     assert satellite.wait_for_video(other_than=playing) in browse
 
@@ -413,12 +413,12 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
 
         def publish(row: list[str], loop: str) -> None:
             publisher.publish("portrait", HudPanel(
-                side="portrait", locked=False, lock_label="Looping seeds", current=playing,
+                player="portrait", locked=False, lock_label="Looping seeds", current=playing,
                 seed_siblings=[v for v in row if v != playing], action_siblings=[],
                 seed_count=len(row), active_loop=loop, playing=playing,
             ))
 
-        state = BridgeState(portrait=SideState(loop="", locked=True))
+        state = BridgeState(portrait=SatelliteState(loop="", locked=True))
         with patch("fun_time.satellite_groups.seed_family_items", return_value=family), \
                 patch("fun_time.satellite_groups.widened_seed_items", return_value=widened):
             state, _ = dispatch_command("portrait_loop", state, config)

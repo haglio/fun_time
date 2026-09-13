@@ -21,9 +21,9 @@ from __future__ import annotations
 import logging
 
 from player_core.console_hud import ModeHud
+from player_core.modes import LengthMode, read_mode
 
-from .library import NONE
-from .library_source import DEFAULT_MODE, LENGTH_MODES, length_mode_rebuilds, next_length_mode
+from .library_source import DEFAULT_MODE, length_mode_rebuilds, next_length_mode
 from .mode_memory import RememberedMode
 from .status import LibraryStatus
 
@@ -55,23 +55,23 @@ class Modes:
         # Empty when there is no library backing the playlist (Fun Time can hand
         # a main player one without library dirs): no length filter is running, so the HUD
         # has no mode to name and the toggle has nothing to rebuild.
-        self._length_mode = (remembered or DEFAULT_MODE) if source is not None else ""
+        self._length_mode = (remembered or DEFAULT_MODE) if source is not None else None
         # Defaults off, because a session that is never told is a session where
         # nothing narrowed it.
-        self._f_mode = False
+        self._scripted_filter = False
 
     @property
-    def length_mode(self) -> str:
-        """The library filter feeding the playlist, or "" with no library."""
+    def length_mode(self) -> LengthMode | None:
+        """The library filter feeding the playlist, or None with no library."""
         return self._length_mode
 
     @property
-    def f_mode(self) -> bool:
+    def scripted_filter(self) -> bool:
         """Whether Fun Time says it narrowed this playlist to the scripted videos."""
-        return self._f_mode
+        return self._scripted_filter
 
-    def set_f_mode(self, on: bool) -> None:
-        self._f_mode = on
+    def set_scripted_filter(self, on: bool) -> None:
+        self._scripted_filter = on
 
     def set_length(self, mode: str) -> None:
         """Play *mode*'s videos, if that asks for anything.
@@ -87,8 +87,8 @@ class Modes:
         """
         if self._source is None:
             return
-        mode = mode.strip().lower()
-        if mode not in LENGTH_MODES:
+        mode = read_mode(LengthMode, mode.strip().lower(), None)
+        if mode is None:
             return
         if not length_mode_rebuilds(mode, self.length_mode,
                                     in_compilation=bool(self._jumps.compilation)):
@@ -96,7 +96,7 @@ class Modes:
         self._length_mode = mode
         self._jumps.leave_compilation()
         logger.info("Length mode: %s", mode)
-        if mode == NONE:
+        if mode is LengthMode.NONE:
             self._session.set_locked(True)
             return
         self._session.load_playlist(self._source.playlist_for(mode))
@@ -126,7 +126,7 @@ class Modes:
             compilation=self._jumps.compilation,
             position=self._session.index + 1,
             total=len(self._session.playlist),
-            f_mode=self.f_mode,
+            scripted_filter=self.scripted_filter,
         )
 
     @property

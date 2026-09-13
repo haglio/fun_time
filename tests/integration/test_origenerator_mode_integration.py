@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
+from player_core.modes import MainMode
 from player_core.playlist import read_playlist
 from player_core.satellite_hud import parse_hud
 
@@ -206,7 +207,7 @@ _STUB_MAIN = textwrap.dedent(
             write_playlist(playlist, [PlaylistItem(PICTURES / f"{side}.png")])
             append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
             publish_whole(handed(side, "hud_file"), hud_text(
-                HudModel(side=side, lock_label=f"Stub {side} show")))
+                HudModel(player=side, lock_label=f"Stub {side} show")))
             held.add(side)
 
     def close_shows():
@@ -329,7 +330,7 @@ def _wait(predicate, *, timeout: float, desc: str):
 
 
 def _playing(session, player: Player) -> str:
-    return read_satellite_status(session.config.side(player).status_file).video
+    return read_satellite_status(session.config.satellite(player).status_file).video
 
 
 def _shows_the_stub(session, player: Player) -> bool:
@@ -341,7 +342,7 @@ def _own_clips(session, player: Player) -> list[Path]:
     again rather than anything the hosted app wrote there."""
     folders = (session.config.paths.portrait_dirs if player is Player.PORTRAIT
                else session.config.paths.landscape_dirs)
-    listed = [item.path for item in read_playlist(session.config.side(player).playlist_file)]
+    listed = [item.path for item in read_playlist(session.config.satellite(player).playlist_file)]
     if listed and all(path.parent in folders for path in listed):
         return listed
     return []
@@ -455,7 +456,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         dashboard_pid=0,
         genau_pid=pids["genau_pid"],
         audio_pid=0,
-        main_mode="video",
+        main_mode=MainMode.VIDEO,
     ))
 
     assert is_window_topmost(portrait)
@@ -500,11 +501,11 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
 
         _wait_for_the_shows(session, timeout=30)
         for player in _PLAYERS:
-            hud_file = session.config.side(player).hud_file
+            hud_file = session.config.satellite(player).hud_file
             worn = _wait(
                 lambda hud_file=hud_file, player=player: _panel_of(hud_file, player),
                 timeout=10, desc=f"the {player.label} player to wear the hosted app's panel")
-            assert [button.action for button in worn.rows[0]][:2] == [
+            assert [button.command for button in worn.rows[0]][:2] == [
                 "satellites_video_activate", "origenerator_activate"]
             assert worn.rows[0][1].lit
 

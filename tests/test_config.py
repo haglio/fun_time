@@ -406,9 +406,9 @@ class TestOrigeneratorPaths:
     def test_each_sides_hosted_panel_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
         cfg = load_config(cfg_path)
         state = (tmp_path / "state").resolve()
-        assert cfg.side(Player.PORTRAIT).origenerator_hud_file == (
+        assert cfg.satellite(Player.PORTRAIT).origenerator_hud_file == (
             state / "origenerator_portrait_hud.json")
-        assert cfg.side(Player.LANDSCAPE).origenerator_hud_file == (
+        assert cfg.satellite(Player.LANDSCAPE).origenerator_hud_file == (
             state / "origenerator_landscape_hud.json")
 
 

@@ -31,7 +31,7 @@ from fun_time.command_reference import build_reference_sections
 from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
 from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
-from fun_time.shared_state import BridgeState, SideState
+from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time_vr import roles
 from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
@@ -311,7 +311,7 @@ class TestTheSatellites:
         playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
 
         dispatch_command(
-            "portrait_reset", BridgeState(portrait=SideState(locked=True, latest=True)), config)
+            "portrait_reset", BridgeState(portrait=SatelliteState(locked=True, latest=True)), config)
         controls = SatelliteControls(
             session,
             reload_playlist=lambda: session.replace_playlist(

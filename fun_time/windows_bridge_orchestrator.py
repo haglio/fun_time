@@ -723,7 +723,7 @@ def start_hud_priming(
     cache_dir = bridge_config.state_dir / THUMBNAIL_CACHE_DIRNAME
     publisher = HudPublisher(
         {
-            **{player.label: Path(manifest.commands.side_file(player.label, "hud"))
+            **{player.label: Path(manifest.commands.player_file(player.label, "hud"))
                for player in Player.SATELLITES},
             # The main player's console rides the same publisher as the satellites' maps.
             "main_player": Path(manifest.commands.main_player_console_file),
@@ -920,7 +920,7 @@ def start_voice_control(
                 sample_rate=cfg.voice_control.sample_rate,
             )
             dispatch_runner.voice_controller = voice_controller
-            voice_controller.active_side = lambda: dispatch_runner.state.active_side
+            voice_controller.active_player = lambda: dispatch_runner.state.active_player
             voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
             voice_thread.start()
             logger.info("Voice control thread launched")

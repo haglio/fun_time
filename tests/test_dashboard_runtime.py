@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.modes import LengthMode
+
 from fun_time.dashboard_bridge import write_dashboard_snapshot
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.player_status import (
@@ -171,7 +173,7 @@ def test_read_main_player_status_parses_has_funscript(tmp_path: Path):
     # reads it to decide whether the funscript or Genau drives the OSR2.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nstate=normal\npaused=0\n",
+        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
@@ -230,7 +232,7 @@ def test_read_main_player_status_parses_position_and_duration(tmp_path: Path):
     # position and the clip length are read off the main player's status file.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nstate=normal\npaused=0\n",
+        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
@@ -288,7 +290,7 @@ def test_read_main_player_status_parses_the_range_a_running_loop_holds(tmp_path:
     publishes — which is how a reopened session can be handed it back."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        "video=C:\\clip.mp4\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
@@ -301,7 +303,7 @@ def test_read_main_player_status_reads_no_loop_where_nothing_is_looping(tmp_path
     to come back to."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nstate=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
+        "video=C:\\clip.mp4\nloop_state=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
     )
 
     assert read_main_player_status(status_file).loop_bounds is None
@@ -313,7 +315,7 @@ def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
     left by that version names a loop it cannot describe.  Sending mpv a
     zero-length A/B range would strand the video on one frame."""
     status_file = tmp_path / "main_player_status.txt"
-    status_file.write_text("video=C:\\clip.mp4\nstate=looping\n", encoding="utf-8")
+    status_file.write_text("video=C:\\clip.mp4\nloop_state=looping\n", encoding="utf-8")
 
     assert read_main_player_status(status_file).loop_bounds is None
 
@@ -330,6 +332,17 @@ def test_read_main_player_status_parses_what_a_reset_puts_back(tmp_path: Path):
     assert (status.speed, status.length_mode, status.compilation) == (
         1.25, "shorts", "Example Studio Volume One")
     assert read_main_player_status(tmp_path / "missing.txt").speed == 1.0
+
+
+def test_read_main_player_status_reads_the_length_mode_as_its_entry_or_as_none(tmp_path: Path):
+    """The length pair is drawn only for a player that names a length mode this
+    session knows: no word, or one from a player of another age, draws no pair
+    rather than lighting the wrong one."""
+    status_file = tmp_path / "main_player_status.txt"
+    for written, read in (("shorts", LengthMode.SHORTS), ("", None), ("every", None)):
+        status_file.write_text(f"video=clip.mp4\nlength_mode={written}\n", encoding="utf-8")
+
+        assert read_main_player_status(status_file).length_mode is read
 
 
 def test_funscript_driving_is_scripted_and_not_resting():

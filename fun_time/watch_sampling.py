@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .command_dispatch import command_side
+from .command_dispatch import command_player
 from .player_status import read_main_player_status
 from .satellite_control import read_satellite_status
 from .video_timeline import VideoTimeline
@@ -118,7 +118,7 @@ class WatchSampler:
         """
         if spoken_at is None:
             return ""
-        timeline = self._timelines.get(command_side(command))
+        timeline = self._timelines.get(command_player(command))
         if timeline is None:
             return ""
         return timeline.path_at(spoken_at)

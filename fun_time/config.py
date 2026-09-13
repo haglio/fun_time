@@ -128,7 +128,7 @@ class VrConfig:
 
 
 @dataclass(frozen=True)
-class SideFiles:
+class SatelliteFiles:
     """One satellite's own files, under the session's state dir — the last of
     them where the hosted Origenerator publishes that side's panel."""
 
@@ -248,11 +248,11 @@ class ProjectConfig:
     def random_favs_browser_manifest_file(self) -> Path:
         return self.paths.state_dir / "random_favs_browser_urls.txt"
 
-    def side(self, player: Player) -> SideFiles:
+    def satellite(self, player: Player) -> SatelliteFiles:
         """The four channel files and the HUD one satellite reads — here with the
         session's other file names, not where the manifest is serialized."""
         label = Player(player).label
-        return SideFiles(
+        return SatelliteFiles(
             cmd_file=self.paths.state_dir / f"{label}_cmd.txt",
             paused_file=self.paths.state_dir / f"{label}_paused.txt",
             status_file=self.paths.state_dir / f"{label}_status.txt",

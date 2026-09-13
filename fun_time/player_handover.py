@@ -1,7 +1,7 @@
 """A satellite player handed to the hosted Origenerator, and taken back.
 
 The app writes the player's own playlist file, so the session's list is kept
-aside — turned onto the clip on screen — and put back when the side comes home,
+aside — turned onto the clip on screen — and put back when the player comes home,
 where the player opens at its top: exactly where it left off.
 """
 from __future__ import annotations
@@ -12,69 +12,69 @@ from player_core.file_channel import append_command
 from player_core.player_verbs import RELOAD_PLAYLIST
 from player_core.playlist import read_playlist, write_playlist
 
-from .bridge_records import SideChannel
+from .bridge_records import SatelliteChannel
 from .modes import rotated_onto
 from .satellite_control import read_satellite_status
 
 PanelStamp = tuple[int, int] | None
 
 
-def panel_stamp(side: SideChannel) -> PanelStamp:
-    """Which copy of *side*'s hosted panel is on disk; each publish replaces it."""
-    if side.origenerator_hud_file is None:
+def panel_stamp(channel: SatelliteChannel) -> PanelStamp:
+    """Which copy of *channel*'s hosted panel is on disk; each publish replaces it."""
+    if channel.origenerator_hud_file is None:
         return None
     try:
-        stat = side.origenerator_hud_file.stat()
+        stat = channel.origenerator_hud_file.stat()
     except OSError:
         return None
     return stat.st_ino, stat.st_mtime_ns
 
 
-def let_go_since(side: SideChannel, stamp: PanelStamp) -> bool:
-    """Whether the hosted app has published *side*'s panel empty since *stamp* --
+def let_go_since(channel: SatelliteChannel, stamp: PanelStamp) -> bool:
+    """Whether the hosted app has published *channel*'s panel empty since *stamp* --
     its close, which only reading the way out makes it do.  An empty one already
-    there at *stamp* is an app that may not have taken the side yet."""
-    if panel_stamp(side) == stamp:
+    there at *stamp* is an app that may not have taken the player yet."""
+    if panel_stamp(channel) == stamp:
         return False
     try:
-        return not side.origenerator_hud_file.read_text(encoding="utf-8").strip()
+        return not channel.origenerator_hud_file.read_text(encoding="utf-8").strip()
     except FileNotFoundError:
         return True
     except OSError:
         return False
 
 
-def _kept(side: SideChannel) -> Path:
-    """Where *side*'s own list waits while the hosted app has the player."""
-    return side.playlist_file.with_name(f"{side.playlist_file.stem}.kept.tsv")
+def _kept(channel: SatelliteChannel) -> Path:
+    """Where *channel*'s own list waits while the hosted app has the player."""
+    return channel.playlist_file.with_name(f"{channel.playlist_file.stem}.kept.tsv")
 
 
-def keep_aside(side: SideChannel) -> None:
-    """Keep *side*'s list, turned onto the clip the player is showing.
+def keep_aside(channel: SatelliteChannel) -> None:
+    """Keep *channel*'s list, turned onto the clip the player is showing.
 
-    A side already holding a kept list never came home, and the list its player
+    A player already holding a kept list never came home, and the list it
     has now is the hosted app's, not the session's.
     """
-    if _kept(side).exists():
+    if _kept(channel).exists():
         return
-    entries = read_playlist(side.playlist_file)
+    entries = read_playlist(channel.playlist_file)
     if not entries:
         return
-    video = read_satellite_status(side.status_file).video
-    write_playlist(_kept(side), rotated_onto(entries, video))
+    video = read_satellite_status(channel.status_file).video
+    write_playlist(_kept(channel), rotated_onto(entries, video))
 
 
-def hand_back(side: SideChannel) -> bool:
-    """Give *side*'s player its own list again; ``False`` with none kept.
+def hand_back(channel: SatelliteChannel) -> bool:
+    """Give *channel*'s player its own list again; ``False`` with none kept.
 
     The kept list is spent by it: a stale one would be dealt over whatever the
-    session has built for that side since.
+    session has built for that player since.
     """
-    kept = _kept(side)
+    kept = _kept(channel)
     entries = read_playlist(kept)
     if not entries:
         return False
-    write_playlist(side.playlist_file, entries)
-    append_command(side.cmd_file, RELOAD_PLAYLIST)
+    write_playlist(channel.playlist_file, entries)
+    append_command(channel.cmd_file, RELOAD_PLAYLIST)
     kept.unlink(missing_ok=True)
     return True
