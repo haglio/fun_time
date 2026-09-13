@@ -2147,3 +2147,20 @@ class TestEscOnTheWayBackFromACancelledCrossing:
         (cancel,) = [kw for kw in progress.keywords if kw.arg == "cancel_file"]
 
         assert ast.unparse(cancel.value) == "None if returning else cancel_file"
+
+
+class TestStartingVoice:
+    def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+
+        with patch.object(windows_bridge_orchestrator, "VOICE_AVAILABLE", True), \
+             patch.object(windows_bridge_orchestrator, "VoiceController",
+                          side_effect=OSError("no microphone")):
+            voice = windows_bridge_orchestrator.start_voice_control(
+                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                dispatch_runner=MagicMock(),
+            )
+
+        assert voice == (None, None)

@@ -96,7 +96,6 @@ from fun_time.session_resume import (
     resume_shared_state,
 )
 from fun_time.shared_state import shared_state_path
-from fun_time.voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
@@ -111,6 +110,7 @@ from fun_time.windows_bridge_orchestrator import (
     open_event_log,
     silence_the_players,
     start_hud_priming,
+    start_voice_control,
     stop_hotkey_script,
     write_pids_file,
 )
@@ -359,7 +359,7 @@ def _cancel_was_a_quit(cancel_file: Path) -> bool:
         return False  # the flag's own word; a crossing's exit leaves a marker too
 
 
-def _cancel_vr_startup(
+def _take_down_the_launch(
     *,
     state_dir: Path,
     children: dict[str, ChildProcess],
@@ -367,11 +367,8 @@ def _cancel_vr_startup(
     ahk_cmd_file: Path,
     cover: _Cover,
     runtime_was_up: bool,
-) -> int:
-    """Tear down a launch the user called off, then exit.  The player goes LAST
-    (it wears the cover) and the hotkey script first; then the monitors."""
-    logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
-    quitting = _cancel_was_a_quit(cover.cancel_file)  # before cover.clear() takes it
+) -> None:
+    """The player goes LAST (it wears the cover) and the hotkey script first."""
     say_the_crossing_is_cancelled(state_dir)  # a teardown of seconds looks like nothing
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     player = children.get("vr_player_pid")
@@ -382,6 +379,24 @@ def _cancel_vr_startup(
         kill_recorded_child(player)
     _release_vr_runtime(runtime_was_up)
     cover.clear()
+
+
+def _cancel_vr_startup(
+    *,
+    state_dir: Path,
+    children: dict[str, ChildProcess],
+    ahk_proc: subprocess.Popen,
+    ahk_cmd_file: Path,
+    cover: _Cover,
+    runtime_was_up: bool,
+) -> int:
+    """Tear down a launch the user called off, then exit, then the monitors."""
+    logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
+    quitting = _cancel_was_a_quit(cover.cancel_file)  # before cover.clear() takes it
+    _take_down_the_launch(
+        state_dir=state_dir, children=children, ahk_proc=ahk_proc,
+        ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
+    )
     if quitting:
         logger.info("Cancelled by the quit chord; taking the monitors back")
         drop_crossing_cover(state_dir)  # nothing is coming to do it for us
@@ -580,53 +595,52 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
         )
 
-    # --- The reveal ---
-    # DONE first, then the players: released before it, the first seconds of a
-    # video play under a panel nobody can see through (release_the_players).
-    # The player takes the cover down within a poll of this line.
-    progress.finish()
-    release_the_players(manifest, carried.main_mode)
-    # The headset is showing the session: the monitors' cover can go.
-    drop_crossing_cover(state_dir)
-    # Records the children for teardown and hands the keyboard over: the hotkey
-    # script takes its startup hold off, so Esc now means omnipause.
-    write_pids_file(pids_file, children)
-    cover.clear()
-    room_ready_file.unlink(missing_ok=True)
+    try:
+        # --- The reveal ---
+        # DONE first, then the players: released before it, the first seconds of a
+        # video play under a panel nobody can see through (release_the_players).
+        # The player takes the cover down within a poll of this line.
+        progress.finish()
+        release_the_players(manifest, carried.main_mode)
+        # The headset is showing the session: the monitors' cover can go.
+        drop_crossing_cover(state_dir)
+        # Records the children for teardown and hands the keyboard over: the hotkey
+        # script takes its startup hold off, so Esc now means omnipause.
+        write_pids_file(pids_file, children)
+        cover.clear()
+        room_ready_file.unlink(missing_ok=True)
 
-    dispatch_runner = DispatchLoopRunner(
-        config=bridge_config,
-        dashboard_cmd_file=dashboard_cmd_file,
-        shared_state_file=shared_state_path(state_dir),
-        ahk_cmd_file=ahk_cmd_file,
-        # Every role pid stays 0: the roles are surfaces of the VR player, and
-        # unresolved HWNDs are what make the window ops no-ops.
-        windows=WindowRoles(pids=ChildPids()),
-        # There IS a dashboard now, hanging in the scene; this publishes what
-        # its bar reads.
-        dashboard_enabled=True,
-        hud_publisher=hud_publisher,
-    )
-    dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
-    dispatch_thread.start()
-
-    voice_controller: VoiceController | None = None
-    voice_thread: threading.Thread | None = None
-    if VOICE_AVAILABLE and config.voice_control.enabled:
-        voice_controller = VoiceController(
-            cmd_file=dashboard_cmd_file,
-            model_path=config.voice_control.model_path,
-            confidence_threshold=config.voice_control.confidence_threshold,
-            device_name=config.voice_control.device_name,
-            sample_rate=config.voice_control.sample_rate,
+        dispatch_runner = DispatchLoopRunner(
+            config=bridge_config,
+            dashboard_cmd_file=dashboard_cmd_file,
+            shared_state_file=shared_state_path(state_dir),
+            ahk_cmd_file=ahk_cmd_file,
+            # Every role pid stays 0: the roles are surfaces of the VR player, and
+            # unresolved HWNDs are what make the window ops no-ops.
+            windows=WindowRoles(pids=ChildPids()),
+            # There IS a dashboard now, hanging in the scene; this publishes what
+            # its bar reads.
+            dashboard_enabled=True,
+            hud_publisher=hud_publisher,
         )
-        dispatch_runner.voice_controller = voice_controller
-        voice_controller.active_side = lambda: dispatch_runner.state.active_side
-        voice_thread = threading.Thread(target=voice_controller.run, daemon=True, name="voice-control")
-        voice_thread.start()
-        logger.info("Voice control thread launched")
-    elif config.voice_control.enabled:
-        logger.warning("Voice control enabled but import failed: %s", voice_import_error())
+        dispatch_thread = threading.Thread(
+            target=dispatch_runner.run, daemon=True, name="dispatch-loop")
+        dispatch_thread.start()
+
+        voice_controller, voice_thread = start_voice_control(
+            manifest.runtime.config_path,
+            dashboard_cmd_file=dashboard_cmd_file,
+            dispatch_runner=dispatch_runner,
+        )
+    except BaseException:
+        logger.info("The session failed while opening; tearing down %d launched child(ren)",
+                    len(children))
+        _take_down_the_launch(
+            state_dir=state_dir, children=children, ahk_proc=ahk_proc,
+            ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
+        )
+        drop_crossing_cover(state_dir)  # nothing is coming to do it for us
+        raise
 
     try:
         ended_by = _wait_for_session_end(ahk_proc, player)

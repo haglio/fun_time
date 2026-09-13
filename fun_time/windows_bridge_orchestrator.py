@@ -936,7 +936,7 @@ def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> Threading
     return server
 
 
-def _start_voice_control(
+def start_voice_control(
     config_path: str, *, dashboard_cmd_file: Path, dispatch_runner: DispatchLoopRunner,
 ) -> tuple[VoiceController | None, threading.Thread | None]:
     """Start listening, when the config asks for it and the import took.
@@ -1231,7 +1231,7 @@ def run_session(
             env=env,
         )
         loopback_server = _serve_loopback(manifest.loopback_port, dispatch_runner)
-        voice_controller, voice_thread = _start_voice_control(
+        voice_controller, voice_thread = start_voice_control(
             manifest.runtime.config_path,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
