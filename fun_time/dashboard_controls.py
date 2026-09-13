@@ -13,6 +13,7 @@ from fun_time.dashboard_actions import (
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
     VOICE_TOGGLE,
+    VR_RESET,
 )
 from fun_time.dashboard_layout import DashboardBarLayout, Rect
 
@@ -48,4 +49,5 @@ def bar_controls(
                    lit=GREEN if f_mode else None),
         BarControl(EXIT_VR if in_vr else ENTER_VR, layout.vr_button,
                    "monitor" if in_vr else "headset"),
+        *((BarControl(VR_RESET, layout.vr_reset_button, "reset"),) if in_vr else ()),
     )

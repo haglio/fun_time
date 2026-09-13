@@ -95,6 +95,7 @@ class DashboardBarLayout:
     # The way across to the other session — Enter VR out here, Exit VR in
     # there.  One button either way, since you can only be in one of them.
     vr_button: Rect
+    vr_reset_button: Rect
 
     @property
     def width(self) -> int:
@@ -124,6 +125,8 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
     fmode_button = Rect(x, PAD, BUTTON, BUTTON)
     x += BUTTON + GROUP_GAP
     vr_button = Rect(x, PAD, BUTTON, BUTTON)
+    x += BUTTON + GAP
+    vr_reset_button = Rect(x, PAD, BUTTON, BUTTON)
 
     return DashboardBarLayout(
         height=height,
@@ -135,6 +138,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         voice_panel=buttons[3],
         fmode_button=fmode_button,
         vr_button=vr_button,
+        vr_reset_button=vr_reset_button,
     )
 
 

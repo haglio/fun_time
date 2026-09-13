@@ -67,6 +67,7 @@ TILT_LIMIT_DEG = 90.0
 # the way a player's own verbs are everywhere in this family.
 CYCLE_PROJECTION = "CYCLE_PROJECTION"
 RECENTER = "RECENTER"
+LAYOUT_RESET = "LAYOUT_RESET"
 TILT_UP = "TILT_UP"
 TILT_DOWN = "TILT_DOWN"
 TILT_RESET = "TILT_RESET"
@@ -97,6 +98,20 @@ def _recorded_for(video: Path, metadata_root: Path | None) -> dict:
     """Everything Evolver recorded about *video*, ``{}`` where that is nothing."""
     sidecar = metadata_path_for(video, metadata_root)
     return {} if sidecar is None else load_metadata(sidecar)
+
+
+class HostRequest:
+    def __init__(self) -> None:
+        self._asked = False
+
+    def ask(self) -> None:
+        self._asked = True
+
+    def take(self) -> bool:
+        if not self._asked:
+            return False
+        self._asked = False
+        return True
 
 
 class MainRole:
@@ -138,9 +153,8 @@ class MainRole:
         # Until the host says the sound is live (player.route_audio), a
         # SET_VOLUME records the level without unmuting.
         self.audio_live = False
-        # Set by RECENTER and drained by the host each frame: re-zeroing the
-        # scene onto the head pose is the host's to do.
-        self._recenter_requested = False
+        self.recenter = HostRequest()
+        self.layout_reset = HostRequest()
         self._tilt_deg = 0.0  # state, not a request; both inputs write here
         # Whether this player is what the headset shows: DISPLAY_OFF rides every
         # switch into genau mode, where the clip takes the scene instead.
@@ -235,9 +249,6 @@ class MainRole:
         self._f_mode = value.strip() != "0"
         return True
 
-    def request_recenter(self) -> None:
-        self._recenter_requested = True
-
     def reset_tilt(self) -> None:
         self._tilt_deg = 0.0
 
@@ -312,12 +323,6 @@ class MainRole:
 
     def nudge_tilt(self, degrees: float) -> None:
         self._tilt_deg = max(-TILT_LIMIT_DEG, min(TILT_LIMIT_DEG, self._tilt_deg + degrees))
-
-    def take_recenter(self) -> bool:
-        """Whether a RECENTER arrived since last asked (consumes the request)."""
-        taken = self._recenter_requested
-        self._recenter_requested = False
-        return taken
 
     def status_fields(self, handoff_touch_ms: int | None) -> dict[str, str]:
         """The desktop main player's status contract, read by the dispatch loop the same way.
@@ -555,7 +560,8 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(Verb(SET_F_MODE, _reads(MainRole.set_f_mode_from), takes_a_value=True),),
     ),
     Control(name="projection", verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),)),
-    Control(name="heading", verbs=(Verb(RECENTER, _moves(MainRole.request_recenter)),)),
+    Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda role: role.recenter.ask())),)),
+    Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(lambda role: role.layout_reset.ask())),)),
     Control(
         name="scene",
         verbs=(Verb(NEXT_SCENE, _moves(MainRole.next_scene)),

@@ -20,6 +20,7 @@ from fun_time_vr.layout import (
     REFERENCE,
     clamp_placement,
     clamp_width,
+    default_player_layout,
     grown,
     nearer,
     read_layout,
@@ -224,3 +225,12 @@ class TestWhereTheControllersLeaveThePlayers:
 
     def test_a_still_stick_leaves_every_player_where_it_was(self):
         assert rearranged(self._PLAYERS, grow=1.0, nearer_by=1.0) == {}
+
+
+class TestTheVrReset:
+    def test_it_puts_back_the_three_players_and_leaves_the_panels_where_they_are(self):
+        assert default_player_layout() == {
+            PRIMARY: DEFAULT_LAYOUT[PRIMARY],
+            LANDSCAPE: DEFAULT_LAYOUT[LANDSCAPE],
+            PORTRAIT: DEFAULT_LAYOUT[PORTRAIT],
+        }

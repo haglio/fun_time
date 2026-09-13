@@ -79,6 +79,13 @@ class TestTheSpokenCrossing:
         assert {"enter_vr", "exit_vr"}.isdisjoint(SUSPEND_EXEMPT_COMMANDS)
 
 
+class TestTheVrReset:
+    @pytest.mark.parametrize("phrase", ["vr reset", "v r reset"])
+    def test_both_spellings_put_the_players_back_and_read_as_vr_reset(self, phrase):
+        assert VOICE_COMMANDS[phrase] == "vr_reset"
+        assert friendly_voice(phrase) == "VR reset"
+
+
 class TestVoiceCommands:
     def test_quit_is_the_word_that_quits(self):
         assert VOICE_COMMANDS["quit"] == "quit"

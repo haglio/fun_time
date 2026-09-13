@@ -14,6 +14,7 @@ from fun_time.dashboard_actions import (
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
     VOICE_TOGGLE,
+    VR_RESET,
 )
 from fun_time.dashboard_layout import compute_dashboard_bar_layout
 from fun_time.event_log import (
@@ -438,3 +439,20 @@ class TestWhatItDraws:
 
         assert edge(DashState(reference_open=True)) == BLUE
         assert edge(DashState()) != BLUE
+
+
+class TestTheVrReset:
+    def test_a_press_on_it_puts_the_players_back(self):
+        rect = dash_actions()[VR_RESET]
+        pointer, posted = _pointer()
+
+        pointer.press(rect.x + rect.width // 2, rect.y + rect.height // 2)
+
+        assert posted == [VR_RESET]
+
+    def test_it_wears_a_mark_as_every_control_on_the_bar_does(self):
+        rect = dash_actions()[VR_RESET]
+        painted = np.asarray(paint_dash(DashState(), []))
+        inside = painted[rect.y + 2:rect.y + rect.height - 2, rect.x + 2:rect.x + rect.width - 2, :3]
+
+        assert len(np.unique(inside.reshape(-1, 3), axis=0)) > 2
