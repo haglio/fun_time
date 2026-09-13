@@ -36,10 +36,18 @@ class TestStatusFields:
             is_paused = False
             is_locked = False
             playlist_length = 1
+            speed = 1.0
 
         assert list(status_fields(Stub())) == [
-            "video", "position_ms", "duration_ms", "paused", "locked", "playlist_length",
+            "video", "position_ms", "duration_ms", "paused", "locked",
+            "playlist_length", "speed",
         ]
+
+    def test_the_rate_the_satellite_plays_at_is_published(self, tmp_path):
+        session, _player = make_satellite_session(tmp_path)
+        session.set_speed(1.5)
+
+        assert status_fields(session)["speed"] == "1.5"
 
     def test_the_five_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
         from player_core.status import PlayerStatus, parse_status
