@@ -10,17 +10,17 @@ one difference spelled out there: that channel holds a single verb, not a queue.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
+
+from app_support.file_channel import read_key_values
+from player_core.status import PlayerStatus, parse_status
 
 
 @dataclass(frozen=True)
-class SatelliteStatus:
-    video: str = ""
-    position_ms: int = 0
-    duration_ms: int = 0
-    paused: bool = False
-    locked: bool = False
+class SatelliteStatus(PlayerStatus):
+    """The family's five, and how many clips the satellite's playlist holds."""
+
     playlist_length: int = 0
 
     @property
@@ -34,26 +34,17 @@ class SatelliteStatus:
 def read_satellite_status(status_file: Path) -> SatelliteStatus:
     """Parse a native satellite's status file; an absent or blank file reads empty."""
     try:
-        text = Path(status_file).read_text(encoding="utf-8")
+        fields = read_key_values(Path(status_file))
     except OSError:
         return SatelliteStatus()
-    fields: dict[str, str] = {}
-    for line in text.splitlines():
-        key, sep, value = line.partition("=")
-        if sep:
-            fields[key.strip()] = value.strip()
     return SatelliteStatus(
-        video=fields.get("video", ""),
-        position_ms=_int(fields.get("position_ms")),
-        duration_ms=_int(fields.get("duration_ms")),
-        paused=fields.get("paused") == "1",
-        locked=fields.get("locked") == "1",
+        **asdict(parse_status(fields)),
         playlist_length=_int(fields.get("playlist_length")),
     )
 
 
 def _int(value: str | None) -> int:
     try:
-        return int(value) if value is not None else 0
+        return int(value.strip()) if value is not None else 0
     except ValueError:
         return 0

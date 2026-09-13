@@ -6,11 +6,12 @@ it lived in `dashboard_runtime`, whose other six importers wanted only these.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from pathlib import Path
 
 from app_support import state_files
 from app_support.file_channel import read_flag, read_key_values, stamp_age
+from player_core.status import PlayerStatus, parse_status
 
 
 def genau_enabled_path(state_dir: Path) -> Path:
@@ -24,30 +25,27 @@ def read_genau_enabled(path: Path) -> bool:
 
 
 @dataclass(frozen=True)
-class MainPlayerStatus:
+class MainPlayerStatus(PlayerStatus):
     """Snapshot of what the main player is playing, parsed from its status file.
 
-    Only the fields with consumers on this side are parsed.  ``position_ms``
-    and ``duration_ms`` give the playback fraction watch tracking needs; the
-    device arbiter drives the OSR2 from the funscript while
-    ``has_funscript`` and not ``funscript_resting``, and hands off to the Robot
-    Hand otherwise — so the hand fills a funscript's quiet lead-in and interior gaps
-    (where ``funscript_resting`` is set).
+    The family's five and then the main player's own; only the fields with
+    consumers on this side are parsed.  ``position_ms`` and ``duration_ms``
+    give the playback fraction watch tracking needs; the device arbiter drives
+    the OSR2 from the funscript while ``has_funscript`` and not
+    ``funscript_resting``, and hands off to the Robot Hand otherwise — so the
+    hand fills a funscript's quiet lead-in and interior gaps (where
+    ``funscript_resting`` is set).
+
+    ``locked`` defaults on, unlike the family's: that is what a main player
+    with nothing to say is doing.  The main console draws the lock, and in
+    genau mode it is drawn by a player with no such lock of its own to ask — so
+    it comes through here, the way the loop ``state`` does.
     """
 
-    video: str = ""
-    position_ms: int = 0
-    duration_ms: int = 0
+    locked: bool = True
     state: str = "normal"
-    paused: bool = False
     has_funscript: bool = False
     funscript_resting: bool = False
-    # Whether the main player is holding the video on screen rather than letting it end.  The
-    # main console draws the lock, and in genau mode it is drawn by a player
-    # with no such lock of its own to ask — so it comes through here, the way the
-    # loop ``state`` does.  Defaults on because that is what a main player with
-    # nothing to say is doing.
-    locked: bool = True
     # The A/B range the main player is looping, as it published it — 0/0 when nothing is.
     # Read through :attr:`loop_bounds` rather than directly; the pair only means
     # a loop alongside ``state``.
@@ -102,14 +100,10 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
     try:
         values = read_key_values(path)
         return MainPlayerStatus(
-            video=values.get("video", "").strip(),
-            position_ms=int(values.get("position_ms", "0").strip() or 0),
-            duration_ms=int(values.get("duration_ms", "0").strip() or 0),
+            **asdict(parse_status(values, default=PlayerStatus(locked=True))),
             state=values.get("state", "normal").strip(),
-            paused=_status_bool(values, "paused"),
             has_funscript=_status_bool(values, "has_funscript"),
             funscript_resting=_status_bool(values, "funscript_resting"),
-            locked=_status_bool(values, "locked", default=True),
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
             handoff_touch_ms=_status_touch(values),
