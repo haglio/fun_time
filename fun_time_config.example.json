@@ -60,5 +60,11 @@
     "tcode_udp_host": "127.0.0.1",
     "tcode_udp_port": 50557,
     "compositor_layers": false
+  },
+  "main_player": {
+    "videos_dir": "C:/path/to/library/videos",
+    "scripts_dir": "C:/path/to/library/scripts",
+    "tcode_udp_host": "127.0.0.1",
+    "tcode_udp_port": 50557
   }
 }

@@ -725,6 +725,7 @@ def launch_main_player(
     main_player_y: int,
     main_player_width: int,
     main_player_height: int,
+    clips_dir: str | Path | None = None,
     metadata_dir: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> int:
@@ -776,6 +777,8 @@ def launch_main_player(
         str(PROJECT_ICON),
         *TASKBAR_IDENTITY_ARGS,
     ]
+    if clips_dir:
+        cmd += ["--clips-dir", str(clips_dir)]
     # Lets the main player group a video's versions from Evolver's metadata sidecars rather
     # than guessing from clip names.
     if metadata_dir:

@@ -359,6 +359,9 @@ class TestRunStartupSequence:
             "main_player_y": PRIMARY_MEDIA_RECT["y"],
             "main_player_width": PRIMARY_MEDIA_RECT["width"],
             "main_player_height": PRIMARY_MEDIA_RECT["height"],
+            # Genau's loop-delivery folder, played as shorts; the main player reads its
+            # own library folders and T-Code port from Fun Time's config now, not genau's.
+            "clips_dir": str(cfg.paths.clips_dir),
             # This manifest has no regen.metadata_root, so the main player is left to
             # group by name; launch_main_player's --metadata-dir wiring is covered in
             # test_windows_bridge_startup.
@@ -370,6 +373,30 @@ class TestRunStartupSequence:
             # an ordinary session, so both players resolve through their venv.
             "project_dirs": "",
         }
+
+    def test_the_main_player_reads_its_settings_from_fun_times_own_config_not_genaus(
+            self, cfg_factory, tmp_path):
+        """The main player's library folders and T-Code port live in Fun Time's
+        config now, so it is handed Fun Time's config file, not genau's -- even
+        when the two are distinct files, as they are on a real machine."""
+        genau_config = tmp_path / "genau_config.json"
+        genau_config.write_text("{}", encoding="utf-8")
+        cfg = load_config(cfg_factory({"paths": {"genau_config_path": str(genau_config)}}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+
+        main_player_kwargs: dict = {}
+
+        def capture_main_player(**kwargs):
+            main_player_kwargs.update(kwargs)
+            return _fake_main_player(**kwargs)
+
+        with _sequencer_stubs(launch_main_player=dict(side_effect=capture_main_player)):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert main_player_kwargs["config_path"] == str(cfg.config_path)
+        assert main_player_kwargs["config_path"] != str(genau_config)
+        assert main_player_kwargs["clips_dir"] == str(cfg.paths.clips_dir)
 
     def test_both_players_are_run_out_of_the_named_checkouts(self, cfg_factory, tmp_path):
         """Genau and the main player both ship in that repo, so a branch of it has to move
