@@ -19,7 +19,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from PIL import Image
-from player_core.timeline import TIMELINE_HEIGHT
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import chip_xy
 
 from satellite.app import _run
@@ -161,11 +161,13 @@ def test_a_press_on_the_scrubber_seeks_the_clip(tmp_path):
     clips = _clips(tmp_path, "v0")
     args = _loop_args(tmp_path, clips)
     (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-    fake = _FakePygame(event_batches=[[_press((274, 476))]])
+    x0, x1 = bar_track_x(640)
+    fake = _FakePygame(event_batches=[[_press(((x0 + x1) // 2, 476))]])
 
     _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
 
-    assert player.seeks == [player.duration_ms / 2]
+    assert len(player.seeks) == 1
+    assert abs(player.seeks[0] - player.duration_ms / 2) <= player.duration_ms / (x1 - x0)
 
 
 def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path):
