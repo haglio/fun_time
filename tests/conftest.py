@@ -31,6 +31,7 @@ apply_genau_dirs_to_sys_path()
 
 from fun_time import win32, windows_bridge_orchestrator
 from fun_time.config import DEFAULT_CONFIG_PATH
+from tests.logging_state import logging_given_back
 
 # test_real_config_launchable is a check on THIS MACHINE's state — the
 # git-ignored real config — not on the code.  Off the machine (CI, public
@@ -158,6 +159,12 @@ def _never_inherit_the_integration_flag(monkeypatch):
     point.
     """
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+
+
+@pytest.fixture(autouse=True)
+def _logging_is_given_back():
+    with logging_given_back():
+        yield
 
 
 TMP_ROOT = Path(
