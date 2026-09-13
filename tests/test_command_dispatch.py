@@ -79,14 +79,15 @@ def _make_config(tmp_path: Path, *, vr_main_player: bool = False) -> BridgeConfi
     )
 
 
-def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool = False) -> None:
+def _set_current(config: BridgeConfig, which: int, video: str, *, locked: bool = False,
+                 playlist_length: int = 0) -> None:
     """Make read_satellite_status report *video* as satellite *which*'s current
     clip — the file-based stand-in for the old get_current_file_path mock."""
     status = config.side(which).status_file
     status.parent.mkdir(parents=True, exist_ok=True)
     status.write_text(
         f"video={video}\nposition_ms=100\nduration_ms=1000\n"
-        f"paused=0\nlocked={'1' if locked else '0'}\n",
+        f"paused=0\nlocked={'1' if locked else '0'}\nplaylist_length={playlist_length}\n",
         encoding="utf-8",
     )
 
@@ -3358,6 +3359,34 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
     assert "RELOAD_PLAYLIST" not in _cmds(config, 2)
     assert state.portrait_loop == ""
     assert [op.key for op in ops if op.op == "notice"] == ["Loop off"]
+
+
+@pytest.mark.parametrize("axis", ["seed", "action"])
+def test_next_leaves_a_loop_down_to_one_clip_for_the_browse(tmp_path: Path, axis: str):
+    config = _make_config(tmp_path)
+    playing = "C:/v/seed_4.mp4"
+    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+    _set_current(config, 2, playing, playlist_length=1)
+
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
+        state, ops = dispatch_command("portrait_next", _make_state(portrait_loop=axis), config)
+
+    assert _playlist(config, 2) == [playing, *browse]
+    assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "NEXT"]
+    assert state.portrait_loop == ""
+    assert ops == []
+
+
+def test_next_in_a_loop_of_several_clips_moves_on_within_the_loop(tmp_path: Path):
+    config = _make_config(tmp_path)
+    _set_current(config, 2, "C:/v/seed_4.mp4", playlist_length=2)
+
+    with patch("fun_time.satellite_groups.satellite_browse_paths") as browse:
+        state, _ops = dispatch_command("portrait_next", _make_state(portrait_loop="seed"), config)
+
+    browse.assert_not_called()
+    assert _cmds(config, 2) == ["NEXT"]
+    assert state.portrait_loop == "seed"
 
 
 # --- the loop key's cycle: seeds, actions, off -------------------------------

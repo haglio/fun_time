@@ -390,6 +390,11 @@ def _browse_after(browse: list[str], current: str) -> list[str]:
     return [current, *browse]
 
 
+def is_single_video_loop(which: int, state: BridgeState, config: BridgeConfig) -> bool:
+    return bool(state.side(which).loop) and (
+        read_satellite_status(config.side(which).status_file).playlist_length == 1)
+
+
 def no_loop(
     which: int, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:

@@ -348,6 +348,21 @@ def test_no_loop_keeps_the_clip_on_screen_playing(satellite, tmp_path):
     assert satellite.video() == playing, "loop off must never switch the clip on screen"
 
 
+def test_next_leaves_a_loop_down_to_one_clip_for_another_clip(satellite, tmp_path):
+    config = _bridge_config(satellite, tmp_path)
+    playing = satellite.video()
+    browse = [v for v in _playlist_videos(satellite) if v != playing]
+    write_playlist_file(satellite.playlist, [playing])
+    satellite.send("RELOAD_PLAYLIST")
+    _wait(lambda: read_satellite_status(satellite.status).playlist_length == 1,
+          timeout=10, desc="the loop to hold only the clip on screen")
+
+    with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
+        dispatch_command("portrait_next", BridgeState(portrait_loop="seed", locked2=True), config)
+
+    assert satellite.wait_for_video(other_than=playing) in browse
+
+
 def _decoding(satellite: _Satellite) -> bool:
     """Whether the player still has a decoded clip on screen.
 

@@ -119,6 +119,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
+# 6897 since 2026-09-12, when the satellite transport's docstring went rather than
+# grow a clause for the loop down to one clip that Right now leaves.
 # 6898 since 2026-09-12, when the desktop's startup stopped carrying the
 # headset's shape filter and the comment claiming it served the headset went.
 # 6903 since 2026-09-12, when force_foreground_window's docstring stopped
@@ -141,7 +143,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 6898
+MAX_PROSE_LINES = 6897
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

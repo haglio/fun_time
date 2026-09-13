@@ -38,6 +38,7 @@ class SatelliteStatus:
     duration_ms: int = 0
     paused: bool = False
     locked: bool = False
+    playlist_length: int = 0
 
     @property
     def fraction(self) -> float | None:
@@ -64,6 +65,7 @@ def read_satellite_status(status_file: Path) -> SatelliteStatus:
         duration_ms=_int(fields.get("duration_ms")),
         paused=fields.get("paused") == "1",
         locked=fields.get("locked") == "1",
+        playlist_length=_int(fields.get("playlist_length")),
     )
 
 
