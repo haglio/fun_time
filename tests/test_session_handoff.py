@@ -238,7 +238,7 @@ class TestTheKeptOrigenerator:
         the adopting session checks the pair against the process still there."""
         keep_the_origenerator(tmp_path, pid=4321, created_at=99)
 
-        assert kept_origenerator(tmp_path) == (4321, 99)
+        assert kept_origenerator(tmp_path) == (4321, 99, False)
 
     def test_no_record_reads_as_nothing_kept(self, tmp_path: Path):
         assert kept_origenerator(tmp_path) is None
@@ -512,12 +512,13 @@ class TestTheRelayEndToEnd:
         (state_dir / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
         let_go, start, come_up, report = self._patched()
         with let_go, start, come_up, report, \
-             patch("fun_time.windows_bridge_orchestrator.close_a_kept_origenerator") as closed:
+             patch("fun_time.windows_bridge_orchestrator."
+                   "let_go_of_a_kept_origenerator") as closed:
             run(VR, config)
 
         assert crossing_progress_path(state_dir).read_text(encoding="utf-8").strip() == "DONE"
         assert headset_hold_asked(state_dir) is False
-        closed.assert_called_once_with(Path(state_dir))
+        closed.assert_called_once_with(Path(state_dir), config.origenerator_cmd_file)
 
     def test_a_way_back_is_never_turned_around_by_a_second_esc(self, config):
         """One Esc per cover: a second press on the way back would leave him

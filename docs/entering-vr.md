@@ -210,12 +210,14 @@ crossing used to pay that twice, the desktop session closing it on the way out
 and the session coming back launching a new one.
 
 So a crossing keeps it. The teardown sends `CLOSE_SHOWS`, hides its window and
-records `(pid, created_at)` in `origenerator_kept.txt` instead of closing it,
-leaves it out of the kill sweep, and the arriving session adopts it: only the
-boot is skipped, and the mode is open from that session's first tick. The shows
-have to be closed on the way out because they are windows of their own: hiding
-the main window alone left both of them up over the monitors for the whole stay
-in the headset. Entering the mode opens them again, as it always does.
+records `(pid, created_at, taken over)` in `origenerator_kept.txt` instead of
+closing it, leaves it out of the kill sweep, and the arriving session adopts it:
+only the boot is skipped, and the mode is open from that session's first tick.
+A copy the session took over from standalone is handed back instead of closed,
+whoever lets go of it. The shows have to be closed on the way out because they
+are windows of their own: hiding the main window alone left both of them up over
+the monitors for the whole stay in the headset. Entering the mode opens them
+again, as it always does.
 Identity is the pair and never the pid alone, because Windows hands freed pids
 straight back out.
 
@@ -224,9 +226,11 @@ answering through it, and clearing it would close the mode again for a boot
 this has skipped. The paused flag and the command file are cleared as ever: a
 stale freeze or an unread verb from the last session would land on this one.
 
-Whoever ends up with nothing to hand it to closes it: a VR session quitting
-rather than crossing back, and a relay whose crossing failed. A record whose
-process is gone is simply forgotten.
+Whoever ends up with nothing to hand it to lets it go: a VR session quitting
+rather than crossing back, and a relay whose crossing failed. A copy the
+desktop session took over from an Origenerator that was already open is sent
+`RELEASE` and goes back to being a window of its own; a copy a session
+launched is closed. A record whose process is gone is simply forgotten.
 
 ## What each cover waits on
 

@@ -75,6 +75,7 @@ from .session_handoff import (
 )
 from .shared_state import shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
+from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
@@ -254,7 +255,7 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
 
 
 def _park_the_hosted_origenerator(
-    state_dir: Path, child: ChildProcess | None, command_file: Path,
+    state_dir: Path, child: ChildProcess | None, command_file: Path, *, taken_over: bool,
 ) -> bool:
     """Park the hosted app for the arriving session; whether it took it."""
     if child is None or not child.pid:
@@ -264,21 +265,23 @@ def _park_the_hosted_origenerator(
         return False
     append_command(command_file, CLOSE_SHOWS)
     hide_window(hwnd)
-    keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at)
+    keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at,
+                          taken_over=taken_over)
     logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
     return True
 
 
-def close_a_kept_origenerator(state_dir: Path) -> None:
-    """Close a hosted app a crossing left running that nothing will adopt."""
+def let_go_of_a_kept_origenerator(state_dir: Path, command_file: Path) -> None:
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
     if kept is None:
         return
-    pid, created_at = kept
-    if get_process_creation_time(pid) != created_at:
+    if get_process_creation_time(kept.pid) != kept.created_at:
         return  # gone already, or that pid is somebody else's now
-    child = ChildProcess(pid=pid, created_at=created_at)
+    if kept.taken_over:
+        append_command(command_file, RELEASE)
+        return
+    child = ChildProcess(pid=kept.pid, created_at=kept.created_at)
     _close_origenerator_gracefully(child)
     kill_recorded_child(child)
 
@@ -290,6 +293,7 @@ def _shutdown_children(
     *,
     state_dir: Path,
     keep_origenerator_via: Path | None = None,
+    release_origenerator_via: Path | None = None,
 ) -> None:
     """Kill all child processes launched during startup.
 
@@ -301,14 +305,19 @@ def _shutdown_children(
     progress.advance("browser")
     close_window(rfb_hwnd)
     kept = keep_origenerator_via is not None and _park_the_hosted_origenerator(
-        state_dir, children.get("origenerator_pid"), keep_origenerator_via)
+        state_dir, children.get("origenerator_pid"), keep_origenerator_via,
+        taken_over=release_origenerator_via is not None)
     if not kept:
         forget_the_kept_origenerator(state_dir)
-        _close_origenerator_gracefully(children.get("origenerator_pid"))
+        if release_origenerator_via is not None:
+            append_command(release_origenerator_via, RELEASE)
+        else:
+            _close_origenerator_gracefully(children.get("origenerator_pid"))
+    spared = kept or release_origenerator_via is not None
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         for key in keys:
-            if kept and key == "origenerator_pid":
+            if spared and key == "origenerator_pid":
                 continue
             kill_recorded_child(children[key])
 
@@ -423,6 +432,7 @@ def _take_down_the_startup(
     ahk_cmd_file: Path,
     project_dirs: str,
     canceled: bool = False,
+    release_origenerator_via: Path | None = None,
 ) -> int:
     """Tear down a startup that is not becoming a session, then exit.
 
@@ -437,6 +447,8 @@ def _take_down_the_startup(
     stop_hotkey_script(ahk_proc, ahk_cmd_file)
     for pid in pids:
         kill_process_tree(pid)
+    if release_origenerator_via is not None:
+        append_command(release_origenerator_via, RELEASE)
     close_window(rfb_hwnd)
     if back_to is not None:
         logger.info("Going back to %s", back_to.app_name)
@@ -1005,6 +1017,7 @@ def _run_until_the_hotkeys_exit(
     rfb_hwnd: int,
     children: dict,
     origenerator_cmd_file: Path | None,
+    origenerator_taken_over: bool,
     voice: tuple[VoiceController | None, threading.Thread | None],
     dispatch: tuple[DispatchLoopRunner, threading.Thread],
     loopback_server: ThreadingHTTPServer | None,
@@ -1064,6 +1077,8 @@ def _run_until_the_hotkeys_exit(
             _shutdown_children(
                 rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
                 keep_origenerator_via=origenerator_cmd_file if parking else None,
+                release_origenerator_via=(
+                    origenerator_cmd_file if origenerator_taken_over else None),
             )
             if crossing is None:  # else it hears Esc until the relay has read the flag
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
@@ -1073,7 +1088,7 @@ def _run_until_the_hotkeys_exit(
                 _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
                 request_handoff(state_dir, DESKTOP, cancelable=False)
             elif crossing is None:  # the quit chord after an Esc that had parked it
-                close_a_kept_origenerator(state_dir)
+                let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
 
     return exit_code
 
@@ -1166,9 +1181,13 @@ def run_session(
             rfb_hwnd=cancelled.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             project_dirs=manifest.runtime.genau_project_dirs,
             canceled=True,
+            release_origenerator_via=(bridge_config.origenerator_cmd_file
+                                      if cancelled.origenerator_taken_over else None),
         )
 
-    launched = [getattr(result, key) for key in _CHILD_PID_KEYS]
+    launched = [getattr(result, key) for key in _CHILD_PID_KEYS
+                if not (key == "origenerator_pid" and result.origenerator_taken_over)]
+    hand_back_via = bridge_config.origenerator_cmd_file if result.origenerator_taken_over else None
 
     # Esc can also land in the sliver after the last checkpoint but before the
     # reveal: the sequence finished, yet the flag is set.  Tear the full result
@@ -1179,6 +1198,7 @@ def run_session(
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             project_dirs=manifest.runtime.genau_project_dirs,
             canceled=True,
+            release_origenerator_via=hand_back_via,
         )
 
     logger.info(
@@ -1223,6 +1243,7 @@ def run_session(
             "The session failed while opening", pids=launched,
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
             project_dirs=manifest.runtime.genau_project_dirs,
+            release_origenerator_via=hand_back_via,
         )
         raise
 
@@ -1235,6 +1256,7 @@ def run_session(
         rfb_hwnd=result.rfb_hwnd,
         children=children,
         origenerator_cmd_file=bridge_config.origenerator_cmd_file,
+        origenerator_taken_over=result.origenerator_taken_over,
         voice=(voice_controller, voice_thread),
         dispatch=(dispatch_runner, dispatch_thread),
         loopback_server=loopback_server,

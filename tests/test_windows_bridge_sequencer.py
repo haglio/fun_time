@@ -3,7 +3,6 @@ from __future__ import annotations
 import configparser
 import contextlib
 import json
-import logging
 import os
 from pathlib import Path
 from types import SimpleNamespace
@@ -1342,6 +1341,7 @@ class TestOrigeneratorLaunch:
             result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
 
         assert result.origenerator_pid == 91
+        assert not result.origenerator_taken_over
         assert captured["origenerator_dir"] == str(tmp_path / "origenerator")
         assert captured["python_exe"] == str(tmp_path / "py" / "python.exe")
         assert captured["layout_plan"].random_favs_browser.width > 0
@@ -1450,6 +1450,54 @@ class TestOrigeneratorLaunch:
             assert args[args.index(flag) + 1] == str(path), flag
         assert not stale_status.exists()
         assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
+
+    def test_an_app_taken_over_before_a_crossing_is_adopted_as_one_to_hand_back(
+        self, cfg_factory, tmp_path
+    ):
+        from fun_time.session_handoff import keep_the_origenerator
+
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator")}}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        open_app = os.getpid()
+        keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=open_app,
+                              created_at=get_process_creation_time(open_app), taken_over=True)
+
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs, \
+             pytest.raises(StartupCancelled) as excinfo:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 progress=_CancelOnAdvance(cancel_on=2))
+
+        stubs.launch_origenerator.assert_not_called()
+        assert open_app not in excinfo.value.launched_pids
+        assert excinfo.value.origenerator_taken_over
+
+    def test_a_takeover_is_carried_out_of_startup_as_an_app_to_hand_back(
+        self, cfg_factory, tmp_path
+    ):
+        _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path)
+
+        with _sequencer_stubs(launch_origenerator=dict()):
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert result.origenerator_taken_over
+
+    def test_a_startup_canceled_after_a_takeover_leaves_that_app_off_the_kill_list(
+        self, cfg_factory, tmp_path
+    ):
+        _cfg, manifest_path, _checkout, open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path)
+
+        with _sequencer_stubs(launch_origenerator=dict()), \
+             pytest.raises(StartupCancelled) as excinfo:
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path,
+                                 progress=_CancelOnAdvance(cancel_on=2))
+
+        assert open_app not in excinfo.value.launched_pids
+        assert excinfo.value.origenerator_taken_over
 
     def test_an_offer_left_by_an_app_since_closed_launches_one(self, cfg_factory, tmp_path):
         cfg, manifest_path, checkout, _open_app = self._checkout_with_an_open_app(
@@ -1659,7 +1707,7 @@ class TestAdoptingAKeptOrigenerator:
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
         with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
                    return_value=44):
-            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) == 6060
+            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)).pid == 6060
 
         assert kept_origenerator(tmp_path) is None, "the record outlived its one use"
 
@@ -1674,12 +1722,12 @@ class TestAdoptingAKeptOrigenerator:
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
         with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
                    return_value=45):
-            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) == 0
+            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
     def test_an_ordinary_startup_adopts_nothing(self, tmp_path: Path):
         from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
 
-        assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) == 0
+        assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
     def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
         """The app is already answering through its status file, and clearing it

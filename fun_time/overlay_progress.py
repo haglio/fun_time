@@ -97,6 +97,7 @@ class StartupCancelled(Exception):
         super().__init__("Startup cancelled by user")
         self.launched_pids: list[int] = launched_pids if launched_pids is not None else []
         self.rfb_hwnd = rfb_hwnd
+        self.origenerator_taken_over = False
 
 
 def loading_cover_is_up(state_dir: Path) -> bool:

@@ -1065,6 +1065,7 @@ class TestCancellingALaunch:
         code = orchestrator._cancel_vr_startup(
             state_dir=tmp_path, children=children, ahk_proc=None,
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
+            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
             cover=cover, runtime_was_up=True,
         )
         return code, order, cover
@@ -1133,7 +1134,8 @@ class TestCancellingALaunch:
         from fun_time_vr import orchestrator
 
         closed: list = []
-        monkeypatch.setattr(orchestrator, "close_a_kept_origenerator", closed.append)
+        monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
+                            lambda state_dir, _cmd_file: closed.append(state_dir))
 
         self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
 
@@ -1143,7 +1145,8 @@ class TestCancellingALaunch:
         from fun_time_vr import orchestrator
 
         closed: list = []
-        monkeypatch.setattr(orchestrator, "close_a_kept_origenerator", closed.append)
+        monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
+                            lambda state_dir, _cmd_file: closed.append(state_dir))
 
         self._cancel(tmp_path, monkeypatch, {})
 
@@ -1677,7 +1680,8 @@ class TestOpeningAVrSession:
         closed: list = []
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           _leave_the_headset_covered=MagicMock(return_value=True),
-                          close_a_kept_origenerator=closed.append)
+                          let_go_of_a_kept_origenerator=(
+                              lambda state_dir, _cmd_file: closed.append(state_dir)))
 
         assert closed == []
 

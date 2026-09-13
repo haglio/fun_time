@@ -169,6 +169,19 @@ _STUB_MAIN = textwrap.dedent(
         args, _unused = parser.parse_known_args(asked["args"])
         park_as_hosted()
 
+    def offer_itself():
+        state_dir.mkdir(parents=True, exist_ok=True)
+        offer.write_text(f"{os.getpid()} {this_process_created_at()}", encoding="utf-8")
+
+    def go_back_to_standalone():
+        global booted
+        close_shows()
+        root.attributes("-topmost", False)
+        root.geometry("640x480+40+40")
+        root.deiconify()
+        booted = False
+        offer_itself()
+
     if args.fun_time:
         splash = tk.Toplevel(root)
         splash.title("Origenerator")  # the caption twin the session must survive
@@ -183,8 +196,7 @@ _STUB_MAIN = textwrap.dedent(
         root.title("Origenerator")
         root.geometry("640x480+40+40")
         root.deiconify()
-        state_dir.mkdir(parents=True, exist_ok=True)
-        offer.write_text(f"{os.getpid()} {this_process_created_at()}", encoding="utf-8")
+        offer_itself()
 
     def open_shows():
         for side in SIDES:
@@ -230,6 +242,8 @@ _STUB_MAIN = textwrap.dedent(
                 open_shows()
             if "CLOSE_SHOWS" in verbs:
                 close_shows()
+            if "RELEASE" in verbs:
+                go_back_to_standalone()
         publish_status()
         root.after(150, poll)
 
@@ -543,6 +557,13 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
               timeout=10, desc="the taken-over window to be restored")
         _wait(lambda: is_window_topmost(hwnd),
               timeout=10, desc="the taken-over window to join the topmost band")
+
+        session.quit_gracefully(timeout=15.0)
+
+        _wait(offer.exists, timeout=10, desc="the handed-back app to offer itself again")
+        assert open_app.poll() is None, "the session closed the app it was meant to hand back"
+        assert not is_window_minimized(hwnd)
+        assert not is_window_topmost(hwnd)
     finally:
         session.stop()
         kill_process_tree(open_app.pid)
