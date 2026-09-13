@@ -11,7 +11,7 @@ from collections.abc import Callable
 
 import numpy as np
 from PIL import Image
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x, progress_bar_bgra
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, bar_x, on_track, progress_bar_bgra
 from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_at
 
 from satellite.pointer import time_at
@@ -20,6 +20,7 @@ from .console_panel import DEG_PER_PX
 from .pointer import surface_pixel
 
 SCRUBBER = "scrubber"
+READOUT = "readout"
 MUTE = "mute"
 VOLUME = "volume"
 
@@ -76,7 +77,9 @@ def furniture_at(u: float, v: float, *, size: tuple[int, int]) -> str | None:
                                 timeline_h=TIMELINE_HEIGHT))
     if part:
         return _CHIP_PARTS[part]
-    return SCRUBBER if py >= size[1] - TIMELINE_HEIGHT else None
+    if py < size[1] - TIMELINE_HEIGHT:
+        return None
+    return SCRUBBER if on_track(px, size[0]) else READOUT
 
 
 def scrub_at(u: float, v: float, *, size: tuple[int, int], duration_ms: float) -> float:
