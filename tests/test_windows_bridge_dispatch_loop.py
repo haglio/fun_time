@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 import pytest
 from app_support.threading_utils import wait_until
 from player_core.file_channel import publish_whole
+from player_core.modes import MainMode
 
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, WindowOp
@@ -30,7 +31,7 @@ from fun_time.role_windows import (
 )
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
-from fun_time.shared_state import BridgeState, SideState, read_shared_state, write_shared_state
+from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
@@ -41,7 +42,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     detect_sleep_gap,
     expand_group_command,
     poll_dashboard_commands,
-    resolve_active_side_command,
+    resolve_active_player_command,
 )
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
@@ -204,8 +205,8 @@ def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factor
     bridge = build_bridge_config_from_manifest(manifest)
 
     for player in Player.SATELLITES:
-        assert bridge.side(player).origenerator_hud_file == (
-            config.side(player).origenerator_hud_file)
+        assert bridge.satellite(player).origenerator_hud_file == (
+            config.satellite(player).origenerator_hud_file)
 
 
 def _wait_for_the_browse(mock_browse) -> None:
@@ -392,59 +393,59 @@ class TestResolveActiveSideCommand:
     def test_group_commands_ride_the_same_active_and_both_plumbing(self):
         # The loop / lock-action commands follow the <scope>_<action> shape, so
         # they resolve and expand without any special-casing.
-        assert resolve_active_side_command("active_action_loop", 3) == "landscape_action_loop"
-        assert resolve_active_side_command("active_lock_action", 2) == "portrait_lock_action"
+        assert resolve_active_player_command("active_action_loop", 3) == "landscape_action_loop"
+        assert resolve_active_player_command("active_lock_action", 2) == "portrait_lock_action"
         assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
 
-    def test_rewrites_to_portrait_when_active_side_is_portrait(self):
-        assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
+    def test_rewrites_to_portrait_when_active_player_is_portrait(self):
+        assert resolve_active_player_command("active_lock_on", 2) == "portrait_lock_on"
 
-    def test_rewrites_to_landscape_when_active_side_is_landscape(self):
-        assert resolve_active_side_command("active_next", 3) == "landscape_next"
+    def test_rewrites_to_landscape_when_active_player_is_landscape(self):
+        assert resolve_active_player_command("active_next", 3) == "landscape_next"
 
     def test_passes_non_active_commands_through(self):
-        assert resolve_active_side_command("main_next", 3) == "main_next"
-        assert resolve_active_side_command("portrait_lock", 3) == "portrait_lock"
+        assert resolve_active_player_command("main_next", 3) == "main_next"
+        assert resolve_active_player_command("portrait_lock", 3) == "portrait_lock"
 
     def test_active_nav_targets_primary_when_primary_is_active(self):
         """The main player (slot 1) joins the active-side feature for nav."""
-        assert resolve_active_side_command("active_next", 1) == "main_next"
-        assert resolve_active_side_command("active_prev", 1) == "main_prev"
+        assert resolve_active_player_command("active_next", 1) == "main_next"
+        assert resolve_active_player_command("active_prev", 1) == "main_prev"
 
     def test_reset_on_the_primary_means_the_main_players_own_reset(self):
         """Another phrase that means a different thing on each player: on a
         satellite it drops the act filter and the loop, on the main player its
         length mode and its F-mode.  Without this, a bare "reset" said after
         navigating the main player reached nothing at all."""
-        assert resolve_active_side_command("active_reset", 1) == "main_reset"
-        assert resolve_active_side_command("active_reset", 2) == "portrait_reset"
-        assert resolve_active_side_command("active_reset", 3) == "landscape_reset"
+        assert resolve_active_player_command("active_reset", 1) == "main_reset"
+        assert resolve_active_player_command("active_reset", 2) == "portrait_reset"
+        assert resolve_active_player_command("active_reset", 3) == "landscape_reset"
 
     def test_end_loop_on_the_primary_means_main_players_own_loop(self):
         """A side-agnostic phrase may mean a different thing on each player: on a
         satellite "end loop" ends a group loop, on the main player it cancels the main player's A-B
         loop.  The resolution is where that translation belongs."""
-        assert resolve_active_side_command("active_no_loop", 1) == "main_player_loop_cancel"
-        assert resolve_active_side_command("active_no_loop", 2) == "portrait_no_loop"
-        assert resolve_active_side_command("active_no_loop", 3) == "landscape_no_loop"
+        assert resolve_active_player_command("active_no_loop", 1) == "main_player_loop_cancel"
+        assert resolve_active_player_command("active_no_loop", 2) == "portrait_no_loop"
+        assert resolve_active_player_command("active_no_loop", 3) == "landscape_no_loop"
 
     def test_a_bare_lock_reaches_the_primary_too(self):
         """A lock means the same thing on all three — repeat-one on what is on
         screen — so the bare word follows the active side onto the main player rather
         than falling through to nothing there."""
-        assert resolve_active_side_command("active_lock_on", 1) == "main_lock_on"
-        assert resolve_active_side_command("active_lock_off", 1) == "main_lock_off"
-        assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
-        assert resolve_active_side_command("active_lock_off", 3) == "landscape_lock_off"
+        assert resolve_active_player_command("active_lock_on", 1) == "main_lock_on"
+        assert resolve_active_player_command("active_lock_off", 1) == "main_lock_off"
+        assert resolve_active_player_command("active_lock_on", 2) == "portrait_lock_on"
+        assert resolve_active_player_command("active_lock_off", 3) == "landscape_lock_off"
 
     def test_a_bare_f_mode_reaches_whichever_player_is_active(self):
         """Every player has its own F-mode, so the bare phrase follows the active
         side onto any of the three — the main player included, which is where it
         lands at startup."""
         for suffix in ("", "_on", "_off"):
-            assert resolve_active_side_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
-            assert resolve_active_side_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
-            assert resolve_active_side_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
+            assert resolve_active_player_command(f"active_fmode{suffix}", 1) == f"main_fmode{suffix}"
+            assert resolve_active_player_command(f"active_fmode{suffix}", 2) == f"portrait_fmode{suffix}"
+            assert resolve_active_player_command(f"active_fmode{suffix}", 3) == f"landscape_fmode{suffix}"
 
     def test_a_bare_browse_order_reaches_whichever_player_is_active(self):
         """Every player browses in these two orders, the main player included now
@@ -453,21 +454,21 @@ class TestResolveActiveSideCommand:
         nothing — the player had to be named for a word that is supposed to reach
         whoever is active."""
         for order in ("latest", "shuffle"):
-            assert resolve_active_side_command(f"active_{order}", 1) == f"main_{order}"
-            assert resolve_active_side_command(f"active_{order}", 2) == f"portrait_{order}"
-            assert resolve_active_side_command(f"active_{order}", 3) == f"landscape_{order}"
+            assert resolve_active_player_command(f"active_{order}", 1) == f"main_{order}"
+            assert resolve_active_player_command(f"active_{order}", 2) == f"portrait_{order}"
+            assert resolve_active_player_command(f"active_{order}", 3) == f"landscape_{order}"
 
     def test_a_bare_playback_speed_reaches_whichever_player_is_active(self):
         for action in ("speed_up", "speed_down", "speed_150"):
-            assert resolve_active_side_command(f"active_{action}", 1) == f"main_player_{action}"
-            assert resolve_active_side_command(f"active_{action}", 2) == f"portrait_{action}"
-            assert resolve_active_side_command(f"active_{action}", 3) == f"landscape_{action}"
+            assert resolve_active_player_command(f"active_{action}", 1) == f"main_player_{action}"
+            assert resolve_active_player_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_player_command(f"active_{action}", 3) == f"landscape_{action}"
 
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Main has no weird or cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
-        assert resolve_active_side_command("active_trash", 1) == "active_trash"
-        assert resolve_active_side_command("active_cycle_seed", 1) == "active_cycle_seed"
+        assert resolve_active_player_command("active_trash", 1) == "active_trash"
+        assert resolve_active_player_command("active_cycle_seed", 1) == "active_cycle_seed"
 
 
 class TestDispatchLoopRunner:
@@ -489,7 +490,7 @@ class TestDispatchLoopRunner:
         """Voice 'lock' (active_lock_on) locks whichever side is active — here
         landscape, e.g. after the user navigated it with A/D."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=False), active_side=3)
+        runner.state = BridgeState(landscape=SatelliteState(locked=False), active_player=3)
         (tmp_path / "dashboard_cmd.txt").write_text("active_lock_on", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -500,10 +501,10 @@ class TestDispatchLoopRunner:
         assert "landscape_lock" in commands
         assert "portrait_lock" not in commands
 
-    def test_bare_active_next_targets_the_active_side(self, tmp_path):
+    def test_bare_active_next_targets_the_active_player(self, tmp_path):
         """A non-lock bare command ('next') also follows the active side."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(active_side=2)
+        runner.state = BridgeState(active_player=2)
         (tmp_path / "dashboard_cmd.txt").write_text("active_next", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -519,7 +520,7 @@ class TestDispatchLoopRunner:
         that was is the sampler's timeline to answer; what the runner owes is
         putting its answer on the dispatch."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SideState(locked=False), active_side=2)
+        runner.state = BridgeState(portrait=SatelliteState(locked=False), active_player=2)
         (tmp_path / "dashboard_cmd.txt").write_text("portrait_lock_on @100.200", encoding="utf-8")
 
         with patch.object(runner.watch, "video_at", return_value="C:\\clips\\meant.mp4"), \
@@ -621,7 +622,7 @@ class TestDispatchLoopRunner:
     def test_browse_library_sends_its_press_and_browses_with_the_room_playing(self, tmp_path):
         with _press_channel(tmp_path) as recv_sock:
             runner = make_runner(tmp_path, dashboard_enabled=True)
-            runner.state = BridgeState(main_mode="video")
+            runner.state = BridgeState(main_mode=MainMode.VIDEO)
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("browse_library", encoding="utf-8")
 
@@ -735,13 +736,13 @@ class TestDispatchLoopRunner:
         cmd_file.write_text("landscape_lock", encoding="utf-8")
         state_file = tmp_path / "shared_state.ini"
 
-        new_state = BridgeState(landscape=SideState(locked=True))
+        new_state = BridgeState(landscape=SatelliteState(locked=True))
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command", return_value=(new_state, [])):
             runner.tick()
 
         loaded = read_shared_state(state_file)
         assert loaded is not None
-        assert loaded.side(Player.LANDSCAPE).locked is True
+        assert loaded.satellite(Player.LANDSCAPE).locked is True
 
     def test_quit_asks_the_hotkey_script_to_end_the_session_rather_than_exit(self, tmp_path):
         """Exiting, it would take Esc with it, and Esc on the closing screen is
@@ -840,7 +841,7 @@ class TestDispatchLoopRunner:
     def test_omniminimize_in_hybrid_includes_main_player_and_genau(self, tmp_path):
         """Video mode shows the main player under Genau's HUD (Genau drives the OSR2)."""
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(main_mode="video")
+        runner.state = BridgeState(main_mode=MainMode.VIDEO)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("omniminimize", encoding="utf-8")
 
@@ -1374,14 +1375,14 @@ class TestOpenRfbTab:
                 work_dir=r"C:\Chrome",
                 arguments='--profile-directory="Profile 2"'),
         )
-        runner.state = BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=False))
+        runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=False))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
         def fake_dispatch(cmd, state, config, target_path=""):
             if cmd == "portrait_lock":
-                return replace(state, portrait=SideState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
+                return replace(state, portrait=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://p")]
             if cmd == "landscape_lock":
-                return replace(state, landscape=SideState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://l")]
+                return replace(state, landscape=SatelliteState(locked=True)), [WindowOp(op="open_rfb_tab", key="http://l")]
             return state, []
 
         calls: list[tuple[str, object]] = []
@@ -1672,7 +1673,7 @@ class TestBrowseLibrary:
         command there too (no funscript pairing when none exists)."""
         config = make_config(tmp_path, main_sources=r"C:\videos")
         runner = make_runner(tmp_path, config=config)
-        runner.state = BridgeState(omni_paused=False, main_mode="video")
+        runner.state = BridgeState(omni_paused=False, main_mode=MainMode.VIDEO)
 
         with patch.object(runner.windows, "remove_all_topmost"), \
              patch.object(runner.windows, "restore_all_topmost"), \
@@ -1717,7 +1718,7 @@ class TestBrowseLibrary:
 
     def test_never_restores_main_player_topmost_even_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path, rfb_hwnd=RFB_HWND)
-        runner.state = BridgeState(omni_paused=False, main_mode="genau")
+        runner.state = BridgeState(omni_paused=False, main_mode=MainMode.GENAU)
 
         topmost_calls = []
 
@@ -2066,7 +2067,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_on_dispatches_when_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SideState(locked=False))
+        runner.state = BridgeState(portrait=SatelliteState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
@@ -2075,7 +2076,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_on_noop_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SideState(locked=True))
+        runner.state = BridgeState(portrait=SatelliteState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_on", encoding="utf-8")
@@ -2084,7 +2085,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_on_dispatches_when_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=False))
+        runner.state = BridgeState(landscape=SatelliteState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
@@ -2093,7 +2094,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_on_noop_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=True))
+        runner.state = BridgeState(landscape=SatelliteState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_on", encoding="utf-8")
@@ -2129,7 +2130,7 @@ class TestIdempotentVoiceCommands:
 
     def test_genau_activate_dispatches_when_not_in_genau_mode(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="video")
+        runner.state = BridgeState(main_mode=MainMode.VIDEO)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2142,7 +2143,7 @@ class TestIdempotentVoiceCommands:
         guard asked whether Genau was active, which video mode also was, so it
         swallowed this."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="video")
+        runner.state = BridgeState(main_mode=MainMode.VIDEO)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2154,7 +2155,7 @@ class TestIdempotentVoiceCommands:
         mode you are already in is a no-op at the planner level (see
         test_mode_plan.test_same_mode_is_noop), not a special case here."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="genau")
+        runner.state = BridgeState(main_mode=MainMode.GENAU)
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("genau_activate", encoding="utf-8")
@@ -2165,7 +2166,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_off_unlocks_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SideState(locked=True))
+        runner.state = BridgeState(portrait=SatelliteState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
@@ -2174,7 +2175,7 @@ class TestIdempotentVoiceCommands:
 
     def test_portrait_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SideState(locked=False))
+        runner.state = BridgeState(portrait=SatelliteState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("portrait_lock_off", encoding="utf-8")
@@ -2183,7 +2184,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_off_unlocks_when_locked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=True))
+        runner.state = BridgeState(landscape=SatelliteState(locked=True))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
@@ -2192,7 +2193,7 @@ class TestIdempotentVoiceCommands:
 
     def test_landscape_lock_off_noop_when_already_unlocked(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=False))
+        runner.state = BridgeState(landscape=SatelliteState(locked=False))
         with patch.object(runner, "_dispatch") as mock_d:
             cmd_file = tmp_path / "dashboard_cmd.txt"
             cmd_file.write_text("landscape_lock_off", encoding="utf-8")
@@ -2230,7 +2231,7 @@ class TestIdempotentVoiceCommands:
         from dataclasses import replace
 
         from fun_time.dashboard_runtime import load_dashboard_snapshot
-        from fun_time.shared_state import SideState
+        from fun_time.shared_state import SatelliteState
 
         runner = make_runner(tmp_path, dashboard_enabled=True)
         runner.config.main_player_status_file.write_text(
@@ -2239,7 +2240,7 @@ class TestIdempotentVoiceCommands:
         runner._update_dashboard()
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is True
 
-        runner.state = replace(runner.state, portrait=SideState(locked=True))
+        runner.state = replace(runner.state, portrait=SatelliteState(locked=True))
         runner._update_dashboard()
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
 
@@ -2491,7 +2492,7 @@ class TestSeededRoleHwnds:
             tmp_path,
             role_hwnds={"genau": 6001, "main_player": 2001},
         )
-        runner.state = BridgeState(main_mode="genau")
+        runner.state = BridgeState(main_mode=MainMode.GENAU)
         shown: list[int] = []
 
         with patch("fun_time.role_windows.find_window_by_pid", return_value=0),              patch("fun_time.role_windows.find_window_by_title", return_value=0),              patch("fun_time.role_windows.restore_window", side_effect=lambda h, **kw: shown.append(h)):
@@ -2508,7 +2509,7 @@ class TestVideoModeFunscriptHandoff:
 
     def test_the_tick_arbitrates_for_the_mode_the_session_is_in(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(main_mode="video", omni_paused=True)
+        runner.state = BridgeState(main_mode=MainMode.VIDEO, omni_paused=True)
 
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
@@ -2581,7 +2582,7 @@ class TestBothSatelliteCommands:
         """"lock both" (both_lock_on) reuses the idempotent per-satellite lock:
         an already-locked side is left alone, so it only toggles the unlocked one."""
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=True))
+        runner.state = BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2593,7 +2594,7 @@ class TestBothSatelliteCommands:
 
     def test_unlock_both_unlocks_each_locked_satellite(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(landscape=SideState(locked=True), portrait=SideState(locked=True))
+        runner.state = BridgeState(landscape=SatelliteState(locked=True), portrait=SatelliteState(locked=True))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_off", encoding="utf-8")
 
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch:
@@ -2610,7 +2611,7 @@ class TestHudPublishing:
 
     def test_the_tick_feeds_the_huds_the_state_it_is_holding(self, tmp_path):
         runner = make_runner(tmp_path)
-        runner.state = BridgeState(portrait=SideState(locked=True), main_mode="video")
+        runner.state = BridgeState(portrait=SatelliteState(locked=True), main_mode=MainMode.VIDEO)
 
         with patch.object(runner.hud, "publish_due") as publish:
             runner.tick()
@@ -2696,7 +2697,7 @@ class TestOrigeneratorWindowConverger:
 
     def test_outside_omnipause_the_windows_object_is_asked_for_these_modes(self, tmp_path):
         runner = make_runner(tmp_path, origenerator_pid=700)
-        runner.state = replace(runner.state, main_mode="video",
+        runner.state = replace(runner.state, main_mode=MainMode.VIDEO,
                                satellites_mode="origenerator")
 
         with patch.object(runner.windows, "converge_origenerator_window") as converge:
@@ -2898,23 +2899,23 @@ class TestThePlayersComeHome:
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config)
         runner.state = replace(runner.state, origenerator_ready=True,
-                               portrait=SideState(locked=locked))
+                               portrait=SatelliteState(locked=locked))
         for player in Player.SATELLITES:
-            side = config.side(player)
-            write_playlist(side.playlist_file, [PlaylistItem(tmp_path / f"{player.label}.mp4")])
-            keep_aside(side)
-            write_playlist(side.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
-            publish_whole(side.origenerator_hud_file, f'{{"side": "{player.label}"}}')
+            channel = config.satellite(player)
+            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / f"{player.label}.mp4")])
+            keep_aside(channel)
+            write_playlist(channel.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
+            publish_whole(channel.origenerator_hud_file, f'{{"player": "{player.label}"}}')
         runner.expect_the_players_home(now=100.0)
         return runner, config
 
     @staticmethod
     def _lets_go_of(config, player) -> None:
-        publish_whole(config.side(player).origenerator_hud_file, "")
+        publish_whole(config.satellite(player).origenerator_hud_file, "")
 
     @staticmethod
     def _queued(config, player) -> list[str]:
-        cmd_file = config.side(player).cmd_file
+        cmd_file = config.satellite(player).cmd_file
         return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
 
     def test_a_side_the_app_has_let_go_of_comes_home(self, tmp_path):

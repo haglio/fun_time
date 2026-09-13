@@ -11,6 +11,7 @@ from pathlib import Path
 
 from app_support import state_files
 from app_support.file_channel import read_key_values, stamp_age
+from player_core.modes import LengthMode, LoopState, read_mode
 from player_core.status import PlayerStatus, parse_status
 
 
@@ -29,16 +30,16 @@ class MainPlayerStatus(PlayerStatus):
     ``locked`` defaults on, unlike the family's: that is what a main player
     with nothing to say is doing.  The main console draws the lock, and in
     genau mode it is drawn by a player with no such lock of its own to ask — so
-    it comes through here, the way the loop ``state`` does.
+    it comes through here, the way ``loop_state`` does.
     """
 
     locked: bool = True
-    state: str = "normal"
+    loop_state: LoopState = LoopState.NORMAL
     has_funscript: bool = False
     funscript_resting: bool = False
     # The A/B range the main player is looping, as it published it — 0/0 when nothing is.
     # Read through :attr:`loop_bounds` rather than directly; the pair only means
-    # a loop alongside ``state``.
+    # a loop alongside ``loop_state``.
     loop_in_ms: int = 0
     loop_out_ms: int = 0
     # The touch-down the main player's trace chose for the handoff boundary in play, in
@@ -49,7 +50,7 @@ class MainPlayerStatus(PlayerStatus):
     # The video's place in the library, as only the main player knows it; the
     # console's buttons for these are lit from here, dim from a player that
     # says nothing.
-    length_mode: str = ""
+    length_mode: LengthMode | None = None
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -74,7 +75,7 @@ class MainPlayerStatus(PlayerStatus):
         range with nothing looping is the empty pair a cancelled loop leaves —
         either taken alone would hand mpv a loop it cannot play.
         """
-        if self.state != "looping" or self.loop_out_ms <= self.loop_in_ms:
+        if self.loop_state is not LoopState.LOOPING or self.loop_out_ms <= self.loop_in_ms:
             return None
         return (self.loop_in_ms, self.loop_out_ms)
 
@@ -99,13 +100,13 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
         values = read_key_values(path)
         return MainPlayerStatus(
             **asdict(parse_status(values, default=PlayerStatus(locked=True))),
-            state=values.get("state", "normal").strip(),
+            loop_state=read_mode(LoopState, values.get("loop_state", "").strip(), LoopState.NORMAL),
             has_funscript=_status_bool(values, "has_funscript"),
             funscript_resting=_status_bool(values, "funscript_resting"),
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
             handoff_touch_ms=_status_touch(values),
-            length_mode=values.get("length_mode", "").strip(),
+            length_mode=read_mode(LengthMode, values.get("length_mode", "").strip(), None),
             compilation=values.get("compilation", "").strip(),
             has_compilation=_status_bool(values, "has_compilation"),
             has_other_versions=_status_bool(values, "has_other_versions"),

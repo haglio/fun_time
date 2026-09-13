@@ -16,7 +16,7 @@ from player_core.satellite_hud import HudModel, hud_text, parse_hud
 from .bridge_records import BridgeConfig
 from .command_dispatch import main_player_at_defaults, satellite_at_defaults
 from .hud_transport import HudPublisher, hosted_model
-from .lock_hud import SideInputs, build_panels
+from .lock_hud import SatelliteInputs, build_panels
 from .main_player_console import console_model
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
@@ -72,18 +72,18 @@ class HudFeed:
             return
         favs = self._favs_content()
 
-        def side(name: str, player: Player, *, sources: str, status_file: Path) -> SideInputs:
+        def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
             current = self._satellite_clip(name, status_file)
-            values = state.side(player)
-            return SideInputs(
-                side=name, sources=sources, current=current, locked=values.locked,
+            values = state.satellite(player)
+            return SatelliteInputs(
+                player=name, sources=sources, current=current, locked=values.locked,
                 filter_query=values.filter,
                 loop_axis=values.loop,
                 map_anchor=values.map_anchor,
                 widen_clip=values.widen_clip,
                 nav_anchor=values.nav_anchor,
                 latest=values.latest,
-                f_mode=values.f_mode,
+                favorites_filter=values.favorites_filter,
                 is_favorite=is_favorite_path(current, favs),
                 nothing_to_reset=satellite_at_defaults(values),
             )
@@ -92,20 +92,20 @@ class HudFeed:
             for player in Player.SATELLITES:
                 self.publisher.publish_text(player.label, hud_text(hosted_model(
                     player.label, self._hosted_panel(player),
-                    active=state.active_side == player,
+                    active=state.active_player == player,
                     origenerator_ready=state.origenerator_ready)))
         else:
             portrait, landscape = build_panels(
-                side("portrait", 2, sources=self.config.portrait_sources,
+                satellite("portrait", 2, sources=self.config.portrait_sources,
                      status_file=self.config.portrait_status_file),
-                side("landscape", 3, sources=self.config.landscape_sources,
+                satellite("landscape", 3, sources=self.config.landscape_sources,
                      status_file=self.config.landscape_status_file),
                 metadata_root=self.config.regen_metadata_root,
-                active_side=Player.label_of(state.active_side),
-                # "" for a session hosting no Origenerator — the HUDs then draw no
-                # mode pair at all, rather than a switch that can only dead-end.
+                active_player=Player.label_of(state.active_player),
+                # None for a session hosting no Origenerator — the HUDs then draw
+                # no mode pair at all, rather than a switch that can only dead-end.
                 satellites_mode=(state.satellites_mode
-                                 if self.config.origenerator_enabled else ""),
+                                 if self.config.origenerator_enabled else None),
                 origenerator_ready=state.origenerator_ready,
             )
             self.publisher.publish("portrait", portrait)
@@ -117,9 +117,9 @@ class HudFeed:
         main_player = read_main_player_status(self.config.main_player_status_file)
         shapes_offered = bool(source_roots(self.config.vr_library_dirs))
         self.publisher.publish_text("main_player", console_text(console_model(
-            mode=state.main_mode,
-            active=state.active_side == Player.MAIN,
-            f_mode=state.main_f_mode,
+            main_mode=state.main_mode,
+            active=state.active_player == Player.MAIN,
+            scripted_filter=state.main_scripted_filter,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
             # None where the rotation holds one shape: the pair is the headset's.
@@ -140,7 +140,7 @@ class HudFeed:
     def _hosted_panel(self, player: Player) -> HudModel | None:
         """The hosted app's panel for *player*'s side, or None; one it is
         replacing this instant leaves the panel read before it standing."""
-        path = self.config.side(player).origenerator_hud_file
+        path = self.config.satellite(player).origenerator_hud_file
         if path is None:
             return None
         try:
@@ -174,8 +174,8 @@ class HudFeed:
             self._favs_text = read_favs_content(self.config.favs_file)
         return self._favs_text
 
-    def _satellite_clip(self, side: str, status_file: Path) -> str:
-        """The clip *side* is showing, holding the last one it named if the read
+    def _satellite_clip(self, player: str, status_file: Path) -> str:
+        """The clip *player* is showing, holding the last one it named if the read
         comes back blank.
 
         A satellite always has a clip — it cannot discard its way to an empty
@@ -188,9 +188,9 @@ class HudFeed:
         """
         video = read_satellite_status(status_file).video
         if video:
-            self._last_satellite_clip[side] = video
+            self._last_satellite_clip[player] = video
             return video
-        return self._last_satellite_clip.get(side, "")
+        return self._last_satellite_clip.get(player, "")
 
     def osr2_mode(self) -> str:
         """What the device is doing: "off" when nothing is on the wire at all,

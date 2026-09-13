@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL, looping_label, status_line
+from player_core.modes import SatellitesMode
 
 from fun_time.media_metadata import (
     GroupIndex,
@@ -27,7 +28,7 @@ from fun_time.thumbnail_cache import thumbnail_for
 
 
 def _status_label(
-    locked: bool, loop_axis: str, latest: bool, filter_query: str, f_mode: bool
+    locked: bool, loop_axis: str, latest: bool, filter_query: str, favorites_filter: bool
 ) -> str:
     """The HUD's one status line — everything the side is in, at a glance.
 
@@ -47,7 +48,7 @@ def _status_label(
         playing_set=looping_label(loop_axis) if loop_axis else "",
         locked=locked,
         order=LATEST_LABEL if latest else SHUFFLE_LABEL,
-        f_mode=f_mode,
+        f_mode=favorites_filter,
         filter_label=filter_query,
     )
 
@@ -64,7 +65,7 @@ class HudPanel:
     seed's are the ones a viewer can want to step down into.
     """
 
-    side: str
+    player: str
     locked: bool
     lock_label: str
     current: str
@@ -73,9 +74,10 @@ class HudPanel:
     # Whether the clip on screen is one of the favorites — the star the HUD
     # marks at the head of the line naming that very clip.
     is_favorite: bool = False
-    # Whether THIS side is in F-mode — said in the status line already, and
-    # riding along so the side's own button can light the way ``locked`` does.
-    f_mode: bool = False
+    # Whether THIS player is in F-mode — its browse narrowed to the favorites —
+    # said in the status line already, and riding along so the player's own
+    # button can light the way ``locked`` does.
+    favorites_filter: bool = False
     latest: bool | None = None
     # Labels for the map's axes: the current clip's own action (the top row),
     # and each action sibling's action name (the rows down the column). Seed
@@ -100,7 +102,7 @@ class HudPanel:
     # The satellite side's mode axis ("video" / "origenerator"), or "" for a
     # session hosting no Origenerator — what draws the mode pair, the satellite
     # counterpart of the main console's Video/Genau row.
-    satellites_mode: str = ""
+    satellites_mode: SatellitesMode | None = None
     # Whether the hosted app that mode is made of is up yet: false for a
     # session's first half-minute, over which that button is drawn dim.
     origenerator_ready: bool = True
@@ -280,14 +282,14 @@ def _axis_holding(index: GroupIndex, anchor: str, current: str, widened_pool: li
 
 
 @dataclass(frozen=True)
-class SideInputs:
+class SatelliteInputs:
     """Everything one satellite's panel is built from.
 
     The two sides take an identical set, so they travel as one object each
     rather than as ``portrait_``/``landscape_`` twins of every field.
     """
 
-    side: str
+    player: str
     sources: str = ""
     current: str = ""
     locked: bool = False
@@ -297,22 +299,23 @@ class SideInputs:
     widen_clip: str = ""
     nav_anchor: str = ""
     latest: bool = False
-    # This side's own F-mode.  Sided like the filter and the order beside it: each
+    # This player's own F-mode, keeping the favorites.  Per player like the filter
+    # and the order beside it: each
     # satellite has its own button for it, so the two can differ.
-    f_mode: bool = False
+    favorites_filter: bool = False
     is_favorite: bool = False
     nothing_to_reset: bool = False
 
 
 def build_hud_panel(
-    inputs: SideInputs,
+    inputs: SatelliteInputs,
     *,
     index: GroupIndex | None,
     active: bool = False,
-    satellites_mode: str = "",
+    satellites_mode: SatellitesMode | None = None,
     origenerator_ready: bool = True,
 ) -> HudPanel:
-    """One side's HUD panel, from everything that side is (:class:`SideInputs`).
+    """One side's HUD panel, from everything that side is (:class:`SatelliteInputs`).
 
     The action column collapses to one clip per distinct other act, and belongs
     to the cell the seed row lights: the corner normally, the seed actually
@@ -419,11 +422,11 @@ def build_hud_panel(
         elif nav_frozen:
             playing = inputs.current  # the live clip is exactly the cell to light
     return HudPanel(
-        side=inputs.side,
+        player=inputs.player,
         locked=inputs.locked,
-        lock_label=_status_label(inputs.locked, active_loop, inputs.latest, inputs.filter_query, inputs.f_mode),
+        lock_label=_status_label(inputs.locked, active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
         is_favorite=inputs.is_favorite,
-        f_mode=inputs.f_mode,
+        favorites_filter=inputs.favorites_filter,
         latest=inputs.latest,
         current=anchor,
         seed_siblings=seed,
@@ -442,9 +445,9 @@ def build_hud_panel(
     )
 
 
-def _side_panel(
-    inputs: SideInputs, metadata_root: Path | None, active_side: str,
-    satellites_mode: str = "", origenerator_ready: bool = True,
+def _satellite_panel(
+    inputs: SatelliteInputs, metadata_root: Path | None, active_player: str,
+    satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -459,7 +462,7 @@ def _side_panel(
             must_contain=None,
         )
     return build_hud_panel(
-        inputs, index=index, active=active_side == inputs.side,
+        inputs, index=index, active=active_player == inputs.player,
         satellites_mode=satellites_mode, origenerator_ready=origenerator_ready,
     )
 
@@ -480,9 +483,9 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
 
 
 def build_panels(
-    portrait: SideInputs, landscape: SideInputs, *,
-    metadata_root: Path | None = None, active_side: str = "",
-    satellites_mode: str = "", origenerator_ready: bool = True,
+    portrait: SatelliteInputs, landscape: SatelliteInputs, *,
+    metadata_root: Path | None = None, active_player: str = "",
+    satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -493,15 +496,15 @@ def build_panels(
     ``nav_anchor`` while the live clip is still one of its map cells.
 
     F-mode rides in each side's own inputs, since each satellite has its own
-    button for it and the two can differ.  ``active_side`` is the one thing here
+    button for it and the two can differ.  ``active_player`` is the one thing here
     that is unsided, because it *names* exactly one player: at most one of these
     two panels can claim it, and neither does while the main player holds it.  A name
     rather than the dispatcher's slot number, because that is what a side is
     called everywhere else in here; the one translation lives where the number does.
     """
-    return (_side_panel(portrait, metadata_root, active_side, satellites_mode,
+    return (_satellite_panel(portrait, metadata_root, active_player, satellites_mode,
                         origenerator_ready),
-            _side_panel(landscape, metadata_root, active_side, satellites_mode,
+            _satellite_panel(landscape, metadata_root, active_player, satellites_mode,
                         origenerator_ready))
 
 

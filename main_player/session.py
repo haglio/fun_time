@@ -13,6 +13,7 @@ import logging
 from pathlib import Path
 
 from player_core.funscript import load as load_funscript
+from player_core.modes import LoopState
 from player_core.playback_rate import clamp_rate
 from player_core.playlist import PlaylistItem
 
@@ -152,9 +153,8 @@ class PlayerSession:
         return self._player.showing_picture
 
     @property
-    def loop_state(self) -> str:
-        """Loop machine state as the shared vocabulary: normal/recording/looping."""
-        return self._loops.published_state
+    def loop_state(self) -> LoopState:
+        return self._loops.state
 
     @property
     def loop_bounds(self) -> tuple[int, int] | None:

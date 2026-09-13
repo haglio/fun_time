@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from player_core.modes import LengthMode
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
@@ -19,7 +20,7 @@ class LibraryStatus:
     """The video's place in the library, as only this player knows it; Fun
     Time lights the console's buttons for these from what is published."""
 
-    length_mode: str = ""
+    length_mode: LengthMode | None = None
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -56,7 +57,7 @@ def status_fields(session, handoff_touch_ms: int | None, *,
         )),
         "has_funscript": "1" if session.has_funscript else "0",
         "funscript_resting": "1" if session.funscript_resting else "0",
-        "state": str(session.loop_state),
+        "loop_state": str(session.loop_state),
         # The A/B range a running loop holds, and 0/0 for no loop.  Everything
         # else about this player survives a restart in a file something rebuilds
         # it from — the playlist, the flags fun_time seeds — but a loop is a
@@ -68,7 +69,7 @@ def status_fields(session, handoff_touch_ms: int | None, *,
         # when the trace has chosen none: zero is a real media time, and the
         # arbiter reading one would end the turn at the top of the video.
         "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
-        "length_mode": library.length_mode,
+        "length_mode": library.length_mode or "",
         "compilation": library.compilation,
         "has_compilation": "1" if library.has_compilation else "0",
         "has_other_versions": "1" if library.has_other_versions else "0",

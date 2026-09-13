@@ -22,7 +22,7 @@ from player_core.player_verbs import LOCK_ON, NEXT, QUIT, SET_PACE, SET_SPEED
 
 from fun_time.config import load_config
 from fun_time.hud_transport import HudPublisher
-from fun_time.lock_hud import SideInputs, build_hud_panel
+from fun_time.lock_hud import SatelliteInputs, build_hud_panel
 from fun_time.satellite_control import read_satellite_status
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, thumbnail_for
 from fun_time.win32_process import get_process_creation_time
@@ -197,7 +197,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
 
     def publish(locked: bool) -> None:
         publisher.publish("portrait", build_hud_panel(
-            SideInputs(
+            SatelliteInputs(
                 "portrait", locked=locked, current=str(videos[0]),
                 filter_query="alpha" if locked else "",
             ),

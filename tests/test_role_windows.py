@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
+from player_core.modes import MainMode
+
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
     ChildPids,
@@ -183,7 +185,7 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode="video", satellites_mode="video")
+                                 main_mode=MainMode.VIDEO, satellites_mode="video")
 
         assert {h for h, on in calls if on is True} == TOPMOST_HWNDS | {MAIN_PLAYER_HWND, GENAU_HWND}
 
@@ -194,7 +196,7 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND)
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode="video", satellites_mode="video")
+                                 main_mode=MainMode.VIDEO, satellites_mode="video")
 
         promoted = [h for h, on in calls if on]
         assert {RFB_HWND, PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND,
@@ -215,7 +217,7 @@ class TestTopmostBands:
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
 
         calls = self._promotions(windows, "restore_all_topmost",
-                                 main_mode="video", satellites_mode="origenerator")
+                                 main_mode=MainMode.VIDEO, satellites_mode="origenerator")
 
         promoted = [h for h, on in calls if on]
         assert RFB_HWND not in promoted, (

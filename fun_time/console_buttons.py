@@ -1,6 +1,6 @@
 """The buttons Fun Time puts on the main console, row by row, declared in
 :class:`player_core.hud_button.Button` off what the room knows and what the
-main player published about its video.  Each button's action is a dashboard
+main player published about its video.  Each button's command is a dashboard
 command verbatim: a press goes onto the command file, and the dispatcher
 routes it to the player the mode says owns it.
 """
@@ -19,13 +19,10 @@ from player_core.console import (
 from player_core.hud_button import Button
 from player_core.hud_marks import BROKER_ICON, FMODE_ICON, MINIMIZE_ICON, shared_mark
 from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
+from player_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .mode_plan import main_player_displays
-
-# The main player's length modes.  MIXED has no button of its own: it is every
-# length there is, which the console says by lighting both.
-FULL, SHORTS, MIXED = "full", "shorts", "mixed"
 
 _SHAPE_LABELS = {"rounded_square": "Square"}
 
@@ -42,18 +39,18 @@ class MainSlot:
     of the main slot, then what the main player published about its video,
     each defaulting to "cannot" until the player says otherwise."""
 
-    mode: str = "video"
+    main_mode: MainMode = MainMode.VIDEO
     locked: bool = True
-    f_mode: bool = False
+    scripted_filter: bool = False
     latest: bool | None = None
-    record: str = "normal"
+    loop_state: LoopState = LoopState.NORMAL
     cruise: bool = False
     learned: bool = False
     shape: str = "sine"
     plays_vr: bool | None = None
     plays_flat: bool | None = None
     pace_s: int = 0
-    length_mode: str = ""
+    length_mode: LengthMode | None = None
     compilation: str = ""
     has_compilation: bool = False
     has_other_versions: bool = False
@@ -94,8 +91,8 @@ QUARTER_ICON = shared_mark("quarter_offset")
 WAVE_ICON = shared_mark("wave")
 
 MODE_BUTTONS = (
-    ("main_video_activate", "Video", "video"),
-    ("genau_activate", "Genau", "genau"),
+    ("main_video_activate", "Video", MainMode.VIDEO),
+    ("genau_activate", "Genau", MainMode.GENAU),
 )
 
 
@@ -107,9 +104,9 @@ def console_rows(slot: MainSlot, *, modes: bool = True) -> tuple[tuple[Button, .
     if modes:
         rows.append((
             *(
-                Button(action, label, f"{label} mode", width=BUTTON_WORD_W,
-                       lit=slot.mode == mode)
-                for action, label, mode in MODE_BUTTONS
+                Button(command, label, f"{label} mode", width=BUTTON_WORD_W,
+                       lit=slot.main_mode is main_mode)
+                for command, label, main_mode in MODE_BUTTONS
             ),
             Button("main_minimize", MINIMIZE_ICON,
                    "Minimize this player — bring it back from the taskbar",
@@ -117,7 +114,7 @@ def console_rows(slot: MainSlot, *, modes: bool = True) -> tuple[tuple[Button, .
             *_file_controls(slot),
         ))
     rows.append(_transport_row(slot))
-    rows.append(_playback_speed_row() if main_player_displays(slot.mode) else _clip_seconds_row())
+    rows.append(_playback_speed_row() if main_player_displays(slot.main_mode) else _clip_seconds_row())
     rows.append(_control_row(slot))
     return tuple(rows)
 
@@ -132,17 +129,17 @@ def osr2_controls(*, broker: bool) -> tuple[Button, ...]:
 
 
 def _file_controls(slot: MainSlot) -> tuple[Button, ...]:
-    if not main_player_displays(slot.mode):
+    if not main_player_displays(slot.main_mode):
         return ()
     return (
         Button("browse_library", _GLYPHS["open"], "Browse the library", group_break=True),
         Button("main_player_record_tap", _GLYPHS["record"],
                "Stop recording — mark the loop's out point"
-               if slot.record == "recording" else
-               "Looping — press to drop the loop" if slot.record == "looping"
+               if slot.loop_state is LoopState.RECORDING else
+               "Looping — press to drop the loop" if slot.loop_state is LoopState.LOOPING
                else "Record loop",
-               warn=slot.record == "recording",
-               hold=slot.record == "looping", group_break=True),
+               warn=slot.loop_state is LoopState.RECORDING,
+               hold=slot.loop_state is LoopState.LOOPING, group_break=True),
         Button("clipper_save", _GLYPHS["save"], "Save clip"),
     )
 
@@ -187,11 +184,11 @@ def _projection_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ..
 
 
 def _length_buttons(slot: MainSlot, *, remembered: bool) -> tuple[Button, ...]:
-    if not slot.length_mode:
+    if slot.length_mode is None:
         return ()
-    mixed = slot.length_mode == MIXED
-    full = mixed or slot.length_mode == FULL
-    shorts = mixed or slot.length_mode == SHORTS
+    mixed = slot.length_mode is LengthMode.MIXED
+    full = mixed or slot.length_mode is LengthMode.FULL
+    shorts = mixed or slot.length_mode is LengthMode.SHORTS
 
     def state(on: bool) -> dict:
         return {"lit": on and not remembered, "remembered": on and remembered}
@@ -240,7 +237,7 @@ def _clip_scene_button(slot: MainSlot) -> Button:
 
 
 def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
-    if main_player_displays(slot.mode):
+    if main_player_displays(slot.main_mode):
         remembered = bool(slot.compilation)
         return (
             Button("main_prev", _GLYPHS["prev"], "Previous video"),
@@ -255,7 +252,7 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                    lit=slot.locked, favorite=True, group_break=True),
             Button("main_fmode", FMODE_ICON,
                    "F-Mode — play only the videos that have a funscript",
-                   lit=slot.f_mode, favorite=True),
+                   lit=slot.scripted_filter, favorite=True),
             Button("main_reset", RESET_ICON,
                    "Reset — no filter, no lock, no loop, no F-Mode, normal speed, "
                    "shuffled from the top",
@@ -348,5 +345,5 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
             Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
                    "Skip ahead to where this video's scripting starts up again",
                    group_break=True),
-        ) if main_player_displays(slot.mode) else ()),
+        ) if main_player_displays(slot.main_mode) else ()),
     )

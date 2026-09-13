@@ -3,6 +3,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.modes import LengthMode
+
 from main_player.library import FULL, MIXED, SHORTS
 from main_player.mode_memory import ModeMemory, RememberedMode
 
@@ -19,7 +21,7 @@ class TestLengthMode:
         path = tmp_path / "main_player_mode.txt"
 
         ModeMemory(path).write(RememberedMode(
-            length_mode="shorts", compilation="Volume Six", video="C:/x/y.mp4"))
+            length_mode=LengthMode.SHORTS, compilation="Volume Six", video="C:/x/y.mp4"))
 
         written = path.read_text(encoding="utf-8")
         assert written.splitlines() == [
@@ -52,7 +54,7 @@ class TestLengthMode:
         path = tmp_path / "main_player_mode.txt"
         path.write_text("length_mode=wildly-obsolete\n", encoding="utf-8")
 
-        assert ModeMemory(path).read().length_mode == ""
+        assert ModeMemory(path).read().length_mode is None
 
     def test_without_a_path_it_is_inert(self):
         """No state dir configured: nothing is remembered, and nothing raises."""

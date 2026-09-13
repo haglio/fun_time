@@ -1,12 +1,13 @@
 """The buttons Fun Time puts on a satellite's HUD, declared in
-:class:`player_core.hud_button.Button` off the side's own state.  Each verb is
-the dashboard command the dispatcher answers for that side; a mode button's is
-side-less, the mode belonging to the whole satellite side."""
+:class:`player_core.hud_button.Button` off the player's own state.  Each verb is
+the dashboard command the dispatcher answers for that player; a mode button's
+names no player, the mode belonging to both satellites at once."""
 from __future__ import annotations
 
 from player_core.hud_button import FIT_THE_WORD, Button
 from player_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, shared_mark
 from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
+from player_core.modes import SatellitesMode
 
 # The same groups, in the same order, the console's rows are cut into.
 CONTROL_GROUPS = (
@@ -20,8 +21,8 @@ _GROUP_OF = {name: index for index, group in enumerate(CONTROL_GROUPS) for name 
 _ORDER_CONTROLS = ("shuffle", "latest")
 
 MODE_BUTTONS = (
-    ("satellites_video_activate", "Video", "video"),
-    ("origenerator_activate", "Origenerator", "origenerator"),
+    ("satellites_video_activate", "Video", SatellitesMode.VIDEO),
+    ("origenerator_activate", "Origenerator", SatellitesMode.ORIGENERATOR),
 )
 
 CONTROL_TOOLTIPS = {
@@ -52,20 +53,22 @@ CONTROL_FACES = {
 }
 
 
-def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
-              latest: bool | None = None, mode: str = "",
-              origenerator_ready: bool = True,
-              nothing_to_reset: bool = False) -> tuple[tuple[Button, ...], ...]:
+def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = False,
+                latest: bool | None = None,
+                satellites_mode: SatellitesMode | None = None,
+                origenerator_ready: bool = True,
+                nothing_to_reset: bool = False) -> tuple[tuple[Button, ...], ...]:
     names = [name for group in CONTROL_GROUPS for name in group]
     if latest is None:
         names = [name for name in names if name not in _ORDER_CONTROLS]
     rows: list[tuple[Button, ...]] = []
-    if mode:
+    if satellites_mode is not None:
         names.remove("minimize")
-        rows.append(mode_row(side, mode=mode, origenerator_ready=origenerator_ready))
-    lit = {"lock": locked, "fmode": f_mode, "latest": bool(latest), "shuffle": latest is False}
+        rows.append(mode_row(player, satellites_mode=satellites_mode,
+                             origenerator_ready=origenerator_ready))
+    lit = {"lock": locked, "fmode": favorites_filter, "latest": bool(latest), "shuffle": latest is False}
     rows.append(tuple(
-        _control(side, name, lit=lit.get(name, False),
+        _control(player, name, lit=lit.get(name, False),
                  dim=name == "reset" and nothing_to_reset,
                  group_break=index > 0 and _GROUP_OF[name] != _GROUP_OF[names[index - 1]])
         for index, name in enumerate(names)
@@ -73,23 +76,24 @@ def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
     return tuple(rows)
 
 
-def mode_row(side: str, *, mode: str, origenerator_ready: bool = True) -> tuple[Button, ...]:
-    """The session's own row over a side: the mode pair, and minimize."""
+def mode_row(player: str, *, satellites_mode: SatellitesMode,
+             origenerator_ready: bool = True) -> tuple[Button, ...]:
+    """The session's own row over a player: the mode pair, and minimize."""
     return (
-        *(_mode_button(action, label, lit=mode == lit_mode,
-                       dim=action == "origenerator_activate" and not origenerator_ready)
-          for action, label, lit_mode in MODE_BUTTONS),
-        _control(side, "minimize", group_break=True),
+        *(_mode_button(command, label, lit=satellites_mode is lit_mode,
+                       dim=command == "origenerator_activate" and not origenerator_ready)
+          for command, label, lit_mode in MODE_BUTTONS),
+        _control(player, "minimize", group_break=True),
     )
 
 
-def _mode_button(action: str, label: str, *, lit: bool, dim: bool) -> Button:
-    return Button(action, label, STILL_STARTING_TOOLTIP if dim else MODE_TOOLTIPS[action],
+def _mode_button(command: str, label: str, *, lit: bool, dim: bool) -> Button:
+    return Button(command, label, STILL_STARTING_TOOLTIP if dim else MODE_TOOLTIPS[command],
                   width=FIT_THE_WORD, lit=lit, dim=dim)
 
 
-def _control(side: str, name: str, *, lit: bool = False, dim: bool = False,
+def _control(player: str, name: str, *, lit: bool = False, dim: bool = False,
              group_break: bool) -> Button:
-    return Button(f"{side}_{name}", CONTROL_FACES[name], CONTROL_TOOLTIPS[name],
+    return Button(f"{player}_{name}", CONTROL_FACES[name], CONTROL_TOOLTIPS[name],
                   lit=lit, dim=dim, favorite=name in ("lock", "fmode"),
                   danger=name == "trash", group_break=group_break)

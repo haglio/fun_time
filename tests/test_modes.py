@@ -151,8 +151,8 @@ def test_build_all_playlists_writes_satellite_playlist_files(tmp_path: Path):
     state_dir = tmp_path / "state"
 
     build_all_playlists(
-        portrait=SatelliteBuild(sources=str(portrait_root), f_mode=True),
-        landscape=SatelliteBuild(sources=str(landscape_root), f_mode=True),
+        portrait=SatelliteBuild(sources=str(portrait_root), favorites_filter=True),
+        landscape=SatelliteBuild(sources=str(landscape_root), favorites_filter=True),
         main_sources=str(primary_root),
         favs_file=favs_file,
         state_dir=state_dir,

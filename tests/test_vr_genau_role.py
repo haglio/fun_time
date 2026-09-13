@@ -15,6 +15,7 @@ from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from player_core.modes import MainMode
 
 from fun_time_vr.genau_role import GenauRole, run_ticks
 from fun_time_vr.genau_settings import GenauSettings
@@ -292,12 +293,12 @@ class TestWhatItPublishes:
 
     def test_the_console_file_fun_time_publishes_is_read(self, tmp_path):
         console = tmp_path / "main_player_console.json"
-        console.write_text('{"mode": "genau", "broker": true}', encoding="utf-8")
+        console.write_text('{"main_mode": "genau", "broker": true}', encoding="utf-8")
         genau = Genau(tmp_path, console_file=console)
 
         genau.role.refresh()
 
-        assert genau.role.console_hud.console.mode == "genau"
+        assert genau.role.console_hud.console.main_mode is MainMode.GENAU
         assert genau.role.console_hud.console.broker is True
 
     def test_the_published_sound_level_is_kept_for_the_chip(self, tmp_path):

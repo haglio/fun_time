@@ -7,7 +7,7 @@ from fun_time.players import Player
 
 
 def test_players_keep_the_slot_numbers_the_ini_stores():
-    """active_side is persisted as str(state.active_side) and read back with
+    """active_player is persisted as str(state.active_player) and read back with
     int(); an IntEnum round-trips identically, so the wire value is pinned."""
     assert Player.MAIN == 1
     assert Player.PORTRAIT == 2

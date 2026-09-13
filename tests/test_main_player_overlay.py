@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 from player_core.funscript import Funscript
+from player_core.modes import LoopState
 from player_core.timeline import BAR_INSET_Y, bar_track_x
 
 from main_player.heatmap import build_heatmap
@@ -49,7 +50,7 @@ class TestTheHeightOfTheTimelineRow:
     def test_a_strip_that_grew_to_record_takes_the_row_with_it(self):
         strip = HeatmapStrip()
         strip.update("v0.mp4", _funscript(), 4000.0, width=40,
-                     loop_state="recording", record_in_ms=1000.0, position_ms=1200.0)
+                     loop_state=LoopState.RECORDING, record_in_ms=1000.0, position_ms=1200.0)
 
         assert timeline_height(strip) == 48
 
@@ -108,7 +109,7 @@ class TestHeatmapStrip:
 
         strip.update(
             "v0.mp4", fs, 600_000.0, width=40,
-            loop_state="recording", record_in_ms=50_000, position_ms=50_000.0,
+            loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=50_000.0,
         )
 
         assert strip.window == (48_000, 70_000)
@@ -122,7 +123,7 @@ class TestHeatmapStrip:
         def update(position_ms):
             strip.update(
                 "v0.mp4", _funscript(), 600_000.0, width=40,
-                loop_state="recording", record_in_ms=50_000, position_ms=position_ms,
+                loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=position_ms,
             )
 
         update(50_000.0)
@@ -140,10 +141,10 @@ class TestHeatmapStrip:
         strip = HeatmapStrip()
         strip.update(
             "v0.mp4", fs, 600_000.0, width=40,
-            loop_state="recording", record_in_ms=50_000, position_ms=66_800.0,
+            loop_state=LoopState.RECORDING, record_in_ms=50_000, position_ms=66_800.0,
         )
 
-        strip.update("v0.mp4", fs, 600_000.0, width=40, loop_state="looping")
+        strip.update("v0.mp4", fs, 600_000.0, width=40, loop_state=LoopState.LOOPING)
 
         assert strip.window == (0.0, 600_000.0)
         assert strip.height == 24
@@ -153,7 +154,7 @@ class TestHeatmapStrip:
         # A later recording zooms afresh from its own in point.
         strip.update(
             "v0.mp4", fs, 600_000.0, width=40,
-            loop_state="recording", record_in_ms=100_000, position_ms=100_000.0,
+            loop_state=LoopState.RECORDING, record_in_ms=100_000, position_ms=100_000.0,
         )
         assert strip.window == (98_000, 120_000)
 
@@ -255,28 +256,28 @@ class TestLoopThumbCapture:
     def test_asks_for_in_first_then_out_near_end(self):
         cap = LoopThumbCapture()
 
-        assert cap.needed("looping", (2000, 4000), 2000) == "in"
+        assert cap.needed(LoopState.LOOPING, (2000, 4000), 2000) == "in"
         cap.set("in", object())
-        assert cap.needed("looping", (2000, 4000), 2500) is None  # not near out yet
-        assert cap.needed("looping", (2000, 4000), 3700) == "out"  # within 400ms of 4000
+        assert cap.needed(LoopState.LOOPING, (2000, 4000), 2500) is None  # not near out yet
+        assert cap.needed(LoopState.LOOPING, (2000, 4000), 3700) == "out"  # within 400ms of 4000
         cap.set("out", object())
-        assert cap.needed("looping", (2000, 4000), 3900) is None
+        assert cap.needed(LoopState.LOOPING, (2000, 4000), 3900) is None
 
     def test_clears_when_loop_ends(self):
         cap = LoopThumbCapture()
-        cap.needed("looping", (2000, 4000), 2000)
+        cap.needed(LoopState.LOOPING, (2000, 4000), 2000)
         cap.set("in", object())
 
-        assert cap.needed("normal", None, 0) is None
+        assert cap.needed(LoopState.NORMAL, None, 0) is None
         assert cap.in_thumb is None
 
     def test_reset_thumbs_on_new_loop_bounds(self):
         cap = LoopThumbCapture()
-        cap.needed("looping", (2000, 4000), 2000)
+        cap.needed(LoopState.LOOPING, (2000, 4000), 2000)
         cap.set("in", object())
 
         # a different loop → in_thumb must be re-requested
-        assert cap.needed("looping", (5000, 7000), 5000) == "in"
+        assert cap.needed(LoopState.LOOPING, (5000, 7000), 5000) == "in"
 
 
 class TestWhereTheLoopsTwoFramesGo:

@@ -14,6 +14,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from player_core.modes import LengthMode
 
 from main_player.cli import build_parser
 from main_player.controls import apply_command
@@ -106,7 +107,7 @@ class TestTheStatusFileMainPlayerPublishes:
         modes = FakeModes()
         writer = _writer(_args(status), FakeGate(), modes)
 
-        modes.library_status = LibraryStatus(length_mode="shorts", compilation="Vol 3",
+        modes.library_status = LibraryStatus(length_mode=LengthMode.SHORTS, compilation="Vol 3",
                                              has_compilation=True, jump_to="scene")
         writer.write(StubSession())
 
@@ -314,7 +315,7 @@ class TestWhichCollaboratorEachVerbReaches:
         ("TOGGLE_LENGTH_MODE", "modes", "toggle_length"),
         ("SET_LENGTH_MODE shorts", "modes", "set_length"),
         ("END_COMPILATION", "modes", "end_compilation"),
-        ("SET_F_MODE 1", "modes", "set_f_mode"),
+        ("SET_F_MODE 1", "modes", "set_scripted_filter"),
         ("PLAY_COMPILATION", "jumps", "play_compilation"),
         ("PLAY_FULL_VID", "jumps", "play_full_vid"),
         ("PLAY_CLIP_JUMP", "jumps", "play_clip_jump"),

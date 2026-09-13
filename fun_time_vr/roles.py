@@ -143,7 +143,7 @@ class MainRole:
         self._tcode_enabled = True
         self._locked = True
         self._stepped_at_eof = False
-        self._f_mode = False
+        self._scripted_filter = False
         self._funscript: Funscript | None = None
         self._projection = ""
         self._title = ""
@@ -218,9 +218,9 @@ class MainRole:
         return self._locked
 
     @property
-    def f_mode(self) -> bool:
+    def scripted_filter(self) -> bool:
         """A narrowed playlist looks like any other, so the panel is told."""
-        return self._f_mode
+        return self._scripted_filter
 
     def _funscript_resting(self) -> bool:
         if self._funscript is None:
@@ -245,8 +245,8 @@ class MainRole:
     def toggle_lock(self) -> None:
         self.set_locked(not self._locked)
 
-    def set_f_mode_from(self, value: str) -> bool:
-        self._f_mode = value.strip() != "0"
+    def set_scripted_filter_from(self, value: str) -> bool:
+        self._scripted_filter = value.strip() != "0"
         return True
 
     def reset_tilt(self) -> None:
@@ -558,7 +558,7 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="f_mode",
-        verbs=(Verb(SET_F_MODE, _reads(MainRole.set_f_mode_from), takes_a_value=True),),
+        verbs=(Verb(SET_F_MODE, _reads(MainRole.set_scripted_filter_from), takes_a_value=True),),
     ),
     Control(name="projection", verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),)),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda role: role.recenter.ask())),)),

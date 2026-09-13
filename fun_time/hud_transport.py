@@ -21,7 +21,7 @@ from player_core.file_channel import publish_whole
 from player_core.satellite_hud import HudCell, HudModel, hud_text
 
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
-from .satellite_buttons import mode_row, side_rows
+from .satellite_buttons import mode_row, player_rows
 from .satellites_mode import ORIGENERATOR_MODE
 from .thumbnail_cache import cached_thumbnail
 
@@ -94,15 +94,16 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
         [cell.path for cell in seeds], [cell.path for cell in actions],
     ) or ("corner", 0)
     return HudModel(
-        side=panel.side,
+        player=panel.player,
         locked=panel.locked,
         lock_label=panel.lock_label,
         active=panel.active,
         is_favorite=panel.is_favorite,
-        rows=side_rows(panel.side, locked=panel.locked, f_mode=panel.f_mode,
-                       latest=panel.latest, mode=panel.satellites_mode,
-                       origenerator_ready=panel.origenerator_ready,
-                       nothing_to_reset=panel.nothing_to_reset),
+        rows=player_rows(panel.player, locked=panel.locked,
+                         favorites_filter=panel.favorites_filter, latest=panel.latest,
+                         satellites_mode=panel.satellites_mode,
+                         origenerator_ready=panel.origenerator_ready,
+                         nothing_to_reset=panel.nothing_to_reset),
         filter_query=panel.filter_query,
         seed_count=panel.seed_count,
         action_count=panel.action_count,
@@ -115,13 +116,14 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
     )
 
 
-def hosted_model(side: str, hosted: HudModel | None, *, active: bool,
+def hosted_model(player: str, hosted: HudModel | None, *, active: bool,
                  origenerator_ready: bool) -> HudModel:
-    """What *side* wears while the hosted app holds its player: that app's own
+    """What *player* wears while the hosted app holds its player: that app's own
     panel, or the mode's name while it has none, under the session's row."""
-    panel = hosted or HudModel(side=side, lock_label=ORIGENERATOR_MODE_LABEL)
-    row = mode_row(side, mode=ORIGENERATOR_MODE, origenerator_ready=origenerator_ready)
-    return replace(panel, side=side, active=active, rows=(row, *panel.rows))
+    panel = hosted or HudModel(player=player, lock_label=ORIGENERATOR_MODE_LABEL)
+    row = mode_row(player, satellites_mode=ORIGENERATOR_MODE,
+                   origenerator_ready=origenerator_ready)
+    return replace(panel, player=player, active=active, rows=(row, *panel.rows))
 
 
 class HudPublisher:
@@ -137,9 +139,9 @@ class HudPublisher:
         self._cache_dir = cache_dir
         self._last: dict[str, str] = {}
 
-    def publish(self, side: str, panel: HudPanel) -> bool:
-        """Write *side*'s map if the panel changed; return whether it wrote."""
-        return self.publish_text(side, hud_text(hud_model(panel, self._cache_dir)))
+    def publish(self, player: str, panel: HudPanel) -> bool:
+        """Write *player*'s map if the panel changed; return whether it wrote."""
+        return self.publish_text(player, hud_text(hud_model(panel, self._cache_dir)))
 
     def publish_text(self, name: str, text: str) -> bool:
         """Write *name*'s HUD file if *text* changed; return whether it wrote."""

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.modes import LengthMode
+
 from main_player.status import LibraryStatus, status_fields
 
 
@@ -35,7 +37,7 @@ class TestStatusFields:
         assert fields["duration_ms"] == "60000"
         assert fields["has_funscript"] == "1"
         assert fields["funscript_resting"] == "0"
-        assert fields["state"] == "normal"
+        assert fields["loop_state"] == "normal"
         assert fields["paused"] == "0"
         assert fields["locked"] == "1"
 
@@ -48,7 +50,7 @@ class TestStatusFields:
         # said ten and nothing noticed.
         assert list(status_fields(StubSession(), None)) == [
             "video", "position_ms", "duration_ms", "paused", "locked", "speed", "picture",
-            "has_funscript", "funscript_resting", "state",
+            "has_funscript", "funscript_resting", "loop_state",
             "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
             "length_mode", "compilation", "has_compilation", "has_other_versions", "jump_to",
         ]
@@ -106,7 +108,7 @@ class TestStatusFields:
         assert fields["has_funscript"] == "0"
         assert fields["funscript_resting"] == "1"
         assert fields["paused"] == "1"
-        assert fields["state"] == "recording"
+        assert fields["loop_state"] == "recording"
         assert fields["locked"] == "0"
 
     def test_playhead_is_truncated_to_whole_milliseconds(self):
@@ -119,7 +121,7 @@ class TestStatusFields:
         """Fun Time lights the compilation, version and clip-jump buttons, and
         draws the length pair, from these lines -- only this player knows them,
         and a player that says nothing leaves them dim."""
-        library = LibraryStatus(length_mode="full", compilation="Vol 3",
+        library = LibraryStatus(length_mode=LengthMode.FULL, compilation="Vol 3",
                                 has_compilation=True, has_other_versions=True, jump_to="clip")
 
         fields = status_fields(StubSession(), None, library=library)

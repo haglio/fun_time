@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from player_core.funscript import Funscript
+from player_core.modes import LoopState
 from player_core.playhead import lower_edge_height
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 
@@ -118,7 +119,7 @@ def _recording_strip(bits: Bits) -> None:
     """Grow the strip the way a loop being recorded does: taller, and zoomed
     into the section around the in point."""
     bits.heatmap.update("v0.mp4", _funscript(), DURATION_MS, width=_TRACK_X1 - _TRACK_X0,
-                        loop_state="recording", record_in_ms=1000.0, position_ms=1200.0)
+                        loop_state=LoopState.RECORDING, record_in_ms=1000.0, position_ms=1200.0)
 
 
 @pytest.fixture

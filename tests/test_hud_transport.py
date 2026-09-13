@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from player_core.modes import SatellitesMode
 from player_core.satellite_hud import HudCell
 
 from fun_time.hud_transport import HudPublisher, hud_model
@@ -13,7 +14,7 @@ from fun_time.lock_hud import ACTION_LIMIT, HudPanel
 
 def _panel(**overrides) -> HudPanel:
     base = dict(
-        side="portrait", locked=True, lock_label="Locked",
+        player="portrait", locked=True, lock_label="Locked",
         current="C:/v/cur.mp4", seed_siblings=["C:/v/s1.mp4"], action_siblings=["C:/v/a1.mp4"],
         current_action="alpha", action_labels=("gamma",),
     )
@@ -30,7 +31,7 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
         model = hud_model(_panel(), Path("C:/state/thumbs"))
 
-    assert model.side == "portrait"
+    assert model.player == "portrait"
     assert model.locked is True
     assert model.lock_label == "Locked"
     assert model.current_action == "alpha"
@@ -60,7 +61,7 @@ def test_hud_payload_carries_whether_the_clip_is_a_favorite():
 
 def _band(model) -> dict[str, object]:
     """The side's own buttons, by what each is for."""
-    return {button.action.removeprefix(f"{model.side}_"): button for button in model.rows[-1]}
+    return {button.command.removeprefix(f"{model.player}_"): button for button in model.rows[-1]}
 
 
 def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an_order():
@@ -82,18 +83,18 @@ def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
     """The lock and F-mode light off the side's state, and every button posts
     that side's own verb -- what the dispatcher answers for it."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        band = _band(hud_model(_panel(locked=True, f_mode=True), Path("C:/t")))
+        band = _band(hud_model(_panel(locked=True, favorites_filter=True), Path("C:/t")))
 
     assert band["lock"].lit and band["fmode"].lit and not band["trash"].lit
-    assert all(button.action.startswith("portrait_") for button in band.values())
+    assert all(button.command.startswith("portrait_") for button in band.values())
 
 
 def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerator():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        hosted = hud_model(_panel(satellites_mode="origenerator"), Path("C:/t"))
+        hosted = hud_model(_panel(satellites_mode=SatellitesMode.ORIGENERATOR), Path("C:/t"))
         plain = hud_model(_panel(), Path("C:/t"))
 
-    assert [button.action for button in hosted.rows[0]] == [
+    assert [button.command for button in hosted.rows[0]] == [
         "satellites_video_activate", "origenerator_activate", "portrait_minimize"]
     assert hosted.rows[0][1].lit
     assert len(plain.rows) == 1

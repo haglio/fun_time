@@ -1,14 +1,7 @@
 from __future__ import annotations
 
-from enum import Enum, auto
-
 from player_core.funscript import Funscript, snap_loop
-
-
-class LoopState(Enum):
-    NORMAL = auto()
-    MARKING = auto()
-    LOOPING = auto()
+from player_core.modes import LoopState
 
 
 class LoopController:
@@ -33,12 +26,12 @@ class LoopController:
     def on_record_down(self, position_ms: int) -> None:
         if self._state == LoopState.NORMAL:
             self._in_ms = position_ms
-            self._state = LoopState.MARKING
+            self._state = LoopState.RECORDING
         elif self._state == LoopState.LOOPING:
             self.cancel()
 
     def on_record_up(self, position_ms: int) -> None:
-        if self._state != LoopState.MARKING:
+        if self._state != LoopState.RECORDING:
             return
         # The record-down point is a hard floor: the loop only extends forward
         # from it. Seeks are clamped to it while marking, so an out point before

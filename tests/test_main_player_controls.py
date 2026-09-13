@@ -4,6 +4,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from player_core.modes import LoopState
 from player_core.playback_rate import MAX_RATE, MIN_RATE, RATE_STEP
 
 from main_player.controls import SEEK_STEP_MS, VERBS, MainPlayerControls, apply_command
@@ -77,8 +78,8 @@ class SpyModes:
     def end_compilation(self) -> None:
         self.calls.append(("end_compilation",))
 
-    def set_f_mode(self, on: bool) -> None:
-        self.calls.append(("set_f_mode", on))
+    def set_scripted_filter(self, on: bool) -> None:
+        self.calls.append(("set_scripted_filter", on))
 
 
 class SpyJumps:
@@ -117,7 +118,7 @@ _COLLABORATOR_VERBS = [
     ("TOGGLE_LENGTH_MODE", "modes", "toggle_length"),
     ("SET_LENGTH_MODE shorts", "modes", "set_length"),
     ("END_COMPILATION", "modes", "end_compilation"),
-    ("SET_F_MODE 1", "modes", "set_f_mode"),
+    ("SET_F_MODE 1", "modes", "set_scripted_filter"),
     ("PLAY_COMPILATION", "jumps", "play_compilation"),
     ("PLAY_FULL_VID", "jumps", "play_full_vid"),
     ("PLAY_CLIP_JUMP", "jumps", "play_clip_jump"),
@@ -335,15 +336,15 @@ class TestApplyCommand:
         ]
 
     def test_record_tap_cycles_by_state(self):
-        normal = SpySession(loop_state="normal")
+        normal = SpySession(loop_state=LoopState.NORMAL)
         apply_command("RECORD_TAP", MainPlayerControls(normal))
         assert normal.calls == [("record_down",)]
 
-        recording = SpySession(loop_state="recording")
+        recording = SpySession(loop_state=LoopState.RECORDING)
         apply_command("RECORD_TAP", MainPlayerControls(recording))
         assert recording.calls == [("record_up",)]
 
-        looping = SpySession(loop_state="looping")
+        looping = SpySession(loop_state=LoopState.LOOPING)
         apply_command("RECORD_TAP", MainPlayerControls(looping))
         assert looping.calls == [("loop_cancel",)]
 
@@ -436,7 +437,7 @@ class TestApplyCommand:
         apply_command("SET_F_MODE 1", MainPlayerControls(session, modes=modes))
         apply_command("SET_F_MODE 0", MainPlayerControls(session, modes=modes))
 
-        assert modes.calls == [("set_f_mode", True), ("set_f_mode", False)]
+        assert modes.calls == [("set_scripted_filter", True), ("set_scripted_filter", False)]
         assert session.calls == []
 
     def test_the_three_ways_into_another_slice_of_the_library(self):

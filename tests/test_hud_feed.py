@@ -13,12 +13,13 @@ from unittest.mock import patch
 
 from player_core.console import OSR2_CONTROL_OFF
 from player_core.hud_button import Button
+from player_core.modes import MainMode
 from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.shared_state import BridgeState, SideState
+from fun_time.shared_state import BridgeState, SatelliteState
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -54,7 +55,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
 
 def hosting_config(tmp_path) -> BridgeConfig:
     """A session hosting an Origenerator, with the files that app publishes
-    each side's panel to."""
+    each player's panel to."""
     return make_config(
         tmp_path, origenerator_enabled=True,
         origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
@@ -80,8 +81,8 @@ def publish_satellite_status(path: Path, video, *, fraction: float = 0.1) -> Non
     )
 
 
-def panel(tmp_path, side: str) -> dict:
-    return json.loads((tmp_path / f"{side}_hud.json").read_text(encoding="utf-8"))
+def panel(tmp_path, player: str) -> dict:
+    return json.loads((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
 
 
 def console(tmp_path) -> dict:
@@ -91,20 +92,20 @@ def console(tmp_path) -> dict:
 def f_mode_button(published: dict) -> dict:
     """The F-mode button a published satellite panel declares, as written."""
     return next(button for row in published["rows"] for button in row
-                if button["action"].endswith("_fmode"))
+                if button["command"].endswith("_fmode"))
 
 
 def reset_button(published: dict) -> dict:
     """The reset button a published panel declares, as written."""
     return next(button for row in published["rows"] for button in row
-                if button["action"].endswith("reset"))
+                if button["command"].endswith("reset"))
 
 
 def broker_is_up(published: dict) -> bool:
     """What the published console's OSR2-line control says of the broker: lit
     while the service runs, red (``warn``) while it is down."""
     (broker,) = published["osr2_controls"]
-    assert broker["action"] == "broker_panel"
+    assert broker["command"] == "broker_panel"
     return bool(broker.get("lit")) and not broker.get("warn")
 
 
@@ -116,13 +117,13 @@ class TestHudPublishing:
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-        state = replace(state, portrait=SideState(locked=True, filter="alpha"))
+        state = replace(state, portrait=SatelliteState(locked=True, filter="alpha"))
 
         feed.publish(state)
 
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
-        assert portrait["side"] == "portrait"
+        assert portrait["player"] == "portrait"
         assert portrait["locked"] is True
         # The status line composes the lot — lock, order, and the filter unlabeled.
         assert portrait["lock_label"] == "Locked · Shuffle · alpha"
@@ -140,12 +141,12 @@ class TestHudPublishing:
         assert console(tmp_path)["osr2_control"] == OSR2_CONTROL_OFF
 
     def test_a_side_the_hosted_app_has_wears_that_apps_own_panel(self, tmp_path):
-        """The hosted app publishes the side's map, line and buttons; the
+        """The hosted app publishes the player's map, line and buttons; the
         session puts its own row over them -- the way back to its videos, and
-        minimize for the player's window -- and says which side has the floor."""
+        minimize for the player's window -- and says which player has the floor."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted = HudModel(
-            side="portrait", lock_label="Unlocked · Shuffle",
+            player="portrait", lock_label="Unlocked · Shuffle",
             corner=HudCell(path="C:/g/scene one.png"),
             seeds=(HudCell(path="C:/g/scene two.png"),), seed_count=2,
             rows=((Button("portrait_next", "N", "Next slide"),),),
@@ -153,21 +154,21 @@ class TestHudPublishing:
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(hosted), encoding="utf-8")
 
-        feed.publish(BridgeState(satellites_mode="origenerator", active_side=2))
+        feed.publish(BridgeState(satellites_mode="origenerator", active_player=2))
 
         portrait = parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
         assert portrait.corner.path == "C:/g/scene one.png"
         assert portrait.seeds == hosted.seeds
         assert portrait.lock_label == "Unlocked · Shuffle"
         assert portrait.active is True
-        assert [button.action for button in portrait.rows[0]] == [
+        assert [button.command for button in portrait.rows[0]] == [
             "satellites_video_activate", "origenerator_activate", "portrait_minimize"]
         assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
-        assert [button.action for button in portrait.rows[1]] == ["portrait_next"]
+        assert [button.command for button in portrait.rows[1]] == ["portrait_next"]
 
     def test_a_side_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
         """Between the switch and the app's first panel -- and after it lets a
-        side go -- there is nothing of the app's to draw: the side names the
+        player go -- there is nothing of the app's to draw: the player names the
         mode, with the way back on it, and no map of the videos it left."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
@@ -175,20 +176,20 @@ class TestHudPublishing:
 
         feed.publish(BridgeState(satellites_mode="origenerator"))
 
-        for side in ("portrait", "landscape"):
-            published = parse_hud((tmp_path / f"{side}_hud.json").read_text(encoding="utf-8"))
+        for player in ("portrait", "landscape"):
+            published = parse_hud((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
             assert published.corner is None
             assert published.seeds == ()
             assert published.lock_label == "Origenerator mode"
-            assert [[button.action for button in row] for row in published.rows] == [
-                ["satellites_video_activate", "origenerator_activate", f"{side}_minimize"]]
+            assert [[button.command for button in row] for row in published.rows] == [
+                ["satellites_video_activate", "origenerator_activate", f"{player}_minimize"]]
 
     def test_a_hosted_panel_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
         """A read that loses to the app's own republish is not the app letting
-        go: the side keeps the panel it had rather than flashing the mode's."""
+        go: the player keeps the panel it had rather than flashing the mode's."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         hosted_file = tmp_path / "origenerator_portrait_hud.json"
-        hosted_file.write_text(hud_text(HudModel(side="portrait", lock_label="Locked")),
+        hosted_file.write_text(hud_text(HudModel(player="portrait", lock_label="Locked")),
                                encoding="utf-8")
         state = BridgeState(satellites_mode="origenerator")
         feed.publish(state)
@@ -200,7 +201,7 @@ class TestHudPublishing:
             return real_read(path, *args, **kwargs)
 
         with patch.object(Path, "read_text", busy):
-            feed.publish(replace(state, active_side=3))
+            feed.publish(replace(state, active_player=3))
 
         assert panel(tmp_path, "portrait")["lock_label"] == "Locked"
 
@@ -219,7 +220,7 @@ class TestHudPublishing:
 
         def origenerator_button() -> dict:
             return next(button for row in panel(tmp_path, "portrait")["rows"]
-                        for button in row if button["action"] == "origenerator_activate")
+                        for button in row if button["command"] == "origenerator_activate")
 
         feed.publish(BridgeState())
         assert origenerator_button().get("dim") is True
@@ -234,10 +235,10 @@ class TestHudPublishing:
 
         It is sided: the satellite that is not in F-mode must not say it is."""
         feed, state = make_feed(tmp_path), BridgeState()
-        for side in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{side}_status.txt",
-                                     f"C:/v/{side}.mp4")
-        state = replace(state, portrait=SideState(f_mode=True))
+        for player in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{player}_status.txt",
+                                     f"C:/v/{player}.mp4")
+        state = replace(state, portrait=SatelliteState(favorites_filter=True))
 
         feed.publish(state)
 
@@ -255,7 +256,7 @@ class TestHudPublishing:
         for side in ("portrait", "landscape"):
             publish_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4")
 
-        feed.publish(replace(BridgeState(), portrait=SideState(locked=True)))
+        feed.publish(replace(BridgeState(), portrait=SatelliteState(locked=True)))
 
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
         assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
@@ -264,7 +265,7 @@ class TestHudPublishing:
         """That reset belongs to the show, whose state this room cannot see, so
         it stays pressable however settled the player underneath it is."""
         feed = make_feed(tmp_path, config=hosting_config(tmp_path))
-        hosted = HudModel(side="portrait", lock_label="Unlocked \u00b7 Shuffle",
+        hosted = HudModel(player="portrait", lock_label="Unlocked \u00b7 Shuffle",
                           rows=((Button("portrait_reset", "R", "Reset the show"),),))
         (tmp_path / "origenerator_portrait_hud.json").write_text(
             hud_text(hosted), encoding="utf-8")
@@ -275,18 +276,18 @@ class TestHudPublishing:
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
 
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
-        """The active side is a slot number in the state and a side *name* on the
+        """The active player is a slot number in the state and a player *name* on the
         panel, so exactly one satellite can claim it — and neither does while the
         the main player holds it."""
         feed, state = make_feed(tmp_path), BridgeState()
-        for side in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{side}_status.txt",
-                                     f"C:/v/{side}.mp4")
+        for player in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{player}_status.txt",
+                                     f"C:/v/{player}.mp4")
 
         def actives(slot: int) -> tuple[bool, bool]:
-            feed.publish(replace(state, active_side=slot))
-            return tuple(panel(tmp_path, side)["active"]
-                         for side in ("portrait", "landscape"))
+            feed.publish(replace(state, active_player=slot))
+            return tuple(panel(tmp_path, player)["active"]
+                         for player in ("portrait", "landscape"))
 
         assert actives(2) == (True, False)
         assert actives(3) == (False, True)
@@ -299,7 +300,7 @@ class TestHudPublishing:
         feed, state = make_feed(tmp_path), BridgeState()
 
         def active(slot: int) -> bool:
-            feed.publish(replace(state, active_side=slot))
+            feed.publish(replace(state, active_player=slot))
             return console(tmp_path)["active"]
 
         assert active(1) is True   # the main player holds it
@@ -357,14 +358,14 @@ class TestHudPublishing:
         one place Genau says its pace is the drive readout it publishes."""
         from player_core.drive_readout import DriveHud, publish_drive
 
-        feed, state = make_feed(tmp_path), BridgeState(main_mode="genau")
+        feed, state = make_feed(tmp_path), BridgeState(main_mode=MainMode.GENAU)
         publish_drive(feed.config.genau_drive_file,
                       DriveHud(speed=50, amplitude=60, center=50, advance_interval=7))
 
         feed.publish(state)
 
         lock = next(button for row in console(tmp_path)["rows"] for button in row
-                    if button["action"] == "main_lock")
+                    if button["command"] == "main_lock")
         assert "every 7s" in lock["tooltip"]
 
     def test_the_console_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
@@ -405,7 +406,7 @@ class TestHudPublishing:
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks
-        it, so the loop has to judge each side's clip against the favs file."""
+        it, so the loop has to judge each player's clip against the favs file."""
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
@@ -449,7 +450,7 @@ class TestHudPublishing:
         with patch.object(feed.publisher, "publish", return_value=True) as publish:
             feed.publish_due(state, now=100.0)
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S / 2)
-            assert publish.call_count == 2, "one publish per side, once"
+            assert publish.call_count == 2, "one publish per player, once"
 
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S)
 
@@ -476,7 +477,7 @@ class TestHudPublishing:
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
-        # The other side of it: before a satellite's first status there is no
+        # The other player of it: before a satellite's first status there is no
         # clip to hold onto, and an empty map is the truth.
         feed, state = make_feed(tmp_path), BridgeState()
 

@@ -145,7 +145,7 @@ _MAIN_EQUIVALENTS = {
 }
 
 
-def resolve_active_side_command(command: str, active_side: int) -> str:
+def resolve_active_player_command(command: str, active_player: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
     ``active_next``/``active_prev`` follow the last player navigated — main
@@ -159,13 +159,13 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     if not command.startswith("active_"):
         return command
     action = command[len("active_"):]
-    if active_side == 1:
+    if active_player == 1:
         # What each side-agnostic action means on the main player; anything absent
         # here simply has no main-player equivalent.
         if action.startswith("speed_"):
             return f"main_player_{action}"
         return _MAIN_EQUIVALENTS.get(action, command)
-    prefix = "portrait_" if active_side == 2 else "landscape_"
+    prefix = "portrait_" if active_player == 2 else "landscape_"
     return prefix + action
 
 
@@ -288,7 +288,7 @@ class DispatchLoopRunner:
         self.satellite_speeds = SatelliteSpeeds(
             main_player_status_file=config.main_player_status_file,
             satellite_cmd_files=tuple(
-                config.side(player).cmd_file for player in Player.SATELLITES),
+                config.satellite(player).cmd_file for player in Player.SATELLITES),
         )
 
     def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
@@ -354,7 +354,7 @@ class DispatchLoopRunner:
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
                 raw_command, spoken_at = parse_command_line(line)
-                resolved = resolve_active_side_command(raw_command, self.state.active_side)
+                resolved = resolve_active_player_command(raw_command, self.state.active_player)
                 for command in expand_group_command(resolved):
                     self._handle_command(command, spoken_at)
         finally:
@@ -382,7 +382,7 @@ class DispatchLoopRunner:
     def expect_the_players_home(self, *, now: float) -> None:
         """Both satellites are on their way back from the hosted app."""
         self._coming_home = {
-            player: (now + LET_GO_TIMEOUT_S, panel_stamp(self.config.side(player)))
+            player: (now + LET_GO_TIMEOUT_S, panel_stamp(self.config.satellite(player)))
             for player in Player.SATELLITES
         }
 
@@ -395,14 +395,14 @@ class DispatchLoopRunner:
             self._coming_home.clear()
             return
         for player, (deadline, stamp) in list(self._coming_home.items()):
-            side = self.config.side(player)
-            if now < deadline and not let_go_since(side, stamp):
+            channel = self.config.satellite(player)
+            if now < deadline and not let_go_since(channel, stamp):
                 continue
             del self._coming_home[player]
-            hand_back(side)
+            hand_back(channel)
             # The session's own hold stands again, whatever the app left.
-            append_command(side.cmd_file,
-                           LOCK_ON if self.state.side(player).locked else LOCK_OFF)
+            append_command(channel.cmd_file,
+                           LOCK_ON if self.state.satellite(player).locked else LOCK_OFF)
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -507,16 +507,16 @@ class DispatchLoopRunner:
             if self.state.omni_paused:
                 self._handle_omnipause_toggle()
         elif cmd == "portrait_lock_on":
-            if not self.state.side(Player.PORTRAIT).locked:
+            if not self.state.satellite(Player.PORTRAIT).locked:
                 self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_on":
-            if not self.state.side(Player.LANDSCAPE).locked:
+            if not self.state.satellite(Player.LANDSCAPE).locked:
                 self._dispatch("landscape_lock", spoken_at)
         elif cmd == "portrait_lock_off":
-            if self.state.side(Player.PORTRAIT).locked:
+            if self.state.satellite(Player.PORTRAIT).locked:
                 self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_off":
-            if self.state.side(Player.LANDSCAPE).locked:
+            if self.state.satellite(Player.LANDSCAPE).locked:
                 self._dispatch("landscape_lock", spoken_at)
         elif cmd == "broker_start":
             self._handle_broker_start()
@@ -635,8 +635,8 @@ class DispatchLoopRunner:
                 str(self.config.dashboard_state_file),
                 omni_paused=self.state.omni_paused,
                 voice_active=voice_active,
-                f_mode=(self.state.main_f_mode
-                        and all(self.state.side(p).f_mode for p in Player.SATELLITES)),
+                f_mode=(self.state.main_scripted_filter
+                        and all(self.state.satellite(p).favorites_filter for p in Player.SATELLITES)),
                 in_vr=self.config.vr_main_player,
                 nothing_to_reset=room_at_defaults(
                     self.state, self.config,
