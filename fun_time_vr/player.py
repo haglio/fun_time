@@ -47,6 +47,7 @@ from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.genau_notifier import GenauNotifier
+from player_core.player_verbs import play_file
 from player_core.playhead import (
     PlayheadHud,
     PlayheadHudPainter,
@@ -63,17 +64,24 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
-from fun_time.dashboard_actions import REFERENCE_OPEN_FILENAME
+from fun_time.dashboard_actions import (
+    BROWSE_LIBRARY_CLOSE,
+    LIBRARY_OPEN_FILENAME,
+    REFERENCE_OPEN_FILENAME,
+)
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
+from fun_time.library_handles import build_library_handles
 from fun_time.manifest import LaunchManifest
-from fun_time.player_status import genau_status_path, read_genau_status
+from fun_time.modes import scripted_item
+from fun_time.player_status import genau_status_path, read_genau_status, read_main_player_status
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import (
     headset_hold_asked,
     headset_hold_stops_the_runtime,
     report_the_headset_held,
 )
+from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
 from satellite.hud_overlay import HudOverlay
@@ -123,12 +131,22 @@ from .layout import (
     DASH,
     LANDSCAPE,
     LAYOUT_FILENAME,
+    LIBRARY,
     PANEL,
     PORTRAIT,
     PRIMARY,
     REFERENCE,
     read_layout,
     write_layout,
+)
+from .library_panel import (
+    LIBRARY_WIDTH_PX,
+    LibraryBrowse,
+    LibraryShelf,
+    LibraryStills,
+    cached_or_extracted,
+    library_height,
+    paint_library,
 )
 from .matrices import (
     fov_to_projection_matrix,
@@ -237,6 +255,11 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _folders(spec: str) -> tuple[Path, ...]:
     return tuple(Path(part) for part in spec.split("|") if part.strip())
+
+
+def _metadata_root(manifest: LaunchManifest) -> Path | None:
+    raw = manifest.regen.metadata_root.strip()
+    return Path(raw) if raw else None
 
 
 @dataclass(frozen=True)
@@ -460,7 +483,6 @@ class _MainUnit(_VideoUnit):
         commands = manifest.commands
         self.cmd_file = Path(commands.main_player_cmd_file)
         self.paused_file = Path(commands.main_player_paused_file)
-        metadata_raw = manifest.regen.metadata_root.strip()
         driver = FunscriptTCodeDriver(_SaysWhenItFirstMoves(
             UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main",
         ))
@@ -468,7 +490,7 @@ class _MainUnit(_VideoUnit):
             player=self.player,
             driver=driver,
             playlist_file=Path(commands.main_player_playlist_file),
-            metadata_root=Path(metadata_raw) if metadata_raw else None,
+            metadata_root=_metadata_root(manifest),
             vr_dirs=tuple(
                 vr.library_dirs
             ),
@@ -1138,6 +1160,8 @@ class _ReferenceUnit:
     """The hotkeys and voice reference, up while the session says it is -- its
     own screen, as the desktop's is its own popup rather than part of the bar."""
 
+    layout_key = REFERENCE
+
     def __init__(self, *, placement: Placement, flag: Path) -> None:
         self._flag = flag
         self._pointer = ReferencePointer()
@@ -1174,6 +1198,70 @@ class _ReferenceUnit:
         _upload_and_rehang(self)
 
     def close(self) -> None:
+        self.texture.close()
+        self.screen.close()
+
+
+class _LibraryUnit:
+    layout_key = LIBRARY
+
+    def __init__(
+        self, *, placement: Placement, flag: Path, shelf, stills,
+        main_player_cmd_file: Path, main_player_status_file: Path,
+        dashboard_cmd_file: Path,
+    ) -> None:
+        self._flag = flag
+        self._shelf = shelf
+        self._stills = stills
+        self._browse = LibraryBrowse(
+            play=lambda video: append_command(
+                main_player_cmd_file, play_file(scripted_item(video))),
+            close=lambda: append_command(dashboard_cmd_file, BROWSE_LIBRARY_CLOSE),
+            playing=lambda: read_main_player_status(main_player_status_file).video,
+        )
+        self._presses = _Presses(LIBRARY)
+        self._lock = threading.Lock()
+        self._image = None
+        self._key = None
+        self._uploaded = None
+        self.texture = FrameTexture()
+        self.screen = _HangingScreen(placement)
+
+    @property
+    def showing(self) -> bool:
+        return self._browse.open
+
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        if self._browse.handles is None and self._shelf.handles is not None:
+            self._browse.stocked(self._shelf.handles)
+        size = (LIBRARY_WIDTH_PX, library_height())
+        for event in self._presses.drain():
+            if event.kind == PRESS:
+                self._browse.press(*surface_pixel(event.u, event.v, size))
+        self._browse.showing(read_flag(self._flag, default=False))
+        if not self._browse.open:
+            return
+        self._stills.want(preview for tile in self._browse.tiles for preview in tile.previews)
+        arrived = self._stills.collect()
+        aim = self._presses.hover
+        hover = surface_pixel(*aim[1], size) if aim is not None else None
+        browse = self._browse
+        key = (browse.folder, browse.page, browse.lit, browse.handles is None, hover)
+        if key == self._key and not arrived:
+            return
+        image = paint_library(browse, self._stills, hover)
+        with self._lock:
+            self._image = image
+        self._key = key
+
+    def render_latest_frame(self) -> None:
+        _upload_and_rehang(self)
+
+    def close(self) -> None:
+        self._stills.close()
         self.texture.close()
         self.screen.close()
 
@@ -1537,7 +1625,7 @@ def _wrapped_slot(primary: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUn
 
 def _pointable_screens(
     primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
-    panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit,
+    panel: _PanelUnit, dash: _DashUnit, popups: Sequence,
 ) -> list[Screen]:
     main = _main_slot_screen(primary, genau)
     screens = [main] if main is not None else []  # first, so the rest win the overlap
@@ -1552,9 +1640,7 @@ def _pointable_screens(
     if panel.texture.ready:  # pressed, never dragged: it rides on what is above it
         screens.append(Screen(
             PANEL, panel.screen.placement, panel.texture.aspect, pressable=True))
-    hangings = [(DASH, dash)]
-    if reference.showing:  # nothing to point at while it is down
-        hangings.append((REFERENCE, reference))
+    hangings = [(DASH, dash)] + [(popup.layout_key, popup) for popup in popups if popup.showing]
     for name, hanging in hangings:
         if hanging.texture.ready:
             screens.append(Screen(name, hanging.screen.placement, hanging.texture.aspect,
@@ -1570,7 +1656,7 @@ def _draw_eyes(
     satellites: list[_SatelliteUnit],
     panel: _PanelUnit,
     dash: _DashUnit,
-    reference: _ReferenceUnit,
+    popups: Sequence,
     pointing: _PointerDrawing,
     views,
     mode: int | None,
@@ -1580,7 +1666,7 @@ def _draw_eyes(
 ) -> None:
     """Render the projection layer's two eyes: the main slot as an immersive wrap
     or a screen, every video screen the compositor did not take as a quad
-    (*in_scene*, by layout name), then the two hanging panels and the pointer's
+    (*in_scene*, by layout name), then the hanging panels and the pointer's
     chrome over all of it.  *scene_rotation* is where the arrangement sits."""
     clip_showing = genau.role.showing
     clip_mode = immersive_mode(genau.role.projection) if clip_showing else None
@@ -1623,7 +1709,7 @@ def _draw_eyes(
                     satellite.hud_screen.mesh, satellite.hud_texture.texture, view_proj32,
                     blend=True,
                 )
-        showing = [panel, dash] + ([reference] if reference.showing else [])
+        showing = [panel, dash] + [popup for popup in popups if popup.showing]
         for hanging in showing:
             if hanging.texture.ready and hanging.screen.ready:
                 renderer.draw_screen(
@@ -1785,14 +1871,25 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         notices=notices,
     )
     reference = _ReferenceUnit(placement=layout[REFERENCE], flag=reference_flag)
+    library = _LibraryUnit(
+        placement=layout[LIBRARY],
+        flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
+        shelf=LibraryShelf(lambda: build_library_handles(
+            manifest.media.main_player_library_sources, _metadata_root(manifest))),
+        stills=LibraryStills(state_dir / THUMBNAIL_CACHE_DIRNAME, fetch=cached_or_extracted),
+        main_player_cmd_file=Path(commands.main_player_cmd_file),
+        main_player_status_file=Path(commands.main_player_status_file),
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+    )
+    popups = (reference, library)
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
-    units = [primary, genau, *satellites, dash, panel, reference, cover]  # dash first:
+    units = [primary, genau, *satellites, dash, panel, reference, library, cover]  # dash first:
     pumped = [notices, *units, keeper]  # the console hangs off where it ended up
     hanging = {unit.side: (unit.screen,) for unit in satellites} | {
-        PRIMARY: (primary.screen, genau.screen), DASH: (dash,),
-        REFERENCE: (reference.screen,)}
+        PRIMARY: (primary.screen, genau.screen), DASH: (dash,)} | {
+        popup.layout_key: (popup.screen,) for popup in popups}
     pointer = Pointer()
     pointing = _PointerDrawing()
     use_layers = vr.compositor_layers
@@ -1883,7 +1980,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     math.radians(scene_pitch_deg)
                 )
                 screens = _pointable_screens(
-                    primary, genau, satellites, panel, dash, reference)
+                    primary, genau, satellites, panel, dash, popups)
                 frame = pointer.frame(
                     session.hands,
                     head=head_position([
@@ -1901,7 +1998,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if frame.settled:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own
-                             *satellites, panel, dash, reference):
+                             *satellites, panel, dash, *popups):
                     unit.point(frame)
                 pointing.update(frame, screens)
                 mode = immersive_mode(primary.role.projection)
@@ -1922,7 +2019,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(
-                    session, renderer, primary, genau, satellites, panel, dash, reference,
+                    session, renderer, primary, genau, satellites, panel, dash, popups,
                     pointing, views, mode, scene_rotation,
                     in_scene=in_scene,
                 )

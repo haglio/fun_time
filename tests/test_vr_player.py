@@ -39,7 +39,14 @@ from player_core.volume import (
     chip_xy,
 )
 
-from fun_time.dashboard_actions import HELP_REFERENCE, QUIT_BUTTON, REFERENCE_OPEN_FILENAME
+from fun_time.dashboard_actions import (
+    BROWSE_LIBRARY_CLOSE,
+    HELP_REFERENCE,
+    LIBRARY_OPEN_FILENAME,
+    QUIT_BUTTON,
+    REFERENCE_OPEN_FILENAME,
+)
+from fun_time.library_handles import LibraryHandle
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -68,12 +75,14 @@ from fun_time_vr.layout import (
     DASH,
     DEFAULT_LAYOUT,
     LANDSCAPE,
+    LIBRARY,
     PANEL,
     PORTRAIT,
     PRIMARY,
     REFERENCE,
     read_layout,
 )
+from fun_time_vr.library_panel import LIBRARY_WIDTH_PX, LibraryStills, library_height, tile_rects
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
@@ -83,6 +92,7 @@ from fun_time_vr.player import (
     _GenauUnit,
     _HangingScreen,
     _LayoutKeeper,
+    _LibraryUnit,
     _main_slot_screen,
     _MainUnit,
     _PanelUnit,
@@ -1085,6 +1095,20 @@ def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
     assert "dash" in ast.unparse(units.value)
 
 
+def test_the_library_is_painted_pointed_at_and_drawn_like_the_reference():
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    assigned = {ast.unparse(node.targets[0]): ast.unparse(node.value)
+                for node in ast.walk(tree) if isinstance(node, ast.Assign)}
+
+    assert "library" in assigned["units"]
+    assert "library" in assigned["popups"]
+
+
 def test_the_reveal_waits_for_the_cover_to_have_been_seen():
     """The room being drawable is not the same as anyone having had the headset
     on while it was covered."""
@@ -1232,10 +1256,11 @@ class TestTheMainSlotUnderThePointer:
         dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
         reference = SimpleNamespace(showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
-                                    screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]))
+                                    screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
+                                    layout_key=REFERENCE)
 
         screens = _pointable_screens(
-            *self._units(), [satellite], panel, dash, reference)
+            *self._units(), [satellite], panel, dash, [reference])
 
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
@@ -1413,7 +1438,7 @@ class TestEveryHangingScreenIsDrawn:
         reference = _hanging("reference")
         reference.showing = showing
         _draw_eyes(
-            session, renderer, primary, genau, [], panel, dash, reference,
+            session, renderer, primary, genau, [], panel, dash, [reference],
             SimpleNamespace(draw=lambda *_a: None), self._views(), None,
             np.eye(4, dtype=np.float64), in_scene={PRIMARY, PORTRAIT, LANDSCAPE},
         )
@@ -1518,6 +1543,63 @@ class TestTheDashUnderThePointer:
         assert not (tmp_path / "dashboard_cmd.txt").exists()
 
 
+def _a_library(tmp_path, handles):
+    with patch("fun_time_vr.player.FrameTexture"):
+        return _LibraryUnit(
+            placement=DEFAULT_LAYOUT[LIBRARY],
+            flag=tmp_path / LIBRARY_OPEN_FILENAME,
+            shelf=SimpleNamespace(handles=tuple(handles)),
+            stills=LibraryStills(tmp_path, fetch=lambda _preview, _cache_dir: None),
+            main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+            main_player_status_file=tmp_path / "main_player_status.txt",
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+        )
+
+
+class TestTheLibraryUnderThePointer:
+    @staticmethod
+    def _uv_of(rect) -> tuple[float, float]:
+        return ((rect.x + rect.width // 2 + 0.5) / LIBRARY_WIDTH_PX,
+                1 - (rect.y + rect.height // 2 + 0.5) / library_height())
+
+    def test_a_press_on_a_video_plays_it_on_the_main_player_and_puts_the_browse_away(
+        self, tmp_path,
+    ):
+        video = "C:/videos/Scene One.mp4"
+        unit = _a_library(tmp_path, [LibraryHandle(title="Scene One", versions=(video,))])
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        try:
+            unit.pump(threading.Event(), 0.0)
+            unit.point(Frame(events=[PressEvent(PRESS, LIBRARY, *self._uv_of(tile_rects()[0]))]))
+            unit.pump(threading.Event(), 0.0)
+        finally:
+            unit.close()
+
+        assert (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").strip() == (
+            f"PLAY_FILE {Path(video)}")
+        assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
+            BROWSE_LIBRARY_CLOSE)
+
+    def test_the_browse_reaches_the_headset_only_while_it_is_up(self, tmp_path):
+        unit = _a_library(
+            tmp_path, [LibraryHandle(title="Scene One", versions=("C:/videos/Scene One.mp4",))])
+        unit.texture = _FakePanelTexture()
+        try:
+            unit.pump(threading.Event(), 0.0)
+            with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+                unit.render_latest_frame()
+            assert not hasattr(unit.texture, "uploaded")
+
+            write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+            unit.pump(threading.Event(), 0.0)
+            with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+                unit.render_latest_frame()
+        finally:
+            unit.close()
+
+        assert unit.texture.uploaded.shape == (library_height(), LIBRARY_WIDTH_PX, 4)
+
+
 class TestWhatThePointerCanReach:
     def _screens(self, tmp_path, *, reference_showing=False, wrapped=False):
         panel = _a_panel()
@@ -1530,9 +1612,10 @@ class TestWhatThePointerCanReach:
             showing=reference_showing,
             texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
+            layout_key=REFERENCE,
         )
         return {s.name: s for s in _pointable_screens(
-            primary, genau, [], panel, dash, reference)}
+            primary, genau, [], panel, dash, [reference])}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)

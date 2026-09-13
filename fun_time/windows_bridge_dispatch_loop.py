@@ -808,9 +808,6 @@ class DispatchLoopRunner:
                 runner=self._run_browser,
             )
             if selected:
-                # The main player owns the main player; play the pick there, paired with its
-                # funscript the same way a playlist line pairs one, so a browse
-                # pick and a playlist entry can never name a script differently.
                 append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected)))
         finally:
             if manage_session:
