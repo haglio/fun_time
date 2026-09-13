@@ -11,6 +11,7 @@ from fun_time import voice_control
 from fun_time.voice_commands import parse_command_line
 from fun_time.voice_control import (
     AUDIO_STALL_S,
+    SILENT_UTTERANCE_PEAK,
     VOICE_COMMANDS,
     AudioStall,
     Recognition,
@@ -20,6 +21,8 @@ from fun_time.voice_control import (
     has_partial_text,
     interpret_recognition,
 )
+
+SPOKEN = 2000  # a peak that is unmistakably speech
 
 
 def _scored(text: str, conf: float) -> str:
@@ -182,7 +185,7 @@ class TestBuildGrammar:
 class TestInterpretRecognition:
     def test_a_confident_grammar_match_is_the_command(self):
         interp = interpret_recognition(
-            _scored("landscape next", 0.95), _scored("landscape next", 0.9), threshold=0.7,
+            _scored("landscape next", 0.95), _scored("landscape next", 0.9), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition(
             command="landscape_next", phrase="landscape next", heard="landscape next")
@@ -191,7 +194,7 @@ class TestInterpretRecognition:
         """Alternatives mode carries no per-word scores, so the phrase list is
         what decides: vosk's own ranking picks the order, the grammar's phrases
         pick the winner."""
-        interp = interpret_recognition(_ranked("landscape next"), "", threshold=0.7)
+        interp = interpret_recognition(_ranked("landscape next"), "", threshold=0.7, peak=SPOKEN)
         assert interp == Recognition(
             command="landscape_next", phrase="landscape next", heard="landscape next")
 
@@ -202,7 +205,7 @@ class TestInterpretRecognition:
         directly under it, and taking it is the difference between the command
         landing and the utterance vanishing without a trace."""
         interp = interpret_recognition(
-            _ranked("portrait net", "portrait next"), "", threshold=0.7)
+            _ranked("portrait net", "portrait next"), "", threshold=0.7, peak=SPOKEN)
         assert interp.command == "portrait_next"
         assert interp.phrase == "portrait next"
         assert interp.rank == 1
@@ -210,7 +213,7 @@ class TestInterpretRecognition:
 
     def test_the_recognizer_first_choice_beats_a_lower_ranked_command(self):
         interp = interpret_recognition(
-            _ranked("portrait next", "portrait lock"), "", threshold=0.7)
+            _ranked("portrait next", "portrait lock"), "", threshold=0.7, peak=SPOKEN)
         assert interp.command == "portrait_next"
         assert interp.rank == 0
 
@@ -218,18 +221,18 @@ class TestInterpretRecognition:
         """A repair promotes a reading vosk ranked below another.  That is a fine
         trade for a satellite nudge and a bad one for quitting the room, so
         "quit" has to be the recognizer's own first choice."""
-        interp = interpret_recognition(_ranked("net", "quit"), "", threshold=0.7)
+        interp = interpret_recognition(_ranked("net", "quit"), "", threshold=0.7, peak=SPOKEN)
         assert interp.command is None
         assert interp.unrecognized_text == "net"
 
-        top = interpret_recognition(_ranked("quit"), "", threshold=0.7)
+        top = interpret_recognition(_ranked("quit"), "", threshold=0.7, peak=SPOKEN)
         assert top.command == "quit"
 
     def test_an_off_phrase_reading_is_reported_rather_than_swallowed(self):
         """No alternative is a command, so nothing dispatches — but the speaker
         is told what the recognizer made of them, in the app's own words.  This
         used to be silence: no command, no report, no log line."""
-        interp = interpret_recognition(_ranked("portrait net", "net portrait"), "", threshold=0.7)
+        interp = interpret_recognition(_ranked("portrait net", "net portrait"), "", threshold=0.7, peak=SPOKEN)
         assert interp.command is None
         assert interp.unrecognized_text == "portrait net"
 
@@ -238,13 +241,13 @@ class TestInterpretRecognition:
         thing to show the speaker than the free model's guess at the same
         audio, because it names the word the command actually missed on."""
         interp = interpret_recognition(
-            _ranked("portrait net"), _scored("what's next", 0.9), threshold=0.7)
+            _ranked("portrait net"), _scored("what's next", 0.9), threshold=0.7, peak=SPOKEN)
         assert interp.unrecognized_text == "portrait net"
 
     def test_an_unscored_grammar_match_below_the_bar_is_refused_out_loud(self):
         """A scored reading under the bar is refused — and says so, rather than
         falling through to a silence indistinguishable from a dead microphone."""
-        interp = interpret_recognition(_scored("skip", 0.3), "", threshold=0.7)
+        interp = interpret_recognition(_scored("skip", 0.3), "", threshold=0.7, peak=SPOKEN)
         assert interp.command is None
         assert interp.refused_phrase == "skip"
 
@@ -254,7 +257,7 @@ class TestInterpretRecognition:
         ``confidence_threshold`` is drawing the line their commands must
         reach, not clear."""
         interp = interpret_recognition(
-            _scored("landscape next", 0.7), _scored("landscape next", 0.7), threshold=0.7,
+            _scored("landscape next", 0.7), _scored("landscape next", 0.7), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition(
             command="landscape_next", phrase="landscape next", heard="landscape next")
@@ -263,7 +266,7 @@ class TestInterpretRecognition:
         # Two words; the three-word case, where the mean used to land a hair
         # under the bar in float, is pinned by the two tests below.
         interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("skip it", 0.7), threshold=0.7,
+            json.dumps({"text": "[unk]"}), _scored("skip it", 0.7), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition(unrecognized_text="skip it")
 
@@ -273,14 +276,14 @@ class TestInterpretRecognition:
         wherever the word count was not a power of two (bug 86).  The gate
         compares the sum against the bar times the count, which is exact."""
         interp = interpret_recognition(
-            _scored("main video mode", 0.7), _scored("main video mode", 0.7), threshold=0.7,
+            _scored("main video mode", 0.7), _scored("main video mode", 0.7), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition(
             command="main_video_activate", phrase="main video mode", heard="main video mode")
 
     def test_a_three_word_caption_at_the_threshold_surfaces(self):
         interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("skip it now", 0.7), threshold=0.7,
+            json.dumps({"text": "[unk]"}), _scored("skip it now", 0.7), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition(unrecognized_text="skip it now")
 
@@ -289,7 +292,7 @@ class TestInterpretRecognition:
         transcription of the same audio: "skip" under the bar is a different
         thing to be told than "skip it"."""
         interp = interpret_recognition(
-            _scored("skip", 0.3), _scored("skip it", 0.9), threshold=0.7,
+            _scored("skip", 0.3), _scored("skip it", 0.9), threshold=0.7, peak=SPOKEN,
         )
         assert interp.command is None
         assert interp.refused_phrase == "skip"
@@ -298,15 +301,24 @@ class TestInterpretRecognition:
         """"Definitely saying something" is a confidence bar — quiet-room noise
         the free model latches onto must not caption a phantom command."""
         interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("mumble", 0.3), threshold=0.7,
+            json.dumps({"text": "[unk]"}), _scored("mumble", 0.3), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition()
 
     def test_nothing_heard_is_nothing(self):
         interp = interpret_recognition(
-            json.dumps({"text": ""}), json.dumps({"text": ""}), threshold=0.7,
+            json.dumps({"text": ""}), json.dumps({"text": ""}), threshold=0.7, peak=SPOKEN,
         )
         assert interp == Recognition()
+
+    def test_a_reading_from_silence_is_ignored_not_rescued(self):
+        interp = interpret_recognition(_ranked("half", "help"), "", threshold=0.7, peak=9)
+        assert interp == Recognition(silent_reading="half")
+
+    def test_a_quiet_but_spoken_reading_still_fires(self):
+        interp = interpret_recognition(
+            _ranked("skip"), "", threshold=0.7, peak=SILENT_UTTERANCE_PEAK)
+        assert interp.command == VOICE_COMMANDS["skip"]
 
 
 class TestHandleRecognition:
@@ -319,7 +331,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0)
+        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
 
         assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\n"
         assert seen == [("landscape next", "landscape", 25)]
@@ -332,7 +344,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
 
-        vc._handle_recognition(Recognition(command="genau_activate", phrase="go now"), spoken_at=1.0)
+        vc._handle_recognition(Recognition(command="genau_activate", phrase="go now"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == ["genau"]
 
@@ -342,7 +354,7 @@ class TestHandleRecognition:
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0)
+        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
 
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
@@ -364,7 +376,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc._handle_recognition(recognition, spoken_at=1.0)
+        vc._handle_recognition(recognition, spoken_at=1.0, peak=SPOKEN)
 
         assert seen == [(report, "system", logging.WARNING)]
 
@@ -385,7 +397,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source)))
 
-        vc._handle_recognition(Recognition(unrecognized_text=heard), spoken_at=1.0)
+        vc._handle_recognition(Recognition(unrecognized_text=heard), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == [(f"unrecognized voice command: {heard}", source)]
 
@@ -400,7 +412,7 @@ class TestHandleRecognition:
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
         vc._handle_recognition(
-            Recognition(command="active_next", phrase="next"), spoken_at=1.0)
+            Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == ["portrait"]
 
@@ -413,7 +425,7 @@ class TestHandleRecognition:
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
         vc._handle_recognition(
-            Recognition(command="active_next", phrase="next"), spoken_at=1.0)
+            Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == ["main"]
 
@@ -426,7 +438,7 @@ class TestHandleRecognition:
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
         vc._handle_recognition(
-            Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0)
+            Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == ["landscape"]
 
@@ -439,7 +451,7 @@ class TestHandleRecognition:
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
         vc._handle_recognition(
-            Recognition(command="active_next", phrase="next"), spoken_at=1.0)
+            Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == ["system"]
 
@@ -453,7 +465,7 @@ class TestHandleRecognition:
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-        vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0)
+        vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0, peak=SPOKEN)
 
         assert seen == []
 
