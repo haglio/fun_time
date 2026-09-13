@@ -51,7 +51,7 @@ class FakeNotices:
     def __init__(self) -> None:
         self.said: list[tuple[str, str]] = []
 
-    def say(self, message: str, *, level: str = "error") -> bool:
+    def say(self, message: str, *, level: str) -> bool:
         self.said.append((message, level))
         return True
 
@@ -244,7 +244,7 @@ class TestPlayCompilation:
         jumps.play_compilation()
 
         assert session.replaced == []
-        assert notices.said == [("not a compilation clip", "error")]
+        assert notices.said == [("not a compilation clip", "warning")]
         assert jumps.compilation == ""
 
     def test_leaving_forgets_it(self, tmp_path):
@@ -282,14 +282,15 @@ class TestSingleVideoJumps:
     def test_a_miss_says_so_rather_than_moving(self, tmp_path):
         """Most clips' source movies are not in the library at all, so having
         nowhere to go is the ordinary case — and silence is what left the player
-        looking broken."""
+        looking broken.  A warning, then, not an error: Fun Time flashes an error
+        red, and nothing here went wrong."""
         nav, first, _second, _scene = _world(tmp_path)
         jumps, session, notices = _jumps(nav, first)
 
         jumps.play_full_vid()
 
         assert session.played == []
-        assert notices.said == [("full video not available", "error")]
+        assert notices.said == [("full video not available", "warning")]
 
     def test_neither_jump_disturbs_the_compilation_it_is_inside(self, tmp_path):
         """These two move to one video; only "compilation" replaces the playlist,

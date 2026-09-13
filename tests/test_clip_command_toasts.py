@@ -5,8 +5,8 @@ from fun_time.voice_commands import SELF_REPORTING_COMMANDS, VOICE_COMMANDS
 
 def test_the_clip_and_funscript_jumps_flash_their_own_outcome():
     """The main player flashes the outcome of the clip and funscript jumps itself, so Fun
-    Time must not also echo a green "I heard you" on top — that stacked a
-    confirmation under a red correction.  (The old version of this test
+    Time must not also echo an "I heard you" on top — that stacked a
+    confirmation under a correction.  (The old version of this test
     restated the constant's whole definition, comprehensions included, so any
     edit failed it and the fix was pasting the new value in; the family-wide
     containment checks are the tests below.)"""

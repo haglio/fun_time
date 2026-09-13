@@ -26,12 +26,12 @@ class NoticeWriter:
         self._path = path
         self._clock = clock
 
-    def say(self, message: str, *, level: str = "error") -> None:
+    def say(self, message: str, *, level: str) -> None:
         """Raise *message*; ``level`` picks the color Fun Time flashes it in.
 
-        "error" is red, "notice" white, and "favorite" green — green being what
-        Fun Time reserves for the favorites and the funscripts, so a funscript
-        jump says so in the color and an ordinary jump does not.
+        "warning" is yellow, "notice" white, and "favorite" green — green being
+        what Fun Time reserves for the favorites and the funscripts, so a
+        funscript jump says so in the color and an ordinary jump does not.
 
         The sequence is a wall-clock stamp rather than a counter, so it
         survives a restart: a counter would begin again at 1 while the reader
