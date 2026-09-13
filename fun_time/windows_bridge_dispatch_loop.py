@@ -38,6 +38,7 @@ from .modes import scripted_item
 from .player_status import is_broker_heartbeat_fresh, read_main_player_status
 from .players import Player
 from .role_windows import WindowRoles
+from .satellite_speeds import SatelliteSpeeds
 from .satellites_mode import VIDEO_MODE, origenerator_shows
 from .session_end import mark_session_end
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
@@ -151,6 +152,8 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     if active_side == 1:
         # What each side-agnostic action means on the main player; anything absent
         # here simply has no main-player equivalent.
+        if action.startswith("speed_"):
+            return f"main_player_{action}"
         return _MAIN_EQUIVALENTS.get(action, command)
     prefix = "portrait_" if active_side == 2 else "landscape_"
     return prefix + action
@@ -260,6 +263,11 @@ class DispatchLoopRunner:
             main_player_cmd_file=config.main_player_cmd_file,
             genau_cmd_file=config.genau_cmd_file,
         )
+        self.satellite_speeds = SatelliteSpeeds(
+            main_player_status_file=config.main_player_status_file,
+            satellite_cmd_files=tuple(
+                config.side(player).cmd_file for player in Player.SATELLITES),
+        )
 
     def _modes_this_session_hosts(self, state: BridgeState) -> BridgeState:
         if self.config.origenerator_enabled or not origenerator_shows(state.satellites_mode):
@@ -304,11 +312,12 @@ class DispatchLoopRunner:
 
         self._sync_voice_suspension()
 
-        # Periodic sync: z-order enforcement and dashboard update
+        # Periodic sync: z-order enforcement, the satellites' rate, the dashboard
         now = time.monotonic()
         if now - self._last_sync >= self.sync_interval_s:
             self._last_sync = now
             self._converge_origenerator_window()
+            self.satellite_speeds.take_the_main_players_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
         self.watch.sample_due(now=now, paused=self.state.omni_paused)
