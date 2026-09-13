@@ -311,6 +311,27 @@ class TestInterpretRecognition:
         )
         assert interp == Recognition()
 
+    def test_a_rescue_must_share_a_word_with_the_recognizer_first_choice(self):
+        unrelated = interpret_recognition(_ranked("half", "help"), "", threshold=0.7, peak=SPOKEN)
+        assert unrelated.command is None
+        assert unrelated.unrecognized_text == "half"
+
+        related = interpret_recognition(_ranked("up", "amp up"), "", threshold=0.7, peak=SPOKEN)
+        assert related.command == VOICE_COMMANDS["amp up"]
+        assert related.rank == 1
+
+    def test_a_rescue_never_lands_on_a_command_that_holds_or_ends_the_room(self):
+        for first, rescue in (
+            ("portrait", "portrait lock"),
+            ("relief go", "relief omni pause"),
+            ("main", "main reset"),
+        ):
+            interp = interpret_recognition(_ranked(first, rescue), "", threshold=0.7, peak=SPOKEN)
+            assert interp.command is None, rescue
+            assert interp.unrecognized_text == first
+            first_choice = interpret_recognition(_ranked(rescue), "", threshold=0.7, peak=SPOKEN)
+            assert first_choice.command == VOICE_COMMANDS[rescue]
+
     def test_a_reading_from_silence_is_ignored_not_rescued(self):
         interp = interpret_recognition(_ranked("half", "help"), "", threshold=0.7, peak=9)
         assert interp == Recognition(silent_reading="half")

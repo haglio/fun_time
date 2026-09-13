@@ -130,12 +130,19 @@ class UtteranceOnset:
 # rankings under it, where the exact-match lookup never looked.
 GRAMMAR_ALTERNATIVES = 5
 
-# A command that ENDS the session may only be the recognizer's first choice: a
-# repair promotes a reading vosk ranked below another, which is a fine trade for
-# a satellite nudge and a bad one for quitting the room.
-NO_REPAIR_INTO: frozenset[str] = frozenset({"quit"})
-
 SILENT_UTTERANCE_PEAK = 300  # every phantom the log ever showed peaked under it; speech clears it
+
+
+def _holds_or_ends_the_room(command: str) -> bool:
+    return (
+        command in {"quit", "relief_omnipause", "robot_hand_park", "robot_hand_retract"}
+        or command.endswith("_reset")
+        or "_lock_" in command
+    )
+
+
+def _shares_a_word(reading: str, first_choice: str) -> bool:
+    return bool(set(reading.split()) & set(first_choice.split()))
 
 
 @dataclass(frozen=True)
@@ -201,12 +208,10 @@ def interpret_recognition(
 ) -> Recognition:
     """Combine the grammar and free recognizers' takes on one utterance.
 
-    The grammar recognizer is the authority, and its first reading that is a
-    phrase wins: the phrase list filters, vosk's ranking is the evidence, and
-    nothing here invents a similarity of its own.  The free recognizer only
-    captions an utterance the grammar made nothing of; ``threshold`` gates that
-    caption -- room noise it latches onto must not caption a phantom command --
-    and any reading vosk scored."""
+    The grammar recognizer's first reading that is a phrase wins; a lower one
+    is taken only when it shares a word with the first choice and names a
+    command a wrong guess is cheap on.  The free recognizer only captions an
+    utterance the grammar made nothing of, gated by ``threshold``."""
     hypotheses = _hypotheses(grammar_json)
     spoken = next((h.text for h in hypotheses if h.text != "[unk]"), None)
     if peak < SILENT_UTTERANCE_PEAK:
@@ -221,7 +226,9 @@ def interpret_recognition(
             # Scored, and under the bar.  A lower-ranked reading is less likely
             # still, so this ends the search rather than falling through to one.
             return Recognition(refused_phrase=hypothesis.text, heard=spoken)
-        if rank and command in NO_REPAIR_INTO:
+        if rank and (
+            _holds_or_ends_the_room(command) or not _shares_a_word(hypothesis.text, spoken)
+        ):
             continue
         return Recognition(command=command, phrase=hypothesis.text, rank=rank, heard=spoken)
     if spoken:
