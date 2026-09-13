@@ -146,10 +146,12 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   was once "land it unverified rather than park it". It no longer is. With your
   suites green, run `python -m fun_time.branch_session --shortcut` from your
   worktree: it leaves a `Verify <branch>.lnk` in the primary checkout and prints
-  the path. **A branch that changes FunTimeVR gets `--shortcut --vr`**, which
-  leaves `Verify <branch> in VR.lnk` and starts the VR orchestrator instead —
-  the desktop launcher can only show him a desktop session, so a VR branch
-  handed over without it is a change he cannot see. Then hand him that `.lnk` as a **claunch launch link**
+  the path. **Never hand him a launcher that opens the branch in VR**, and never
+  run `--shortcut --vr` (`~/.claude/hooks/block-vr-verify-shortcut.py` refuses
+  it): he checks VR work by opening Fun Time as usual and entering VR from it,
+  and a launcher straight into VR puts a layer between the branch and what he
+  really runs, so what it shows may not be what he uses (his call, 2026-09-12).
+  A branch that changes FunTimeVR gets the same desktop launcher. Then hand him that `.lnk` as a **claunch launch link**
   (the global CLAUDE.md's launcher law), the path percent-encoded —
   `[▶ Launch Verify my-branch](http://127.0.0.1:41777/launch?t=a780245a4cdcfcb2a2e3b365&p=C%3A%5CUsers%5C<you>%5Cworkspace%5Chaglio%5Cfun_time%5CVerify%20my-branch.lnk)`
   (the `--shortcut` run prints the real path — encode that, not this shape)
