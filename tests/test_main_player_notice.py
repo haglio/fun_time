@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from player_core.modes import NoticeLevel
+
 from main_player.notice import NoticeWriter
 
 
@@ -23,7 +25,7 @@ def test_the_record_it_writes_is_what_fun_time_parses(tmp_path):
     """
     path = tmp_path / "main_player_notice.txt"
 
-    NoticeWriter(path, clock=lambda: 1234.5).say("no full video", level="notice")
+    NoticeWriter(path, clock=lambda: 1234.5).say("no full video", level=NoticeLevel.NOTICE)
 
     written = path.read_text(encoding="utf-8")
     assert written.splitlines() == [
@@ -34,7 +36,7 @@ def test_the_record_it_writes_is_what_fun_time_parses(tmp_path):
 def test_say_publishes_the_message_and_level(tmp_path):
     path = tmp_path / "state" / "main_player_notice.txt"
 
-    NoticeWriter(path, clock=lambda: 10.0).say("full video not available", level="warning")
+    NoticeWriter(path, clock=lambda: 10.0).say("full video not available", level=NoticeLevel.WARNING)
 
     assert _read(path) == {"seq": "10.000", "level": "warning",
                            "message": "full video not available"}
@@ -44,8 +46,8 @@ def test_each_say_advances_the_sequence(tmp_path):
     path = tmp_path / "main_player_notice.txt"
     ticks = iter([10.0, 20.0])
     writer = NoticeWriter(path, clock=lambda: next(ticks))
-    writer.say("first", level="notice")
-    writer.say("second", level="notice")
+    writer.say("first", level=NoticeLevel.NOTICE)
+    writer.say("second", level=NoticeLevel.NOTICE)
 
     assert _read(path) == {"seq": "20.000", "level": "notice", "message": "second"}
 
@@ -54,8 +56,8 @@ def test_a_restarted_writer_still_reads_as_newer(tmp_path):
     """A counter restarts at 1 whenever the main player does, so its notices read as older
     than the previous session's and never flashed. A clock stamp cannot."""
     path = tmp_path / "main_player_notice.txt"
-    NoticeWriter(path, clock=lambda: 100.0).say("before the restart", level="notice")
-    NoticeWriter(path, clock=lambda: 101.0).say("after the restart", level="notice")
+    NoticeWriter(path, clock=lambda: 100.0).say("before the restart", level=NoticeLevel.NOTICE)
+    NoticeWriter(path, clock=lambda: 101.0).say("after the restart", level=NoticeLevel.NOTICE)
 
     assert float(_read(path)["seq"]) > 100.0
 
@@ -66,6 +68,6 @@ def test_without_a_path_it_is_inert(tmp_path):
     All eight production callers ignore the answer, so the answer is not the
     contract -- the absence of a file is.
     """
-    NoticeWriter(None).say("nothing doing", level="notice")
+    NoticeWriter(None).say("nothing doing", level=NoticeLevel.NOTICE)
 
     assert list(tmp_path.iterdir()) == []

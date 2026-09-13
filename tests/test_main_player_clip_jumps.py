@@ -4,6 +4,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+from player_core.modes import NoticeLevel
 from player_core.playlist import PlaylistItem
 
 from main_player.clip_jumps import ClipJumps
@@ -242,7 +243,7 @@ class TestPlayCompilation:
         jumps.play_compilation()
 
         assert [video for video, _fs in session.replaced[0]] == [first, second]
-        assert notices.said == [("compilation: 2 clips", "notice")]
+        assert notices.said == [("compilation: 2 clips", NoticeLevel.NOTICE)]
 
     def test_remembers_which_compilation_is_holding_the_playlist(self, tmp_path):
         """The HUD reports this; it is the state the player could get stuck in
@@ -261,7 +262,7 @@ class TestPlayCompilation:
         jumps.play_compilation()
 
         assert session.replaced == []
-        assert notices.said == [("not a compilation clip", "warning")]
+        assert notices.said == [("not a compilation clip", NoticeLevel.WARNING)]
         assert jumps.compilation == ""
 
     def test_leaving_forgets_it(self, tmp_path):
@@ -285,7 +286,7 @@ class TestSingleVideoJumps:
         jumps.play_full_vid()
 
         assert session.played == [(scene, script)]
-        assert notices.said == [("full video", "notice")]
+        assert notices.said == [("full video", NoticeLevel.NOTICE)]
 
     def test_clip_jump_plays_the_clip_carved_from_the_scene(self, tmp_path):
         nav, _first, second, scene = _world(tmp_path)
@@ -294,7 +295,7 @@ class TestSingleVideoJumps:
         jumps.play_clip_jump()
 
         assert session.played == [(second, None)]
-        assert notices.said == [("clip jump", "notice")]
+        assert notices.said == [("clip jump", NoticeLevel.NOTICE)]
 
     def test_a_miss_says_so_rather_than_moving(self, tmp_path):
         """Most clips' source movies are not in the library at all, so having
@@ -307,7 +308,7 @@ class TestSingleVideoJumps:
         jumps.play_full_vid()
 
         assert session.played == []
-        assert notices.said == [("full video not available", "warning")]
+        assert notices.said == [("full video not available", NoticeLevel.WARNING)]
 
     def test_neither_jump_disturbs_the_compilation_it_is_inside(self, tmp_path):
         """These two move to one video; only "compilation" replaces the playlist,

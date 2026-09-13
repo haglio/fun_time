@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.funscript import Funscript
+from player_core.modes import NoticeLevel
 
 from main_player.funscript_jumps import FunscriptJumps
 
@@ -52,7 +53,7 @@ class FakeNotices:
     def __init__(self) -> None:
         self.said: list[tuple[str, str]] = []
 
-    def say(self, message: str, *, level: str) -> bool:
+    def say(self, message: str, *, level: NoticeLevel) -> bool:
         self.said.append((message, level))
         return True
 
@@ -76,9 +77,9 @@ class TestJumpToFunscript:
         jumps.jump_to_funscript()
 
         assert session.seeks == [40000]
-        # "favorite", not "notice": Fun Time flashes that level green, which is
+        # A highlight, not a notice: Fun Time flashes that level green, which is
         # what it reserves for the favorites and the funscripts.
-        assert notices.said == [("funscript jump", "favorite")]
+        assert notices.said == [("funscript jump", NoticeLevel.HIGHLIGHT)]
 
     def test_the_quiet_lead_in_counts_as_a_lull(self, tmp_path):
         video, script = _scripted(tmp_path, "alpha")
@@ -98,7 +99,7 @@ class TestJumpToFunscript:
         jumps.jump_to_funscript()
 
         assert session.seeks == []
-        assert notices.said == [("no funscripting ahead", "warning")]
+        assert notices.said == [("no funscripting ahead", NoticeLevel.WARNING)]
 
     def test_an_unscripted_video_has_nowhere_to_jump(self, tmp_path):
         video = tmp_path / "beta.mp4"
@@ -108,7 +109,7 @@ class TestJumpToFunscript:
         jumps.jump_to_funscript()
 
         assert session.seeks == []
-        assert notices.said == [("no funscripting ahead", "warning")]
+        assert notices.said == [("no funscripting ahead", NoticeLevel.WARNING)]
 
     def test_it_never_goes_backward_into_the_run_already_playing(self, tmp_path):
         """Mid-run, "next" is the run after this one — a jump that landed on the
@@ -137,7 +138,7 @@ class TestNextFunscripted:
         jumps.next_funscripted()
 
         assert session.loads == [2]
-        assert notices.said == [("next funscripted", "favorite")]
+        assert notices.said == [("next funscripted", NoticeLevel.HIGHLIGHT)]
 
     def test_lands_where_the_new_video_s_action_begins(self, tmp_path):
         video0 = tmp_path / "alpha.mp4"
@@ -196,7 +197,7 @@ class TestNextFunscripted:
 
         assert session.loads == []
         assert session.seeks == []
-        assert notices.said == [("no other funscripted video", "warning")]
+        assert notices.said == [("no other funscripted video", NoticeLevel.WARNING)]
 
     def test_an_entirely_unscripted_playlist_says_so(self, tmp_path):
         session = FakeSession([
@@ -207,4 +208,4 @@ class TestNextFunscripted:
         jumps.next_funscripted()
 
         assert session.loads == []
-        assert notices.said == [("no other funscripted video", "warning")]
+        assert notices.said == [("no other funscripted video", NoticeLevel.WARNING)]
