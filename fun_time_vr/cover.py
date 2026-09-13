@@ -23,6 +23,7 @@ from fun_time.cover_palette import (
 )
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
+    CANCELING,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     Phase,
@@ -53,8 +54,6 @@ VR_SHUTDOWN_PHASES: tuple[Phase, ...] = (
 STARTUP_STALE_TIMEOUT_S = 120.0
 SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
-CANCEL_HINT = "Press Esc to cancel"  # through the hook, which needs no focus
-CANCELLING_STATUS = "Cancelling..."
 CLOSING_STATUS = VR_SHUTDOWN_PHASES[0].message
 HELD_STATUS = "Returning to Fun Time..."  # exempt from staleness: see the doc
 WEARER_STATUS = "Waiting for you to put the headset on..."  # not on the players
@@ -115,15 +114,15 @@ class CoverWatcher:
         )
         if startup is None:
             return None
-        fraction, message = startup
-        if self._cancel_asked():  # and no way out left to offer
-            return Cover(status=CANCELLING_STATUS, fraction=fraction)
-        return Cover(status=message, fraction=fraction, hint=CANCEL_HINT)
+        fraction, message, hint = startup
+        if self._cancelling or (hint and self._cancel_asked()):  # no second way out
+            return Cover(status=CANCELING, fraction=fraction)
+        return Cover(status=message, fraction=fraction, hint=hint)
 
     def _read_end(
         self, path: Path, *, key: str, stale_timeout_s: float, opening: str
-    ) -> tuple[float, str] | None:
-        """``(fraction, message)``, or None when that end is not running."""
+    ) -> tuple[float, str, str] | None:
+        """``(fraction, message, hint)``, or None when that end is not running."""
         if key in self._gave_up:
             return None
         try:
@@ -140,11 +139,11 @@ class CoverWatcher:
             return None
         held = self._held.get(key)
         if progress.malformed:  # a torn write is not a step
-            return held if held is not None else (0.0, opening)
+            return held if held is not None else (0.0, opening, "")
         fraction = progress.step / progress.total if progress.total > 0 else 0.0
         message = progress.message or (held[1] if held is not None else opening)
-        self._held[key] = (fraction, message)
-        return fraction, message
+        self._held[key] = (fraction, message, progress.hint)
+        return self._held[key]
 
     def _cancel_asked(self) -> bool:
         """Latched: the flag is dropped at the END of the teardown it starts."""

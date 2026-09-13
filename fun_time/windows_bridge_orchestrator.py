@@ -34,6 +34,7 @@ from .manifest import CommandFiles, LaunchManifest
 from .modes import collect_video_files
 from .overlay_progress import (
     CANCEL_FILENAME,
+    CANCEL_OPENING_FUN_TIME,
     PROGRESS_FILENAME,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
@@ -839,7 +840,8 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool) -> _Cover:
     drop_crossing_cover(state_dir)
     return _Cover(
         loading_proc,
-        PhaseProgress(progress_file, cancel_file=None if returning else cancel_file),
+        PhaseProgress(progress_file, cancel_file=None if returning else cancel_file,
+                      hint="" if returning else CANCEL_OPENING_FUN_TIME),
         overlay_hwnd, progress_file, cancel_file,
     )
 

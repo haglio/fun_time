@@ -24,7 +24,7 @@ from .cover_palette import (
     WORDMARK_MAGENTA,
 )
 from .monitors import MonitorInfo, virtual_desktop_rect
-from .overlay_progress import parse_progress
+from .overlay_progress import CANCELING, cancel_file_for, parse_progress
 from .project_paths import PROJECT_ICON
 from .win32 import create_hidden_topmost_window, find_window_by_title, set_always_on_top
 
@@ -59,27 +59,6 @@ TOPMOST_POLL_MS = 16
 
 
 @dataclass(frozen=True)
-class CancelOption:
-    """The Esc affordance a cover offers, and the words that go with it.
-    Startup's carries one; shutdown's carries none — nothing is left to abort —
-    so that cover never takes the focus either."""
-
-    hint: str  # shown under the bar until the key is pressed
-
-    pending: str
-    """Held from the keypress on, so a step message still in flight cannot flip
-    the line back to business as usual."""
-
-    request: Callable[[], None]
-    """Asks the orchestrator to stop."""
-
-    requested: Callable[[], bool]
-    """True once a cancel has been asked for by ANY route (:mod:`overlay_progress`
-    has the two).  Without it, an Esc the hotkey hook caught left the cover
-    reading "Press Esc to cancel" through the teardown it had started."""
-
-
-@dataclass(frozen=True)
 class _Content:  # the three widgets the cover writes to as it runs
     status_label: tk.Label
     progress_var: tk.DoubleVar
@@ -103,8 +82,7 @@ def _apply_theme(root: tk.Tk) -> None:
     style.configure("FunTime.TFrame", background=BG)
 
 
-def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
-                   hint: str) -> _Content:
+def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str) -> _Content:
     """The panel in the middle, centred on the main player's monitor rather
     than the virtual desktop's midpoint, which may fall between two."""
     frame = ttk.Frame(root, padding=24, style="FunTime.TFrame")
@@ -140,7 +118,7 @@ def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str,
         mode="determinate", style="FunTime.Horizontal.TProgressbar",
     ).pack(pady=(0, 8))
 
-    hint_label = tk.Label(frame, text=hint, font=(FACE, 8), fg=HINT_DIM, bg=BG)
+    hint_label = tk.Label(frame, text="", font=(FACE, 8), fg=HINT_DIM, bg=BG)
     hint_label.pack()
 
     return _Content(status_label, progress_var, hint_label)
@@ -156,15 +134,12 @@ class OverlayWindow:
         title: str,
         status: str,
         stale_timeout_s: float,
-        cancel: CancelOption | None = None,
-        dismissable: bool = False,
-        hint: str = "",
     ) -> None:
         self._progress_file = progress_file
         self._stale_timeout_s = stale_timeout_s
-        self._cancel = cancel
         self._last_modified = 0.0
         self._status_held = False
+        self._offering = False
         self._title = title
         self._hwnd = 0
 
@@ -195,20 +170,12 @@ class OverlayWindow:
 
         _apply_theme(self._root)
 
-        self._content = _build_content(
-            self._root, origin=(vx, vy), status=status,
-            hint=cancel.hint if cancel else hint,
-        )
+        self._content = _build_content(self._root, origin=(vx, vy), status=status)
 
-        if cancel is not None:
-            # The focus is taken so Esc lands here rather than on whatever the
-            # session put up last.  Not the route the cancel rests on, though;
-            # see CancelOption.requested.
-            self._root.bind("<Escape>", self._on_escape)
-            self._root.focus_force()
-        elif dismissable:  # one only somebody else can remove traps the monitors
-            self._root.bind("<Escape>", lambda _e: self._root.destroy())
-            self._root.focus_force()
+        # The focus is taken so Esc lands here rather than on whatever the
+        # session put up last, before the hotkey script is up to take it.
+        self._root.bind("<Escape>", self._on_escape)
+        self._root.focus_force()
 
         self._root.after(POLL_MS, self._poll)
         self._root.after(TOPMOST_POLL_MS, self._stay_on_top)
@@ -228,35 +195,22 @@ class OverlayWindow:
             pass  # window already destroyed
 
     def _on_escape(self, _event: object = None) -> None:
-        if self._cancel is None or self._status_held:
+        if not self._offering or self._status_held:
             return
-        self._hold_status()
+        self._say_canceling()
         try:
-            self._cancel.request()
+            cancel_file_for(self._progress_file).write_text("cancel\n", encoding="utf-8")
         except OSError:
             pass
 
-    def _hold_status(self) -> None:
-        """Say we are cancelling, and go on saying it: a step message still in
-        flight would otherwise flip the line back while the teardown runs."""
-        if self._cancel is None:
-            return
+    def _say_canceling(self) -> None:
+        """And go on saying it: a phase still in flight would otherwise flip the
+        line back while the teardown runs."""
         self._status_held = True
-        try:
-            self._content.status_label.configure(text=self._cancel.pending)
-            self._content.hint_label.configure(text="")
-        except tk.TclError:
-            pass
+        self._content.status_label.configure(text=CANCELING)
+        self._content.hint_label.configure(text="")
 
     def _poll(self) -> None:
-        # A cancel the hotkey script asked for on our behalf: the flag is on
-        # disk and no key ever reached this window.
-        if self._cancel is not None and not self._status_held:
-            try:
-                if self._cancel.requested():
-                    self._hold_status()
-            except OSError:
-                pass
         try:
             if self._progress_file.exists():
                 mtime = self._progress_file.stat().st_mtime
@@ -269,11 +223,18 @@ class OverlayWindow:
 
                 # A torn write is not a step: hold the last readable line.
                 if not progress.malformed:
+                    self._offering = bool(progress.hint)
                     if progress.total > 0:
                         self._content.progress_var.set(
                             progress.step / progress.total * 100)
-                    if progress.message and not self._status_held:
-                        self._content.status_label.configure(text=progress.message)
+                    # The hotkey script's route: its flag is on disk and no key
+                    # ever reached this window.
+                    if progress.hint and cancel_file_for(self._progress_file).exists():
+                        self._say_canceling()
+                    if not self._status_held:
+                        if progress.message:
+                            self._content.status_label.configure(text=progress.message)
+                        self._content.hint_label.configure(text=progress.hint)
 
                 self._last_modified = mtime
 

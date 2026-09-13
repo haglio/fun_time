@@ -1,14 +1,14 @@
-"""The crossing cover's two ways out that need nobody else alive.
+"""The crossing cover's way out that needs nobody else alive.
 
 It cost him two forced restarts of the machine.  A crossing raises a
 full-screen always-on-top window and the ARRIVING session takes it down -- so
-every way that session can fail to arrive is a way the monitors stay covered
-with no keyboard route out of it, and there are more of those than can be
-enumerated: the relay died on a locked log file once, and something else will
-die on something else.
+every way that session can fail to arrive is a way the monitors stay covered,
+and there are more of those than can be enumerated: the relay died on a locked
+log file once, and something else will die on something else.
 
-So the cover stops depending on anyone: Esc takes it down itself, and a file
-that has stopped moving takes it down without being asked.
+So the cover stops depending on anyone: a file that has stopped moving takes it
+down without being asked.  Esc never does -- the cover is there to hide the
+room changing shape, and a key that uncovered it was never wanted.
 """
 from __future__ import annotations
 
@@ -19,7 +19,6 @@ import time
 from pathlib import Path
 
 from fun_time import transition_screen
-from fun_time.overlay_window import OverlayWindow
 
 
 def test_it_gives_up_in_a_time_a_person_will_wait():
@@ -27,33 +26,6 @@ def test_it_gives_up_in_a_time_a_person_will_wait():
     he force-restarted rather than sit it out.  A crossing takes about two
     seconds, and a slow one keeps saying so."""
     assert transition_screen.STALE_TIMEOUT_S <= 30.0
-
-
-def test_it_is_raised_dismissable_and_says_so():
-    """The half no timeout covers: a person who wants it gone now."""
-    source = inspect.getsource(transition_screen.main)
-
-    assert "dismissable=True" in source
-    assert "hint=DISMISS_HINT" in source
-    assert "Esc" in transition_screen.DISMISS_HINT
-
-
-def test_a_dismissable_cover_binds_escape_to_its_own_destruction():
-    """Not to a request that something else act on -- that is the dependency
-    this exists to remove.  The window it belongs to is the thing that goes."""
-    source = inspect.getsource(OverlayWindow.__init__)
-    branch = source[source.index("elif dismissable:"):]
-
-    assert "self._root.bind(\"<Escape>\"" in branch
-    assert "destroy()" in branch.split("focus_force")[0]
-
-
-def test_the_cancel_affordance_still_wins_where_there_is_one():
-    """A launch cover's Esc asks the orchestrator to unwind, which is a
-    different thing from closing a window, and it is bound first."""
-    source = inspect.getsource(OverlayWindow.__init__)
-
-    assert source.index("if cancel is not None:") < source.index("elif dismissable:")
 
 
 def test_a_slow_crossing_keeps_its_own_cover_up():

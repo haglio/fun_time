@@ -119,6 +119,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
+# 8190 since 2026-09-13, when what Esc cancels became the words on a cover's own
+# progress line, and the cancel object each screen built, with its four
+# docstrings, went.
 # 8202 since 2026-09-13, measured on the merged tree: startup stopped putting
 # the loading cover back on top after every raise and banded the room under it
 # instead, and the paragraphs explaining the put-back went with it.
@@ -156,7 +159,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 8202
+MAX_PROSE_LINES = 8190
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

@@ -867,6 +867,28 @@ class TestTheHeadsetsCover:
         assert not stale.exists()
         assert not cover.progress.cancelled
 
+    def test_a_launch_says_esc_cancels_opening_fun_time_vr(self, tmp_path):
+        from fun_time.overlay_progress import parse_progress
+        from fun_time_vr.orchestrator import _Cover
+
+        cover = _Cover(tmp_path)
+        cover.progress.advance("services")
+
+        assert parse_progress(cover.progress_file.read_text(encoding="utf-8")).hint == (
+            "Press Esc to cancel opening Fun Time VR")
+
+    def test_a_session_entered_from_fun_time_says_esc_cancels_entering_vr(self, tmp_path):
+        from fun_time.overlay_progress import parse_progress
+        from fun_time.session_handoff import VR, raise_crossing_cover
+        from fun_time_vr.orchestrator import _Cover
+
+        raise_crossing_cover(tmp_path, VR)
+        cover = _Cover(tmp_path)
+        cover.progress.advance("services")
+
+        assert parse_progress(cover.progress_file.read_text(encoding="utf-8")).hint == (
+            "Press Esc to cancel entering VR")
+
     def test_clearing_writes_no_done(self, tmp_path):
         """DONE is how a finished launch uncovers a room worth seeing.  The
         paths that clear without one have nothing to reveal, and the cover comes
@@ -901,7 +923,7 @@ class TestTheHeadsetsCover:
 
 
 class TestCancellingALaunch:
-    def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False):
+    def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False, crossing=True):
         from fun_time.session_end import SESSION_END_MARKER
         from fun_time.session_handoff import raise_crossing_cover
         from fun_time_vr import orchestrator
@@ -918,7 +940,8 @@ class TestCancellingALaunch:
         # The monitors as the crossing left them: a full-screen window belonging
         # to the session that has already gone.  And the marker a crossing's own
         # exit leaves, which is why the flag's word is what decides.
-        raise_crossing_cover(tmp_path, orchestrator.DESKTOP)
+        if crossing:
+            raise_crossing_cover(tmp_path, orchestrator.DESKTOP)
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
 
         code = orchestrator._cancel_vr_startup(
@@ -927,6 +950,15 @@ class TestCancellingALaunch:
             cover=cover, runtime_was_up=True,
         )
         return code, order, cover
+
+    def test_esc_on_a_launch_nobody_crossed_into_closes_it(self, tmp_path, monkeypatch):
+        """It said "cancel opening Fun Time VR", and nothing was open before it
+        to go back to."""
+        from fun_time.session_handoff import pending_handoff
+
+        self._cancel(tmp_path, monkeypatch, {}, crossing=False)
+
+        assert pending_handoff(tmp_path) is None
 
     def test_the_player_is_killed_last_whatever_order_it_was_recorded_in(
             self, tmp_path, monkeypatch):
@@ -981,12 +1013,13 @@ class TestCancellingALaunch:
         """Pressing Esc looked like nothing happening: the cover went on saying
         "Entering VR..." through a teardown that takes seconds, so he pressed it
         again -- and the second one cancelled the launch coming back."""
-        from fun_time.session_handoff import CANCELLING_CROSSING, crossing_progress_path
+        from fun_time.overlay_progress import CANCELING
+        from fun_time.session_handoff import crossing_progress_path
 
         self._cancel(tmp_path, monkeypatch, {})
 
         said = crossing_progress_path(tmp_path).read_text(encoding="utf-8")
-        assert CANCELLING_CROSSING in said
+        assert CANCELING in said
 
     def test_the_quit_chord_takes_the_monitors_back_instead(
             self, tmp_path, monkeypatch):

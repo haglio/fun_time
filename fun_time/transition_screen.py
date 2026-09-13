@@ -15,7 +15,6 @@ from .session_handoff import COVER_STALE_S
 
 WINDOW_TITLE = "Fun Time Transition"  # distinct: an exact-title lookup resolves one
 STALE_TIMEOUT_S = COVER_STALE_S  # a crossing that never arrives; 180 read as dead
-DISMISS_HINT = "Press Esc to dismiss"
 
 
 def main() -> None:
@@ -29,8 +28,6 @@ def main() -> None:
         title=WINDOW_TITLE,
         status="Changing over...",
         stale_timeout_s=STALE_TIMEOUT_S,
-        dismissable=True,
-        hint=DISMISS_HINT,
     ).run(on_shown=lambda: ready_file_for(progress_file).write_text("", encoding="utf-8"))
     # Nobody else is left to tidy: the session that raised it has exited.
     progress_file.unlink(missing_ok=True)
