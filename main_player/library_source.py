@@ -12,6 +12,8 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from player_core.playlist import PlaylistItem
+
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
@@ -80,7 +82,7 @@ class LibrarySource:
     # authoritative record) instead of the main player's own name-prefix guess.
     metadata_root: Path | None = None
 
-    def playlist_for(self, mode: str) -> list[tuple[Path, Path | None]]:
+    def playlist_for(self, mode: str) -> list[PlaylistItem]:
         return library_playlist(
             self.entries,
             mode=mode,
@@ -104,7 +106,7 @@ class LibrarySource:
         return lambda video: read_video_type(video, metadata_root)
 
     @cached_property
-    def version_index(self) -> dict[Path, list[tuple[Path, Path | None]]]:
+    def version_index(self) -> dict[Path, list[PlaylistItem]]:
         """Version-cycle map over every video (main entries and clips).
 
         Built from all discovered content, not just the active mode, so

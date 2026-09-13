@@ -16,6 +16,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.playlist import PlaylistItem
+
 from .video_kind import EXCERPT, FULL_LENGTH, GENAU_CLIP, SHORT
 
 # Tunable heuristic: tokens dropped anywhere in a title because they mark a
@@ -275,35 +277,34 @@ def _group_by_name(entries: list[LibraryEntry]) -> list[VersionGroup]:
 
 
 def collapse_playlist_versions(
-    pairs: list[tuple[Path, Path | None]],
-    version_index: dict[Path, list[tuple[Path, Path | None]]],
-) -> list[tuple[Path, Path | None]]:
+    items: list[PlaylistItem],
+    version_index: dict[Path, list[PlaylistItem]],
+) -> list[PlaylistItem]:
     """Dedupe a playlist to one entry per version group, order preserved.
 
     *version_index* (from :func:`version_index_from_groups`) maps each known
-    video to its group's pairs, largest-first. Each group is emitted once, at
+    video to its group's items, largest-first. Each group is emitted once, at
     its first-seen position, keeping the largest entry actually present in
-    *pairs* (with that entry's funscript from *pairs*). Videos absent from the
+    *items* (with that entry's funscript from *items*). Videos absent from the
     index pass through unchanged. This turns Fun Time's raw per-file playlist
     into the one-slot-per-video rotation the main slot player shows, matching the
     set :meth:`PlayerSession.cycle_version` walks.
     """
-    funscript_by_video = dict(pairs)
-    present = set(funscript_by_video)
-    collapsed: list[tuple[Path, Path | None]] = []
+    funscript_by_video = {item.path: item.funscript for item in items}
+    collapsed: list[PlaylistItem] = []
     seen: set[Path] = set()
-    for video, _funscript in pairs:
-        versions = version_index.get(video)
+    for item in items:
+        versions = version_index.get(item.path)
         if versions:
-            group_id = versions[0][0]
-            keep = next((v for v, _ in versions if v in present), video)
+            group_id = versions[0].path
+            keep = next((version.path for version in versions
+                         if version.path in funscript_by_video), item.path)
         else:
-            group_id = video
-            keep = video
+            group_id = keep = item.path
         if group_id in seen:
             continue
         seen.add(group_id)
-        collapsed.append((keep, funscript_by_video.get(keep)))
+        collapsed.append(PlaylistItem(keep, funscript_by_video.get(keep)))
     return collapsed
 
 
@@ -411,26 +412,26 @@ def select_library(
     return [group.canonical for group in group_versions(kept)]
 
 
-def entries_to_pairs(entries: list[LibraryEntry]) -> list[tuple[Path, Path | None]]:
-    """Drop file sizes, leaving the (video, funscript) pairs the session wants."""
-    return [(e.video, e.funscript) for e in entries]
+def entries_to_items(entries: list[LibraryEntry]) -> list[PlaylistItem]:
+    """Drop file sizes, leaving the playlist items the session wants."""
+    return [PlaylistItem(e.video, e.funscript) for e in entries]
 
 
 def version_index_from_groups(
     groups: list[VersionGroup],
-) -> dict[Path, list[tuple[Path, Path | None]]]:
-    """Map every video to its group's (video, funscript) pairs, largest-first.
+) -> dict[Path, list[PlaylistItem]]:
+    """Map every video to its group's playlist items, largest-first.
 
     This is what :meth:`PlayerSession.cycle_version` consults to walk between
     versions of the same content — each entry points at the same ordered
-    pair list, so cycling is stable regardless of which one is playing.
+    list, so cycling is stable regardless of which one is playing.
     """
-    index: dict[Path, list[tuple[Path, Path | None]]] = {}
+    index: dict[Path, list[PlaylistItem]] = {}
     for group in groups:
         versions = [group.canonical, *group.alternates]
-        pairs = entries_to_pairs(versions)
+        items = entries_to_items(versions)
         for entry in versions:
-            index[entry.video] = pairs
+            index[entry.video] = items
     return index
 
 
@@ -442,8 +443,8 @@ def library_playlist(
     genau_clips: list[LibraryEntry],
     rng: random.Random,
     kind_of: Callable[[Path], str] | None = None,
-) -> list[tuple[Path, Path | None]]:
-    """The library as a playlist: filter by *mode*, version-dedup, shuffle, pair.
+) -> list[PlaylistItem]:
+    """The library as a playlist: filter by *mode*, version-dedup, shuffle.
 
     Deterministic for a seeded *rng*. This is the single composition both
     startup and the length-mode toggle use, so their playlists stay
@@ -453,4 +454,4 @@ def library_playlist(
         entries, mode=mode, durations=durations, genau_clips=genau_clips,
         kind_of=kind_of,
     )
-    return entries_to_pairs(canonical_playlist(selected, rng))
+    return entries_to_items(canonical_playlist(selected, rng))
