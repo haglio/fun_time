@@ -444,6 +444,12 @@ class TestResolveActiveSideCommand:
             assert resolve_active_side_command(f"active_{order}", 2) == f"portrait_{order}"
             assert resolve_active_side_command(f"active_{order}", 3) == f"landscape_{order}"
 
+    def test_a_bare_playback_speed_reaches_whichever_player_is_active(self):
+        for action in ("speed_up", "speed_down", "speed_150"):
+            assert resolve_active_side_command(f"active_{action}", 1) == f"main_player_{action}"
+            assert resolve_active_side_command(f"active_{action}", 2) == f"portrait_{action}"
+            assert resolve_active_side_command(f"active_{action}", 3) == f"landscape_{action}"
+
     def test_active_satellite_only_command_is_noop_when_primary_is_active(self):
         """Main has no weird or cycle, so a bare satellite-only command while it
         is active resolves to nothing (unchanged → a downstream no-op)."""
@@ -2462,6 +2468,24 @@ class TestVideoModeFunscriptHandoff:
             runner.tick()
 
         sync.assert_called_once_with("video", paused=True)
+
+
+class TestTheSatellitesTakeTheMainPlayersRate:
+    def test_a_rate_the_main_player_moves_to_reaches_both_satellites_on_the_periodic_sync(
+            self, tmp_path):
+        runner = make_runner(tmp_path)
+        status = tmp_path / "main_player_status.txt"
+        status.write_text("video=C:\\clip.mp4\nspeed=1\n", encoding="utf-8")
+        runner._last_sync = -999
+        runner.tick()
+
+        status.write_text("video=C:\\clip.mp4\nspeed=0.5\n", encoding="utf-8")
+        runner._last_sync = -999
+        runner.tick()
+
+        for side in ("portrait", "landscape"):
+            sent = (tmp_path / f"{side}_cmd.txt").read_text(encoding="utf-8").splitlines()
+            assert sent == ["SET_SPEED 0.5"], side
 
 
 class TestExpandBothCommand:

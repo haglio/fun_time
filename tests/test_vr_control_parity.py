@@ -288,7 +288,7 @@ class TestTheSatellites:
 
 
 def _a_satellite_line(verb: str, clip: Path) -> str:
-    return f"{verb} {clip}" if verb == "PLAY_FILE" else verb
+    return f"{verb} {clip}" if verb == "PLAY_FILE" else _a_whole_line(verb)
 
 
 class TestGenau:

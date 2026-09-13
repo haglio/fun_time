@@ -857,6 +857,16 @@ def test_naming_a_players_f_mode_makes_it_the_active_one(tmp_path: Path):
         assert new_state.active_side == 2, suffix
 
 
+def test_naming_a_players_playback_speed_makes_it_the_active_one(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    for command in ("main_player_speed_up", "main_player_speed_down", "main_player_speed_150"):
+        new_state, _ops = dispatch_command(command, _make_state(active_side=3), config)
+        assert new_state.active_side == 1, command
+    new_state, _ops = dispatch_command("portrait_speed_50", _make_state(active_side=1), config)
+    assert new_state.active_side == 2
+
+
 def test_nudge_and_mode_commands_leave_active_side_unchanged(tmp_path: Path):
     """Only next/prev nav marks the active player: nudges, mode, and genau
     commands must not disturb the remembered side."""
@@ -2424,6 +2434,28 @@ def test_reset_speed_command_maps_to_normal_rate(tmp_path: Path):
     config = _make_config(tmp_path)
     dispatch_command("main_player_speed_100", _make_state(main_mode="video"), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 1\n"
+
+
+def test_a_satellites_speed_pair_steps_that_satellite_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("portrait_speed_up", _make_state(), config)
+    dispatch_command("landscape_speed_down", _make_state(), config)
+
+    assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
+    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SPEED_DOWN\n"
+    assert not config.main_player_cmd_file.exists()
+
+
+def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("portrait_speed_50", _make_state(), config)
+    dispatch_command("landscape_speed_200", _make_state(), config)
+
+    assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 0.5\n"
+    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 2\n"
+    assert not config.main_player_cmd_file.exists()
 
 
 def test_volume_down_steps_both_audio_sinks_down(tmp_path: Path):

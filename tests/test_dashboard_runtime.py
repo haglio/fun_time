@@ -233,6 +233,22 @@ def test_read_main_player_status_defaults_duration_to_zero(tmp_path: Path):
     assert read_main_player_status(tmp_path / "missing.txt").duration_ms == 0
 
 
+def test_read_main_player_status_parses_the_rate_the_main_player_plays_at(tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\nspeed=1.5\n", encoding="utf-8")
+
+    assert read_main_player_status(status_file).speed == 1.5
+
+
+def test_read_main_player_status_reads_no_rate_from_a_main_player_that_publishes_none(tmp_path: Path):
+    status_file = tmp_path / "nau_status.txt"
+    status_file.write_text("video=C:\\clip.mp4\nhas_funscript=1\n", encoding="utf-8")
+
+    assert read_main_player_status(status_file).speed is None
+    assert read_main_player_status(status_file).has_funscript is True
+    assert read_main_player_status(tmp_path / "missing.txt").speed is None
+
+
 def test_read_genau_status_names_the_clip_on_screen(tmp_path: Path):
     """Genau rescans its folder every launch and opens at the top of it, so the
     clip it was left showing survives only by being published and handed back."""

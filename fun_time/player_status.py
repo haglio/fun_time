@@ -56,6 +56,7 @@ class MainPlayerStatus(PlayerStatus):
     # exactly where the picture drew the blue ending.  None when there is no
     # chosen touch (a raised floor takes the ramp and flips at once).
     handoff_touch_ms: int | None = None
+    speed: float | None = None
 
     @property
     def funscript_driving(self) -> bool:
@@ -107,6 +108,7 @@ def read_main_player_status(path: Path, *, fallback: MainPlayerStatus | None = N
             loop_in_ms=int(values.get("loop_in_ms", "0").strip() or 0),
             loop_out_ms=int(values.get("loop_out_ms", "0").strip() or 0),
             handoff_touch_ms=_status_touch(values),
+            speed=_status_rate(values),
         )
     except (OSError, ValueError):
         return fallback or MainPlayerStatus()
@@ -117,6 +119,13 @@ def _status_touch(values: dict) -> int | None:
     absent on a raised floor, an unlatched forecast, or an older main player."""
     raw = values.get("handoff_touch_ms", "").strip()
     return int(raw) if raw.isdigit() else None
+
+
+def _status_rate(values: dict) -> float | None:
+    try:
+        return float(values.get("speed", "").strip())
+    except ValueError:
+        return None
 
 
 GENAU_STATUS_FILENAME = state_files.GENAU_STATUS

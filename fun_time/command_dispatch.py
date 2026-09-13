@@ -154,9 +154,8 @@ _SPEED_EXTREMES = {
 }
 
 
-def _parse_main_player_speed(command: str) -> str | None:
+def _percent_rate(command: str, prefix: str) -> str | None:
     """'main_player_speed_150' -> 'SET_SPEED 1.5' (percent-of-normal -> multiplier)."""
-    prefix = "main_player_speed_"
     if not command.startswith(prefix):
         return None
     try:
@@ -559,7 +558,7 @@ def command_side(command: str) -> Player | None:
         return Player.PORTRAIT
     if command.startswith("landscape_"):
         return Player.LANDSCAPE
-    if command in _MAIN_SELECTING_COMMANDS:
+    if command in _MAIN_SELECTING_COMMANDS or command.startswith("main_player_speed_"):
         return Player.MAIN
     return None
 
@@ -1358,6 +1357,20 @@ def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConf
     return state, []
 
 
+_SATELLITE_SPEED_STEPS: dict[str, tuple[Player, str]] = {
+    "portrait_speed_down": (Player.PORTRAIT, SPEED_DOWN),
+    "portrait_speed_up": (Player.PORTRAIT, SPEED_UP),
+    "landscape_speed_down": (Player.LANDSCAPE, SPEED_DOWN),
+    "landscape_speed_up": (Player.LANDSCAPE, SPEED_UP),
+}
+
+
+def _satellite_speed(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
+                     _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    send_satellite(config, player, verb)
+    return state, []
+
+
 def _no_loop(player: Player, state: BridgeState, config: BridgeConfig,
              _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     return no_loop(player, state, config)
@@ -1572,6 +1585,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers: dict[str, Handler] = {}
     handlers.update({cmd: partial(_transport, player, verb)
                      for cmd, (player, verb) in _TRANSPORT_COMMANDS.items()})
+    handlers.update({cmd: partial(_satellite_speed, player, verb)
+                     for cmd, (player, verb) in _SATELLITE_SPEED_STEPS.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
     handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
     handlers["portrait_trash"] = partial(_discard, Player.PORTRAIT)
@@ -1705,10 +1720,20 @@ def _parsed_filter(command: str, state: BridgeState, config: BridgeConfig,
 def _parsed_main_player_speed(command: str, state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
     """"main_player_speed_<pct>" — an absolute video rate, the main player's alone."""
-    main_player_cmd = _parse_main_player_speed(command)
+    main_player_cmd = _percent_rate(command, "main_player_speed_")
     if main_player_cmd is None:
         return None
     return _speed(main_player_cmd, None, False, state, config, _target_path)
+
+
+def _parsed_satellite_speed(command: str, state: BridgeState, config: BridgeConfig,
+                            _target_path: str) -> tuple[BridgeState, list[WindowOp]] | None:
+    for player in Player.SATELLITES:
+        verb = _percent_rate(command, f"{player.label}_speed_")
+        if verb is not None:
+            send_satellite(config, player, verb)
+            return state, []
+    return None
 
 
 def _parsed_numeric(command: str, state: BridgeState, config: BridgeConfig,
@@ -1736,6 +1761,7 @@ _PARSED_FORMS = (
     _parsed_set_volume,
     _parsed_filter,
     _parsed_main_player_speed,
+    _parsed_satellite_speed,
     _parsed_numeric,
     _parsed_unresolved_active,
 )
