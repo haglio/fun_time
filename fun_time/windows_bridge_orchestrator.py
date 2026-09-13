@@ -60,6 +60,7 @@ from .session_handoff import (
     returning_from_a_crossing,
 )
 from .shared_state import shared_state_path
+from .shortcuts import Shortcut, resolve_shortcut
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
 from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
 from .win32 import (
@@ -85,7 +86,6 @@ from .windows_bridge_sequencer import (
     apply_topmost_bands,
     keep_the_cover_up,
     release_the_players,
-    resolve_shortcut,
     run_startup_sequence,
 )
 from .windows_bridge_startup import (
@@ -981,10 +981,9 @@ def _start_the_dispatch_loop(
     BPM and motion), the sync sees the entering transition and hands the main
     player over to Genau naturally.
     """
-    rfb_target, rfb_work_dir, rfb_args = "", "", ""
+    rfb_shortcut = Shortcut()
     if manifest.random_favs_browser.enabled:
-        rfb_shortcut_path = manifest.random_favs_browser.shortcut_path
-        rfb_target, rfb_work_dir, rfb_args = resolve_shortcut(rfb_shortcut_path)
+        rfb_shortcut = resolve_shortcut(manifest.random_favs_browser.shortcut_path)
 
     dispatch_runner = DispatchLoopRunner(
         config=bridge_config,
@@ -1006,8 +1005,8 @@ def _start_the_dispatch_loop(
         dashboard_enabled=dashboard_enabled,
         env=env,
         hud_publisher=hud_publisher,
-        rfb_shortcut=ChromeShortcut(
-            target=rfb_target, work_dir=rfb_work_dir, args=rfb_args),
+        rfb_shortcut=ChromeShortcut(target=rfb_shortcut.target, work_dir=rfb_shortcut.work_dir,
+                                    args=rfb_shortcut.arguments),
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()

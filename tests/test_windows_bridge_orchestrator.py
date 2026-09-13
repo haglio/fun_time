@@ -34,6 +34,7 @@ from fun_time.session_handoff import (
     request_handoff,
 )
 from fun_time.shared_state import BridgeState
+from fun_time.shortcuts import Shortcut
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
@@ -54,6 +55,7 @@ from fun_time.windows_bridge_orchestrator import (
     silence_the_players,
     write_pids_file,
 )
+from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from fun_time.windows_bridge_sequencer import StartupResult
 from tests.sleeps import sleeps_in
 
@@ -971,6 +973,46 @@ class TestLoadingScreenLifecycle:
             )
 
         assert runner.call_args.kwargs["env"] == env
+
+    def test_the_dispatch_loop_is_handed_the_browser_shortcut_the_manifest_names(
+        self, cfg_factory, tmp_path,
+    ):
+        cfg = load_config(cfg_factory({"random_favs_browser": {
+            "enabled": True,
+            "profile_name": "Profile 9",
+            "shortcut_path": str(tmp_path / "browser.lnk"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+        shortcut = Shortcut(target=r"C:\Browser\browser.exe", work_dir=r"C:\Browser",
+                            arguments='--profile-directory="Profile 9"')
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.resolve_shortcut",
+                   return_value=shortcut) as resolve, \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        resolve.assert_called_once_with(
+            LaunchManifest.read(manifest_path).random_favs_browser.shortcut_path)
+        assert runner.call_args.kwargs["rfb_shortcut"] == ChromeShortcut(
+            target=r"C:\Browser\browser.exe", work_dir=r"C:\Browser",
+            args='--profile-directory="Profile 9"')
 
 
 class TestKeepingTheHostedApp:
