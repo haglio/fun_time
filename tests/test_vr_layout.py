@@ -12,27 +12,27 @@ from fun_time_vr.layout import (
     DEFAULT_LAYOUT,
     ELEVATION_LIMIT_DEG,
     LANDSCAPE,
+    MAIN,
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
     PANEL,
     PORTRAIT,
-    PRIMARY,
     REFERENCE,
     clamp_placement,
     clamp_width,
     read_layout,
     write_layout,
 )
-from fun_time_vr.scene import PRIMARY_WIDTH_DEG, RADIUS, Placement, surface_vertices
+from fun_time_vr.scene import MAIN_WIDTH_DEG, RADIUS, Placement, surface_vertices
 
 
 class TestTheDefaults:
-    def test_the_primary_is_one_of_the_movable_screens_hanging_dead_ahead(self):
+    def test_the_main_screen_is_one_of_the_movable_screens_hanging_dead_ahead(self):
         """It moves and zooms by the same handles the satellites do, so it is in
         the same dict — starting where it has always sat, level and straight on."""
-        assert DEFAULT_LAYOUT[PRIMARY] == Placement(0.0, 0.0, PRIMARY_WIDTH_DEG)
+        assert DEFAULT_LAYOUT[MAIN] == Placement(0.0, 0.0, MAIN_WIDTH_DEG)
 
-    def test_the_satellites_flank_the_primary_landscape_left_portrait_right(self):
+    def test_the_satellites_flank_the_main_screen_landscape_left_portrait_right(self):
         """The sides a desktop session puts them on, so the room reads the same
         in the headset as it does on the monitors."""
         portrait, landscape = DEFAULT_LAYOUT[PORTRAIT], DEFAULT_LAYOUT[LANDSCAPE]
@@ -47,12 +47,12 @@ class TestTheDefaults:
         # the peripheral vision, so they overlap the main player's edges instead —
         # they draw over it, so overlap costs nothing.
         landscape = DEFAULT_LAYOUT[LANDSCAPE]
-        flush = (PRIMARY_WIDTH_DEG + landscape.width_deg) / 2
+        flush = (MAIN_WIDTH_DEG + landscape.width_deg) / 2
 
         assert abs(landscape.azimuth_deg) < flush
 
-    def test_the_satellites_are_smaller_than_the_primary_half(self):
-        assert DEFAULT_LAYOUT[LANDSCAPE].width_deg < PRIMARY_WIDTH_DEG / 2
+    def test_the_satellites_are_smaller_than_half_the_main_screen(self):
+        assert DEFAULT_LAYOUT[LANDSCAPE].width_deg < MAIN_WIDTH_DEG / 2
 
     def test_the_satellites_ride_above_the_horizon(self):
         assert DEFAULT_LAYOUT[LANDSCAPE].elevation_deg > 0
@@ -60,7 +60,7 @@ class TestTheDefaults:
     def test_only_the_screens_a_controller_places_are_in_here(self):
         """The console is one of them now: a video that wraps the viewer leaves
         no picture to dock it under, so a handle of its own places it there."""
-        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, PANEL, DASH, REFERENCE}
+        assert set(DEFAULT_LAYOUT) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH, REFERENCE}
 
 
 class TestTheRememberedLayout:
@@ -96,16 +96,16 @@ class TestTheRememberedLayout:
 
         assert layout[LANDSCAPE] == Placement(5.0, 20.0, 24.0)
         assert layout[PORTRAIT] == DEFAULT_LAYOUT[PORTRAIT]
-        assert layout[PRIMARY] == DEFAULT_LAYOUT[PRIMARY]
+        assert layout[MAIN] == DEFAULT_LAYOUT[MAIN]
         assert "basement" not in layout
 
-    def test_a_zoomed_and_moved_primary_comes_back_next_session(self, tmp_path):
+    def test_a_zoomed_and_moved_main_screen_comes_back_next_session(self, tmp_path):
         path = tmp_path / "vr_layout.json"
         zoomed = Placement(azimuth_deg=-12.0, elevation_deg=-4.0, width_deg=110.0)
 
-        assert write_layout(path, {**DEFAULT_LAYOUT, PRIMARY: zoomed})
+        assert write_layout(path, {**DEFAULT_LAYOUT, MAIN: zoomed})
 
-        assert read_layout(path)[PRIMARY] == zoomed
+        assert read_layout(path)[MAIN] == zoomed
 
     def test_a_remembered_placement_is_held_within_the_scene(self, tmp_path):
         """A hand-edited file cannot hang a screen at the viewer's back, at the
@@ -141,4 +141,4 @@ class TestTheLimits:
 
         assert math.hypot(widest[0, 0], widest[0, 2]) == pytest.approx(2 * RADIUS)
         assert clamp_width(4000.0) == MAX_WIDTH_DEG
-        assert clamp_width(PRIMARY_WIDTH_DEG * 1.5) == PRIMARY_WIDTH_DEG * 1.5
+        assert clamp_width(MAIN_WIDTH_DEG * 1.5) == MAIN_WIDTH_DEG * 1.5
