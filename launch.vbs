@@ -1,134 +1,106 @@
+' Rendered from [tool.haglio.launchers."launch.vbs"] in pyproject.toml.
+' Change the spec, then run  python -m app_support.launcher --write  in this
+' folder: the suite fails on a launcher that differs from its spec.
+
+Option Explicit
+
+Dim fso, shell, root, app, interpreter, directory, arguments, logPath, readyFile, exitedFlag
+
 Set fso = CreateObject("Scripting.FileSystemObject")
 Set shell = CreateObject("WScript.Shell")
-
-scriptDir = fso.GetParentFolderName(WScript.ScriptFullName)
-
-' Fun Time runs on the project venv, never on whatever python happens to be on
-' PATH. fun_time imports its sibling packages -- app_support, player_core --
-' and those are editable installs that exist only in .venv; a PATH python finds
-' the sibling *repo* directories as namespace packages instead and dies on
-' "No module named 'player_core.playlist'" while importing, before the
-' orchestrator has configured any logging. That is a launch that never happens
-' and never says why.
-pythonExe = fso.BuildPath(scriptDir, ".venv\Scripts\python.exe")
-If Not fso.FileExists(pythonExe) Then
-  MsgBox "Fun Time's virtual environment is missing:" & vbCrLf & pythonExe, vbCritical, "Fun Time"
-  WScript.Quit 1
+root = fso.GetParentFolderName(WScript.ScriptFullName)
+Decide
+If shell.Environment("Process").Item("HAGLIO_LAUNCHER_DRY_RUN") = "1" Then
+  Report
+Else
+  Launch
 End If
 
-' Run the orchestrator through a copy of that interpreter that says what it is.
-' Windows identifies a process by its image name and by the description in its
-' version resource, and a plain python.exe supplies "python.exe" and "Python" --
-' so every child of a session arrives as one more anonymous Python among
-' whatever else the user is running. When a session strands one (an orchestrator
-' that dies without reaping leaves its companions alive, with no window left to
-' close), the task list is the only way back and it cannot say which rows are
-' safe to end. fun_time.process_identity asks for these copies and
-' app_support.process_identity makes them and explains the mechanism; the
-' orchestrator is the one process it cannot name on the way in,
-' because writing the copy takes the very interpreter being launched.
-'
-' So the naming happens one launch late: this picks the copy up when it is
-' there, the session makes it for the session after, and a checkout that has
-' never run starts anonymous exactly as it used to.
-namedExe = fso.BuildPath(scriptDir, ".venv\Scripts\FunTime-Orchestrator.exe")
-If fso.FileExists(namedExe) Then pythonExe = namedExe
+Sub Decide()
+  app = "Fun Time"
+  logPath = fso.BuildPath(root, "state\launcher.log")
+  readyFile = fso.BuildPath(root, "state\launcher.ready")
+  exitedFlag = fso.BuildPath(root, "state\launcher.exited")
+  arguments = "-m fun_time.orchestrator"
+  interpreter = fso.BuildPath(root, ".venv\Scripts\python.exe")
+  If fso.FileExists(fso.BuildPath(root, ".venv\Scripts\FunTime-Orchestrator.exe")) Then interpreter = fso.BuildPath(root, ".venv\Scripts\FunTime-Orchestrator.exe")
+  directory = root
+End Sub
 
-' Everything the orchestrator writes to its console goes here. The launcher runs
-' it in a hidden window, and a failure during import happens before any log file
-' exists, so without this a crashed launch leaves nothing at all.
-stateDir = fso.BuildPath(scriptDir, "state")
-If Not fso.FolderExists(stateDir) Then fso.CreateFolder stateDir
-launchLog = LaunchLogIn(stateDir, "launcher")
+Sub Report()
+  WScript.Echo "app: " & app
+  WScript.Echo "interpreter: " & interpreter
+  WScript.Echo "directory: " & directory
+  WScript.Echo "arguments: " & arguments
+  WScript.Echo "log: " & logPath
+  WScript.Echo "ready: " & readyFile
+  WScript.Echo "exited: " & exitedFlag
+  WScript.Echo "command: " & Command()
+End Sub
 
-' Two sentinels let the hidden launch report its own outcome. The orchestrator
-' writes readyFile once it has passed config validation and is committing to run
-' (or once it has shown its own "already running" message), so a silent
-' import/config crash -- the whole reason the window can vanish without a word --
-' leaves it absent. cmd writes exitedFlag the instant the child exits, however it
-' exits, so a crash is caught at once instead of only when the timeout expires.
-' Clear both from a prior launch first: their presence must describe THIS launch.
-readyFile = fso.BuildPath(stateDir, "launcher.ready")
-exitedFlag = fso.BuildPath(stateDir, "launcher.exited")
-If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
-If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
-
-cmd = "cmd /c cd /d """ & scriptDir & """ && """ & pythonExe & """ -m fun_time.orchestrator >> """ & launchLog & """ 2>&1 & type nul > """ & exitedFlag & """"
-shell.Run cmd, 0, False
-
-' Watch the sentinels. A good launch drops readyFile within a second or two; a
-' crash trips exitedFlag first; a launch wedged before it can do either trips the
-' timeout. Every failure path pops the log so the user sees why the window never
-' appeared instead of staring at nothing.
-pollMs = 250
-maxWaitMs = 45000
-waited = 0
-started = False
-Do
-  If fso.FileExists(readyFile) Then
-    started = True
-    Exit Do
+Sub Launch()
+  If Not fso.FileExists(interpreter) Then
+    Refuse app & "'s virtual environment is missing:" & vbCrLf & interpreter, vbCritical
   End If
-  If fso.FileExists(exitedFlag) Then Exit Do
-  If waited >= maxWaitMs Then Exit Do
-  WScript.Sleep pollMs
-  waited = waited + pollMs
-Loop
+  logPath = FreeLog(logPath)
+  Note logPath, "===== " & Now & " launch: " & Command()
+  If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
+  If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
+  shell.Run Command(), 0, False
+  If Not Started() Then
+    Refuse FailedStart(), vbCritical
+  End If
+End Sub
 
-If Not started Then
-  msg = "Fun Time failed to start." & vbCrLf & vbCrLf & _
-        "See the full log at:" & vbCrLf & launchLog
-  tail = LastLinesOf(launchLog, 15)
-  If Len(tail) > 0 Then msg = msg & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
-  MsgBox msg, vbCritical, "Fun Time"
-End If
-
-' The first of <name>.log, <name>-2.log ... that opens for writing, and a banner
-' in it naming this launch.
-'
-' The redirect below is cmd's, and cmd holds the file it redirects into for as
-' long as the session runs -- Windows lets nobody else write it meanwhile. So
-' does every child of that session launched without a redirect of its own,
-' because an unset stdout is an INHERITED one: Chrome, the broker tray, an
-' Origenerator kept across a crossing. While one of those outlives its session
-' the file stays held, and a launch redirecting into it fails INSIDE cmd, before
-' python is run at all -- no window, no log line anywhere, not even the "already
-' running" refusal, which only the interpreter that never started could show. The
-' click does nothing, and the app comes up only once the stray has gone: the
-' launch that takes two clicks. So take the next free name rather than not
-' launch, and leave the held one to whatever is still writing into it.
-'
-' Appended to rather than overwritten, and banner-stamped, because the retry
-' used to erase the failed launch's traceback -- the one record of why the first
-' click did nothing. Rolled aside at a megabyte, as the app's own logs are.
-Function LaunchLogIn(dirPath, stem)
-  Dim i, candidate, ts
-  For i = 1 To 9
-    If i = 1 Then
-      candidate = fso.BuildPath(dirPath, stem & ".log")
-    Else
-      candidate = fso.BuildPath(dirPath, stem & "-" & i & ".log")
-    End If
-    RollIfOversize candidate
-    On Error Resume Next
-    Set ts = fso.OpenTextFile(candidate, 8, True)
-    If Err.Number = 0 Then
-      Err.Clear
-      On Error GoTo 0
-      ts.WriteLine "===== " & Now & " launch"
-      ts.Close
-      LaunchLogIn = candidate
-      Exit Function
-    End If
-    Err.Clear
-    On Error GoTo 0
-  Next
-  LaunchLogIn = fso.BuildPath(dirPath, stem & ".log")
+Function Command()
+  Command = "cmd /c cd /d " & Quote(directory) & " && " & Quote(interpreter) & " " & arguments & " >> " & Quote(logPath) & " 2>&1 & type nul > " & Quote(exitedFlag)
 End Function
 
-' Move a log past a megabyte aside to <name>.1, keeping one generation.
-' Best-effort: a stray child still holding it makes Windows refuse the rename,
-' and housekeeping must never cost a launch.
+Function Quote(text)
+  Quote = Chr(34) & text & Chr(34)
+End Function
+
+Sub Tell(message, icon)
+  If LCase(fso.GetFileName(WScript.FullName)) = "cscript.exe" Then
+    WScript.Echo "dialog: " & message
+  Else
+    MsgBox message, icon, app
+  End If
+End Sub
+
+Sub Refuse(message, icon)
+  Tell message, icon
+  WScript.Quit 1
+End Sub
+
+Function FreeLog(preferred)
+  Dim folder, candidate, index
+  folder = fso.GetParentFolderName(preferred)
+  If Not fso.FolderExists(folder) Then fso.CreateFolder folder
+  For index = 1 To 9
+    candidate = preferred
+    If index > 1 Then
+      candidate = fso.BuildPath(folder, fso.GetBaseName(preferred) & "-" & index & "." & fso.GetExtensionName(preferred))
+    End If
+    RollIfOversize candidate
+    If CanAppend(candidate) Then
+      FreeLog = candidate
+      Exit Function
+    End If
+  Next
+  FreeLog = preferred
+End Function
+
+Function CanAppend(path)
+  Dim stream
+  On Error Resume Next
+  Set stream = fso.OpenTextFile(path, 8, True)
+  CanAppend = (Err.Number = 0)
+  If CanAppend Then stream.Close
+  Err.Clear
+  On Error GoTo 0
+End Function
+
 Sub RollIfOversize(path)
   On Error Resume Next
   If fso.FileExists(path) Then
@@ -141,26 +113,57 @@ Sub RollIfOversize(path)
   On Error GoTo 0
 End Sub
 
-' Return the tail of a text file (up to maxLines non-blank-terminated lines),
-' so the failure dialog can show the traceback that landed in the log without
-' making the user go open it.
-Function LastLinesOf(path, maxLines)
-  Dim out : out = ""
-  If fso.FileExists(path) Then
-    Dim ts, body, parts, hi, lo, i
-    Set ts = fso.OpenTextFile(path, 1)
-    If Not ts.AtEndOfStream Then body = ts.ReadAll
-    ts.Close
-    parts = Split(Replace(body, vbCr, ""), vbLf)
-    hi = UBound(parts)
-    Do While hi >= 0 And Trim(parts(hi)) = ""
-      hi = hi - 1
-    Loop
-    lo = hi - maxLines + 1
-    If lo < 0 Then lo = 0
-    For i = lo To hi
-      out = out & parts(i) & vbCrLf
-    Next
+Sub Note(path, line)
+  Dim stream
+  On Error Resume Next
+  Set stream = fso.OpenTextFile(path, 8, True)
+  stream.WriteLine line
+  stream.Close
+  Err.Clear
+  On Error GoTo 0
+End Sub
+
+Function Started()
+  Dim waited
+  waited = 0
+  Started = False
+  Do
+    If fso.FileExists(readyFile) Then
+      Started = True
+      Exit Function
+    End If
+    If fso.FileExists(exitedFlag) Or waited >= 45000 Then Exit Function
+    WScript.Sleep 250
+    waited = waited + 250
+  Loop
+End Function
+
+Function FailedStart()
+  Dim tail
+  FailedStart = app & " failed to start." & vbCrLf & vbCrLf & "See the full log at:" & vbCrLf & logPath
+  tail = LastLinesOf(logPath, 15)
+  If Len(tail) > 0 Then
+    FailedStart = FailedStart & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
   End If
-  LastLinesOf = out
+End Function
+
+Function LastLinesOf(path, count)
+  Dim stream, body, lines, first, last, index
+  LastLinesOf = ""
+  If Not fso.FileExists(path) Then Exit Function
+  Set stream = fso.OpenTextFile(path, 1)
+  body = ""
+  If Not stream.AtEndOfStream Then body = stream.ReadAll
+  stream.Close
+  lines = Split(Replace(body, vbCr, ""), vbLf)
+  last = UBound(lines)
+  Do While last >= 0
+    If Trim(lines(last)) <> "" Then Exit Do
+    last = last - 1
+  Loop
+  first = last - count + 1
+  If first < 0 Then first = 0
+  For index = first To last
+    LastLinesOf = LastLinesOf & lines(index) & vbCrLf
+  Next
 End Function
