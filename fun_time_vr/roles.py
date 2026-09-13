@@ -30,12 +30,14 @@ from player_core.player_verbs import (
     SEEK_BACK,
     SEEK_FWD,
     SET_F_MODE,
+    SET_PACE,
     SET_SPEED,
     SET_TCODE_ENABLED,
     SET_VOLUME,
     SPEED_DOWN,
     SPEED_UP,
     TOGGLE_LOCK,
+    pace_seconds,
 )
 from player_core.playlist import item_from_line, read_playlist
 from player_core.status import PlayerStatus
@@ -308,6 +310,7 @@ class MainRole:
                 paused=self._paused,
                 locked=self._locked,
                 speed=self._speed,
+                picture=self._player.showing_picture,
             )),
             "has_funscript": "1" if self.has_funscript else "0",
             "funscript_resting": "1" if self._funscript_resting() else "0",
@@ -360,6 +363,13 @@ class MainRole:
         if rate is None:
             return False
         self._set_speed(rate)
+        return True
+
+    def set_pace_from(self, value: str) -> bool:
+        seconds = pace_seconds(value)
+        if seconds is None:
+            return False
+        self._player.set_pace(seconds)
         return True
 
     def set_volume_from(self, value: str) -> bool:
@@ -474,6 +484,10 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="volume",
         verbs=(Verb(SET_VOLUME, _reads(MainRole.set_volume_from), takes_a_value=True),),
+    ),
+    Control(
+        name="pace",
+        verbs=(Verb(SET_PACE, _reads(MainRole.set_pace_from), takes_a_value=True),),
     ),
     Control(
         name="playing_file",
