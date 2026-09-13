@@ -8,11 +8,9 @@ import pytest
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
     PRIMARY_WIDTH_DEG,
-    QUAD_LAYER_LIMIT_DEG,
     RADIUS,
     Placement,
     attached_below,
-    fits_a_quad_layer,
     quad_layer_placement,
     surface_vertices,
 )
@@ -37,24 +35,29 @@ _A_SATELLITE = Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0)
 
 
 class TestSurfaceVertices:
-    def test_strip_has_two_vertices_per_column(self):
-        verts = surface_vertices(Placement(0.0, 0.0, 36.0), aspect=16 / 9, segments=8)
-        assert verts.shape == (18, 5)
+    def test_the_strip_is_one_quad_of_position_and_texture_rows(self):
+        verts = surface_vertices(Placement(0.0, 0.0, 36.0), aspect=16 / 9)
+        assert verts.shape == (4, 5)
         assert verts.dtype == np.float32
 
-    def test_every_vertex_sits_on_the_cylinder(self):
-        verts = surface_vertices(Placement(-54.0, 0.0, 36.0), aspect=9 / 16)
-        radii = np.sqrt(verts[:, 0] ** 2 + verts[:, 2] ** 2)
-        np.testing.assert_allclose(radii, RADIUS, atol=1e-5)
+    def test_it_faces_the_viewer_square_on_with_its_middle_at_the_radius(self):
+        verts = surface_vertices(_A_SATELLITE, aspect=9 / 16)[:, :3]
+        upper_left, lower_left, upper_right, _lower_right = verts
+        middle = verts.mean(axis=0)
+        facing = np.cross(upper_right - upper_left, upper_left - lower_left)
+
+        assert math.hypot(middle[0], middle[2]) == pytest.approx(RADIUS, rel=1e-5)
+        toward_the_viewer = np.array([-middle[0], 0.0, -middle[2]]) / RADIUS
+        np.testing.assert_allclose(facing / np.linalg.norm(facing), toward_the_viewer, atol=1e-5)
 
     def test_columns_span_the_angular_width_around_the_center(self):
-        verts = surface_vertices(Placement(54.0, 0.0, 36.0), aspect=16 / 9, segments=4)
+        verts = surface_vertices(Placement(54.0, 0.0, 36.0), aspect=16 / 9)
         azimuths = [_azimuth_deg(x, z) for x, z in zip(verts[::2, 0], verts[::2, 2])]
         assert azimuths[0] == pytest.approx(36.0, abs=1e-4)
         assert azimuths[-1] == pytest.approx(72.0, abs=1e-4)
 
     def test_u_runs_left_to_right_and_v_low_to_high(self):
-        verts = surface_vertices(Placement(0.0, 0.0, 72.0), aspect=16 / 9, segments=4)
+        verts = surface_vertices(Placement(0.0, 0.0, 72.0), aspect=16 / 9)
         assert verts[0, 3] == pytest.approx(0.0)   # leftmost column u
         assert verts[-1, 3] == pytest.approx(1.0)  # rightmost column u
         upper, lower = verts[0], verts[1]
@@ -62,14 +65,13 @@ class TestSurfaceVertices:
         assert upper[4] == pytest.approx(1.0)
         assert lower[4] == pytest.approx(0.0)
 
-    def test_height_follows_the_aspect_ratio(self):
-        # The screen's height is its arc length over the pixel aspect, so a
-        # portrait video hangs tall and a widescreen one shallow.
-        wide = surface_vertices(Placement(0.0, 0.0, 36.0), aspect=16 / 9)
-        tall = surface_vertices(Placement(0.0, 0.0, 36.0), aspect=9 / 16)
-        arc = RADIUS * math.radians(36.0)
-        assert wide[:, 1].max() - wide[:, 1].min() == pytest.approx(arc / (16 / 9), rel=1e-5)
-        assert tall[:, 1].max() - tall[:, 1].min() == pytest.approx(arc / (9 / 16), rel=1e-5)
+    @pytest.mark.parametrize("aspect", [16 / 9, 9 / 16])
+    def test_its_shape_is_the_videos_so_the_picture_fills_it_edge_to_edge(self, aspect):
+        verts = surface_vertices(Placement(0.0, 0.0, 36.0), aspect=aspect)
+        width = verts[:, 0].max() - verts[:, 0].min()
+        height = verts[:, 1].max() - verts[:, 1].min()
+
+        assert width / height == pytest.approx(aspect, rel=1e-5)
 
     def test_the_center_rides_at_the_elevation(self):
         verts = surface_vertices(_A_SATELLITE, aspect=9 / 16)
@@ -78,19 +80,10 @@ class TestSurfaceVertices:
             RADIUS * math.tan(math.radians(_A_SATELLITE.elevation_deg)), rel=1e-5
         )
 
-    def test_the_screen_is_gently_curved_not_flat(self):
-        verts = surface_vertices(Placement(0.0, 0.0, 72.0), aspect=16 / 9, segments=8)
-        z = verts[::2, 2]
-        # The middle of the arc bows away from the chord between the edges.
-        assert z[len(z) // 2] < z[0]
-        assert z[len(z) // 2] == pytest.approx(-RADIUS, abs=1e-5)
+    def test_the_screen_is_flat_not_curved(self):
+        verts = surface_vertices(Placement(0.0, 0.0, 72.0), aspect=16 / 9)[:, :3]
 
-    def test_a_screen_wider_than_a_half_turn_has_no_flat_stand_in(self):
-        """2R*tan(w/2) runs away at a half turn and inverts past it, so a screen
-        pulled that wide has to stay in the projection layer instead."""
-        assert fits_a_quad_layer(Placement(0.0, 0.0, PRIMARY_WIDTH_DEG))
-        assert not fits_a_quad_layer(Placement(0.0, 0.0, QUAD_LAYER_LIMIT_DEG))
-        assert not fits_a_quad_layer(Placement(0.0, 0.0, 300.0))
+        assert np.linalg.matrix_rank(verts - verts[0], tol=1e-5) == 2
 
     def test_degenerate_aspect_is_rejected(self):
         with pytest.raises(ValueError):
@@ -98,7 +91,17 @@ class TestSurfaceVertices:
 
 
 class TestQuadLayerPlacement:
-    def test_center_sits_where_the_curved_screen_centers(self):
+    def test_the_quad_is_the_very_rectangle_the_eye_pass_draws(self):
+        position, orientation, (width, height) = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
+        right = np.array(_rotate_by_quat(orientation, (1.0, 0.0, 0.0)))
+        up = np.array(_rotate_by_quat(orientation, (0.0, 1.0, 0.0)))
+        corners = [np.array(position) + right * width * (u - 0.5) + up * height * (v - 0.5)
+                   for u, v in ((0.0, 1.0), (0.0, 0.0), (1.0, 1.0), (1.0, 0.0))]
+
+        np.testing.assert_allclose(
+            surface_vertices(_A_SATELLITE, aspect=16 / 9)[:, :3], corners, atol=1e-5)
+
+    def test_center_sits_where_the_screen_centers(self):
         position, _orientation, _size = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
         assert _azimuth_deg(position[0], position[2]) == pytest.approx(
             _A_SATELLITE.azimuth_deg, abs=1e-5)
@@ -130,8 +133,8 @@ class TestQuadLayerPlacement:
         assert height == pytest.approx(width / (9 / 16), rel=1e-6)
 
     def test_orientation_is_yaw_only_and_unit_length(self):
-        # The curved screens hang untilted whatever their elevation; the flat
-        # stand-ins must match, or a lifted satellite would lean back.
+        # The screens hang untilted whatever their elevation, and so must their
+        # quads, or a lifted satellite would lean back.
         _position, orientation, _size = quad_layer_placement(_A_SATELLITE, aspect=16 / 9)
         x, y, z, w = orientation
         assert x == 0.0 and z == 0.0
@@ -157,7 +160,7 @@ class TestQuadLayerPlacement:
         toward_viewer = tuple(-c / RADIUS for c in position)
         assert front == pytest.approx(toward_viewer, abs=1e-6)
 
-    def test_the_quad_lands_where_the_eye_pass_would_draw_the_curved_screen(self):
+    def test_the_quad_lands_where_the_eye_pass_would_draw_the_screen(self):
         # The two render paths place the screens from one fact by two routes —
         # this quaternion and the matrix product the eye pass multiplies in.
         # A satellite off the center line is where a disagreement in the

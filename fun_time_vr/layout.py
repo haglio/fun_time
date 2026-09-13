@@ -39,7 +39,7 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
 AZIMUTH_LIMIT_DEG = 150.0
 ELEVATION_LIMIT_DEG = 75.0
 MIN_WIDTH_DEG = 10.0
-MAX_WIDTH_DEG = 360.0  # a full turn: past it screen_uv cannot tell the edges apart
+MAX_WIDTH_DEG = 120.0
 
 
 def clamp_width(width_deg: float) -> float:

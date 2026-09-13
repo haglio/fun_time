@@ -1,6 +1,6 @@
 """Which shape a video is watched on, and how FunTimeVR remembers the answer.
 
-A 2D video hangs on a big gently-curved screen; a VR video wraps the view in
+A 2D video hangs on a big flat screen; a VR video wraps the view in
 one of the projections its producer mastered it in (equirect 180 side-by-side
 is the overwhelming default, fisheye variants the exceptions).  The user fixes
 a wrong guess once — cycling with the P key or the spoken "projection" — and

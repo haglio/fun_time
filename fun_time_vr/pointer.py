@@ -9,7 +9,7 @@ import numpy as np
 
 from .layout import clamp_elevation, clamp_placement, clamp_width
 from .matrices import quat_to_rotation_matrix
-from .scene import RADIUS, Placement, surface_vertices
+from .scene import RADIUS, Placement, center_height, elevation_at, half_width, surface_vertices
 
 Vec3 = tuple[float, float, float]
 Quat = tuple[float, float, float, float]
@@ -70,14 +70,18 @@ def _turn_deg(from_azimuth_deg: float, to_azimuth_deg: float) -> float:
     return (to_azimuth_deg - from_azimuth_deg + 180.0) % 360.0 - 180.0
 
 
+_EDGE_ON_DEG = 89.0
+
+
 def screen_uv(
     point: SurfacePoint, placement: Placement, aspect: float, radius: float = RADIUS,
 ) -> tuple[float, float]:
-    half_height = radius * math.radians(placement.width_deg) / aspect / 2.0
-    lift = radius * math.tan(math.radians(placement.elevation_deg))
-    u = _turn_deg(placement.azimuth_deg, point.azimuth_deg) / placement.width_deg + 0.5
-    v = (point.y - lift) / (2.0 * half_height) + 0.5
-    return u, v
+    off_center = math.radians(max(-_EDGE_ON_DEG, min(
+        _EDGE_ON_DEG, _turn_deg(placement.azimuth_deg, point.azimuth_deg))))
+    half = half_width(placement.width_deg, radius)
+    across = radius * math.tan(off_center)
+    up = point.y / math.cos(off_center) - center_height(placement, radius)
+    return across / half / 2.0 + 0.5, up * aspect / half / 2.0 + 0.5
 
 
 HANDLE_DEG = 4.0
@@ -87,7 +91,7 @@ SURFACE = "surface"
 
 
 def handle_extent(placement: Placement, aspect: float) -> tuple[float, float]:
-    du = HANDLE_DEG / placement.width_deg
+    du = RADIUS * math.radians(HANDLE_DEG) / (2.0 * half_width(placement.width_deg))
     return du, du * aspect
 
 
@@ -102,14 +106,6 @@ def handle_at(
     if 0.0 <= u <= 1.0 and 1.0 < v <= 1.0 + dv:
         return MOVE
     return None
-
-
-def _lift(placement: Placement, radius: float) -> float:
-    return radius * math.tan(math.radians(placement.elevation_deg))
-
-
-def _elevation_deg(y: float, radius: float) -> float:
-    return math.degrees(math.atan2(y, radius))
 
 
 CURSOR_DEG = 0.8
@@ -138,34 +134,20 @@ def laser_vertices(ray: Ray, *, length: float) -> np.ndarray:
 
 def cursor_vertices(point: SurfacePoint, radius: float = RADIUS) -> np.ndarray:
     return surface_vertices(
-        Placement(point.azimuth_deg, _elevation_deg(point.y, radius), CURSOR_DEG),
-        aspect=1.0, radius=radius, segments=2,
+        Placement(point.azimuth_deg, elevation_at(point.y, radius), CURSOR_DEG),
+        aspect=1.0, radius=radius,
     )
 
 
 def handle_vertices(
     placement: Placement, *, aspect: float, resizable: bool, radius: float = RADIUS,
 ) -> dict[str, list[np.ndarray]]:
-    width_rad = math.radians(placement.width_deg)
-    half_height = radius * width_rad / aspect / 2.0
-    lift = _lift(placement, radius)
-    handle = radius * math.radians(HANDLE_DEG)
-    bar = Placement(
-        placement.azimuth_deg,
-        _elevation_deg(lift + half_height + handle / 2.0, radius),
-        placement.width_deg,
-    )
-    strips = {MOVE: [surface_vertices(bar, aspect=radius * width_rad / handle, radius=radius)]}
+    du, dv = handle_extent(placement, aspect)
+    strips = {MOVE: [surface_vertices(placement, aspect=aspect, radius=radius, v=(1.0, 1.0 + dv))]}
     if resizable:
-        below = _elevation_deg(lift - half_height - handle / 2.0, radius)
         strips[RESIZE] = [
-            surface_vertices(
-                Placement(
-                    placement.azimuth_deg + side * (placement.width_deg + HANDLE_DEG) / 2.0,
-                    below, HANDLE_DEG),
-                aspect=1.0, radius=radius, segments=2,
-            )
-            for side in (-1.0, 1.0)
+            surface_vertices(placement, aspect=aspect, radius=radius, u=across, v=(-dv, 0.0))
+            for across in ((-du, 0.0), (1.0, 1.0 + du))
         ]
     return strips
 
@@ -184,12 +166,13 @@ class Grab:
             placement.azimuth_deg, start.azimuth_deg) >= 0.0 else -1.0
         self._anchor = (  # the corner across from it, which a resize keeps still
             placement.azimuth_deg - self._side * placement.width_deg / 2.0,
-            _lift(placement, radius) + self._half_height(placement.width_deg),
+            (center_height(placement, radius) + self._half_height(placement.width_deg))
+            * math.cos(math.radians(placement.width_deg) / 2.0),
         )
         self._width_deg = placement.width_deg
 
     def _half_height(self, width_deg: float) -> float:
-        return self._radius * math.radians(width_deg) / self._aspect / 2.0
+        return half_width(width_deg, self._radius) / self._aspect
 
     def _from_the_anchor(self, azimuth_deg: float) -> float:
         """How far round the grabbed corner has gone: _turn_deg takes the short way,
@@ -201,27 +184,31 @@ class Grab:
         placement = self._placement
         if self.handle == MOVE:
             azimuth = placement.azimuth_deg + _turn_deg(self._start.azimuth_deg, point.azimuth_deg)
-            lift = _lift(placement, self._radius) + point.y - self._start.y
+            off_center = math.radians(_turn_deg(placement.azimuth_deg, self._start.azimuth_deg))
+            lift = (center_height(placement, self._radius)
+                    + (point.y - self._start.y) / math.cos(off_center))
             return clamp_placement(Placement(
                 azimuth_deg=_turn_deg(0.0, azimuth),
-                elevation_deg=math.degrees(math.atan2(lift, self._radius)),
+                elevation_deg=elevation_at(lift, self._radius),
                 width_deg=placement.width_deg,
             ))
         return self._resized_to(point)
 
     def _resized_to(self, point: SurfacePoint) -> Placement:
-        """Grown away from the anchored corner rather than out of the center, down
-        the picture's own diagonal: the reach along that line is the width."""
+        """Grown away from the anchored corner rather than out of the center: the
+        width the pointer's reach across from it gives, and the width its reach down
+        gives, weighed by how far each moves the corner."""
         azimuth, y = self._anchor
-        across = self._radius * math.radians(self._from_the_anchor(point.azimuth_deg))
-        reach = (self._side * across - (point.y - y) / self._aspect) / (
-            1.0 + 1.0 / (self._aspect * self._aspect))
-        width_deg = clamp_width(math.degrees(reach / self._radius))
+        across = math.radians(self._side * self._from_the_anchor(point.azimuth_deg))
+        down = 2.0 * math.asin(
+            max(-1.0, min(1.0, (y - point.y) * self._aspect / (2.0 * self._radius))))
+        weight = (math.cos(math.radians(self._width_deg) / 2.0) / self._aspect) ** 2
+        width_deg = clamp_width(math.degrees((across + weight * down) / (1.0 + weight)))
         self._width_deg = width_deg
+        lift = y / math.cos(math.radians(width_deg) / 2.0) - self._half_height(width_deg)
         return Placement(  # not clamp_placement: its azimuth limit would slip the anchor
             azimuth_deg=_turn_deg(0.0, azimuth + self._side * width_deg / 2.0),
-            elevation_deg=clamp_elevation(
-                _elevation_deg(y - self._half_height(width_deg), self._radius)),
+            elevation_deg=clamp_elevation(elevation_at(lift, self._radius)),
             width_deg=width_deg,
         )
 

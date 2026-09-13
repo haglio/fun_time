@@ -2,6 +2,9 @@
 from __future__ import annotations
 
 import json
+import math
+
+import pytest
 
 from fun_time_vr.layout import (
     AZIMUTH_LIMIT_DEG,
@@ -20,7 +23,7 @@ from fun_time_vr.layout import (
     read_layout,
     write_layout,
 )
-from fun_time_vr.scene import PRIMARY_WIDTH_DEG, Placement
+from fun_time_vr.scene import PRIMARY_WIDTH_DEG, RADIUS, Placement, surface_vertices
 
 
 class TestTheDefaults:
@@ -98,7 +101,7 @@ class TestTheRememberedLayout:
 
     def test_a_zoomed_and_moved_primary_comes_back_next_session(self, tmp_path):
         path = tmp_path / "vr_layout.json"
-        zoomed = Placement(azimuth_deg=-12.0, elevation_deg=-4.0, width_deg=210.0)
+        zoomed = Placement(azimuth_deg=-12.0, elevation_deg=-4.0, width_deg=110.0)
 
         assert write_layout(path, {**DEFAULT_LAYOUT, PRIMARY: zoomed})
 
@@ -131,10 +134,11 @@ class TestTheLimits:
         assert 45 < ELEVATION_LIMIT_DEG < 90
         assert 0 < MIN_WIDTH_DEG < DEFAULT_LAYOUT[PORTRAIT].width_deg
 
-    def test_a_screen_may_be_pulled_up_to_a_full_wrap_and_no_further(self):
-        """Every screen shares one ceiling, and it is the geometry's rather than
-        a taste in sizes: at a full turn a screen closes on itself, and past that
-        screen_uv can no longer tell one of its edges from the other."""
-        assert MAX_WIDTH_DEG == 360.0
+    def test_a_screen_may_be_pulled_wide_until_its_edges_are_twice_as_far_off_as_its_middle(self):
+        """A flat screen's edges run off to infinity at a half turn, and well before
+        that its corners are too far away to take hold of."""
+        widest = surface_vertices(Placement(0.0, 0.0, MAX_WIDTH_DEG), aspect=16 / 9)
+
+        assert math.hypot(widest[0, 0], widest[0, 2]) == pytest.approx(2 * RADIUS)
         assert clamp_width(4000.0) == MAX_WIDTH_DEG
-        assert clamp_width(PRIMARY_WIDTH_DEG * 4) == PRIMARY_WIDTH_DEG * 4
+        assert clamp_width(PRIMARY_WIDTH_DEG * 1.5) == PRIMARY_WIDTH_DEG * 1.5
