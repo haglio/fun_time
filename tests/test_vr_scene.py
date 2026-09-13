@@ -11,6 +11,7 @@ from fun_time_vr.scene import (
     RADIUS,
     Placement,
     attached_below,
+    encloses,
     quad_layer_placement,
     surface_vertices,
 )
@@ -205,3 +206,38 @@ class TestAttachedBelow:
         spaced_top = surface_vertices(spaced, aspect=2.0)[:, 1].max()
 
         assert flush_top - spaced_top == pytest.approx(RADIUS * math.radians(1.0), abs=1e-6)
+
+
+class TestOneScreenInsideAnother:
+    _WIDE = Placement(azimuth_deg=0.0, elevation_deg=0.0, width_deg=72.0)
+
+    def _inside(self, inner: Placement, *, inner_aspect: float = 16 / 9,
+                outer: Placement = _WIDE) -> bool:
+        return encloses(outer, inner, outer_aspect=16 / 9, inner_aspect=inner_aspect)
+
+    def test_a_narrower_screen_between_its_sides_is_inside_it(self):
+        assert self._inside(Placement(azimuth_deg=20.0, elevation_deg=0.0, width_deg=20.0))
+        assert not self._inside(Placement(azimuth_deg=30.0, elevation_deg=0.0, width_deg=20.0))
+
+    def test_one_poking_out_above_or_below_is_not_inside_however_narrow(self):
+        assert not self._inside(Placement(azimuth_deg=0.0, elevation_deg=25.0, width_deg=20.0))
+        assert not self._inside(Placement(azimuth_deg=0.0, elevation_deg=0.0, width_deg=30.0),
+                                inner_aspect=9 / 16)
+
+    def test_the_seam_at_the_viewers_back_is_not_an_edge(self):
+        across_the_seam = Placement(azimuth_deg=170.0, elevation_deg=0.0, width_deg=40.0)
+
+        assert self._inside(Placement(azimuth_deg=-175.0, elevation_deg=0.0, width_deg=8.0),
+                            outer=across_the_seam)
+        assert not self._inside(Placement(azimuth_deg=-160.0, elevation_deg=0.0, width_deg=8.0),
+                                outer=across_the_seam)
+
+    def test_a_screen_at_the_viewers_back_is_not_inside_the_one_ahead_of_him(self):
+        """Carried on through the viewer, its corners land in the middle of it."""
+        widest = Placement(azimuth_deg=0.0, elevation_deg=0.0, width_deg=120.0)
+
+        assert not self._inside(Placement(azimuth_deg=180.0, elevation_deg=0.0, width_deg=20.0),
+                                outer=widest)
+
+    def test_the_very_same_rectangle_is_inside_itself(self):
+        assert self._inside(self._WIDE)
