@@ -1222,3 +1222,79 @@ class TestWhatAPreviousSessionLeft:
             orchestrator.run_vr_bridge(config, SessionEnvironment())
 
         assert there_when_it_went_up == [False]
+
+
+def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
+    """Everything a VR launch starts or waits on, faked; the files it writes are real."""
+    import threading
+    from unittest.mock import MagicMock, patch
+
+    stand_ins = dict(
+        open_event_log=MagicMock(),
+        add_dispatch_file_handler=MagicMock(),
+        write_broker_command=MagicMock(),
+        ensure_broker=MagicMock(),
+        reap_orphaned_satellites=MagicMock(),
+        stock_the_playlists=MagicMock(),
+        launch_audio_companion=MagicMock(return_value=MagicMock(pid=101)),
+        launch_vr_player=MagicMock(return_value=MagicMock(pid=202)),
+        get_process_creation_time=MagicMock(return_value=7),
+        _wait_for_player=MagicMock(return_value=True),
+        _wait_for_the_room=MagicMock(),
+        start_hud_priming=MagicMock(return_value=(None, threading.Event())),
+        stop_hotkey_script=MagicMock(side_effect=lambda _proc, _file: torn_down.append("hotkeys")),
+        kill_recorded_child=MagicMock(side_effect=lambda child: torn_down.append(child.pid)),
+        _release_vr_runtime=MagicMock(side_effect=lambda _was_up: torn_down.append("runtime")),
+    )
+    stand_ins.update(overrides)
+    return patch.multiple(orchestrator, **stand_ins)
+
+
+class TestOpeningAVrSession:
+    def test_a_failure_takes_down_what_it_launched_and_gives_the_monitors_back(self, config):
+        from unittest.mock import MagicMock, patch
+
+        from fun_time.session_environment import SessionEnvironment
+        from fun_time.session_handoff import pending_handoff
+        from fun_time_vr import orchestrator
+
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        torn_down: list = []
+
+        with _launch_stand_ins(
+            orchestrator, torn_down,
+            DispatchLoopRunner=MagicMock(side_effect=TypeError("a caller the last refactor missed")),
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"), \
+             pytest.raises(TypeError):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert torn_down == ["hotkeys", 101, 202, "runtime"]
+        assert pending_handoff(config.paths.state_dir) is None
+
+    def test_voice_starts_the_way_a_desktop_session_starts_it(self, config):
+        from unittest.mock import MagicMock, patch
+
+        from fun_time.manifest import LaunchManifest
+        from fun_time.session_environment import SessionEnvironment
+        from fun_time_vr import orchestrator
+
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        runner = MagicMock()
+        start_voice = MagicMock(return_value=(None, None))
+
+        with _launch_stand_ins(
+            orchestrator, [],
+            DispatchLoopRunner=runner,
+            start_voice_control=start_voice,
+            _wait_for_session_end=MagicMock(return_value="ahk"),
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        manifest = LaunchManifest.read(config.paths.state_dir / "windows_bridge_launch.ini")
+        start_voice.assert_called_once_with(
+            manifest.runtime.config_path,
+            dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
+            dispatch_runner=runner.return_value,
+        )
