@@ -1,12 +1,12 @@
 """One painted frame: what the main player puts on top of mpv's video, and in what order.
 
-Four things are drawn every frame -- the timeline along the lower edge, the console
-in the top-left corner, the volume chip above the timeline's right-hand end, and
-the loop's two frames above their marks -- and the order they are built in is
-load-bearing in ways nothing was watching: the heatmap's color row is built at
-the inset track's width and framed at the window's, the room's two files are
-read before anything drawn believes them, and the overlay ids are the z-order
-rather than the call order.
+Five things are drawn every frame -- the timeline along the lower edge, the time
+readout at its left, the console in the top-left corner, the volume chip above the
+timeline's right-hand end, and the loop's two frames above their marks -- and the
+order they are built in is load-bearing in ways nothing was watching: the
+heatmap's color row is built at the inset track's width and framed at the
+window's, the room's two files are read before anything drawn believes them, and
+the overlay ids are the z-order rather than the call order.
 
 The player here is a spy rather than mpv: what reaches it is a list of overlay
 calls, which is exactly what a frame is.
@@ -18,7 +18,8 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import ConsolePainter, ModeHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
-from player_core.timeline import bar_track_x
+from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import VolumeHud
 
 from main_player.overlay import HeatmapStrip, LoopThumbCapture
@@ -36,6 +37,7 @@ class SpyPlayer:
         self.calls: list[tuple] = []
         self.up: dict[int, np.ndarray] = {}
         self._frame = frame
+        self.frame_rate = 30.0
 
     def overlay(self, ident: int, x: int, y: int, bgra) -> None:
         self.calls.append(("overlay", ident, x, y))
@@ -124,17 +126,20 @@ def _paint(painter) -> None:
 
 
 class TestWhatOneFramePutsUp:
-    def test_the_four_overlays_a_frame_owns(self):
-        """Ids 0, 6 and 7 every frame, each at its own place; the loop's two are
-        4 and 5, which is why a frame with no loop takes them down rather than
-        leaving them.  A set, not a list: the ids are the z-order, so the order
-        these three go up in is not the contract -- see the next case for the
+    def test_the_overlays_a_frame_owns(self):
+        """Ids 0, 1, 6 and 7 every frame, each at its own place -- the readout's,
+        1, is measured from its text, and TestTheReadout says where; the loop's
+        two are 4 and 5, which is why a frame with no loop takes them down rather
+        than leaving them.  A set, not a list: the ids are the z-order, so the
+        order these go up in is not the contract -- see the next case for the
         one ordering that is."""
         painter, player = _painter(FakeSession())
 
         _paint(painter)
 
-        assert set(player.calls) == {
+        readout = {call for call in player.calls if call[:2] == ("overlay", 1)}
+        assert len(readout) == 1
+        assert set(player.calls) - readout == {
             ("overlay", 0, 0, 576), ("overlay", 6, 8, 8), ("overlay", 7, 878, 577),
             ("remove", 4), ("remove", 5),
         }
@@ -273,3 +278,26 @@ class TestTheLoopsOwnTwoFrames:
 
         assert [c for c in player.calls if c[0] == "remove"] == [
             ("remove", 4), ("remove", 5)]
+
+
+class TestTheReadout:
+    def test_it_goes_up_against_the_start_of_the_track(self):
+        player = SpyPlayer()
+        painter, _player = _painter(FakeSession(scripted=False), player=player)
+
+        _paint(painter)
+
+        pill = PlayheadHudPainter().bgra(video_playhead(2000.0, 4000.0, 30.0))
+        at = readout_xy(pill.shape[1], win_w=WIN_W, win_h=WIN_H, timeline_h=TIMELINE_HEIGHT)
+        shown = [ident for kind, ident, *xy in player.calls
+                 if kind == "overlay" and tuple(xy) == at]
+        assert shown and np.array_equal(player.up[shown[-1]], pill)
+
+    def test_a_video_whose_length_is_not_known_yet_takes_its_readout_down(self):
+        session = FakeSession(scripted=False)
+        session.duration_ms = 0.0
+        painter, player = _painter(session)
+
+        _paint(painter)
+
+        assert ("remove", 1) in player.calls

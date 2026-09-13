@@ -1,10 +1,10 @@
 """What the main player draws on top of mpv's video, and in what order.
 
 mpv owns the window and hardware-decodes the video; everything the main player shows is an
-overlay bitmap on top of it, updated in place under a stable id.  Four things,
-every painted frame: the timeline along the lower edge, the console in the top-left
-corner, the volume chip above the timeline's right-hand end, and the loop's two
-frames above their marks.
+overlay bitmap on top of it, updated in place under a stable id.  Five things,
+every painted frame: the timeline along the lower edge, the time readout at its
+left, the console in the top-left corner, the volume chip above the timeline's
+right-hand end, and the loop's two frames above their marks.
 
 The order they are built in carries three rules that nothing outside this module
 can see:
@@ -26,6 +26,7 @@ without a window and libmpv, so none of the three had a test.
 from __future__ import annotations
 
 from player_core.console_hud import ConsoleHud, hud_xy, with_playback_speed
+from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import bar_track_x, progress_bar_bgra
 from player_core.volume import VolumeHudPainter, chip_xy
 
@@ -33,12 +34,14 @@ from .overlay import heatmap_bgra, loop_thumbnail_xys, timeline_height
 
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
+_OV_READOUT = 1
 _OV_IN_THUMB = 4
 _OV_OUT_THUMB = 5
 _OV_CONSOLE = 6
 _OV_VOLUME = 7
 # Every one of the above: what a blanked display takes down with the video.
-HUD_OVERLAYS = (_OV_HEATMAP, _OV_IN_THUMB, _OV_OUT_THUMB, _OV_CONSOLE, _OV_VOLUME)
+HUD_OVERLAYS = (_OV_HEATMAP, _OV_READOUT, _OV_IN_THUMB, _OV_OUT_THUMB, _OV_CONSOLE,
+                _OV_VOLUME)
 
 
 class ConsolePanel:
@@ -92,11 +95,13 @@ class Painter:
         # Its own, because nothing else draws the chip; built once rather than
         # per frame, because it keeps the bitmap until the level moves.
         self._volume_painter = VolumeHudPainter()
+        self._readout_painter = PlayheadHudPainter()
 
     def paint(self, win_w: int, win_h: int, *, hover) -> None:
         """Put this frame's overlays up.  *hover* is where the pointer is, which
         is the one thing drawn here that the mouse owns rather than the player."""
         self._timeline(win_w, win_h)
+        self._readout(win_w, win_h)
         self._panel(hover)
         self._chip(win_w, win_h)
         self._loop_frames(win_w, win_h)
@@ -122,6 +127,17 @@ class Painter:
                 win_w, record_in_ms=session.record_in_ms,
             )
         self._player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
+
+    def _readout(self, win_w: int, win_h: int) -> None:
+        session = self._session
+        hud = video_playhead(session.position_ms, session.duration_ms, self._player.frame_rate)
+        if hud is None:
+            self._player.remove_overlay(_OV_READOUT)
+            return
+        pill = self._readout_painter.bgra(hud)
+        x, y = readout_xy(pill.shape[1], win_w=win_w, win_h=win_h,
+                          timeline_h=timeline_height(self._heatmap))
+        self._player.overlay(_OV_READOUT, x, y, pill)
 
     def _panel(self, hover) -> None:
         left, top = hud_xy()

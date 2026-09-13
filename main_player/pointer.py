@@ -1,9 +1,9 @@
 """What the mouse does to the main player's window.
 
-Four things are under the pointer, and they are asked in this order because each
-floats over the one under it: the console at the top left, the
-volume chip at the right-hand end of the timeline row, the rest of that row, and
-the video everywhere else.
+Five things are under the pointer, and they are asked in this order because each
+floats over the one under it: the console at the top left, the volume chip at the
+right-hand end of the timeline row, the time readout at its left, the rest of that
+row, and the video everywhere else.
 
 A press on the console never reaches the video; a press on the chip
 is never also a press on what is under it.  A drag is different again — the
@@ -19,6 +19,7 @@ green.
 """
 from __future__ import annotations
 
+from player_core.playhead import on_readout
 from player_core.timeline import bar_track_x
 
 from .overlay import timeline_height
@@ -56,6 +57,8 @@ class Pointer:
             return
         row_h = timeline_height(self._heatmap)
         if self._volume.press_at(mx, my, win_w=win_w, win_h=win_h, timeline_h=row_h):
+            return
+        if on_readout(mx, my, win_w=win_w, win_h=win_h, timeline_h=row_h):
             return
         if my >= win_h - row_h:
             self._session.seek_to(self._time_at(mx, win_w))
