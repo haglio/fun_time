@@ -262,12 +262,49 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     unit.player = player
     unit._scrubber_shown = None
     unit._chip_shown = None
+    unit._readout_shown = None
+    unit._readout_painter = PlayheadHudPainter()
     # A target that already holds pixels; the GL half is the integration
     # suite's, and overlay_furniture reads only these three fields of it.
     unit.target = SimpleNamespace(ready=True, width=width, height=height,
                                  aspect=width / height)
     unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
     return unit, player
+
+
+def test_the_readout_goes_up_beside_the_scrubber_at_the_controls_own_size():
+    unit, player = _unit_with_pixels()
+    playhead = video_playhead(1_000.0, 600_000.0, 30.0)
+
+    unit.overlay_readout(playhead)
+
+    width, height = unit.control_size()
+    pill = PlayheadHudPainter().bgra(playhead)
+    x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
+    factor = unit.target.width / width
+    assert any((ox, oy) == (round(x * factor), round(y * factor))
+               for _ident, ox, oy in player.overlays)
+
+
+def test_a_readout_that_has_not_moved_is_not_put_up_again():
+    """The pump asks every tick, and a paused video's readout holds still."""
+    unit, player = _unit_with_pixels()
+    playhead = video_playhead(1_000.0, 600_000.0, 30.0)
+
+    unit.overlay_readout(playhead)
+    unit.overlay_readout(playhead)
+
+    assert len(player.overlays) == 1
+
+
+def test_a_video_that_wraps_the_viewer_takes_its_readout_off_with_the_row():
+    unit, player = _unit_with_pixels()
+    unit.overlay_furniture(1_000.0, 600_000.0, VolumeHud(), VolumeHudPainter())
+    unit.overlay_readout(video_playhead(1_000.0, 600_000.0, 30.0))
+
+    unit.clear_furniture()
+
+    assert set(player.removed) == {ident for ident, _x, _y in player.overlays}
 
 
 def test_the_row_comes_off_the_frame_of_a_video_that_wraps_the_viewer():
