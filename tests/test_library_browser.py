@@ -1,14 +1,17 @@
 """The main library browser — folder tiles you walk, then the videos inside."""
 from __future__ import annotations
 
+import re
+import string
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
 from PIL import Image
 from PyQt6.QtCore import QEvent, QPointF, Qt
-from PyQt6.QtGui import QKeyEvent, QMouseEvent
+from PyQt6.QtGui import QKeyEvent, QMouseEvent, QTextDocumentFragment
 from PyQt6.QtWidgets import QAbstractItemView, QApplication, QListWidget
+from shared_ui.colors import TEXT_MUTED, TEXT_PRIMARY
 
 from fun_time import load_config
 from fun_time.library_browser import (
@@ -16,7 +19,7 @@ from fun_time.library_browser import (
     ICON_WIDTH,
     NON_LETTER_HEADING,
     SIDEBAR_WIDTH,
-    WINDOW_TITLE,
+    TOP_LEVEL_NAME,
     IndexLine,
     LibraryBrowserWindow,
     alphabetical_index,
@@ -41,6 +44,34 @@ def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
 
 def _labels(view: QListWidget) -> list[str]:
     return [view.item(row).text() for row in range(view.count())]
+
+
+def _letter_row(index, letter: str) -> int:
+    return index.lines.index(IndexLine(letter))
+
+
+def _shown_names(index) -> list[str]:
+    return [
+        index.item(row).text() for row, line in enumerate(index.lines)
+        if not line.is_heading and not index.isRowHidden(row)
+    ]
+
+
+def _filed(index) -> list[str]:
+    lines = index.lines
+    return [
+        line.label for row, line in enumerate(lines)
+        if not line.is_heading or (row + 1 < len(lines) and not lines[row + 1].is_heading)
+    ]
+
+
+def _header_links(window) -> dict[str, str]:
+    anchors = re.findall(r'<a href="([^"]*)"[^>]*>([^<]*)</a>', window.header.text())
+    return {label: href for href, label in anchors}
+
+
+def _header_words(window) -> str:
+    return QTextDocumentFragment.fromHtml(window.header.text()).toPlainText()
 
 
 def _click(view: QAbstractItemView, row: int) -> None:
@@ -187,7 +218,7 @@ def test_a_browse_opens_where_the_session_already_is(browser, tmp_path: Path):
         playing="C:/videos/big_batch/beta.mp4",
     )
 
-    assert window.windowTitle() == f"{WINDOW_TITLE} — big_batch/whole"
+    assert _header_words(window) == "Library / big_batch / whole"
     assert window.grid.rows[window.grid.currentRow()] == handles[1]
 
 
@@ -207,6 +238,7 @@ def test_a_browse_opens_with_the_index_standing_on_it_too(browser, tmp_path: Pat
     )
 
     assert window.index.currentItem().text() == "Zulu Scene"
+    assert _shown_names(window.index) == ["Zulu Scene"]
     assert window.grid.rows[window.grid.currentRow()] == handles[2]
 
 
@@ -256,7 +288,7 @@ def test_a_video_the_library_does_not_hold_opens_at_the_top(browser, tmp_path: P
         playing="C:/elsewhere/something.mp4",
     )
 
-    assert window.windowTitle() == WINDOW_TITLE
+    assert _header_words(window) == TOP_LEVEL_NAME
     assert all(isinstance(what, SubFolder) for what in window.grid.rows)
 
 
@@ -264,7 +296,7 @@ def test_a_browse_with_nothing_playing_opens_at_the_top(browser, tmp_path: Path)
     handles = [_handle("Beta Scene", "C:/videos/big_batch/beta.mp4", section="big_batch")]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None, playing="")
 
-    assert window.windowTitle() == WINDOW_TITLE
+    assert _header_words(window) == TOP_LEVEL_NAME
     assert all(isinstance(what, SubFolder) for what in window.grid.rows)
 
 
@@ -350,7 +382,35 @@ def test_the_browser_keeps_out_of_the_taskbar(browser, tmp_path: Path):
     assert window.windowFlags() & Qt.WindowType.Tool
 
 
-def test_the_title_says_which_folder_is_open(browser, tmp_path: Path):
+def test_the_folder_open_is_named_across_the_top(browser, tmp_path: Path):
+    window = browser(
+        [_handle("Excerpt 1", section="big_batch/cuts")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+    window.resize(900, 600)
+
+    window.open_folder(("big_batch", "cuts"))
+    window.layout().activate()
+
+    assert _header_words(window) == "Library / big_batch / cuts"
+    assert window.header.geometry().top() == 0
+    assert window.header.geometry().width() == window.width()
+    assert window.header.height() <= window.index.geometry().top()
+    assert window.header.height() <= window.grid.geometry().top()
+
+
+def test_the_top_level_is_named_as_the_library(browser, tmp_path: Path):
+    window = browser(
+        [_handle("Excerpt 1", section="big_batch/cuts")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+
+    assert _header_words(window) == TOP_LEVEL_NAME
+
+
+def test_the_folder_you_are_in_is_named_but_not_a_link(browser, tmp_path: Path):
     window = browser(
         [_handle("Excerpt 1", section="big_batch/cuts")],
         thumbnail_cache=tmp_path,
@@ -359,7 +419,20 @@ def test_the_title_says_which_folder_is_open(browser, tmp_path: Path):
 
     window.open_folder(("big_batch", "cuts"))
 
-    assert window.windowTitle().endswith("big_batch/cuts")
+    assert list(_header_links(window)) == [TOP_LEVEL_NAME, "big_batch"]
+
+
+def test_each_folder_above_the_one_open_is_a_link_back_to_it(browser, tmp_path: Path):
+    window = browser(
+        [_handle("Excerpt 1", section="big_batch/cuts")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+    window.open_folder(("big_batch", "cuts"))
+
+    window.header.linkActivated.emit(_header_links(window)["big_batch"])
+
+    assert _labels(window.grid) == ["all folders", "cuts  (1)"]
 
 
 # --- the alphabetical sidebar -------------------------------------------------
@@ -378,7 +451,7 @@ def test_the_sidebar_lists_the_folders_videos_under_a_heading_per_letter(browser
 
     window.open_folder(("main",))
 
-    assert _labels(window.index) == ["A", "Alpha Scene", "Another Scene", "B", "Beta Scene"]
+    assert _filed(window.index) == ["A", "Alpha Scene", "Another Scene", "B", "Beta Scene"]
 
 
 def test_the_sidebar_is_alphabetical_where_the_grid_is_ranked(browser, tmp_path: Path):
@@ -399,7 +472,7 @@ def test_the_sidebar_is_alphabetical_where_the_grid_is_ranked(browser, tmp_path:
     )
 
     assert _labels(window.grid) == ["big_batch  (2)", "small_batch  (1)"]
-    assert _labels(window.index) == ["B", "big_batch", "S", "small_batch"]
+    assert _filed(window.index) == ["B", "big_batch", "S", "small_batch"]
 
 
 def test_a_heading_is_not_something_the_arrows_can_land_on(browser, tmp_path: Path):
@@ -412,8 +485,9 @@ def test_a_heading_is_not_something_the_arrows_can_land_on(browser, tmp_path: Pa
         [_handle("Alpha Scene", section="main")], thumbnail_cache=tmp_path, on_pick=lambda _v: None,
     )
     window.open_folder(("main",))
+    letter = _letter_row(window.index, "A")
 
-    heading, name = window.index.item(0), window.index.item(1)
+    heading, name = window.index.item(letter), window.index.item(letter + 1)
 
     assert heading.flags() == Qt.ItemFlag.NoItemFlags
     assert name.flags() & Qt.ItemFlag.ItemIsSelectable
@@ -433,7 +507,7 @@ def test_a_name_with_no_letter_to_file_under_goes_to_the_hash_heading(browser, t
 
     window.open_folder(("main",))
 
-    assert _labels(window.index) == [
+    assert _filed(window.index) == [
         NON_LETTER_HEADING, "2 Scene", "[bracketed] Scene", "A", "Alpha Scene",
     ]
 
@@ -449,7 +523,7 @@ def test_the_way_back_is_not_in_the_sidebar(browser, tmp_path: Path):
     window.open_folder(("big_batch", "cuts"))
 
     assert _labels(window.grid) == ["back", "Alpha Scene"]
-    assert _labels(window.index) == ["A", "Alpha Scene"]
+    assert _filed(window.index) == ["A", "Alpha Scene"]
 
 
 def test_the_sidebar_follows_the_folder_that_is_open(browser, tmp_path: Path):
@@ -461,11 +535,11 @@ def test_the_sidebar_follows_the_folder_that_is_open(browser, tmp_path: Path):
         thumbnail_cache=tmp_path,
         on_pick=lambda _v: None,
     )
-    assert _labels(window.index) == ["B", "big_batch", "S", "small_batch"]
+    assert _filed(window.index) == ["B", "big_batch", "S", "small_batch"]
 
     window.open_folder(("small_batch",))
 
-    assert _labels(window.index) == ["M", "Mike Scene"]
+    assert _filed(window.index) == ["M", "Mike Scene"]
 
 
 def test_choosing_a_name_moves_the_grid_to_it(browser, tmp_path: Path):
@@ -495,36 +569,149 @@ def test_clicking_a_letter_moves_the_grid_to_where_that_letter_starts(
     window.resize(900, 600)
     window.open_folder(("main",))
 
-    _click(window.index, _labels(window.index).index("Z"))
+    _click(window.index, _letter_row(window.index, "Z"))
 
     assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
     assert window.index.currentItem().text() == "Zulu Scene"
 
 
-def test_clicking_a_letter_takes_the_grid_back_after_it_has_wandered(
+def test_reopening_a_letter_takes_the_grid_back_after_it_has_wandered(
     browser, tmp_path: Path,
 ):
-    """The grid has a selection of its own, and it moves on its own — so a
-    second click on the same letter must bring it back, though the index has
-    not moved and Qt reports no change of current row."""
+    """The grid has a selection of its own, and it moves on its own — so opening
+    the same letter again must bring it back, though the index has not moved
+    and Qt reports no change of current row."""
     handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.resize(900, 600)
     window.open_folder(("main",))
-    _click(window.index, _labels(window.index).index("Z"))
+    _click(window.index, _letter_row(window.index, "Z"))
     window.grid.setCurrentRow(window.grid.rows.index(handles[0]))
+    _click(window.index, _letter_row(window.index, "Z"))
 
-    _click(window.index, _labels(window.index).index("Z"))
+    _click(window.index, _letter_row(window.index, "Z"))
 
     assert window.grid.rows[window.grid.currentRow()].title == "Zulu Scene"
 
 
-def test_clicking_a_name_still_selects_it(browser, tmp_path: Path):
-    """The press only answers a heading; on a name it is Qt's to handle."""
-    handles = [_handle("Alpha Scene", section="main"), _handle("Zulu Scene", section="main")]
+def test_every_letter_is_listed_even_with_nothing_under_it(browser, tmp_path: Path):
+    window = browser(
+        [_handle("Alpha Scene", section="main"), _handle("Charlie Scene", section="main")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+
+    window.open_folder(("main",))
+
+    letters = [
+        window.index.item(row).text().split()[0]
+        for row, line in enumerate(window.index.lines) if line.is_heading
+    ]
+    assert letters == [NON_LETTER_HEADING, *string.ascii_uppercase]
+
+
+def test_a_folder_opens_its_sidebar_on_the_letters_alone(browser, tmp_path: Path):
+    window = browser(
+        [
+            _handle("Alpha Scene", section="big_batch"),
+            _handle("Beta Scene", section="big_batch"),
+            _handle("Mike Scene", section="small_batch"),
+        ],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+    window.resize(900, 600)
+    _click(window.index, _letter_row(window.index, "B"))
+
+    window.open_folder(("big_batch",))
+
+    assert _shown_names(window.index) == []
+
+
+def test_clicking_a_letter_opens_its_names_and_closes_the_letter_open_before(
+    browser, tmp_path: Path,
+):
+    handles = [
+        _handle("Alpha Scene", section="main"),
+        _handle("Another Scene", section="main"),
+        _handle("Beta Scene", section="main"),
+    ]
     window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
     window.resize(900, 600)
     window.open_folder(("main",))
+
+    _click(window.index, _letter_row(window.index, "A"))
+    assert _shown_names(window.index) == ["Alpha Scene", "Another Scene"]
+
+    _click(window.index, _letter_row(window.index, "B"))
+    assert _shown_names(window.index) == ["Beta Scene"]
+
+
+def test_a_letter_says_whether_it_is_open_closed_or_empty(browser, tmp_path: Path):
+    window = browser(
+        [_handle("Alpha Scene", section="main"), _handle("Charlie Scene", section="main")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+    window.resize(900, 600)
+    window.open_folder(("main",))
+
+    _click(window.index, _letter_row(window.index, "A"))
+
+    assert [window.index.item(_letter_row(window.index, letter)).text() for letter in "ABC"] == [
+        "A ▾", "B", "C ▸",
+    ]
+
+
+def test_a_letter_with_nothing_under_it_is_grayed_out(browser, tmp_path: Path):
+    window = browser(
+        [_handle("Alpha Scene", section="main"), _handle("Charlie Scene", section="main")],
+        thumbnail_cache=tmp_path,
+        on_pick=lambda _v: None,
+    )
+
+    window.open_folder(("main",))
+
+    color = {
+        letter: window.index.item(_letter_row(window.index, letter)).foreground().color().name()
+        for letter in "ABC"
+    }
+    assert color == {"A": TEXT_PRIMARY.name(), "B": TEXT_MUTED.name(), "C": TEXT_PRIMARY.name()}
+
+
+def test_clicking_a_letter_with_nothing_under_it_changes_nothing(browser, tmp_path: Path):
+    handles = [_handle("Alpha Scene", section="main"), _handle("Charlie Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+    _click(window.index, _letter_row(window.index, "C"))
+
+    _click(window.index, _letter_row(window.index, "B"))
+
+    assert _shown_names(window.index) == ["Charlie Scene"]
+    assert window.index.item(_letter_row(window.index, "B")).text() == "B"
+    assert window.grid.rows[window.grid.currentRow()] == handles[1]
+
+
+def test_clicking_the_open_letter_closes_it(browser, tmp_path: Path):
+    handles = [_handle("Alpha Scene", section="main"), _handle("Beta Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+    _click(window.index, _letter_row(window.index, "A"))
+
+    _click(window.index, _letter_row(window.index, "A"))
+
+    assert _shown_names(window.index) == []
+
+
+def test_clicking_a_name_still_selects_it(browser, tmp_path: Path):
+    """The press only answers a heading; on a name it is Qt's to handle."""
+    handles = [_handle("Zebra Scene", section="main"), _handle("Zulu Scene", section="main")]
+    window = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    window.resize(900, 600)
+    window.open_folder(("main",))
+    _click(window.index, _letter_row(window.index, "Z"))
 
     _click(window.index, _labels(window.index).index("Zulu Scene"))
 
@@ -555,8 +742,8 @@ def test_activating_a_folder_in_the_sidebar_walks_into_it(browser, tmp_path: Pat
 
     window.index.itemActivated.emit(window.index.item(_labels(window.index).index("big_batch")))
 
-    assert window.windowTitle().endswith("big_batch")
-    assert _labels(window.index) == ["A", "Alpha Scene"]
+    assert _header_words(window) == "Library / big_batch"
+    assert _filed(window.index) == ["A", "Alpha Scene"]
 
 
 def test_backspace_from_the_sidebar_goes_back_up_too(browser, tmp_path: Path):
@@ -577,13 +764,27 @@ def test_a_letter_group_holds_every_name_that_starts_with_it():
     """Case is not a group of its own: one A heading covers "alpha" and "Alpha"."""
     rows = [_handle("beta"), _handle("Alpha"), _handle("alpha two"), _handle("Beta Two")]
 
-    assert alphabetical_index(rows) == [
+    lines = alphabetical_index(rows)
+
+    assert lines[lines.index(IndexLine("A")):lines.index(IndexLine("C"))] == [
         IndexLine("A"),
         IndexLine("Alpha", 1),
         IndexLine("alpha two", 2),
         IndexLine("B"),
         IndexLine("beta", 0),
         IndexLine("Beta Two", 3),
+    ]
+
+
+def test_names_that_sort_past_the_letters_still_file_under_the_one_hash():
+    rows = [_handle("~tilde scene"), _handle("2 scene"), _handle("alpha")]
+
+    lines = alphabetical_index(rows)
+
+    assert lines.count(IndexLine(NON_LETTER_HEADING)) == 1
+    start = lines.index(IndexLine(NON_LETTER_HEADING))
+    assert lines[start:start + 3] == [
+        IndexLine(NON_LETTER_HEADING), IndexLine("2 scene", 1), IndexLine("~tilde scene", 0),
     ]
 
 
@@ -602,9 +803,12 @@ def test_a_long_title_stays_inside_the_sidebar(browser, tmp_path: Path):
     window.open_folder(("main",))
     window.resize(900, 500)
     window.show()
+    title_row = _letter_row(window.index, "E") + 1
+    _click(window.index, title_row - 1)
 
     try:
-        assert window.index.visualItemRect(window.index.item(1)).width() <= SIDEBAR_WIDTH
+        assert not window.index.isRowHidden(title_row)
+        assert window.index.visualItemRect(window.index.item(title_row)).width() <= SIDEBAR_WIDTH
         assert window.index.horizontalScrollBar().maximum() == 0, "nothing to scroll across"
     finally:
         window.close()
