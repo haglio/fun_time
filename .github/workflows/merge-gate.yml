@@ -24,7 +24,6 @@ jobs:
       sdl-video: dummy
       sdl-audio: dummy
       extras: "dev,windows"
-      reverse: false
       prepare: |
         set -euo pipefail
         get_url() {
@@ -61,4 +60,3 @@ jobs:
       qt-platform: offscreen
       sdl-video: dummy
       sdl-audio: dummy
-      reverse: false
