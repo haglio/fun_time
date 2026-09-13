@@ -14,7 +14,7 @@ from player_core.drive_readout import DriveHud, drive_text
 
 from main_player.published import Published
 
-GENAU_MODE = "genau"
+BROKER_MODE = "genau"
 VIDEO_MODE = "video"
 
 
@@ -39,42 +39,42 @@ def files(tmp_path: Path) -> tuple[Path, Path]:
 class TestReadingTheConsole:
     def test_what_fun_time_said_is_what_the_panel_shows(self, files):
         console_file, drive_file = files
-        _console_file(console_file, GENAU_MODE)
+        _console_file(console_file, BROKER_MODE)
         published = Published(console_file, drive_file)
 
         published.refresh()
 
-        assert published.console.mode == GENAU_MODE
+        assert published.console.mode == BROKER_MODE
 
     def test_a_torn_read_keeps_the_panel_that_was_there(self, files):
         """Fun Time replaces this file while the player polls it, so a lost race
         must not empty the panel for a frame."""
         console_file, drive_file = files
-        _console_file(console_file, GENAU_MODE)
+        _console_file(console_file, BROKER_MODE)
         published = Published(console_file, drive_file)
         published.refresh()
 
         console_file.write_text("{ half a fi", encoding="utf-8")
         published.refresh()
 
-        assert published.console.mode == GENAU_MODE
+        assert published.console.mode == BROKER_MODE
 
     def test_a_file_that_vanished_keeps_it_too(self, files):
         console_file, drive_file = files
-        _console_file(console_file, GENAU_MODE)
+        _console_file(console_file, BROKER_MODE)
         published = Published(console_file, drive_file)
         published.refresh()
 
         console_file.unlink()
         published.refresh()
 
-        assert published.console.mode == GENAU_MODE
+        assert published.console.mode == BROKER_MODE
 
 
 class TestReadingTheMotion:
     def test_genaus_own_readout_arrives_while_it_is_driving(self, files):
         console_file, drive_file = files
-        _console_file(console_file, GENAU_MODE)
+        _console_file(console_file, BROKER_MODE)
         _drive_file(drive_file, position=4_000)
         published = Published(console_file, drive_file)
 
@@ -85,7 +85,7 @@ class TestReadingTheMotion:
 
     def test_a_torn_read_keeps_the_motion_that_was_there(self, files):
         console_file, drive_file = files
-        _console_file(console_file, GENAU_MODE)
+        _console_file(console_file, BROKER_MODE)
         _drive_file(drive_file, position=4_000)
         published = Published(console_file, drive_file)
         published.refresh()
