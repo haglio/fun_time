@@ -17,4 +17,5 @@ def status_fields(session) -> dict[str, str]:
         "duration_ms": str(int(session.duration_ms)),
         "paused": "1" if session.is_paused else "0",
         "locked": "1" if session.is_locked else "0",
+        "playlist_length": str(session.playlist_length),
     }

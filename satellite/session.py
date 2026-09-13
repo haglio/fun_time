@@ -64,6 +64,10 @@ class SatelliteSession:
         return list(self._playlist)
 
     @property
+    def playlist_length(self) -> int:
+        return len(self._playlist)
+
+    @property
     def position_ms(self) -> float:
         return self._player.position_ms
 
