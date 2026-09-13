@@ -14,6 +14,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from player_core.modes import NoticeLevel
 from player_core.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
@@ -126,10 +127,10 @@ class ClipJumps:
         """Reorder the playlist to just the current clip's compilation, in order."""
         current = self._session.current_video
         if not self._enter(current):
-            self._notices.say("not a compilation clip", level="warning")
+            self._notices.say("not a compilation clip", level=NoticeLevel.WARNING)
             return
         self._notices.say(
-            f"compilation: {len(self._session.playlist)} clips", level="notice")
+            f"compilation: {len(self._session.playlist)} clips", level=NoticeLevel.NOTICE)
 
     def _enter(self, current: Path) -> bool:
         """Put *current*'s compilation in the playlist around it, if it has one.
@@ -160,7 +161,7 @@ class ClipJumps:
         """
         if target is None:
             logger.info("%s: nothing matches %s", what, self._session.current_video.name)
-            self._notices.say(f"{what} not available", level="warning")
+            self._notices.say(f"{what} not available", level=NoticeLevel.WARNING)
             return
         self._session.play_file(self._item(target))
-        self._notices.say(what, level="notice")
+        self._notices.say(what, level=NoticeLevel.NOTICE)
