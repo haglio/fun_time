@@ -37,8 +37,7 @@ class SatelliteState:
     locked: bool = False
     # This satellite's metadata filter query ("" = none), honored by later rebuilds.
     filter: str = ""
-    # Per player, because each HUD carries its own F button and F-mode narrows
-    # each of the three to something different: here, to the favorites.
+    # Per player, because each HUD carries its own F button; here it keeps the favorites.
     favorites_filter: bool = False
     # Newest-first ("Latest") when set, else shuffled.  Read by every later
     # rebuild, so the satellite reloads the same way.
@@ -64,8 +63,6 @@ class SatelliteState:
 
 
 def _satellite_key(name: str, player: Player) -> str:
-    """The INI key one satellite's *name* value is written under: the player's
-    name, then the field's."""
     return f"{player.label}_{name}"
 
 
@@ -183,9 +180,8 @@ def _read_satellite(section, player: Player) -> SatelliteState:
 
 def _read_back(written: str | None, default: bool | int | str) -> bool | int | str:
     """One value off the file, read as the type of *default* says.  An absent key,
-    a malformed number or a mode word this app does not know is that default, so
-    a file written before the field existed -- or hand-edited since -- is still
-    a session to come back to."""
+    a malformed number or an unknown mode word is that default, so a file written
+    before the field existed -- or hand-edited since -- is still a session."""
     if isinstance(default, bool):
         return written == "1"
     if written is None:
@@ -198,6 +194,42 @@ def _read_back(written: str | None, default: bool | int | str) -> bool | int | s
         except ValueError:
             return default
     return written
+
+
+# The keys this file carried until 2026-09-13, and what each became.
+_LAST_SESSIONS_KEYS = {
+    "locked2": "portrait_locked",
+    "locked3": "landscape_locked",
+    "active_side": "active_player",
+    "main_f_mode": "main_scripted_filter",
+    "portrait_f_mode": "portrait_favorites_filter",
+    "landscape_f_mode": "landscape_favorites_filter",
+}
+
+
+def migrate_shared_state(state_file: Path) -> bool:
+    """Rewrite *state_file* from last session's key spelling into today's, once,
+    at the startup that first reads it; the reader knows one spelling.  Returns
+    whether anything was rewritten."""
+    if not state_file.exists():
+        return False
+    parser = configparser.ConfigParser()
+    parser.optionxform = str
+    parser.read(str(state_file), encoding="utf-8")
+    if "state" not in parser:
+        return False
+    section = parser["state"]
+    old_keys = [old for old in _LAST_SESSIONS_KEYS if old in section]
+    if not old_keys:
+        return False
+    for old in old_keys:
+        section.setdefault(_LAST_SESSIONS_KEYS[old], section[old])
+        del section[old]
+    tmp = state_file.with_suffix(".tmp")
+    with tmp.open("w", encoding="utf-8") as fp:
+        parser.write(fp)
+    tmp.replace(state_file)
+    return True
 
 
 def read_shared_state(state_file: Path) -> BridgeState | None:
