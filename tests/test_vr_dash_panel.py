@@ -99,6 +99,36 @@ class TestItIsTheDesktopsBar:
         assert row[2] == ":" and row[5] == ":"  # a clock leads
 
 
+class TestItIsOneRow:
+    def test_the_bar_the_dial_and_the_windows_run_along_one_row(self):
+        from itertools import pairwise
+
+        from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_PAD_H_TIGHT
+
+        from fun_time.dashboard_actions import EXIT_VR, FMODE_TOGGLE
+        from fun_time.dashboard_layout import PAD
+        from fun_time_vr.dash_panel import _SMALL_PX, _font
+
+        bar = compute_dashboard_bar_layout()
+        actions = dash_actions()
+        buttons = [actions[action] for action in (
+            QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE, FMODE_TOGGLE, EXIT_VR)]
+        dial = actions[VERBOSITY_CHIP]
+        chips = [actions[source] for source in SOURCES]
+        row = (*buttons, dial, *chips)
+
+        assert {rect.y for rect in row} == {bar.quit_button.y}
+        assert {rect.height for rect in row} == {BUTTON_SIZE_HUD}
+        assert dial.x == buttons[-1].x + buttons[-1].width + BUTTON_GROUP_GAP
+        assert chips[0].x == dial.x + dial.width + BUTTON_GROUP_GAP
+        assert all(right.x == left.x + left.width + BUTTON_GAP
+                   for left, right in pairwise(chips))
+        assert chips[-1].x + chips[-1].width + PAD == DASH_WIDTH_PX
+        for source, chip in zip(SOURCES, chips, strict=True):
+            label = int(_font(_SMALL_PX).getlength(SOURCE_LABELS[source]))
+            assert chip.width == label + 2 * BUTTON_PAD_H_TIGHT, source
+
+
 class TestWhatAPressDoes:
     def test_a_control_posts_the_command_the_desktop_posts(self):
         pointer, posted = _pointer()

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, replace
+from functools import cache
 
 from PIL import Image, ImageDraw, ImageFont
 from shared_ui.icons_pil import glyph_image
@@ -26,11 +27,11 @@ from shared_ui.palette import (
 )
 from shared_ui.spacing import (
     BUTTON_GAP,
+    BUTTON_GROUP_GAP,
     BUTTON_ICON,
     BUTTON_PAD_H_TIGHT,
     BUTTON_RADIUS,
     BUTTON_SIZE_HUD,
-    BUTTON_WORD_W,
 )
 
 from fun_time.dashboard_actions import (
@@ -41,7 +42,7 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     VOICE_TOGGLE,
 )
-from fun_time.dashboard_layout import Rect, compute_dashboard_bar_layout
+from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.event_log import (
     LEVEL_NAMES,
     LEVELS_BY_NAME,
@@ -52,13 +53,6 @@ from fun_time.event_log import (
 
 from .console_panel import level_color
 
-# Wider than the console: a log row says a clock, a source and a message.
-DASH_WIDTH_PX = 560
-
-_PAD = 10
-_CHIP_H = BUTTON_SIZE_HUD
-_CHIP_GAP = 6
-_CHIP_W = BUTTON_WORD_W
 _DIAL_W = 92  # the name and the arrow beside it
 _ARROW_PX = 10
 _ROW_H = 16
@@ -72,6 +66,7 @@ VERBOSITY_CHIP = "dash_verbosity"
 VERBOSITY_STOP = "dash_verbosity:"
 
 
+@cache
 def _font(px: int) -> ImageFont.FreeTypeFont:
     try:
         return ImageFont.truetype("segoeuib.ttf", px)
@@ -104,21 +99,28 @@ def format_row(record: EventRecord) -> str:  # the desktop panel's own shape
     return f"{clock}  {record.source:<9}  {record.message}"
 
 
-def source_chips(top: int) -> dict[str, Rect]:  # left to right, in SOURCES order
+def dial_rect() -> Rect:
+    bar = compute_dashboard_bar_layout()
+    return Rect(bar.width, bar.quit_button.y, _DIAL_W, BUTTON_SIZE_HUD)
+
+
+def source_chips() -> dict[str, Rect]:  # left to right, in SOURCES order
+    dial = dial_rect()
     chips: dict[str, Rect] = {}
-    x = _PAD
+    x = dial.x + dial.width + BUTTON_GROUP_GAP
     for source in SOURCES:
-        chips[source] = Rect(x, top, _CHIP_W, _CHIP_H)
-        x += _CHIP_W + _CHIP_GAP
+        width = int(_font(_SMALL_PX).getlength(SOURCE_LABELS[source])) + 2 * BUTTON_PAD_H_TIGHT
+        chips[source] = Rect(x, dial.y, width, BUTTON_SIZE_HUD)
+        x += width + BUTTON_GAP
     return chips
 
 
-def _chips_top() -> int:
-    return compute_dashboard_bar_layout().height + _CHIP_GAP
+def _row_end() -> int:
+    last = list(source_chips().values())[-1]
+    return last.x + last.width
 
 
-def dial_rect() -> Rect:
-    return Rect(DASH_WIDTH_PX - _PAD - _DIAL_W, _chips_top(), _DIAL_W, _CHIP_H)
+DASH_WIDTH_PX = _row_end() + PAD
 
 
 def dial_stops() -> dict[str, Rect]:
@@ -126,7 +128,7 @@ def dial_stops() -> dict[str, Rect]:
     dial = dial_rect()
     return {
         f"{VERBOSITY_STOP}{name}": Rect(
-            dial.x, dial.y + dial.height + index * _CHIP_H, _DIAL_W, _CHIP_H)
+            dial.x, dial.y + (index + 1) * dial.height, dial.width, dial.height)
         for index, name in enumerate(LEVEL_NAMES)
     }
 
@@ -147,14 +149,18 @@ def dash_actions(*, dial_open: bool = False) -> dict[str, Rect]:
     bar = compute_dashboard_bar_layout()
     actions = {action: getattr(bar, field) for action, field in _BAR_CONTROLS}
     actions[VERBOSITY_CHIP] = dial_rect()
-    actions.update(source_chips(_chips_top()))
+    actions.update(source_chips())
     if dial_open:  # over the log, and pressed before anything under it
         actions = dial_stops() | actions
     return actions
 
 
+def _log_top() -> int:
+    return compute_dashboard_bar_layout().height
+
+
 def dash_height() -> int:
-    return _chips_top() + _CHIP_H + _CHIP_GAP + LOG_ROWS * _ROW_H + _PAD
+    return _log_top() + LOG_ROWS * _ROW_H + PAD
 
 
 def _slab(draw, rect: Rect, ground, *, border=BORDER_SUBTLE) -> None:
@@ -257,15 +263,14 @@ def paint_dash(state: DashState, records,
         )
 
     _paint_dial(panel, draw, state, small, hover=hover)
-    for source, rect in source_chips(_chips_top()).items():
+    for source, rect in source_chips().items():
         on = source in state.sources
-        _chip(draw, rect, SOURCE_LABELS.get(source, source), on=on,
+        _chip(draw, rect, SOURCE_LABELS[source], on=on,
               font=small, ground=ground(rect, BLUE if on else BG_BUTTON))
 
     rows = [r for r in records if state.accepts(r)][-LOG_ROWS:]
-    top = _chips_top() + _CHIP_H + _CHIP_GAP
     for index, record in enumerate(rows):
-        draw.text((_PAD, top + index * _ROW_H), format_row(record)[:96],
+        draw.text((PAD, _log_top() + index * _ROW_H), format_row(record)[:96],
                   font=small, fill=(*level_color(record.level), 255))
 
     if state.dial_open:
