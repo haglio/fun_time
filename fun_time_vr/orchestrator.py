@@ -105,6 +105,7 @@ from fun_time.windows_bridge_dispatch_loop import (
 from fun_time.windows_bridge_orchestrator import (
     ChildProcess,
     add_dispatch_file_handler,
+    clear_last_sessions_leftovers,
     close_a_kept_origenerator,
     kill_recorded_child,
     open_event_log,
@@ -439,15 +440,8 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
     pids_file = state_dir / "bridge_pids.ini"
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     dashboard_cmd_file = Path(commands.dashboard_cmd_file)
-    # Before the hotkey script reads two of these: a dead session's pids file
-    # would tell it THIS session is up, taking Esc's cancel with it, and an
-    # "exit" in its mailbox would be read on its first tick.
-    # ...and a desktop session's press-hint port, which would take this
-    # session's presses to whatever now answers there.
-    for stale in (pids_file, ahk_cmd_file, dashboard_cmd_file,
-                  dashboard_cmd_file.with_suffix(".processing"),
-                  state_dir / "dashboard_press_port.txt"):
-        stale.unlink(missing_ok=True)
+    clear_last_sessions_leftovers(
+        state_dir, commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
 
     cover = _Cover(state_dir)
     progress = cover.progress

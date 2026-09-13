@@ -42,6 +42,7 @@ from .overlay_progress import (
     ready_file_for,
 )
 from .players import Player
+from .press_channel import PRESS_PORT_FILENAME
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
@@ -800,8 +801,8 @@ class _Cover:
     cancel_file: Path
 
 
-def _clear_last_sessions_leftovers(
-    ahk_cmd_file: Path, pids_file: Path, dashboard_cmd_file: Path, dashboard_state_file: Path,
+def clear_last_sessions_leftovers(
+    state_dir: Path, commands: CommandFiles, *, pids_file: Path, ahk_cmd_file: Path,
 ) -> None:
     """Drop the files a previous session left, before the hotkey script goes up
     and starts reading two of them.
@@ -814,10 +815,15 @@ def _clear_last_sessions_leftovers(
 
     The pids file matters most: its appearance is what tells the hotkey script
     the session is up and its keys have something to reach, so a dead session's
-    copy would put every key live over one that is still assembling.
+    copy would put every key live over one that is still assembling.  An "exit"
+    left in its mailbox would be read on its first tick, and a press port the
+    last session's bar published would send this session's presses to whatever
+    answers there now.
     """
+    dashboard_cmd_file = Path(commands.dashboard_cmd_file)
     for stale in (ahk_cmd_file, pids_file, dashboard_cmd_file,
-                  dashboard_cmd_file.with_suffix(".processing"), dashboard_state_file):
+                  dashboard_cmd_file.with_suffix(".processing"), state_dir / PRESS_PORT_FILENAME,
+                  Path(commands.dashboard_state_file)):
         stale.unlink(missing_ok=True)
 
 
@@ -1138,8 +1144,8 @@ def run_session(
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     pids_file = state_dir / "bridge_pids.ini"
-    _clear_last_sessions_leftovers(ahk_cmd_file, pids_file, dashboard_cmd_file,
-                                   Path(manifest.commands.dashboard_state_file))
+    clear_last_sessions_leftovers(state_dir, manifest.commands,
+                                  pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
 
     # --- Launch loading screen (normal mode only) ---
     cover = _open_the_cover(state_dir, show_overlays=env.show_overlays)
