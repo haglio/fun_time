@@ -120,10 +120,10 @@ class TestVoiceCommands:
             "slow down": "speed_down",
             "speed down": "speed_down",
             "speed up": "speed_up",
-            # …and naming the playback pins the same nudge to the video.
-            "playback slow down": "main_player_speed_down",
-            "playback speed down": "main_player_speed_down",
-            "playback speed up": "main_player_speed_up",
+            # …and naming the playback moves the video of the player last addressed.
+            "playback slow down": "active_speed_down",
+            "playback speed down": "active_speed_down",
+            "playback speed up": "active_speed_up",
             "amp down": "robot_hand_amplitude_down",
             "amp up": "robot_hand_amplitude_up",
             "center down": "robot_hand_center_down",
@@ -459,21 +459,38 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["min speed"] == "speed_min"
         assert VOICE_COMMANDS["max speed"] == "speed_max"
 
-    def test_main_player_multiplier_speed_phrases(self):
-        assert VOICE_COMMANDS["half speed"] == "main_player_speed_50"
-        assert VOICE_COMMANDS["normal speed"] == "main_player_speed_100"
-        assert VOICE_COMMANDS["one and a half speed"] == "main_player_speed_150"
-        assert VOICE_COMMANDS["double speed"] == "main_player_speed_200"
+    def test_a_named_multiplier_is_a_rate_in_percent(self):
+        assert VOICE_COMMANDS["half speed"] == "active_speed_50"
+        assert VOICE_COMMANDS["normal speed"] == "active_speed_100"
+        assert VOICE_COMMANDS["one and a half speed"] == "active_speed_150"
+        assert VOICE_COMMANDS["double speed"] == "active_speed_200"
 
     def test_spoken_speed_ex_phrases_cover_every_stop(self):
-        assert VOICE_COMMANDS["speed point two five ex"] == "main_player_speed_25"
-        assert VOICE_COMMANDS["speed one ex"] == "main_player_speed_100"
-        assert VOICE_COMMANDS["speed one point two five ex"] == "main_player_speed_125"
-        assert VOICE_COMMANDS["speed one point seven five ex"] == "main_player_speed_175"
-        assert VOICE_COMMANDS["speed two ex"] == "main_player_speed_200"
+        assert VOICE_COMMANDS["speed point two five ex"] == "active_speed_25"
+        assert VOICE_COMMANDS["speed one ex"] == "active_speed_100"
+        assert VOICE_COMMANDS["speed one point two five ex"] == "active_speed_125"
+        assert VOICE_COMMANDS["speed one point seven five ex"] == "active_speed_175"
+        assert VOICE_COMMANDS["speed two ex"] == "active_speed_200"
 
     def test_reset_speed_snaps_to_normal(self):
-        assert VOICE_COMMANDS["reset speed"] == "main_player_speed_100"
+        assert VOICE_COMMANDS["reset speed"] == "active_speed_100"
+
+    def test_a_playback_speed_phrase_reaches_the_player_last_addressed_or_the_one_named(self):
+        grid = {
+            "playback speed up": "speed_up",
+            "playback speed down": "speed_down",
+            "playback slow down": "speed_down",
+            "half speed": "speed_50",
+            "speed one point five ex": "speed_150",
+            "reset speed": "speed_100",
+        }
+        for phrase, act in grid.items():
+            assert VOICE_COMMANDS[phrase] == f"active_{act}"
+            for side in ("portrait", "landscape", "both"):
+                assert VOICE_COMMANDS[f"{side} {phrase}"] == f"{side}_{act}"
+                assert VOICE_COMMANDS[f"{phrase} {side}"] == f"{side}_{act}"
+            assert VOICE_COMMANDS[f"main {phrase}"] == f"main_player_{act}"
+            assert VOICE_COMMANDS[f"{phrase} main"] == f"main_player_{act}"
 
 
 def test_group_commands_join_the_order_agnostic_grid():

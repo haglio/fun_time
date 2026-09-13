@@ -72,6 +72,8 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "active_reset",
     "active_seed_loop",
     "active_shuffle",
+    "active_speed_down",
+    "active_speed_up",
     "active_trash",
     "active_wrong_action",
     "audio_mute",
@@ -96,6 +98,8 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "both_reset",
     "both_seed_loop",
     "both_shuffle",
+    "both_speed_down",
+    "both_speed_up",
     "both_trash",
     "both_wrong_action",
     "broker_panel",
@@ -156,6 +160,8 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "landscape_say_stop_slideshow",
     "landscape_seed_loop",
     "landscape_shuffle",
+    "landscape_speed_down",
+    "landscape_speed_up",
     "landscape_trash",
     "landscape_wrong_action",
     "main_fmode",
@@ -236,6 +242,8 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "portrait_say_stop_slideshow",
     "portrait_seed_loop",
     "portrait_shuffle",
+    "portrait_speed_down",
+    "portrait_speed_up",
     "portrait_trash",
     "portrait_wrong_action",
     "projection_cycle",
@@ -278,7 +286,11 @@ def _expected_numeric_ids() -> set[str]:
         for value in range(0, 101, 10)
     }
     ids |= {f"genau_clip_seconds_{value}" for value in range(1, 61)}
-    ids |= {f"main_player_speed_{pct}" for pct in (25, 50, 75, 100, 125, 150, 175, 200)}
+    ids |= {
+        f"{player}_speed_{pct}"
+        for player in ("main_player", "active", "both", "portrait", "landscape")
+        for pct in (25, 50, 75, 100, 125, 150, 175, 200)
+    }
     return ids
 
 
