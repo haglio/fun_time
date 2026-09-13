@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
+from player_core.modes import MainMode
 
 from fun_time.players import Player
 from fun_time.runtime_flow import (
@@ -36,12 +37,12 @@ def _make_action_video(
     return str(video)
 
 
-def _satellite_lines(state_dir: Path, side: str) -> list[str]:
+def _satellite_lines(state_dir: Path, player: str) -> list[str]:
     """The plain video-path lines a satellite's playlist file holds.
 
     The native player reads a plain one-path-per-line file, with no header,
-    written to ``state_dir/{side}_playlist.tsv``."""
-    return (state_dir / f"{side}_playlist.tsv").read_text(encoding="utf-8").splitlines()
+    written to ``state_dir/{player}_playlist.tsv``."""
+    return (state_dir / f"{player}_playlist.tsv").read_text(encoding="utf-8").splitlines()
 
 
 def _reloaded(cmd_file: Path) -> bool:
@@ -347,7 +348,7 @@ def test_a_rebuild_can_start_the_side_at_the_top_of_the_new_list(tmp_path: Path)
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        player=2, query="", f_mode_enabled=False, recent=True, start_at_top=True,
+        player=2, query="", favorites_filter=False, recent=True, start_at_top=True,
         sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
@@ -366,7 +367,7 @@ def test_a_rebuild_leaves_the_clip_on_screen_alone_by_default(tmp_path: Path):
     cmd_file = tmp_path / "portrait_cmd.txt"
 
     apply_satellite_filter(
-        player=2, query="", f_mode_enabled=False, recent=False,
+        player=2, query="", favorites_filter=False, recent=False,
         sources=str(portrait_root), favs_file=tmp_path / "favs.csv",
         state_dir=tmp_path / "state", cmd_file=cmd_file,
     )
@@ -379,7 +380,7 @@ def _reorder(tmp_path: Path, sources: Path, *, recent: bool, query: str = "", **
     apply_satellite_filter(
         player=2,
         query=query,
-        f_mode_enabled=False,
+        favorites_filter=False,
         recent=recent,
         sources=str(sources),
         favs_file=tmp_path / "favs.csv",
@@ -402,7 +403,7 @@ def test_recents_orders_one_satellite_newest_first(tmp_path: Path):
     _reorder(tmp_path, portrait_root, recent=True)
 
     assert _reloaded(tmp_path / "portrait_cmd.txt")
-    assert not (tmp_path / "landscape_cmd.txt").exists()  # the other side is untouched
+    assert not (tmp_path / "landscape_cmd.txt").exists()  # the other player is untouched
     assert _satellite_lines(tmp_path / "state", "portrait") == [str(new), str(old)]
 
 
@@ -506,7 +507,7 @@ def test_apply_satellite_filter_reloads_only_its_cmd_file(tmp_path: Path):
     result = apply_satellite_filter(
         player=2,
         query="alpha",
-        f_mode_enabled=False,
+        favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
@@ -537,7 +538,7 @@ def test_apply_satellite_filter_keeps_current_playlist_on_zero_matches(tmp_path:
     result = apply_satellite_filter(
         player=2,
         query="alpha",
-        f_mode_enabled=False,
+        favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
@@ -561,7 +562,7 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     result = apply_satellite_filter(
         player=2,
         query="",
-        f_mode_enabled=False,
+        favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
@@ -584,7 +585,7 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
 
     paths = satellite_browse_paths(
         query="alpha",
-        f_mode_enabled=False,
+        favorites_filter=False,
         recent=True,
         sources=str(portrait_root),
         favs_file=tmp_path / "favs.csv",
@@ -598,7 +599,7 @@ def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
 def test_apply_enter_omnipause_pauses_satellites_and_flags(flow_files):
     result = apply_enter_omnipause(
         omni_paused=False,
-        main_mode="genau",
+        main_mode=MainMode.GENAU,
         portrait_paused_file=flow_files["portrait_paused_file"],
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
@@ -625,7 +626,7 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     destination changes, from home to the far end of its travel."""
     result = apply_enter_omnipause(
         omni_paused=False,
-        main_mode="video",
+        main_mode=MainMode.VIDEO,
         portrait_paused_file=flow_files["portrait_paused_file"],
         landscape_paused_file=flow_files["landscape_paused_file"],
         genau_paused_file=flow_files["genau_paused_file"],
@@ -664,7 +665,7 @@ def test_apply_leave_omnipause_in_video_mode_resumes_main_player_and_lifts_the_h
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
 
-    result = _leave_omnipause(flow_files, main_mode="video")
+    result = _leave_omnipause(flow_files, main_mode=MainMode.VIDEO)
 
     assert result.next_omni_paused is False
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
@@ -688,7 +689,7 @@ def test_apply_leave_omnipause_in_video_mode_leaves_genaus_motion_to_the_arbiter
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
     flow_files["main_player_paused_file"].write_text("1", encoding="utf-8")
 
-    _leave_omnipause(flow_files, main_mode="video")
+    _leave_omnipause(flow_files, main_mode=MainMode.VIDEO)
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert not flow_files["genau_cmd_file"].exists()
@@ -702,7 +703,7 @@ def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):
     flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
     flow_files["audio_paused_file"].write_text("1", encoding="utf-8")
 
-    _leave_omnipause(flow_files, main_mode="genau", broker=False)
+    _leave_omnipause(flow_files, main_mode=MainMode.GENAU, broker=False)
 
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "0"

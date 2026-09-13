@@ -166,7 +166,7 @@ def apply_satellite_fmode(
         name=PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE,
         favs_file=Path(favs_file),
         state_dir=Path(state_dir),
-        f_mode=enabled,
+        favorites_filter=enabled,
         recent=recent,
         filter_query=filter_query,
         metadata_root=regen_metadata_root,
@@ -216,16 +216,16 @@ def apply_fmode(
         )
     for player in Player.SATELLITES:
         if player in named:
-            side = satellites[player]
+            satellite = satellites[player]
             apply_satellite_fmode(
                 player=player,
                 enabled=enabled,
-                sources=side.sources,
+                sources=satellite.sources,
                 favs_file=favs_file,
                 state_dir=state_dir,
-                cmd_file=side.cmd_file,
-                recent=side.recent,
-                filter_query=side.filter_query,
+                cmd_file=satellite.cmd_file,
+                recent=satellite.recent,
+                filter_query=satellite.filter_query,
                 regen_metadata_root=regen_metadata_root,
             )
     return FModeFlowResult(
@@ -241,7 +241,7 @@ def apply_fmode(
 def satellite_browse_paths(
     *,
     query: str,
-    f_mode_enabled: bool,
+    favorites_filter: bool,
     recent: bool,
     sources: str,
     favs_file: str | Path,
@@ -254,7 +254,7 @@ def satellite_browse_paths(
     target "no loop" reshapes the queue back to when a group loop ends.
     """
     return build_satellite_playlist_paths(
-        sources, f_mode_enabled, Path(favs_file),
+        sources, favorites_filter, Path(favs_file),
         filter_query=query, recent=recent, metadata_root=regen_metadata_root,
     )
 
@@ -270,7 +270,7 @@ def apply_satellite_filter(
     *,
     player: Player,
     query: str,
-    f_mode_enabled: bool,
+    favorites_filter: bool,
     recent: bool,
     sources: str,
     favs_file: str | Path,
@@ -281,7 +281,7 @@ def apply_satellite_filter(
 ) -> SatelliteFilterFlowResult:
     """Rebuild and reload one satellite under *query*.
 
-    Ordering follows the caller's ``recent``/``f_mode`` just like a full rebuild,
+    Ordering follows the caller's ``recent``/``favorites_filter`` just like a full rebuild,
     so the filtered playlist still honors Latest vs Shuffle and F-mode.  A
     non-empty query that matches nothing leaves the current playlist in place
     rather than blanking the satellite; ``query == ""`` clears the filter.  The
@@ -298,7 +298,7 @@ def apply_satellite_filter(
     label = Player(player).label
     name = PLAYLIST_PORTRAIT if player == Player.PORTRAIT else PLAYLIST_LANDSCAPE
     paths = satellite_browse_paths(
-        query=query, f_mode_enabled=f_mode_enabled, recent=recent,
+        query=query, favorites_filter=favorites_filter, recent=recent,
         sources=sources, favs_file=favs_file, regen_metadata_root=regen_metadata_root,
     )
     if query and not paths:

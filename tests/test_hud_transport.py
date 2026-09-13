@@ -13,7 +13,7 @@ from fun_time.lock_hud import ACTION_LIMIT, HudPanel
 
 def _panel(**overrides) -> HudPanel:
     base = dict(
-        side="portrait", locked=True, lock_label="Locked",
+        player="portrait", locked=True, lock_label="Locked",
         current="C:/v/cur.mp4", seed_siblings=["C:/v/s1.mp4"], action_siblings=["C:/v/a1.mp4"],
         current_action="alpha", action_labels=("gamma",),
     )
@@ -30,7 +30,7 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
         model = hud_model(_panel(), Path("C:/state/thumbs"))
 
-    assert model.side == "portrait"
+    assert model.player == "portrait"
     assert model.locked is True
     assert model.lock_label == "Locked"
     assert model.current_action == "alpha"
@@ -194,7 +194,7 @@ def test_publish_ignores_a_side_with_no_file(tmp_path: Path):
 def test_payload_carries_the_satellites_mode(tmp_path):
     # The mode pair on the satellite HUDs draws from this field; "" (the
     # default) is a session hosting no Origenerator, and the pair stays off.
-    panel = HudPanel(side="portrait", locked=False, lock_label="", current="",
+    panel = HudPanel(player="portrait", locked=False, lock_label="", current="",
                      seed_siblings=[], action_siblings=[],
                      satellites_mode="origenerator")
     payload = hud_model(panel, tmp_path)

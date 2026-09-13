@@ -146,8 +146,8 @@ class TestAPressOnASatellite:
 
 
 _A_PANEL = {
-    "side": "portrait", "locked": False, "lock_label": "Shuffle", "active": True,
-    "satellites_mode": "video", "is_favorite": False, "f_mode": False, "filter_query": "",
+    "player": "portrait", "locked": False, "lock_label": "Shuffle", "active": True,
+    "satellites_mode": "video", "is_favorite": False, "favorites_filter": False, "filter_query": "",
     "seed_count": 0, "action_count": 0, "active_loop": "", "current_action": "",
     "playing": ["corner", 0], "corner": None, "seeds": [], "actions": [],
 }

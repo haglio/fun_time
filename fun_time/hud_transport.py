@@ -88,13 +88,13 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
         [cell.path for cell in seeds], [cell.path for cell in actions],
     ) or ("corner", 0)
     return HudModel(
-        side=panel.side,
+        player=panel.player,
         locked=panel.locked,
         lock_label=panel.lock_label,
         active=panel.active,
         satellites_mode=panel.satellites_mode,
         is_favorite=panel.is_favorite,
-        f_mode=panel.f_mode,
+        favorites_filter=panel.favorites_filter,
         latest=panel.latest,
         filter_query=panel.filter_query,
         seed_count=panel.seed_count,
@@ -121,9 +121,9 @@ class HudPublisher:
         self._cache_dir = cache_dir
         self._last: dict[str, str] = {}
 
-    def publish(self, side: str, panel: HudPanel) -> bool:
-        """Write *side*'s map if the panel changed; return whether it wrote."""
-        return self.publish_text(side, hud_text(hud_model(panel, self._cache_dir)))
+    def publish(self, player: str, panel: HudPanel) -> bool:
+        """Write *player*'s map if the panel changed; return whether it wrote."""
+        return self.publish_text(player, hud_text(hud_model(panel, self._cache_dir)))
 
     def publish_text(self, name: str, text: str) -> bool:
         """Write *name*'s HUD file if *text* changed; return whether it wrote."""

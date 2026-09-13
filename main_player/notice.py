@@ -17,6 +17,7 @@ import time
 from pathlib import Path
 
 from player_core.file_channel import publish_whole
+from player_core.modes import NoticeLevel
 
 
 class NoticeWriter:
@@ -26,10 +27,10 @@ class NoticeWriter:
         self._path = path
         self._clock = clock
 
-    def say(self, message: str, *, level: str) -> None:
+    def say(self, message: str, *, level: NoticeLevel) -> None:
         """Raise *message*; ``level`` picks the color Fun Time flashes it in.
 
-        "warning" is yellow, "notice" white, and "favorite" green — green being
+        A warning is yellow, a notice white, and a highlight green — green being
         what Fun Time reserves for the favorites and the funscripts, so a
         funscript jump says so in the color and an ordinary jump does not.
 

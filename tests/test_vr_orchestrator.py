@@ -4,6 +4,7 @@ from dataclasses import fields
 from pathlib import Path
 
 import pytest
+from player_core.modes import MainMode
 
 from fun_time.config import load_config
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
@@ -300,9 +301,9 @@ class TestTheModeASessionComesBackIn:
 
         assert not hasattr(orchestrator, "resume_vr_state")
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(main_mode="genau", volume=40))
+        write_shared_state(state_file, BridgeState(main_mode=MainMode.GENAU, volume=40))
 
-        assert read_shared_state(state_file).main_mode == "genau"
+        assert read_shared_state(state_file).main_mode is MainMode.GENAU
 
     def test_the_flags_are_seeded_in_the_carried_mode(self):
         """Seeded in the default instead, Genau's role would open as the HUD layer
@@ -489,7 +490,7 @@ class TestStockingThePlaylists:
             metadata_root=tmp_path / "metadata",
             vr_library_dirs=config.vr.library_dirs,
             resumed=False,
-            main_f_mode=False,
+            main_scripted_filter=False,
             main_recent=False,
         )
 
@@ -518,7 +519,7 @@ class TestStockingThePlaylists:
             metadata_root=tmp_path / "metadata",
             vr_library_dirs=config.vr.library_dirs,
             resumed=True,
-            main_f_mode=False,
+            main_scripted_filter=False,
             main_recent=False,
             main_video=str(flat_two),
         )
@@ -548,7 +549,7 @@ class TestStockingThePlaylists:
             metadata_root=tmp_path / "metadata",
             vr_library_dirs=config.vr.library_dirs,
             resumed=True,
-            main_f_mode=False,
+            main_scripted_filter=False,
             main_recent=False,
             main_video=str(library / "2D" / "gone since.mp4"),
         )
@@ -575,7 +576,7 @@ class TestStockingThePlaylists:
             metadata_root=tmp_path / "metadata",
             vr_library_dirs=config.vr.library_dirs,
             resumed=True,
-            main_f_mode=False,
+            main_scripted_filter=False,
             main_recent=False,
             main_video=str(vr_clip),
         )

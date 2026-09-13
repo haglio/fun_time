@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from player_core.modes import LoopState
 
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
@@ -547,14 +548,14 @@ class TestFMode:
     said outright — and the panel's status line is the only thing that says it."""
 
     def test_a_fresh_role_is_not_in_it(self, role_parts):
-        assert role_parts.role.f_mode is False
+        assert role_parts.role.scripted_filter is False
 
     def test_the_flag_is_taken_from_the_verb(self, role_parts):
         role = role_parts.role
         role.apply_command("SET_F_MODE 1", on_quit=_never_quits)
-        assert role.f_mode is True
+        assert role.scripted_filter is True
         role.apply_command("SET_F_MODE 0", on_quit=_never_quits)
-        assert role.f_mode is False
+        assert role.scripted_filter is False
 
 
 class TestStatus:
@@ -570,7 +571,7 @@ class TestStatus:
         assert status.video.endswith("scene one.mp4")
         assert status.has_funscript is True
         assert status.paused is False
-        assert status.state == "normal"
+        assert status.loop_state is LoopState.NORMAL
         # position 1s sits inside the fabricated script's dense cluster
         assert status.funscript_resting is False
         assert status.funscript_driving is True

@@ -38,7 +38,7 @@ def status_fields(session, handoff_touch_ms: int | None) -> dict[str, str]:
         )),
         "has_funscript": "1" if session.has_funscript else "0",
         "funscript_resting": "1" if session.funscript_resting else "0",
-        "state": str(session.loop_state),
+        "loop_state": str(session.loop_state),
         # The A/B range a running loop holds, and 0/0 for no loop.  Everything
         # else about this player survives a restart in a file something rebuilds
         # it from — the playlist, the flags fun_time seeds — but a loop is a

@@ -2,20 +2,14 @@
 from __future__ import annotations
 
 from player_core.console import ConsoleModel, console_text
+from player_core.modes import LoopState, MainMode, Osr2State
 
-from fun_time.main_player_console import (
-    OSR2_AUTO,
-    OSR2_FUNSCRIPT,
-    OSR2_OFF,
-    OSR2_ROBOT_HAND,
-    console_model,
-    osr2_state,
-)
+from fun_time.main_player_console import console_model, osr2_state
 from fun_time.player_status import GenauStatus
 
 
 def _payload(**overrides) -> ConsoleModel:
-    base = dict(mode="video", active=False, osr2_mode="controlled",
+    base = dict(main_mode=MainMode.VIDEO, active=False, osr2_mode="controlled",
                 funscript_driving=False, broker=False, main_player_locked=True,
                 genau=GenauStatus())
     base.update(overrides)
@@ -26,43 +20,43 @@ class TestOsr2State:
     """What has the device, as one compact word — the console badges it."""
 
     def test_the_devices_own_modes_answer_whatever_is_playing(self):
-        for osr2_mode, expected in (("off", OSR2_OFF), ("auto", OSR2_AUTO)):
-            assert osr2_state(mode="video", osr2_mode=osr2_mode,
+        for osr2_mode, expected in (("off", Osr2State.OFF), ("auto", Osr2State.AUTO)):
+            assert osr2_state(main_mode=MainMode.VIDEO, osr2_mode=osr2_mode,
                               funscript_driving=True) == expected
 
     def test_a_funscript_that_is_actually_driving_says_so(self):
-        assert osr2_state(mode="video", osr2_mode="controlled",
-                          funscript_driving=True) == OSR2_FUNSCRIPT
+        assert osr2_state(main_mode=MainMode.VIDEO, osr2_mode="controlled",
+                          funscript_driving=True) == Osr2State.FUNSCRIPT
 
     def test_a_scripted_videos_quiet_stretch_reads_as_the_robot_hand_not_funscript(self):
         """The reported bug: on a rest gap of a scripted video the Robot Hand drives, but
         it said funscript because a funscript merely *existed*.  It is the driving
         state that decides now, not the file's presence."""
-        assert osr2_state(mode="video", osr2_mode="controlled",
-                          funscript_driving=False) == OSR2_ROBOT_HAND
+        assert osr2_state(main_mode=MainMode.VIDEO, osr2_mode="controlled",
+                          funscript_driving=False) == Osr2State.ROBOT_HAND
 
     def test_without_a_driver_the_robot_hand_has_the_device_in_either_mode(self):
         for mode in ("video", "genau"):
-            assert osr2_state(mode=mode, osr2_mode="controlled",
-                              funscript_driving=False) == OSR2_ROBOT_HAND
+            assert osr2_state(main_mode=mode, osr2_mode="controlled",
+                              funscript_driving=False) == Osr2State.ROBOT_HAND
 
     def test_a_main_player_parked_off_screen_cannot_claim_the_device(self):
         """The reported bug: in genau mode the main player is paused off screen, but its
         status file still describes the scripted video it was last showing —
         so this said "funscript" while Genau had the device, which dims every
         control on the drive readout and refuses every press on it."""
-        assert osr2_state(mode="genau", osr2_mode="controlled",
-                          funscript_driving=True) == OSR2_ROBOT_HAND
+        assert osr2_state(main_mode=MainMode.GENAU, osr2_mode="controlled",
+                          funscript_driving=True) == Osr2State.ROBOT_HAND
 
 
 class TestPayload:
     def test_carries_the_room_the_player_cannot_see(self):
-        payload = _payload(mode="video", active=True, broker=True, osr2_mode="auto")
+        payload = _payload(main_mode=MainMode.VIDEO, active=True, broker=True, osr2_mode="auto")
 
-        assert payload.mode == "video"
+        assert payload.main_mode == "video"
         assert payload.active is True
         assert payload.broker is True
-        assert payload.osr2 == OSR2_AUTO
+        assert payload.osr2 == Osr2State.AUTO
 
     def test_carries_genaus_own_switches_for_the_control_row(self):
         payload = _payload(genau=GenauStatus(cruise_active=True, shape="sawtooth"),
@@ -75,8 +69,8 @@ class TestPayload:
         """The console is drawn in genau mode too, by a player with no loop machine
         to ask — so where the main player is in the gesture rides here with the rest of the
         room, and the record button can say which press comes next."""
-        assert _payload(record="recording").record == "recording"
-        assert _payload().record == "normal"
+        assert _payload(loop_state=LoopState.RECORDING).loop_state is LoopState.RECORDING
+        assert _payload().loop_state is LoopState.NORMAL
 
     def test_the_lock_reported_is_the_lock_of_whoever_is_showing(self):
         """One padlock on the console, so one flag: the main player's hold on its video where
@@ -85,11 +79,11 @@ class TestPayload:
         held_clip = GenauStatus(locked=True)
         loose_clip = GenauStatus(locked=False)
 
-        assert _payload(mode="video", main_player_locked=True, genau=loose_clip).locked is True
-        assert _payload(mode="video", main_player_locked=False, genau=held_clip).locked is False
+        assert _payload(main_mode=MainMode.VIDEO, main_player_locked=True, genau=loose_clip).locked is True
+        assert _payload(main_mode=MainMode.VIDEO, main_player_locked=False, genau=held_clip).locked is False
 
-        assert _payload(mode="genau", main_player_locked=False, genau=held_clip).locked is True
-        assert _payload(mode="genau", main_player_locked=True, genau=loose_clip).locked is False
+        assert _payload(main_mode=MainMode.GENAU, main_player_locked=False, genau=held_clip).locked is True
+        assert _payload(main_mode=MainMode.GENAU, main_player_locked=True, genau=loose_clip).locked is False
 
     def test_genaus_own_arming_and_hold_are_no_longer_published(self):
         """They were two flags for one behavior, and the padlock they fed sat
@@ -114,11 +108,11 @@ def test_the_order_reported_is_the_order_of_whoever_is_showing():
     folder in where Genau is.  They are separate flags because a Genau reorder
     rewrites nothing of the main player's — reporting the main player's in genau mode said "Shuffle" at
     someone who had just asked Genau for the latest."""
-    assert _payload(mode="video", latest=True, genau_latest=False).latest is True
-    assert _payload(mode="video", latest=False, genau_latest=True).latest is False
+    assert _payload(main_mode=MainMode.VIDEO, latest=True, genau_latest=False).latest is True
+    assert _payload(main_mode=MainMode.VIDEO, latest=False, genau_latest=True).latest is False
 
-    assert _payload(mode="genau", latest=False, genau_latest=True).latest is True
-    assert _payload(mode="genau", latest=True, genau_latest=False).latest is False
+    assert _payload(main_mode=MainMode.GENAU, latest=False, genau_latest=True).latest is True
+    assert _payload(main_mode=MainMode.GENAU, latest=True, genau_latest=False).latest is False
 
 
 def test_the_panel_says_which_shapes_of_video_the_browse_may_reach():
@@ -176,10 +170,10 @@ class TestTheReadoutTheWordLeaves:
         live.  This is the reported bug — 20 presses to move one level, because
         19 of them landed on a readout dimmed by a paused player's playlist."""
         painter, origin = self._readout(
-            _payload(mode="genau", funscript_driving=True), tmp_path)
+            _payload(main_mode=MainMode.GENAU, funscript_driving=True), tmp_path)
 
-        marks = {b.action: r for r, b in painter.buttons
-                 if b.action.startswith(("robot_hand_amplitude", "robot_hand_center", "robot_hand_speed"))}
+        marks = {b.command: r for r, b in painter.buttons
+                 if b.command.startswith(("robot_hand_amplitude", "robot_hand_center", "robot_hand_speed"))}
         assert marks, "the readout drew no marks to press"
         for action, rect in marks.items():
             assert painter.press_at(*self._center(rect, origin)) == action
@@ -194,10 +188,10 @@ class TestTheReadoutTheWordLeaves:
         drivers take turns on one device, and adjusting a motion Genau is not
         sending is what put both of them on it at once."""
         painter, origin = self._readout(
-            _payload(mode="video", funscript_driving=True), tmp_path)
+            _payload(main_mode=MainMode.VIDEO, funscript_driving=True), tmp_path)
 
         for track in painter.tracks:
             assert painter.press_at(*self._center(track.rect, origin)) == ""
         for rect, button in painter.buttons:
-            if button.action.startswith(("genau_amplitude", "robot_hand_center")):
+            if button.command.startswith(("genau_amplitude", "robot_hand_center")):
                 assert painter.press_at(*self._center(rect, origin)) == ""

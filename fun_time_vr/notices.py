@@ -13,7 +13,7 @@ from fun_time.event_log import (
     read_events,
 )
 
-from .layout import PRIMARY
+from .layout import MAIN
 
 # Long enough to read; short enough to be gone by the next command.
 NOTICE_SECONDS = 8.0
@@ -27,12 +27,12 @@ TOAST_SECONDS = 2.2
 KEPT_RECORDS = 400
 
 # Which screen a notice flashes over: the two satellites have their own, and
-# everything else is the primary's, the desktop's own fallback.
+# everything else is the main screen's, the desktop's own fallback.
 _SCREENS = {SOURCE_PORTRAIT: SOURCE_PORTRAIT, SOURCE_LANDSCAPE: SOURCE_LANDSCAPE}
 
 
 def screen_for(source: str) -> str:
-    return _SCREENS.get(source, PRIMARY)
+    return _SCREENS.get(source, MAIN)
 
 
 @dataclass(frozen=True)

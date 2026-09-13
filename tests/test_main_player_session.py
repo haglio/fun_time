@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.funscript import Funscript
+from player_core.modes import LoopState
 
 from main_player.session import (
     MAX_SPEED_RATE,
@@ -148,7 +149,7 @@ class TestLoadAndPlay:
         session, player, tcode = _make_session(tmp_path, scripted=False)
 
         assert not session.has_funscript
-        assert session.loop_state == "normal"
+        assert session.loop_state is LoopState.NORMAL
 
     def test_load_clears_any_previous_ab_loop(self, tmp_path):
         session, player, tcode = _make_session(tmp_path, entries=2)
@@ -600,7 +601,7 @@ class TestAdvance:
         player.position_ms = 9_950  # reached the end margin, still pre-wrap
         session.advance()
 
-        assert session.loop_state == "looping"
+        assert session.loop_state is LoopState.LOOPING
         assert player.ab_loop == (9_000, 9_950)  # in..(just short of the end)
         assert player.seeks[-1] == 9_000  # jumped straight to the loop start
 
@@ -613,7 +614,7 @@ class TestAdvance:
         )
         player.position_ms = 9_000
         session.record_down()
-        assert session.loop_state == "recording"
+        assert session.loop_state is LoopState.RECORDING
 
         player.position_ms = 9_800
         session.advance()  # tracks last_pos near the end of the file
@@ -621,7 +622,7 @@ class TestAdvance:
         player.position_ms = 20  # EOF hit: clock rewound to the start
         session.advance()
 
-        assert session.loop_state == "looping"
+        assert session.loop_state is LoopState.LOOPING
         assert player.ab_loop == (9_000, 9_800)  # in..end, not in..~0
         assert player.seeks[-1] == 9_000  # jumped back to the loop start
 
@@ -640,7 +641,7 @@ class TestAdvance:
         player.position_ms = 20_000  # user seeked back 20s, still marking
         session.advance()
 
-        assert session.loop_state == "recording"
+        assert session.loop_state is LoopState.RECORDING
         assert player.ab_loop is None
 
     def test_advance_at_end_auto_steps_in_normal(self, tmp_path):

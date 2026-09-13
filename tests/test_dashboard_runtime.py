@@ -156,7 +156,7 @@ def test_read_main_player_status_parses_has_funscript(tmp_path: Path):
     # reads it to decide whether the funscript or Genau drives the OSR2.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nstate=normal\npaused=0\n",
+        "video=C:\\clip.mp4\nposition_ms=567\nhas_funscript=1\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
@@ -215,7 +215,7 @@ def test_read_main_player_status_parses_position_and_duration(tmp_path: Path):
     # position and the clip length are read off the main player's status file.
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nstate=normal\npaused=0\n",
+        "video=C:\\clip.mp4\nposition_ms=54233\nduration_ms=60000\nloop_state=normal\npaused=0\n",
         encoding="utf-8",
     )
 
@@ -257,7 +257,7 @@ def test_read_main_player_status_parses_the_range_a_running_loop_holds(tmp_path:
     publishes — which is how a reopened session can be handed it back."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nstate=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
+        "video=C:\\clip.mp4\nloop_state=looping\nloop_in_ms=2000\nloop_out_ms=4000\n",
         encoding="utf-8",
     )
 
@@ -270,7 +270,7 @@ def test_read_main_player_status_reads_no_loop_where_nothing_is_looping(tmp_path
     to come back to."""
     status_file = tmp_path / "main_player_status.txt"
     status_file.write_text(
-        "video=C:\\clip.mp4\nstate=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
+        "video=C:\\clip.mp4\nloop_state=normal\nloop_in_ms=0\nloop_out_ms=0\n", encoding="utf-8",
     )
 
     assert read_main_player_status(status_file).loop_bounds is None
@@ -282,7 +282,7 @@ def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
     left by that version names a loop it cannot describe.  Sending mpv a
     zero-length A/B range would strand the video on one frame."""
     status_file = tmp_path / "main_player_status.txt"
-    status_file.write_text("video=C:\\clip.mp4\nstate=looping\n", encoding="utf-8")
+    status_file.write_text("video=C:\\clip.mp4\nloop_state=looping\n", encoding="utf-8")
 
     assert read_main_player_status(status_file).loop_bounds is None
 

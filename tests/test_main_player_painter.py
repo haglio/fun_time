@@ -18,6 +18,7 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import ConsolePainter, ModeHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
+from player_core.modes import LengthMode, LoopState
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import VolumeHud
@@ -77,8 +78,8 @@ class SpyGate:
 
 
 class FakeModes:
-    hud = ModeHud(video="gamma reel", length_mode="mixed", compilation="",
-                  position=1, total=3, f_mode=False)
+    hud = ModeHud(video="gamma reel", length_mode=LengthMode.MIXED, compilation="",
+                  position=1, total=3, scripted_filter=False)
 
 
 class FakeVolume:
@@ -94,7 +95,7 @@ class FakeSession:
         self.position_ms = 2000.0
         self.speed = 1.0
         self.loop_bounds = bounds
-        self.loop_state = "looping" if bounds is not None else "normal"
+        self.loop_state = LoopState.LOOPING if bounds is not None else LoopState.NORMAL
         self.record_in_ms = None
 
 
@@ -273,7 +274,7 @@ class TestTheLoopsOwnTwoFrames:
         painter, player = _painter(session, player=SpyPlayer(_frame()))
         _paint(painter)
 
-        session.loop_bounds, session.loop_state = None, "normal"
+        session.loop_bounds, session.loop_state = None, LoopState.NORMAL
         _paint(painter)
 
         assert [c for c in player.calls if c[0] == "remove"] == [

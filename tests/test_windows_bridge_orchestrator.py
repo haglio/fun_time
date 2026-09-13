@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from player_core.modes import MainMode
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
@@ -80,7 +81,7 @@ class TestFixPostLoadingWindows:
         """A resumed genau session would otherwise get main_player's stacking back here:
         The main player promoted over Genau and un-parked, one pass after the sequencer
         parked it — the display handed back to the player that is not playing."""
-        result = replace(_fake_startup_result(), main_mode="genau")
+        result = replace(_fake_startup_result(), main_mode=MainMode.GENAU)
 
         with patch(
             "fun_time.windows_bridge_orchestrator.apply_startup_window_state"

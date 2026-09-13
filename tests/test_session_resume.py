@@ -4,12 +4,14 @@ from __future__ import annotations
 from dataclasses import fields
 from pathlib import Path
 
+from player_core.modes import MainMode
+
 from fun_time.players import Player
 from fun_time.session_resume import (
     NOT_RESUMED,
-    NOT_RESUMED_PER_SIDE,
+    NOT_RESUMED_PER_SATELLITE,
     RESUMED_FIELDS,
-    RESUMED_SIDE_FIELDS,
+    RESUMED_SATELLITE_FIELDS,
     playlist_fits_sources,
     playlist_opens_on,
     resume_main_loop,
@@ -18,7 +20,7 @@ from fun_time.session_resume import (
     resume_satellite_locks,
     resume_shared_state,
 )
-from fun_time.shared_state import BridgeState, SideState, read_shared_state, write_shared_state
+from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 
 
 def _clips(tmp_path: Path, *names: str) -> list[str]:
@@ -127,39 +129,39 @@ class TestResumeSharedState:
         Carrying one flag for all three would put players into an F-mode whose
         playlist was never built under it."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SideState(f_mode=True), portrait=SideState(f_mode=False), main_f_mode=True))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(favorites_filter=True), portrait=SatelliteState(favorites_filter=False), main_scripted_filter=True))
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.main_f_mode, state.side(Player.PORTRAIT).f_mode,
-                state.side(Player.LANDSCAPE).f_mode) == (True, False, True)
+        assert (state.main_scripted_filter, state.satellite(Player.PORTRAIT).favorites_filter,
+                state.satellite(Player.LANDSCAPE).favorites_filter) == (True, False, True)
 
     def test_carries_a_running_loop_and_the_map_it_hangs_on(self, tmp_path: Path):
         """A loop IS the group written out as the side's playlist, so resuming
         that file resumes the loop — the HUD has to keep its button lit and its
         map frozen where the loop left it, not read the queue as a browse."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SideState(loop="action", map_anchor="C:/v/b.mp4"), portrait=SideState(loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4")))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(loop="action", map_anchor="C:/v/b.mp4"), portrait=SatelliteState(loop="seed", map_anchor="C:/v/a.mp4", widen_clip="C:/v/a.mp4")))
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert state.side(Player.PORTRAIT).loop == "seed"
-        assert state.side(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
-        assert state.side(Player.PORTRAIT).widen_clip == "C:/v/a.mp4"
-        assert state.side(Player.LANDSCAPE).loop == "action"
-        assert state.side(Player.LANDSCAPE).map_anchor == "C:/v/b.mp4"
+        assert state.satellite(Player.PORTRAIT).loop == "seed"
+        assert state.satellite(Player.PORTRAIT).map_anchor == "C:/v/a.mp4"
+        assert state.satellite(Player.PORTRAIT).widen_clip == "C:/v/a.mp4"
+        assert state.satellite(Player.LANDSCAPE).loop == "action"
+        assert state.satellite(Player.LANDSCAPE).map_anchor == "C:/v/b.mp4"
 
     def test_carries_each_side_s_filter_and_order(self, tmp_path: Path):
         """Both narrowed the playlist that just came back, so both are still in
         force and belong on the status line."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SideState(filter="beta gamma", latest=True), portrait=SideState(filter="alpha", latest=True)))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(filter="beta gamma", latest=True), portrait=SatelliteState(filter="alpha", latest=True)))
 
         state = resume_shared_state(state_file, resumed=True)
 
-        assert (state.side(Player.PORTRAIT).filter, state.side(Player.LANDSCAPE).filter) == ("alpha", "beta gamma")
-        assert state.side(Player.PORTRAIT).latest is True
-        assert state.side(Player.LANDSCAPE).latest is True
+        assert (state.satellite(Player.PORTRAIT).filter, state.satellite(Player.LANDSCAPE).filter) == ("alpha", "beta gamma")
+        assert state.satellite(Player.PORTRAIT).latest is True
+        assert state.satellite(Player.LANDSCAPE).latest is True
 
     def test_carries_the_main_player_s_order(self, tmp_path: Path):
         """The main player's order fixes its resumed playlist exactly as a
@@ -178,12 +180,12 @@ class TestResumeSharedState:
         and each has its world put back with it, the level seeded to both audio
         sinks at startup and the lock re-sent to its satellite."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=True), volume=40, muted=True))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(locked=False), portrait=SatelliteState(locked=True), volume=40, muted=True))
 
         state = resume_shared_state(state_file, resumed=True)
 
         assert (state.volume, state.muted) == (40, True)
-        assert (state.side(Player.PORTRAIT).locked, state.side(Player.LANDSCAPE).locked) == (True, False)
+        assert (state.satellite(Player.PORTRAIT).locked, state.satellite(Player.LANDSCAPE).locked) == (True, False)
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which player owns the big display is as much a thing you set as the
@@ -192,16 +194,16 @@ class TestResumeSharedState:
         and then puts the carried mode on over the top (see
         :func:`fun_time.windows_bridge_startup.seed_startup_states`)."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(main_mode="genau"))
+        write_shared_state(state_file, BridgeState(main_mode=MainMode.GENAU))
 
-        assert resume_shared_state(state_file, resumed=True).main_mode == "genau"
+        assert resume_shared_state(state_file, resumed=True).main_mode is MainMode.GENAU
 
     def test_drops_the_state_nothing_on_disk_brings_back(self, tmp_path: Path):
         """OmniPause's flags are cleared before the players launch, and a
         keyboard selection was never a thing you could leave running.  Carrying
         either forward would be the same lie in the other direction."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(landscape=SideState(nav_anchor="C:/v/b.mp4"), portrait=SideState(nav_anchor="C:/v/a.mp4"), omni_paused=True, active_side=3))
+        write_shared_state(state_file, BridgeState(landscape=SatelliteState(nav_anchor="C:/v/b.mp4"), portrait=SatelliteState(nav_anchor="C:/v/a.mp4"), omni_paused=True, active_player=3))
 
         state = resume_shared_state(state_file, resumed=True)
 
@@ -209,9 +211,9 @@ class TestResumeSharedState:
         for name in NOT_RESUMED:
             assert getattr(state, name) == getattr(fresh, name)
         for player in Player.SATELLITES:
-            for name in NOT_RESUMED_PER_SIDE:
-                assert getattr(state.side(player), name) == getattr(
-                    fresh.side(player), name)
+            for name in NOT_RESUMED_PER_SATELLITE:
+                assert getattr(state.satellite(player), name) == getattr(
+                    fresh.satellite(player), name)
 
     def test_the_state_left_behind_is_named_positively_and_is_all_of_it(self):
         """The list used to run the other way: what came BACK was spelled out,
@@ -223,9 +225,9 @@ class TestResumeSharedState:
         assert names >= NOT_RESUMED, sorted(NOT_RESUMED - names)
         assert set(RESUMED_FIELDS) == names - NOT_RESUMED
 
-        side_names = {field.name for field in fields(SideState)}
-        assert side_names >= NOT_RESUMED_PER_SIDE, sorted(NOT_RESUMED_PER_SIDE - side_names)
-        assert set(RESUMED_SIDE_FIELDS) == side_names - NOT_RESUMED_PER_SIDE
+        side_names = {field.name for field in fields(SatelliteState)}
+        assert side_names >= NOT_RESUMED_PER_SATELLITE, sorted(NOT_RESUMED_PER_SATELLITE - side_names)
+        assert set(RESUMED_SATELLITE_FIELDS) == side_names - NOT_RESUMED_PER_SATELLITE
 
 
 class TestResumeSatelliteLocks:
@@ -265,7 +267,7 @@ class TestResumeSatelliteLocks:
         """Nothing to resume means the builder just wrote three fresh playlists
         with F-mode off, so last session's state describes files that are gone."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(portrait=SideState(f_mode=True, loop="seed")))
+        write_shared_state(state_file, BridgeState(portrait=SatelliteState(favorites_filter=True, loop="seed")))
 
         state = resume_shared_state(state_file, resumed=False)
 
@@ -275,13 +277,13 @@ class TestResumeSatelliteLocks:
         """The dispatch loop reads its state off this file every tick and never
         hears about the return value, so the carry has to be on disk."""
         state_file = tmp_path / "shared_bridge_state.ini"
-        write_shared_state(state_file, BridgeState(portrait=SideState(f_mode=True), omni_paused=True))
+        write_shared_state(state_file, BridgeState(portrait=SatelliteState(favorites_filter=True), omni_paused=True))
 
         resume_shared_state(state_file, resumed=True)
 
         written = read_shared_state(state_file)
         assert written is not None
-        assert written.side(Player.PORTRAIT).f_mode is True
+        assert written.satellite(Player.PORTRAIT).favorites_filter is True
         assert written.omni_paused is False
 
     def test_a_first_run_leaves_a_state_file(self, tmp_path: Path):

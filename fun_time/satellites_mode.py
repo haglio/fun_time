@@ -15,8 +15,10 @@ is flag files plus the restack.
 """
 from __future__ import annotations
 
-VIDEO_MODE = "video"
-ORIGENERATOR_MODE = "origenerator"
+from player_core.modes import SatellitesMode
+
+VIDEO_MODE = SatellitesMode.VIDEO
+ORIGENERATOR_MODE = SatellitesMode.ORIGENERATOR
 
 OPEN_SHOWS = "OPEN_SHOWS"
 CLOSE_SHOWS = "CLOSE_SHOWS"
@@ -27,11 +29,11 @@ CLOSE_SHOWS = "CLOSE_SHOWS"
 STARTUP_SATELLITES_MODE = VIDEO_MODE
 
 
-def origenerator_shows(satellites_mode: str) -> bool:
+def origenerator_shows(satellites_mode: SatellitesMode) -> bool:
     """Whether the hosted Origenerator owns the satellite side in this mode."""
     return satellites_mode == ORIGENERATOR_MODE
 
 
-def toggled_satellites_mode(satellites_mode: str) -> str:
+def toggled_satellites_mode(satellites_mode: SatellitesMode) -> SatellitesMode:
     """The other mode — what the one toggle hotkey switches to."""
     return VIDEO_MODE if origenerator_shows(satellites_mode) else ORIGENERATOR_MODE

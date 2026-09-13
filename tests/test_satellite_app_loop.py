@@ -221,7 +221,7 @@ def _suppressed_panel(tmp_path: Path) -> Path:
     Image.new("RGB", (40, 60), (90, 90, 90)).save(thumb)
     panel = tmp_path / "portrait_hud.json"
     panel.write_text(json.dumps({
-        "side": "portrait", "locked": False, "lock_label": "Unlocked",
+        "player": "portrait", "locked": False, "lock_label": "Unlocked",
         "satellites_mode": "origenerator",
         "corner": None, "seeds": [], "actions": [],
     }), encoding="utf-8")

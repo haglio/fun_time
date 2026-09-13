@@ -279,7 +279,7 @@ class TestWhichCollaboratorEachVerbReaches:
         ("TOGGLE_LENGTH_MODE", "modes", "toggle_length"),
         ("SET_LENGTH_MODE shorts", "modes", "set_length"),
         ("END_COMPILATION", "modes", "end_compilation"),
-        ("SET_F_MODE 1", "modes", "set_f_mode"),
+        ("SET_F_MODE 1", "modes", "set_scripted_filter"),
         ("PLAY_COMPILATION", "jumps", "play_compilation"),
         ("PLAY_FULL_VID", "jumps", "play_full_vid"),
         ("PLAY_CLIP_JUMP", "jumps", "play_clip_jump"),

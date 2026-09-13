@@ -19,7 +19,13 @@ from .media_metadata import normalize_path_key
 from .modes import source_roots
 from .players import Player
 from .runtime_flow import SET_LOOP_CMD
-from .shared_state import BridgeState, SideState, read_shared_state, write_shared_state
+from .shared_state import (
+    BridgeState,
+    SatelliteState,
+    migrate_shared_state,
+    read_shared_state,
+    write_shared_state,
+)
 
 PlaylistEntries = list[PlaylistItem]
 
@@ -42,26 +48,26 @@ PlaylistEntries = list[PlaylistItem]
 # session that ended, and a keyboard selection was never a thing to leave.
 NOT_RESUMED = frozenset({
     "omni_paused",
-    "active_side",
+    "active_player",
     "genau_latest",
 })
 
-# The same answer for a value one satellite carries (:class:`SideState`), since
+# The same answer for a value one satellite carries (:class:`SatelliteState`), since
 # that is where the keyboard selection lives.
-NOT_RESUMED_PER_SIDE = frozenset({"nav_anchor"})
+NOT_RESUMED_PER_SATELLITE = frozenset({"nav_anchor"})
 
 RESUMED_FIELDS: tuple[str, ...] = tuple(
     field.name for field in fields(BridgeState) if field.name not in NOT_RESUMED
 )
 
-RESUMED_SIDE_FIELDS: tuple[str, ...] = tuple(
-    field.name for field in fields(SideState) if field.name not in NOT_RESUMED_PER_SIDE
+RESUMED_SATELLITE_FIELDS: tuple[str, ...] = tuple(
+    field.name for field in fields(SatelliteState) if field.name not in NOT_RESUMED_PER_SATELLITE
 )
 
 
-def _resumed_side(side: SideState) -> SideState:
+def _resumed_satellite(satellite: SatelliteState) -> SatelliteState:
     """One satellite's state, minus what a new session does not bring back."""
-    return SideState(**{name: getattr(side, name) for name in RESUMED_SIDE_FIELDS})
+    return SatelliteState(**{name: getattr(satellite, name) for name in RESUMED_SATELLITE_FIELDS})
 
 
 def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
@@ -203,11 +209,12 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     is what the dispatch loop reads its opening state from
     (docs/resuming-a-session.md).
     """
+    migrate_shared_state(state_file)
     previous = read_shared_state(state_file) if resumed else None
     state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),
-        portrait=_resumed_side(previous.side(Player.PORTRAIT)),
-        landscape=_resumed_side(previous.side(Player.LANDSCAPE)),
+        portrait=_resumed_satellite(previous.satellite(Player.PORTRAIT)),
+        landscape=_resumed_satellite(previous.satellite(Player.LANDSCAPE)),
     )
     write_shared_state(state_file, state)
     return state

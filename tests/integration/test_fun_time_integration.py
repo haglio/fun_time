@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 import pytest
+from player_core.modes import LoopState
 
 from fun_time.media_actions import remove_from_favs
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
@@ -510,25 +511,25 @@ def test_fun_time_main_player_record_loop_cancel_cycle(shared_integration_sessio
         timeout=15,
         description="the main player status file to report a current video",
     )
-    assert s.read_main_player_status().state == "normal"
+    assert s.read_main_player_status().loop_state is LoopState.NORMAL
 
     s.write_dashboard_command("main_player_record_tap")
     s.wait_until(
-        lambda: s.read_main_player_status().state == "recording",
+        lambda: s.read_main_player_status().loop_state is LoopState.RECORDING,
         timeout=10,
         description="the main player to enter recording state",
     )
 
     s.write_dashboard_command("main_player_record_tap")
     s.wait_until(
-        lambda: s.read_main_player_status().state == "looping",
+        lambda: s.read_main_player_status().loop_state is LoopState.LOOPING,
         timeout=10,
         description="the main player to enter looping state",
     )
 
     s.write_dashboard_command("main_player_loop_cancel")
     s.wait_until(
-        lambda: s.read_main_player_status().state == "normal",
+        lambda: s.read_main_player_status().loop_state is LoopState.NORMAL,
         timeout=10,
         description="the main player to return to normal state",
     )

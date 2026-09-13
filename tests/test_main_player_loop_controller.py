@@ -23,7 +23,7 @@ class TestLoopController:
 
         lc.on_record_down(2500)
 
-        assert lc.state == LoopState.MARKING
+        assert lc.state == LoopState.RECORDING
         assert lc.in_ms == 2500
 
     def test_record_up_marking_transitions_to_looping_with_snapped_bounds(self):

@@ -107,7 +107,7 @@ class TestWhatModeThisSessionOpensIn:
         nothing to rebuild."""
         modes = Modes(None, FakeSession(), FakeJumps(), remembered=SHORTS)
 
-        assert modes.length_mode == ""
+        assert modes.length_mode is None
 
 
 class TestNamingALength:
@@ -174,7 +174,7 @@ class TestNamingALength:
 
         modes.set_length(SHORTS)
 
-        assert (modes.length_mode, session.loaded) == ("", [])
+        assert (modes.length_mode, session.loaded) == (None, [])
 
 
 class TestTogglingTheLength:
@@ -231,16 +231,16 @@ class TestFunTimesOwnFilter:
     def test_it_defaults_off_because_a_session_never_told_is_one_nothing_narrowed(self):
         modes, _session, _jumps, _source = _modes()
 
-        assert modes.f_mode is False
+        assert modes.scripted_filter is False
 
     def test_being_told_is_the_only_way_it_goes_on(self):
         """F-mode narrows the playlist Fun Time writes to the scripted videos,
         and the result is indistinguishable from any other playlist here."""
         modes, _session, _jumps, _source = _modes()
 
-        modes.set_f_mode(True)
+        modes.set_scripted_filter(True)
 
-        assert modes.f_mode is True
+        assert modes.scripted_filter is True
 
 
 class TestWhatTheConsoleIsToldToDraw:
@@ -260,9 +260,9 @@ class TestWhatTheConsoleIsToldToDraw:
 
     def test_fun_times_filter_is_said_outright_because_nothing_else_shows_it(self):
         modes, _session, _jumps, _source = _modes()
-        modes.set_f_mode(True)
+        modes.set_scripted_filter(True)
 
-        assert modes.hud.f_mode is True
+        assert modes.hud.scripted_filter is True
 
 
 class TestWhatIsWrittenDownForTheNextSession:

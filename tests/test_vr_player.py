@@ -20,6 +20,7 @@ import pytest
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
+from player_core.modes import MainMode
 from player_core.playhead import (
     PlayheadHudPainter,
     clip_playhead,
@@ -67,9 +68,9 @@ from fun_time_vr.layout import (
     DASH,
     DEFAULT_LAYOUT,
     LANDSCAPE,
+    MAIN,
     PANEL,
     PORTRAIT,
-    PRIMARY,
     REFERENCE,
     read_layout,
 )
@@ -206,7 +207,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, lambda _name: 0, placement=DEFAULT_LAYOUT[PRIMARY])
+    unit = _MainUnit(manifest, vr, lambda _name: 0, placement=DEFAULT_LAYOUT[MAIN])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.main_player_cmd_file)
@@ -237,13 +238,13 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         side, manifest, lambda _name: 0, vr=vr, placement=DEFAULT_LAYOUT[side])
 
     commands = manifest.commands
-    assert unit.cmd_file == Path(commands.side_file(side, "cmd"))
-    assert unit.paused_file == Path(commands.side_file(side, "paused"))
-    assert unit.playlist_file == Path(commands.side_file(side, "playlist"))
+    assert unit.cmd_file == Path(commands.player_file(side, "cmd"))
+    assert unit.paused_file == Path(commands.player_file(side, "paused"))
+    assert unit.playlist_file == Path(commands.player_file(side, "playlist"))
     assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
-        commands.side_file(side, "status"))
+        commands.player_file(side, "status"))
     hud = faked_collaborators["HudOverlay"].call_args.kwargs
-    assert hud["hud_file"] == Path(commands.side_file(side, "hud"))
+    assert hud["hud_file"] == Path(commands.player_file(side, "hud"))
     assert hud["command_file"] == Path(commands.dashboard_cmd_file)
     # The HUD paints into a surface of its own, hanging under the picture, not
     # into the video through mpv as the desktop satellite's does.
@@ -274,7 +275,7 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     # suite's, and overlay_furniture reads only these three fields of it.
     unit.target = SimpleNamespace(ready=True, width=width, height=height,
                                  aspect=width / height)
-    unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
+    unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN])
     return unit, player
 
 
@@ -495,12 +496,12 @@ class TestThePanelUnderThePointer:
         primary = SimpleNamespace(
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=600_000.0,
-                volume=70, muted=False, seek_to=seeks.append, f_mode=False,
+                volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
                 speed=1.25, displayed=True, projection=projection,
             ),
             drive_gate=SimpleNamespace(readout=lambda published: published),
             target=SimpleNamespace(ready=True, aspect=16 / 9),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
             controls=_SlotControls(
                 position=1_000.0, duration=600_000.0,
                 playhead=video_playhead(1_000.0, 600_000.0, 30.0),
@@ -516,7 +517,7 @@ class TestThePanelUnderThePointer:
                 seek=seeks.append, scrub_duration_ms=1.0),
             role=SimpleNamespace(
                 console_hud=ConsoleHud(
-                    console=ConsoleModel(mode="video", broker=True, locked=False),
+                    console=ConsoleModel(main_mode=MainMode.VIDEO, broker=True, locked=False),
                     drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
                                    position=1000, advance_interval=10,
                                    waveform=tuple([0.5] * 80), trace_seconds=12.0),
@@ -534,7 +535,7 @@ class TestThePanelUnderThePointer:
             unit = _PanelUnit(primary, genau, dash,
                               dashboard_cmd_file=command_file, notices=notices)
         return SimpleNamespace(unit=unit, command_file=command_file, seeks=seeks,
-                               event_log=event_log, notices=notices, primary=primary,
+                               event_log=event_log, notices=notices, main_unit=primary,
                                dash=dash)
 
     @staticmethod
@@ -547,7 +548,7 @@ class TestThePanelUnderThePointer:
         in the console's, which the announcement strip above pushes down -- and
         that strip is left off while the dashboard sits over the console."""
         (x, y, w, h), _button = next(
-            (rect, button) for rect, button in unit._painter.buttons if button.action == action)
+            (rect, button) for rect, button in unit._painter.buttons if button.command == action)
         return self._uv(unit, x + w // 2, y + h // 2 + strip)
 
     def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
@@ -609,12 +610,12 @@ class TestThePanelUnderThePointer:
             p.unit.render_latest_frame()
             docked = p.unit.screen.placement
 
-            p.primary.screen.placement = Placement(
+            p.main_unit.screen.placement = Placement(
                 azimuth_deg=-40.0, elevation_deg=12.0, width_deg=110.0)
             p.unit.render_latest_frame()
             followed = p.unit.screen.placement
 
-        assert docked.azimuth_deg == DEFAULT_LAYOUT[PRIMARY].azimuth_deg
+        assert docked.azimuth_deg == DEFAULT_LAYOUT[MAIN].azimuth_deg
         assert docked.elevation_deg < 0.0  # under the picture, never over it
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
@@ -644,7 +645,7 @@ class TestThePanelUnderThePointer:
 
         p.unit.pump(threading.Event(), 0.0)
 
-        pill = PlayheadHudPainter().bgra(p.primary.controls.playhead)
+        pill = PlayheadHudPainter().bgra(p.main_unit.controls.playhead)
         x, y = readout_xy(pill.shape[1], win_w=PANEL_WIDTH_PX, win_h=_WRAPPED_ROW_H,
                           timeline_h=TIMELINE_HEIGHT)
         drawn = p.unit._row[y:y + pill.shape[0], x:x + pill.shape[1]].astype(int)
@@ -955,7 +956,7 @@ def _picture(painted):
 
 def _room(*, main=True, portrait=True, landscape=True, panel=True, genau_showing=False):
     return dict(
-        primary=SimpleNamespace(target=_picture(main)),
+        main_unit=SimpleNamespace(target=_picture(main)),
         genau=SimpleNamespace(texture=_picture(main),
                               role=SimpleNamespace(showing=genau_showing)),
         satellites=[SimpleNamespace(target=_picture(portrait)),
@@ -980,7 +981,7 @@ class TestWhenTheRoomIsUp:
         read as up almost as soon as the loop began, the cover came off in a
         blink nobody saw, and the OSR2 was released onto black."""
         room = _room()
-        room["primary"] = SimpleNamespace(target=SimpleNamespace(
+        room["main_unit"] = SimpleNamespace(target=SimpleNamespace(
             ready=True, has_picture=False,
         ))
 
@@ -1008,7 +1009,7 @@ class TestWhenTheRoomIsUp:
         paused under it, so asking the video for a picture would hold the
         cover over a room that is finished."""
         room = _room(genau_showing=True)
-        room["primary"] = SimpleNamespace(target=_picture(False))
+        room["main_unit"] = SimpleNamespace(target=_picture(False))
 
         assert _scene_is_up(**room)
 
@@ -1149,21 +1150,21 @@ class TestTheMainSlotUnderThePointer:
             target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9),
             role=SimpleNamespace(
                 displayed=settings["displayed"], projection=settings["projection"]),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
         )
         genau = SimpleNamespace(
             texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
             role=SimpleNamespace(
                 showing=settings["showing"], projection=settings["clip_projection"]),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
         )
         return primary, genau
 
     def test_the_primary_offers_both_handles(self):
         screen = _main_slot_screen(*self._units())
 
-        assert (screen.name, screen.movable, screen.resizable) == (PRIMARY, True, True)
-        assert screen.placement == DEFAULT_LAYOUT[PRIMARY]
+        assert (screen.name, screen.movable, screen.resizable) == (MAIN, True, True)
+        assert screen.placement == DEFAULT_LAYOUT[MAIN]
         assert screen.aspect == 16 / 9
 
     def test_genaus_clip_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
@@ -1171,7 +1172,7 @@ class TestTheMainSlotUnderThePointer:
         under the hand through a switch into video mode and back."""
         screen = _main_slot_screen(*self._units(showing=True))
 
-        assert screen.name == PRIMARY
+        assert screen.name == MAIN
         assert screen.aspect == 4 / 3
 
     @pytest.mark.parametrize("state", [
@@ -1202,7 +1203,7 @@ class TestTheMainSlotUnderThePointer:
         edge — and the console under them all — has to win the ray.  The console
         is pressed, never dragged: it rides on the main player now."""
         satellite = SimpleNamespace(
-            side=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
+            player_name=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
         )
         panel = _a_panel()
@@ -1215,7 +1216,7 @@ class TestTheMainSlotUnderThePointer:
         screens = _pointable_screens(
             *self._units(), [satellite], panel, dash, reference)
 
-        assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
+        assert [screen.name for screen in screens] == [MAIN, LANDSCAPE, PANEL]
         console = screens[-1]
         assert (console.pressable, console.movable, console.resizable) == (True, False, False)
 
@@ -1259,7 +1260,7 @@ class TestTheClipsOwnControls:
     def _unit(self, *, played=5, of=20, volume=70, muted=False):
         unit = _GenauUnit.__new__(_GenauUnit)
         unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
-        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY])
+        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN])
         unit._volume_painter = VolumeHudPainter()
         unit._readout_painter = PlayheadHudPainter()
         unit._control_size = None
@@ -1274,7 +1275,7 @@ class TestTheClipsOwnControls:
         unit.role.projection = projection
         uploaded: list = []
         unit.texture = SimpleNamespace(aspect=16 / 9, upload=uploaded.append)
-        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY],
+        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN],
                                       rehang=lambda _aspect: None)
         unit.render_latest_frame()
         return clip, uploaded[-1]
@@ -1323,7 +1324,7 @@ class TestTheClipsOwnControls:
 
         unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
 
-        assert unit._control_size == control_size(DEFAULT_LAYOUT[PRIMARY].width_deg, 640 / 360)
+        assert unit._control_size == control_size(DEFAULT_LAYOUT[MAIN].width_deg, 640 / 360)
 
     def test_the_clip_says_which_frame_is_up_beside_its_bar(self):
         unit = self._unit()
@@ -1393,7 +1394,7 @@ class TestEveryHangingScreenIsDrawn:
         _draw_eyes(
             session, renderer, primary, genau, [], panel, dash, reference,
             SimpleNamespace(draw=lambda *_a: None), self._views(), None,
-            np.eye(4, dtype=np.float64), in_scene={PRIMARY, PORTRAIT, LANDSCAPE},
+            np.eye(4, dtype=np.float64), in_scene={MAIN, PORTRAIT, LANDSCAPE},
         )
         return renderer
 
@@ -1426,12 +1427,12 @@ def _slot(*, wrapped=False):
     primary = SimpleNamespace(
         target=SimpleNamespace(ready=True, aspect=16 / 9),
         role=SimpleNamespace(displayed=True, projection=projection),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
     )
     genau = SimpleNamespace(
         texture=SimpleNamespace(ready=True, aspect=4 / 3),
         role=SimpleNamespace(showing=False, projection=projection),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
+        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
     )
     return primary, genau
 
@@ -1548,7 +1549,7 @@ class TestWhereTheDashboardHangs:
         nothing: dragging the player must leave the dashboard alone."""
         dash = self._placed(tmp_path)
 
-        dash._primary.screen.placement = Placement(
+        dash._main_unit.screen.placement = Placement(
             azimuth_deg=-40.0, elevation_deg=-25.0, width_deg=90.0)
         with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
@@ -1593,4 +1594,4 @@ class TestWhereItHangsToStart:
         assert DEFAULT_LAYOUT[DASH].elevation_deg > 0
 
     def test_it_clears_the_main_player_and_the_console_riding_on_it(self):
-        assert DEFAULT_LAYOUT[DASH].elevation_deg > DEFAULT_LAYOUT[PRIMARY].elevation_deg
+        assert DEFAULT_LAYOUT[DASH].elevation_deg > DEFAULT_LAYOUT[MAIN].elevation_deg

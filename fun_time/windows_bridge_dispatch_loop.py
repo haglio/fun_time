@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
+from player_core.modes import NoticeLevel, read_mode
 from player_core.player_verbs import play_file
 
 from .bridge_records import BridgeConfig, Op, WindowOp
@@ -65,11 +66,11 @@ logger = logging.getLogger(__name__)
 # What the main player's own notice levels mean here.  The main player has no palette — it names the kind
 # of thing that happened and this side picks the color, the same way the ops
 # raised in :mod:`fun_time.command_dispatch` do.
-_MAIN_PLAYER_NOTICE_LEVELS = {"warning": logging.WARNING, "favorite": FAVORITE}
+_MAIN_PLAYER_NOTICE_LEVELS = {NoticeLevel.WARNING: logging.WARNING, NoticeLevel.HIGHLIGHT: FAVORITE}
 
 
 
-def read_main_player_notice(path) -> tuple[float, str, str]:
+def read_main_player_notice(path) -> tuple[float, NoticeLevel, str]:
     """the main player's latest one-shot notice as (sequence, level, message).
 
     The main player bumps the sequence whenever it raises one; (0, "", "") means there is
@@ -82,7 +83,9 @@ def read_main_player_notice(path) -> tuple[float, str, str]:
             for line in path.read_text(encoding="utf-8").splitlines()
             if "=" in line
         )
-        return float(values.get("seq", "0")), values.get("level", "notice"), values.get("message", "")
+        return (float(values.get("seq", "0")),
+                read_mode(NoticeLevel, values.get("level", ""), NoticeLevel.NOTICE),
+                values.get("message", ""))
     except (OSError, ValueError):
         return 0, "", ""
 
@@ -134,7 +137,7 @@ _MAIN_EQUIVALENTS = {
 }
 
 
-def resolve_active_side_command(command: str, active_side: int) -> str:
+def resolve_active_player_command(command: str, active_player: int) -> str:
     """Rewrite a side-agnostic ``active_*`` command onto the active player.
 
     ``active_next``/``active_prev`` follow the last player navigated — main
@@ -148,11 +151,11 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     if not command.startswith("active_"):
         return command
     action = command[len("active_"):]
-    if active_side == 1:
+    if active_player == 1:
         # What each side-agnostic action means on the main player; anything absent
         # here simply has no main-player equivalent.
         return _MAIN_EQUIVALENTS.get(action, command)
-    prefix = "portrait_" if active_side == 2 else "landscape_"
+    prefix = "portrait_" if active_player == 2 else "landscape_"
     return prefix + action
 
 
@@ -292,7 +295,7 @@ class DispatchLoopRunner:
         try:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
                 raw_command, spoken_at = parse_command_line(line)
-                resolved = resolve_active_side_command(raw_command, self.state.active_side)
+                resolved = resolve_active_player_command(raw_command, self.state.active_player)
                 for command in expand_both_command(resolved):
                     self._handle_command(command, spoken_at)
         finally:
@@ -331,9 +334,9 @@ class DispatchLoopRunner:
     def _flash_main_player_notice(self) -> None:
         """Surface anything the main player has raised since the last tick, once.
 
-        The main player names the kind rather than the color: "warning" for a request with
-        nowhere to go, "favorite" for one about a funscript — which is what green
-        is kept for here — and anything else is an ordinary white notice.
+        The main player names the kind rather than the color: a warning for a request
+        with nowhere to go, a highlight for one about a funscript — which is what
+        green is kept for here — and anything else is an ordinary white notice.
         """
         path = getattr(self.config, "main_player_notice_file", None)
         if path is None:
@@ -417,16 +420,16 @@ class DispatchLoopRunner:
             if self.state.omni_paused:
                 self._handle_omnipause_toggle()
         elif cmd == "portrait_lock_on":
-            if not self.state.side(Player.PORTRAIT).locked:
+            if not self.state.satellite(Player.PORTRAIT).locked:
                 self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_on":
-            if not self.state.side(Player.LANDSCAPE).locked:
+            if not self.state.satellite(Player.LANDSCAPE).locked:
                 self._dispatch("landscape_lock", spoken_at)
         elif cmd == "portrait_lock_off":
-            if self.state.side(Player.PORTRAIT).locked:
+            if self.state.satellite(Player.PORTRAIT).locked:
                 self._dispatch("portrait_lock", spoken_at)
         elif cmd == "landscape_lock_off":
-            if self.state.side(Player.LANDSCAPE).locked:
+            if self.state.satellite(Player.LANDSCAPE).locked:
                 self._dispatch("landscape_lock", spoken_at)
         elif cmd == "broker_start":
             self._handle_broker_start()
@@ -546,8 +549,8 @@ class DispatchLoopRunner:
                 str(self.config.dashboard_state_file),
                 omni_paused=self.state.omni_paused,
                 voice_active=voice_active,
-                f_mode=(self.state.main_f_mode
-                        and all(self.state.side(p).f_mode for p in Player.SATELLITES)),
+                f_mode=(self.state.main_scripted_filter
+                        and all(self.state.satellite(p).favorites_filter for p in Player.SATELLITES)),
                 in_vr=self.config.vr_main_player,
             )
         except OSError as exc:

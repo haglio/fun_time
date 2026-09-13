@@ -14,7 +14,7 @@ from unittest.mock import patch
 from fun_time.bridge_records import BridgeConfig
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
-from fun_time.shared_state import BridgeState, SideState
+from fun_time.shared_state import BridgeState, SatelliteState
 
 
 def make_config(tmp_path, **overrides) -> BridgeConfig:
@@ -66,8 +66,8 @@ def publish_satellite_status(path: Path, video, *, fraction: float = 0.1) -> Non
     )
 
 
-def panel(tmp_path, side: str) -> dict:
-    return json.loads((tmp_path / f"{side}_hud.json").read_text(encoding="utf-8"))
+def panel(tmp_path, player: str) -> dict:
+    return json.loads((tmp_path / f"{player}_hud.json").read_text(encoding="utf-8"))
 
 
 def console(tmp_path) -> dict:
@@ -82,13 +82,13 @@ class TestHudPublishing:
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-        state = replace(state, portrait=SideState(locked=True, filter="alpha"))
+        state = replace(state, portrait=SatelliteState(locked=True, filter="alpha"))
 
         feed.publish(state)
 
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
-        assert portrait["side"] == "portrait"
+        assert portrait["player"] == "portrait"
         assert portrait["locked"] is True
         # The status line composes the lot — lock, order, and the filter unlabeled.
         assert portrait["lock_label"] == "Locked · Shuffle · alpha"
@@ -125,33 +125,33 @@ class TestHudPublishing:
 
         It is sided: the satellite that is not in F-mode must not say it is."""
         feed, state = make_feed(tmp_path), BridgeState()
-        for side in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{side}_status.txt",
-                                     f"C:/v/{side}.mp4")
-        state = replace(state, portrait=SideState(f_mode=True))
+        for player in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{player}_status.txt",
+                                     f"C:/v/{player}.mp4")
+        state = replace(state, portrait=SatelliteState(favorites_filter=True))
 
         feed.publish(state)
 
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
         assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
-        assert portrait["f_mode"] is True
+        assert portrait["favorites_filter"] is True
         assert landscape["lock_label"] == "Unlocked · Shuffle"
-        assert landscape["f_mode"] is False
+        assert landscape["favorites_filter"] is False
 
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
-        """The active side is a slot number in the state and a side *name* on the
+        """The active player is a slot number in the state and a player *name* on the
         panel, so exactly one satellite can claim it — and neither does while the
         the main player holds it."""
         feed, state = make_feed(tmp_path), BridgeState()
-        for side in ("portrait", "landscape"):
-            publish_satellite_status(tmp_path / f"{side}_status.txt",
-                                     f"C:/v/{side}.mp4")
+        for player in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{player}_status.txt",
+                                     f"C:/v/{player}.mp4")
 
         def actives(slot: int) -> tuple[bool, bool]:
-            feed.publish(replace(state, active_side=slot))
-            return tuple(panel(tmp_path, side)["active"]
-                         for side in ("portrait", "landscape"))
+            feed.publish(replace(state, active_player=slot))
+            return tuple(panel(tmp_path, player)["active"]
+                         for player in ("portrait", "landscape"))
 
         assert actives(2) == (True, False)
         assert actives(3) == (False, True)
@@ -164,7 +164,7 @@ class TestHudPublishing:
         feed, state = make_feed(tmp_path), BridgeState()
 
         def active(slot: int) -> bool:
-            feed.publish(replace(state, active_side=slot))
+            feed.publish(replace(state, active_player=slot))
             return console(tmp_path)["active"]
 
         assert active(1) is True   # the main player holds it
@@ -241,7 +241,7 @@ class TestHudPublishing:
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks
-        it, so the loop has to judge each side's clip against the favs file."""
+        it, so the loop has to judge each player's clip against the favs file."""
         feed, state = make_feed(tmp_path), BridgeState()
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
@@ -285,7 +285,7 @@ class TestHudPublishing:
         with patch.object(feed.publisher, "publish", return_value=True) as publish:
             feed.publish_due(state, now=100.0)
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S / 2)
-            assert publish.call_count == 2, "one publish per side, once"
+            assert publish.call_count == 2, "one publish per player, once"
 
             feed.publish_due(state, now=100.0 + PUBLISH_INTERVAL_S)
 
@@ -312,7 +312,7 @@ class TestHudPublishing:
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
 
     def test_a_satellite_that_has_not_started_yet_publishes_an_empty_panel(self, tmp_path):
-        # The other side of it: before a satellite's first status there is no
+        # The other player of it: before a satellite's first status there is no
         # clip to hold onto, and an empty map is the truth.
         feed, state = make_feed(tmp_path), BridgeState()
 

@@ -14,6 +14,7 @@ from collections.abc import Sequence
 from pathlib import Path
 
 from player_core.file_channel import append_command
+from player_core.modes import MainMode
 from player_core.player_verbs import SET_F_MODE
 
 from .audio_volume import MAX_VOLUME, publish_audio_level
@@ -47,7 +48,7 @@ from .random_favs_browser import build_manifest, write_manifest
 from .rfb_tab_page import tabs_dir, write_tab_pages
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
-from .satellite_slot import SatelliteSlot, for_side
+from .satellite_slot import SatelliteSlot, for_player
 from .satellites_mode import VIDEO_MODE
 from .session_resume import (
     playlist_fits_sources,
@@ -295,8 +296,8 @@ def seed_startup_states(
     main_player_cmd_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
-    f_mode: bool = False,
-    mode: str = STARTUP_MAIN_MODE,
+    scripted_filter: bool = False,
+    mode: MainMode = STARTUP_MAIN_MODE,
 ) -> None:
     """Seed the cross-process flags the main slot opens on: both its players
     held until the sequencer's reveal starts whichever the mode puts on screen,
@@ -310,7 +311,7 @@ def seed_startup_states(
     resumed mute explicable rather than a silence with nothing on screen backing
     it (the main player draws the level and the mute it is given).
 
-    *f_mode* is the main player's own — this whole function is the main slot's
+    *scripted_filter* is the main player's own — this whole function is the main slot's
     seeding — and it is seeded for the same shape of reason: the playlist the main player is
     handed has already been narrowed and a list of scripted videos looks like any
     other, so the main player's HUD can only know from being told.  fun_time draws the
@@ -351,7 +352,7 @@ def seed_startup_states(
         volume=volume,
         muted=muted,
     )
-    append_command(Path(main_player_cmd_file), f"{SET_F_MODE} {int(f_mode)}")
+    append_command(Path(main_player_cmd_file), f"{SET_F_MODE} {int(scripted_filter)}")
 
 
 def reset_satellite_paused_states(
@@ -404,8 +405,8 @@ def start_core_session(
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the main player/Genau pair to match
     takes window handles only the sequencer has."""
-    portrait = for_side(portrait, Player.PORTRAIT)
-    landscape = for_side(landscape, Player.LANDSCAPE)
+    portrait = for_player(portrait, Player.PORTRAIT)
+    landscape = for_player(landscape, Player.LANDSCAPE)
     # Clear any satellites stranded by a prior crash on the very files this
     # session is about to claim, so four players never race the two command/status
     # file sets.  Bounded to those files: a session elsewhere on the machine (an
@@ -445,7 +446,7 @@ def start_core_session(
     seed_startup_states(
         genau_paused_file, audio_paused_file, main_player_paused_file, audio_volume_file,
         genau_cmd_file, main_player_cmd_file=main_player_cmd_file,
-        volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
+        volume=carried.volume, muted=carried.muted, scripted_filter=carried.main_scripted_filter,
         mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files.
@@ -467,7 +468,7 @@ def start_core_session(
         # F-mode being carried forward, then rotate back onto the clip that was
         # on screen.  (The satellites' dirs are the same in either app, so their
         # resume stands.)
-        build_main_playlist(main_player_playlist, main_sources, f_mode=carried.main_f_mode,
+        build_main_playlist(main_player_playlist, main_sources, scripted_filter=carried.main_scripted_filter,
                             recent=carried.main_latest)
         logger.info(
             "Resumed playlists; rebuilt the main player's around the video it was on"
@@ -484,8 +485,8 @@ def start_core_session(
     # A lock has no file of its own to come back in, so queue it for each side
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
-        (Path(portrait.cmd_file), carried.side(Player.PORTRAIT).locked),
-        (Path(landscape.cmd_file), carried.side(Player.LANDSCAPE).locked),
+        (Path(portrait.cmd_file), carried.satellite(Player.PORTRAIT).locked),
+        (Path(landscape.cmd_file), carried.satellite(Player.LANDSCAPE).locked),
     ])
     # The main player's loop is the same kind of thing, and queued the same way —
     # but only if the main player really did come back onto the video the loop was
@@ -918,8 +919,8 @@ def launch_core_apps(
     repeat-mode here — the native player owns its playlist and auto-advances (its
     wrap is repeat-all).
     """
-    portrait = for_side(portrait, Player.PORTRAIT)
-    landscape = for_side(landscape, Player.LANDSCAPE)
+    portrait = for_player(portrait, Player.PORTRAIT)
+    landscape = for_player(landscape, Player.LANDSCAPE)
 
     def _launch(slot: SatelliteSlot, title: str, role: str) -> int:
         return launch_satellite(

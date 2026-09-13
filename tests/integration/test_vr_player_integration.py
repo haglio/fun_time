@@ -33,8 +33,8 @@ from fun_time_vr.layout import (
     DEFAULT_LAYOUT,
     LANDSCAPE,
     LAYOUT_FILENAME,
+    MAIN,
     PORTRAIT,
-    PRIMARY,
     read_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
@@ -133,7 +133,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         encoding="utf-8",
     )
     for side in ("main_player", "portrait", "landscape"):
-        Path(commands.side_file(side, "paused")).write_text("0", encoding="utf-8")
+        Path(commands.player_file(side, "paused")).write_text("0", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
@@ -150,7 +150,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
     renderer = SceneRenderer()
     layout = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address, placement=layout[PRIMARY])
+    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address, placement=layout[MAIN])
     satellites = [
         vrp._SatelliteUnit(
             side, manifest, glfw.get_proc_address, vr=vr, placement=layout[side])
@@ -401,7 +401,7 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     glfw.make_context_current(window)
 
     main = vrp._MainUnit(manifest, vr, glfw.get_proc_address,
-                         placement=DEFAULT_LAYOUT[PRIMARY])
+                         placement=DEFAULT_LAYOUT[MAIN])
     stop = threading.Event()
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),

@@ -105,7 +105,7 @@ def panel_hud(
     clip_title: str,
     loading: str | None,
     drive_gate,
-    f_mode: bool = False,
+    scripted_filter: bool = False,
     playback_speed: float = 1.0,
 ) -> ConsoleHud:
     """The engine's console re-said for the mode: the video's name on top and
@@ -116,19 +116,19 @@ def panel_hud(
     published, the video waiting paused while the wave moves on.  With no
     engine console (the broker has the room) the panel still names what plays.
 
-    *f_mode* is the main player's own, folded in as the main player folds in its own: the
+    *scripted_filter* is the main player's own, folded in as the main player folds in its own: the
     published console lights the F button, the line beside it is the drawing
     player's, and in genau mode that slot is Genau's filters'.
     """
     hud = engine_hud if engine_hud is not None else ConsoleHud()
-    if main_player_displays(hud.console.mode):
+    if main_player_displays(hud.console.main_mode):
         title, drive = video_title, drive_gate.readout(hud.drive)
     else:
         drive_gate.readout(None)
         title, drive = loading or clip_title, hud.drive
     return replace(
         hud,
-        modes=ModeHud(video=title, f_mode=f_mode and main_player_displays(hud.console.mode)),
+        modes=ModeHud(video=title, scripted_filter=scripted_filter and main_player_displays(hud.console.main_mode)),
         drive=drive,
         console=with_playback_speed(hud.console, playback_speed),
     )
