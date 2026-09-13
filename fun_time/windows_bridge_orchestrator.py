@@ -801,7 +801,7 @@ class _Cover:
 
 
 def _clear_last_sessions_leftovers(
-    ahk_cmd_file: Path, pids_file: Path, dashboard_cmd_file: Path,
+    ahk_cmd_file: Path, pids_file: Path, dashboard_cmd_file: Path, dashboard_state_file: Path,
 ) -> None:
     """Drop the files a previous session left, before the hotkey script goes up
     and starts reading two of them.
@@ -817,7 +817,7 @@ def _clear_last_sessions_leftovers(
     copy would put every key live over one that is still assembling.
     """
     for stale in (ahk_cmd_file, pids_file, dashboard_cmd_file,
-                  dashboard_cmd_file.with_suffix(".processing")):
+                  dashboard_cmd_file.with_suffix(".processing"), dashboard_state_file):
         stale.unlink(missing_ok=True)
 
 
@@ -1138,7 +1138,8 @@ def run_session(
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
     ahk_cmd_file = state_dir / "ahk_cmd.txt"
     pids_file = state_dir / "bridge_pids.ini"
-    _clear_last_sessions_leftovers(ahk_cmd_file, pids_file, dashboard_cmd_file)
+    _clear_last_sessions_leftovers(ahk_cmd_file, pids_file, dashboard_cmd_file,
+                                   Path(manifest.commands.dashboard_state_file))
 
     # --- Launch loading screen (normal mode only) ---
     cover = _open_the_cover(state_dir, show_overlays=env.show_overlays)
