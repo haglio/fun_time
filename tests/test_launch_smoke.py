@@ -9,7 +9,7 @@ does not get.  A branch that grew a dependency on an unlanded sibling change
 therefore went green everywhere and died on his double-click (2026-08-13: the
 device arbiter importing player_core's new floor-touch rule).
 
-The modules are read out of the ``.vbs`` launchers rather than listed here, so
+The modules are read out of the launchers' specs rather than listed here, so
 this covers whatever the checkout can actually be started as.  Listing them by
 hand is what let the second one through: the fix went into
 ``fun_time.orchestrator``, the test named only that module, and
@@ -24,11 +24,11 @@ import sys
 from pathlib import Path
 
 import pytest
+from app_support.launcher import launchers
 
 REPO_DIR = Path(__file__).resolve().parent.parent
 
-# ``... python.exe" -m fun_time.orchestrator ...`` inside the command each
-# launcher builds for cmd.
+# ``-m fun_time.orchestrator`` in what a launcher's spec runs.
 _LAUNCH_MODULE = re.compile(r'-m\s+([A-Za-z_][\w.]*)')
 
 # The one ``-m`` entry point no ``.vbs`` names, so the scan below cannot find
@@ -41,10 +41,8 @@ _UNLAUNCHED_ENTRY_POINTS = (("session_handoff (started by an orchestrator)",
 
 def _launched_modules() -> list[tuple[str, str]]:
     found: list[tuple[str, str]] = list(_UNLAUNCHED_ENTRY_POINTS)
-    for launcher in sorted(REPO_DIR.glob("*.vbs")):
-        text = launcher.read_text(encoding="utf-8", errors="replace")
-        for module in dict.fromkeys(_LAUNCH_MODULE.findall(text)):
-            found.append((launcher.name, module))
+    for launcher in launchers(REPO_DIR):
+        found.extend((launcher.file, module) for module in _LAUNCH_MODULE.findall(launcher.run))
     return found
 
 
