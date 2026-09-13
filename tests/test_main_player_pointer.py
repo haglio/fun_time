@@ -3,8 +3,7 @@
 Four things are under the pointer, each floating over the one under it: the
 console, the volume chip at the right-hand end of the timeline row,
 the rest of that row, and the video everywhere else.  800x600 with no heatmap
-built puts the row's top edge at y=576 and the inset track between x=40 and
-x=668.
+built puts the row's top edge at y=576.
 """
 from __future__ import annotations
 
@@ -12,6 +11,7 @@ from pathlib import Path
 
 import pytest
 from player_core.funscript import Funscript
+from player_core.timeline import bar_track_x
 
 from main_player.dashboard import Dashboard
 from main_player.overlay import HeatmapStrip
@@ -20,8 +20,10 @@ from main_player.volume_control import VolumeControl
 
 DURATION_MS = 100_000.0
 ON_THE_VIDEO = (400, 300)
-TRACK_START = (40, 590)
-TRACK_MIDDLE = (354, 590)
+_TRACK_X0, _TRACK_X1 = bar_track_x(800)
+TRACK_START = (_TRACK_X0, 590)
+TRACK_MIDDLE = ((_TRACK_X0 + _TRACK_X1) // 2, 590)
+ONE_TRACK_PIXEL_MS = DURATION_MS / (_TRACK_X1 - _TRACK_X0)
 PAST_THE_TRACKS_END = (790, 590)
 ON_THE_VOLUME_CHIP = (744, 590)
 
@@ -113,7 +115,7 @@ def _funscript() -> Funscript:
 def _recording_strip(bits: Bits) -> None:
     """Grow the strip the way a loop being recorded does: taller, and zoomed
     into the section around the in point."""
-    bits.heatmap.update("v0.mp4", _funscript(), DURATION_MS, width=628,
+    bits.heatmap.update("v0.mp4", _funscript(), DURATION_MS, width=_TRACK_X1 - _TRACK_X0,
                         loop_state="recording", record_in_ms=1000.0, position_ms=1200.0)
 
 
@@ -156,7 +158,7 @@ class TestPressingTheTimeline:
     def test_it_seeks_and_does_not_touch_the_pause(self, bits):
         bits.press(TRACK_MIDDLE)
 
-        assert bits.session.seeks == [pytest.approx(DURATION_MS / 2)]
+        assert bits.session.seeks == [pytest.approx(DURATION_MS / 2, abs=ONE_TRACK_PIXEL_MS)]
         assert bits.asks() == []
 
     def test_the_start_of_the_track_is_the_start_of_the_video(self, bits):
@@ -208,7 +210,7 @@ class TestPressingTheTimeline:
 
         bits.press(TRACK_MIDDLE)
 
-        assert bits.session.seeks == [pytest.approx(DURATION_MS / 2)]
+        assert bits.session.seeks == [pytest.approx(DURATION_MS / 2, abs=ONE_TRACK_PIXEL_MS)]
 
 
 class TestPressingTheVolumeChip:

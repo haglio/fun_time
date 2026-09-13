@@ -213,7 +213,7 @@ def _rgba(bar, y, x):
 
 
 class TestHeatmapBgra:
-    def _framed_strip(self, win_w=200):
+    def _framed_strip(self, win_w=1000):
         # Production builds the color row at the inset track width, then frames
         # it to full window width.
 
@@ -225,7 +225,7 @@ class TestHeatmapBgra:
     def test_strip_is_inset_from_the_window_edges(self):
         bgra, x0, x1 = self._framed_strip()
         my = bgra.shape[0] // 2
-        assert bgra[my, 5, 3] == 0 and bgra[my, 195, 3] == 0   # nothing at the edges
+        assert bgra[my, 5, 3] == 0 and bgra[my, bgra.shape[1] - 5, 3] == 0  # nothing at the edges
         assert bgra[my, (x0 + x1) // 2, 3] > 0                 # painted in the track
 
     def test_has_a_two_tone_border(self):

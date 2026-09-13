@@ -18,12 +18,13 @@ from player_core.console import ConsoleModel
 from player_core.console_hud import ConsolePainter, ModeHud
 from player_core.drive_readout import DriveHud
 from player_core.funscript import Funscript
+from player_core.timeline import bar_track_x
 from player_core.volume import VolumeHud
 
 from main_player.overlay import HeatmapStrip, LoopThumbCapture
 
 WIN_W, WIN_H = 1000, 600
-TRACK_W = 828                 # bar_track_x(1000) spans 40..868
+TRACK_W = bar_track_x(WIN_W)[1] - bar_track_x(WIN_W)[0]
 VIDEO = "gamma reel.mp4"
 LOOP = (2000, 4000)
 
