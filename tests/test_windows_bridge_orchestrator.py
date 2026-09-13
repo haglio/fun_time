@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import configparser
+import logging
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -1856,7 +1857,7 @@ class TestVoiceControlIntegration:
 
         mock_vc.stop.assert_called_once()
 
-    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path):
+    def test_voice_controller_skipped_when_not_available(self, cfg_factory, tmp_path, caplog):
         path = cfg_factory({"voice_control": {"enabled": True, "model_path": "test-model"}})
         cfg = load_config(path)
         manifest_path = write_windows_bridge_manifest(
@@ -1877,7 +1878,8 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", False), \
-             patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
+             patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class, \
+             caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_orchestrator"):
 
             run_session(
                 manifest_path=manifest_path,
@@ -1888,6 +1890,9 @@ class TestVoiceControlIntegration:
             )
 
         mock_vc_class.assert_not_called()
+        # Voice was asked for and cannot run at all: an error, so it flashes red.
+        assert [r.levelno for r in caplog.records if "import failed" in r.getMessage()] == [
+            logging.ERROR]
 
     def test_voice_controller_skipped_when_disabled(self, cfg_factory, tmp_path):
         # voice_control section absent → defaults to disabled
