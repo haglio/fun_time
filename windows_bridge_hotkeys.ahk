@@ -18,14 +18,19 @@ SetTitleMatchMode 2
 ;   1  WINDOWS_BRIDGE_MANIFEST_PATH
 ;   2  PIDS_FILE_PATH  — watched rather than read: the orchestrator writes it
 ;      the moment the session is up, which is this script's cue to go live.
+;   3  The orchestrator's pid — after a crossing this script outlives it.
 
-if (A_Args.Length < 2) {
-    MsgBox("Expected 2 arguments: manifest path, pids file path. Got " . A_Args.Length, "fun_time", "Iconx")
+if (A_Args.Length < 3) {
+    MsgBox("Expected 3 arguments: manifest path, pids file path, orchestrator pid. Got " . A_Args.Length, "fun_time", "Iconx")
     ExitApp 2
 }
 
 WINDOWS_BRIDGE_MANIFEST_PATH := A_Args[1]
 PIDS_FILE_PATH := A_Args[2]
+; A handle rather than the bare pid: Windows never hands a pid back out while a
+; handle to its process is open, so the watch below cannot mistake a stranger
+; for the orchestrator.  SYNCHRONIZE is all it asks for.
+ORCHESTRATOR := DllCall("OpenProcess", "UInt", 0x00100000, "Int", false, "UInt", A_Args[3], "Ptr")
 
 ; Read only the values that the hotkey script needs.
 DASHBOARD_CMD_FILE := RequireManifestValue("commands", "dashboard_cmd_file")
@@ -38,6 +43,10 @@ AHK_CMD_FILE := STATE_DIR . "\ahk_cmd.txt"
 ; overlay_progress.CANCEL_FILENAME — the loading screen drops the same file
 ; when Esc happens to land on it — so a test pins the two together.
 STARTUP_CANCEL_FILE := STATE_DIR . "\startup_cancel.flag"
+; The crossing cover's file, and how long it may go unrefreshed before the
+; crossing counts as over -- session_handoff's name and timeout, pinned by a test.
+CROSSING_PROGRESS_FILE := STATE_DIR . "\crossing_progress.txt"
+CROSSING_STALE_S := 20
 
 ; This script goes up with the loading screen, ahead of every window the session
 ; opens, because its hotkeys are the only keys here that do not care what holds
@@ -287,14 +296,42 @@ KeepOrMarkSessionEnd(reason) {
 }
 
 ; The session ends here and the script does not: Esc and the quit chord stay
-; live over the closing cover, and the orchestrator stops the script once its
-; teardown has read what they asked for.
+; live over the closing cover.  The orchestrator stops the script once its
+; teardown is done -- except over a crossing, where it goes on hearing Esc for
+; the relay until the next session's own script replaces it.
 EndTheSession() {
     global EndingPhase, StartupSuspended, STARTUP_CANCEL_FILE
     try FileDelete(STARTUP_CANCEL_FILE)
     EndingPhase := true
     StartupSuspended := false
     Suspend true
+    SetTimer(WatchEnding, 500)
+}
+
+; Over the closing cover its orchestrator is still running, and over a crossing
+; the cover's file is kept fresh; with neither, nothing is left to hear Esc for.
+WatchEnding() {
+    if (OrchestratorGone() && !CrossingUnderWay()) {
+        Log("Nothing left to end or cross into; exiting")
+        ExitApp()
+    }
+}
+
+OrchestratorGone() {
+    global ORCHESTRATOR
+    ; 0 is WAIT_OBJECT_0, the process having ended; no handle, it was gone already.
+    return !ORCHESTRATOR || DllCall("WaitForSingleObject", "Ptr", ORCHESTRATOR, "UInt", 0) = 0
+}
+
+CrossingUnderWay() {
+    global CROSSING_PROGRESS_FILE, CROSSING_STALE_S
+    try {
+        if (Trim(FileRead(CROSSING_PROGRESS_FILE, "UTF-8")) = "DONE")
+            return false
+        return DateDiff(A_Now, FileGetTime(CROSSING_PROGRESS_FILE, "M"), "Seconds") < CROSSING_STALE_S
+    } catch {
+        return false
+    }
 }
 
 ; Esc calls the launch off while the session is still assembling, and the end

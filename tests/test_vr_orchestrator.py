@@ -658,6 +658,64 @@ class TestTheCrossingBackToTheDesktop:
         popen.assert_not_called()
 
 
+class TestTheWayBackIntoVr:
+    def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, config):
+        from unittest.mock import MagicMock, patch
+
+        from fun_time_vr import orchestrator
+
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             patch("fun_time.session_handoff.subprocess.Popen"), \
+             patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
+            orchestrator.main(["--no-cancel"])
+
+        assert run_bridge.call_args.kwargs["cancelable"] is False
+
+    def test_a_player_left_holding_the_headset_is_gone_before_the_new_one_starts(
+        self, config,
+    ):
+        """Let go of first, it would close its XR session and could stop the very
+        runtime this launch needs; its hold left on disk, the new player would
+        read itself as held and show "Returning to Fun Time..." for good."""
+        from unittest.mock import MagicMock, patch
+
+        from fun_time.session_environment import SessionEnvironment
+        from fun_time.session_handoff import headset_hold_asked, hold_the_headset
+        from fun_time_vr import orchestrator
+
+        class PlayerLaunched(Exception):
+            pass
+
+        state_dir = config.paths.state_dir
+        state_dir.mkdir(parents=True, exist_ok=True)
+        hold_the_headset(state_dir, stop_runtime=True)
+        held_while_reaping: list[bool] = []
+        held_at_launch: list[bool] = []
+
+        def reap(module, _claimed):
+            if module == orchestrator.VR_PLAYER_MODULE:
+                held_while_reaping.append(headset_hold_asked(state_dir))
+
+        def launch(**_kwargs):
+            held_at_launch.append(headset_hold_asked(state_dir))
+            raise PlayerLaunched
+
+        with _launch_stand_ins(
+            orchestrator, [],
+            reap_orphaned_satellites=MagicMock(side_effect=reap),
+            launch_vr_player=MagicMock(side_effect=launch),
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"), \
+             pytest.raises(PlayerLaunched):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert held_while_reaping == [True]
+        assert held_at_launch == [False]
+
+
 class TestHandingTheHeadsetOver:
     """The wait is the point: the arriving desktop session claims the very
     status and command files the held player's roles were driving, so the
@@ -920,6 +978,29 @@ class TestTheHeadsetsCover:
         assert parse_progress(cover.progress_file.read_text(encoding="utf-8")).hint == (
             "Press Esc to cancel entering VR")
 
+    def test_an_esc_pressed_while_the_room_changed_over_calls_the_arrival_off(self, tmp_path):
+        """The hotkey script left over from Fun Time was all that heard it."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+        from fun_time.session_handoff import VR, raise_crossing_cover
+        from fun_time_vr.orchestrator import _Cover
+
+        raise_crossing_cover(tmp_path, VR)
+        (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        assert _Cover(tmp_path).progress.cancelled
+
+    def test_a_session_entered_on_the_way_back_offers_no_esc(self, tmp_path):
+        """Esc already called a crossing off to get here."""
+        from fun_time.overlay_progress import parse_progress
+        from fun_time.session_handoff import VR, raise_crossing_cover
+        from fun_time_vr.orchestrator import _Cover
+
+        raise_crossing_cover(tmp_path, VR)
+        cover = _Cover(tmp_path, cancelable=False)
+        cover.progress.advance("services")
+
+        assert parse_progress(cover.progress_file.read_text(encoding="utf-8")).hint == ""
+
     def test_clearing_writes_no_done(self, tmp_path):
         """DONE is how a finished launch uncovers a room worth seeing.  The
         paths that clear without one have nothing to reveal, and the cover comes
@@ -964,15 +1045,16 @@ class TestCancellingALaunch:
                             lambda _proc, _file: order.append("hotkeys"))
         monkeypatch.setattr(orchestrator, "kill_recorded_child",
                             lambda child: order.append(child.pid))
+        # The monitors as the crossing left them, before this session started: a
+        # full-screen window belonging to the session that has already gone.  And
+        # the marker a crossing's own exit leaves, which is why the flag's word is
+        # what decides.
+        if crossing:
+            raise_crossing_cover(tmp_path, orchestrator.VR)
         cover = orchestrator._Cover(tmp_path)
         cover.progress.advance("players")
         cover.cancel_file.write_text(
             "quit\n" if by_quit_chord else "cancel\n", encoding="utf-8")
-        # The monitors as the crossing left them: a full-screen window belonging
-        # to the session that has already gone.  And the marker a crossing's own
-        # exit leaves, which is why the flag's word is what decides.
-        if crossing:
-            raise_crossing_cover(tmp_path, orchestrator.DESKTOP)
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord\n", encoding="utf-8")
 
         code = orchestrator._cancel_vr_startup(
@@ -1040,6 +1122,37 @@ class TestCancellingALaunch:
         assert pending_handoff(tmp_path) == DESKTOP
         assert "DONE" not in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
 
+    def test_the_quit_chord_closes_the_hosted_app_fun_time_left_waiting(
+            self, tmp_path, monkeypatch):
+        """Fun Time parked it for its return, and no return is coming."""
+        from fun_time_vr import orchestrator
+
+        closed: list = []
+        monkeypatch.setattr(orchestrator, "close_a_kept_origenerator", closed.append)
+
+        self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
+
+        assert closed == [tmp_path]
+
+    def test_esc_leaves_the_hosted_app_for_fun_time_to_adopt(self, tmp_path, monkeypatch):
+        from fun_time_vr import orchestrator
+
+        closed: list = []
+        monkeypatch.setattr(orchestrator, "close_a_kept_origenerator", closed.append)
+
+        self._cancel(tmp_path, monkeypatch, {})
+
+        assert closed == []
+
+    def test_the_way_back_to_fun_time_offers_no_esc(self, tmp_path, monkeypatch):
+        """One Esc per cover: a second would send him back into VR."""
+        from fun_time.session_handoff import DESKTOP, take_handoff_request
+
+        self._cancel(tmp_path, monkeypatch, {})
+
+        taken = take_handoff_request(tmp_path)
+        assert (taken.target, taken.cancelable) == (DESKTOP, False)
+
     def test_the_monitors_say_so_the_moment_esc_lands(self, tmp_path, monkeypatch):
         """Pressing Esc looked like nothing happening: the cover went on saying
         "Entering VR..." through a teardown that takes seconds, so he pressed it
@@ -1098,6 +1211,23 @@ class TestTheClosingCover:
         assert seen == [CLOSING_STATUS]
         assert not (tmp_path / SHUTDOWN_PROGRESS_FILENAME).exists()
         assert not (tmp_path / SHUTDOWN_READY_FILENAME).exists()
+
+    def test_it_says_what_esc_would_cancel(self, tmp_path):
+        from fun_time.overlay_progress import (
+            SHUTDOWN_PROGRESS_FILENAME,
+            SHUTDOWN_READY_FILENAME,
+            parse_progress,
+        )
+        from fun_time_vr.orchestrator import _closing_cover
+
+        (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
+
+        with _closing_cover(tmp_path, _AlivePlayer(), enabled=True,
+                            esc_cancels="Press Esc to cancel closing Fun Time VR"):
+            line = parse_progress(
+                (tmp_path / SHUTDOWN_PROGRESS_FILENAME).read_text(encoding="utf-8"))
+
+        assert line.hint == "Press Esc to cancel closing Fun Time VR"
 
     def test_a_flag_from_a_previous_session_cannot_vouch_for_this_one(self, tmp_path):
         """It would let this teardown start with nothing yet covering the view."""
@@ -1288,6 +1418,34 @@ class TestWhatAPreviousSessionLeft:
         assert there_when_it_went_up == [False]
 
 
+class TestTheHotkeyScriptsArguments:
+    def test_it_is_told_which_orchestrator_to_watch(self, config):
+        """After a crossing it outlives this process, and has to know when the
+        session it belonged to is gone."""
+        import os
+        from unittest.mock import patch
+
+        from fun_time.session_environment import SessionEnvironment
+        from fun_time_vr import orchestrator
+
+        class HotkeyScriptWentUp(Exception):
+            pass
+
+        launched: list[list[str]] = []
+
+        def hotkey_script(command, **_kwargs):
+            launched.append(list(command))
+            raise HotkeyScriptWentUp
+
+        with patch.object(orchestrator, "open_event_log"), \
+             patch.object(orchestrator, "add_dispatch_file_handler"), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen", side_effect=hotkey_script), \
+             pytest.raises(HotkeyScriptWentUp):
+            orchestrator.run_vr_bridge(config, SessionEnvironment())
+
+        assert launched[0][-1] == str(os.getpid())
+
+
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     """Everything a VR launch starts or waits on, faked; the files it writes are real."""
     import threading
@@ -1314,6 +1472,50 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     return patch.multiple(orchestrator, **stand_ins)
 
 
+def _end_a_vr_session(orchestrator, config, *, ended_by, **overrides) -> list[str]:
+    """Run a VR session to its end, every child faked; what its closing cover
+    was told Esc cancels comes back."""
+    from unittest.mock import MagicMock, patch
+
+    from fun_time.session_environment import SessionEnvironment
+
+    config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+    offered: list[str] = []
+    real_closing_cover = orchestrator._closing_cover
+
+    def closing_cover(*args, **kwargs):
+        offered.append(kwargs.get("esc_cancels", ""))
+        return real_closing_cover(*args, **kwargs)
+
+    player = MagicMock(pid=202)
+    player.poll.return_value = None
+    stand_ins = dict(
+        launch_vr_player=MagicMock(return_value=player),
+        wait_for_cover_painted=MagicMock(return_value=True),
+        DispatchLoopRunner=MagicMock(),
+        start_voice_control=MagicMock(return_value=(None, None)),
+        _wait_for_session_end=MagicMock(side_effect=ended_by),
+        _closing_cover=closing_cover,
+    )
+    stand_ins.update(overrides)
+    with _launch_stand_ins(orchestrator, [], **stand_ins), \
+         patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+         patch("fun_time_vr.orchestrator.subprocess.Popen"):
+        orchestrator.run_vr_bridge(config, SessionEnvironment())
+    return offered
+
+
+def _asked_then_esc(config):
+    """The quit asked for, then Esc pressed on the closing cover."""
+    from fun_time.overlay_progress import CANCEL_FILENAME
+
+    def ended(*_args, **_kwargs):
+        (config.paths.state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+        return "asked"
+
+    return ended
+
+
 class TestOpeningAVrSession:
     def test_a_failure_takes_down_what_it_launched_and_gives_the_monitors_back(self, config):
         from unittest.mock import MagicMock, patch
@@ -1335,6 +1537,123 @@ class TestOpeningAVrSession:
 
         assert torn_down == ["hotkeys", 101, 202, "runtime"]
         assert pending_handoff(config.paths.state_dir) is None
+
+    def test_a_session_he_quit_says_esc_cancels_closing_fun_time_vr(self, config):
+        from fun_time_vr import orchestrator
+
+        offered = _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
+
+        assert offered == ["Press Esc to cancel closing Fun Time VR"]
+
+    def test_a_session_crossing_to_fun_time_says_esc_cancels_exiting_vr(self, config):
+        from unittest.mock import MagicMock
+
+        from fun_time.session_handoff import DESKTOP, request_handoff
+        from fun_time_vr import orchestrator
+
+        def asked_to_cross(*_args, **_kwargs):
+            request_handoff(config.paths.state_dir, DESKTOP)
+            return "asked"
+
+        offered = _end_a_vr_session(
+            orchestrator, config, ended_by=asked_to_cross,
+            _leave_the_headset_covered=MagicMock(return_value=True),
+        )
+
+        assert offered == ["Press Esc to cancel exiting VR"]
+
+    def test_a_session_crossing_to_fun_time_leaves_the_hotkey_script_listening(self, config):
+        """While the room changes over nothing else hears Esc; the relay reads
+        what it dropped once this session has let go."""
+        from unittest.mock import MagicMock
+
+        from fun_time.session_handoff import DESKTOP, request_handoff
+        from fun_time_vr import orchestrator
+
+        def asked_to_cross(*_args, **_kwargs):
+            request_handoff(config.paths.state_dir, DESKTOP)
+            return "asked"
+
+        stopped = MagicMock()
+        _end_a_vr_session(orchestrator, config, ended_by=asked_to_cross,
+                          _leave_the_headset_covered=MagicMock(return_value=True),
+                          stop_hotkey_script=stopped)
+
+        stopped.assert_not_called()
+
+    def test_esc_on_the_closing_cover_opens_fun_time_vr_again_offering_no_esc(self, config):
+        from unittest.mock import MagicMock
+
+        from fun_time.session_handoff import VR, take_handoff_request
+        from fun_time_vr import orchestrator
+
+        _end_a_vr_session(
+            orchestrator, config, ended_by=_asked_then_esc(config),
+            _leave_the_headset_covered=MagicMock(return_value=True),
+        )
+
+        taken = take_handoff_request(config.paths.state_dir)
+        assert taken is not None, "Esc let the quit go on"
+        assert (taken.target, taken.cancelable) == (VR, False)
+
+    def test_on_the_way_back_into_vr_the_headset_stays_covered_and_the_runtime_up(
+        self, config,
+    ):
+        """The player keeps its cover in front of him until the next one is up,
+        and a runtime stopped here would only have to be started again."""
+        from unittest.mock import MagicMock
+
+        from fun_time_vr import orchestrator
+
+        hold = MagicMock(return_value=True)
+        _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
+                          _leave_the_headset_covered=hold)
+
+        hold.assert_called_once_with(config.paths.state_dir, stop_runtime=False)
+
+    def test_a_refused_hold_on_the_way_back_into_vr_leaves_the_runtime_running(
+        self, config,
+    ):
+        """VR is coming straight back; stopped here it would only be started again."""
+        from unittest.mock import MagicMock
+
+        from fun_time_vr import orchestrator
+
+        released: list = []
+        _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
+                          _leave_the_headset_covered=MagicMock(return_value=False),
+                          _release_vr_runtime=released.append)
+
+        assert released == []
+
+    def test_on_the_way_back_into_vr_both_covers_say_it_is_canceling(self, config):
+        """The held player reads the crossing cover's words; with none up it
+        would go on saying "Returning to Fun Time..." on the way back into VR."""
+        from unittest.mock import MagicMock
+
+        from fun_time.overlay_progress import CANCELING, parse_progress
+        from fun_time.session_handoff import crossing_progress_path
+        from fun_time_vr import orchestrator
+
+        _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
+                          _leave_the_headset_covered=MagicMock(return_value=True))
+
+        line = parse_progress(
+            crossing_progress_path(config.paths.state_dir).read_text(encoding="utf-8"))
+        assert (line.message, line.hint) == (CANCELING, "")
+
+    def test_on_the_way_back_into_vr_the_hosted_app_stays_parked(self, config):
+        """Fun Time left it for its own return, which can still come later."""
+        from unittest.mock import MagicMock
+
+        from fun_time_vr import orchestrator
+
+        closed: list = []
+        _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
+                          _leave_the_headset_covered=MagicMock(return_value=True),
+                          close_a_kept_origenerator=closed.append)
+
+        assert closed == []
 
     def test_voice_starts_the_way_a_desktop_session_starts_it(self, config):
         from unittest.mock import MagicMock, patch

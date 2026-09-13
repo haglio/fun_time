@@ -23,15 +23,18 @@ from fun_time.cover_palette import (
 )
 from fun_time.overlay_progress import (
     CANCEL_FILENAME,
+    CANCEL_WORD,
     CANCELING,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     Phase,
+    Progress,
     parse_progress,
     ready_file_for,
+    what_the_flag_asks,
 )
 from fun_time.project_paths import PROJECT_VR_ICON
-from fun_time.session_handoff import headset_hold_asked
+from fun_time.session_handoff import DESKTOP, crossing_progress_path, headset_hold_asked
 
 logger = logging.getLogger(__name__)
 
@@ -55,7 +58,7 @@ STARTUP_STALE_TIMEOUT_S = 120.0
 SHUTDOWN_STALE_TIMEOUT_S = 20.0
 
 CLOSING_STATUS = VR_SHUTDOWN_PHASES[0].message
-HELD_STATUS = "Returning to Fun Time..."  # exempt from staleness: see the doc
+HELD_STATUS = DESKTOP.crossing_message  # exempt from staleness: see the doc
 WEARER_STATUS = "Waiting for you to put the headset on..."  # not on the players
 
 _STARTUP = "startup"
@@ -68,6 +71,13 @@ class Cover:  # what the cover says now; *closing* is teardown's
     fraction: float
     hint: str = ""
     closing: bool = False
+
+
+def _line_on(path: Path) -> Progress | None:
+    try:
+        return parse_progress(path.read_text(encoding="utf-8"))
+    except OSError:
+        return None
 
 
 class CoverWatcher:
@@ -83,6 +93,7 @@ class CoverWatcher:
         self.startup_file = state_dir / PROGRESS_FILENAME
         self.shutdown_file = state_dir / SHUTDOWN_PROGRESS_FILENAME
         self.cancel_file = state_dir / CANCEL_FILENAME
+        self.crossing_file = crossing_progress_path(state_dir)
         self.ready_file = ready_file_for(self.shutdown_file)
         self._clock = clock
         self._closing_locally = False
@@ -98,26 +109,35 @@ class CoverWatcher:
     def read(self) -> Cover | None:
         """This tick's cover, or None to show the scene."""
         if headset_hold_asked(self.state_dir):
-            return Cover(status=HELD_STATUS, fraction=1.0, closing=True)
+            return self._cover_for_the_line(1.0, *self._held_line(), closing=True)
         # Teardown outranks startup, whatever its file still says.
         shutdown = self._read_end(
             self.shutdown_file, key=_SHUTDOWN,
             stale_timeout_s=SHUTDOWN_STALE_TIMEOUT_S, opening=CLOSING_STATUS,
         )
         if shutdown is not None:
-            return Cover(status=shutdown[1], fraction=shutdown[0], closing=True)
+            return self._cover_for_the_line(*shutdown, closing=True)
         if self._closing_locally:
             return Cover(status=CLOSING_STATUS, fraction=0.0, closing=True)
         startup = self._read_end(
             self.startup_file, key=_STARTUP,
             stale_timeout_s=STARTUP_STALE_TIMEOUT_S, opening=VR_STARTUP_PHASES[0].message,
         )
-        if startup is None:
-            return None
-        fraction, message, hint = startup
+        return None if startup is None else self._cover_for_the_line(*startup, closing=False)
+
+    def _cover_for_the_line(
+        self, fraction: float, message: str, hint: str, *, closing: bool,
+    ) -> Cover:
         if self._cancelling or (hint and self._cancel_asked()):  # no second way out
-            return Cover(status=CANCELING, fraction=fraction)
-        return Cover(status=message, fraction=fraction, hint=hint)
+            return Cover(status=CANCELING, fraction=fraction, closing=closing)
+        return Cover(status=message, fraction=fraction, hint=hint, closing=closing)
+
+    def _held_line(self) -> tuple[str, str]:
+        crossing = _line_on(self.crossing_file)
+        if crossing is not None and crossing.message:
+            return crossing.message, crossing.hint
+        startup = _line_on(self.startup_file)
+        return HELD_STATUS, startup.hint if startup is not None else ""
 
     def _read_end(
         self, path: Path, *, key: str, stale_timeout_s: float, opening: str
@@ -147,12 +167,8 @@ class CoverWatcher:
 
     def _cancel_asked(self) -> bool:
         """Latched: the flag is dropped at the END of the teardown it starts."""
-        if self._cancelling:
-            return True
-        try:
-            self._cancelling = self.cancel_file.exists()
-        except OSError:
-            return False
+        if not self._cancelling:
+            self._cancelling = what_the_flag_asks(self.cancel_file) == CANCEL_WORD
         return self._cancelling
 
     def _went_stale(self, key: str, text: str, stale_timeout_s: float) -> bool:

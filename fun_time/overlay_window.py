@@ -24,7 +24,13 @@ from .cover_palette import (
     WORDMARK_MAGENTA,
 )
 from .monitors import MonitorInfo, virtual_desktop_rect
-from .overlay_progress import CANCELING, cancel_file_for, parse_progress
+from .overlay_progress import (
+    CANCEL_WORD,
+    CANCELING,
+    cancel_file_for,
+    parse_progress,
+    what_the_flag_asks,
+)
 from .project_paths import PROJECT_ICON
 from .win32 import create_hidden_topmost_window, find_window_by_title, set_always_on_top
 
@@ -199,7 +205,7 @@ class OverlayWindow:
             return
         self._say_canceling()
         try:
-            cancel_file_for(self._progress_file).write_text("cancel\n", encoding="utf-8")
+            cancel_file_for(self._progress_file).write_text(f"{CANCEL_WORD}\n", encoding="utf-8")
         except OSError:
             pass
 
@@ -229,7 +235,8 @@ class OverlayWindow:
                             progress.step / progress.total * 100)
                     # The hotkey script's route: its flag is on disk and no key
                     # ever reached this window.
-                    if progress.hint and cancel_file_for(self._progress_file).exists():
+                    if progress.hint and what_the_flag_asks(
+                            cancel_file_for(self._progress_file)) == CANCEL_WORD:
                         self._say_canceling()
                     if not self._status_held:
                         if progress.message:

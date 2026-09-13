@@ -745,7 +745,9 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
-        assert take_handoff_request(tmp_path) is VR
+        taken = take_handoff_request(tmp_path)
+        assert taken.target is VR
+        assert taken.cancelable, "a spoken crossing is one Esc may call off"
 
     def test_exiting_vr_from_a_vr_session_asks_for_the_desktop(self, tmp_path):
         runner = make_runner(tmp_path, config=make_config(tmp_path, vr_main_player=True))
@@ -754,7 +756,7 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
-        assert take_handoff_request(tmp_path) is DESKTOP
+        assert take_handoff_request(tmp_path).target is DESKTOP
 
     @pytest.mark.parametrize(
         ("command", "vr_main_player"), [("exit_vr", False), ("enter_vr", True)],

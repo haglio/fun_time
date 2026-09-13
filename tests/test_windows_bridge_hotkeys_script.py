@@ -98,6 +98,15 @@ def test_the_region_shows_do_not_gate_the_hotkeys():
     assert '"Origenerator Landscape"' not in gate
 
 
+def test_it_is_told_which_orchestrator_launched_it():
+    """Both orchestrators pass their own process id third: after a crossing the
+    script outlives that process, and has to know when it is gone."""
+    text = script_text()
+
+    assert "if (A_Args.Length < 3)" in text
+    assert "A_Args[3]" in text
+
+
 class TestTheSessionEndsButTheScriptStays:
     """Esc over the closing cover is how a quit gets called off, and a script
     that has exited hooks nothing -- so ending a session leaves it running,
@@ -124,6 +133,29 @@ class TestTheSessionEndsButTheScriptStays:
         guard = body[:body.index('RequestStartupCancel("quit")')]
 
         assert "EndingPhase" in guard
+
+    def test_ending_the_session_starts_watching_for_nothing_left_to_serve(self):
+        """Over a crossing the orchestrator exits first and nothing stops this
+        script; left running, Esc and the quit chord would be dead everywhere."""
+        assert "SetTimer(WatchEnding" in function_source("EndTheSession")
+
+    def test_the_watch_waits_out_both_the_session_and_its_crossing(self):
+        """Over the closing cover the orchestrator is alive; over a crossing the
+        cover's file is fresh.  Only with neither is there nothing left."""
+        body = function_source("WatchEnding")
+        before_exiting = body[:body.index("ExitApp")]
+
+        assert "OrchestratorGone()" in before_exiting
+        assert "CrossingUnderWay()" in before_exiting
+
+    def test_the_crossing_it_watches_is_the_one_the_sessions_keep(self):
+        """One file and one timeout, spelled in two languages."""
+        from fun_time.session_handoff import COVER_STALE_S, CROSSING_PROGRESS_NAME
+
+        text = script_text()
+
+        assert f'"\\{CROSSING_PROGRESS_NAME}"' in text
+        assert f"CROSSING_STALE_S := {COVER_STALE_S:g}" in text
 
     def test_ending_the_session_clears_a_cancel_flag_from_before_it_ended(self):
         """Nothing in a live session drops the flag, so one lying there when the

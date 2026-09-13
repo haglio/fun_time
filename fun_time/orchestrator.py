@@ -47,6 +47,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap = argparse.ArgumentParser(description="Launch the Fun Time Windows bridge stack.")
     ap.add_argument("--config", help="Path to a JSON config file.")
     ap.add_argument("--check", action="store_true", help="Validate config and exit.")
+    ap.add_argument("--no-cancel", action="store_true",
+                    help="The way back from a crossing Esc called off: offer no Esc.")
     return ap
 
 
@@ -88,7 +90,9 @@ def validate_config(config) -> None:
 
 
 
-def run_windows_bridge(config, logger, env: SessionEnvironment) -> int:
+def run_windows_bridge(
+    config, logger, env: SessionEnvironment, *, cancelable: bool = True,
+) -> int:
     manifest_path = write_windows_bridge_manifest(
         config, dashboard_enabled=env.dashboard_enabled)
     hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
@@ -102,6 +106,7 @@ def run_windows_bridge(config, logger, env: SessionEnvironment) -> int:
         state_dir=config.paths.state_dir,
         project_dir=config.project_dir,
         env=env,
+        cancelable=cancelable,
     )
     logger.info("Windows bridge exited with code %s", exit_code)
     return exit_code
@@ -219,7 +224,7 @@ def main(argv: list[str] | None = None) -> int:
     # Every child below is named as it is launched; this one process cannot be,
     # because it is the one doing the naming -- see prepare_orchestrator_launcher.
     prepare_orchestrator_launcher()
-    exit_code = run_windows_bridge(config, logger, env)
+    exit_code = run_windows_bridge(config, logger, env, cancelable=not args.no_cancel)
     hand_over_if_asked(config, logger)  # last: the relay waits on the mutex above
     return exit_code
 

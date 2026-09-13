@@ -256,6 +256,20 @@ class TestWhatEscWouldCancel:
         assert window._content.status_label.text == "Canceling..."
         assert window._content.hint_label.text == ""
 
+    def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
+        """Over the closing screen it calls nothing off: the quit goes on."""
+        from fun_time.overlay_progress import cancel_file_for
+
+        window = _cover(tmp_path)
+        window._progress_file.write_text(
+            "1/4|Closing...|Press Esc to cancel closing Fun Time", encoding="utf-8")
+        cancel_file_for(window._progress_file).write_text("quit\n", encoding="utf-8")
+
+        window._poll()
+
+        assert window._content.status_label.text == "Closing..."
+        assert window._content.hint_label.text == "Press Esc to cancel closing Fun Time"
+
     def test_a_cover_offering_nothing_goes_on_showing_its_own_words(self, tmp_path: Path):
         """The way back after an Esc offers no second one, and the flag that
         started it can still be lying there."""

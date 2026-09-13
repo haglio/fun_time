@@ -14,6 +14,7 @@ import pytest
 from fun_time import session_handoff
 from fun_time.config import load_config
 from fun_time.orchestrator import STARTUP_MARKER_NAME
+from fun_time.overlay_progress import CANCEL_FILENAME, CANCELING, parse_progress
 from fun_time.session_handoff import (
     DESKTOP,
     STARTUP_TIMEOUT_S,
@@ -59,7 +60,7 @@ class TestTheRequestFile:
 
     def test_a_request_is_taken_off_the_disk_as_it_is_read(self, tmp_path: Path):
         request_handoff(tmp_path, VR)
-        assert take_handoff_request(tmp_path) is VR
+        assert take_handoff_request(tmp_path).target is VR
         assert not handoff_request_path(tmp_path).exists()
         assert take_handoff_request(tmp_path) is None
 
@@ -70,7 +71,7 @@ class TestTheRequestFile:
 
         assert pending_handoff(tmp_path) is VR
         assert pending_handoff(tmp_path) is VR
-        assert take_handoff_request(tmp_path) is VR
+        assert take_handoff_request(tmp_path).target is VR
 
     def test_a_session_nobody_asked_to_cross_reads_as_none(self, tmp_path: Path):
         assert take_handoff_request(tmp_path) is None
@@ -85,6 +86,16 @@ class TestTheRequestFile:
         clear_handoff_request(tmp_path)
         clear_handoff_request(tmp_path)  # and again, on a session that crossed cleanly
         assert not handoff_request_path(tmp_path).exists()
+
+    def test_a_way_back_is_asked_for_with_no_esc_of_its_own(self, tmp_path: Path):
+        """Esc called the crossing off; a second one on the way back would
+        leave him going back and forth for as long as he kept pressing it."""
+        request_handoff(tmp_path, DESKTOP, cancelable=False)
+
+        taken = take_handoff_request(tmp_path)
+
+        assert taken.target is DESKTOP
+        assert taken.cancelable is False
 
     def test_a_request_names_the_target_it_will_be_read_back_as(self, tmp_path: Path):
         for target in (DESKTOP, VR):
@@ -104,6 +115,16 @@ class TestTheCoverThatSpansTheCrossing:
         raise_crossing_cover(tmp_path, target)
 
         assert says in crossing_progress_path(tmp_path).read_text(encoding="utf-8")
+
+    @pytest.mark.parametrize(
+        ("target", "offers"),
+        [(VR, "Press Esc to cancel entering VR"), (DESKTOP, "Press Esc to cancel exiting VR")],
+    )
+    def test_it_says_what_esc_would_cancel(self, tmp_path: Path, target, offers):
+        raise_crossing_cover(tmp_path, target)
+
+        line = parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8"))
+        assert line.hint == offers
 
     def test_dropping_it_is_what_the_cover_reads_as_finished(self, tmp_path: Path):
         raise_crossing_cover(tmp_path, VR)
@@ -125,6 +146,17 @@ class TestTheCoverThatSpansTheCrossing:
 
         command = popen.call_args.args[0]
         assert command[1:] == [
+            "-m", "fun_time.transition_screen", str(crossing_progress_path(tmp_path)),
+        ]
+
+    def test_the_way_back_goes_up_saying_it_is_canceling(self, tmp_path: Path):
+        """Never, even for a poll, offering the Esc that already went."""
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            session_handoff.launch_the_way_back_cover(tmp_path)
+
+        line = parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8"))
+        assert (line.message, line.hint) == (CANCELING, "")
+        assert popen.call_args.args[0][1:] == [
             "-m", "fun_time.transition_screen", str(crossing_progress_path(tmp_path)),
         ]
 
@@ -294,6 +326,16 @@ class TestStartingTheIncomingSession:
         assert popen.call_args.kwargs["cwd"] == str(tmp_path / "worktree")
 
 
+    def test_a_way_back_starts_the_session_offering_no_esc(self, tmp_path: Path):
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            start_the_session(
+                DESKTOP, python_exe="py.exe", project_dir=tmp_path,
+                state_dir=tmp_path, config_path=tmp_path / "c.json", cancelable=False,
+            )
+
+        assert popen.call_args.args[0][-1] == "--no-cancel"
+
+
 class TestWatchingItComeUp:
     def _session(self, *, returncode=None):
         session = MagicMock()
@@ -363,11 +405,29 @@ class TestHandingOver:
         flags = popen.call_args.kwargs["creationflags"]
         assert flags & subprocess.DETACHED_PROCESS
 
+    def test_a_way_back_spawns_the_relay_offering_no_esc(self, config):
+        request_handoff(config.paths.state_dir, DESKTOP, cancelable=False)
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            hand_over_if_asked(config, MagicMock())
+
+        assert popen.call_args.args[0][-1] == "--no-cancel"
+
     def test_the_request_is_spent_so_the_next_session_does_not_cross_again(self, config):
         request_handoff(config.paths.state_dir, DESKTOP)
         with patch.object(session_handoff.subprocess, "Popen"):
             hand_over_if_asked(config, MagicMock())
             assert hand_over_if_asked(config, MagicMock()) is None
+
+
+class TestTheRelaysOwnArguments:
+    def test_a_way_back_is_relayed_offering_no_esc(self, config):
+        with patch.object(session_handoff, "load_config", return_value=config), \
+             patch.object(session_handoff, "configure_logging"), \
+             patch.object(session_handoff, "install_exception_logging"), \
+             patch.object(session_handoff, "run", return_value=0) as relay:
+            session_handoff.main(["--target", "vr", "--config", "c.json", "--no-cancel"])
+
+        assert relay.call_args.kwargs["cancelable"] is False
 
 
 class TestTheRelayEndToEnd:
@@ -384,6 +444,92 @@ class TestTheRelayEndToEnd:
         with let_go, start, come_up, report as reported:
             assert run(VR, config) == 0
         reported.assert_not_called()
+
+    def test_a_way_back_starts_its_session_offering_no_esc(self, config):
+        let_go, start, come_up, report = self._patched()
+        with let_go, start as started, come_up, report:
+            assert run(DESKTOP, config, cancelable=False) == 0
+
+        assert started.call_args.kwargs["cancelable"] is False
+
+    def test_esc_during_the_crossing_opens_the_session_he_left_offering_no_esc(
+        self, config,
+    ):
+        state_dir = config.paths.state_dir
+        raise_crossing_cover(state_dir, VR)
+        (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+        let_go, start, come_up, report = self._patched()
+        with let_go, start as started, come_up, report as reported:
+            assert run(VR, config) == 0
+
+        assert started.call_args.args[0] is DESKTOP
+        assert started.call_args.kwargs["cancelable"] is False
+        reported.assert_not_called()
+
+    def test_a_crossing_esc_turned_back_says_so_on_the_cover(self, config):
+        """Still saying "Entering VR..." while it goes back the other way, the
+        cover reads as the Esc having done nothing."""
+        state_dir = config.paths.state_dir
+        raise_crossing_cover(state_dir, VR)
+        (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+        let_go, start, come_up, report = self._patched()
+        with let_go, start, come_up, report:
+            run(VR, config)
+
+        line = parse_progress(crossing_progress_path(state_dir).read_text(encoding="utf-8"))
+        assert (line.message, line.hint) == (CANCELING, "")
+
+    def test_the_esc_that_turned_it_back_is_spent(self, config):
+        """One press, one crossing called off: left lying there, the same Esc
+        would be read again by whatever looks next."""
+        state_dir = config.paths.state_dir
+        raise_crossing_cover(state_dir, VR)
+        flag = state_dir / CANCEL_FILENAME
+        flag.write_text("cancel\n", encoding="utf-8")
+        let_go, start, come_up, report = self._patched()
+        with let_go, start, come_up, report:
+            run(VR, config)
+
+        assert not flag.exists()
+
+    def test_the_quit_chord_during_the_crossing_opens_nothing(self, config):
+        """It means end everything, and nothing failed: no session, no dialog."""
+        state_dir = config.paths.state_dir
+        raise_crossing_cover(state_dir, VR)
+        (state_dir / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
+        let_go, start, come_up, report = self._patched()
+        with let_go, start as started, come_up, report as reported:
+            assert run(VR, config) == 0
+
+        started.assert_not_called()
+        reported.assert_not_called()
+
+    def test_the_quit_chord_during_the_crossing_gives_everything_back(self, config):
+        """Nothing is coming to take the covers down or adopt the hosted app."""
+        state_dir = config.paths.state_dir
+        raise_crossing_cover(state_dir, VR)
+        hold_the_headset(state_dir, stop_runtime=False)
+        (state_dir / CANCEL_FILENAME).write_text("quit\n", encoding="utf-8")
+        let_go, start, come_up, report = self._patched()
+        with let_go, start, come_up, report, \
+             patch("fun_time.windows_bridge_orchestrator.close_a_kept_origenerator") as closed:
+            run(VR, config)
+
+        assert crossing_progress_path(state_dir).read_text(encoding="utf-8").strip() == "DONE"
+        assert headset_hold_asked(state_dir) is False
+        closed.assert_called_once_with(Path(state_dir))
+
+    def test_a_way_back_is_never_turned_around_by_a_second_esc(self, config):
+        """One Esc per cover: a second press on the way back would leave him
+        going back and forth for as long as he kept pressing it."""
+        state_dir = config.paths.state_dir
+        raise_crossing_cover(state_dir, DESKTOP)
+        (state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+        let_go, start, come_up, report = self._patched()
+        with let_go, start as started, come_up, report:
+            run(DESKTOP, config, cancelable=False)
+
+        assert started.call_args.args[0] is DESKTOP
 
     def test_an_outgoing_session_that_never_let_go_is_reported(self, config):
         let_go, start, come_up, report = self._patched(let_go=False)

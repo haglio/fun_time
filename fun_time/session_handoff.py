@@ -17,7 +17,16 @@ from app_support.win32 import is_mutex_held, mutex_name
 
 from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import load_config
-from fun_time.overlay_progress import CANCELING, parse_progress
+from fun_time.overlay_progress import (
+    CANCEL_ENTERING_VR,
+    CANCEL_EXITING_VR,
+    CANCEL_WORD,
+    CANCELING,
+    QUIT_WORD,
+    cancel_file_for,
+    parse_progress,
+    what_the_flag_asks,
+)
 from fun_time.process_identity import NAMER
 from fun_time.single_instance import MUTEX_ORCHESTRATOR
 
@@ -36,7 +45,6 @@ KEPT_ORIGENERATOR_NAME = "origenerator_kept.txt"
 HEADSET_HOLD_NAME = "vr_headset_hold.flag"  # the headset's half, a handshake
 HEADSET_HELD_NAME = "vr_headset_held.flag"
 _STOP_RUNTIME = "stop_runtime"
-_CROSSING_MESSAGES = {"vr": "Entering VR...", "desktop": "Returning to Fun Time..."}
 
 # The first expires only on a session wedged holding the mutex; the second is
 # what both launchers allow a session to report in.
@@ -55,6 +63,8 @@ class HandoffTarget:
     module: str
     launcher_log: str
     ready_marker: str
+    crossing_message: str
+    crossing_hint: str
 
 
 DESKTOP = HandoffTarget(
@@ -63,6 +73,8 @@ DESKTOP = HandoffTarget(
     module="fun_time.orchestrator",
     launcher_log="launcher.log",
     ready_marker="launcher.ready",
+    crossing_message="Returning to Fun Time...",
+    crossing_hint=CANCEL_EXITING_VR,
 )
 VR = HandoffTarget(
     key="vr",
@@ -70,6 +82,8 @@ VR = HandoffTarget(
     module="fun_time_vr.orchestrator",
     launcher_log="vr_launcher.log",
     ready_marker="vr_launcher.ready",
+    crossing_message="Entering VR...",
+    crossing_hint=CANCEL_ENTERING_VR,
 )
 TARGETS: dict[str, HandoffTarget] = {target.key: target for target in (DESKTOP, VR)}
 
@@ -83,11 +97,23 @@ def handoff_request_path(state_dir: str | Path) -> Path:
     return Path(state_dir) / HANDOFF_REQUEST_NAME
 
 
-def request_handoff(state_dir: str | Path, target: HandoffTarget) -> None:
+_NO_CANCEL = "no-cancel"
+
+
+@dataclass(frozen=True)
+class Handoff:
+    target: HandoffTarget
+    cancelable: bool
+
+
+def request_handoff(
+    state_dir: str | Path, target: HandoffTarget, *, cancelable: bool = True,
+) -> None:
     """Leave word that this session is crossing, not quitting."""
     path = handoff_request_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"{target.key}\n", encoding="utf-8")
+    words = [target.key] if cancelable else [target.key, _NO_CANCEL]
+    path.write_text(" ".join(words) + "\n", encoding="utf-8")
 
 
 def clear_handoff_request(state_dir: str | Path) -> None:
@@ -96,27 +122,30 @@ def clear_handoff_request(state_dir: str | Path) -> None:
 
 def pending_handoff(state_dir: str | Path) -> HandoffTarget | None:
     """The crossing this session is ending for, WITHOUT taking it."""
-    return _read_request(state_dir, take=False)
+    handoff = _read_request(state_dir, take=False)
+    return handoff.target if handoff is not None else None
 
 
-def take_handoff_request(state_dir: str | Path) -> HandoffTarget | None:
+def take_handoff_request(state_dir: str | Path) -> Handoff | None:
     """The crossing asked for, taken off the disk as it is read."""
     return _read_request(state_dir, take=True)
 
 
-def _read_request(state_dir: str | Path, *, take: bool) -> HandoffTarget | None:
+def _read_request(state_dir: str | Path, *, take: bool) -> Handoff | None:
     path = handoff_request_path(state_dir)
     try:
-        key = path.read_text(encoding="utf-8").strip()
+        key, *rest = path.read_text(encoding="utf-8").split() or [""]
     except OSError:
         return None
     finally:
         if take:
             path.unlink(missing_ok=True)
     target = TARGETS.get(key)
-    if target is None and key:
-        logger.warning("Ignoring unrecognized handoff request %r", key)
-    return target
+    if target is None:
+        if key:
+            logger.warning("Ignoring unrecognized handoff request %r", key)
+        return None
+    return Handoff(target, cancelable=_NO_CANCEL not in rest)
 
 
 def hold_the_headset(state_dir: str | Path, *, stop_runtime: bool) -> None:
@@ -184,7 +213,7 @@ def raise_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> Path:
     """Say the room is changing over to *target*."""
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(f"1/2|{_CROSSING_MESSAGES[target.key]}\n", encoding="utf-8")
+    path.write_text(f"1/2|{target.crossing_message}|{target.crossing_hint}\n", encoding="utf-8")
     return path
 
 
@@ -214,15 +243,28 @@ def keep_the_crossing_cover(state_dir: str | Path) -> None:
     start_daemon_thread(target=beat, name="crossing-cover")
 
 
+_CANCELED_LINE = f"1/2|{CANCELING}\n"
+
+
 def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
     path = crossing_progress_path(state_dir)
     if path.exists():
-        path.write_text(f"1/2|{CANCELING}\n", encoding="utf-8")
+        path.write_text(_CANCELED_LINE, encoding="utf-8")
 
 
 def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subprocess.Popen:
     """Raise the monitors' crossing cover and leave it standing."""
-    progress_file = raise_crossing_cover(state_dir, target)
+    return _launch_transition_screen(raise_crossing_cover(state_dir, target))
+
+
+def launch_the_way_back_cover(state_dir: str | Path) -> subprocess.Popen:
+    path = crossing_progress_path(state_dir)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(_CANCELED_LINE, encoding="utf-8")
+    return _launch_transition_screen(path)
+
+
+def _launch_transition_screen(progress_file: Path) -> subprocess.Popen:
     return subprocess.Popen([
         NAMER.named_exe(sys.executable, "TransitionScreen"),
         "-m", "fun_time.transition_screen", str(progress_file),
@@ -239,14 +281,17 @@ def drop_crossing_cover(state_dir: str | Path) -> None:
 def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget | None:
     """Spawn the relay when the session ended by crossing over; None otherwise.
     An orchestrator's last act, the relay's first being to wait for its mutex."""
-    target = take_handoff_request(config.paths.state_dir)
-    if target is None:
+    handoff = take_handoff_request(config.paths.state_dir)
+    if handoff is None:
         return None
+    target = handoff.target
     session_logger.info("Session ended to cross over to %s", target.app_name)
     command = [
         str(config.paths.python_exe), "-m", "fun_time.session_handoff",
         "--target", target.key, "--config", str(config.config_path),
     ]
+    if not handoff.cancelable:
+        command.append("--no-cancel")
     # Its own log: dying on import is the one failure it cannot report itself.
     log = open_child_log(config.paths.state_dir / "session_handoff.log", command)
     subprocess.Popen(
@@ -276,6 +321,7 @@ def start_the_session(
     project_dir: str | Path,
     state_dir: str | Path,
     config_path: str | Path,
+    cancelable: bool = True,
 ) -> subprocess.Popen:
     """Launch *target*'s orchestrator as its own ``.vbs`` does."""
     (Path(state_dir) / target.ready_marker).unlink(missing_ok=True)
@@ -283,6 +329,8 @@ def start_the_session(
     # in the task list as one entered by clicking.
     named = NAMER.named_exe(python_exe, "Orchestrator")
     command = [named, "-m", target.module, "--config", str(config_path)]
+    if not cancelable:
+        command.append("--no-cancel")
     log = open_child_log(Path(state_dir) / target.launcher_log, command)
     logger.info("Starting %s: %s", target.app_name, subprocess.list2cmdline(command))
     return subprocess.Popen(
@@ -337,18 +385,22 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
     show_alert("Fun Time", message, level=Level.ERROR, icon=PROJECT_ICON)
 
 
-def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
-    """Report a crossing that did not happen, and uncover what was waiting."""
+def _uncover_what_was_waiting(state_dir: Path) -> None:
     drop_crossing_cover(state_dir)
     release_the_headset(state_dir)
     from fun_time.windows_bridge_orchestrator import close_a_kept_origenerator
 
     close_a_kept_origenerator(Path(state_dir))
+
+
+def _give_up(reason: str, log_file: Path, state_dir: Path) -> int:
+    """Report a crossing that did not happen, and uncover what was waiting."""
+    _uncover_what_was_waiting(state_dir)
     report_a_failed_crossing(reason, log_file)
     return 1
 
 
-def run(target: HandoffTarget, config) -> int:
+def run(target: HandoffTarget, config, *, cancelable: bool = True) -> int:
     state_dir = config.paths.state_dir
     keep_the_crossing_cover(state_dir)  # the middle of the three
     log_file = state_dir / target.launcher_log
@@ -360,12 +412,26 @@ def run(target: HandoffTarget, config) -> int:
             f"{target.app_name} could not take over.",
             log_file, state_dir,
         )
+    flag = cancel_file_for(crossing_progress_path(state_dir))
+    asked = what_the_flag_asks(flag) if cancelable else ""
+    if asked:
+        flag.unlink(missing_ok=True)
+    if asked == QUIT_WORD:
+        logger.info("The quit chord called the crossing off")
+        _uncover_what_was_waiting(state_dir)
+        return 0
+    if asked == CANCEL_WORD:
+        target, cancelable = (DESKTOP if target is VR else VR), False
+        log_file = state_dir / target.launcher_log
+        logger.info("Esc called the crossing off; going back to %s", target.app_name)
+        say_the_crossing_is_cancelled(state_dir)
     session = start_the_session(
         target,
         python_exe=config.paths.python_exe,
         project_dir=config.project_dir,
         state_dir=state_dir,
         config_path=config.config_path,
+        cancelable=cancelable,
     )
     reason = wait_for_the_session_to_come_up(target, session, state_dir=state_dir)
     if reason:
@@ -380,6 +446,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--target", required=True, choices=sorted(TARGETS))
     parser.add_argument("--config", help="Path to a JSON config file.")
+    parser.add_argument("--no-cancel", action="store_true",
+                        help="The way back from a crossing Esc called off: offer no Esc.")
     return parser
 
 
@@ -388,7 +456,7 @@ def main(argv: list[str] | None = None) -> int:
     config = load_config(args.config)
     configure_logging(logger.name, config.log_file("session_handoff"))
     install_exception_logging(logger)
-    return run(TARGETS[args.target], config)
+    return run(TARGETS[args.target], config, cancelable=not args.no_cancel)
 
 
 if __name__ == "__main__":

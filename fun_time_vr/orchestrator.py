@@ -61,9 +61,10 @@ from fun_time.orchestrator import (
     validate_config,
 )
 from fun_time.overlay_progress import (
-    CANCEL_ENTERING_VR,
+    CANCEL_CLOSING_FUN_TIME_VR,
     CANCEL_FILENAME,
     CANCEL_OPENING_FUN_TIME_VR,
+    CANCEL_WORD,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
@@ -71,6 +72,7 @@ from fun_time.overlay_progress import (
     ProgressReporter,
     StartupCancelled,
     ready_file_for,
+    what_the_flag_asks,
 )
 from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
@@ -80,6 +82,7 @@ from fun_time.session_end import session_end_marker_path
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
     DESKTOP,
+    VR,
     clear_handoff_request,
     drop_crossing_cover,
     hand_over_if_asked,
@@ -87,6 +90,7 @@ from fun_time.session_handoff import (
     hold_the_headset,
     keep_the_crossing_cover,
     launch_crossing_cover,
+    launch_the_way_back_cover,
     pending_handoff,
     release_the_headset,
     request_handoff,
@@ -157,6 +161,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Launch the FunTimeVR session.")
     parser.add_argument("--config", help="Path to a JSON config file.")
     parser.add_argument("--check", action="store_true", help="Validate config and exit.")
+    parser.add_argument("--no-cancel", action="store_true",
+                        help="The way back from a crossing Esc called off: offer no Esc.")
     return parser
 
 
@@ -343,16 +349,21 @@ class _Cover:
     """The loading cover from the orchestrator's side: the progress file the
     player reads, and the cancel flag it and the hotkey script drop."""
 
-    def __init__(self, state_dir: Path) -> None:
+    def __init__(self, state_dir: Path, *, cancelable: bool = True) -> None:
+        returning = returning_from_a_crossing(state_dir)
+        esc_cancels = ("" if not cancelable
+                       else VR.crossing_hint if returning
+                       else CANCEL_OPENING_FUN_TIME_VR)
+        self.turns_back_to = DESKTOP if returning and esc_cancels else None
         self.progress_file = state_dir / PROGRESS_FILENAME
         self.cancel_file = state_dir / CANCEL_FILENAME
         # A cancel flag left over from a previous session would abort this one
         # before the user has touched anything.
-        self.cancel_file.unlink(missing_ok=True)
+        if self.turns_back_to is None:
+            self.cancel_file.unlink(missing_ok=True)
         self.progress: ProgressReporter = PhaseProgress(
             self.progress_file, phases=VR_STARTUP_PHASES, cancel_file=self.cancel_file,
-            hint=(CANCEL_ENTERING_VR if returning_from_a_crossing(state_dir)
-                  else CANCEL_OPENING_FUN_TIME_VR),
+            hint=esc_cancels,
         )
 
     def clear(self) -> None:
@@ -360,13 +371,6 @@ class _Cover:
         without one where the cover goes with the player."""
         self.progress_file.unlink(missing_ok=True)
         self.cancel_file.unlink(missing_ok=True)
-
-
-def _cancel_was_a_quit(cancel_file: Path) -> bool:
-    try:
-        return "quit" in cancel_file.read_text(encoding="utf-8").split()
-    except OSError:
-        return False  # the flag's own word; a crossing's exit leaves a marker too
 
 
 def _take_down_the_launch(
@@ -402,24 +406,25 @@ def _cancel_vr_startup(
 ) -> int:
     """Tear down a launch the user called off, then exit, then the monitors."""
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
-    quitting = _cancel_was_a_quit(cover.cancel_file)  # before cover.clear() takes it
-    crossed_in = returning_from_a_crossing(state_dir)
+    back_to = (cover.turns_back_to  # read before cover.clear() takes the flag
+               if what_the_flag_asks(cover.cancel_file) == CANCEL_WORD else None)
     _take_down_the_launch(
         state_dir=state_dir, children=children, ahk_proc=ahk_proc,
         ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
     )
-    if crossed_in and not quitting:
-        logger.info("Cancelled; handing back to Fun Time")
-        request_handoff(state_dir, DESKTOP)  # it drops the cover once it is up
+    if back_to is not None:
+        logger.info("Canceled; handing back to %s", back_to.app_name)
+        request_handoff(state_dir, back_to, cancelable=False)  # it drops the cover once it is up
     else:
-        logger.info("Cancelled; closing")
+        logger.info("Canceled; closing")
         drop_crossing_cover(state_dir)  # nothing is coming to do it for us
+        close_a_kept_origenerator(state_dir)  # nor to adopt what Fun Time parked
     return 0  # a clean, user-initiated exit, as the desktop's cancel is
 
 
 @contextlib.contextmanager
 def _closing_cover(
-    state_dir: Path, player: subprocess.Popen, *, enabled: bool
+    state_dir: Path, player: subprocess.Popen, *, enabled: bool, esc_cancels: str = "",
 ) -> Iterator[ProgressReporter]:
     """Raise the headset's cover over the teardown, and hold the first kill for
     it.  No DONE: the cover goes when the player drawing it does, and a DONE
@@ -433,7 +438,7 @@ def _closing_cover(
     # A flag left by a previous session would let this teardown start with
     # nothing yet covering the view.
     ready_file.unlink(missing_ok=True)
-    shutdown = PhaseProgress(progress_file, phases=VR_SHUTDOWN_PHASES)
+    shutdown = PhaseProgress(progress_file, phases=VR_SHUTDOWN_PHASES, hint=esc_cancels)
     # Written before the wait so the player has something to read on its first
     # poll, and so its staleness clock starts here rather than never.
     shutdown.advance("controls")
@@ -449,7 +454,7 @@ def _closing_cover(
         ready_file.unlink(missing_ok=True)
 
 
-def run_vr_bridge(config, env: SessionEnvironment) -> int:
+def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -> int:
     state_dir = config.paths.state_dir
     manifest_path = write_manifest_data(
         build_vr_manifest(config, dashboard_enabled=env.dashboard_enabled),
@@ -470,7 +475,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
     clear_last_sessions_leftovers(
         state_dir, commands, pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
 
-    cover = _Cover(state_dir)
+    cover = _Cover(state_dir, cancelable=cancelable)
     progress = cover.progress
     children: dict[str, ChildProcess] = {}
     # Nothing of ours has touched the VR runtime yet, so there is nothing to put
@@ -485,6 +490,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         str(config.project_dir / "windows_bridge_hotkeys.ahk"),
         str(manifest_path),
         str(pids_file),
+        str(os.getpid()),
     ]
     logger.info("Launching AHK hotkey script: %s", " ".join(ahk_command))
     ahk_proc = subprocess.Popen(
@@ -509,6 +515,7 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             [commands.portrait_status_file, commands.landscape_status_file],
         )
         reap_orphaned_satellites(VR_PLAYER_MODULE, [str(manifest_path)])
+        release_the_headset(state_dir)  # after the reap: a player let go could stop the runtime
 
         portrait_playlist = build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT)
         landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
@@ -655,8 +662,10 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
         drop_crossing_cover(state_dir)  # nothing is coming to do it for us
         raise
 
+    asked = False
     try:
         ended_by = _wait_for_session_end(ahk_proc, player, state_dir=state_dir)
+        asked = ended_by == "asked"
         if ended_by == "player":
             logger.info("VR player exited -- ending the session")
             ahk_proc.terminate()
@@ -675,13 +684,17 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
     finally:
         silence_the_players(commands)
         # This teardown's cover hangs in the headset (docs/entering-vr.md).
-        held = False
+        held = back_to_vr = False
         if (crossing := pending_handoff(state_dir)) is not None:
             launch_crossing_cover(state_dir, crossing)
         # Up first and up through everything below.  A session that ended
         # BECAUSE the player went has nothing left to draw with, and nothing to
         # hide: the cut to the runtime's environment already came.
-        with _closing_cover(state_dir, player, enabled=player.poll() is None) as shutdown:
+        esc_cancels = (crossing.crossing_hint if crossing is not None
+                       else CANCEL_CLOSING_FUN_TIME_VR if asked else "")
+        with _closing_cover(
+            state_dir, player, enabled=player.poll() is None, esc_cancels=esc_cancels,
+        ) as shutdown:
             if voice_controller is not None:
                 voice_controller.stop()
             if voice_thread is not None:
@@ -691,16 +704,23 @@ def run_vr_bridge(config, env: SessionEnvironment) -> int:
             shutdown.advance("companions")
             kill_recorded_child(children["audio_pid"])
             shutdown.advance("players")
+            back_to_vr = (crossing is None and esc_cancels != ""
+                          and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
+            if back_to_vr:
+                logger.info("Esc called the quit off; opening Fun Time VR again")
+                launch_the_way_back_cover(state_dir)
+                request_handoff(state_dir, VR, cancelable=False)
             # Held, the player outlives this session with only its cover left.
-            held = crossing is not None and _leave_the_headset_covered(
-                state_dir, stop_runtime=not runtime_was_up,
+            held = (crossing is not None or back_to_vr) and _leave_the_headset_covered(
+                state_dir, stop_runtime=not runtime_was_up and not back_to_vr,
             )
             if not held:
                 kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
-            if crossing is None:  # nothing is crossing in to adopt a parked one
+            if crossing is None and not back_to_vr:  # nothing will come to adopt it
                 close_a_kept_origenerator(state_dir)
-            stop_hotkey_script(ahk_proc, ahk_cmd_file)
-        if not held:
+            if crossing is None:  # else it hears Esc until the relay has read the flag
+                stop_hotkey_script(ahk_proc, ahk_cmd_file)
+        if not held and not back_to_vr:
             _release_vr_runtime(runtime_was_up)  # after the player: it held an XR session
     return exit_code
 
@@ -765,7 +785,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
-    exit_code = run_vr_bridge(config, env)
+    exit_code = run_vr_bridge(config, env, cancelable=not args.no_cancel)
     hand_over_if_asked(config, logger)  # last: the relay waits on this process's mutex
     return exit_code
 
