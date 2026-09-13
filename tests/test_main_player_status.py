@@ -17,9 +17,16 @@ class StubSession:
         self.is_paused = False
         self.locked = True
         self.speed = 1.0
+        self.showing_picture = False
 
 
 class TestStatusFields:
+    def test_a_main_player_showing_a_picture_says_so(self):
+        session = StubSession()
+        session.showing_picture = True
+
+        assert status_fields(session, None)["picture"] == "1"
+
     def test_publishes_every_key_fun_time_reads(self):
         fields = status_fields(StubSession(), None)
 

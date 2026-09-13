@@ -142,6 +142,13 @@ class PlayerSession:
     def duration_ms(self) -> float:
         return self._player.duration_ms
 
+    def set_pace(self, seconds: float) -> None:
+        self._player.set_pace(seconds)
+
+    @property
+    def showing_picture(self) -> bool:
+        return self._player.showing_picture
+
     @property
     def loop_state(self) -> str:
         """Loop machine state as the shared vocabulary: normal/recording/looping."""

@@ -33,6 +33,7 @@ class StubSession:
     is_paused = False
     locked = True
     speed = 1.0
+    showing_picture = False
 
 
 class FakeGate:
