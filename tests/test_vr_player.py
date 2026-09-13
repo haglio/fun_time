@@ -17,6 +17,7 @@ from unittest.mock import DEFAULT, patch
 
 import numpy as np
 import pytest
+from app_support.file_channel import write_flag
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
@@ -38,7 +39,7 @@ from player_core.volume import (
     chip_xy,
 )
 
-from fun_time.dashboard_actions import QUIT_BUTTON
+from fun_time.dashboard_actions import HELP_REFERENCE, QUIT_BUTTON, REFERENCE_OPEN_FILENAME
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -1445,6 +1446,7 @@ def _a_dash(tmp_path, *, wrapped=False, texture=None):
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             notices=NoticeBoard(tmp_path / "event_log.jsonl"),
             dashboard_state_file=tmp_path / "dashboard_state.ini",
+            reference_flag=tmp_path / REFERENCE_OPEN_FILENAME,
         )
     if texture is not None:
         dash.texture = texture
@@ -1474,6 +1476,17 @@ class TestTheDashUnderThePointer:
 
         posted = (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8")
         assert posted.strip() == QUIT_BUTTON
+
+    def test_the_question_mark_lights_while_the_session_has_the_reference_up(self, tmp_path):
+        from shared_ui.palette import BLUE
+
+        unit = self._unit(tmp_path)
+        write_flag(tmp_path / REFERENCE_OPEN_FILENAME, True)
+
+        unit.pump(threading.Event(), 0.0)
+
+        rect = dash_actions()[HELP_REFERENCE]
+        assert unit._image.getpixel((rect.x, rect.y + rect.height // 2))[:3] == BLUE
 
     def test_a_press_meant_for_another_screen_is_not_its(self, tmp_path):
         unit = self._unit(tmp_path)

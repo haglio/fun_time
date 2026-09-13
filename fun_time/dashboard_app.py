@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import configparser
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -13,9 +14,6 @@ from shared_ui.colors import (
     BG_BUTTON,
     BG_BUTTON_ACTIVE,
     BG_PRIMARY,
-    BLUE,
-    GREEN,
-    MAGENTA,
     TEXT_MUTED,
     TEXT_PRIMARY,
     hovered,
@@ -39,13 +37,13 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     VOICE_TOGGLE,
 )
+from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import (
     DashboardBarLayout,
     Rect,
     add_rect_arguments,
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
-    mark_side,
     rect_from_arguments,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
@@ -217,40 +215,34 @@ def build_dashboard_scene(
     width: int,
     marks: MarkCache,
     pressed_actions: frozenset[str] = frozenset(),
+    reference_open: bool = False,
 ) -> DashboardScene:
     """The control bar: the app's mark, the session's four, then the two that
     reach past it.  Nothing here stands for one player."""
-    voice_fill = BLUE if snapshot is not None and snapshot.voice_active else COLOR_PANEL
-    # The room's F-mode lights the green this family spends on the favorites and
-    # the funscripts, exactly as each player's own switch does on its own HUD.
-    room_f_mode = snapshot is not None and snapshot.f_mode
-    fmode_fill = GREEN if room_f_mode else COLOR_PANEL
-    # Which way the crossing goes: out of the headset while you are in it.
-    in_vr = snapshot is not None and snapshot.in_vr
-    vr_action = EXIT_VR if in_vr else ENTER_VR
-
     omni_paused = snapshot is not None and snapshot.omni_paused
-    omnipause_mark = "play" if omni_paused else "pause"
+    controls = bar_controls(
+        layout,
+        omni_paused=omni_paused,
+        voice_active=snapshot is not None and snapshot.voice_active,
+        f_mode=snapshot is not None and snapshot.f_mode,
+        in_vr=snapshot is not None and snapshot.in_vr,
+        reference_open=reference_open,
+    )
 
-    def _press_fill(fill: QColor, action_id: str) -> QColor:
+    def _rect(control: BarControl) -> DashboardRectItem:
         """Lighter while it is being pressed -- a control already wearing a
         state color lightens THAT, so a pressed mic stays blue."""
-        if action_id not in pressed_actions:
-            return fill
-        return BG_BUTTON_ACTIVE if fill == COLOR_PANEL else lighten_color(fill)
+        if control.lit is None:
+            fill, outline = COLOR_PANEL, TEXT_MUTED
+            pressed = BG_BUTTON_ACTIVE
+        else:
+            fill = outline = QColor(*control.lit)
+            pressed = lighten_color(fill)
+        if control.action in pressed_actions:
+            fill = pressed
+        return DashboardRectItem(control.rect, outline=outline, fill=fill)
 
-    def _control(rect: Rect, fill: QColor, action_id: str) -> DashboardRectItem:
-        outline = TEXT_MUTED if fill == COLOR_PANEL else fill
-        return DashboardRectItem(rect, outline=outline, fill=_press_fill(fill, action_id))
-
-    rects = (
-        _control(layout.quit_button, COLOR_PANEL, QUIT_BUTTON),
-        _control(layout.omnipause_button, COLOR_PANEL, OMNIPAUSE_TOGGLE),
-        _control(layout.help_button, COLOR_PANEL, HELP_REFERENCE),
-        _control(layout.voice_panel, voice_fill, VOICE_TOGGLE),
-        _control(layout.fmode_button, fmode_fill, FMODE_TOGGLE),
-        _control(layout.vr_button, COLOR_PANEL, vr_action),
-    )
+    rects = tuple(_rect(control) for control in controls)
     # The app-name lockup, styled like the loading screen: bold italic, wordmark tone.
     # Built fresh (not via the cached make_font) so setItalic cannot leak into
     # every other user of a shared QFont.
@@ -266,29 +258,14 @@ def build_dashboard_scene(
     )
     images = (
         DashboardImageItem(marks.icon(PROJECT_ICON, layout.app_icon.height), layout.app_icon),
-        DashboardImageItem(marks.mark("power", layout.quit_button), layout.quit_button),
-        DashboardImageItem(marks.mark(omnipause_mark, layout.omnipause_button),
-                           layout.omnipause_button),
-        DashboardImageItem(marks.mark("question", layout.help_button), layout.help_button),
-        DashboardImageItem(marks.mark("mic", layout.voice_panel), layout.voice_panel),
-        # F-mode's badge on the app-icon grid; Enter VR a headset, since the
-        # app's letters say which app rather than what the button does.
-        DashboardImageItem(marks.mark("fmode", layout.fmode_button, QColor(MAGENTA)),
-                           layout.fmode_button),
-        DashboardImageItem(marks.mark("monitor" if in_vr else "headset",
-                                      layout.vr_button), layout.vr_button),
+        *(DashboardImageItem(marks.mark(control.mark, control.rect, QColor(*control.ink)),
+                             control.rect)
+          for control in controls),
     )
     tooltips = dict(_ACTION_TOOLTIPS)
     if omni_paused:
         tooltips[OMNIPAUSE_TOGGLE] = OMNIPAUSE_RESUME_TOOLTIP
-    actions = (
-        (QUIT_BUTTON, layout.quit_button),
-        (OMNIPAUSE_TOGGLE, layout.omnipause_button),
-        (HELP_REFERENCE, layout.help_button),
-        (VOICE_TOGGLE, layout.voice_panel),
-        (FMODE_TOGGLE, layout.fmode_button),
-        (vr_action, layout.vr_button),
-    )
+    actions = tuple((control.action, control.rect) for control in controls)
     return DashboardScene(
         width=width,
         height=layout.height,
@@ -465,10 +442,16 @@ class ReferencePopup:
     user left it.
     """
 
-    def __init__(self, parent: QWidget, rfb_rect: Rect | None) -> None:
+    def __init__(self, parent: QWidget, rfb_rect: Rect | None, *,
+                 on_change: Callable[[], None]) -> None:
         self._parent = parent
         self._rfb_rect = rfb_rect
+        self._on_change = on_change
         self.dialog: ReferenceDialog | None = None
+
+    @property
+    def is_open(self) -> bool:
+        return self.dialog is not None and self.dialog.isVisible()
 
     def toggle(self, omni_paused: bool) -> None:
         """Open it, or dismiss it if it is already showing.
@@ -476,7 +459,7 @@ class ReferencePopup:
         Drives both the ``?`` button and the "help"/"reference"/… phrases: one
         trigger both ways.
         """
-        if self.dialog is not None and self.dialog.isVisible():
+        if self.is_open:
             self.dialog.close()
         else:
             self.open(omni_paused)
@@ -485,6 +468,7 @@ class ReferencePopup:
         """Show it, or re-focus it if it is already open."""
         if self.dialog is None:
             self.dialog = ReferenceDialog(self._parent)
+            self.dialog.finished.connect(lambda _result: self._on_change())
             if self._rfb_rect is not None:
                 self._fit_to(self._rfb_rect)
         self.dialog.show()
@@ -494,6 +478,7 @@ class ReferencePopup:
         # would be undone by the show and the popup would be stranded above a
         # desktop OmniPause had freed.  After, not before.
         self.sync_topmost(omni_paused)
+        self._on_change()
 
     def close(self) -> None:
         """Dismiss it if it is open (the "close …" phrases)."""
@@ -586,7 +571,7 @@ class DashboardWindow(QMainWindow):
         self._bar_layout = bar_layout
         self._launch_geometry = launch_geometry
         # The reference popup opens over the Random Favs Browser's screen rect.
-        self._reference = ReferencePopup(self, rfb_rect)
+        self._reference = ReferencePopup(self, rfb_rect, on_change=self._repaint_bar)
         # Read once; the notice feed below is seeded from this same answer.
         self._reveal = LoadingReveal(app_config.state_dir)
 
@@ -753,19 +738,26 @@ class DashboardWindow(QMainWindow):
         omni_paused = self._omni_paused
         self._sync_own_topmost(omni_paused)
         self._reference.sync_topmost(omni_paused)
-        scene = build_dashboard_scene(
-            self._bar_layout,
-            snapshot,
-            width=self._bar_layout.width,
-            marks=self._widget.marks,
-            pressed_actions=pressed_actions,
-        )
+        scene = self._bar_scene(pressed_actions)
         # While minimized, re-asserting geometry would restore the window and
         # fight the omniminimize — leave it minimized until the user restores it.
         # While deferred for loading it is hidden; don't touch it until reveal.
         if not self.isMinimized() and not self._reveal.deferred:
             apply_dashboard_window_geometry(self, scene, launch_geometry=self._launch_geometry)
         self._widget.set_scene(scene)
+
+    def _bar_scene(self, pressed_actions: frozenset[str]) -> DashboardScene:
+        return build_dashboard_scene(
+            self._bar_layout,
+            self._last_snapshot,
+            width=self._bar_layout.width,
+            marks=self._widget.marks,
+            pressed_actions=pressed_actions,
+            reference_open=self._reference.is_open,
+        )
+
+    def _repaint_bar(self) -> None:
+        self._widget.set_scene(self._bar_scene(self._compute_pressed()))
 
     def _on_action(self, action_id: str) -> None:
         if action_id == HELP_REFERENCE:

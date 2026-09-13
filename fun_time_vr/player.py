@@ -1046,11 +1046,13 @@ class _DashUnit:
 
     def __init__(self, primary: _MainUnit, genau: _GenauUnit, *, placement: Placement,
                  wrapped_placement: Placement, dashboard_cmd_file: Path,
-                 notices: NoticeBoard, dashboard_state_file: Path) -> None:
+                 notices: NoticeBoard, dashboard_state_file: Path,
+                 reference_flag: Path) -> None:
         self._primary = primary
         self._genau = genau
         self._notices = notices
         self._state_file = dashboard_state_file
+        self._reference_flag = reference_flag
         self._floating = placement
         self._wrapped = wrapped_placement
         self._pointer = DashPointer(
@@ -1097,6 +1099,7 @@ class _DashUnit:
             omni_paused=snapshot is not None and snapshot.omni_paused,
             voice_active=snapshot is None or snapshot.voice_active,
             f_mode=snapshot is not None and snapshot.f_mode,
+            reference_open=read_flag(self._reference_flag, default=False),
         )
         records = self._notices.records
         aim = self._presses.hover
@@ -1123,8 +1126,8 @@ class _ReferenceUnit:
     """The hotkeys and voice reference, up while the session says it is -- its
     own screen, as the desktop's is its own popup rather than part of the bar."""
 
-    def __init__(self, *, placement: Placement, state_dir: Path) -> None:
-        self._flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
+    def __init__(self, *, placement: Placement, flag: Path) -> None:
+        self._flag = flag
         self._pointer = ReferencePointer()
         self._presses = _Presses(REFERENCE)
         self._lock = threading.Lock()
@@ -1756,6 +1759,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         for side in (PORTRAIT, LANDSCAPE)
     ]
     _present_the_cover(session, renderer, cover)
+    reference_flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
         primary, genau,
         placement=layout[DASH],
@@ -1763,13 +1767,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
+        reference_flag=reference_flag,
     )
     panel = _PanelUnit(
         primary, genau, dash,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
     )
-    reference = _ReferenceUnit(placement=layout[REFERENCE], state_dir=state_dir)
+    reference = _ReferenceUnit(placement=layout[REFERENCE], flag=reference_flag)
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
