@@ -1,10 +1,8 @@
 """The geometry of one screen in the VR scene: where a picture hangs, and the
-curved patch that carries it.
-
-Every screen is a patch of one cylinder around the viewer, built here as
-triangle-strip vertices for the renderer to draw.  Immersive projections
-(equirect/fisheye) don't use these patches at all — they fill the view from a
-shader — so this module is the whole of the "windowed" layout.
+flat rectangle that carries it, square on to the viewer with its middle on one
+cylinder around the head.  Immersive projections (equirect/fisheye) don't use
+these at all — they fill the view from a shader — so this module is the whole
+of the "windowed" layout.
 
 The satellites draw after (so over) the primary, which keeps them visible when a
 VR video wraps the hemisphere at their back, and lets them overlap its edges.
@@ -16,14 +14,11 @@ from dataclasses import dataclass
 
 import numpy as np
 
-# One cylinder for every screen.  The view matrix is rotation-only (no head
-# translation reaches the scene), so the radius sets apparent scale only.
+# The view matrix is rotation-only (no head translation reaches the scene), so
+# the radius sets apparent scale only.
 RADIUS = 2.0
 
 PRIMARY_WIDTH_DEG = 72.0
-
-# Enough columns that the curve reads smooth; the patch is cheap either way.
-CURVE_SEGMENTS = 16
 
 
 @dataclass(frozen=True)
@@ -34,6 +29,18 @@ class Placement:
 
 
 PRIMARY_PLACEMENT = Placement(0.0, 0.0, PRIMARY_WIDTH_DEG)
+
+
+def center_height(placement: Placement, radius: float = RADIUS) -> float:
+    return radius * math.tan(math.radians(placement.elevation_deg))
+
+
+def elevation_at(height: float, radius: float = RADIUS) -> float:
+    return math.degrees(math.atan2(height, radius))
+
+
+def half_width(width_deg: float, radius: float = RADIUS) -> float:
+    return radius * math.tan(math.radians(width_deg) / 2.0)
 
 
 def _quat_multiply(
@@ -79,21 +86,15 @@ def quad_layer_placement(
     scene_pitch_deg: float = 0.0,
     radius: float = RADIUS,
 ) -> tuple[tuple[float, float, float], tuple[float, float, float, float], tuple[float, float]]:
-    """Pose and size for the flat compositor quad standing in for a screen.
-
-    The curved patch flattens to its tangent plane: same center point on the
-    cylinder, yaw-only orientation facing the viewer (matching the untilted
-    columns of :func:`surface_vertices`), and a width subtending exactly the
-    placement's width from the origin — which stands in for the curve only
-    while :func:`fits_a_quad_layer` holds.  Returns ``(position,
-    orientation_xyzw, (width, height))`` in the reference space's meters.
-    """
+    """Pose and size for the compositor quad carrying the rectangle
+    :func:`surface_vertices` draws: ``(position, orientation_xyzw, (width,
+    height))`` in the reference space's meters."""
     if aspect <= 0:
         raise ValueError(f"aspect must be positive, got {aspect}")
     theta = math.radians(placement.azimuth_deg)
     position = (
         radius * math.sin(theta),
-        radius * math.tan(math.radians(placement.elevation_deg)),
+        center_height(placement, radius),
         -radius * math.cos(theta),
     )
     # A rotation about +Y by -theta points the quad's +Z (its front face,
@@ -102,15 +103,8 @@ def quad_layer_placement(
     scene = scene_placement_quaternion(scene_yaw_deg, scene_pitch_deg)
     position = _quat_rotate(scene, position)
     orientation = _quat_multiply(scene, orientation)
-    width = 2.0 * radius * math.tan(math.radians(placement.width_deg) / 2.0)
+    width = 2.0 * half_width(placement.width_deg, radius)
     return position, orientation, (width, width / aspect)
-
-
-QUAD_LAYER_LIMIT_DEG = 180.0  # where the half-angle tangent above runs away
-
-
-def fits_a_quad_layer(placement: Placement) -> bool:
-    return placement.width_deg < QUAD_LAYER_LIMIT_DEG
 
 
 def attached_below(
@@ -122,11 +116,10 @@ def attached_below(
     gap_deg: float = 0.0,
     radius: float = RADIUS,
 ) -> Placement:
-    lower = (radius * math.tan(math.radians(placement.elevation_deg))
-             - radius * math.radians(placement.width_deg) / aspect / 2)
-    half_height = radius * math.radians(width_deg) / hanging_aspect / 2
-    center = lower - radius * math.radians(gap_deg) - half_height
-    return Placement(placement.azimuth_deg, math.degrees(math.atan2(center, radius)), width_deg)
+    lower = center_height(placement, radius) - half_width(placement.width_deg, radius) / aspect
+    center = (lower - radius * math.radians(gap_deg)
+              - half_width(width_deg, radius) / hanging_aspect)
+    return Placement(placement.azimuth_deg, elevation_at(center, radius), width_deg)
 
 
 def surface_vertices(
@@ -134,30 +127,21 @@ def surface_vertices(
     *,
     aspect: float,
     radius: float = RADIUS,
-    segments: int = CURVE_SEGMENTS,
+    u: tuple[float, float] = (0.0, 1.0),
+    v: tuple[float, float] = (0.0, 1.0),
 ) -> np.ndarray:
-    """Triangle-strip vertices for one curved screen: (x, y, z, u, v) rows.
-
-    The screen subtends the placement's width of the cylinder centered on its
-    azimuth; its height is the arc length over *aspect* (pixel width/height),
-    so the video fills it edge to edge without letterboxing, and its center
-    rides at the placement's elevation above the horizon.  Columns run left to
-    right, two vertices each (upper v=1, then lower v=0), ready for
-    GL_TRIANGLE_STRIP.
-    """
     if aspect <= 0:
         raise ValueError(f"aspect must be positive, got {aspect}")
-    width_rad = math.radians(placement.width_deg)
-    half_height = (radius * width_rad / aspect) / 2
-    lift = radius * math.tan(math.radians(placement.elevation_deg))
-    start = math.radians(placement.azimuth_deg) - width_rad / 2
+    theta = math.radians(placement.azimuth_deg)
+    half = half_width(placement.width_deg, radius)
+    middle = center_height(placement, radius)
+    lower, upper = v
 
     rows: list[tuple[float, float, float, float, float]] = []
-    for column in range(segments + 1):
-        t = column / segments
-        azimuth = start + t * width_rad
-        x = radius * math.sin(azimuth)
-        z = -radius * math.cos(azimuth)
-        rows.append((x, lift + half_height, z, t, 1.0))
-        rows.append((x, lift - half_height, z, t, 0.0))
+    for column in u:
+        across = (2 * column - 1) * half
+        x = radius * math.sin(theta) + across * math.cos(theta)
+        z = -radius * math.cos(theta) + across * math.sin(theta)
+        rows.append((x, middle + (2 * upper - 1) * half / aspect, z, column, upper))
+        rows.append((x, middle + (2 * lower - 1) * half / aspect, z, column, lower))
     return np.array(rows, dtype=np.float32)

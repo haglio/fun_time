@@ -29,7 +29,7 @@ def test_every_wrapped_projection_gets_its_own_shader_mode():
     assert len(set(modes.values())) == len(modes)
 
 
-def test_a_flat_video_draws_as_a_curved_screen_not_a_wrap():
+def test_a_flat_video_draws_as_a_screen_not_a_wrap():
     assert immersive_mode(FLAT) is None
 
 

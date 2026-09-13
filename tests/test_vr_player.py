@@ -610,7 +610,7 @@ class TestThePanelUnderThePointer:
             docked = p.unit.screen.placement
 
             p.primary.screen.placement = Placement(
-                azimuth_deg=-40.0, elevation_deg=12.0, width_deg=200.0)
+                azimuth_deg=-40.0, elevation_deg=12.0, width_deg=110.0)
             p.unit.render_latest_frame()
             followed = p.unit.screen.placement
 

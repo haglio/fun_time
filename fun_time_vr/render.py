@@ -1,7 +1,7 @@
 """GL rendering for the VR scene: video targets, screens, and immersive wraps.
 
 Two ways a player reaches the eye.  Windowed surfaces (a flat 2D primary, the
-two satellites) are curved screens from :mod:`fun_time_vr.scene`, textured
+two satellites) are flat screens from :mod:`fun_time_vr.scene`, textured
 with the player's rendered frame.  Immersive projections wrap the whole view:
 a full-screen pass reconstructs each pixel's world ray (GenauVR's proven
 technique) and maps it into the video by projection — equirect 180 SBS,
@@ -82,7 +82,7 @@ void main() {
 """
 
 # The immersive shader's mode ids per projection; FLAT is absent because a
-# flat video draws as a curved screen, not an immersive wrap.
+# flat video draws as a screen, not an immersive wrap.
 _PROJECTION_MODES = {
     EQUIRECT_180_SBS: 1,
     FISHEYE_190_SBS: 2,

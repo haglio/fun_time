@@ -174,7 +174,6 @@ from .satellite_hud import (
 from .scene import (
     Placement,
     attached_below,
-    fits_a_quad_layer,
     quad_layer_placement,
     surface_vertices,
 )
@@ -1893,13 +1892,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 mode = immersive_mode(primary.role.projection)
                 in_scene = {PRIMARY, PORTRAIT, LANDSCAPE}
                 if use_layers:
-                    # The mpv-backed screens as quads, out of the scene as each
-                    # is taken -- and a screen with no flat stand-in (wrapping the
-                    # view, or pulled too wide for one) is never taken.
+                    # The mpv-backed screens as quads, out of the scene as each is
+                    # taken -- and a picture wrapping the view is never taken.
                     for index, unit in enumerate([primary, *satellites]):
                         if unit is primary and (mode is not None or genau.role.showing):
-                            continue
-                        if not fits_a_quad_layer(unit.screen.placement):
                             continue
                         quad = _update_quad_layer(
                             session, renderer, index, unit,
