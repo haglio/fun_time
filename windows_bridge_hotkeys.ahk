@@ -345,6 +345,7 @@ AppendWithRetry(text, path, attempts := 5, delayMs := 5, access := "exclusive") 
                 target := FileOpen(handle, "h", "UTF-8-RAW")
                 target.Write(text)
                 target.Close()
+                DllCall("CloseHandle", "Ptr", handle)
             } else {
                 FileAppend(text, path, "UTF-8-RAW")
             }
