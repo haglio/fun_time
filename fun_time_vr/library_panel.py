@@ -291,7 +291,7 @@ def paint_library(
              left=True)
     title_x = back.x + back.width + BUTTON_GROUP_GAP
     title_font = load_font(_TITLE_PX)
-    title = fit_text(title_font, browse.folder.title or _LIBRARY_TITLE,
+    title = fit_text(title_font, "/".join(browse.folder.path) or _LIBRARY_TITLE,
                      counter_x - BUTTON_GROUP_GAP - title_x)
     _line_in(draw, Rect(title_x, _PAD, counter_x - title_x, BUTTON_SIZE), title, title_font,
              MAGENTA, left=True)

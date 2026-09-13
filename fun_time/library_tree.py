@@ -58,11 +58,6 @@ class Folder:
         """The folder to go back to, or None at the root."""
         return None if not self.path else self.path[:-1]
 
-    @property
-    def title(self) -> str:
-        """What to call this folder on screen."""
-        return "/".join(self.path)
-
 
 def folder_of(handle: LibraryHandle) -> tuple[str, ...]:
     return tuple(part for part in handle.section.split("/") if part)

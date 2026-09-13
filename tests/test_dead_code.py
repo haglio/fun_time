@@ -185,7 +185,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # and tests, the headset panels' five font loaders and three cut-to-width
 # copies became one, and the reference's toggle docstring and the dispatch
 # loop's pick comment went with the code they had explained.
-MAX_PROSE_LINES = 8095
+# 8083 since 2026-09-16, when the library browser's sidebar became letters that
+# open onto their names, and its docstrings shrank to what that leaves true.
+MAX_PROSE_LINES = 8083
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
