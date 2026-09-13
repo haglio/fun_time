@@ -55,7 +55,6 @@ from fun_time.windows_bridge_orchestrator import (
     silence_the_players,
     write_pids_file,
 )
-from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from fun_time.windows_bridge_sequencer import StartupResult
 from tests.sleeps import sleeps_in
 
@@ -1010,9 +1009,7 @@ class TestLoadingScreenLifecycle:
 
         resolve.assert_called_once_with(
             LaunchManifest.read(manifest_path).random_favs_browser.shortcut_path)
-        assert runner.call_args.kwargs["rfb_shortcut"] == ChromeShortcut(
-            target=r"C:\Browser\browser.exe", work_dir=r"C:\Browser",
-            args='--profile-directory="Profile 9"')
+        assert runner.call_args.kwargs["rfb_shortcut"] == shortcut
 
 
 class TestKeepingTheHostedApp:

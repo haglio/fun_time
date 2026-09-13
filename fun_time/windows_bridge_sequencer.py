@@ -58,7 +58,6 @@ from .window_layout import (
 from .window_roles import MANAGED_ROLES, ORIGENERATOR_ROLE_TITLES, role_topmost
 from .windows_bridge_random_favs_browser import (
     CHROME_WINDOW_CLASS,
-    ChromeShortcut,
     launch_random_favs_browser,
 )
 from .windows_bridge_startup import (
@@ -1139,11 +1138,7 @@ def _maybe_launch_random_favs_browser(
     # Take a Chrome window snapshot before launch
     before_hwnds = find_windows_by_class(CHROME_WINDOW_CLASS)
 
-    result = launch_random_favs_browser(
-        manifest_file,
-        shortcut=ChromeShortcut(target=shortcut.target, work_dir=shortcut.work_dir,
-                                args=shortcut.arguments),
-    )
+    result = launch_random_favs_browser(manifest_file, shortcut=shortcut)
     if not result.should_launch:
         logger.info("Random Favs Browser skipped: launch plan was empty")
         return 0

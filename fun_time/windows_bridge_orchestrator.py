@@ -79,7 +79,6 @@ from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
 )
-from .windows_bridge_random_favs_browser import ChromeShortcut
 from .windows_bridge_sequencer import (
     StartupResult,
     apply_startup_window_state,
@@ -1005,8 +1004,7 @@ def _start_the_dispatch_loop(
         dashboard_enabled=dashboard_enabled,
         env=env,
         hud_publisher=hud_publisher,
-        rfb_shortcut=ChromeShortcut(target=rfb_shortcut.target, work_dir=rfb_shortcut.work_dir,
-                                    args=rfb_shortcut.arguments),
+        rfb_shortcut=rfb_shortcut,
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()

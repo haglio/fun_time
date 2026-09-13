@@ -30,6 +30,7 @@ from fun_time.role_windows import (
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SideState, read_shared_state, write_shared_state
+from fun_time.shortcuts import Shortcut
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
@@ -40,7 +41,6 @@ from fun_time.windows_bridge_dispatch_loop import (
     poll_dashboard_commands,
     resolve_active_side_command,
 )
-from fun_time.windows_bridge_random_favs_browser import ChromeShortcut
 from tests.role_window_fakes import (
     DASHBOARD_HWND,
     DASHBOARD_PID,
@@ -1226,10 +1226,10 @@ class TestOpenRfbTab:
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
-            rfb_shortcut=ChromeShortcut(
+            rfb_shortcut=Shortcut(
                 target=r"C:\Chrome\chrome.exe",
                 work_dir=r"C:\Chrome",
-                args='--profile-directory="Profile 2"'),
+                arguments='--profile-directory="Profile 2"'),
         )
 
         calls: list[tuple[str, object]] = []
@@ -1244,10 +1244,10 @@ class TestOpenRfbTab:
             ("activate", 12345),
             ("open", {
                 "urls": ["https://example.com"],
-                "shortcut": ChromeShortcut(
+                "shortcut": Shortcut(
                     target=r"C:\Chrome\chrome.exe",
                     work_dir=r"C:\Chrome",
-                    args='--profile-directory="Profile 2"'),
+                    arguments='--profile-directory="Profile 2"'),
             }),
         ]
 
@@ -1258,10 +1258,10 @@ class TestOpenRfbTab:
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=777,
-            rfb_shortcut=ChromeShortcut(
+            rfb_shortcut=Shortcut(
                 target=r"C:\Chrome\chrome.exe",
                 work_dir=r"C:\Chrome",
-                args='--profile-directory="Profile 2"'),
+                arguments='--profile-directory="Profile 2"'),
         )
 
         calls: list[tuple[str, object]] = []
@@ -1281,10 +1281,10 @@ class TestOpenRfbTab:
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
-            rfb_shortcut=ChromeShortcut(
+            rfb_shortcut=Shortcut(
                 target=r"C:\Chrome\chrome.exe",
                 work_dir=r"C:\Chrome",
-                args='--profile-directory="Profile 2"'),
+                arguments='--profile-directory="Profile 2"'),
         )
 
         calls: list[tuple[str, object]] = []
@@ -1301,10 +1301,10 @@ class TestOpenRfbTab:
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=0,
-            rfb_shortcut=ChromeShortcut(
+            rfb_shortcut=Shortcut(
                 target=r"C:\Chrome\chrome.exe",
                 work_dir=r"C:\Chrome",
-                args='--profile-directory="Profile 2"'),
+                arguments='--profile-directory="Profile 2"'),
         )
 
         calls: list[tuple[str, object]] = []
@@ -1339,10 +1339,10 @@ class TestOpenRfbTab:
         runner = make_runner(
             tmp_path,
                         rfb_hwnd=12345,
-            rfb_shortcut=ChromeShortcut(
+            rfb_shortcut=Shortcut(
                 target=r"C:\Chrome\chrome.exe",
                 work_dir=r"C:\Chrome",
-                args='--profile-directory="Profile 2"'),
+                arguments='--profile-directory="Profile 2"'),
         )
         runner.state = BridgeState(landscape=SideState(locked=False), portrait=SideState(locked=False))
         (tmp_path / "dashboard_cmd.txt").write_text("both_lock_on", encoding="utf-8")
@@ -1364,10 +1364,10 @@ class TestOpenRfbTab:
             ("activate", 12345),
             ("open", {
                 "urls": ["http://p", "http://l"],
-                "shortcut": ChromeShortcut(
+                "shortcut": Shortcut(
                     target=r"C:\Chrome\chrome.exe",
                     work_dir=r"C:\Chrome",
-                    args='--profile-directory="Profile 2"'),
+                    arguments='--profile-directory="Profile 2"'),
             }),
         ]
 
@@ -2585,7 +2585,7 @@ class TestOrigeneratorShows:
 
     def test_rfb_tabs_hold_while_origenerator_covers_the_browser(self, tmp_path):
         runner = self._hosting_runner(tmp_path)
-        runner.rfb_shortcut = ChromeShortcut(target="chrome.exe", work_dir="", args="")
+        runner.rfb_shortcut = Shortcut(target="chrome.exe", work_dir="", arguments="")
         runner._pending_rfb_urls = ["file:///tab.html"]
         runner._flush_rfb_tabs()
         assert runner._pending_rfb_urls == ["file:///tab.html"]  # held, not dropped

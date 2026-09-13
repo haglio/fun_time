@@ -29,6 +29,14 @@ class Shortcut:
     work_dir: str = ""
     arguments: str = ""
 
+    def command_line(self, *extra: str) -> str:
+        parts = [subprocess.list2cmdline([self.target])]
+        if self.arguments.strip():
+            parts.append(self.arguments.strip())
+        if extra:
+            parts.append(subprocess.list2cmdline(extra))
+        return " ".join(parts)
+
 
 def ps_quote(value: str) -> str:
     """*value* as a PowerShell single-quoted literal."""
