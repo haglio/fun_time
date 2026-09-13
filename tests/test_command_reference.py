@@ -269,7 +269,8 @@ def test_the_satellite_grid_carries_a_players_own_playback_speed():
 
     assert nudge.voice == ("playback speed up", "playback slow down", "playback speed down")
     assert {"active_speed_up", "both_speed_down", "landscape_speed_up"} <= set(nudge.commands)
-    assert {"active_speed_150", "both_speed_200", "landscape_speed_25"} <= set(rate.commands)
+    assert {"active_speed_min", "both_speed_max", "active_speed_150", "both_speed_200",
+            "landscape_speed_25"} <= set(rate.commands)
 
 
 def test_mode_named_nav_shows_friendly_names_in_the_legend():

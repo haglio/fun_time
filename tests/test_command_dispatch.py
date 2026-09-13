@@ -2355,13 +2355,13 @@ def test_the_bare_nudge_follows_the_only_engine_running_in_genau_mode(tmp_path: 
     assert not config.main_player_cmd_file.exists()
 
 
-def test_speed_min_and_max_route_to_the_active_engine(tmp_path: Path):
+def test_the_main_players_min_and_max_route_to_the_active_engine(tmp_path: Path):
     config = _make_config(tmp_path)
-    dispatch_command("speed_min", _make_state(main_mode="video"), config)
+    dispatch_command("main_player_speed_min", _make_state(main_mode="video"), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
 
     config = _make_config(tmp_path)
-    dispatch_command("speed_max", _make_state(main_mode="genau"), config)
+    dispatch_command("main_player_speed_max", _make_state(main_mode="genau"), config)
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "SPEED 100\n"
 
 
@@ -2423,10 +2423,10 @@ def test_absolute_speed_reaches_main_player_video_in_video_mode_even_when_genau_
     assert not config.genau_cmd_file.exists()
 
 
-def test_speed_max_sets_main_player_video_in_video_mode(tmp_path: Path):
+def test_the_main_players_max_sets_its_video_in_video_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     _set_main_player_driving(config, driving=False)
-    dispatch_command("speed_max", _make_state(main_mode="video"), config)
+    dispatch_command("main_player_speed_max", _make_state(main_mode="video"), config)
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
 
 
@@ -2455,6 +2455,17 @@ def test_a_rate_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: P
 
     assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 0.5\n"
     assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED 2\n"
+    assert not config.main_player_cmd_file.exists()
+
+
+def test_either_end_of_the_range_named_for_a_satellite_is_set_on_that_satellite_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("portrait_speed_min", _make_state(), config)
+    dispatch_command("landscape_speed_max", _make_state(), config)
+
+    assert config.portrait_cmd_file.read_text(encoding="utf-8") == "SET_SPEED min\n"
+    assert config.landscape_cmd_file.read_text(encoding="utf-8") == "SET_SPEED max\n"
     assert not config.main_player_cmd_file.exists()
 
 

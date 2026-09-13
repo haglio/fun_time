@@ -246,7 +246,7 @@ Every player says whether it is the one those bare words would reach: the **dot*
 
 ### Playback speed
 
-Every player has its own playback speed: the main player's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the main player's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the main player's changes again. Spoken, a playback speed phrase — "playback speed up", "half speed", "reset speed", "speed one point five ex" — reaches the player you last addressed, and "main", "portrait", "landscape" or "both" before or after it aims it at that player. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the main player does.
+Every player has its own playback speed: the main player's row on its console, and the same **Playback speed** row on each satellite's HUD — slower, the rate, faster. When the main player's speed changes, both satellites are set to the same speed; a satellite you set on its own keeps its speed until the main player's changes again. Spoken, a playback speed phrase — "playback speed up", "max speed", "half speed", "reset speed", "speed one point five ex" — reaches the player you last addressed, and "main", "portrait", "landscape" or "both" before or after it aims it at that player. The bare "speed up" and "slow down" still follow whichever engine is driving the OSR2. A satellite answers `SPEED_UP`, `SPEED_DOWN` and `SET_SPEED min|max|<rate>` on its command file, the same three the main player does.
 
 ### Modes
 

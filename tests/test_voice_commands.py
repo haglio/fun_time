@@ -454,10 +454,6 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["max amp"] == "robot_hand_amp_100"
         assert VOICE_COMMANDS["min center"] == "robot_hand_center_0"
         assert VOICE_COMMANDS["max center"] == "robot_hand_center_100"
-        # Speed min/max route to the active engine (the main player video or Genau), not
-        # Genau-only like the amp/center extremes.
-        assert VOICE_COMMANDS["min speed"] == "speed_min"
-        assert VOICE_COMMANDS["max speed"] == "speed_max"
 
     def test_a_named_multiplier_is_a_rate_in_percent(self):
         assert VOICE_COMMANDS["half speed"] == "active_speed_50"
@@ -480,6 +476,8 @@ class TestVoiceCommands:
             "playback speed up": "speed_up",
             "playback speed down": "speed_down",
             "playback slow down": "speed_down",
+            "min speed": "speed_min",
+            "max speed": "speed_max",
             "half speed": "speed_50",
             "speed one point five ex": "speed_150",
             "reset speed": "speed_100",
