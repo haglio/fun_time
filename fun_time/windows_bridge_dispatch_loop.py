@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
+from player_core.player_verbs import play_file
 
 from .bridge_records import FAILED_NOTICE_LEVEL, BridgeConfig, Op, WindowOp
 from .broker_control import PARK_CMD, write_broker_command
@@ -33,7 +34,7 @@ from .hud_feed import HudFeed
 from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
-from .modes import matching_funscript, playlist_entry_line
+from .modes import scripted_item
 from .player_status import is_broker_heartbeat_fresh, read_main_player_status
 from .players import Player
 from .role_windows import WindowRoles
@@ -722,8 +723,7 @@ class DispatchLoopRunner:
                 # The main player owns the main player; play the pick there, paired with its
                 # funscript the same way a playlist line pairs one, so a browse
                 # pick and a playlist entry can never name a script differently.
-                entry = playlist_entry_line(selected, matching_funscript(selected))
-                append_command(self.config.main_player_cmd_file, f"PLAY_FILE {entry}")
+                append_command(self.config.main_player_cmd_file, play_file(scripted_item(selected)))
         finally:
             if manage_session:
                 self.windows.restore_all_topmost(

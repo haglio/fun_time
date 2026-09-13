@@ -1187,7 +1187,7 @@ def test_play_video_command_switches_the_satellite_to_the_path(tmp_path: Path):
     clicking it makes that satellite the active side."""
     config = _make_config(tmp_path)
     state = _make_state()
-    path = "C:/vids/portrait/pick_me.mp4"
+    path = r"C:\vids\portrait\pick_me.mp4"
 
     new_state, ops = dispatch_command(f"portrait_play_video|{path}", state, config)
 
@@ -1201,7 +1201,7 @@ def test_lock_video_command_when_already_locked_switches_and_stays_locked(tmp_pa
     satellite (repeat-one) it just plays the picked clip, which keeps it locked."""
     config = _make_config(tmp_path)
     state = _make_state(portrait=SideState(locked=True))
-    path = "C:/vids/portrait/lock_me.mp4"
+    path = r"C:\vids\portrait\lock_me.mp4"
 
     new_state, _ops = dispatch_command(f"portrait_lock_video|{path}", state, config)
 
@@ -3291,7 +3291,7 @@ def test_no_loop_reshapes_the_queue_to_the_browse_in_place(tmp_path: Path):
     reshaped to the browse in place (retarget keeps the current clip playing),
     never replaced — so no restart, no seek-back papering over one."""
     config = _make_config(tmp_path)
-    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+    browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(), config)
@@ -3311,8 +3311,8 @@ def test_no_loop_keeps_the_clip_on_screen_by_heading_the_restored_browse(tmp_pat
     video, which is exactly the interruption the loop-off toggle must not cause.
     """
     config = _make_config(tmp_path)
-    playing = "C:/v/seed_4.mp4"  # a loop item, not one of the browse's picks
-    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+    playing = r"C:\v\seed_4.mp4"  # a loop item, not one of the browse's picks
+    browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
     _set_current(config, 2, playing)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
@@ -3327,8 +3327,8 @@ def test_no_loop_leaves_a_browse_that_already_holds_the_clip_untouched(tmp_path:
     """When the clip on screen IS one of the browse's picks the reload already keeps
     it, so the browse keeps its own order — no needless reshuffle of what comes next."""
     config = _make_config(tmp_path)
-    browse = ["C:/v/one.mp4", "C:/v/two.mp4", "C:/v/three.mp4"]
-    _set_current(config, 2, "C:/v/two.mp4")
+    browse = [r"C:\v\one.mp4", r"C:\v\two.mp4", r"C:\v\three.mp4"]
+    _set_current(config, 2, r"C:\v\two.mp4")
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
         dispatch_command("portrait_no_loop", _make_state(portrait=SideState(loop="seed")), config)
@@ -3353,8 +3353,8 @@ def test_no_loop_leaves_the_queue_alone_when_the_browse_is_empty(tmp_path: Path)
 @pytest.mark.parametrize("axis", ["seed", "action"])
 def test_next_leaves_a_loop_down_to_one_clip_for_the_browse(tmp_path: Path, axis: str):
     config = _make_config(tmp_path)
-    playing = "C:/v/seed_4.mp4"
-    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+    playing = r"C:\v\seed_4.mp4"
+    browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
     _set_current(config, 2, playing, playlist_length=1)
 
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):
@@ -3422,7 +3422,7 @@ def test_the_loop_key_steps_a_seed_loop_on_to_the_action_loop(tmp_path: Path):
 def test_the_loop_key_steps_an_action_loop_off(tmp_path: Path):
     """The cycle's last stop is the old behavior — back to the browse, filter kept."""
     config, a, _b, _c = _cycle_config(tmp_path)
-    browse = ["C:/v/one.mp4", "C:/v/two.mp4"]
+    browse = [r"C:\v\one.mp4", r"C:\v\two.mp4"]
 
     _set_current(config, 2, a)
     with patch("fun_time.satellite_groups.satellite_browse_paths", return_value=browse):

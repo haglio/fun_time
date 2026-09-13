@@ -690,7 +690,7 @@ class _SatelliteUnit(_VideoUnit):
         return self.control_size()
 
     def _read_playlist(self) -> list[Path]:
-        return [video for video, _funscript in read_playlist(self.playlist_file)]
+        return [item.path for item in read_playlist(self.playlist_file)]
 
     def _reload_playlist(self) -> None:
         reloaded = self._read_playlist()

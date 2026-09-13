@@ -173,7 +173,7 @@ def main_playlist_has_vr(playlist_file: Path, vr_dirs: Sequence[Path]) -> bool:
     never does, and resumed into a headset it gives nothing but flat screens.
     A missing playlist reads as holding none."""
     return any(
-        is_vr_video(video, vr_dirs) for video, _funscript in read_playlist(playlist_file)
+        is_vr_video(item.path, vr_dirs) for item in read_playlist(playlist_file)
     )
 
 

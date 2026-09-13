@@ -6,6 +6,9 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from player_core.player_verbs import play_file
+from player_core.playlist import PlaylistItem
+
 from .bridge_records import (
     FAILED_NOTICE_LEVEL,
     FAVORITE_NOTICE_LEVEL,
@@ -61,7 +64,7 @@ def play_video(config: BridgeConfig, player: Player, path: str) -> None:
     ``PLAY_FILE`` is the native player's jump-or-splice: it jumps to the clip if
     it is already queued, else splices it in after the current clip and plays it.
     """
-    send_satellite(config, player, f"PLAY_FILE {path}")
+    send_satellite(config, player, play_file(PlaylistItem(Path(path))))
 
 
 def cancel_lock(player: Player, state: BridgeState, config: BridgeConfig) -> BridgeState:

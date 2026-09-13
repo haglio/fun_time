@@ -13,7 +13,7 @@ from pathlib import Path
 
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
-from player_core.playlist import read_playlist
+from player_core.playlist import item_from_line, read_playlist
 
 from .projection import next_projection, resolve_projection, save_projection
 
@@ -96,7 +96,7 @@ class MainRole:
 
     @property
     def current_video(self) -> Path:
-        return self._entries[self._index][0]
+        return self._entries[self._index].path
 
     @property
     def projection(self) -> str:
@@ -296,14 +296,14 @@ class MainRole:
 
     def _load(self, index: int) -> None:
         self._index = index % len(self._entries)
-        video, funscript = self._entries[self._index]
-        logger.info("Main loading: %s", Path(video).name)
-        self._player.load(video)
+        item = self._entries[self._index]
+        logger.info("Main loading: %s", item.path.name)
+        self._player.load(item.path)
         self._player.set_paused(self._paused)
         self._player.set_speed(self._speed)
-        self._funscript = self._load_funscript(funscript)
+        self._funscript = self._load_funscript(item.funscript)
         self._driver.reset()
-        self._projection = resolve_projection(str(video), self._metadata_root, self._vr_dirs)
+        self._projection = resolve_projection(str(item.path), self._metadata_root, self._vr_dirs)
 
     @staticmethod
     def _load_funscript(path: Path | None) -> Funscript | None:
@@ -353,15 +353,15 @@ class MainRole:
 
     def _apply_play_file(self, arg: str) -> None:
         """Jump to the named video if queued, else splice it in after the current
-        one; a TAB carries the funscript column, as the playlist does."""
-        video_raw, _, funscript_raw = arg.partition("\t")
-        video = Path(video_raw.strip())
-        funscript = Path(funscript_raw.strip()) if funscript_raw.strip() else None
-        for position, (queued, _fs) in enumerate(self._entries):
-            if queued == video:
+        one; the value is a playlist line, funscript column and all."""
+        item = item_from_line(arg)
+        if item is None:
+            return
+        for position, queued in enumerate(self._entries):
+            if queued.path == item.path:
                 self._load(position)
                 return
-        self._entries.insert(self._index + 1, (video, funscript))
+        self._entries.insert(self._index + 1, item)
         self._load(self._index + 1)
 
     def _reload_playlist(self) -> None:
@@ -372,8 +372,8 @@ class MainRole:
             return
         current = self.current_video
         self._entries = entries
-        for position, (video, _fs) in enumerate(self._entries):
-            if video == current:
+        for position, item in enumerate(self._entries):
+            if item.path == current:
                 self._index = position
                 return
         self._load(0)
