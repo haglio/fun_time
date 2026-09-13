@@ -1,20 +1,16 @@
-"""What the main console shows about the room, and the file it reaches on.
-
-The player on the main slot knows what it is playing.  It does not know which
-mode the slot is in, what has the OSR2, whether the broker is up, or which player
-a bare command would reach — all of that is the orchestrator's.  So this is what
-reaches the player for its console to be drawable: a
-:class:`~player_core.console.ConsoleModel`, published as text the way each
-satellite's map is, and parsed back by ``player_core.console``.
-"""
+"""What the main console shows about the room, and the file it reaches on: a
+:class:`~player_core.console.ConsoleModel` carrying the buttons Fun Time
+declares (:mod:`fun_time.console_buttons`), published as text and parsed back
+by ``player_core.console``."""
 from __future__ import annotations
 
 from pathlib import Path
 
 from player_core.console import ConsoleModel
 
+from .console_buttons import MainSlot, console_rows, osr2_controls
 from .mode_plan import main_player_displays
-from .player_status import GenauStatus
+from .player_status import GenauStatus, MainPlayerStatus
 
 MAIN_PLAYER_CONSOLE_FILENAME = "main_player_console.json"
 
@@ -54,66 +50,48 @@ def console_model(
     mode: str,
     active: bool,
     osr2_mode: str,
-    funscript_driving: bool,
     broker: bool,
-    record: str = "normal",
-    main_player_locked: bool = True,
+    main_player: MainPlayerStatus,
     genau: GenauStatus,
+    genau_pace_s: int = 0,
     f_mode: bool = False,
     latest: bool = False,
     genau_latest: bool = False,
     plays_vr: bool | None = None,
     plays_flat: bool | None = None,
 ) -> ConsoleModel:
-    """The console panel as the main player parses it.
-
-    The drive readout's own numbers (amplitude, center, speed, the trace and its
-    limits) travel on the separate drive file Genau publishes; this carries the
-    room around them.
-
-    *record* is the main player's own loop machine (normal / recording / looping), and rides
-    here because the console is drawn in genau mode too, by a player with no loop
-    machine to ask — and because the main player already tells us in its status file.
-
-    The lock is published as one flag for one padlock, resolved to whichever
-    player is on the main slot: *main_player_locked* while the main player shows its video, Genau's
-    own hold on its clip in genau mode.  Both players open locked, both mean
-    repeat-one on what is on screen, and the console shows one of them at a time —
-    so the mode decides which, here, rather than the console drawing two padlocks
-    and leaving the reader to work out whose is whose.
-
-    The browse order is one flag for one slot in the same way, and resolved the
-    same way: *latest* is the main player's playlist order, *genau_latest* the order Genau
-    last rescanned its clips folder in, and the mode says which of them the
-    console is describing.  Published for the same reason ``f_mode`` is — the
-    order is the orchestrator's, set by a spoken word or a key it owns, and
-    neither player can tell which way round the browse it is walking was built.
-
-    ``f_mode`` is the main player's own F-mode.  The main player is told the flag directly too
-    (``SET_F_MODE``, for its status line), but the console's button has to light
-    off what the orchestrator holds, exactly as the satellites' do: the flag is
-    set from three places at once and only one of them is the player.
-
-    The two shape flags are the same for the headset's filter, with a third
-    answer: None where the rotation holds one shape, which draws no pair at all.
-    """
-    return ConsoleModel(
+    """The console panel as the main player parses it: the room around the
+    drive readout, and the buttons declared from it.  The lock and the browse
+    order are one flag each, resolved to whichever player is on the main slot;
+    the shape flags are the headset's filter, None where the rotation holds one
+    shape; *genau_pace_s* is Genau's clip pace, off its drive readout."""
+    video = main_player_displays(mode)
+    slot = MainSlot(
         mode=mode,
-        active=active,
+        locked=main_player.locked if video else genau.locked,
         f_mode=f_mode,
-        latest=latest if main_player_displays(mode) else genau_latest,
-        osr2=osr2_state(mode=mode, osr2_mode=osr2_mode,
-                        funscript_driving=funscript_driving),
-        broker=broker,
-        record=record,
-        # The hold of whichever player owns the slot, bounced back off its status
-        # file: the console draws the padlock, and the player drawing that console
-        # is not always the player it is about.
-        locked=main_player_locked if main_player_displays(mode) else genau.locked,
+        latest=latest if video else genau_latest,
+        record=main_player.state,
         cruise=genau.cruise_active,
         shape=genau.shape,
         plays_vr=plays_vr,
         plays_flat=plays_flat,
+        pace_s=genau_pace_s,
+        length_mode=main_player.length_mode,
+        compilation=main_player.compilation,
+        has_compilation=main_player.has_compilation,
+        has_other_versions=main_player.has_other_versions,
+        jump_to=main_player.jump_to,
+    )
+    return ConsoleModel(
+        mode=mode,
+        active=active,
+        osr2=osr2_state(mode=mode, osr2_mode=osr2_mode,
+                        funscript_driving=main_player.funscript_driving),
+        locked=slot.locked,
+        latest=slot.latest,
+        rows=console_rows(slot),
+        osr2_controls=osr2_controls(broker=broker),
     )
 
 

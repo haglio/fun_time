@@ -58,14 +58,45 @@ def test_hud_payload_carries_whether_the_clip_is_a_favorite():
         assert hud_model(_panel(), Path("C:/t")).is_favorite is False
 
 
-def test_hud_payload_carries_which_browse_order_the_side_is_in():
-    """The player draws the Shuffle/Latest pair only for a panel that says which
-    order it is in — so a satellite gets the pair, and the origenerator-mode
-    panel, whose player is black and paused under a show, gets neither."""
+def _band(model) -> dict[str, object]:
+    """The side's own buttons, by what each is for."""
+    return {button.action.removeprefix(f"{model.side}_"): button for button in model.rows[-1]}
+
+
+def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an_order():
+    """The player draws the Shuffle/Latest pair only for a panel that declares
+    it — so a satellite gets the pair, one of the two lit, and the
+    origenerator-mode panel, whose player is black and paused under a show,
+    gets neither."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
-        assert hud_model(_panel(latest=True), Path("C:/t")).latest is True
-        assert hud_model(_panel(latest=False), Path("C:/t")).latest is False
-        assert hud_model(_panel(), Path("C:/t")).latest is None
+        newest = _band(hud_model(_panel(latest=True), Path("C:/t")))
+        shuffled = _band(hud_model(_panel(latest=False), Path("C:/t")))
+        unswitchable = _band(hud_model(_panel(), Path("C:/t")))
+
+    assert newest["latest"].lit and not newest["shuffle"].lit
+    assert shuffled["shuffle"].lit and not shuffled["latest"].lit
+    assert "shuffle" not in unswitchable and "latest" not in unswitchable
+
+
+def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
+    """The lock and F-mode light off the side's state, and every button posts
+    that side's own verb -- what the dispatcher answers for it."""
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        band = _band(hud_model(_panel(locked=True, f_mode=True), Path("C:/t")))
+
+    assert band["lock"].lit and band["fmode"].lit and not band["trash"].lit
+    assert all(button.action.startswith("portrait_") for button in band.values())
+
+
+def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerator():
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        hosted = hud_model(_panel(satellites_mode="origenerator"), Path("C:/t"))
+        plain = hud_model(_panel(), Path("C:/t"))
+
+    assert [button.action for button in hosted.rows[0]] == [
+        "satellites_video_activate", "origenerator_activate", "portrait_minimize"]
+    assert hosted.rows[0][1].lit
+    assert len(plain.rows) == 1
 
 
 def test_hud_payload_keeps_the_corner_without_a_thumbnail_but_drops_siblings():

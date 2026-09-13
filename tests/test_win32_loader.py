@@ -38,6 +38,8 @@ import ctypes, ctypes.wintypes
 for _name in {_WIN32_CTYPES_NAMES!r}:
     if hasattr(ctypes, _name):
         delattr(ctypes, _name)
+from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
+apply_genau_dirs_to_sys_path()
 """
 
 
@@ -53,6 +55,8 @@ def _run_without_the_win32_ctypes_surface(body: str) -> subprocess.CompletedProc
 
     ``PYTHONPATH`` is dropped so the child cannot pick up a shim that fakes that
     surface back in, the way a run on a developer's non-Windows machine does.
+    The checkout's own sibling override still applies, as it does at every
+    launch: a branch leaning on an unlanded player_core imports that one.
     """
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
     return subprocess.run(

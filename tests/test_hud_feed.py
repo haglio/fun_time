@@ -74,6 +74,20 @@ def console(tmp_path) -> dict:
     return json.loads((tmp_path / "main_player_console.json").read_text(encoding="utf-8"))
 
 
+def f_mode_button(published: dict) -> dict:
+    """The F-mode button a published satellite panel declares, as written."""
+    return next(button for row in published["rows"] for button in row
+                if button["action"].endswith("_fmode"))
+
+
+def broker_is_up(published: dict) -> bool:
+    """What the published console's OSR2-line control says of the broker: lit
+    while the service runs, red (``warn``) while it is down."""
+    (broker,) = published["osr2_controls"]
+    assert broker["action"] == "broker_panel"
+    return bool(broker.get("lit")) and not broker.get("warn")
+
+
 class TestHudPublishing:
     """Each satellite's lock map and the main console, built from the session's
     config and the bridge state and published to the files the players read."""
@@ -135,9 +149,9 @@ class TestHudPublishing:
         portrait = panel(tmp_path, "portrait")
         landscape = panel(tmp_path, "landscape")
         assert portrait["lock_label"] == "Unlocked · Shuffle · F-Mode"
-        assert portrait["f_mode"] is True
+        assert f_mode_button(portrait)["lit"] is True
         assert landscape["lock_label"] == "Unlocked · Shuffle"
-        assert landscape["f_mode"] is False
+        assert not f_mode_button(landscape).get("lit")
 
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
         """The active side is a slot number in the state and a side *name* on the
@@ -180,7 +194,7 @@ class TestHudPublishing:
         feed.publish(state)
 
         published = console(tmp_path)
-        assert published["broker"] is True
+        assert broker_is_up(published)
         assert published["osr2"] in ("off", "auto", "funscript", "genau", "idle")
 
     def test_both_broker_lights_read_the_brokers_directory_not_the_sessions(self, tmp_path):
@@ -210,12 +224,27 @@ class TestHudPublishing:
 
         # The worktree's own state dir: fresh stamps nothing reads.
         session = published(tmp_path)
-        assert session["broker"] is False
+        assert not broker_is_up(session)
         assert session["osr2"] == "off"
 
         broker = published(broker_state)
-        assert broker["broker"] is True
+        assert broker_is_up(broker)
         assert broker["osr2"] != "off"
+
+    def test_the_consoles_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
+        """In genau mode the lock says how long an unheld clip stays up, and the
+        one place Genau says its pace is the drive readout it publishes."""
+        from player_core.drive_readout import DriveHud, publish_drive
+
+        feed, state = make_feed(tmp_path), BridgeState(main_mode="genau")
+        publish_drive(feed.config.genau_drive_file,
+                      DriveHud(speed=50, amplitude=60, center=50, advance_interval=7))
+
+        feed.publish(state)
+
+        lock = next(button for row in console(tmp_path)["rows"] for button in row
+                    if button["action"] == "main_lock")
+        assert "every 7s" in lock["tooltip"]
 
     def test_the_console_carries_the_lock_back_to_whoever_draws_it(self, tmp_path):
         """Each player owns its own lock, and neither can see the other's — so

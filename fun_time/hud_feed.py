@@ -10,6 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.console import console_text
+from player_core.drive_readout import read_drive
 
 from .bridge_records import BridgeConfig
 from .hud_transport import HudPublisher
@@ -121,18 +122,18 @@ class HudFeed:
             plays_vr=state.main_plays_vr if shapes_offered else None,
             plays_flat=state.main_plays_flat if shapes_offered else None,
             osr2_mode=self.osr2_mode(),
-            funscript_driving=main_player.funscript_driving,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
             if self.config.broker_heartbeat_file else False,
-            # The main player's loop machine, so the record button on the console can show
-            # which half of the gesture is running, and its lock, so the padlock
-            # can show whether the video is being held.  Both come back off the main player's
-            # own status file, because in genau mode the player drawing that
-            # console has neither to ask.
-            record=main_player.state,
-            main_player_locked=main_player.locked,
+            # The console's buttons are lit and named from what each player
+            # published, since the player drawing it is not always their subject.
+            main_player=main_player,
             genau=read_genau_status(genau_status_path(self.config.state_dir)),
+            genau_pace_s=self._genau_pace_s(),
         )))
+
+    def _genau_pace_s(self) -> int:
+        drive = read_drive(self.config.genau_drive_file)
+        return drive.advance_interval if drive is not None else 0
 
     def _favs_content(self) -> str:
         """The favorites file, re-read only when it has actually changed.
