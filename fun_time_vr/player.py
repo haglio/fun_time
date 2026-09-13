@@ -48,7 +48,13 @@ from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.genau_notifier import GenauNotifier
-from player_core.playhead import PlayheadHud, PlayheadHudPainter, clip_playhead, video_playhead
+from player_core.playhead import (
+    PlayheadHud,
+    PlayheadHudPainter,
+    clip_playhead,
+    readout_xy,
+    video_playhead,
+)
 from player_core.playlist import read_playlist
 from player_core.render_player import MpvRenderPlayer
 from player_core.status import StatusWriter
@@ -179,6 +185,7 @@ logger = logging.getLogger(__name__)
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 _OV_TOAST = 13
+_OV_READOUT = 14
 
 # Longest texture side each video gets: near-native for the primary, and for
 # a satellite's 28° of view well above what the headset resolves there.
@@ -323,6 +330,8 @@ class _VideoUnit:
         self._scrubber_shown: tuple | None = None
         self._chip_shown: tuple | None = None
         self._toast_shown: tuple | None = None
+        self._readout_shown: tuple | None = None
+        self._readout_painter = PlayheadHudPainter()
 
     def render_latest_frame(self) -> None:
         width, height = self.player.video_dims
@@ -391,12 +400,30 @@ class _VideoUnit:
         x, y, bgra = placed
         self.player.overlay(_OV_TOAST, x, y, bgra)
 
+    def overlay_readout(self, playhead) -> None:
+        if not self.target.ready:
+            return
+        width, height = self.control_size()
+        shown = None if playhead is None else (playhead, width, height, self.target.width)
+        if shown == self._readout_shown:
+            return
+        self._readout_shown = shown
+        if shown is None:
+            self.player.remove_overlay(_OV_READOUT)
+            return
+        factor = self.target.width / width
+        pill = self._readout_painter.bgra(playhead)
+        x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
+        self.player.overlay(_OV_READOUT, round(x * factor), round(y * factor),
+                            scaled(pill, factor))
+
     def clear_furniture(self) -> None:
         if self._scrubber_shown is None and self._chip_shown is None:
             return
         self._scrubber_shown = self._chip_shown = None  # on a wrap it rides round the nadir
         self.player.remove_overlay(_OV_SCRUBBER)
         self.player.remove_overlay(_OV_VOLUME)
+        self.overlay_readout(None)
 
     def pump(self, stop: threading.Event, now: float) -> None:
         """One turn of the file-channel worker — what every unit owes it."""
@@ -523,6 +550,7 @@ class _MainUnit(_VideoUnit):
             self.overlay_furniture(
                 controls.position, controls.duration, controls.hud, self._volume_painter,
             )
+            self.overlay_readout(controls.playhead)
         if self._notices is not None:
             self.overlay_toast(self._notices.toast(self.notice_screen))
 
@@ -692,6 +720,8 @@ class _SatelliteUnit(_VideoUnit):
             self.session.position_ms, self.session.duration_ms,
             self.volume.hud, self._volume_painter,
         )
+        self.overlay_readout(video_playhead(
+            self.session.position_ms, self.session.duration_ms, self.player.frame_rate))
         if self._notices is not None:
             self.overlay_toast(self._notices.toast(self.notice_screen))
 
