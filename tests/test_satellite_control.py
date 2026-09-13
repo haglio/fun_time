@@ -1,26 +1,6 @@
 from __future__ import annotations
 
-from fun_time.satellite_control import (
-    SatelliteStatus,
-    read_satellite_status,
-    write_satellite_command,
-)
-
-
-class TestWriteSatelliteCommand:
-    def test_appends_a_verb_line(self, tmp_path):
-        cmd = tmp_path / "portrait_cmd.txt"
-
-        write_satellite_command(cmd, "NEXT")
-        write_satellite_command(cmd, "LOCK")
-
-        # Queued one per line, so a burst before the player drains keeps both.
-        assert cmd.read_text(encoding="utf-8").splitlines() == ["NEXT", "LOCK"]
-
-    def test_play_file_carries_its_path_argument(self, tmp_path):
-        cmd = tmp_path / "portrait_cmd.txt"
-        write_satellite_command(cmd, r"PLAY_FILE C:\clips\a.mp4")
-        assert cmd.read_text(encoding="utf-8").splitlines() == [r"PLAY_FILE C:\clips\a.mp4"]
+from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 
 
 class TestReadSatelliteStatus:

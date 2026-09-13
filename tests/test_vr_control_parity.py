@@ -31,7 +31,10 @@ from fun_time.mode_plan import MAIN_MODES
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
 from fun_time.shared_state import BridgeState
 from fun_time.voice_commands import VOICE_COMMANDS
+from fun_time_vr import roles
 from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
+from main_player import controls as main_player_controls
+from satellite.runtime import SatelliteControls
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
 from tests.satellite_fakes import FakeSatellitePlayer
@@ -247,14 +250,18 @@ def _a_whole_line(verb: str) -> str:
 
     Half a command is refused by both roles on purpose, so a vocabulary check
     that sent bare verbs would report every value-taking one as unanswered.
+    Which ones want a value is read off the two registries rather than listed
+    here, so a verb that starts taking one cannot leave this check sending it bare.
     """
     return f"{verb} 1" if verb in _VERBS_THAT_TAKE_A_VALUE else verb
 
 
-_VERBS_THAT_TAKE_A_VALUE = frozenset({
-    "SET_SPEED", "SET_VOLUME", "SET_TCODE_ENABLED", "SET_F_MODE", "SET_LENGTH_MODE",
-    "SET_LOOP", "PLAY_FILE",
-})
+_VERBS_THAT_TAKE_A_VALUE = frozenset(
+    spelling
+    for registry in (main_player_controls.VERBS, roles.VERBS)
+    for spelling, (_control, verb) in registry.items()
+    if verb.takes_a_value
+)
 
 
 class TestTheSatellites:
@@ -272,8 +279,8 @@ class TestTheSatellites:
             for verb, where in _sent_to(landed, channel).items():
                 session = SatelliteSession(list(clips), player=FakeSatellitePlayer())
                 handled = apply_satellite_command(
-                    _a_satellite_line(verb, clips[0]), session,
-                    stop_event=None, reload_playlist=lambda: None,
+                    _a_satellite_line(verb, clips[0]),
+                    SatelliteControls(session, reload_playlist=lambda: None),
                 )
                 if not handled:
                     dead[verb] = where

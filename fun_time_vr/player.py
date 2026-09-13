@@ -78,6 +78,7 @@ from fun_time.session_handoff import (
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from satellite.hud_overlay import HudOverlay
 from satellite.pointer import OMNIPAUSE_TOGGLE
+from satellite.runtime import SatelliteControls
 from satellite.runtime import apply_command as apply_satellite_command
 from satellite.session import SatelliteSession
 from satellite.status import status_fields as satellite_status_fields
@@ -619,6 +620,8 @@ class _SatelliteUnit(_VideoUnit):
         self._status_writer = StatusWriter(
             Path(commands.side_file(side, "status")), satellite_status_fields
         )
+        self._controls = SatelliteControls(
+            session=self.session, reload_playlist=self._reload_playlist)
         self.hud_surface = HudSurface()
         self.hud = HudOverlay(
             hud_file=Path(commands.side_file(side, "hud")),
@@ -700,9 +703,7 @@ class _SatelliteUnit(_VideoUnit):
     def pump(self, stop: threading.Event, now: float) -> None:
         self.session.set_paused(read_paused_state(self.paused_file, logger=logger))
         for command in consume_command_file(self.cmd_file, logger=logger, uppercase=False):
-            apply_satellite_command(
-                command, self.session, stop_event=None, reload_playlist=self._reload_playlist,
-            )
+            apply_satellite_command(command, self._controls)
         self.session.advance()
         self._status_writer.write(self.session)
         self.hud.tick(video=self.session.current_video.stem)

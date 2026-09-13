@@ -1,18 +1,41 @@
 """The main player's role in the VR process: the desktop main player's contract, in-process.
 
 The main player's file quartet — playlist, command file, paused flag, status file —
-spoken from inside the VR player: the verb subset the orchestrator sends,
-funscript→T-Code through the shared ``player_core`` driver, the same status
-fields, the headset's own verbs, and what UNIMPLEMENTED_MAIN_PLAYER_VERBS refuses.
+spoken from inside the VR player: the verbs of the family's it answers
+(:mod:`player_core.player_verbs`), funscript→T-Code through the shared
+``player_core`` driver, the same status fields, the headset's own verbs, and
+what UNIMPLEMENTED_MAIN_PLAYER_VERBS refuses.
 """
 from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.control_registry import Control, Verb, bind, look_up
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
+from player_core.player_verbs import (
+    DISPLAY_OFF,
+    DISPLAY_ON,
+    LOCK_OFF,
+    LOCK_ON,
+    NEXT,
+    PLAY_FILE,
+    PREV,
+    QUIT,
+    RELOAD_PLAYLIST,
+    SEEK_BACK,
+    SEEK_FWD,
+    SET_F_MODE,
+    SET_SPEED,
+    SET_TCODE_ENABLED,
+    SET_VOLUME,
+    SPEED_DOWN,
+    SPEED_UP,
+    TOGGLE_LOCK,
+)
 from player_core.playlist import item_from_line, read_playlist
 
 from .projection import next_projection, resolve_projection, save_projection
@@ -28,6 +51,15 @@ MAX_SPEED = 2.0
 
 TILT_STEP_DEG = 5.0
 TILT_LIMIT_DEG = 90.0
+
+# The headset's own verbs: a projection to walk, a heading to re-zero onto, a
+# tilt.  Spelled here, beside the registry that answers them, the way a
+# player's own verbs are everywhere in this family.
+CYCLE_PROJECTION = "CYCLE_PROJECTION"
+RECENTER = "RECENTER"
+TILT_UP = "TILT_UP"
+TILT_DOWN = "TILT_DOWN"
+TILT_RESET = "TILT_RESET"
 
 #: The only place a control may be left dead in VR: the parity suite holds every
 #: key and every phrase to this list or to a role that answers it.
@@ -156,66 +188,45 @@ class MainRole:
     # ------------------------------------------------------------------ verbs
 
     def apply_command(self, command: str, *, on_quit: Callable[[], None]) -> bool:
-        """Dispatch one command-file line; return whether it was handled."""
-        parts = command.strip().split(None, 1)
-        if not parts:
-            return False
-        keyword = parts[0].upper()
-        arg = parts[1].strip() if len(parts) > 1 else ""
+        """Look one command-file line up in the registry; whether it was handled."""
+        return look_up(command, VERBS, _Reach(self, on_quit))
 
-        if keyword == "NEXT":
-            self._load(self._index + 1)
-        elif keyword == "PREV":
-            self._load(self._index - 1)
-        elif keyword == "SEEK_FWD":
-            self._player.seek_ms(self._player.position_ms + SEEK_STEP_MS)
-        elif keyword == "SEEK_BACK":
-            self._player.seek_ms(self._player.position_ms - SEEK_STEP_MS)
-        elif keyword == "SPEED_UP":
-            self._set_speed(self._speed + SPEED_STEP)
-        elif keyword == "SPEED_DOWN":
-            self._set_speed(self._speed - SPEED_STEP)
-        elif keyword == "SET_SPEED" and arg:
-            self._apply_set_speed(arg)
-        elif keyword == "SET_VOLUME" and arg:
-            self._apply_set_volume(arg)
-        elif keyword == "PLAY_FILE" and arg:
-            self._apply_play_file(arg)
-        elif keyword == "RELOAD_PLAYLIST":
-            self._reload_playlist()
-        elif keyword == "TOGGLE_LOCK":
-            self._set_locked(not self._locked)
-        elif keyword in ("LOCK_ON", "LOCK_OFF"):
-            self._set_locked(keyword == "LOCK_ON")
-        elif keyword == "SET_F_MODE" and arg:
-            self._f_mode = arg.strip() != "0"
-        elif keyword == "CYCLE_PROJECTION":
-            self._cycle_projection()
-        elif keyword == "RECENTER":
-            self._recenter_requested = True
-        elif keyword == "TILT_UP":
-            self.nudge_tilt(TILT_STEP_DEG)
-        elif keyword == "TILT_DOWN":
-            self.nudge_tilt(-TILT_STEP_DEG)
-        elif keyword == "TILT_RESET":
-            self._tilt_deg = 0.0
-        elif keyword == "SET_TCODE_ENABLED" and arg:
-            enabled = arg.strip() != "0"
-            # Re-enabling is a takeover — the device is wherever Genau's motion
-            # left it — so reset the driver: the next tick re-sends a waypoint at
-            # once, with the handoff glide.
-            if enabled and not self._tcode_enabled:
-                self._driver.reset()
-            self._tcode_enabled = enabled
-        elif keyword in ("DISPLAY_ON", "DISPLAY_OFF"):
-            # The mirror of the HUD verb Genau's role gets, so the two roles
-            # cannot both claim the scene or both step out of it.
-            self.displayed = keyword == "DISPLAY_ON"
-        elif keyword == "QUIT":
-            on_quit()
-        else:
-            return False
+    def step(self, delta: int) -> None:
+        self._load(self._index + delta)
+
+    def seek_by(self, delta_ms: float) -> None:
+        self._player.seek_ms(self._player.position_ms + delta_ms)
+
+    def adjust_speed(self, delta: float) -> None:
+        self._set_speed(self._speed + delta)
+
+    def toggle_lock(self) -> None:
+        self.set_locked(not self._locked)
+
+    def set_f_mode_from(self, value: str) -> bool:
+        self._f_mode = value.strip() != "0"
         return True
+
+    def request_recenter(self) -> None:
+        self._recenter_requested = True
+
+    def reset_tilt(self) -> None:
+        self._tilt_deg = 0.0
+
+    def set_tcode_enabled_from(self, value: str) -> bool:
+        enabled = value.strip() != "0"
+        # Re-enabling is a takeover — the device is wherever Genau's motion
+        # left it — so reset the driver: the next tick re-sends a waypoint at
+        # once, with the handoff glide.
+        if enabled and not self._tcode_enabled:
+            self._driver.reset()
+        self._tcode_enabled = enabled
+        return True
+
+    def set_displayed(self, displayed: bool) -> None:
+        # The mirror of the HUD verb Genau's role gets, so the two roles
+        # cannot both claim the scene or both step out of it.
+        self.displayed = displayed
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
@@ -315,7 +326,7 @@ class MainRole:
             logger.warning("Unreadable funscript %s", path, exc_info=True)
             return None
 
-    def _set_locked(self, locked: bool) -> None:
+    def set_locked(self, locked: bool) -> None:
         """Hold the video on screen or hand its end back to the playlist: mpv's
         own ``loop_file``, this family's one lock, and the latch with it."""
         self._locked = locked
@@ -326,45 +337,49 @@ class MainRole:
         self._speed = max(MIN_SPEED, min(MAX_SPEED, speed))
         self._player.set_speed(self._speed)
 
-    def _apply_set_speed(self, arg: str) -> None:
-        if arg == "min":
+    def set_speed_from(self, value: str) -> bool:
+        """``SET_SPEED min|max|<multiplier>``; False on a value it cannot read."""
+        key = value.lower()
+        if key == "min":
             self._set_speed(MIN_SPEED)
-            return
-        if arg == "max":
+        elif key == "max":
             self._set_speed(MAX_SPEED)
-            return
-        try:
-            self._set_speed(float(arg))
-        except ValueError:
-            logger.warning("SET_SPEED with unreadable argument: %r", arg)
+        else:
+            try:
+                self._set_speed(float(value))
+            except ValueError:
+                return False
+        return True
 
-    def _apply_set_volume(self, arg: str) -> None:
-        parts = arg.split()
+    def set_volume_from(self, value: str) -> bool:
+        """``SET_VOLUME <0-100> [muted]``; False on a level it cannot read."""
+        parts = value.split()
         try:
             level = max(0, min(100, int(parts[0])))
         except ValueError:
-            logger.warning("SET_VOLUME with unreadable argument: %r", arg)
-            return
+            return False
         self._volume = level
         self._muted = len(parts) > 1 and parts[1].strip() == "1"
         self._player.set_volume(level)
         if self.audio_live:
             self._player.set_muted(self._muted)
+        return True
 
-    def _apply_play_file(self, arg: str) -> None:
+    def play_file_from(self, value: str) -> bool:
         """Jump to the named video if queued, else splice it in after the current
         one; the value is a playlist line, funscript column and all."""
-        item = item_from_line(arg)
+        item = item_from_line(value)
         if item is None:
-            return
+            return False
         for position, queued in enumerate(self._entries):
             if queued.path == item.path:
                 self._load(position)
-                return
+                return True
         self._entries.insert(self._index + 1, item)
         self._load(self._index + 1)
+        return True
 
-    def _reload_playlist(self) -> None:
+    def reload_playlist(self) -> None:
         """Swap in the rebuilt playlist, keeping a playing video that survived it."""
         entries = read_playlist(self._playlist_file)
         if not entries:
@@ -388,7 +403,102 @@ class MainRole:
         if position_ms:
             self._player.seek_ms(position_ms)
 
-    def _cycle_projection(self) -> None:
+    def cycle_projection(self) -> None:
         self._projection = next_projection(self._projection)
         save_projection(str(self.current_video), self._metadata_root, self._projection)
         logger.info("Projection: %s (%s)", self._projection, self.current_video.name)
+
+
+@dataclass(frozen=True)
+class _Reach:
+    """What a verb reaches: the role, and the host's quit for this one call."""
+
+    role: MainRole
+    on_quit: Callable[[], None]
+
+
+Act = Callable[[_Reach, str], bool]
+
+
+def _moves(move: Callable[[MainRole], object]) -> Act:
+    """A verb that takes no value and always lands."""
+    def act(reach: _Reach, _value: str) -> bool:
+        move(reach.role)
+        return True
+    return act
+
+
+def _reads(move: Callable[[MainRole, str], bool]) -> Act:
+    """A verb whose value the role reads, answering whether it could."""
+    def act(reach: _Reach, value: str) -> bool:
+        return move(reach.role, value)
+    return act
+
+
+def _quit(reach: _Reach, _value: str) -> bool:
+    reach.on_quit()
+    return True
+
+
+# One entry per thing a person can move, on the family's spellings where the
+# desktop main player answers the same verb, and on the headset's own for the
+# rest.  What is refused is UNIMPLEMENTED_MAIN_PLAYER_VERBS above.
+CONTROLS: tuple[Control, ...] = (
+    Control(
+        name="playlist_position",
+        verbs=(Verb(NEXT, _moves(lambda role: role.step(1))),
+               Verb(PREV, _moves(lambda role: role.step(-1)))),
+    ),
+    Control(
+        name="playhead",
+        verbs=(Verb(SEEK_FWD, _moves(lambda role: role.seek_by(SEEK_STEP_MS))),
+               Verb(SEEK_BACK, _moves(lambda role: role.seek_by(-SEEK_STEP_MS)))),
+    ),
+    Control(
+        name="speed",
+        verbs=(Verb(SPEED_UP, _moves(lambda role: role.adjust_speed(SPEED_STEP))),
+               Verb(SPEED_DOWN, _moves(lambda role: role.adjust_speed(-SPEED_STEP))),
+               Verb(SET_SPEED, _reads(MainRole.set_speed_from), takes_a_value=True)),
+    ),
+    Control(
+        name="volume",
+        verbs=(Verb(SET_VOLUME, _reads(MainRole.set_volume_from), takes_a_value=True),),
+    ),
+    Control(
+        name="playing_file",
+        verbs=(Verb(PLAY_FILE, _reads(MainRole.play_file_from), takes_a_value=True),),
+    ),
+    Control(name="playlist", verbs=(Verb(RELOAD_PLAYLIST, _moves(MainRole.reload_playlist)),)),
+    Control(
+        name="lock",
+        verbs=(Verb(TOGGLE_LOCK, _moves(MainRole.toggle_lock)),
+               Verb(LOCK_ON, _moves(lambda role: role.set_locked(True))),
+               Verb(LOCK_OFF, _moves(lambda role: role.set_locked(False)))),
+    ),
+    Control(
+        name="f_mode",
+        verbs=(Verb(SET_F_MODE, _reads(MainRole.set_f_mode_from), takes_a_value=True),),
+    ),
+    Control(name="projection", verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),)),
+    Control(name="heading", verbs=(Verb(RECENTER, _moves(MainRole.request_recenter)),)),
+    Control(
+        name="tilt",
+        verbs=(Verb(TILT_UP, _moves(lambda role: role.nudge_tilt(TILT_STEP_DEG))),
+               Verb(TILT_DOWN, _moves(lambda role: role.nudge_tilt(-TILT_STEP_DEG))),
+               Verb(TILT_RESET, _moves(MainRole.reset_tilt))),
+    ),
+    Control(
+        name="tcode_output",
+        verbs=(Verb(SET_TCODE_ENABLED, _reads(MainRole.set_tcode_enabled_from),
+                    takes_a_value=True),),
+    ),
+    Control(
+        name="display",
+        verbs=(Verb(DISPLAY_ON, _moves(lambda role: role.set_displayed(True))),
+               Verb(DISPLAY_OFF, _moves(lambda role: role.set_displayed(False)))),
+    ),
+    Control(name="quit", verbs=(Verb(QUIT, _quit),)),
+)
+
+
+VERBS = bind(CONTROLS)

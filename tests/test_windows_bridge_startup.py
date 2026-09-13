@@ -860,7 +860,7 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.side(Player.PORTRAIT).locked, state.side(Player.LANDSCAPE).locked) == (True, False)
-    assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK"]
+    assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK_ON"]
     assert not kwargs["landscape"].cmd_file.exists()
 
 

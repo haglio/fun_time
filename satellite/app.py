@@ -34,7 +34,7 @@ from player_core.volume import VolumeHudPainter, chip_xy
 from .cli import audio_muted, build_parser, resolve_playlist
 from .hud_overlay import HudOverlay
 from .pointer import Pointer
-from .runtime import apply_command
+from .runtime import SatelliteControls, apply_command
 from .session import SatelliteSession
 from .status import status_fields
 from .volume import SatelliteVolume
@@ -152,6 +152,9 @@ def _run(args, playlist: list[Path]) -> int:
         if reloaded:
             session.replace_playlist(reloaded)
 
+    controls = SatelliteControls(
+        session=session, stop_event=stop_event, reload_playlist=_reload_playlist)
+
     while not stop_event.is_set():
         # Before the events, which have to be placed against the window they
         # landed in; the sequencer can move this one between passes.
@@ -174,7 +177,7 @@ def _run(args, playlist: list[Path]) -> int:
             session.set_paused(read_paused_state(paused_file, logger=logger))
         if command_file is not None:
             for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
-                apply_command(cmd, session, stop_event=stop_event, reload_playlist=_reload_playlist)
+                apply_command(cmd, controls)
 
         session.advance()
         if status_writer is not None:

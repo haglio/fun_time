@@ -13,6 +13,17 @@ from app_support.file_channel import write_flag
 from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
+from player_core.player_verbs import (
+    LOCK_OFF,
+    LOCK_ON,
+    NEXT,
+    PREV,
+    SET_SPEED,
+    SPEED_DOWN,
+    SPEED_UP,
+    TOGGLE_LOCK,
+    TRASH,
+)
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import (
@@ -64,7 +75,6 @@ from .runtime_flow import (
     apply_satellite_filter,
     apply_satellites_switch,
 )
-from .satellite_control import write_satellite_command
 from .satellite_groups import (
     cancel_lock,
     clear_side_grouping,
@@ -116,8 +126,8 @@ _GENAU_CMD_MAP = {
     "genau_clip_seconds_up": "CLIP_SECONDS_UP",
     # Condemning a clip outright — Genau's counterpart of a satellite's weird.
     "genau_weird_clip": "WEIRD",
-    "genau_prev_clip": "PREV",
-    "genau_next_clip": "NEXT",
+    "genau_prev_clip": PREV,
+    "genau_next_clip": NEXT,
     # The motion's rate as the console's own ± marks beside the wave send it —
     # Genau's alone; the unqualified pair is _SPEED_BY_DRIVER below.
     "robot_hand_speed_down": "SPEED_DOWN",
@@ -130,21 +140,21 @@ _GENAU_CMD_MAP = {
 # pair — spoken, or J/L — carries no label and follows whichever engine holds
 # the OSR2 (see :func:`_speed_target` for the whole routing).
 _SPEED_BY_DRIVER = {
-    "speed_down": "SPEED_DOWN",
-    "speed_up": "SPEED_UP",
+    "speed_down": SPEED_DOWN,
+    "speed_up": SPEED_UP,
 }
 # The video's own playback rate, as opposed to the motion's — always the main player's.
 _SPEED_MAIN_PLAYER_RELATIVE = {
-    "main_player_speed_down": "SPEED_DOWN",
-    "main_player_speed_up": "SPEED_UP",
+    "main_player_speed_down": SPEED_DOWN,
+    "main_player_speed_up": SPEED_UP,
 }
 # An absolute video-speed set (min / max / a spoken multiplier) tunes whatever
 # The main player is showing, so it lands even during a Genau-driven stretch; Genau has no
 # multiplier, so that side is a no-op there.
 _SPEED_EXTREMES = {
     # command -> (main_player command, genau command)
-    "speed_min": ("SET_SPEED min", "SPEED 0"),
-    "speed_max": ("SET_SPEED max", "SPEED 100"),
+    "speed_min": (f"{SET_SPEED} min", "SPEED 0"),
+    "speed_max": (f"{SET_SPEED} max", "SPEED 100"),
 }
 
 
@@ -157,7 +167,7 @@ def _parse_main_player_speed(command: str) -> str | None:
         pct = int(command[len(prefix):])
     except ValueError:
         return None
-    return f"SET_SPEED {pct / 100:g}"
+    return f"{SET_SPEED} {pct / 100:g}"
 
 
 def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) -> str:
@@ -249,7 +259,7 @@ def _toggle_lock(
         logger.info("Lock back-dated to %s (player %d had advanced)", target_path, player)
         current_path = target_path
     plan = build_lock_toggle_plan(player=player, locked=locked, current_path=current_path)
-    send_satellite(config, player, "LOCK" if plan.next_locked else "UNLOCK")
+    send_satellite(config, player, LOCK_ON if plan.next_locked else LOCK_OFF)
     if plan.ensure_in_favs and current_path:
         ensure_in_favs(config.favs_file, current_path)
         # Locking is the strongest positive watch signal ("breeding" weight).
@@ -257,7 +267,7 @@ def _toggle_lock(
     if plan.advance_playlist:
         # Unlocking moves on from the clip you were dwelling on, rather than
         # replaying it once more before the auto-advance.
-        send_satellite(config, player, "NEXT")
+        send_satellite(config, player, NEXT)
     if plan.log_message:
         logger.info(plan.log_message)
     lock_ops: list[WindowOp] = []
@@ -298,7 +308,7 @@ def _discard(
     if locked:
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.
-        send_satellite(config, player, "UNLOCK")
+        send_satellite(config, player, LOCK_OFF)
     if plan.remove_from_favs and condemned:
         remove_from_favs(config.favs_file, condemned)
     if plan.advance_playlist:
@@ -306,13 +316,13 @@ def _discard(
             if already_moved_on:
                 play_video(config, player, condemned)
             # TRASH drops the current clip from the playlist and plays the next.
-            send_satellite(config, player, "TRASH")
+            send_satellite(config, player, TRASH)
         elif not already_moved_on:
             # A demotion leaves the clip in the playlist, so this is a plain
             # advance (NEXT) and PREV comes straight back to it.  Nothing has to
             # be done to the clip itself, so a satellite that already moved on is
             # left alone rather than dragged back to a clip it would leave again.
-            send_satellite(config, player, "NEXT")
+            send_satellite(config, player, NEXT)
     if plan.move_to_weird and condemned:
         move_to_weird(config.weird_dir, Path(condemned))
     if plan.log_message:
@@ -525,9 +535,9 @@ def _is_hud_nav_command(command: str) -> bool:
 # absolute pair is what the spoken forms send, since a speaker asks for the
 # state they want.
 _MAIN_LOCK_COMMANDS = {
-    "main_lock": "TOGGLE_LOCK",
-    "main_lock_on": "LOCK_ON",
-    "main_lock_off": "LOCK_OFF",
+    "main_lock": TOGGLE_LOCK,
+    "main_lock_on": LOCK_ON,
+    "main_lock_off": LOCK_OFF,
 }
 
 # What makes the main player the one a later bare command reaches: navigating it,
@@ -1233,11 +1243,10 @@ def _origenerator_transport(
     spoken = _ORIGENERATOR_SPEECH.get(command)
     if spoken is not None:
         side_name, phrase = spoken
-        write_satellite_command(
-            config.origenerator_cmd_file, f"{side_name.upper()}_SAY:{phrase}")
+        append_command(config.origenerator_cmd_file, f"{side_name.upper()}_SAY:{phrase}")
         return []
     side_name, verb = _ORIGENERATOR_TRANSPORT[command]
-    write_satellite_command(config.origenerator_cmd_file, f"{side_name.upper()}_{verb}")
+    append_command(config.origenerator_cmd_file, f"{side_name.upper()}_{verb}")
     return []
 
 
@@ -1332,10 +1341,10 @@ Handler = Callable[[BridgeState, BridgeConfig, str], tuple[BridgeState, list[Win
 
 # Plain playlist navigation, per side.
 _TRANSPORT_COMMANDS: dict[str, tuple[Player, str]] = {
-    "portrait_prev": (Player.PORTRAIT, "PREV"),
-    "portrait_next": (Player.PORTRAIT, "NEXT"),
-    "landscape_prev": (Player.LANDSCAPE, "PREV"),
-    "landscape_next": (Player.LANDSCAPE, "NEXT"),
+    "portrait_prev": (Player.PORTRAIT, PREV),
+    "portrait_next": (Player.PORTRAIT, NEXT),
+    "landscape_prev": (Player.LANDSCAPE, PREV),
+    "landscape_next": (Player.LANDSCAPE, NEXT),
 }
 
 # The main slot's two mode switches, by their target mode.
@@ -1348,7 +1357,7 @@ _MODE_SWITCH_COMMANDS: dict[str, str] = {
 def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     state = cancel_lock(player, state, config)
-    if verb == "NEXT" and is_single_video_loop(player, state, config):
+    if verb == NEXT and is_single_video_loop(player, state, config):
         state, _loop_off = no_loop(player, state, config)
     send_satellite(config, player, verb)
     return state, []
@@ -1552,7 +1561,7 @@ def _filter_the_shows_enhanced(state: BridgeState, config: BridgeConfig,
                                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     if not hosting_origenerator(state, config):
         return state, []
-    write_satellite_command(config.origenerator_cmd_file, "FILTER_ENHANCED")
+    append_command(config.origenerator_cmd_file, "FILTER_ENHANCED")
     return state, []
 
 
@@ -1586,8 +1595,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for cmd, player in _NO_LOOP_SIDES.items()})
     handlers.update({cmd: partial(_dispatch_lock_action, player)
                      for cmd, player in _LOCK_ACTION_SIDES.items()})
-    handlers["main_prev"] = partial(_forward_to_main_player, "PREV")
-    handlers["main_next"] = partial(_forward_to_main_player, "NEXT")
+    handlers["main_prev"] = partial(_forward_to_main_player, PREV)
+    handlers["main_next"] = partial(_forward_to_main_player, NEXT)
     handlers["main_nudge_prev"] = partial(_forward_to_main_player, "SEEK_BACK")
     handlers["main_nudge_next"] = partial(_forward_to_main_player, "SEEK_FWD")
     handlers.update({cmd: partial(_main_lock, verb)
