@@ -11,7 +11,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.timeline import TIMELINE_HEIGHT
+import pytest
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import CHIP_H, chip_xy
 
 from satellite.pointer import OMNIPAUSE_TOGGLE, Pointer
@@ -25,11 +26,13 @@ _VX, _VY = chip_xy(win_w=WIN_W, win_h=WIN_H, timeline_h=TIMELINE_HEIGHT)
 SPEAKER = (_VX + 7, _VY + CHIP_H // 2)
 CHIP_HALFWAY = (_VX + 66, _VY + CHIP_H // 2)
 
-# bar_track_x(640) spans 40..508: the midpoint of the track, and a point past its
-# right-hand end that the chip does not cover.
-BAR_MIDPOINT = (274, WIN_H - 4)
-PAST_BAR_END = (512, WIN_H - 4)
-BAR_START = (40, WIN_H - 4)
+# The midpoint of the track, and a point past its right-hand end that the chip
+# does not cover.
+_BAR_X0, _BAR_X1 = bar_track_x(WIN_W)
+BAR_MIDPOINT = ((_BAR_X0 + _BAR_X1) // 2, WIN_H - 4)
+ONE_BAR_PIXEL_MS = DURATION_MS / (_BAR_X1 - _BAR_X0)
+PAST_BAR_END = (_BAR_X1 + 4, WIN_H - 4)
+BAR_START = (_BAR_X0, WIN_H - 4)
 ON_THE_VIDEO = (300, 200)
 
 
@@ -86,7 +89,7 @@ class TestTheScrubber:
 
         _press(pointer, BAR_MIDPOINT)
 
-        assert player.seeks == [DURATION_MS / 2]
+        assert player.seeks == [pytest.approx(DURATION_MS / 2, abs=ONE_BAR_PIXEL_MS)]
 
     def test_a_press_at_the_track_s_start_seeks_to_the_beginning(self, tmp_path):
         pointer, player, _hud = _pointer(tmp_path)
@@ -118,7 +121,7 @@ class TestTheScrubber:
         _press(pointer, BAR_MIDPOINT)
         _press(pointer, ON_THE_VIDEO)
 
-        assert player.seeks == [DURATION_MS / 2]
+        assert player.seeks == [pytest.approx(DURATION_MS / 2, abs=ONE_BAR_PIXEL_MS)]
 
 
 class TestThePicture:
