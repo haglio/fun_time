@@ -30,7 +30,7 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
     main_player = config.get("main_player", {})
     p = argparse.ArgumentParser(description="Fun Time's main player: a funscript video player")
     p.add_argument("--config", type=Path, default=None,
-                   help="The genau config file whose main_player section supplies "
+                   help="Fun Time's config file, whose main_player section supplies "
                         "the defaults below")
     p.add_argument("--videos-dir", type=Path, default=main_player.get("videos_dir"))
     p.add_argument("--scripts-dir", type=Path, default=main_player.get("scripts_dir"))

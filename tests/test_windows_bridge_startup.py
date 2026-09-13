@@ -1236,6 +1236,50 @@ def test_launch_main_player_omits_metadata_dir_when_absent(tmp_path: Path):
     assert "--metadata-dir" not in popen.call_args.args[0]
 
 
+def test_launch_main_player_forwards_clips_dir_when_given(tmp_path: Path):
+    """Genau's loop folder used to reach the main player through genau's config;
+    Fun Time hands it explicitly now, since the player reads Fun Time's config."""
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_main_player(
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_player.log",
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+            clips_dir="C:/videos/genau/clips",
+        )
+
+    command = popen.call_args.args[0]
+    assert command[command.index("--clips-dir") + 1] == "C:/videos/genau/clips"
+
+
+def test_launch_main_player_omits_clips_dir_when_absent(tmp_path: Path):
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_main_player(
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_player.log",
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        )
+
+    assert "--clips-dir" not in popen.call_args.args[0]
+
+
 def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
     """the main player's window is one of Fun Time's, so it wears Fun Time's icon — the
     launcher's to say, since the icon is not the main player's own."""

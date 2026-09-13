@@ -536,7 +536,7 @@ def _launch_the_main_slot_players(
     main_player_pid = launch_main_player(
         python_exe=m.executables.genau_python_exe,
         main_player_module=m.modules.main_player_module,
-        config_path=m.runtime.genau_config_path,
+        config_path=m.runtime.config_path,
         playlist_file=m.commands.main_player_playlist_file,
         command_file=m.commands.main_player_cmd_file,
         paused_file=m.commands.main_player_paused_file,
@@ -549,6 +549,7 @@ def _launch_the_main_slot_players(
         main_player_y=main_media_rect.y,
         main_player_width=main_media_rect.width,
         main_player_height=main_media_rect.height,
+        clips_dir=m.media.genau_clips,
         metadata_dir=regen_metadata_raw or None,
         project_dirs=project_dirs,
     )
