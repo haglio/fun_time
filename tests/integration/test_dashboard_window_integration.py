@@ -41,7 +41,7 @@ pytestmark = [
 
 
 def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
-    """Window must show in taskbar (WS_EX_APPWINDOW) and close handler writes exit."""
+    """Window must show in taskbar (WS_EX_APPWINDOW) and close handler ends the session."""
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -56,12 +56,12 @@ def test_dashboard_window_decorations_and_close_handler(cfg_path: Path):
         assert not (ex_style & 0x00000080), "WS_EX_TOOLWINDOW should NOT be set"
         assert ex_style & 0x00040000, "WS_EX_APPWINDOW should be set"
 
-        # Close handler: closeEvent writes 'exit' to ahk_cmd.txt.
+        # Close handler: closeEvent writes 'end_session' to ahk_cmd.txt.
         ahk_cmd_file = manifest_path.parent / "ahk_cmd.txt"
         assert not ahk_cmd_file.exists(), "ahk_cmd.txt should not exist before close"
         window.closeEvent(QCloseEvent())
         assert ahk_cmd_file.exists(), "Close handler should have written ahk_cmd.txt"
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "end_session"
     finally:
         window.close()
 

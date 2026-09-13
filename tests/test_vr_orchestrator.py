@@ -229,21 +229,52 @@ class _FakeProc:
 
 
 class TestWaitForSessionEnd:
-    def test_ahk_exit_ends_the_session(self):
+    def test_ahk_exit_ends_the_session(self, tmp_path):
         from fun_time_vr.orchestrator import _wait_for_session_end
 
         assert _wait_for_session_end(
-            _FakeProc(exits_after_polls=2), _FakeProc(), poll_s=0.0
+            _FakeProc(exits_after_polls=2), _FakeProc(), state_dir=tmp_path, poll_s=0.0
         ) == "ahk"
 
-    def test_player_exit_ends_the_session_too(self):
+    def test_a_marked_end_ends_the_session_with_the_script_still_running(self, tmp_path):
+        """The script stays up over the closing cover, where Esc can still call
+        the end off, so its exit is not what says the session ended."""
+        from fun_time.session_end import SESSION_END_MARKER
+        from fun_time_vr.orchestrator import _wait_for_session_end
+
+        (tmp_path / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
+
+        assert _wait_for_session_end(
+            _FakeProc(), _FakeProc(), state_dir=tmp_path, poll_s=0.0
+        ) == "asked"
+
+    def test_the_script_left_running_by_a_marked_end_is_stopped_after_the_teardown(self):
+        """Up over the closing cover so Esc stays live, and never left running
+        once the teardown is done: a script outliving its session swallows
+        every key it binds."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
+            isinstance(c, ast.Call) and ast.unparse(c.func) == "_wait_for_session_end"
+            for c in ast.walk(n))]
+        calls = [ast.unparse(c.func) for stmt in session.finalbody for c in ast.walk(stmt)
+                 if isinstance(c, ast.Call)]
+
+        assert "stop_hotkey_script" in calls
+        assert calls.index("kill_recorded_child") < calls.index("stop_hotkey_script")
+
+    def test_player_exit_ends_the_session_too(self, tmp_path):
         # The VR player's window is the session's only window, so closing it
         # must end the whole session — an orchestrator that kept waiting on
         # AHK held the single-instance mutex and blocked every relaunch.
         from fun_time_vr.orchestrator import _wait_for_session_end
 
         assert _wait_for_session_end(
-            _FakeProc(), _FakeProc(exits_after_polls=2), poll_s=0.0
+            _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
         ) == "player"
 
 

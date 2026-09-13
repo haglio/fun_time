@@ -724,7 +724,9 @@ class TestDispatchLoopRunner:
         assert loaded is not None
         assert loaded.side(Player.LANDSCAPE).locked is True
 
-    def test_quit_command_writes_exit_to_ahk(self, tmp_path):
+    def test_quit_asks_the_hotkey_script_to_end_the_session_rather_than_exit(self, tmp_path):
+        """Exiting, it would take Esc with it, and Esc on the closing screen is
+        the way to call the quit off."""
         runner = make_runner(tmp_path)
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("quit", encoding="utf-8")
@@ -732,7 +734,7 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "exit"
+        assert ahk_cmd_file.read_text(encoding="utf-8") == "end_session"
 
     def test_entering_vr_ends_this_session_with_word_of_where_to_go(self, tmp_path):
         """Crossing over IS the quit, plus a request the orchestrator reads on
@@ -742,7 +744,7 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
         assert take_handoff_request(tmp_path) is VR
 
     def test_exiting_vr_from_a_vr_session_asks_for_the_desktop(self, tmp_path):
@@ -751,7 +753,7 @@ class TestDispatchLoopRunner:
 
         runner.tick()
 
-        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
         assert take_handoff_request(tmp_path) is DESKTOP
 
     @pytest.mark.parametrize(
@@ -1902,7 +1904,7 @@ class TestOmnipauseVoiceFreeze:
         runner = make_runner(tmp_path)
         runner.state = BridgeState(omni_paused=True)
         runner._handle_command("quit", spoken_at=123.0)
-        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "exit"
+        assert (tmp_path / "ahk_cmd.txt").read_text(encoding="utf-8") == "end_session"
 
     def test_outside_omnipause_a_spoken_command_dispatches(self, tmp_path):
         """The freeze is OmniPause-only: live, the same phrase dispatches."""

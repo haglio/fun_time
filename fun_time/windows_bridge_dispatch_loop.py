@@ -373,7 +373,7 @@ class DispatchLoopRunner:
                 "the quit command, spoken" if spoken_at is not None
                 else "the quit command, pressed",
             )
-            self.ahk_cmd_file.write_text("exit", encoding="utf-8")
+            self.ahk_cmd_file.write_text("end_session", encoding="utf-8")
             return
         if cmd in HANDOFF_COMMANDS:
             self._handle_handoff(cmd)
@@ -452,7 +452,7 @@ class DispatchLoopRunner:
         request_handoff(self.config.state_dir, target)
         mark_session_end(
             self.config.state_dir, f"a crossing to {target.app_name}")
-        self.ahk_cmd_file.write_text("exit", encoding="utf-8")
+        self.ahk_cmd_file.write_text("end_session", encoding="utf-8")
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)

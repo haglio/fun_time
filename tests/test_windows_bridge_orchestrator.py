@@ -514,14 +514,22 @@ class TestWritePidsFile:
 
 
 class TestHotkeySuspendDuringIntegration:
-    def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path):
+    """Read as the startup sequence begins: the teardown asks the script to exit
+    through the same mailbox, so what it holds after the session says nothing
+    about what it held going in."""
+
+    def _mailbox_at_startup(self, cfg_factory, tmp_path, **session_kwargs):
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
         )
         state_dir = tmp_path / "state"
+        ahk_cmd_file = state_dir / "ahk_cmd.txt"
+        seen: list[str | None] = []
 
         def fake_sequence(**kwargs):
+            seen.append(ahk_cmd_file.read_text(encoding="utf-8")
+                        if ahk_cmd_file.exists() else None)
             return _fake_startup_result()
 
         fake_ahk_proc = MagicMock()
@@ -537,39 +545,19 @@ class TestHotkeySuspendDuringIntegration:
                 hotkey_script="hotkeys.ahk",
                 state_dir=state_dir,
                 project_dir=tmp_path,
-                env=SessionEnvironment(integration=True, show_overlays=False),
+                **session_kwargs,
             )
 
-        ahk_cmd_file = state_dir / "ahk_cmd.txt"
-        assert ahk_cmd_file.read_text(encoding="utf-8") == "suspend_hotkeys"
+        return seen
+
+    def test_writes_suspend_command_during_integration(self, cfg_factory, tmp_path):
+        seen = self._mailbox_at_startup(
+            cfg_factory, tmp_path, env=SessionEnvironment(integration=True, show_overlays=False))
+
+        assert seen == ["suspend_hotkeys"]
 
     def test_no_suspend_command_outside_integration(self, cfg_factory, tmp_path):
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-        state_dir = tmp_path / "state"
-
-        def fake_sequence(**kwargs):
-            return _fake_startup_result()
-
-        fake_ahk_proc = MagicMock()
-        fake_ahk_proc.wait.return_value = 0
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", side_effect=fake_sequence), \
-             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-
-            run_session(
-                manifest_path=manifest_path,
-                ahk_exe="ahk.exe",
-                hotkey_script="hotkeys.ahk",
-                state_dir=state_dir,
-                project_dir=tmp_path,
-            )
-
-        ahk_cmd_file = state_dir / "ahk_cmd.txt"
-        assert not ahk_cmd_file.exists()
+        assert self._mailbox_at_startup(cfg_factory, tmp_path) == [None]
 
 
 class TestRunPythonOrchestratedBridge:
@@ -2134,6 +2122,65 @@ class TestThePlayersStartWhenTheCoverIsGone:
         assert events.index("cover gone") < events.index("players released"), (
             "the players were started while the cover was still up"
         )
+
+
+class TestTheSessionEndsOnItsMarker:
+    """Ending a session leaves the hotkey script running over the closing cover,
+    where Esc can still call the end off -- so the orchestrator cannot wait for
+    the script to exit.  The marker it leaves is the end."""
+
+    def test_a_marked_end_is_torn_down_and_only_then_is_the_script_stopped(
+        self, cfg_factory, tmp_path,
+    ):
+        from fun_time.session_end import SESSION_END_MARKER
+
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        state_dir = tmp_path / "state"
+        ahk_cmd_file = state_dir / "ahk_cmd.txt"
+        events: list[str] = []
+
+        def told_to_exit() -> bool:
+            return ahk_cmd_file.exists() and ahk_cmd_file.read_text(encoding="utf-8") == "exit"
+
+        class Hotkeys:
+            waited_on_while_running = False
+
+            def poll(self):
+                return 0 if told_to_exit() else None
+
+            def wait(self, timeout=None):
+                if not told_to_exit():
+                    Hotkeys.waited_on_while_running = True
+                return 0
+
+        def the_user_quits(*_args, **_kwargs):
+            (state_dir / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
+            return None, None
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=Hotkeys()), \
+             patch("fun_time.windows_bridge_orchestrator.start_voice_control",
+                   side_effect=the_user_quits), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"), \
+             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+                   side_effect=lambda pid: pid * 10), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+                   side_effect=lambda pid: events.append(f"kill:{pid}")):
+            run_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert not Hotkeys.waited_on_while_running, "the orchestrator waited for the script to exit"
+        assert "kill:300" in events
+        assert told_to_exit()
 
 
 class TestWhatEscCancelsAtTheLoadingScreen:
