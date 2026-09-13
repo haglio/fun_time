@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import json
 import logging
+import wave
+from datetime import UTC, datetime
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -16,11 +18,12 @@ from fun_time.voice_control import (
     VOICE_COMMANDS,
     AudioStall,
     Recognition,
-    UtteranceOnset,
+    Utterance,
     VoiceController,
     build_grammar,
     has_partial_text,
     interpret_recognition,
+    save_miss_audio,
 )
 
 SPOKEN = 2000  # a peak that is unmistakably speech
@@ -48,32 +51,40 @@ def _ranked(*texts: str) -> str:
     })
 
 
-class TestUtteranceOnset:
+class TestUtterance:
     def test_onset_is_the_first_block_that_produced_a_partial(self):
         """Vosk finalizes a phrase only after the speaker stops, so the arrival
         of the phrase says nothing about when it began.  The first audio block
         that turns Vosk's partial hypothesis non-empty does."""
-        onset = UtteranceOnset()
-        onset.note_block(block_started_at=1.0, has_partial=False)
-        onset.note_block(block_started_at=1.5, has_partial=True)
-        onset.note_block(block_started_at=2.0, has_partial=True)
-        assert onset.take(fallback=2.5) == 1.5
+        utterance = Utterance()
+        utterance.note_block(b"a", block_started_at=1.0, has_partial=False)
+        utterance.note_block(b"b", block_started_at=1.5, has_partial=True)
+        utterance.note_block(b"c", block_started_at=2.0, has_partial=True)
+        assert utterance.take(final_block=b"d", fallback=2.5)[0] == 1.5
 
     def test_a_partial_that_evaporates_does_not_back_date_the_next_utterance(self):
         """Vosk withdraws a hypothesis it can no longer support; the run of
         partials restarts, so the false start is not mistaken for the onset."""
-        onset = UtteranceOnset()
-        onset.note_block(block_started_at=1.0, has_partial=True)   # false start
-        onset.note_block(block_started_at=1.5, has_partial=False)  # withdrawn
-        onset.note_block(block_started_at=2.0, has_partial=True)   # real speech
-        assert onset.take(fallback=2.5) == 2.0
+        utterance = Utterance()
+        utterance.note_block(b"a", block_started_at=1.0, has_partial=True)   # false start
+        utterance.note_block(b"b", block_started_at=1.5, has_partial=False)  # withdrawn
+        utterance.note_block(b"c", block_started_at=2.0, has_partial=True)   # real speech
+        assert utterance.take(final_block=b"d", fallback=2.5)[0] == 2.0
 
     def test_take_falls_back_and_resets_for_the_next_utterance(self):
         """A phrase recognized from the block that carried it left no partial."""
-        onset = UtteranceOnset()
-        onset.note_block(block_started_at=1.0, has_partial=True)
-        assert onset.take(fallback=2.5) == 1.0
-        assert onset.take(fallback=9.0) == 9.0
+        utterance = Utterance()
+        utterance.note_block(b"a", block_started_at=1.0, has_partial=True)
+        assert utterance.take(final_block=b"b", fallback=2.5)[0] == 1.0
+        assert utterance.take(final_block=b"c", fallback=9.0)[0] == 9.0
+
+    def test_take_returns_the_audio_since_the_utterance_began_with_its_final_block(self):
+        utterance = Utterance()
+        utterance.note_block(b"aa", block_started_at=1.0, has_partial=False)
+        utterance.note_block(b"bb", block_started_at=1.5, has_partial=True)
+        utterance.note_block(b"cc", block_started_at=2.0, has_partial=True)
+        assert utterance.take(final_block=b"dd", fallback=2.5) == (1.5, b"bbccdd")
+        assert utterance.take(final_block=b"ee", fallback=9.0) == (9.0, b"ee")
 
 
 class TestAudioStall:
@@ -358,6 +369,21 @@ class TestInterpretRecognition:
         assert interp.command == VOICE_COMMANDS["skip"]
 
 
+class TestSaveMissAudio:
+    def test_writes_a_wav_and_keeps_only_the_newest(self, tmp_path):
+        clips = tmp_path / "voice_misses"
+        pcm = bytes([1, 0]) * 16
+        paths = [
+            save_miss_audio(clips, pcm, sample_rate=16000, keep=2,
+                            now=datetime(2026, 9, 13, 1, 2, 3, i, tzinfo=UTC))
+            for i in range(3)
+        ]
+        assert sorted(clips.iterdir()) == paths[1:]
+        with wave.open(str(paths[-1]), "rb") as clip:
+            assert (clip.getnchannels(), clip.getsampwidth(), clip.getframerate(),
+                    clip.getnframes()) == (1, 2, 16000, 16)
+
+
 class TestHandleRecognition:
     def _controller(self, tmp_path: Path) -> VoiceController:
         return VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
@@ -502,6 +528,27 @@ class TestHandleRecognition:
             Recognition(refused_phrase="skip", free_text="skip it"), spoken_at=1.0, peak=SPOKEN)
         assert "Unrecognized speech: both (unrestricted reading 'pause', peak 2000)" in caplog.text
         assert "unrestricted reading 'skip it'" in caplog.text
+
+    def test_a_miss_keeps_its_audio_beside_the_state_while_the_room_is_listened_to(
+        self, tmp_path, monkeypatch,
+    ):
+        vc = self._controller(tmp_path)
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
+        clips = tmp_path / "voice_misses"
+        pcm = bytes([1, 0]) * 8
+        vc._handle_recognition(
+            Recognition(command="landscape_next", phrase="landscape next"),
+            spoken_at=1.0, peak=SPOKEN, audio=pcm)
+        assert not clips.exists()
+
+        vc._handle_recognition(
+            Recognition(unrecognized_text="both"), spoken_at=1.0, peak=SPOKEN, audio=pcm)
+        assert len(list(clips.glob("*.wav"))) == 1
+
+        vc.mute()
+        vc._handle_recognition(
+            Recognition(refused_phrase="skip"), spoken_at=1.0, peak=SPOKEN, audio=pcm)
+        assert len(list(clips.glob("*.wav"))) == 1
 
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
