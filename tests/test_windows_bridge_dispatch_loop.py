@@ -758,20 +758,26 @@ class TestDispatchLoopRunner:
         ("command", "vr_main_player"), [("exit_vr", False), ("enter_vr", True)],
     )
     def test_crossing_to_the_session_already_running_says_so_and_stays_put(
-        self, tmp_path, command, vr_main_player,
+        self, tmp_path, caplog, command, vr_main_player,
     ):
         """A room can be told the same thing twice — misheard, or said again
         while the headset was slow to come up — and ending the session on the
-        second is the worst available reading of it."""
+        second is the worst available reading of it.  The crossing had nowhere
+        to go, so it is said as a warning, in yellow."""
+        import logging
+
         runner = make_runner(tmp_path, config=make_config(
             tmp_path, vr_main_player=vr_main_player,
         ))
         (tmp_path / "dashboard_cmd.txt").write_text(command, encoding="utf-8")
 
-        runner.tick()
+        with caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_dispatch_loop"):
+            runner.tick()
 
         assert not (tmp_path / "ahk_cmd.txt").exists()
         assert take_handoff_request(tmp_path) is None
+        assert [r.levelno for r in caplog.records
+                if r.getMessage().startswith("Already running")] == [logging.WARNING]
 
     def test_a_crossing_is_frozen_by_omnipause_like_every_other_spoken_command(
         self, tmp_path,

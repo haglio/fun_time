@@ -443,7 +443,8 @@ class DispatchLoopRunner:
         session already running it says so and stays put."""
         target = HANDOFF_COMMANDS[cmd]
         if target is this_session(vr_main_player=self.config.vr_main_player):
-            notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM)
+            notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM,
+                   level=logging.WARNING)
             return
         logger.info("Handing this session over to %s", target.app_name)
         if self.config.broker_cmd_file is not None:
