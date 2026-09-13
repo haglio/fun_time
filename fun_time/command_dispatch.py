@@ -132,25 +132,24 @@ _GENAU_CMD_MAP = {
 
 
 # Speed control splits by which control said it: the console's ± marks move the
-# engine they sit next to (_GENAU_CMD_MAP, _SPEED_MAIN_PLAYER_RELATIVE), while this bare
+# engine they sit next to (_GENAU_CMD_MAP, _PLAYBACK_RATE_ACTS), while this bare
 # pair — spoken, or J/L — carries no label and follows whichever engine holds
 # the OSR2 (see :func:`_speed_target` for the whole routing).
 _SPEED_BY_DRIVER = {
     "speed_down": SPEED_DOWN,
     "speed_up": SPEED_UP,
 }
-# The video's own playback rate, as opposed to the motion's — always the main player's.
-_SPEED_MAIN_PLAYER_RELATIVE = {
-    "main_player_speed_down": SPEED_DOWN,
-    "main_player_speed_up": SPEED_UP,
+# A video's own playback rate, as opposed to the motion's, said of one player.
+_PLAYBACK_RATE_ACTS = {
+    "speed_down": SPEED_DOWN,
+    "speed_up": SPEED_UP,
+    "speed_min": f"{SET_SPEED} min",
+    "speed_max": f"{SET_SPEED} max",
 }
-# An absolute video-speed set (min / max / a spoken multiplier) tunes whatever
-# The main player is showing, so it lands even during a Genau-driven stretch; Genau has no
-# multiplier, so that side is a no-op there.
-_SPEED_EXTREMES = {
-    # command -> (main_player command, genau command)
-    "speed_min": (f"{SET_SPEED} min", "SPEED 0"),
-    "speed_max": (f"{SET_SPEED} max", "SPEED 100"),
+# Where Genau is what shows, either end of the main player's range reaches its motion.
+_GENAU_RATE_ENDS = {
+    "speed_min": "SPEED 0",
+    "speed_max": "SPEED 100",
 }
 
 
@@ -1357,11 +1356,10 @@ def _transport(player: Player, verb: str, state: BridgeState, config: BridgeConf
     return state, []
 
 
-_SATELLITE_SPEED_STEPS: dict[str, tuple[Player, str]] = {
-    "portrait_speed_down": (Player.PORTRAIT, SPEED_DOWN),
-    "portrait_speed_up": (Player.PORTRAIT, SPEED_UP),
-    "landscape_speed_down": (Player.LANDSCAPE, SPEED_DOWN),
-    "landscape_speed_up": (Player.LANDSCAPE, SPEED_UP),
+_SATELLITE_SPEEDS: dict[str, tuple[Player, str]] = {
+    f"{player.label}_{act}": (player, verb)
+    for player in Player.SATELLITES
+    for act, verb in _PLAYBACK_RATE_ACTS.items()
 }
 
 
@@ -1586,7 +1584,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_transport, player, verb)
                      for cmd, (player, verb) in _TRANSPORT_COMMANDS.items()})
     handlers.update({cmd: partial(_satellite_speed, player, verb)
-                     for cmd, (player, verb) in _SATELLITE_SPEED_STEPS.items()})
+                     for cmd, (player, verb) in _SATELLITE_SPEEDS.items()})
     handlers["portrait_lock"] = partial(_toggle_lock, Player.PORTRAIT)
     handlers["landscape_lock"] = partial(_toggle_lock, Player.LANDSCAPE)
     handlers["portrait_trash"] = partial(_discard, Player.PORTRAIT)
@@ -1645,10 +1643,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["genau_toggle_auto"] = _genau_toggle_auto
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})
-    handlers.update({cmd: partial(_speed, verb, None, False)
-                     for cmd, verb in _SPEED_MAIN_PLAYER_RELATIVE.items()})
-    handlers.update({cmd: partial(_speed, main_player_cmd, genau_cmd, False)
-                     for cmd, (main_player_cmd, genau_cmd) in _SPEED_EXTREMES.items()})
+    handlers.update({f"main_player_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)
+                     for act, verb in _PLAYBACK_RATE_ACTS.items()})
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
     handlers.update({cmd: partial(_robot_hand_hold, cmd) for cmd in HOLD_CENTERS})

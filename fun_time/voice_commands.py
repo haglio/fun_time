@@ -458,11 +458,11 @@ def build_voice_commands(
     for _word, _value in _spoken_seconds().items():
         commands[f"clip seconds {_word}"] = f"genau_clip_seconds_{_value}"
 
-    # "min amp" -> robot_hand_amp_0, "max speed" -> robot_hand_speed_100, etc.
+    # "min amp" -> robot_hand_amp_0, "max center" -> robot_hand_center_100.
     _EXTREMES: dict[str, int] = {"min": 0, "max": 100}
     for _label, _value in _EXTREMES.items():
-        for _prefix, _cmd_prefix in _NUMERIC_PREFIXES.items():
-            commands[f"{_label} {_prefix}"] = f"{_cmd_prefix}_{_value}"
+        for _prefix in ("amp", "center"):
+            commands[f"{_label} {_prefix}"] = f"{_NUMERIC_PREFIXES[_prefix]}_{_value}"
 
     # A video's playback rate, said bare of the player last addressed or of the
     # one named before or after it, the way every action the main player shares
@@ -471,6 +471,8 @@ def build_voice_commands(
         "playback speed up": "speed_up",
         "playback speed down": "speed_down",
         "playback slow down": "speed_down",
+        "min speed": "speed_min",
+        "max speed": "speed_max",
         "quarter speed": "speed_25",
         "half speed": "speed_50",
         "three quarter speed": "speed_75",
@@ -489,11 +491,6 @@ def build_voice_commands(
                               ("both", "both"), ("main", "main_player")):
             commands[f"{_side} {_phrase}"] = f"{_player}_{_act}"
             commands[f"{_phrase} {_side}"] = f"{_player}_{_act}"
-
-    # "min speed"/"max speed" drive whichever engine currently owns the OSR2 (the main player's
-    # video or Genau's motion); the amp/center extremes above stay Genau-only.
-    commands["min speed"] = "speed_min"
-    commands["max speed"] = "speed_max"
 
 
     for _side in ("portrait", "landscape"):
