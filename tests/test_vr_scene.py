@@ -7,7 +7,7 @@ import pytest
 
 from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.scene import (
-    PRIMARY_WIDTH_DEG,
+    MAIN_WIDTH_DEG,
     RADIUS,
     Placement,
     attached_below,
@@ -122,10 +122,10 @@ class TestQuadLayerPlacement:
 
     def test_quad_subtends_the_screen_width(self):
         _position, _orientation, (width, _height) = quad_layer_placement(
-            Placement(0.0, 0.0, PRIMARY_WIDTH_DEG), aspect=16 / 9,
+            Placement(0.0, 0.0, MAIN_WIDTH_DEG), aspect=16 / 9,
         )
         subtended = 2 * math.degrees(math.atan((width / 2) / RADIUS))
-        assert subtended == pytest.approx(PRIMARY_WIDTH_DEG, abs=1e-6)
+        assert subtended == pytest.approx(MAIN_WIDTH_DEG, abs=1e-6)
 
     def test_height_follows_the_aspect_ratio(self):
         _position, _orientation, (width, height) = quad_layer_placement(
@@ -151,7 +151,7 @@ class TestQuadLayerPlacement:
         # the ceiling.
         pitch = 30.0
         position, orientation, _size = quad_layer_placement(
-            Placement(0.0, 0.0, PRIMARY_WIDTH_DEG), aspect=16 / 9, scene_pitch_deg=pitch,
+            Placement(0.0, 0.0, MAIN_WIDTH_DEG), aspect=16 / 9, scene_pitch_deg=pitch,
         )
         assert position == pytest.approx(
             (0.0, RADIUS * math.sin(math.radians(pitch)),

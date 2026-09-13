@@ -14,7 +14,7 @@ from fun_time.event_log import (
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
 )
-from fun_time_vr.notices import KEPT, PRIMARY, NoticeBoard, screen_for
+from fun_time_vr.notices import KEPT, MAIN, NoticeBoard, screen_for
 
 
 def _write(path: Path, message: str, level: int = NOTICE, source: str = SOURCE_SYSTEM) -> None:
@@ -38,7 +38,7 @@ class TestWhichScreenALineBelongsTo:
         """The desktop falls back to the main player for a line about no one
         player; there is no dash screen in the headset to fall back to either."""
         for source in (SOURCE_MAIN, SOURCE_SYSTEM, SOURCE_DASH, "something new"):
-            assert screen_for(source) == PRIMARY
+            assert screen_for(source) == MAIN
 
 
 class TestWhatItPicksUp:
@@ -95,7 +95,7 @@ class TestTheToastOverEachPlayer:
 
         assert board.toast(SOURCE_PORTRAIT).message == "portrait next"
         assert board.toast(SOURCE_LANDSCAPE) is None
-        assert board.toast(PRIMARY) is None
+        assert board.toast(MAIN) is None
 
     def test_the_newest_line_wins_its_screen(self, tmp_path):
         """One banner per player, as on the desktop: a second notice replaces
@@ -118,7 +118,7 @@ class TestTheToastOverEachPlayer:
         board.pump(None, now=1.0)
 
         assert board.toast(SOURCE_PORTRAIT).message == "portrait next"
-        assert board.toast(PRIMARY).message == "skip"
+        assert board.toast(MAIN).message == "skip"
 
     def test_a_toast_clears_sooner_than_the_strip_keeps_it(self, tmp_path):
         """It sits over the picture, so it goes while the strip beside the
@@ -130,7 +130,7 @@ class TestTheToastOverEachPlayer:
 
         board.pump(None, now=102.5)
 
-        assert board.toast(PRIMARY) is None
+        assert board.toast(MAIN) is None
         assert [line.message for line in board.lines] == ["skip"]
 
 
@@ -176,7 +176,7 @@ class TestWhatItDrops:
         board.pump(None, now=1.0)
 
         assert board.lines == ()
-        assert board.toast(PRIMARY) is None
+        assert board.toast(MAIN) is None
 
 
 class TestWhatTheChannelWorkerAsksOfIt:

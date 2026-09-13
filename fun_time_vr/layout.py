@@ -7,13 +7,13 @@ from collections.abc import Mapping
 from dataclasses import fields, replace
 from pathlib import Path
 
-from .scene import PRIMARY_PLACEMENT, Placement, turn_deg
+from .scene import MAIN_PLACEMENT, Placement, turn_deg
 
 logger = logging.getLogger(__name__)
 
 _FIELDS = tuple(field.name for field in fields(Placement))
 
-PRIMARY = "primary"
+MAIN = "main"
 PORTRAIT = "portrait"
 LANDSCAPE = "landscape"
 PANEL = "panel"
@@ -22,10 +22,10 @@ REFERENCE = "reference"
 LAYOUT_FILENAME = "vr_layout.json"
 
 # Sides as on the desktop: landscape left of the main player, portrait right.  Tuned on
-# the first headset run — satellites flush beside the primary sat in the peripheral
+# the first headset run — satellites flush beside the main screen sat in the peripheral
 # vision, so they tuck inward over its edges and ride a little high.
 DEFAULT_LAYOUT: dict[str, Placement] = {
-    PRIMARY: PRIMARY_PLACEMENT,
+    MAIN: MAIN_PLACEMENT,
     LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
     PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
     # The dashboard with the console under it, the video having wrapped the viewer:
@@ -34,7 +34,7 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
 }
 
 
-PLAYERS = (PRIMARY, LANDSCAPE, PORTRAIT)
+PLAYERS = (MAIN, LANDSCAPE, PORTRAIT)
 
 
 def vr_reset_layout() -> dict[str, Placement]:
@@ -110,11 +110,35 @@ def rearranged(placements: Mapping[str, Placement], *, grow: float,
                nearer_by: float) -> dict[str, Placement]:
     moved = dict(placements)
     if grow != 1.0:
-        moved[PRIMARY] = grown(moved[PRIMARY], grow)
+        moved[MAIN] = grown(moved[MAIN], grow)
     if nearer_by != 1.0:
-        moved = nearer(moved, nearer_by, about=moved[PRIMARY])
+        moved = nearer(moved, nearer_by, about=moved[MAIN])
     return {name: placement for name, placement in moved.items()
             if placement != placements[name]}
+
+
+# The word this file knew the main screen by before "main".
+_LAST_SESSIONS_MAIN = "primary"
+
+
+def migrate_layout(path: Path) -> bool:
+    """Rewrite *path* once if it still names the main screen by its old word:
+    :func:`read_layout` defaults a screen it cannot find, which would have
+    quietly dropped where he placed the main screen.  Returns whether it rewrote."""
+    try:
+        raw = json.loads(Path(path).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(raw, dict) or _LAST_SESSIONS_MAIN not in raw:
+        return False
+    raw.setdefault(MAIN, raw.pop(_LAST_SESSIONS_MAIN))
+    raw.pop(_LAST_SESSIONS_MAIN, None)
+    try:
+        Path(path).write_text(json.dumps(raw, indent=2) + "\n", encoding="utf-8")
+    except OSError:
+        logger.warning("Could not rewrite the layout in %s", path, exc_info=True)
+        return False
+    return True
 
 
 def read_layout(path: Path) -> dict[str, Placement]:
