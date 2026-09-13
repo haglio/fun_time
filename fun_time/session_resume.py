@@ -19,7 +19,13 @@ from .media_metadata import normalize_path_key
 from .modes import source_roots
 from .players import Player
 from .runtime_flow import SET_LOOP_CMD
-from .shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
+from .shared_state import (
+    BridgeState,
+    SatelliteState,
+    migrate_shared_state,
+    read_shared_state,
+    write_shared_state,
+)
 
 PlaylistEntries = list[PlaylistItem]
 
@@ -203,6 +209,7 @@ def resume_shared_state(state_file: Path, *, resumed: bool) -> BridgeState:
     is what the dispatch loop reads its opening state from
     (docs/resuming-a-session.md).
     """
+    migrate_shared_state(state_file)
     previous = read_shared_state(state_file) if resumed else None
     state = BridgeState() if previous is None else replace(
         BridgeState(**{field: getattr(previous, field) for field in RESUMED_FIELDS}),

@@ -74,9 +74,8 @@ class HudPanel:
     # Whether the clip on screen is one of the favorites — the star the HUD
     # marks at the head of the line naming that very clip.
     is_favorite: bool = False
-    # Whether THIS player is in F-mode — its browse narrowed to the favorites —
-    # said in the status line already, and riding along so the player's own
-    # button can light the way ``locked`` does.
+    # Whether THIS player's F-mode is on — said in the status line already, and
+    # riding along so the player's own button can light the way ``locked`` does.
     favorites_filter: bool = False
     latest: bool | None = None
     # Labels for the map's axes: the current clip's own action (the top row),
@@ -294,8 +293,7 @@ class SatelliteInputs:
     widen_clip: str = ""
     nav_anchor: str = ""
     latest: bool = False
-    # This player's own F-mode, keeping the favorites.  Per player like the filter
-    # and the order beside it: each
+    # This player's own F-mode.  Per player like the filter and the order beside it: each
     # satellite has its own button for it, so the two can differ.
     favorites_filter: bool = False
     is_favorite: bool = False
