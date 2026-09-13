@@ -991,8 +991,8 @@ class TestKeepingTheHostedApp:
             children = _recorded_children(
                 origenerator_pid=ChildProcess(pid=7071, created_at=90),
             )
-            _shutdown_children(0, children, NullProgress(),
-                               state_dir=tmp_path, keep_origenerator=True)
+            _shutdown_children(0, children, NullProgress(), state_dir=tmp_path,
+                               keep_origenerator_via=tmp_path / "origenerator_cmd.txt")
 
         parked.assert_called_once_with(4242)
         closed.assert_not_called()
@@ -1000,6 +1000,19 @@ class TestKeepingTheHostedApp:
         assert kept_origenerator(tmp_path) == (
             children["origenerator_pid"].pid, children["origenerator_pid"].created_at,
         )
+
+    def test_a_crossing_closes_its_shows_on_the_channel_it_was_launched_with(
+        self, cfg_factory, tmp_path,
+    ):
+        with patch("fun_time.windows_bridge_orchestrator.find_window_for_process",
+                   return_value=4242), \
+             patch("fun_time.windows_bridge_orchestrator.hide_window"):
+            _run_a_session(cfg_factory, tmp_path, events=[], crossing=VR)
+
+        channel = Path(LaunchManifest.read(
+            tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME).commands.origenerator_cmd_file)
+        assert channel.exists(), "the parked app was never told to close its shows"
+        assert channel.read_text(encoding="utf-8").split() == ["CLOSE_SHOWS"]
 
     def test_an_ordinary_quit_closes_it_and_leaves_no_record(self, tmp_path):
         with patch("fun_time.windows_bridge_orchestrator.kill_recorded_child"), \
@@ -1023,7 +1036,8 @@ class TestKeepingTheHostedApp:
             _shutdown_children(
                 0,
                 _recorded_children(origenerator_pid=ChildProcess(pid=7071, created_at=90)),
-                NullProgress(), state_dir=tmp_path, keep_origenerator=True,
+                NullProgress(), state_dir=tmp_path,
+                keep_origenerator_via=tmp_path / "origenerator_cmd.txt",
             )
 
         closed.assert_called_once()
@@ -1053,68 +1067,69 @@ class TestKeepingTheHostedApp:
         assert kept_origenerator(tmp_path) is None
 
 
+def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
+                   env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
+                   at_cover_up=lambda: None):
+    cfg = load_config(cfg_factory())
+    manifest_path = write_windows_bridge_manifest(
+        cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+    )
+    state_dir = tmp_path / "state"
+    if crossing is not None:
+        state_dir.mkdir(parents=True, exist_ok=True)
+        request_handoff(state_dir, crossing)
+
+    fake_ahk_proc = MagicMock()
+    fake_ahk_proc.wait.return_value = 0
+    fake_overlay_proc = MagicMock()
+    fake_overlay_proc.wait.return_value = 0
+
+    def fake_popen(cmd, **kwargs):
+        for module, progress in (
+            ("closing_screen", state_dir / SHUTDOWN_PROGRESS_FILENAME),
+            ("transition_screen", crossing_progress_path(state_dir)),
+        ):
+            if module not in str(cmd):
+                continue
+            events.append("cover_up")
+            at_cover_up()
+            if ready:
+                # What a real cover does the moment it is painted.
+                ready_file_for(progress).write_text("", encoding="utf-8")
+            return fake_overlay_proc
+        if "loading_screen" in str(cmd):
+            return fake_overlay_proc
+        return fake_ahk_proc
+
+    with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+               return_value=_fake_startup_result()), \
+         patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
+         patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+               side_effect=lambda pid: pid * 10), \
+         patch("fun_time.windows_bridge_orchestrator.close_window",
+               side_effect=lambda hwnd: events.append("close_browser")), \
+         patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
+               side_effect=lambda pid: events.append(f"kill:{pid}")):
+
+        run_session(
+            manifest_path=manifest_path,
+            ahk_exe="ahk.exe",
+            hotkey_script="hotkeys.ahk",
+            state_dir=state_dir,
+            project_dir=tmp_path,
+            env=env,
+        )
+    return state_dir
+
+
 class TestClosingScreenLifecycle:
     """The session's windows go out under a cover, the way they came in under
     one: raised before the first kill, dropped after the last."""
 
-    def _run(self, cfg_factory, tmp_path, *, events: list[str], ready: bool = True,
-             env: SessionEnvironment = ORDINARY_SESSION, crossing=None,
-             at_cover_up=lambda: None):
-        cfg = load_config(cfg_factory())
-        manifest_path = write_windows_bridge_manifest(
-            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
-        )
-        state_dir = tmp_path / "state"
-        if crossing is not None:
-            state_dir.mkdir(parents=True, exist_ok=True)
-            request_handoff(state_dir, crossing)
-
-        fake_ahk_proc = MagicMock()
-        fake_ahk_proc.wait.return_value = 0
-        fake_overlay_proc = MagicMock()
-        fake_overlay_proc.wait.return_value = 0
-
-        def fake_popen(cmd, **kwargs):
-            for module, progress in (
-                ("closing_screen", state_dir / SHUTDOWN_PROGRESS_FILENAME),
-                ("transition_screen", crossing_progress_path(state_dir)),
-            ):
-                if module not in str(cmd):
-                    continue
-                events.append("cover_up")
-                at_cover_up()
-                if ready:
-                    # What a real cover does the moment it is painted.
-                    ready_file_for(progress).write_text("", encoding="utf-8")
-                return fake_overlay_proc
-            if "loading_screen" in str(cmd):
-                return fake_overlay_proc
-            return fake_ahk_proc
-
-        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
-                   return_value=_fake_startup_result()), \
-             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
-             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
-                   side_effect=lambda pid: pid * 10), \
-             patch("fun_time.windows_bridge_orchestrator.close_window",
-                   side_effect=lambda hwnd: events.append("close_browser")), \
-             patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
-                   side_effect=lambda pid: events.append(f"kill:{pid}")):
-
-            run_session(
-                manifest_path=manifest_path,
-                ahk_exe="ahk.exe",
-                hotkey_script="hotkeys.ahk",
-                state_dir=state_dir,
-                project_dir=tmp_path,
-                env=env,
-            )
-        return state_dir
-
     def test_the_cover_is_up_before_the_first_window_goes(self, cfg_factory, tmp_path):
         events: list[str] = []
 
-        self._run(cfg_factory, tmp_path, events=events)
+        _run_a_session(cfg_factory, tmp_path, events=events)
 
         assert events[0] == "cover_up"
         assert set(events[1:]) == {
@@ -1135,7 +1150,7 @@ class TestClosingScreenLifecycle:
                 paused_at_cover_up[flag.name] = (
                     flag.read_text(encoding="utf-8").strip() if flag.exists() else "unwritten")
 
-        self._run(cfg_factory, tmp_path, events=[], at_cover_up=read_the_sound_flags)
+        _run_a_session(cfg_factory, tmp_path, events=[], at_cover_up=read_the_sound_flags)
 
         assert paused_at_cover_up == {
             "nau_paused.txt": "1",
@@ -1175,7 +1190,7 @@ class TestClosingScreenLifecycle:
 
         with patch.object(windows_bridge_orchestrator, "_wait_for_closing_screen",
                           side_effect=recording_wait):
-            self._run(cfg_factory, tmp_path, events=events)
+            _run_a_session(cfg_factory, tmp_path, events=events)
 
         assert seen_when_killing == [True]
 
@@ -1195,7 +1210,7 @@ class TestClosingScreenLifecycle:
 
         with patch.object(PhaseProgress, "advance", spy_advance), \
              patch.object(PhaseProgress, "finish", spy_finish):
-            state_dir = self._run(cfg_factory, tmp_path, events=events)
+            state_dir = _run_a_session(cfg_factory, tmp_path, events=events)
 
         assert events[-1] == "done"
         assert events.index("advance:browser") < events.index("close_browser")
@@ -1213,7 +1228,7 @@ class TestClosingScreenLifecycle:
         (docs/entering-vr.md).  The arriving session writes the DONE."""
         events: list[str] = []
 
-        state_dir = self._run(cfg_factory, tmp_path, events=events, crossing=VR)
+        state_dir = _run_a_session(cfg_factory, tmp_path, events=events, crossing=VR)
 
         assert events[0] == "cover_up"
         progress = crossing_progress_path(state_dir)
@@ -1224,7 +1239,7 @@ class TestClosingScreenLifecycle:
     def test_an_ordinary_quit_still_takes_its_own_cover_down(self, cfg_factory, tmp_path):
         events: list[str] = []
 
-        state_dir = self._run(cfg_factory, tmp_path, events=events)
+        state_dir = _run_a_session(cfg_factory, tmp_path, events=events)
 
         assert not crossing_progress_path(state_dir).exists()
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
@@ -1234,8 +1249,8 @@ class TestClosingScreenLifecycle:
         cover — the same reason it skips the loading screen."""
         events: list[str] = []
 
-        self._run(cfg_factory, tmp_path, events=events,
-                  env=SessionEnvironment(integration=True, show_overlays=False))
+        _run_a_session(cfg_factory, tmp_path, events=events,
+                       env=SessionEnvironment(integration=True, show_overlays=False))
 
         assert "cover_up" not in events
 

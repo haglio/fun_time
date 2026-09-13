@@ -35,7 +35,7 @@ from .players import Player
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
-from .satellites_mode import ORIGENERATOR_MODE, VIDEO_MODE
+from .satellites_mode import OPEN_SHOWS, ORIGENERATOR_MODE, VIDEO_MODE
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import forget_the_kept_origenerator, kept_origenerator
 from .shared_state import read_shared_state, shared_state_path
@@ -655,8 +655,8 @@ def _launch_core_media(
     # black rectangles under a mode that said otherwise.  Written now rather
     # than once the app is up -- it drains this file on its first tick, so an
     # early write lands at exactly the right moment.
-    if origenerator_pid and satellites_mode == "origenerator":
-        append_command(Path(m.commands.origenerator_cmd_file), "OPEN_SHOWS")
+    if origenerator_pid and satellites_mode == ORIGENERATOR_MODE:
+        append_command(Path(m.commands.origenerator_cmd_file), OPEN_SHOWS)
 
     return _CoreSession(
         main_mode=main_mode,
