@@ -259,7 +259,7 @@ class GenauRole:
         try:
             landed = move_clip_to_weird(path, weird_dir)
         except OSError:
-            self._log.warning("Could not move %s to %s", path.name, weird_dir, exc_info=True)
+            self._log.error("Could not move %s to %s", path.name, weird_dir, exc_info=True)
             return
         if landed is None:
             self._log.info("Clip %s was already gone; nothing to condemn", path.name)

@@ -151,6 +151,24 @@ class TestTheClipOnScreen:
         assert not (genau.clips_dir / "alpha_180.mp4").exists()
         assert genau.role.current_clip == genau.clips_dir / "beta_180.mp4"
 
+    def test_a_weird_that_could_not_move_the_clip_is_logged_as_an_error(
+        self, tmp_path, monkeypatch, caplog,
+    ):
+        """The discard that was asked for did not happen, so it reads red in the
+        headset rather than a warning's yellow."""
+        genau = Genau(tmp_path)
+
+        def locked(_path, _weird_dir):
+            raise OSError("the file is open elsewhere")
+
+        monkeypatch.setattr("fun_time_vr.genau_role.move_clip_to_weird", locked)
+        with caplog.at_level(logging.DEBUG, logger="test.genau_role"):
+            genau.send("WEIRD")
+
+        assert [r.levelno for r in caplog.records
+                if r.name == "test.genau_role" and "Could not move" in r.getMessage()] == [
+            logging.ERROR]
+
     def test_latest_rescans_the_folder_newest_first(self, tmp_path):
         import os
 
