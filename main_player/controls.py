@@ -23,10 +23,10 @@ import logging
 import threading
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from player_core.control_registry import Control, Verb, act, bind
+from player_core.playlist import item_from_line
 
 from .session import MAX_SPEED_RATE, MIN_SPEED_RATE
 
@@ -170,14 +170,12 @@ def _cycle_version(controls: MainPlayerControls, _value: str) -> bool:
 
 
 def _play_file(controls: MainPlayerControls, value: str) -> bool:
-    """``PLAY_FILE <video>[TAB<funscript>]`` — the one verb whose value is a
+    """``PLAY_FILE`` carries one playlist line — the one verb whose value is a
     path, and so the reason the keyword alone is upper-cased."""
-    video_part, _, funscript_part = value.partition("\t")
-    funscript_part = funscript_part.strip()
-    controls.session.play_file(
-        Path(video_part.strip()),
-        Path(funscript_part) if funscript_part else None,
-    )
+    item = item_from_line(value)
+    if item is None:
+        return False
+    controls.session.play_file(item.path, item.funscript)
     return True
 
 

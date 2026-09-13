@@ -12,15 +12,15 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
-from player_core.playlist import read_playlist
+from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 
 from .media_metadata import normalize_path_key
-from .modes import source_roots, write_playlist_entries
+from .modes import source_roots
 from .players import Player
 from .runtime_flow import SET_LOOP_CMD
 from .shared_state import BridgeState, SideState, read_shared_state, write_shared_state
 
-PlaylistEntries = list[tuple[Path, Path | None]]
+PlaylistEntries = list[PlaylistItem]
 
 # What a reopened session does NOT come back believing.  Everything else does:
 # most of it shaped the playlist files just resumed, and the rest is what the
@@ -76,8 +76,8 @@ def playlist_fits_sources(playlist_file: Path, sources: str) -> bool:
     """
     roots = source_roots(sources)
     return all(
-        any(_is_within(video, root) for root in roots)
-        for video, _funscript in read_playlist(playlist_file)
+        any(_is_within(item.path, root) for root in roots)
+        for item in read_playlist(playlist_file)
     )
 
 
@@ -106,7 +106,7 @@ def playlist_opens_on(playlist_file: Path, video: str) -> bool:
 
 def playlist_leads_with(entries: PlaylistEntries, video: str) -> bool:
     """:func:`playlist_opens_on` asked of a playlist in hand, not one on disk."""
-    return bool(entries) and normalize_path_key(str(entries[0][0])) == normalize_path_key(video)
+    return bool(entries) and normalize_path_key(str(entries[0].path)) == normalize_path_key(video)
 
 
 def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
@@ -115,11 +115,7 @@ def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
     A playlist resumed from yesterday can name clips trashed or pruned since,
     and handing mpv a path to nothing is how a satellite comes up stuck.
     """
-    return [
-        (video, funscript)
-        for video, funscript in read_playlist(playlist_file)
-        if video.exists()
-    ]
+    return [item for item in read_playlist(playlist_file) if item.path.exists()]
 
 
 def _rotate_onto(entries: PlaylistEntries, last_video: str) -> PlaylistEntries:
@@ -130,8 +126,8 @@ def _rotate_onto(entries: PlaylistEntries, last_video: str) -> PlaylistEntries:
     keeping, so it comes back from its top rather than being thrown away.
     """
     key = normalize_path_key(last_video)
-    for position, (video, _funscript) in enumerate(entries):
-        if normalize_path_key(str(video)) == key:
+    for position, item in enumerate(entries):
+        if normalize_path_key(str(item.path)) == key:
             return entries[position:] + entries[:position]
     return entries
 
@@ -152,7 +148,7 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
             return False
         rotated.append((playlist_file, _rotate_onto(entries, last_video)))
     for playlist_file, entries in rotated:
-        write_playlist_entries(playlist_file, entries)
+        write_playlist(playlist_file, entries)
     return True
 
 
@@ -167,7 +163,7 @@ def resume_main_video(playlist_file: Path, video: str) -> bool:
     rotated = _rotate_onto(entries, video)
     if not playlist_leads_with(rotated, video):
         return False
-    write_playlist_entries(playlist_file, rotated)
+    write_playlist(playlist_file, rotated)
     return True
 
 

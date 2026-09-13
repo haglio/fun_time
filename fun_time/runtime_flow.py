@@ -7,6 +7,8 @@ from pathlib import Path
 
 from app_support.file_channel import write_flag
 from player_core.file_channel import append_command
+from player_core.player_verbs import play_file
+from player_core.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
 
@@ -21,8 +23,7 @@ from .modes import (
     build_one_satellite_playlist,
     build_playlist_file_path,
     build_satellite_playlist_paths,
-    matching_funscript,
-    playlist_entry_line,
+    scripted_item,
     write_main_player_playlist_file,
     write_playlist_file,
 )
@@ -33,7 +34,6 @@ from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
 # Both the main player and the native satellites re-read their playlist file on this verb.
 RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
-PLAY_FILE_CMD = "PLAY_FILE"
 # The main player's HUD says whether F-mode is on, and this is the only way it can know: the
 # playlist it is handed has already been narrowed, and a list of scripted videos
 # looks like any other.  The satellites need no such verb — fun_time draws their
@@ -147,8 +147,7 @@ def apply_main_fmode(
     # and a list of scripted videos looks like any other.
     verbs = [RELOAD_PLAYLIST_CMD, f"{SET_F_MODE_CMD} {int(enabled)}"]
     if start_at_top and paths:
-        head = playlist_entry_line(paths[0], matching_funscript(paths[0]))
-        verbs.append(f"{PLAY_FILE_CMD} {head}")
+        verbs.append(play_file(scripted_item(paths[0])))
     for verb in verbs:
         append_command(Path(main_player_cmd_file), verb)
 
@@ -316,7 +315,7 @@ def apply_satellite_filter(
     write_playlist_file(playlist_path, paths)
     write_satellite_command(Path(cmd_file), RELOAD_PLAYLIST_CMD)
     if start_at_top and paths:
-        write_satellite_command(Path(cmd_file), f"{PLAY_FILE_CMD} {paths[0]}")
+        write_satellite_command(Path(cmd_file), play_file(PlaylistItem(Path(paths[0]))))
     summary = "cleared" if not query else f"'{query}'"
     return SatelliteFilterFlowResult(len(paths), True, f"Filter {label}: {summary} ({len(paths)})")
 

@@ -58,7 +58,7 @@ def resolve_playlist(args) -> list[Path]:
     """
     if args.playlist is None:
         return []
-    return [video for video, _funscript in read_playlist(Path(args.playlist))]
+    return [item.path for item in read_playlist(Path(args.playlist))]
 
 
 def audio_muted(args) -> bool:

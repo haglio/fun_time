@@ -10,7 +10,7 @@ The main player's own command set.
 """
 from __future__ import annotations
 
-from pathlib import Path
+from player_core.playlist import item_from_line
 
 
 def apply_command(
@@ -37,8 +37,8 @@ def apply_command(
         session.set_locked(False)
     elif keyword == "TRASH":
         session.discard()
-    elif keyword == "PLAY_FILE" and arg:
-        session.play_file(Path(arg))
+    elif keyword == "PLAY_FILE" and (item := item_from_line(arg)) is not None:
+        session.play_file(item.path)
     elif keyword == "RELOAD_PLAYLIST":
         reload_playlist()
     elif keyword == "QUIT":

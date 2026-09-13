@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import random
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
+
+from player_core.playlist import PlaylistItem, write_playlist
 
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
 from .vr_videos import keep_shapes
@@ -320,43 +322,24 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
     return state_dir / f"{name}.tsv"
 
 
-def playlist_entry_line(video: str | Path, funscript: str | Path | None) -> str:
-    """One playlist entry: the video, TAB + its funscript where there is one.
-
-    Also the shape a ``PLAY_FILE`` argument takes, so naming a video to jump to
-    says it exactly as the playlist does — the two cannot drift apart.
-    """
-    return f"{video}\t{funscript}" if funscript else f"{video}"
-
-
-def write_playlist_entries(
-    path: Path, entries: Sequence[tuple[str | Path, str | Path | None]]
-) -> None:
-    """Write a playlist file: one video per line, TAB + funscript where there is one.
-
-    The single shape both players read back with ``player_core.playlist.read_playlist``
-    — the main player drives the OSR2 from the funscript column, a silent satellite drops it —
-    so every playlist fun_time writes is emitted here and can never drift apart.
-    """
-    path.parent.mkdir(parents=True, exist_ok=True)
-    lines = (playlist_entry_line(video, funscript) for video, funscript in entries)
-    path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
-
-
 def write_playlist_file(path: Path, paths: list[str]) -> None:
     """Write a satellite playlist: one video path per line, no funscript column.
 
     A satellite is silent and unscripted, so it drops that column anyway and
     there is nothing to look up.
     """
-    write_playlist_entries(path, [(video_path, None) for video_path in paths])
+    write_playlist(path, [PlaylistItem(Path(video_path)) for video_path in paths])
+
+
+def scripted_item(video_path: str) -> PlaylistItem:
+    """*video_path* paired with the funscript mirrored beside it, when it has one."""
+    funscript = matching_funscript(video_path)
+    return PlaylistItem(Path(video_path), Path(funscript) if funscript else None)
 
 
 def write_main_player_playlist_file(path: Path, video_paths: list[str]) -> None:
     """Write the main player's playlist, pairing each video with its funscript when it has one."""
-    write_playlist_entries(
-        path, [(video_path, matching_funscript(video_path)) for video_path in video_paths]
-    )
+    write_playlist(path, [scripted_item(video_path) for video_path in video_paths])
 
 
 def build_one_satellite_playlist(
