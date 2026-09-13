@@ -589,9 +589,8 @@ class HandedPlayer:
     hud_file: str | Path
 
 
-def origenerator_launch_command(
+def origenerator_session_args(
     *,
-    python_exe: str | Path,
     layout_plan,
     command_file: str | Path,
     paused_file: str | Path,
@@ -599,6 +598,30 @@ def origenerator_launch_command(
     dashboard_cmd_file: str | Path,
     players: Mapping[str, HandedPlayer],
 ) -> list[str]:
+    rfb = layout_plan.random_favs_browser
+    args = [
+        "--fun-time",
+        "--x", str(rfb.x), "--y", str(rfb.y),
+        "--width", str(rfb.width), "--height", str(rfb.height),
+    ]
+    for side, player in players.items():
+        args.extend([
+            f"--{side}-playlist", str(player.playlist_file),
+            f"--{side}-cmd-file", str(player.cmd_file),
+            f"--{side}-status-file", str(player.status_file),
+            f"--{side}-hud-file", str(player.hud_file),
+        ])
+    args.extend(TASKBAR_IDENTITY_ARGS)
+    args.extend([
+        "--command-file", str(command_file),
+        "--paused-file", str(paused_file),
+        "--status-file", str(status_file),
+        "--dashboard-cmd-file", str(dashboard_cmd_file),
+    ])
+    return args
+
+
+def origenerator_launch_command(*, python_exe: str | Path, **contract) -> list[str]:
     """The argv a session launches the hosted Origenerator with.
 
     Split out from :func:`launch_origenerator` so a test can run the REAL
@@ -606,28 +629,8 @@ def origenerator_launch_command(
     while production was broken.  ``tests/integration/test_origenerator_launch``
     runs exactly this, with ``--check-launch`` appended.
     """
-    rfb = layout_plan.random_favs_browser
-    cmd = [
-        NAMER.named_exe(python_exe, "Origenerator"),
-        "-m", "origenerator", "--fun-time",
-        "--x", str(rfb.x), "--y", str(rfb.y),
-        "--width", str(rfb.width), "--height", str(rfb.height),
-    ]
-    for side, player in players.items():
-        cmd.extend([
-            f"--{side}-playlist", str(player.playlist_file),
-            f"--{side}-cmd-file", str(player.cmd_file),
-            f"--{side}-status-file", str(player.status_file),
-            f"--{side}-hud-file", str(player.hud_file),
-        ])
-    cmd.extend(TASKBAR_IDENTITY_ARGS)
-    cmd.extend([
-        "--command-file", str(command_file),
-        "--paused-file", str(paused_file),
-        "--status-file", str(status_file),
-        "--dashboard-cmd-file", str(dashboard_cmd_file),
-    ])
-    return cmd
+    return [NAMER.named_exe(python_exe, "Origenerator"), "-m", "origenerator",
+            *origenerator_session_args(**contract)]
 
 
 def is_a_worktree(checkout: Path) -> bool:

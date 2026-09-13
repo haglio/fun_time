@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import configparser
 import contextlib
+import json
+import logging
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -27,6 +30,7 @@ from fun_time.player_status import (
 from fun_time.players import Player
 from fun_time.session_environment import SessionEnvironment
 from fun_time.shortcuts import Shortcut
+from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
@@ -1408,6 +1412,55 @@ class TestOrigeneratorLaunch:
 
         launch.assert_not_called()
         assert result.origenerator_pid == 0
+
+    def _checkout_with_an_open_app(self, cfg_factory, tmp_path, *, created_at=None):
+        checkout = tmp_path / "origenerator"
+        cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        open_app = os.getpid()
+        (checkout / "state").mkdir(parents=True)
+        (checkout / "state" / "fun_time_offer.txt").write_text(
+            f"{open_app} {created_at or get_process_creation_time(open_app)}\n",
+            encoding="utf-8")
+        return cfg, manifest_path, checkout, open_app
+
+    def test_an_origenerator_already_open_is_taken_over_rather_than_launched(
+        self, cfg_factory, tmp_path
+    ):
+        cfg, manifest_path, checkout, open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path)
+        stale_status = Path(cfg.origenerator_status_file)
+        stale_status.write_text("portrait_active=1\nlandscape_active=1\n", encoding="utf-8")
+
+        with _sequencer_stubs(launch_origenerator=dict()) as stubs:
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        stubs.launch_origenerator.assert_not_called()
+        assert result.origenerator_pid == open_app
+        takeover = json.loads(
+            (checkout / "state" / "fun_time_takeover.json").read_text(encoding="utf-8"))
+        assert takeover["pid"] == open_app
+        args = takeover["args"]
+        assert args[0] == "--fun-time"
+        for flag, path in (("--command-file", cfg.origenerator_cmd_file),
+                           ("--paused-file", cfg.origenerator_paused_file),
+                           ("--status-file", cfg.origenerator_status_file)):
+            assert args[args.index(flag) + 1] == str(path), flag
+        assert not stale_status.exists()
+        assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
+
+    def test_an_offer_left_by_an_app_since_closed_launches_one(self, cfg_factory, tmp_path):
+        cfg, manifest_path, checkout, _open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path, created_at=1)
+
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)) as stubs:
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        stubs.launch_origenerator.assert_called_once()
+        assert result.origenerator_pid == ORIGENERATOR_PID
+        assert not (checkout / "state" / "fun_time_takeover.json").exists()
 
 
 class TestOrigeneratorDoesNotHoldTheRoomUp:
