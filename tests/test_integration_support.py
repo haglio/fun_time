@@ -19,6 +19,7 @@ import pytest
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.loopback_server import LOOPBACK_PORT
+from fun_time.player_status import MainPlayerStatus
 from fun_time.windows_bridge_orchestrator import ChildProcess
 from tests.integration import integration_support
 from tests.integration.integration_support import (
@@ -27,6 +28,7 @@ from tests.integration.integration_support import (
     close_udp_sinks,
     isolate_shared_resources,
     library_clips,
+    published_status,
     readable_at_speed,
     sample_library_clips,
     stall_per_transition,
@@ -511,3 +513,41 @@ def test_the_stall_a_transition_costs_is_the_typical_pass_not_the_worst():
 
     assert stall_per_transition(noise_on_one_pass) < 150.0
     assert stall_per_transition(stalls_every_pass) > 150.0
+
+
+def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
+    """A player publishes its status by replacing the file, and a read that lands
+    inside the replace gets the reader's empty record: no clip, not paused, about
+    a player that has a clip and is paused."""
+    published = MainPlayerStatus(video="C:/example/scene one.mp4", duration_ms=61_000, paused=True)
+    reads = iter([MainPlayerStatus(), published])
+
+    assert published_status(lambda path: next(reads), Path("main_player_status.txt")) == published
+
+
+def test_a_replace_that_outlasts_one_retry_is_still_waited_out():
+    published = MainPlayerStatus(video="C:/example/scene two.mp4", duration_ms=45_000, paused=True)
+    reads = iter([MainPlayerStatus(), MainPlayerStatus(), MainPlayerStatus(), published])
+
+    assert published_status(lambda path: next(reads), Path("main_player_status.txt")) == published
+
+
+def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
+    """A player that has published nothing yet is not waited on forever, and the
+    reads are paced: a reader holding the file open is what fails the replace."""
+    clock = [0.0]
+    reads = []
+
+    def read(path):
+        assert len(reads) < 1000, "reading as fast as it can instead of pacing its reads"
+        reads.append(path)
+        return MainPlayerStatus()
+
+    def sleep(seconds):
+        clock[0] += seconds
+
+    empty = published_status(read, Path("main_player_status.txt"), budget_s=1.0,
+                             now=lambda: clock[0], sleep=sleep)
+
+    assert empty == MainPlayerStatus()
+    assert clock[0] >= 1.0
