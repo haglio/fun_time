@@ -25,7 +25,7 @@ from pathlib import Path
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
+from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_project_kwargs
 
 # Before anything that reaches the dispatch loop: a worktree's
 # genau_project_dirs override reaches Genau and the main player as subprocess PYTHONPATH,
@@ -126,7 +126,6 @@ from fun_time.windows_bridge_orchestrator import (
 from fun_time.windows_bridge_sequencer import release_the_players
 from fun_time.windows_bridge_startup import (
     ensure_broker,
-    genau_project_kwargs,
     launch_audio_companion,
     reap_orphaned_satellites,
     reset_satellite_paused_states,
@@ -686,7 +685,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         # This teardown's cover hangs in the headset (docs/entering-vr.md).
         held = back_to_vr = False
         if (crossing := pending_handoff(state_dir)) is not None:
-            launch_crossing_cover(state_dir, crossing)
+            launch_crossing_cover(state_dir, crossing,
+                                  project_dirs=manifest.runtime.genau_project_dirs)
         # Up first and up through everything below.  A session that ended
         # BECAUSE the player went has nothing left to draw with, and nothing to
         # hide: the cut to the runtime's environment already came.

@@ -142,7 +142,7 @@ class TestTheCoverThatSpansTheCrossing:
 
     def test_it_is_launched_as_the_transition_screen_over_that_file(self, tmp_path: Path):
         with patch.object(session_handoff.subprocess, "Popen") as popen:
-            launch_crossing_cover(tmp_path, VR)
+            launch_crossing_cover(tmp_path, VR, project_dirs="")
 
         command = popen.call_args.args[0]
         assert command[1:] == [

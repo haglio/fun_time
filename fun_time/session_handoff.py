@@ -15,6 +15,7 @@ from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import is_mutex_held, mutex_name
 
+from fun_time.checkout_overrides import genau_project_kwargs
 from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import load_config
 from fun_time.overlay_progress import (
@@ -252,7 +253,9 @@ def say_the_crossing_is_cancelled(state_dir: str | Path) -> None:
         path.write_text(_CANCELED_LINE, encoding="utf-8")
 
 
-def launch_crossing_cover(state_dir: str | Path, target: HandoffTarget) -> subprocess.Popen:
+def launch_crossing_cover(
+    state_dir: str | Path, target: HandoffTarget, *, project_dirs: str,
+) -> subprocess.Popen:
     """Raise the monitors' crossing cover and leave it standing."""
     return _launch_transition_screen(raise_crossing_cover(state_dir, target))
 
@@ -268,7 +271,7 @@ def _launch_transition_screen(progress_file: Path) -> subprocess.Popen:
     return subprocess.Popen([
         NAMER.named_exe(sys.executable, "TransitionScreen"),
         "-m", "fun_time.transition_screen", str(progress_file),
-    ], **no_child_log())
+    ], **no_child_log(), **genau_project_kwargs(project_dirs))
 
 
 def drop_crossing_cover(state_dir: str | Path) -> None:

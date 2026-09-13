@@ -23,6 +23,7 @@ from pathlib import Path
 from player_core.file_channel import append_command
 
 from .append_only import append_line
+from .checkout_overrides import genau_project_kwargs
 from .child_log import no_child_log
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
@@ -338,8 +339,8 @@ def _wait_for_closing_screen(ready_file: Path, proc: subprocess.Popen) -> None:
 
 @contextlib.contextmanager
 def _closing_screen(
-    state_dir: Path, *, enabled: bool, crossing: HandoffTarget | None = None,
-    esc_cancels: str = "",
+    state_dir: Path, *, enabled: bool, project_dirs: str,
+    crossing: HandoffTarget | None = None, esc_cancels: str = "",
 ) -> Iterator[ProgressReporter]:
     """Cover every monitor while the session comes down, then uncover it.
 
@@ -363,7 +364,7 @@ def _closing_screen(
     ready_file.unlink(missing_ok=True)
     if crossing is not None:
         progress: ProgressReporter = NullProgress()  # the wording is the crossing's
-        proc = launch_crossing_cover(state_dir, crossing)
+        proc = launch_crossing_cover(state_dir, crossing, project_dirs=project_dirs)
     else:
         progress = PhaseProgress(progress_file, phases=SHUTDOWN_PHASES, hint=esc_cancels)
         # Written before the screen is launched so it has something to read from
@@ -372,7 +373,7 @@ def _closing_screen(
         proc = subprocess.Popen([
             NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
-        ], **no_child_log())
+        ], **no_child_log(), **genau_project_kwargs(project_dirs))
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
     try:
@@ -824,7 +825,8 @@ def clear_last_sessions_leftovers(
         stale.unlink(missing_ok=True)
 
 
-def _open_the_cover(state_dir: Path, *, show_overlays: bool, cancelable: bool = True) -> _Cover:
+def _open_the_cover(state_dir: Path, *, show_overlays: bool, project_dirs: str,
+                    cancelable: bool = True) -> _Cover:
     """The loading screen over every monitor, its window resolved."""
     returning = returning_from_a_crossing(state_dir)
     esc_cancels = ("" if not cancelable
@@ -846,6 +848,7 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool, cancelable: bool = 
             "-m", "fun_time.loading_screen", str(progress_file),
         ],
         **no_child_log(),
+        **genau_project_kwargs(project_dirs),
     )
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
     overlay_hwnd = wait_for_window_by_title(
@@ -1067,6 +1070,7 @@ def _run_until_the_hotkeys_exit(
     voice: tuple[VoiceController | None, threading.Thread | None],
     dispatch: tuple[DispatchLoopRunner, threading.Thread],
     loopback_server: ThreadingHTTPServer | None,
+    project_dirs: str,
 ) -> int:
     """Hold the session open, then take it down — in that order, always.
 
@@ -1099,7 +1103,8 @@ def _run_until_the_hotkeys_exit(
                        if asked and show_overlays and crossing is None else "")
         # Then the cover, up before anything closes and through all of it: the
         # controls stopping, the browser closing, and every child being killed.
-        with _closing_screen(state_dir, enabled=show_overlays, crossing=crossing,
+        with _closing_screen(state_dir, enabled=show_overlays, project_dirs=project_dirs,
+                             crossing=crossing,
                              esc_cancels=esc_cancels) as shutdown_progress:
             if voice_controller is not None:
                 voice_controller.stop()
@@ -1182,7 +1187,9 @@ def run_session(
                                   pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
 
     # --- Launch loading screen (normal mode only) ---
-    cover = _open_the_cover(state_dir, show_overlays=env.show_overlays, cancelable=cancelable)
+    cover = _open_the_cover(state_dir, show_overlays=env.show_overlays,
+                            project_dirs=manifest.runtime.genau_project_dirs,
+                            cancelable=cancelable)
     progress = cover.progress
 
     if env.integration:
@@ -1290,4 +1297,5 @@ def run_session(
         voice=(voice_controller, voice_thread),
         dispatch=(dispatch_runner, dispatch_thread),
         loopback_server=loopback_server,
+        project_dirs=manifest.runtime.genau_project_dirs,
     )

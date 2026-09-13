@@ -18,6 +18,7 @@ from player_core.player_verbs import SET_F_MODE
 
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
+from .checkout_overrides import genau_project_kwargs
 from .child_log import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
@@ -507,36 +508,6 @@ def start_core_session(
         project_dirs=project_dirs,
     )
     return carried.main_mode
-
-
-def genau_project_kwargs(project_dirs: str | Path | None) -> dict:
-    """The ``Popen`` environment that decides which checkouts Genau and the main player run.
-
-    Both are started as ``python -m genau`` / ``-m main_player`` out of the genau venv,
-    and every package they import — their own, and ``player_core`` under them —
-    resolves through that venv's editable installs, which name the primary
-    checkout of each repo for good.  So a *worktree* of either could not be run
-    at all, and a branch of one could only be judged by landing it first.  Named
-    here, those directories go on ``PYTHONPATH``, which Python puts ahead of
-    site-packages, and a session runs the branch.
-
-    Several, because a change is often in two of them at once — a HUD in
-    ``../genau`` on a channel in ``../player_core`` — and running one branch
-    against the other's landed code is not running the change.
-
-    Left alone rather than pointed at the primary in ordinary use: empty means
-    exactly what every session did before this.  A directory that is not there is
-    dropped rather than fatal, because a worktree named in the config outlives
-    the worktree and a session must still start.
-    """
-    paths = [str(Path(part)) for part in str(project_dirs or "").split(os.pathsep)
-             if part and Path(part).is_dir()]
-    if not paths:
-        return {}
-    inherited = os.environ.get("PYTHONPATH")
-    if inherited:
-        paths.append(inherited)
-    return {"env": {**os.environ, "PYTHONPATH": os.pathsep.join(paths)}}
 
 
 def launch_genau(
