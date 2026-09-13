@@ -2,7 +2,6 @@
 and what a press or a hover on either screen does."""
 from __future__ import annotations
 
-import json
 from types import SimpleNamespace
 
 import numpy as np
@@ -145,12 +144,21 @@ class TestAPressOnASatellite:
         assert p.hud.motions == [(-1, -1), (-1, -1)]
 
 
-_A_PANEL = {
-    "side": "portrait", "locked": False, "lock_label": "Shuffle", "active": True,
-    "satellites_mode": "video", "is_favorite": False, "f_mode": False, "filter_query": "",
-    "seed_count": 0, "action_count": 0, "active_loop": "", "current_action": "",
-    "playing": ["corner", 0], "corner": None, "seeds": [], "actions": [],
-}
+def _a_panel() -> str:
+    """A published panel with the mode row and the side's own band, as Fun Time
+    publishes one for a session hosting an Origenerator."""
+    from pathlib import Path
+
+    from player_core.satellite_hud import hud_text
+
+    from fun_time.hud_transport import hud_model
+    from fun_time.lock_hud import HudPanel
+
+    return hud_text(hud_model(HudPanel(
+        side="portrait", locked=False, lock_label="Shuffle", current="",
+        seed_siblings=[], action_siblings=[], active=True, latest=False,
+        satellites_mode="video",
+    ), Path("C:/t")))
 
 
 class TestThePressReachesTheDesktopsOwnMap:
@@ -160,7 +168,7 @@ class TestThePressReachesTheDesktopsOwnMap:
 
     def _hud(self, tmp_path):
         hud_file, command_file = tmp_path / "portrait_hud.json", tmp_path / "dashboard_cmd.txt"
-        hud_file.write_text(json.dumps(_A_PANEL), encoding="utf-8")
+        hud_file.write_text(_a_panel(), encoding="utf-8")
         surface = HudSurface()
         hud = HudOverlay(hud_file=hud_file, command_file=command_file, player=surface)
         hud.tick(video="scene one")
@@ -177,9 +185,13 @@ class TestThePressReachesTheDesktopsOwnMap:
         width, height = size
         return (x + w / 2) / width, 1 - (y + h / 2) / height
 
+    @staticmethod
+    def _rect_of(hud, action: str):
+        return next(rect for rect, button in hud.targets.buttons if button.action == action)
+
     def test_a_squeeze_on_the_lock_posts_the_lock(self, tmp_path):
         hud, surface, pointer, command_file = self._hud(tmp_path)
-        (rect, control) = next(target for target in hud.targets.control if target[1] == "lock")
+        rect = self._rect_of(hud, "portrait_lock")
 
         pointer.press(HUD, *self._uv_of(rect, surface.size), size=surface.size)
 
@@ -187,11 +199,11 @@ class TestThePressReachesTheDesktopsOwnMap:
 
     def test_a_squeeze_on_a_mode_button_posts_that_mode(self, tmp_path):
         hud, surface, pointer, command_file = self._hud(tmp_path)
-        (rect, command) = hud.targets.modes[-1]
+        rect = self._rect_of(hud, "origenerator_activate")
 
         pointer.press(HUD, *self._uv_of(rect, surface.size), size=surface.size)
 
-        assert command_file.read_text(encoding="utf-8").split() == [command]
+        assert command_file.read_text(encoding="utf-8").split() == ["origenerator_activate"]
 
     def test_a_squeeze_beside_the_buttons_posts_nothing(self, tmp_path):
         _hud, surface, pointer, command_file = self._hud(tmp_path)

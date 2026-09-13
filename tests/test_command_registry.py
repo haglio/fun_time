@@ -136,20 +136,71 @@ def _families() -> frozenset[str]:
     return frozenset(_expected_numeric_ids()) | frozenset(_expected_filter_ids())
 
 
-def test_every_verb_the_shared_console_posts_lands_on_a_handler():
-    """The sixth surface: the console player_core draws for the main slot posts
-    its buttons' verbs into this dispatcher, and it publishes them as data for
-    exactly this check.  Nothing held the two together before, which is how the
-    clip-seconds pair came to post a verb this table had renamed away -- both
-    buttons inert in genau mode, and no test to say so (bug 19).  The
-    enhanced-filter button was the last one carried here as dormant, unanswered
-    because no session had a filter to narrow (bug 90)."""
-    from player_core.console import CONSOLE_VERBS
+def _console_verbs() -> frozenset[str]:
+    """Every verb a console button Fun Time declares can post, read off the
+    source of the declaration.  Not only a bare literal: a button whose verb
+    depends on what it is showing picks among them there -- a lit length button
+    asks for mixed, a dark one for its own length -- and the projection pair,
+    with four states to reach, nests the choice."""
+    source = (_REPO_ROOT / "fun_time" / "console_buttons.py").read_text(encoding="utf-8")
 
+    def literals(node):
+        if isinstance(node, ast.IfExp):
+            return literals(node.body) | literals(node.orelse)
+        if isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value:
+            return {node.value}
+        return set()
+
+    posted: set[str] = set()
+    for node in ast.walk(ast.parse(source)):
+        if isinstance(node, ast.Call) and getattr(node.func, "id", None) == "Button" and node.args:
+            posted.update(literals(node.args[0]))
+        if isinstance(node, ast.Assign) and any(
+                getattr(t, "id", "") == "MODE_BUTTONS" for t in node.targets):
+            posted.update(entry.elts[0].value for entry in node.value.elts)
+    return frozenset(posted)
+
+
+def _satellite_verbs() -> frozenset[str]:
+    """Every verb a satellite HUD button Fun Time declares can post, over both
+    sides and every state the declaration takes."""
+    from fun_time.satellite_buttons import side_rows
+
+    return frozenset(
+        button.action
+        for side in ("portrait", "landscape")
+        for latest in (None, False, True)
+        for mode in ("", "video", "origenerator")
+        for row in side_rows(side, locked=True, f_mode=True, latest=latest, mode=mode)
+        for button in row
+    )
+
+
+def test_every_verb_the_console_posts_lands_on_a_handler():
+    """The sixth surface: the console the players draw for the main slot posts
+    the verbs of the buttons Fun Time declares into this dispatcher.  Nothing
+    held the two together once, which is how the clip-seconds pair came to
+    post a verb this table had renamed away -- both buttons inert in genau
+    mode, and no test to say so (bug 19).  The enhanced-filter button was the
+    last one carried here as dormant, unanswered because no session had a
+    filter to narrow (bug 90)."""
     # Minimize is answered before the handler map, by name; browse and the
     # broker panel are the loop's own branches.
     answered = _handler_ids() | _loop_branch_ids() | {command_dispatch.MAIN_MINIMIZE}
-    assert answered >= CONSOLE_VERBS, sorted(CONSOLE_VERBS - answered)
+    posted = _console_verbs()
+    assert posted, "no console button posts anything"
+    assert answered >= posted, sorted(posted - answered)
+
+
+def test_every_verb_a_satellite_hud_posts_lands_on_a_handler():
+    """The same surface, for the buttons Fun Time declares on each satellite's
+    HUD: each side's own verbs, the side-less mode pair, and the minimize the
+    loop answers by name."""
+    answered = (_handler_ids() | _loop_branch_ids()
+                | frozenset(command_dispatch._MINIMIZE_ROLES))
+    posted = _satellite_verbs()
+    assert posted, "no satellite button posts anything"
+    assert answered >= posted, sorted(posted - answered)
 
 
 def test_every_spoken_phrase_lands_on_a_handler():

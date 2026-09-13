@@ -20,6 +20,7 @@ from player_core.file_channel import publish_whole
 from player_core.satellite_hud import HudCell, HudModel, hud_text
 
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
+from .satellite_buttons import side_rows
 from .thumbnail_cache import cached_thumbnail
 
 
@@ -94,8 +95,8 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
         active=panel.active,
         satellites_mode=panel.satellites_mode,
         is_favorite=panel.is_favorite,
-        f_mode=panel.f_mode,
-        latest=panel.latest,
+        rows=side_rows(panel.side, locked=panel.locked, f_mode=panel.f_mode,
+                       latest=panel.latest, mode=panel.satellites_mode),
         filter_query=panel.filter_query,
         seed_count=panel.seed_count,
         action_count=panel.action_count,
