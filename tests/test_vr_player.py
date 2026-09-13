@@ -85,7 +85,8 @@ from fun_time_vr.player import (
     _main_slot_screen,
     _MainUnit,
     _PanelUnit,
-    _pointable_screens,
+    _panes,
+    _ReferenceUnit,
     _SatelliteUnit,
     _scene_is_up,
     _SlotControls,
@@ -102,7 +103,10 @@ from fun_time_vr.pointer import (
     PressEvent,
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
+from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
+from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import Placement, attached_below, surface_vertices
+from fun_time_vr.stacking import Stacking
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -1033,21 +1037,6 @@ def test_the_cover_goes_up_before_the_players_are_built():
     assert calls["_raise_the_cover"] < calls["_PanelUnit"]
 
 
-def test_the_dashboard_is_drawn_whichever_video_is_in_the_slot():
-    """It is drawn from one list with the console, on its own readiness -- so no
-    branch can leave it out of the eyes while a flat video plays."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
-    tree = ast.parse(inspect.getsource(player._draw_eyes))
-    (showing,) = [node for node in ast.walk(tree)
-                  if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "showing"]
-
-    assert ast.unparse(showing.value).startswith("[panel, dash]")
-
-
 def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
     """Out of `units` it is never painted or uploaded, and a room with no
     dashboard in it is a room with no buttons."""
@@ -1135,6 +1124,23 @@ def test_the_headset_session_runs_ahead_of_background_work():
     assert ast.unparse(scheduled.body) == "return _run(manifest, vr)"
 
 
+def test_a_squeeze_brings_forward_what_the_ray_and_the_eyes_both_see():
+    """One arrangement goes to the pointer and to the eye pass, so what a squeeze
+    lands on is what was in front -- and what it takes hold of is what moves."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
+    handed = {ast.unparse(call.func): ast.unparse(keyword.value)
+              for call in calls for keyword in call.keywords if keyword.arg == "screens"}
+
+    assert handed == {"pointer.frame": "screens", "_draw_eyes": "screens"}
+    assert "stacking.take(frame.taken)" in {ast.unparse(call) for call in calls}
+
+
 class TestTheMainSlotUnderThePointer:
     """The main player moves and zooms by the same handles the satellites do, so
     it is one of the screens the pointer is handed — but only while what fills
@@ -1201,19 +1207,13 @@ class TestTheMainSlotUnderThePointer:
         """It is drawn first and it is the biggest, so a satellite tucked over its
         edge — and the console under them all — has to win the ray.  The console
         is pressed, never dragged: it rides on the main player now."""
-        satellite = SimpleNamespace(
-            side=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
-        )
-        panel = _a_panel()
-
         dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
         reference = SimpleNamespace(showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
-                                    screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]))
+                                    screen=SimpleNamespace(placement=_UNDER_THE_DASH))
 
-        screens = _pointable_screens(
-            *self._units(), [satellite], panel, dash, reference)
+        screens = Stacking().arrange(_panes(
+            *self._units(), [_a_satellite(LANDSCAPE)], _a_panel(), dash, reference))
 
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
@@ -1353,10 +1353,11 @@ class _FakeRenderer:
         self.screens.append("immersive")
 
 
-def _hanging(mesh: str):
+def _hanging(name: str, aspect: float):
     return SimpleNamespace(
-        texture=SimpleNamespace(ready=True, texture=object()),
-        screen=SimpleNamespace(ready=True, mesh=mesh),
+        texture=SimpleNamespace(ready=True, texture=object(), aspect=aspect),
+        screen=SimpleNamespace(ready=True, mesh=name,
+                               placement=DEFAULT_LAYOUT.get(name, _UNDER_THE_DASH)),
     )
 
 
@@ -1373,35 +1374,38 @@ class TestEveryHangingScreenIsDrawn:
         )
         return [SimpleNamespace(fov=fov, pose=pose)]
 
-    def _draw(self, *, showing: bool = False):
+    def _draw(self, *, showing: bool = False, projection=None, stacking=None):
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
         primary = SimpleNamespace(
-            target=SimpleNamespace(ready=False, texture=object()),
-            screen=SimpleNamespace(ready=False, mesh="primary"),
-            role=SimpleNamespace(displayed=True, projection="flat"),
+            target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9),
+            screen=SimpleNamespace(ready=True, mesh=PRIMARY, placement=DEFAULT_LAYOUT[PRIMARY]),
+            role=SimpleNamespace(displayed=True, projection=projection or FLAT),
         )
         genau = SimpleNamespace(
-            role=SimpleNamespace(showing=False, projection="flat"),
-            texture=SimpleNamespace(ready=False, texture=object()),
-            screen=SimpleNamespace(ready=False, mesh="genau"),
+            role=SimpleNamespace(showing=False, projection=FLAT),
+            texture=SimpleNamespace(ready=False, texture=object(), aspect=4 / 3),
+            screen=SimpleNamespace(ready=False, mesh="genau", placement=DEFAULT_LAYOUT[PRIMARY]),
         )
-        panel, dash = _hanging("panel"), _hanging("dash")
-        reference = _hanging("reference")
+        panel, dash = _hanging(PANEL, 1.2), _hanging(DASH, 2.5)
+        reference = _hanging(REFERENCE, 1.7)
         reference.showing = showing
+        screens = (stacking or Stacking()).arrange(
+            _panes(primary, genau, [], panel, dash, reference))
         _draw_eyes(
             session, renderer, primary, genau, [], panel, dash, reference,
-            SimpleNamespace(draw=lambda *_a: None), self._views(), None,
-            np.eye(4, dtype=np.float64), in_scene={PRIMARY, PORTRAIT, LANDSCAPE},
+            SimpleNamespace(draw=lambda *_a: None), self._views(), np.eye(4, dtype=np.float64),
+            screens=screens, as_quads=set(),
         )
         return renderer
 
     def test_the_console_reaches_the_eyes(self):
         assert "panel" in self._draw().screens
 
-    def test_the_dashboard_reaches_them_too(self):
-        assert "dash" in self._draw().screens
+    @pytest.mark.parametrize("projection", [None, FLAT, EQUIRECT_180_SBS])
+    def test_the_dashboard_reaches_them_whichever_video_is_in_the_slot(self, projection):
+        assert "dash" in self._draw(projection=projection).screens
 
     def test_the_reference_reaches_them_while_it_is_up(self):
         assert "reference" in self._draw(showing=True).screens
@@ -1410,6 +1414,27 @@ class TestEveryHangingScreenIsDrawn:
         """It covers the picture, so it is drawn only while it is asked for."""
         assert "reference" not in self._draw(showing=False).screens
 
+    def test_they_are_drawn_back_to_front_as_they_stand(self):
+        stacking = Stacking()
+        stacking.take(PANEL)
+
+        drawn = self._draw(projection=FLAT, stacking=stacking).screens
+
+        assert drawn.index(PRIMARY) < drawn.index(DASH) < drawn.index(PANEL)
+
+    def test_a_video_wrapped_round_the_viewer_is_drawn_first_however_it_was_taken(self):
+        """Taken hold of while it was a flat screen, the wrap is still drawn before them."""
+        stacking = Stacking()
+        stacking.take(PRIMARY)
+
+        drawn = self._draw(projection=EQUIRECT_180_SBS, stacking=stacking).screens
+
+        assert drawn[0] == "immersive"
+        assert sorted(drawn[1:]) == sorted([PANEL, DASH])
+
+
+
+_UNDER_THE_DASH = Placement(azimuth_deg=0.0, elevation_deg=38.0, width_deg=54.0)
 
 
 def _a_panel(*, ready=True):
@@ -1495,10 +1520,10 @@ class TestWhatThePointerCanReach:
         reference = SimpleNamespace(
             showing=reference_showing,
             texture=SimpleNamespace(ready=True, aspect=1.7),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
+            screen=SimpleNamespace(placement=_UNDER_THE_DASH),
         )
-        return {s.name: s for s in _pointable_screens(
-            primary, genau, [], panel, dash, reference)}
+        return {s.name: s for s in Stacking().arrange(_panes(
+            primary, genau, [], panel, dash, reference))}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)
@@ -1518,6 +1543,13 @@ class TestWhatThePointerCanReach:
         assert screens[DASH].pressable and screens[DASH].movable
         assert screens[PANEL].pressable and not screens[PANEL].movable
 
+    def test_the_reference_is_pressed_but_offers_no_handles_of_its_own(self, tmp_path):
+        """It moves with the dashboard it hangs from."""
+        reference = self._screens(tmp_path, reference_showing=True)[REFERENCE]
+
+        assert reference.pressable
+        assert not reference.movable and not reference.resizable
+
     def test_the_dashboard_keeps_the_only_handle_when_it_carries_the_console(self, tmp_path):
         """It is the top of the pair then, so its bar is above both of them --
         a bar on the console would sit between them instead."""
@@ -1525,6 +1557,117 @@ class TestWhatThePointerCanReach:
 
         assert screens[DASH].movable and not screens[DASH].resizable
         assert screens[PANEL].pressable and not screens[PANEL].movable
+
+
+def _a_satellite(side: str, *, hud: bool = False):
+    placement = DEFAULT_LAYOUT[side]
+    return SimpleNamespace(
+        side=side, target=SimpleNamespace(ready=True, aspect=16 / 9),
+        screen=SimpleNamespace(placement=placement), hud_ready=hud,
+        hud_screen=SimpleNamespace(placement=attached_below(
+            placement, aspect=16 / 9, width_deg=20.0, hanging_aspect=6.0)),
+        hud_texture=SimpleNamespace(aspect=6.0),
+    )
+
+
+class TestWhatComesForwardTogether:
+    def _arranged(self, stacking, satellites, *, panel=None, dash=None, reference_up=False,
+                  wrapped=False):
+        dash = dash or SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
+                                       screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
+        reference = SimpleNamespace(
+            showing=reference_up, texture=SimpleNamespace(ready=True, aspect=1.7),
+            screen=SimpleNamespace(placement=_UNDER_THE_DASH))
+        return [screen.name for screen in stacking.arrange(_panes(
+            *_slot(wrapped=wrapped), satellites, panel or _a_panel(ready=False), dash, reference))]
+
+    def test_the_reference_comes_forward_as_part_of_the_dashboard(self):
+        stacking = Stacking()
+        dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=2.5),
+                               screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
+        stacking.take(PRIMARY)
+        stacking.take(REFERENCE)
+
+        assert self._arranged(stacking, [], dash=dash, reference_up=True) == [
+            PRIMARY, DASH, REFERENCE]
+
+    def test_a_satellites_hud_brings_its_picture_forward_with_it(self):
+        stacking = Stacking()
+        stacking.take(PRIMARY)
+        stacking.take(hud_screen_name(LANDSCAPE))
+
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE, hud=True)]) == [
+            PRIMARY, LANDSCAPE, hud_screen_name(LANDSCAPE)]
+
+    def test_the_console_comes_forward_with_the_main_player_it_hangs_under(self):
+        stacking = Stacking()
+        stacking.take(LANDSCAPE)
+        stacking.take(PRIMARY)
+
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], panel=_a_panel()) == [
+            LANDSCAPE, PRIMARY, PANEL]
+
+    def test_the_dashboard_brings_no_console_forward_while_a_video_wraps_the_viewer(self, tmp_path):
+        """The console hangs from it then, but what stands in front is the dashboard's
+        own business, the same as every other screen's."""
+        stacking = Stacking()
+        dash = _a_dash(tmp_path, wrapped=True, texture=SimpleNamespace(ready=True, aspect=2.5))
+        stacking.take(LANDSCAPE)
+        stacking.take(DASH)
+
+        assert self._arranged(stacking, [_a_satellite(LANDSCAPE)], panel=_a_panel(), dash=dash,
+                              wrapped=True) == [PRIMARY, PANEL, LANDSCAPE, DASH]
+
+
+class TestTheReferenceUnderTheDashboard:
+    """The hotkeys and voice reference as a part of the dashboard: it hangs from
+    it and goes wherever it goes, with no handles of its own."""
+
+    def _unit(self, tmp_path, *, carrying_the_console=False):
+        dash = SimpleNamespace(screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]),
+                               texture=SimpleNamespace(aspect=2.5),
+                               carrying_the_console=carrying_the_console)
+        panel = SimpleNamespace(
+            screen=SimpleNamespace(placement=Placement(0.0, 20.0, PANEL_WIDTH_DEG)),
+            texture=SimpleNamespace(aspect=1.2))
+        with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
+            unit = _ReferenceUnit(dash, panel, state_dir=tmp_path)
+        return unit, dash, panel
+
+    @staticmethod
+    def _placed(unit) -> Placement:
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
+        return unit.screen.placement
+
+    @staticmethod
+    def _meets(upper: Placement, upper_aspect: float, lower: Placement) -> bool:
+        above = surface_vertices(upper, aspect=upper_aspect)
+        below = surface_vertices(lower, aspect=_FakePanelTexture.aspect)
+        return below[:, 1].max() == pytest.approx(above[:, 1].min(), abs=1e-6)
+
+    def test_it_hangs_from_the_dashboard_wherever_the_dashboard_goes(self, tmp_path):
+        unit, dash, _panel = self._unit(tmp_path)
+
+        under = self._placed(unit)
+        dash.screen.placement = Placement(azimuth_deg=-40.0, elevation_deg=30.0, width_deg=40.0)
+        followed = self._placed(unit)
+
+        assert under.azimuth_deg == DEFAULT_LAYOUT[DASH].azimuth_deg
+        assert self._meets(DEFAULT_LAYOUT[DASH], 2.5, under)
+        assert followed.azimuth_deg == -40.0
+        assert self._meets(dash.screen.placement, 2.5, followed)
+        assert under.width_deg == followed.width_deg == REFERENCE_WIDTH_DEG
+
+    def test_it_hangs_below_the_console_while_the_console_hangs_from_the_dashboard(
+            self, tmp_path):
+        """A wrapped video leaves the console nowhere else to dock."""
+        unit, _dash, panel = self._unit(tmp_path, carrying_the_console=True)
+
+        placed = self._placed(unit)
+
+        assert placed.azimuth_deg == panel.screen.placement.azimuth_deg
+        assert self._meets(panel.screen.placement, 1.2, placed)
 
 
 class TestWhereTheDashboardHangs:

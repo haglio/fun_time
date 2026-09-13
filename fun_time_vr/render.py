@@ -328,9 +328,6 @@ class ScreenMesh:
 
 
 class SceneRenderer:
-    """Draws one eye's view: the immersive wrap or the primary screen, then
-    the satellite screens over it (painter's order keeps them on top)."""
-
     def __init__(self) -> None:
         self._quad_program = _compile_program(_QUAD_VERTEX_SHADER, _QUAD_FRAGMENT_SHADER)
         self._quad_view_proj = GL.glGetUniformLocation(self._quad_program, "view_proj")

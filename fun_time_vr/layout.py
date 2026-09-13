@@ -32,8 +32,6 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
     # Above the main player and clear of the console: a wide panel anywhere
     # lower covers a satellite.
     DASH: Placement(azimuth_deg=0.0, elevation_deg=52.0, width_deg=40.0),
-    # A table to read: dead ahead and wide, over the picture while it is up.
-    REFERENCE: Placement(azimuth_deg=0.0, elevation_deg=6.0, width_deg=54.0),
 }
 
 AZIMUTH_LIMIT_DEG = 150.0

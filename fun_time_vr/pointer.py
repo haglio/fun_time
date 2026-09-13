@@ -287,6 +287,7 @@ class Frame:
     moved: dict[str, Placement] = field(default_factory=dict)
     settled: bool = False
     events: tuple[PressEvent, ...] = ()
+    taken: str | None = None
 
 
 def _hover_at(point: SurfacePoint, screens: Sequence[Screen]) -> tuple[Screen, Hover] | None:
@@ -340,14 +341,15 @@ class Pointer:
         if under is None:
             return self._over_the_wrap(ray, point, screens, edge)
         screen, hover = under
+        taken = screen.name if edge == PRESS else None
         if edge == PRESS and hover.handle in (MOVE, RESIZE):
             self._grab = (screen, Grab(hover.handle, screen.placement, start=point,
                                        aspect=screen.aspect))
         elif edge == PRESS and screen.pressable:
             self._pressing = screen
-            return Frame(ray=ray, point=point, hover=hover,
+            return Frame(ray=ray, point=point, hover=hover, taken=taken,
                          events=(PressEvent(PRESS, screen.name, hover.u, hover.v),))
-        return Frame(ray=ray, point=point, hover=hover)
+        return Frame(ray=ray, point=point, hover=hover, taken=taken)
 
     def _over_the_wrap(self, ray: Ray, point: SurfacePoint | None,
                        screens: Sequence[Screen], edge: str | None) -> Frame:

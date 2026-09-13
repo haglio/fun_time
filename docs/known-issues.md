@@ -64,6 +64,10 @@
     composites beneath the satellites' quads; the pointer still works there,
     unseen. Off (the default, and the only mode the bundled runtime shows
     screens in) everything draws in one layer and the chrome sits on top.
+  - For the same reason a squeeze cannot bring a screen forward across that
+    split: with it on, the videos taken as quads stay in front of the console,
+    the dashboard and the reference, and the satellites in front of the main
+    player, whichever of them was taken hold of last.
 - Notes:
   - Recorded here rather than in module docstrings (2026-08-30, audit item 25):
     the same deferral was once written out in five places, free to drift apart,

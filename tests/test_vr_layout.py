@@ -17,7 +17,6 @@ from fun_time_vr.layout import (
     PANEL,
     PORTRAIT,
     PRIMARY,
-    REFERENCE,
     clamp_placement,
     clamp_width,
     read_layout,
@@ -59,8 +58,9 @@ class TestTheDefaults:
 
     def test_only_the_screens_a_controller_places_are_in_here(self):
         """The console is one of them now: a video that wraps the viewer leaves
-        no picture to dock it under, so a handle of its own places it there."""
-        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, PANEL, DASH, REFERENCE}
+        no picture to dock it under, so a handle of its own places it there.  The
+        reference is not: it hangs from the dashboard, wherever that was put."""
+        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, PANEL, DASH}
 
 
 class TestTheRememberedLayout:
