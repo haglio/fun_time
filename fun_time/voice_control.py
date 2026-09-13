@@ -9,6 +9,7 @@ import math
 import threading
 import time
 import wave
+from collections import deque
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -99,6 +100,9 @@ def has_partial_text(raw_json: str) -> bool:
     return bool(json.loads(raw_json).get("partial", "").strip())
 
 
+KEPT_BLOCKS = 8  # four seconds at the loop's half-second blocks
+
+
 class Utterance:
     """The speech vosk is currently decoding: when it began, and its audio.
 
@@ -107,18 +111,16 @@ class Utterance:
     back-date the utterance that follows it.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, *, kept_blocks: int = KEPT_BLOCKS) -> None:
         self._started_at: float | None = None
-        self._blocks: list[bytes] = []
+        self._blocks: deque[bytes] = deque(maxlen=kept_blocks - 1)
 
     def note_block(self, pcm: bytes, *, block_started_at: float, has_partial: bool) -> None:
+        self._blocks.append(pcm)
         if not has_partial:
             self._started_at = None
-            self._blocks.clear()
-            return
-        if self._started_at is None:
+        elif self._started_at is None:
             self._started_at = block_started_at
-        self._blocks.append(pcm)
 
     def take(self, *, final_block: bytes, fallback: float) -> tuple[float, bytes]:
         started_at, audio = self._started_at, b"".join(self._blocks) + final_block

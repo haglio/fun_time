@@ -78,13 +78,18 @@ class TestUtterance:
         assert utterance.take(final_block=b"b", fallback=2.5)[0] == 1.0
         assert utterance.take(final_block=b"c", fallback=9.0)[0] == 9.0
 
-    def test_take_returns_the_audio_since_the_utterance_began_with_its_final_block(self):
-        utterance = Utterance()
+    def test_take_returns_the_last_seconds_of_audio_ending_with_the_final_block(self):
+        """Vosk holds no partial for the first blocks of a short word, and none
+        at all for a word it finalizes from the block that carried it, so a clip
+        that began at the first partial held silence after the word.  The clip is
+        the last KEPT_BLOCKS blocks whatever the partials said."""
+        utterance = Utterance(kept_blocks=3)
         utterance.note_block(b"aa", block_started_at=1.0, has_partial=False)
-        utterance.note_block(b"bb", block_started_at=1.5, has_partial=True)
-        utterance.note_block(b"cc", block_started_at=2.0, has_partial=True)
-        assert utterance.take(final_block=b"dd", fallback=2.5) == (1.5, b"bbccdd")
-        assert utterance.take(final_block=b"ee", fallback=9.0) == (9.0, b"ee")
+        utterance.note_block(b"bb", block_started_at=1.5, has_partial=False)
+        utterance.note_block(b"cc", block_started_at=2.0, has_partial=False)
+        utterance.note_block(b"dd", block_started_at=2.5, has_partial=True)
+        assert utterance.take(final_block=b"ee", fallback=3.0) == (2.5, b"ccddee")
+        assert utterance.take(final_block=b"ff", fallback=9.0) == (9.0, b"ff")
 
 
 class TestAudioStall:
