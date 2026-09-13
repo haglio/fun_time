@@ -12,12 +12,13 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from player_core.modes import LengthMode
+
 from .discovery import discover_entries
 from .duration_cache import DurationCache
 from .library import (
     FULL,
     MIXED,
-    NONE,
     SHORTS,
     LibraryEntry,
     group_versions,
@@ -28,7 +29,6 @@ from .sidecar import read_version_group, read_video_type
 
 # The app starts unfiltered, which is what Fun Time's own playlist is.  The
 # toggle walks all three in this order and wraps.
-LENGTH_MODES = (MIXED, SHORTS, FULL, NONE)
 DEFAULT_MODE = MIXED
 
 # The one the T key never lands on: the toggle walks the three that play
@@ -37,7 +37,7 @@ DEFAULT_MODE = MIXED
 CYCLED_MODES = (MIXED, SHORTS, FULL)
 
 
-def next_length_mode(mode: str) -> str:
+def next_length_mode(mode: LengthMode | None) -> LengthMode:
     """The mode after *mode* in the cycle, wrapping; the default from anywhere
     outside it, so the toggle always lands on a real mode."""
     if mode not in CYCLED_MODES:
@@ -45,7 +45,7 @@ def next_length_mode(mode: str) -> str:
     return CYCLED_MODES[(CYCLED_MODES.index(mode) + 1) % len(CYCLED_MODES)]
 
 
-def length_mode_rebuilds(requested: str, current: str, *, in_compilation: bool) -> bool:
+def length_mode_rebuilds(requested: LengthMode, current: LengthMode | None, *, in_compilation: bool) -> bool:
     """Whether asking for *requested* while running *current* has work to do.
 
     Naming the mode already running asks for nothing, and the rebuild it would

@@ -15,16 +15,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .loop_controller import LoopController, LoopState
+from player_core.modes import LoopState
 
-# The word each state goes out as.  The main player publishes it in its status file and Fun
-# Time reads it there, so these three strings are an orchestrator contract and
-# the enum is this repo's own business.
-_PUBLISHED = {
-    LoopState.NORMAL: "normal",
-    LoopState.MARKING: "recording",
-    LoopState.LOOPING: "looping",
-}
+from .loop_controller import LoopController
 
 
 class SessionLoops:
@@ -50,7 +43,7 @@ class SessionLoops:
 
     @property
     def marking(self) -> bool:
-        return self._ctrl.state == LoopState.MARKING
+        return self._ctrl.state == LoopState.RECORDING
 
     @property
     def running(self) -> bool:
@@ -61,9 +54,8 @@ class SessionLoops:
         return self._ctrl.state == LoopState.NORMAL
 
     @property
-    def published_state(self) -> str:
-        """The state as the shared vocabulary: normal/recording/looping."""
-        return _PUBLISHED[self._ctrl.state]
+    def state(self) -> LoopState:
+        return self._ctrl.state
 
     @property
     def bounds(self) -> tuple[int, int] | None:

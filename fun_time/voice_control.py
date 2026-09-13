@@ -14,7 +14,7 @@ from pathlib import Path
 
 from player_core.file_channel import append_command
 
-from fun_time.command_dispatch import command_side
+from fun_time.command_dispatch import command_player
 from fun_time.event_log import (
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -33,7 +33,7 @@ from fun_time.voice_commands import (
 logger = logging.getLogger(__name__)
 
 
-def _source_for_command(command: str, active_side: int | None = None) -> str:
+def _source_for_command(command: str, active_player: int | None = None) -> str:
     """The event-log source a recognized command's confirmation flashes on.
 
     A command naming a player flashes over it; a bare one ("next" after
@@ -41,12 +41,12 @@ def _source_for_command(command: str, active_side: int | None = None) -> str:
     addressed -- and belongs over that player rather than the main one it would
     otherwise default to.  Everything else flashes on the main player.
     """
-    side = active_side if command.startswith("active_") else command_side(command)
+    player = active_player if command.startswith("active_") else command_player(command)
     return {
         1: SOURCE_MAIN,
         2: SOURCE_PORTRAIT,
         3: SOURCE_LANDSCAPE,
-    }.get(side, SOURCE_SYSTEM)
+    }.get(player, SOURCE_SYSTEM)
 
 
 # The player words a speaker can put in any command, and which window a notice
@@ -334,7 +334,7 @@ class VoiceController:
         self._suspended = threading.Event()
         # Which player a bare command reaches, asked of the dispatch loop as it
         # is spoken -- the two run in one process.
-        self.active_side: Callable[[], int | None] = lambda: None
+        self.active_player: Callable[[], int | None] = lambda: None
 
     @property
     def is_muted(self) -> bool:
@@ -407,7 +407,7 @@ class VoiceController:
                 notice(
                     logger,
                     friendly_voice(interp.phrase or interp.command),
-                    source=_source_for_command(interp.command, self.active_side()),
+                    source=_source_for_command(interp.command, self.active_player()),
                 )
         elif interp.refused_phrase:
             logger.info("Voice: heard %r but its confidence was under %.2f (peak %d)",

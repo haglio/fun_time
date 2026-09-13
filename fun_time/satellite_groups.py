@@ -47,7 +47,7 @@ def same_video(left: str, right: str) -> bool:
 
 def satellite_current(config: BridgeConfig, player: Player) -> str:
     """The video a satellite is showing now, read from its published status file."""
-    return read_satellite_status(config.side(player).status_file).video
+    return read_satellite_status(config.satellite(player).status_file).video
 
 
 def send_satellite(config: BridgeConfig, player: Player, verb: str) -> None:
@@ -56,7 +56,7 @@ def send_satellite(config: BridgeConfig, player: Player, verb: str) -> None:
     Appended rather than overwritten so a burst issued before the player next
     drains its file all survives, matching how the player reads them.
     """
-    append_command(config.side(player).cmd_file, verb)
+    append_command(config.satellite(player).cmd_file, verb)
 
 
 def play_video(config: BridgeConfig, player: Player, path: str) -> None:
@@ -75,9 +75,9 @@ def cancel_lock(player: Player, state: BridgeState, config: BridgeConfig) -> Bri
     ``UNLOCK`` verb restores end-of-file playlist advance.  A no-op when the side
     was not locked.
     """
-    if state.side(player).locked:
+    if state.satellite(player).locked:
         send_satellite(config, player, LOCK_OFF)
-    return state.with_side(player, locked=False)
+    return state.with_satellite(player, locked=False)
 
 
 def clear_side_grouping(state: BridgeState, player: Player) -> BridgeState:
@@ -85,12 +85,12 @@ def clear_side_grouping(state: BridgeState, player: Player) -> BridgeState:
     playlist was rebuilt or re-navigated, which drops both.  A no-op when neither
     was set.  The widen only ever means something in the context of the clip/loop
     it was taken around, so a rebuild that drops the loop drops the widen with it."""
-    return state.with_side(player, loop="", map_anchor="", widen_clip="")
+    return state.with_satellite(player, loop="", map_anchor="", widen_clip="")
 
 
 def _satellite_group_index(player: Player, config: BridgeConfig, current: str) -> GroupIndex:
     """The cached grouping index over a satellite's sources, fresh for *current*."""
-    sources = config.side(player).sources
+    sources = config.satellite(player).sources
     return cached_group_index(
         sources,
         paths_supplier=lambda: collect_video_files(sources),
@@ -224,7 +224,7 @@ def more_seeds(
     wide = {normalize_path_key(m) for m in widened_seed_items(index, current)} - {current_key}
     if wide <= exact:
         return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=logging.WARNING)]
-    state = state.with_side(player, widen_clip=current)
+    state = state.with_satellite(player, widen_clip=current)
     # Loop the pool that was just widened: the widen anchor now matches the clip on
     # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
     # where none was running and re-shapes one that was.  Its notices are dropped —
@@ -278,7 +278,7 @@ def _loop_items(
     index = _satellite_group_index(player, config, current)
     # Loop what the HUD is showing: if the seed row has been widened around this
     # very clip ("more seeds"), loop that wider pool, not just the exact family.
-    widened = axis == "seed" and same_video(state.side(player).widen_clip, current)
+    widened = axis == "seed" and same_video(state.satellite(player).widen_clip, current)
     gather = widened_seed_items if widened else (
         action_group_items if axis == "action" else seed_family_items
     )
@@ -301,7 +301,7 @@ def group_loop(
         # one video, they just mean "lock" then.  A lock is not a loop, so any
         # prior loop (and widened row) is dropped.
         send_satellite(config, player, LOCK_ON)
-        state = state.with_side(player, locked=True)
+        state = state.with_satellite(player, locked=True)
         state = clear_side_grouping(state, player)
         # Green: locking a clip puts it in the favorites, so it says so in the
         # color the favorites own.
@@ -314,15 +314,15 @@ def group_loop(
     # survives the reload, so the clip on screen is never restarted and only what
     # comes up next becomes the group, which then cycles by auto-advance.
     items = [current] + [m for m in items if normalize_path_key(m) != normalize_path_key(current)]
-    write_playlist_file(config.side(player).playlist_file, items)
+    write_playlist_file(config.satellite(player).playlist_file, items)
     send_satellite(config, player, RELOAD_PLAYLIST)
     message = f"Loop {Player(player).label}: {len(items)} {axis}s"
     logger.info(message)
-    state = state.with_side(player, loop=axis, map_anchor=current)
+    state = state.with_satellite(player, loop=axis, map_anchor=current)
     # Anchor the widen on the loop iff it is the loose family being looped, so the
     # HUD reads a running seed loop as widened exactly when it truly is — and a
     # plain exact-family loop drops any stale anchor.
-    state = state.with_side(player, widen_clip=current if widened else "")
+    state = state.with_satellite(player, widen_clip=current if widened else "")
     ops.append(WindowOp(op="notice", key=message, source=source))
     return state, ops
 
@@ -359,7 +359,7 @@ def loop_cycle(
         return state, []
     # Which loop the side is running — the flag the HUD lights its loop button
     # from, so the key and the HUD can never disagree.
-    running = state.side(player).loop
+    running = state.satellite(player).loop
     # An unknown flag (a hand-edited state file) reads as "not looping", so the
     # cycle starts over at its first axis rather than raising.
     start = _LOOP_CYCLE.index(running) + 1 if running in _LOOP_CYCLE else 0
@@ -371,7 +371,7 @@ def loop_cycle(
             continue  # nothing is looping, so the off step has nothing to switch off
         if len(_loop_items(player, axis, state, config, current)[0]) >= 2:
             return group_loop(player, axis, state, config, current)
-    if state.side(player).locked:
+    if state.satellite(player).locked:
         state = cancel_lock(player, state, config)
         return state, [WindowOp(op="notice", key="Unlocked", source=satellite_source(player))]
     # The lone-clip loop's own lock, so the press means exactly what "loop seeds"
@@ -395,8 +395,8 @@ def _browse_after(browse: list[str], current: str) -> list[str]:
 
 
 def is_single_video_loop(player: Player, state: BridgeState, config: BridgeConfig) -> bool:
-    return bool(state.side(player).loop) and (
-        read_satellite_status(config.side(player).status_file).playlist_length == 1)
+    return bool(state.satellite(player).loop) and (
+        read_satellite_status(config.satellite(player).status_file).playlist_length == 1)
 
 
 def no_loop(
@@ -411,12 +411,12 @@ def no_loop(
     restored browse still honors it.
     """
     current = satellite_current(config, player)
-    side = state.side(player)
+    satellite = state.satellite(player)
     browse = satellite_browse_paths(
-        query=side.filter,
-        f_mode_enabled=side.f_mode,
-        recent=side.latest,
-        sources=config.side(player).sources,
+        query=satellite.filter,
+        favorites_filter=satellite.favorites_filter,
+        recent=satellite.latest,
+        sources=config.satellite(player).sources,
         favs_file=config.favs_file,
         regen_metadata_root=config.regen_metadata_root,
     )
@@ -424,13 +424,13 @@ def no_loop(
     # browse is only reshaped when it actually has clips; otherwise the loop's
     # queue keeps playing and just the flag clears.
     if browse:
-        write_playlist_file(config.side(player).playlist_file, _browse_after(browse, current))
+        write_playlist_file(config.satellite(player).playlist_file, _browse_after(browse, current))
         send_satellite(config, player, RELOAD_PLAYLIST)
     # Only the loop itself goes.  The map anchor and any widened row stay, so the HUD
     # keeps hanging exactly where it was and switching a loop off takes away the lit
     # button and the rectangle and nothing else; the map lets go by itself once the
     # browse moves on past the group.
-    state = state.with_side(player, loop="")
+    state = state.with_satellite(player, loop="")
     return state, [WindowOp(op="notice", key="Loop off", source=satellite_source(player))]
 
 
@@ -470,7 +470,7 @@ def navigate_hud(
     if not current:
         return state, []
     index = _satellite_group_index(player, config, current)
-    anchor = state.side(player).nav_anchor
+    anchor = state.satellite(player).nav_anchor
     if anchor:
         seeds, actions = hud_map_cells(index, anchor)
         if locate_cell(current, anchor, seeds, actions) is None:
@@ -489,7 +489,7 @@ def navigate_hud(
     target_cell = navigate_cell(cell, direction, seed_count=len(seeds), action_count=len(actions))
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):
-        state = state.with_side(player, nav_anchor=anchor)
+        state = state.with_satellite(player, nav_anchor=anchor)
         return state, [WindowOp(op="notice", key="No clip that way", source=source, level=logging.WARNING)]
-    state = state.with_side(player, nav_anchor=root)
+    state = state.with_satellite(player, nav_anchor=root)
     return switch_to_video(player, target, state, config)

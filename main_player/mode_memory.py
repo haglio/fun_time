@@ -20,15 +20,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.file_channel import publish_whole
-
-from .library_source import LENGTH_MODES
+from player_core.modes import LengthMode, read_mode
 
 
 @dataclass(frozen=True)
 class RememberedMode:
     """What the main player was in when it last wrote itself down."""
 
-    length_mode: str = ""
+    length_mode: LengthMode | None = None
     compilation: str = ""
     video: str = ""
 
@@ -51,9 +50,8 @@ class ModeMemory:
         would be a label over a playlist built some other way.
         """
         fields = self._fields()
-        length_mode = fields.get("length_mode", "")
         self._written = RememberedMode(
-            length_mode=length_mode if length_mode in LENGTH_MODES else "",
+            length_mode=read_mode(LengthMode, fields.get("length_mode", ""), None),
             compilation=fields.get("compilation", ""),
             video=fields.get("video", ""),
         )
@@ -81,7 +79,7 @@ class ModeMemory:
             return
         publish_whole(
             self._path,
-            f"length_mode={mode.length_mode}\ncompilation={mode.compilation}\n"
+            f"length_mode={mode.length_mode or ''}\ncompilation={mode.compilation}\n"
             f"video={mode.video}\n")
 
     def _fields(self) -> dict[str, str]:

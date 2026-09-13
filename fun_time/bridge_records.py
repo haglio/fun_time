@@ -83,17 +83,17 @@ class BridgeConfig:
     regen_generate_video_url: str = RegenConfig.generate_video_url
     regen_generate_image_url: str = RegenConfig.generate_image_url
 
-    def side(self, player: Player) -> SideChannel:
+    def satellite(self, player: Player) -> SatelliteChannel:
         """Satellite *player*'s file quartet and sources."""
         if Player(player) is Player.PORTRAIT:
-            return SideChannel(
+            return SatelliteChannel(
                 cmd_file=self.portrait_cmd_file,
                 paused_file=self.portrait_paused_file,
                 status_file=self.portrait_status_file,
                 playlist_file=self.portrait_playlist_file,
                 sources=self.portrait_sources,
             )
-        return SideChannel(
+        return SatelliteChannel(
             cmd_file=self.landscape_cmd_file,
             paused_file=self.landscape_paused_file,
             status_file=self.landscape_status_file,
@@ -145,7 +145,7 @@ class BridgeConfig:
 
 
 @dataclass(frozen=True)
-class SideChannel:
+class SatelliteChannel:
     """One satellite's channel, by value: the file quartet it is driven and
     read through, and the sources its browse is built from."""
 

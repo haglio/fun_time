@@ -24,7 +24,7 @@ from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
     _MAIN_EQUIVALENTS,
     expand_both_command,
-    resolve_active_side_command,
+    resolve_active_player_command,
 )
 from tests.test_command_id_snapshot import (
     HUD_ONLY_COMMAND_IDS,
@@ -127,7 +127,7 @@ def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     residues: set[str] = set()
     for value in set(VOICE_COMMANDS.values()):
         for side in (1, 2, 3):
-            for command in expand_both_command(resolve_active_side_command(value, side)):
+            for command in expand_both_command(resolve_active_player_command(value, side)):
                 (residues if command.startswith("active_") else targets).add(command)
     return frozenset(targets), frozenset(residues)
 

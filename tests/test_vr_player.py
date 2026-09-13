@@ -20,6 +20,7 @@ import pytest
 from player_core.console import ConsoleModel
 from player_core.console_hud import ConsoleHud
 from player_core.drive_readout import DriveHud
+from player_core.modes import MainMode
 from player_core.playhead import (
     PlayheadHudPainter,
     clip_playhead,
@@ -237,13 +238,13 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
         side, manifest, lambda _name: 0, vr=vr, placement=DEFAULT_LAYOUT[side])
 
     commands = manifest.commands
-    assert unit.cmd_file == Path(commands.side_file(side, "cmd"))
-    assert unit.paused_file == Path(commands.side_file(side, "paused"))
-    assert unit.playlist_file == Path(commands.side_file(side, "playlist"))
+    assert unit.cmd_file == Path(commands.player_file(side, "cmd"))
+    assert unit.paused_file == Path(commands.player_file(side, "paused"))
+    assert unit.playlist_file == Path(commands.player_file(side, "playlist"))
     assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
-        commands.side_file(side, "status"))
+        commands.player_file(side, "status"))
     hud = faked_collaborators["HudOverlay"].call_args.kwargs
-    assert hud["hud_file"] == Path(commands.side_file(side, "hud"))
+    assert hud["hud_file"] == Path(commands.player_file(side, "hud"))
     assert hud["command_file"] == Path(commands.dashboard_cmd_file)
     # The HUD paints into a surface of its own, hanging under the picture, not
     # into the video through mpv as the desktop satellite's does.
@@ -495,7 +496,7 @@ class TestThePanelUnderThePointer:
         primary = SimpleNamespace(
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), position_ms=1_000.0, duration_ms=600_000.0,
-                volume=70, muted=False, seek_to=seeks.append, f_mode=False,
+                volume=70, muted=False, seek_to=seeks.append, scripted_filter=False,
                 speed=1.25, displayed=True, projection=projection,
             ),
             drive_gate=SimpleNamespace(readout=lambda published: published),
@@ -516,7 +517,7 @@ class TestThePanelUnderThePointer:
                 seek=seeks.append, scrub_duration_ms=1.0),
             role=SimpleNamespace(
                 console_hud=ConsoleHud(
-                    console=ConsoleModel(mode="video", broker=True, locked=False),
+                    console=ConsoleModel(main_mode=MainMode.VIDEO, broker=True, locked=False),
                     drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
                                    position=1000, advance_interval=10,
                                    waveform=tuple([0.5] * 80), trace_seconds=12.0),
@@ -547,7 +548,7 @@ class TestThePanelUnderThePointer:
         in the console's, which the announcement strip above pushes down -- and
         that strip is left off while the dashboard sits over the console."""
         (x, y, w, h), _button = next(
-            (rect, button) for rect, button in unit._painter.buttons if button.action == action)
+            (rect, button) for rect, button in unit._painter.buttons if button.command == action)
         return self._uv(unit, x + w // 2, y + h // 2 + strip)
 
     def _row_uv(self, unit, x: float, y: float) -> tuple[float, float]:
@@ -1202,7 +1203,7 @@ class TestTheMainSlotUnderThePointer:
         edge — and the console under them all — has to win the ray.  The console
         is pressed, never dragged: it rides on the main player now."""
         satellite = SimpleNamespace(
-            side=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
+            player=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
         )
         panel = _a_panel()

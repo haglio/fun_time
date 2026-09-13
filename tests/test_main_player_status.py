@@ -27,7 +27,7 @@ class TestStatusFields:
         assert fields["duration_ms"] == "60000"
         assert fields["has_funscript"] == "1"
         assert fields["funscript_resting"] == "0"
-        assert fields["state"] == "normal"
+        assert fields["loop_state"] == "normal"
         assert fields["paused"] == "0"
         assert fields["locked"] == "1"
 
@@ -40,7 +40,7 @@ class TestStatusFields:
         # said ten and nothing noticed.
         assert list(status_fields(StubSession(), None)) == [
             "video", "position_ms", "duration_ms", "paused", "locked",
-            "has_funscript", "funscript_resting", "state",
+            "has_funscript", "funscript_resting", "loop_state",
             "loop_in_ms", "loop_out_ms", "handoff_touch_ms",
         ]
 
@@ -97,7 +97,7 @@ class TestStatusFields:
         assert fields["has_funscript"] == "0"
         assert fields["funscript_resting"] == "1"
         assert fields["paused"] == "1"
-        assert fields["state"] == "recording"
+        assert fields["loop_state"] == "recording"
         assert fields["locked"] == "0"
 
     def test_playhead_is_truncated_to_whole_milliseconds(self):

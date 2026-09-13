@@ -52,7 +52,7 @@ def _publish_main_player(path: Path, video, *, position_ms: int, duration_ms: in
     """The main player's status file, the way main_player/status.py writes it."""
     path.write_text(
         f"video={video}\nposition_ms={position_ms}\nduration_ms={duration_ms}\n"
-        f"state=normal\npaused={'1' if paused else '0'}\n",
+        f"loop_state=normal\npaused={'1' if paused else '0'}\n",
         encoding="utf-8",
     )
 

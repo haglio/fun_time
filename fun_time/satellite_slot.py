@@ -1,6 +1,6 @@
 """One satellite's launch bundle — built once where the manifest is read and
 passed whole down the startup chain, instead of as flat portrait_/landscape_
-parameter pairs at every level.  :func:`for_side` refuses a swapped slot."""
+parameter pairs at every level.  :func:`for_player` refuses a swapped slot."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -12,7 +12,7 @@ from .window_layout import WindowRect
 
 @dataclass(frozen=True)
 class SatelliteSlot:
-    side: Player
+    player: Player
     sources: str
     cmd_file: str | Path
     paused_file: str | Path
@@ -23,8 +23,8 @@ class SatelliteSlot:
     hud_file: str | Path | None = None
 
 
-def for_side(slot: SatelliteSlot, side: Player) -> SatelliteSlot:
-    """*slot*, after refusing one that belongs to the other side."""
-    if slot.side is not side:
-        raise ValueError(f"a {slot.side.label} slot was handed to {side.label}")
+def for_player(slot: SatelliteSlot, player: Player) -> SatelliteSlot:
+    """*slot*, after refusing one that belongs to the other player."""
+    if slot.player is not player:
+        raise ValueError(f"a {slot.player.label} slot was handed to {player.label}")
     return slot

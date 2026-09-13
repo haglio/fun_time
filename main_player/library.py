@@ -16,6 +16,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.modes import LengthMode
+
 from .video_kind import EXCERPT, FULL_LENGTH, GENAU_CLIP, SHORT
 
 # Tunable heuristic: tokens dropped anywhere in a title because they mark a
@@ -328,13 +330,13 @@ SHORT_MAX_S = 10.0
 # The three length modes.  MIXED applies no length filter at all — it is what a
 # playlist looks like before anyone asks for a length, and so what the player
 # opens in; FULL and SHORTS are the two halves it splits into.
-MIXED = "mixed"
-FULL = "full"
-SHORTS = "shorts"
+MIXED = LengthMode.MIXED
+FULL = LengthMode.FULL
+SHORTS = LengthMode.SHORTS
 # Neither length: a browse with nothing in it.  Degenerate, and the console
 # offers it anyway rather than refusing the press -- what happens is that the
 # video on screen is held, which is a state you can see and undo.
-NONE = "none"
+NONE = LengthMode.NONE
 
 # Which kinds each of the two filtering modes plays.  A delivered loop and a
 # scene carved out of a longer one are shorts however long they run: the loop

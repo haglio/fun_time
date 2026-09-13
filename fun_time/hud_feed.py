@@ -13,7 +13,7 @@ from player_core.console import console_text
 
 from .bridge_records import BridgeConfig
 from .hud_transport import HudPublisher
-from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
+from .lock_hud import SatelliteInputs, build_panels, origenerator_mode_panel
 from .main_player_console import console_model
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
@@ -68,18 +68,18 @@ class HudFeed:
             return
         favs = self._favs_content()
 
-        def side(name: str, player: Player, *, sources: str, status_file: Path) -> SideInputs:
+        def satellite(name: str, player: Player, *, sources: str, status_file: Path) -> SatelliteInputs:
             current = self._satellite_clip(name, status_file)
-            values = state.side(player)
-            return SideInputs(
-                side=name, sources=sources, current=current, locked=values.locked,
+            values = state.satellite(player)
+            return SatelliteInputs(
+                player=name, sources=sources, current=current, locked=values.locked,
                 filter_query=values.filter,
                 loop_axis=values.loop,
                 map_anchor=values.map_anchor,
                 widen_clip=values.widen_clip,
                 nav_anchor=values.nav_anchor,
                 latest=values.latest,
-                f_mode=values.f_mode,
+                favorites_filter=values.favorites_filter,
                 is_favorite=is_favorite_path(current, favs),
             )
 
@@ -87,21 +87,21 @@ class HudFeed:
             # A clip map here would be thumbnails of videos nobody is being
             # shown; the sides say the mode instead (status + the mode row home).
             portrait = origenerator_mode_panel(
-                "portrait", active=Player.label_of(state.active_side) == "portrait")
+                "portrait", active=Player.label_of(state.active_player) == "portrait")
             landscape = origenerator_mode_panel(
-                "landscape", active=Player.label_of(state.active_side) == "landscape")
+                "landscape", active=Player.label_of(state.active_player) == "landscape")
         else:
             portrait, landscape = build_panels(
-                side("portrait", 2, sources=self.config.portrait_sources,
+                satellite("portrait", 2, sources=self.config.portrait_sources,
                      status_file=self.config.portrait_status_file),
-                side("landscape", 3, sources=self.config.landscape_sources,
+                satellite("landscape", 3, sources=self.config.landscape_sources,
                      status_file=self.config.landscape_status_file),
                 metadata_root=self.config.regen_metadata_root,
-                active_side=Player.label_of(state.active_side),
-                # "" for a session hosting no Origenerator — the HUDs then draw no
-                # mode pair at all, rather than a switch that can only dead-end.
+                active_player=Player.label_of(state.active_player),
+                # None for a session hosting no Origenerator — the HUDs then draw
+                # no mode pair at all, rather than a switch that can only dead-end.
                 satellites_mode=(state.satellites_mode
-                                 if self.config.origenerator_enabled else ""),
+                                 if self.config.origenerator_enabled else None),
             )
         self.publisher.publish("portrait", portrait)
         self.publisher.publish("landscape", landscape)
@@ -112,9 +112,9 @@ class HudFeed:
         main_player = read_main_player_status(self.config.main_player_status_file)
         shapes_offered = bool(source_roots(self.config.vr_library_dirs))
         self.publisher.publish_text("main_player", console_text(console_model(
-            mode=state.main_mode,
-            active=state.active_side == Player.MAIN,
-            f_mode=state.main_f_mode,
+            main_mode=state.main_mode,
+            active=state.active_player == Player.MAIN,
+            scripted_filter=state.main_scripted_filter,
             latest=state.main_latest,
             genau_latest=state.genau_latest,
             # None where the rotation holds one shape: the pair is the headset's.
@@ -129,7 +129,7 @@ class HudFeed:
             # can show whether the video is being held.  Both come back off the main player's
             # own status file, because in genau mode the player drawing that
             # console has neither to ask.
-            record=main_player.state,
+            loop_state=main_player.loop_state,
             main_player_locked=main_player.locked,
             genau=read_genau_status(genau_status_path(self.config.state_dir)),
         )))

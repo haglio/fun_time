@@ -20,7 +20,7 @@ def panel(tmp_path: Path) -> Path:
     Image.new("RGB", (40, 60), (90, 90, 90)).save(thumb)
     path = tmp_path / "portrait_hud.json"
     path.write_text(json.dumps({
-        "side": "portrait", "locked": False, "lock_label": "Unlocked",
+        "player": "portrait", "locked": False, "lock_label": "Unlocked",
         "current_action": "alpha",
         "corner": {"path": "C:/v/cur.mp4", "thumb": str(thumb)},
         "seeds": [{"path": "C:/v/s1.mp4", "thumb": str(thumb)}],
@@ -246,7 +246,7 @@ def test_pressing_the_lit_filter_button_lifts_the_filter(tmp_path: Path, panel: 
     button it lit."""
     player = FakeSatellitePlayer()
     panel.write_text(panel.read_text(encoding="utf-8").replace(
-        '"side": "portrait"', '"side": "portrait", "filter_query": "alpha"'), encoding="utf-8")
+        '"player": "portrait"', '"player": "portrait", "filter_query": "alpha"'), encoding="utf-8")
     overlay = _overlay(tmp_path, panel, player)
     overlay.tick()
 
@@ -278,7 +278,7 @@ def test_the_published_loop_state_wins_over_the_optimistic_one(tmp_path: Path, p
     assert overlay.active_loop == "seed"
 
     panel.write_text(panel.read_text(encoding="utf-8").replace(
-        '"side": "portrait"', '"side": "portrait", "active_loop": ""'), encoding="utf-8")
+        '"player": "portrait"', '"player": "portrait", "active_loop": ""'), encoding="utf-8")
     overlay.tick()
 
     assert overlay.active_loop == ""
@@ -296,8 +296,8 @@ def test_display_suppressed_follows_the_published_satellites_mode(
     assert overlay.display_suppressed is False  # no satellites_mode published
 
     panel.write_text(panel.read_text(encoding="utf-8").replace(
-        '"side": "portrait"',
-        '"side": "portrait", "satellites_mode": "origenerator"'), encoding="utf-8")
+        '"player": "portrait"',
+        '"player": "portrait", "satellites_mode": "origenerator"'), encoding="utf-8")
     overlay.tick()
     assert overlay.display_suppressed is True
 

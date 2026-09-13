@@ -21,10 +21,10 @@ from .players import Player
 WINDOWS_BRIDGE_MANIFEST_FILENAME = "windows_bridge_launch.ini"
 
 
-def _side_files(config) -> dict[str, str]:
+def _satellite_files(config) -> dict[str, str]:
     """Both satellites' channel files, under the keys the manifest always used."""
     return {
-        f"{player.label}_{name}": str(getattr(config.side(player), name))
+        f"{player.label}_{name}": str(getattr(config.satellite(player), name))
         for player in Player.SATELLITES
         for name in ("cmd_file", "paused_file", "status_file", "playlist_file", "hud_file")
     }
@@ -84,7 +84,7 @@ def build_windows_bridge_manifest(
             "main_player_status_file": str(config.main_player_status_file),
             "main_player_console_file": str(main_player_console_path(config.paths.state_dir)),
             "main_player_playlist_file": str(config.main_player_playlist_file),
-            **_side_files(config),
+            **_satellite_files(config),
             "broker_cmd_file": str(config.broker_cmd_file),
             "broker_heartbeat_file": str(config.broker_heartbeat_file),
             # The broker's own directory, so a child needing a broker file not
@@ -246,12 +246,12 @@ class CommandFiles:
     origenerator_cmd_file: str = ""
     origenerator_paused_file: str = ""
 
-    def side_file(self, side: str, kind: str) -> str:
+    def player_file(self, player: str, kind: str) -> str:
         """One satellite side's file of a given kind, asked for by side rather
-        than spelled out — ``side_file("portrait", "hud")`` is
+        than spelled out — ``player_file("portrait", "hud")`` is
         ``portrait_hud_file``.  Both the HUD publisher and the VR player build
         their sides in a loop and have nowhere to write the key by hand."""
-        return getattr(self, f"{side}_{kind}_file")
+        return getattr(self, f"{player}_{kind}_file")
 
 
 @dataclass(frozen=True)

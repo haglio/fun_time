@@ -133,7 +133,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         encoding="utf-8",
     )
     for side in ("main_player", "portrait", "landscape"):
-        Path(commands.side_file(side, "paused")).write_text("0", encoding="utf-8")
+        Path(commands.player_file(side, "paused")).write_text("0", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
     glfw.window_hint(glfw.VISIBLE, glfw.FALSE)

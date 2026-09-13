@@ -593,7 +593,7 @@ class _MainUnit(_VideoUnit):
 
 class _SatelliteUnit(_VideoUnit):
     def __init__(
-        self, side: str, manifest: LaunchManifest, get_proc_address, *,
+        self, player: str, manifest: LaunchManifest, get_proc_address, *,
         vr: VrSettings, placement: Placement, notices=None,
     ) -> None:
         # Muted, and on the default sink until the headset is worn, for the reason
@@ -606,25 +606,25 @@ class _SatelliteUnit(_VideoUnit):
             placement,
         )
         commands = manifest.commands
-        self.side = side
-        self.notice_screen = side  # its notices flash over its own picture
+        self.player = player
+        self.notice_screen = player  # its notices flash over its own picture
         self._notices = notices
-        self.cmd_file = Path(commands.side_file(side, "cmd"))
-        self.paused_file = Path(commands.side_file(side, "paused"))
-        self.playlist_file = Path(commands.side_file(side, "playlist"))
+        self.cmd_file = Path(commands.player_file(player, "cmd"))
+        self.paused_file = Path(commands.player_file(player, "paused"))
+        self.playlist_file = Path(commands.player_file(player, "playlist"))
         self.session = SatelliteSession(
             self._read_playlist(),
             player=self.player,
             start_paused=read_paused_state(self.paused_file, logger=logger),
         )
         self._status_writer = StatusWriter(
-            Path(commands.side_file(side, "status")), satellite_status_fields
+            Path(commands.player_file(player, "status")), satellite_status_fields
         )
         self._controls = SatelliteControls(
             session=self.session, reload_playlist=self._reload_playlist)
         self.hud_surface = HudSurface()
         self.hud = HudOverlay(
-            hud_file=Path(commands.side_file(side, "hud")),
+            hud_file=Path(commands.player_file(player, "hud")),
             command_file=Path(commands.dashboard_cmd_file),
             player=self.hud_surface,
         )
@@ -635,7 +635,7 @@ class _SatelliteUnit(_VideoUnit):
         self.volume = SatelliteVolume(self.player)
         self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
-        self._presses = _Presses(side, hud_screen_name(side))
+        self._presses = _Presses(player, hud_screen_name(player))
         self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
         self._pointer = SatellitePointer(
             hud=self.hud, seek=self.session.seek_to,
@@ -985,7 +985,7 @@ class _PanelUnit:
             clip_title=clip.stem if clip is not None else "",
             loading=genau.loading,
             drive_gate=self._primary.drive_gate,
-            f_mode=main.f_mode,
+            scripted_filter=main.scripted_filter,
             playback_speed=main.speed,
         )
         hovered = self._presses.hover
@@ -1339,8 +1339,8 @@ def main(argv: list[str] | None = None) -> int:
 
 
 def _unit_name(unit: object) -> str:
-    side = getattr(unit, "side", "")
-    return f"{type(unit).__name__}[{side}]" if side else type(unit).__name__
+    player = getattr(unit, "player", "")
+    return f"{type(unit).__name__}[{player}]" if player else type(unit).__name__
 
 
 class _PumpFaults:  # one unit's pump failing, said once, not seven times a second
@@ -1529,10 +1529,10 @@ def _pointable_screens(
     for unit in satellites:
         if not unit.target.ready:
             continue
-        screens.append(Screen(unit.side, unit.screen.placement, unit.target.aspect,
+        screens.append(Screen(unit.player, unit.screen.placement, unit.target.aspect,
                               movable=True, resizable=True, pressable=True))
         if unit.hud_ready:
-            screens.append(Screen(hud_screen_name(unit.side), unit.hud_screen.placement,
+            screens.append(Screen(hud_screen_name(unit.player), unit.hud_screen.placement,
                                   unit.hud_texture.aspect, pressable=True))
     if panel.texture.ready:  # pressed, never dragged: it rides on what is above it
         screens.append(Screen(
@@ -1599,7 +1599,7 @@ def _draw_eyes(
             elif PRIMARY in in_scene and primary.screen.ready:
                 renderer.draw_screen(primary.screen.mesh, primary.target.texture, view_proj32)
         for satellite in satellites:
-            if satellite.side in in_scene and satellite.target.ready and satellite.screen.ready:
+            if satellite.player in in_scene and satellite.target.ready and satellite.screen.ready:
                 renderer.draw_screen(
                     satellite.screen.mesh, satellite.target.texture, view_proj32)
         for satellite in satellites:
@@ -1751,9 +1751,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     genau = _GenauUnit(manifest, vr, stop, placement=layout[PRIMARY])
     _present_the_cover(session, renderer, cover)
     satellites = [
-        _SatelliteUnit(side, manifest, get_proc_address, vr=vr, placement=layout[side],
+        _SatelliteUnit(player, manifest, get_proc_address, vr=vr, placement=layout[player],
                        notices=notices)
-        for side in (PORTRAIT, LANDSCAPE)
+        for player in (PORTRAIT, LANDSCAPE)
     ]
     _present_the_cover(session, renderer, cover)
     dash = _DashUnit(
@@ -1775,7 +1775,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     cover_seen = CoverSeen()
     units = [primary, genau, *satellites, dash, panel, reference, cover]  # dash first:
     pumped = [notices, *units, keeper]  # the console hangs off where it ended up
-    hanging = {unit.side: (unit.screen,) for unit in satellites} | {
+    hanging = {unit.player: (unit.screen,) for unit in satellites} | {
         PRIMARY: (primary.screen, genau.screen), DASH: (dash,),
         REFERENCE: (reference.screen,)}
     pointer = Pointer()
@@ -1904,7 +1904,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         )
                         if quad is not None:
                             quads.append(quad)
-                            in_scene.discard(PRIMARY if unit is primary else unit.side)
+                            in_scene.discard(PRIMARY if unit is primary else unit.player)
                 project = True  # the panel lives in the projection layer
                 t3 = time.perf_counter()
                 _draw_eyes(

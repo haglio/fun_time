@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.console import ConsoleModel
+from player_core.modes import LoopState, MainMode, Osr2State
 
 from .mode_plan import main_player_displays
 from .player_status import GenauStatus
@@ -23,13 +24,9 @@ MAIN_PLAYER_CONSOLE_FILENAME = "main_player_console.json"
 # *driving* right now — not merely present, so a scripted video's quiet stretch,
 # where the Robot Hand fills in, reads as the hand rather than as its funscript,
 # and not merely loaded, so a main player paused off screen in genau mode drives nothing.
-OSR2_OFF = "off"
-OSR2_AUTO = "auto"
-OSR2_FUNSCRIPT = "funscript"
-OSR2_ROBOT_HAND = "robot_hand"
 
 
-def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
+def osr2_state(*, main_mode: MainMode, osr2_mode: str, funscript_driving: bool) -> Osr2State:
     """Which of the OSR2 states has the device, for the console to badge.
 
     Only a main player that is *on screen* can be driving: ``funscript_driving`` is read
@@ -41,25 +38,25 @@ def osr2_state(*, mode: str, osr2_mode: str, funscript_driving: bool) -> str:
     draggable band on the drive readout went dead.
     """
     if osr2_mode == "off":
-        return OSR2_OFF
+        return Osr2State.OFF
     if osr2_mode == "auto":
-        return OSR2_AUTO
-    if funscript_driving and main_player_displays(mode):
-        return OSR2_FUNSCRIPT
-    return OSR2_ROBOT_HAND
+        return Osr2State.AUTO
+    if funscript_driving and main_player_displays(main_mode):
+        return Osr2State.FUNSCRIPT
+    return Osr2State.ROBOT_HAND
 
 
 def console_model(
     *,
-    mode: str,
+    main_mode: MainMode,
     active: bool,
     osr2_mode: str,
     funscript_driving: bool,
     broker: bool,
-    record: str = "normal",
+    loop_state: LoopState = LoopState.NORMAL,
     main_player_locked: bool = True,
     genau: GenauStatus,
-    f_mode: bool = False,
+    scripted_filter: bool = False,
     latest: bool = False,
     genau_latest: bool = False,
     plays_vr: bool | None = None,
@@ -71,7 +68,7 @@ def console_model(
     limits) travel on the separate drive file Genau publishes; this carries the
     room around them.
 
-    *record* is the main player's own loop machine (normal / recording / looping), and rides
+    *loop_state* is the main player's own loop machine, and rides
     here because the console is drawn in genau mode too, by a player with no loop
     machine to ask — and because the main player already tells us in its status file.
 
@@ -85,11 +82,11 @@ def console_model(
     The browse order is one flag for one slot in the same way, and resolved the
     same way: *latest* is the main player's playlist order, *genau_latest* the order Genau
     last rescanned its clips folder in, and the mode says which of them the
-    console is describing.  Published for the same reason ``f_mode`` is — the
+    console is describing.  Published for the same reason ``scripted_filter`` is — the
     order is the orchestrator's, set by a spoken word or a key it owns, and
     neither player can tell which way round the browse it is walking was built.
 
-    ``f_mode`` is the main player's own F-mode.  The main player is told the flag directly too
+    ``scripted_filter`` is the main player's own F-mode.  The main player is told the flag directly too
     (``SET_F_MODE``, for its status line), but the console's button has to light
     off what the orchestrator holds, exactly as the satellites' do: the flag is
     set from three places at once and only one of them is the player.
@@ -98,18 +95,18 @@ def console_model(
     answer: None where the rotation holds one shape, which draws no pair at all.
     """
     return ConsoleModel(
-        mode=mode,
+        main_mode=main_mode,
         active=active,
-        f_mode=f_mode,
-        latest=latest if main_player_displays(mode) else genau_latest,
-        osr2=osr2_state(mode=mode, osr2_mode=osr2_mode,
+        scripted_filter=scripted_filter,
+        latest=latest if main_player_displays(main_mode) else genau_latest,
+        osr2=osr2_state(main_mode=main_mode, osr2_mode=osr2_mode,
                         funscript_driving=funscript_driving),
         broker=broker,
-        record=record,
+        loop_state=loop_state,
         # The hold of whichever player owns the slot, bounced back off its status
         # file: the console draws the padlock, and the player drawing that console
         # is not always the player it is about.
-        locked=main_player_locked if main_player_displays(mode) else genau.locked,
+        locked=main_player_locked if main_player_displays(main_mode) else genau.locked,
         cruise=genau.cruise_active,
         shape=genau.shape,
         plays_vr=plays_vr,

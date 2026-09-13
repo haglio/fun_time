@@ -21,6 +21,7 @@ import time
 from pathlib import Path
 
 import pytest
+from player_core.modes import MainMode
 
 from fun_time.event_log import event_log_path
 from fun_time.shared_state import (
@@ -280,7 +281,7 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         dashboard_pid=0,
         genau_pid=pids["genau_pid"],
         audio_pid=0,
-        main_mode="video",
+        main_mode=MainMode.VIDEO,
     ))
 
     assert is_window_topmost(portrait)

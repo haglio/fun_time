@@ -248,11 +248,11 @@ def _end_compilation(controls: MainPlayerControls, _value: str) -> bool:
     return True
 
 
-def _set_f_mode(controls: MainPlayerControls, value: str) -> bool:
+def _set_scripted_filter(controls: MainPlayerControls, value: str) -> bool:
     """F-mode narrows the playlist Fun Time writes to the scripted videos.  The main player
     receives the result and cannot tell it from any other playlist, so the flag
     has to be said outright for the HUD to be able to show it."""
-    controls.modes.set_f_mode(value != "0")
+    controls.modes.set_scripted_filter(value != "0")
     return True
 
 
@@ -376,7 +376,7 @@ CONTROLS: tuple[Control, ...] = (
     Control(
         name="f_mode",
         needs=("modes",),
-        verbs=(Verb(SET_F_MODE, _set_f_mode, takes_a_value=True),),
+        verbs=(Verb(SET_F_MODE, _set_scripted_filter, takes_a_value=True),),
     ),
     Control(
         name="compilation",

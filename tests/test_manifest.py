@@ -187,9 +187,9 @@ class TestReadingItBack:
             write_windows_bridge_manifest(
                 cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)).commands
 
-        assert commands.side_file("portrait", "hud") == commands.portrait_hud_file
-        assert commands.side_file("landscape", "cmd") == commands.landscape_cmd_file
-        assert commands.side_file("portrait", "playlist") == commands.portrait_playlist_file
+        assert commands.player_file("portrait", "hud") == commands.portrait_hud_file
+        assert commands.player_file("landscape", "cmd") == commands.landscape_cmd_file
+        assert commands.player_file("portrait", "playlist") == commands.portrait_playlist_file
 
     def test_a_missing_key_names_the_key_and_the_file(self, cfg_path, tmp_path):
         """The interesting question when this happens is always WHICH manifest

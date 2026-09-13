@@ -7,6 +7,7 @@ those decisions into textures.
 from __future__ import annotations
 
 import numpy as np
+from player_core.modes import LoopState
 
 # The scrubber and its frame are the shared engine's now, so every player draws
 # the same one; the funscript heatmap below is the main player's own, built on that frame.
@@ -107,11 +108,11 @@ class HeatmapStrip:
         duration_ms: float,
         width: int,
         *,
-        loop_state: str = "normal",
+        loop_state: LoopState = LoopState.NORMAL,
         record_in_ms: float | None = None,
         position_ms: float = 0.0,
     ) -> None:
-        if loop_state == "recording" and funscript is not None:
+        if loop_state is LoopState.RECORDING and funscript is not None:
             if self._zoom is None:
                 self._zoom = ZoomWindow(in_ms=record_in_ms)
             self._zoom.update(position_ms)
@@ -162,8 +163,8 @@ class LoopThumbCapture:
         self.in_thumb = None
         self.out_thumb = None
 
-    def needed(self, loop_state: str, loop_bounds, position_ms: float) -> str | None:
-        if loop_state != "looping" or loop_bounds is None:
+    def needed(self, loop_state: LoopState, loop_bounds, position_ms: float) -> str | None:
+        if loop_state is not LoopState.LOOPING or loop_bounds is None:
             self._bounds = None
             self.in_thumb = None
             self.out_thumb = None

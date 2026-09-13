@@ -15,6 +15,7 @@ from pathlib import Path
 
 from app_support import state_files
 from player_core.file_channel import append_command
+from player_core.modes import MainMode
 
 from .config import LayoutConfig
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
@@ -99,7 +100,7 @@ class StartupResult:
     # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
-    main_mode: str = STARTUP_MAIN_MODE
+    main_mode: MainMode = STARTUP_MAIN_MODE
     # The satellite side's resumed mode, for the same reason: a session that
     # opens in origenerator mode needs its hosted window restored under the
     # overlay and banded by the post-overlay pass, not popped up after the
@@ -247,7 +248,7 @@ class _LaunchedChildren:
     rfb_hwnd: int = 0
 
 
-def release_the_players(m: LaunchManifest, main_mode: str) -> None:
+def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
     """Start the players the session's mode puts to work.
 
     Startup holds every one of them so nothing plays into a room that is still
@@ -332,7 +333,7 @@ class _Layout:
 class _CoreSession:
     """The children phase 1 leaves, and the modes it resumed into."""
 
-    main_mode: str
+    main_mode: MainMode
     satellites_mode: str
     portrait_pid: int
     landscape_pid: int
@@ -383,7 +384,7 @@ def _launch_the_satellites(
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Each satellite's whole launch bundle, built once where the manifest is read.
     portrait_slot = SatelliteSlot(
-        side=Player.PORTRAIT,
+        player=Player.PORTRAIT,
         sources=m.media.portrait_dirs,
         cmd_file=m.commands.portrait_cmd_file,
         paused_file=m.commands.portrait_paused_file,
@@ -394,7 +395,7 @@ def _launch_the_satellites(
         hud_file=m.commands.portrait_hud_file,
     )
     landscape_slot = SatelliteSlot(
-        side=Player.LANDSCAPE,
+        player=Player.LANDSCAPE,
         sources=m.media.landscape_dirs,
         cmd_file=m.commands.landscape_cmd_file,
         paused_file=m.commands.landscape_paused_file,
@@ -655,7 +656,7 @@ def _launch_core_media(
 _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
-def _position_windows_now(plan: WindowLayoutPlan, main_mode: str, *,
+def _position_windows_now(plan: WindowLayoutPlan, main_mode: MainMode, *,
                           env: SessionEnvironment) -> dict[str, int]:
     """Phase 2, on the path with no cover: place and band every window at once.
 
@@ -793,7 +794,7 @@ def _hold_the_cover_for_the_hosted_app(
 def _place_and_park_under_the_cover(
     *,
     plan: WindowLayoutPlan,
-    main_mode: str,
+    main_mode: MainMode,
     portrait_hwnd: int,
     landscape_hwnd: int,
     rfb_hwnd: int,

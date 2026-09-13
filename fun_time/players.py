@@ -1,7 +1,7 @@
 """The three players, as one identity.
 
 The dispatcher counts players in slots (1=main, 2=portrait, 3=landscape);
-everything that *draws* them names them.  An IntEnum so ``active_side`` keeps
+everything that *draws* them names them.  An IntEnum so ``active_player`` keeps
 its INI wire value (``str(Player.PORTRAIT)`` is ``"2"``) and int-keyed tables
 keep working, with :attr:`label` as the one crossing to the drawing names."""
 from __future__ import annotations

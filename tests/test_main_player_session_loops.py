@@ -8,6 +8,7 @@ the device taken back whenever a loop moves the clock.
 from __future__ import annotations
 
 from player_core.funscript import Funscript
+from player_core.modes import LoopState
 
 from main_player.session_loops import SessionLoops
 
@@ -51,7 +52,7 @@ class TestOpeningAVideo:
     def test_it_starts_idle_with_no_range_on_the_player(self):
         loops, player, _seeks, _takeovers = _loops()
 
-        assert (loops.idle, loops.published_state) == (True, "normal")
+        assert (loops.idle, loops.state) == (True, LoopState.NORMAL)
         assert player.ab_loop is None
 
     def test_it_clears_a_range_the_last_video_left_running(self):
@@ -69,11 +70,11 @@ class TestTheRecordGesture:
         loops, player, seeks, _takeovers = _loops()
 
         loops.record_down(2500)
-        assert loops.published_state == "recording"
+        assert loops.state is LoopState.RECORDING
 
         loops.record_up(3500)
 
-        assert loops.published_state == "looping"
+        assert loops.state is LoopState.LOOPING
         assert player.ab_loop == (2000, 4000)
         assert seeks[-1] == 2000, "the playhead lands on the loop's start"
 
@@ -141,7 +142,7 @@ class TestPuttingALoopBack:
 
         loops.restore(2000, 4000)
 
-        assert loops.published_state == "looping"
+        assert loops.state is LoopState.LOOPING
         assert (loops.bounds, player.ab_loop, seeks[-1]) == (
             (2000, 4000), (2000, 4000), 2000)
 
