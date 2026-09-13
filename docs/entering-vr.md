@@ -183,10 +183,14 @@ held up to forty seconds for it to answer. A crossing used to pay that twice,
 because the desktop session closed it on the way out and the session coming
 back launched a new one — no faster the second time, it being a fresh boot.
 
-So a crossing keeps it. The teardown minimizes its window and records
-`(pid, created_at)` in `origenerator_kept.txt` instead of closing it, leaves it
-out of the kill sweep, and the arriving session adopts it: its window is
-restored under the cover with every other window, and only the boot is skipped.
+So a crossing keeps it. The teardown sends `CLOSE_SHOWS`, hides its window and
+records `(pid, created_at)` in `origenerator_kept.txt` instead of closing it,
+leaves it out of the kill sweep, and the arriving session adopts it: its window
+is restored under the cover with every other window, and only the boot is
+skipped. The shows have to be closed on the way out because they are windows of
+their own: hiding the main window alone left both of them up over the monitors
+for the whole stay in the headset. A session that comes back in origenerator
+mode opens them again, as it does at any startup.
 Identity is the pair and never the pid alone, because Windows hands freed pids
 straight back out.
 

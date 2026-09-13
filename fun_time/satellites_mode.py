@@ -18,6 +18,9 @@ from __future__ import annotations
 VIDEO_MODE = "video"
 ORIGENERATOR_MODE = "origenerator"
 
+OPEN_SHOWS = "OPEN_SHOWS"
+CLOSE_SHOWS = "CLOSE_SHOWS"
+
 # The mode every session is BUILT in (mirroring mode_plan.STARTUP_MAIN_MODE):
 # the satellites launch as players, and a session resuming into origenerator
 # mode is seeded as a switch out of here.

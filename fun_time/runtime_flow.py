@@ -29,7 +29,7 @@ from .modes import (
 from .omnipause import build_omnipause_plan
 from .players import Player
 from .satellite_control import write_satellite_command
-from .satellites_mode import VIDEO_MODE
+from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
 # Both Nau and the native satellites re-read their playlist file on this verb.
 RELOAD_PLAYLIST_CMD = "RELOAD_PLAYLIST"
@@ -363,7 +363,7 @@ def apply_satellites_switch(
             log_message=f"Satellites set to {target_mode} (omnipaused)")
     if target_mode == VIDEO_MODE:
         if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), "CLOSE_SHOWS")
+            append_command(Path(origenerator_cmd_file), CLOSE_SHOWS)
         write_flag_file(portrait_paused_file, False)
         write_flag_file(landscape_paused_file, False)
     else:
@@ -373,7 +373,7 @@ def apply_satellites_switch(
         # they had asked for.  The hosted app picks the sets — its whole
         # library, shuffled, one shape per region.
         if origenerator_cmd_file is not None:
-            append_command(Path(origenerator_cmd_file), "OPEN_SHOWS")
+            append_command(Path(origenerator_cmd_file), OPEN_SHOWS)
         write_flag_file(portrait_paused_file, True)
         write_flag_file(landscape_paused_file, True)
     return SatellitesSwitchFlowResult(

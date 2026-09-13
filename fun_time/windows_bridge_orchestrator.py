@@ -19,6 +19,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 from .config import load_config
 from .event_log import EventLogHandler, start_event_log
 from .hud_transport import HUD_FILENAME, HudPublisher
@@ -42,6 +44,7 @@ from .overlay_progress import (
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
+from .satellites_mode import CLOSE_SHOWS, origenerator_shows
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     HandoffTarget,
@@ -245,13 +248,16 @@ def _close_origenerator_gracefully(child: ChildProcess | None) -> None:
     logger.warning("Origenerator did not close within 5s; the kill sweep takes it")
 
 
-def _park_the_hosted_origenerator(state_dir: Path, child: ChildProcess | None) -> bool:
+def _park_the_hosted_origenerator(
+    state_dir: Path, child: ChildProcess | None, command_file: Path,
+) -> bool:
     """Park the hosted app for the arriving session; whether it took it."""
     if child is None or not child.pid:
         return False
     hwnd = find_window_for_process(child.pid, "Origenerator", include_hidden=True)
     if not hwnd:
         return False
+    append_command(command_file, CLOSE_SHOWS)
     hide_window(hwnd)
     keep_the_origenerator(state_dir, pid=child.pid, created_at=child.created_at)
     logger.info("Leaving the hosted Origenerator running (pid=%d)", child.pid)
@@ -278,19 +284,19 @@ def _shutdown_children(
     progress: ProgressReporter,
     *,
     state_dir: Path,
-    keep_origenerator: bool = False,
+    keep_origenerator_via: Path | None = None,
 ) -> None:
     """Kill all child processes launched during startup.
 
     Reports each group as it starts, so the closing screen can say which windows
     are on their way out — and, if a kill wedges, which one it wedged on.
-    *keep_origenerator* parks the hosted app for the session crossing in after
-    this one, rather than closing it (docs/entering-vr.md).
+    *keep_origenerator_via*, the hosted app's command file, parks it for the
+    session crossing in after this one rather than closing it (docs/entering-vr.md).
     """
     progress.advance("browser")
     close_window(rfb_hwnd)
-    kept = keep_origenerator and _park_the_hosted_origenerator(
-        state_dir, children.get("origenerator_pid"))
+    kept = keep_origenerator_via is not None and _park_the_hosted_origenerator(
+        state_dir, children.get("origenerator_pid"), keep_origenerator_via)
     if not kept:
         forget_the_kept_origenerator(state_dir)
         _close_origenerator_gracefully(children.get("origenerator_pid"))
@@ -603,7 +609,7 @@ def _fix_post_loading_windows(result: StartupResult, *,
     # REGION shows join with it, over the players they cover: they are managed
     # roles promoted after the players precisely so they end up on top, and
     # leaving them out of this pass is what put two blacked players over them.
-    hosted = result.origenerator_pid and result.satellites_mode == "origenerator"
+    hosted = result.origenerator_pid and origenerator_shows(result.satellites_mode)
     origenerator_hwnd = (
         find_window_for_process(
             result.origenerator_pid, "Origenerator", include_hidden=True)
@@ -663,7 +669,7 @@ def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
     front was never settled — it stayed under the player promoted a moment
     earlier, a picture and then a black rectangle wearing the player's own HUD.
     """
-    hosted = bool(result.origenerator_pid) and result.satellites_mode == "origenerator"
+    hosted = bool(result.origenerator_pid) and origenerator_shows(result.satellites_mode)
 
     def owners() -> list[tuple[str, int]]:
         if not hosted:
@@ -905,7 +911,7 @@ def _reveal_the_room(
     # the role order promotes it last for exactly that reason, and with a
     # zero in the map it was simply skipped.
     for name, hwnd in owners():
-        if hwnd and result.satellites_mode == "origenerator":
+        if hwnd and origenerator_shows(result.satellites_mode):
             role_hwnds[f"origenerator_{name}"] = hwnd
     apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
     _settle_the_players(owners, passes=3, wait_s=0.4)
@@ -1026,6 +1032,7 @@ def _run_until_the_hotkeys_exit(
     show_overlays: bool,
     rfb_hwnd: int,
     children: dict,
+    origenerator_cmd_file: Path | None,
     voice: tuple[VoiceController | None, threading.Thread | None],
     dispatch: tuple[DispatchLoopRunner, threading.Thread],
     loopback_server: ThreadingHTTPServer | None,
@@ -1073,9 +1080,10 @@ def _run_until_the_hotkeys_exit(
                 loopback_server.shutdown()
                 loopback_server.server_close()
             logger.info("AHK exited — shutting down child processes")
+            crossing_over = pending_handoff(state_dir) is not None
             _shutdown_children(
-                rfb_hwnd, children, shutdown_progress,
-                state_dir=state_dir, keep_origenerator=pending_handoff(state_dir) is not None,
+                rfb_hwnd, children, shutdown_progress, state_dir=state_dir,
+                keep_origenerator_via=origenerator_cmd_file if crossing_over else None,
             )
 
     return exit_code
@@ -1247,6 +1255,7 @@ def run_session(
         show_overlays=env.show_overlays,
         rfb_hwnd=result.rfb_hwnd,
         children=children,
+        origenerator_cmd_file=bridge_config.origenerator_cmd_file,
         voice=(voice_controller, voice_thread),
         dispatch=(dispatch_runner, dispatch_thread),
         loopback_server=loopback_server,
