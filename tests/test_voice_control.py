@@ -10,7 +10,9 @@ import pytest
 from fun_time import voice_control
 from fun_time.voice_commands import parse_command_line
 from fun_time.voice_control import (
+    AUDIO_STALL_S,
     VOICE_COMMANDS,
+    AudioStall,
     Recognition,
     UtteranceOnset,
     VoiceController,
@@ -68,6 +70,33 @@ class TestUtteranceOnset:
         onset.note_block(block_started_at=1.0, has_partial=True)
         assert onset.take(fallback=2.5) == 1.0
         assert onset.take(fallback=9.0) == 9.0
+
+
+class TestAudioStall:
+    def test_a_steady_stream_says_nothing(self, caplog):
+        import logging
+
+        stall = AudioStall(device=3, now=0.0)
+        with caplog.at_level(logging.DEBUG, logger="fun_time.voice_control"):
+            stall.note_silence(now=AUDIO_STALL_S - 1)
+            stall.note_block(now=AUDIO_STALL_S - 0.5)
+
+        assert caplog.records == []
+
+    def test_a_stall_warns_once_and_its_end_is_plain_news(self, caplog):
+        """Yellow while nothing spoken can be heard; white when the audio comes
+        back, because a microphone that recovered is no warning."""
+        import logging
+
+        from fun_time.event_log import NOTICE
+
+        stall = AudioStall(device=3, now=0.0)
+        with caplog.at_level(logging.DEBUG, logger="fun_time.voice_control"):
+            stall.note_silence(now=AUDIO_STALL_S)
+            stall.note_silence(now=AUDIO_STALL_S + 5)
+            stall.note_block(now=AUDIO_STALL_S + 6)
+
+        assert [r.levelno for r in caplog.records] == [logging.WARNING, NOTICE]
 
 
 class TestHasPartialText:
@@ -481,15 +510,21 @@ class TestVoiceController:
         monkeypatch.setattr(voice_control, "resolve_input_device", lambda name: (None, None))
         assert vc._resolve_device() is None
 
-    def test_resolve_device_survives_a_lookup_error(self, tmp_path, monkeypatch):
-        """A sounddevice failure during lookup must not kill the voice thread."""
+    def test_resolve_device_survives_a_lookup_error(self, tmp_path, monkeypatch, caplog):
+        """A sounddevice failure during lookup must not kill the voice thread.  The
+        default microphone still hears the room, so it is a warning, not an error."""
+        import logging
+
         vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
 
         def boom(name):
             raise OSError("PortAudio exploded")
 
         monkeypatch.setattr(voice_control, "resolve_input_device", boom)
-        assert vc._resolve_device() is None
+        with caplog.at_level(logging.DEBUG, logger="fun_time.voice_control"):
+            assert vc._resolve_device() is None
+
+        assert [r.levelno for r in caplog.records] == [logging.WARNING]
 
     def test_mute_prevents_write_command(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"

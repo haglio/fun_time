@@ -264,6 +264,30 @@ class CaptureLevel:
         return peak
 
 
+class AudioStall:
+    def __init__(self, device: int | None, *, now: float) -> None:
+        self._device = device
+        self._last_block_at = now
+        self._stalled = False
+
+    def note_silence(self, *, now: float) -> None:
+        idle = now - self._last_block_at
+        if not self._stalled and idle >= AUDIO_STALL_S:
+            self._stalled = True
+            logger.warning(
+                "Voice control: no audio from device %s for %.0fs -- "
+                "nothing spoken can be heard until it comes back",
+                self._device, idle,
+            )
+
+    def note_block(self, *, now: float) -> None:
+        if self._stalled:
+            self._stalled = False
+            notice(logger, f"Voice control: audio from device {self._device} resumed",
+                   source=SOURCE_SYSTEM)
+        self._last_block_at = now
+
+
 _VOICE_IMPORT_ERROR: str = ""
 try:
     import sounddevice as sd
@@ -419,7 +443,8 @@ class VoiceController:
         try:
             index, name = resolve_input_device(self.device_name)
         except Exception:
-            logger.exception("Voice control device lookup failed; using system default")
+            logger.warning("Voice control device lookup failed; using system default",
+                           exc_info=True)
             return None
         if index is None:
             logger.warning(
@@ -485,24 +510,15 @@ class VoiceController:
                 free_json = ""
                 last_block_at = time.monotonic()
                 last_heartbeat = last_block_at
-                stalled = False
+                stall = AudioStall(device, now=last_block_at)
                 while not self._stop.is_set():
                     try:
                         data, captured_at = audio_q.get(timeout=0.5)
                     except _queue.Empty:
-                        idle = time.monotonic() - last_block_at
-                        if not stalled and idle >= AUDIO_STALL_S:
-                            stalled = True
-                            logger.warning(
-                                "Voice control: no audio from device %s for %.0fs -- "
-                                "nothing spoken can be heard until it comes back",
-                                device, idle,
-                            )
+                        stall.note_silence(now=time.monotonic())
                         continue
-                    if stalled:
-                        stalled = False
-                        logger.warning("Voice control: audio from device %s resumed", device)
                     last_block_at = time.monotonic()
+                    stall.note_block(now=last_block_at)
                     level.note_block(data)
                     if last_block_at - last_heartbeat >= LISTEN_HEARTBEAT_S:
                         last_heartbeat = last_block_at
