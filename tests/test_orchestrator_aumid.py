@@ -1,86 +1,33 @@
-"""Tests for orchestrator shortcut AUMID stamping."""
+"""The pinned Fun Time shortcut is stamped with the session's taskbar identity."""
 from __future__ import annotations
 
-import os
-import subprocess
+import logging
 from pathlib import Path
 from unittest.mock import patch
-
-from app_support.win32 import read_shortcut_app_user_model_id
 
 from fun_time.orchestrator import stamp_shortcut_aumid
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 
 
-def _create_lnk(path: Path) -> None:
-    """Create a minimal .lnk file via PowerShell."""
-    target = os.environ.get("COMSPEC", "cmd.exe")
-    subprocess.run(
-        [
-            "powershell.exe", "-NoProfile", "-Command",
-            f"$ws = New-Object -ComObject WScript.Shell; "
-            f"$s = $ws.CreateShortcut('{path}'); "
-            f"$s.TargetPath = '{target}'; "
-            f"$s.Save()",
-        ],
-        check=True,
-        capture_output=True,
-    )
-
-
-def test_stamps_pinned_shortcut(tmp_path):
-    """If a Fun Time .lnk exists in the taskbar pin folder, stamp it."""
-    fake_pin_dir = tmp_path / "pins"
-    fake_pin_dir.mkdir()
-    lnk = fake_pin_dir / "Fun Time.lnk"
-    _create_lnk(lnk)
-
-    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=fake_pin_dir):
-        stamp_shortcut_aumid()
-
-    assert read_shortcut_app_user_model_id(str(lnk)) == APP_USER_MODEL_ID
-
-
-def test_no_crash_when_no_shortcuts(tmp_path):
-    """No .lnk files at all — should not crash."""
-    empty_dir = tmp_path / "no_pins"
-    empty_dir.mkdir()
-    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=empty_dir):
-        stamp_shortcut_aumid()
-
-
-def test_skips_unrelated_shortcuts(tmp_path):
-    """Another app's pin is left alone."""
-    fake_pin_dir = tmp_path / "pins"
-    fake_pin_dir.mkdir()
-    unrelated = fake_pin_dir / "Chrome.lnk"
-    _create_lnk(unrelated)
-
-    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=fake_pin_dir):
-        stamp_shortcut_aumid()
-
-    # Unrelated shortcut should not have been stamped
-    assert read_shortcut_app_user_model_id(str(unrelated)) is None
-
-
-def test_leaves_a_retired_vr_pin_alone(tmp_path):
+def test_the_pin_called_fun_time_is_stamped_by_its_whole_name():
     """"Fun Time VR.lnk" starts with our name and is still not ours to stamp.
 
     It was a second app's pin, with an AppUserModelID of its own, and it is a
     retired one now: the headset is entered by saying "enter VR" rather than by
-    clicking anything.  Either way the match has to be exact -- a prefix or a
-    "contains" would reach it, and stamping a pin we no longer launch through
-    keeps it looking live on a taskbar it should be gone from.
+    clicking anything.  A prefix would reach it, and stamping a pin we no longer
+    launch through keeps it looking live on a taskbar it should be gone from.
     """
-    fake_pin_dir = tmp_path / "pins"
-    fake_pin_dir.mkdir()
-    ours = fake_pin_dir / "Fun Time.lnk"
-    vr = fake_pin_dir / "Fun Time VR.lnk"
-    _create_lnk(ours)
-    _create_lnk(vr)
-
-    with patch("fun_time.orchestrator.taskbar_pin_dir", return_value=fake_pin_dir):
+    with patch("fun_time.orchestrator.stamp_pinned_shortcuts", return_value={}) as stamp:
         stamp_shortcut_aumid()
 
-    assert read_shortcut_app_user_model_id(str(ours)) == APP_USER_MODEL_ID
-    assert read_shortcut_app_user_model_id(str(vr)) is None
+    stamp.assert_called_once_with(APP_USER_MODEL_ID, ["Fun Time"])
+
+
+def test_a_pin_windows_will_not_stamp_is_logged_and_the_session_goes_on(caplog):
+    refused = {Path("C:/pins/Fun Time.lnk"): OSError("IPersistFile::Save failed")}
+
+    with patch("fun_time.orchestrator.stamp_pinned_shortcuts", return_value=refused), \
+            caplog.at_level(logging.WARNING):
+        stamp_shortcut_aumid()
+
+    assert "Could not stamp AppUserModelID" in caplog.text

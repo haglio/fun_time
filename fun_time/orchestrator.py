@@ -30,7 +30,7 @@ from .engine_vendoring import ensure_engine_vendored
 apply_genau_dirs_to_sys_path()
 
 from app_support.logging_utils import configure_logging, install_exception_logging
-from app_support.win32 import mutex_name, set_shortcut_app_user_model_id, try_acquire_mutex
+from app_support.win32 import mutex_name, stamp_pinned_shortcuts, try_acquire_mutex
 
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
@@ -114,35 +114,20 @@ def run_windows_bridge(
     return exit_code
 
 
-def taskbar_pin_dir() -> Path:
-    """Return the Windows taskbar pinned-shortcuts folder."""
-    appdata = os.environ.get("APPDATA", "")
-    return Path(appdata) / "Microsoft" / "Internet Explorer" / "Quick Launch" / "User Pinned" / "TaskBar"
-
-
 def stamp_shortcut_aumid() -> None:
     """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    Called by both shapes of the session (docs/entering-vr.md).  The stem has to
-    match "Fun Time" exactly: a retired "Fun Time VR.lnk" may still sit in the
-    pin folder, and stamping it would keep it looking live.  Only the copy under
-    %APPDATA% is ours to touch, and a failure is logged rather than fatal — the
-    app still launches, just without the open indicator.
+    Called by both shapes of the session (docs/entering-vr.md).  The name has to
+    be "Fun Time" whole: a retired "Fun Time VR.lnk" may still sit in the pin
+    folder, and stamping it would keep it looking live.  A failure is logged
+    rather than fatal — the app still launches, just without the open indicator.
     """
     _log = logging.getLogger(__name__)
-
-    pin_dir = taskbar_pin_dir()
-    if not pin_dir.is_dir():
-        return
-
-    for lnk in pin_dir.glob("*.lnk"):
-        if lnk.stem.lower() != "fun time":
-            continue
-        try:
-            set_shortcut_app_user_model_id(str(lnk), APP_USER_MODEL_ID)
-            _log.info("Stamped AppUserModelID on %s", lnk)
-        except OSError as exc:
-            _log.warning("Could not stamp AppUserModelID on %s: %s", lnk, exc)
+    for pin, refusal in stamp_pinned_shortcuts(APP_USER_MODEL_ID, ["Fun Time"]).items():
+        if refusal is None:
+            _log.info("Stamped AppUserModelID on %s", pin)
+        else:
+            _log.warning("Could not stamp AppUserModelID on %s: %s", pin, refusal)
 
 
 STARTUP_MARKER_NAME = "launcher.ready"
