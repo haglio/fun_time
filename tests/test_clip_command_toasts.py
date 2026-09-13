@@ -32,8 +32,8 @@ def test_every_spoken_browse_order_is_self_reporting():
 def test_every_spoken_f_mode_is_self_reporting():
     """F-mode is per player now, so voice can hand over any of a dozen spellings —
     bare, sided, or asserting on/off.  The dispatch flashes which way each one
-    went, so a spelling left off this list is one that stacks a green echo on top
-    of a red "disabled"."""
+    went, so a spelling left off this list stacks an echo of the phrase on top of
+    that "enabled" or "disabled"."""
     spoken = {cmd for cmd in VOICE_COMMANDS.values() if "fmode" in cmd}
     assert spoken, "expected the F-mode phrases to still exist"
     assert spoken <= SELF_REPORTING_COMMANDS

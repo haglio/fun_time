@@ -1093,18 +1093,17 @@ def test_fmode_flashes_a_green_confirmation_when_it_turns_on(tmp_path: Path):
                             level=FAVORITE_NOTICE_LEVEL)]
 
 
-def test_fmode_flashes_a_red_notice_when_it_turns_off(tmp_path: Path):
-    """The reported bug: disabling F-mode still flashed a green "F mode", which
-    reads as "turned on".  Off is the loud state here — the library just went back
-    to its full self — so it flashes red and says which way it went."""
+def test_fmode_flashes_a_plain_white_notice_when_it_turns_off(tmp_path: Path):
+    """Disabling F-mode flashed red, the color kept for errors, and nothing went
+    wrong.  It is white, and says which way it went: a green "F mode" there once
+    read as "turned on"."""
     config = _make_config(tmp_path)
     state = _make_state(landscape=SideState(f_mode=True), portrait=SideState(f_mode=True), main_f_mode=True)
 
     _state, ops, _mock = _dispatch_fmode("fmode_toggle", state, config)
 
     assert ops == [
-        WindowOp(op="notice", key="F-Mode disabled", source="system",
-                 level=FAILED_NOTICE_LEVEL),
+        WindowOp(op="notice", key="F-Mode disabled", source="system", level=NOTICE),
     ]
 
 

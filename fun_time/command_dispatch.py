@@ -896,14 +896,13 @@ def _dispatch_fmode(
     # this rather than the voice echo, so the F key and the HUD buttons flash it
     # too, not just a spoken "F mode" (which is why fmode is self-reporting — see
     # SELF_REPORTING_COMMANDS).  Enabling is green, since what it narrows to is the
-    # favorites and the funscripts; disabling is the loud one — the library just
-    # came back, so it flashes red the way the other "this is now off" notices do.
+    # favorites and the funscripts; disabling is an ordinary white notice.
     source = _FMODE_NOTICE_SOURCE[players[0]] if len(players) == 1 else SOURCE_SYSTEM
     notice_op = WindowOp(
         op="notice",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
         source=source,
-        level=FAVORITE_NOTICE_LEVEL if enabled else FAILED_NOTICE_LEVEL,
+        level=FAVORITE_NOTICE_LEVEL if enabled else NOTICE,
     )
     return state, [notice_op]
 
