@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 
 from player_core.file_channel import append_command
-from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
+from player_core.timeline import TIMELINE_HEIGHT, bar_track_x, on_track
 
 logger = logging.getLogger(__name__)
 
@@ -48,8 +48,9 @@ class Pointer:
                                      timeline_h=TIMELINE_HEIGHT):
                 return
             if my >= win_h - TIMELINE_HEIGHT:
-                self._session.seek_to(
-                    time_at(mx, win_w=win_w, duration_ms=self._session.duration_ms))
+                if on_track(mx, win_w):
+                    self._session.seek_to(
+                        time_at(mx, win_w=win_w, duration_ms=self._session.duration_ms))
                 return
         if self._hud is not None and self._hud.press(mx, my):
             return
