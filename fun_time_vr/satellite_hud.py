@@ -58,12 +58,14 @@ class SatellitePointer:
         self, *, hud, seek: Callable[[float], None], duration_ms: Callable[[], float],
         volume, mute: Callable[[bool], None], set_volume: Callable[[int], None],
         picture: Callable[[], None] | None = None,
+        picture_on_screen: Callable[[], bool] = lambda: False,
     ) -> None:
         self._hud = hud
         self._duration_ms = duration_ms
         self._volume = volume
         self._furniture = FurniturePointer(
-            seek=seek, mute=mute, set_volume=set_volume, picture=picture)
+            seek=seek, mute=mute, set_volume=set_volume, picture=picture,
+            picture_on_screen=picture_on_screen)
 
     def press(self, kind: str, u: float, v: float, *, size: tuple[int, int]) -> None:
         if kind == HUD:
