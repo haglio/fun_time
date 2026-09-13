@@ -962,7 +962,7 @@ def start_voice_control(
             voice_thread.start()
             logger.info("Voice control thread launched")
         elif cfg.voice_control.enabled:
-            logger.warning("Voice control enabled but import failed: %s", voice_import_error())
+            logger.error("Voice control enabled but import failed: %s", voice_import_error())
         else:
             logger.info("Voice control disabled in config")
     except Exception:
