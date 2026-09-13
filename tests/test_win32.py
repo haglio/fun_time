@@ -44,6 +44,7 @@ from fun_time.win32_process import (
     get_process_image_name,
     is_process_alive,
 )
+from tests.sleeps import sleeps_in
 
 
 class TestFindWindowByPid:
@@ -637,34 +638,34 @@ class TestWaitForWindowByTitle:
     """Polling the lookup above until a window arrives, or the budget is spent."""
 
     def test_the_first_hit_returns_without_spending_the_rest(self, monkeypatch):
-        slept: list[float] = []
-        monkeypatch.setattr(win32.time, "sleep", slept.append)
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 77)
 
-        assert win32.wait_for_window_by_title("Nau", timeout_s=5.0) == 77
-        assert slept == []
+        with sleeps_in(win32) as slept:
+            assert win32.wait_for_window_by_title("Nau", timeout_s=5.0) == 77
+
+        slept.assert_not_called()
 
     def test_a_window_that_never_arrives_is_no_window(self, monkeypatch):
-        monkeypatch.setattr(win32.time, "sleep", lambda _s: None)
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: 0)
 
-        assert win32.wait_for_window_by_title("Nau", timeout_s=0.0) == 0
+        with sleeps_in(win32):
+            assert win32.wait_for_window_by_title("Nau", timeout_s=0.0) == 0
 
     def test_it_keeps_asking_until_the_window_opens(self, monkeypatch):
         answers = iter([0, 0, 42])
-        monkeypatch.setattr(win32.time, "sleep", lambda _s: None)
         monkeypatch.setattr(win32, "find_window_by_title", lambda *_a, **_k: next(answers))
 
-        assert win32.wait_for_window_by_title("Nau", timeout_s=5.0) == 42
+        with sleeps_in(win32):
+            assert win32.wait_for_window_by_title("Nau", timeout_s=5.0) == 42
 
     def test_both_switches_reach_the_lookup(self, monkeypatch):
         asked: list[tuple] = []
-        monkeypatch.setattr(win32.time, "sleep", lambda _s: None)
         monkeypatch.setattr(
             win32, "find_window_by_title",
             lambda title, **kwargs: (asked.append((title, kwargs)), 9)[1])
 
-        win32.wait_for_window_by_title("Fun Time", exact=True, include_hidden=True)
+        with sleeps_in(win32):
+            win32.wait_for_window_by_title("Fun Time", exact=True, include_hidden=True)
 
         assert asked == [("Fun Time", {"exact": True, "include_hidden": True})]
 

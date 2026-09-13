@@ -55,6 +55,7 @@ from fun_time.windows_bridge_orchestrator import (
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
+from tests.sleeps import sleeps_in
 
 
 def _fake_startup_result() -> StartupResult:
@@ -143,9 +144,9 @@ class TestFixPostLoadingWindows:
             side_effect=[buried, risen],
         ), patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
-        ) as promote, patch(
-            "fun_time.windows_bridge_orchestrator.time.sleep"
-        ), patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+        ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ):
             _fix_post_loading_windows(result)
 
         promote.assert_called_once_with(222, True)  # only the buried one, once
@@ -206,9 +207,9 @@ class TestFixPostLoadingWindows:
             "fun_time.windows_bridge_sequencer.set_always_on_top"
         ) as cover_back, patch(
             "fun_time.windows_bridge_orchestrator.set_always_on_top"
-        ) as promote, patch(
-            "fun_time.windows_bridge_orchestrator.time.sleep"
-        ) as slept, patch("fun_time.windows_bridge_orchestrator._log_window_obstruction"):
+        ) as promote, sleeps_in(windows_bridge_orchestrator) as slept, patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ):
             _fix_post_loading_windows(result, overlay_hwnd=77)
 
         # The curtain put back, and nothing else: neither player is buried.

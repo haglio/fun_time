@@ -7,6 +7,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from app_support import file_channel
 from PyQt6.QtGui import QColor
 from shared_ui.colors import BLUE
 
@@ -39,6 +40,7 @@ from fun_time.dashboard_layout import (
 )
 from fun_time.dashboard_runtime import DashboardSnapshot
 from fun_time.manifest import write_windows_bridge_manifest
+from tests.sleeps import sleeps_in
 
 
 def _scene(snapshot: DashboardSnapshot | None = None, **kwargs):
@@ -269,9 +271,9 @@ def test_write_dashboard_command_retries_past_a_transient_file_lock(
         return real_open(self, *args, **kwargs)
 
     monkeypatch.setattr(Path, "open", flaky_open)
-    monkeypatch.setattr("app_support.file_channel.time.sleep", lambda _s: None)
 
-    write_dashboard_command(command_file, "quit")  # must not raise
+    with sleeps_in(file_channel):
+        write_dashboard_command(command_file, "quit")  # must not raise
 
     assert attempts["n"] >= 2  # retried past the first failure
     assert command_file.read_text(encoding="utf-8").strip() == "quit"
@@ -292,9 +294,9 @@ def test_write_dashboard_command_drops_rather_than_raises_when_locked(
         raise AssertionError("unexpected open")
 
     monkeypatch.setattr(Path, "open", always_locked)
-    monkeypatch.setattr("app_support.file_channel.time.sleep", lambda _s: None)
 
-    write_dashboard_command(command_file, "quit")  # must not raise
+    with sleeps_in(file_channel):
+        write_dashboard_command(command_file, "quit")  # must not raise
 
     assert not command_file.exists()
 
