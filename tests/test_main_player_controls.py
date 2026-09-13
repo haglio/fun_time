@@ -41,8 +41,8 @@ class SpySession:
     def cycle_version(self) -> None:
         self.calls.append(("cycle_version",))
 
-    def play_file(self, video: Path, funscript: Path | None) -> None:
-        self.calls.append(("play_file", video, funscript))
+    def play_file(self, item) -> None:
+        self.calls.append(("play_file", item.path, item.funscript))
 
     def set_tcode_enabled(self, enabled: bool) -> None:
         self.calls.append(("set_tcode_enabled", enabled))

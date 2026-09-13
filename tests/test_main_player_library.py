@@ -4,6 +4,7 @@ import random
 from pathlib import Path
 
 import pytest
+from player_core.playlist import PlaylistItem
 
 from main_player.library import (
     EXCERPT,
@@ -501,38 +502,38 @@ class TestCollapsePlaylistVersions:
         # A rotation listing both original and upscale collapses to the larger,
         # at the first-seen position, dropping the later duplicate.
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
-        pairs = [
-            (Path("Richard.mp4"), None),
-            (Path("Other.mp4"), None),
-            (Path("Richard_topaz.mp4"), None),
+        items = [
+            PlaylistItem(Path("Richard.mp4")),
+            PlaylistItem(Path("Other.mp4")),
+            PlaylistItem(Path("Richard_topaz.mp4")),
         ]
 
-        result = collapse_playlist_versions(pairs, index)
+        result = collapse_playlist_versions(items, index)
 
         assert result == [(Path("Richard_topaz.mp4"), None), (Path("Other.mp4"), None)]
 
     def test_keeps_the_funscript_of_the_entry_it_keeps(self):
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
-        pairs = [
-            (Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript")),
-            (Path("Richard.mp4"), Path("Richard.funscript")),
+        items = [
+            PlaylistItem(Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript")),
+            PlaylistItem(Path("Richard.mp4"), Path("Richard.funscript")),
         ]
 
-        result = collapse_playlist_versions(pairs, index)
+        result = collapse_playlist_versions(items, index)
 
         assert result == [(Path("Richard_topaz.mp4"), Path("Richard_topaz.funscript"))]
 
     def test_keeps_only_present_member_when_larger_absent(self):
         # F-mode may have filtered the upscale out; keep whatever version is here.
         index = self._index([_entry("Richard.mp4", 166), _entry("Richard_topaz.mp4", 6035)])
-        pairs = [(Path("Richard.mp4"), Path("Richard.funscript"))]
+        items = [PlaylistItem(Path("Richard.mp4"), Path("Richard.funscript"))]
 
-        result = collapse_playlist_versions(pairs, index)
+        result = collapse_playlist_versions(items, index)
 
         assert result == [(Path("Richard.mp4"), Path("Richard.funscript"))]
 
     def test_video_absent_from_index_passes_through(self):
-        result = collapse_playlist_versions([(Path("mystery.mp4"), None)], {})
+        result = collapse_playlist_versions([PlaylistItem(Path("mystery.mp4"))], {})
 
         assert result == [(Path("mystery.mp4"), None)]
 

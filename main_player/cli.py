@@ -12,7 +12,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from app_support import ports
-from player_core.playlist import read_playlist
+from player_core.playlist import PlaylistItem, read_playlist
 
 from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
@@ -143,7 +143,7 @@ def library_source(
 
 def resolve_playlist(
     args, *, source: LibrarySource | None = None,
-) -> list[tuple[Path, Path | None]]:
+) -> list[PlaylistItem]:
     """The playlist Fun Time passed, collapsed to one entry per version group.
 
     Fun Time lists every version of every video; a library *source*, when
@@ -151,7 +151,7 @@ def resolve_playlist(
     walks).  Without a source — no library dirs — the file is returned verbatim,
     since the main player then has no grouping to apply.
     """
-    pairs = read_playlist(Path(args.playlist))
+    items = read_playlist(Path(args.playlist))
     if source is not None:
-        pairs = collapse_playlist_versions(pairs, source.version_index)
-    return pairs
+        items = collapse_playlist_versions(items, source.version_index)
+    return items
