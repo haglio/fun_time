@@ -31,7 +31,12 @@ class FakePlayer:
         self.seeks: list[float] = []
         self.speeds: list[float] = []
         self.volumes: list[int] = []
+        self.paces: list[float] = []
+        self.showing_picture = False
         self.closed = False
+
+    def set_pace(self, seconds: float) -> None:
+        self.paces.append(seconds)
 
     def load(self, path: Path) -> None:
         self.opened.append(path)
@@ -107,6 +112,22 @@ def _make_session(tmp_path, *, scripted=True, start_paused=False, duration_ms=60
         playlist, player=player, tcode=tcode, start_paused=start_paused,
     )
     return session, player, tcode
+
+
+class TestPictures:
+    def test_the_pace_a_source_sets_reaches_the_player(self, tmp_path):
+        session, player, _ = _make_session(tmp_path)
+
+        session.set_pace(2.5)
+
+        assert player.paces == [2.5]
+
+    def test_the_session_shows_a_picture_when_its_player_does(self, tmp_path):
+        session, player, _ = _make_session(tmp_path, scripted=False)
+
+        player.showing_picture = True
+
+        assert session.showing_picture is True
 
 
 class TestFunscriptResting:
