@@ -16,6 +16,7 @@ from pathlib import Path
 from player_core.control_registry import Control, Verb, bind, look_up
 from player_core.funscript import Funscript
 from player_core.funscript import load as load_funscript
+from player_core.playback_rate import RATE_STEP, clamp_rate, parse_rate
 from player_core.player_verbs import (
     DISPLAY_OFF,
     DISPLAY_ON,
@@ -44,12 +45,8 @@ from .projection import next_projection, resolve_projection, save_projection
 
 logger = logging.getLogger(__name__)
 
-# The desktop main player's own steps and clamps (main_player.controls / main_player.session), so the primary feels
-# identical in and out of the headset.
+# The desktop main player's own seek step (main_player.controls), so the primary seeks alike in and out of the headset.
 SEEK_STEP_MS = 10_000
-SPEED_STEP = 0.25
-MIN_SPEED = 0.25
-MAX_SPEED = 2.0
 
 TILT_STEP_DEG = 5.0
 TILT_LIMIT_DEG = 90.0
@@ -301,6 +298,7 @@ class MainRole:
             "funscript_resting": "1" if self._funscript_resting() else "0",
             "state": "normal",
             "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
+            "speed": f"{self._speed:g}",
         }
 
     def close(self) -> None:
@@ -338,21 +336,15 @@ class MainRole:
         self._player.set_loop_file(locked)
 
     def _set_speed(self, speed: float) -> None:
-        self._speed = max(MIN_SPEED, min(MAX_SPEED, speed))
+        self._speed = clamp_rate(speed)
         self._player.set_speed(self._speed)
 
     def set_speed_from(self, value: str) -> bool:
         """``SET_SPEED min|max|<multiplier>``; False on a value it cannot read."""
-        key = value.lower()
-        if key == "min":
-            self._set_speed(MIN_SPEED)
-        elif key == "max":
-            self._set_speed(MAX_SPEED)
-        else:
-            try:
-                self._set_speed(float(value))
-            except ValueError:
-                return False
+        rate = parse_rate(value)
+        if rate is None:
+            return False
+        self._set_speed(rate)
         return True
 
     def set_volume_from(self, value: str) -> bool:
@@ -460,8 +452,8 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(
         name="speed",
-        verbs=(Verb(SPEED_UP, _moves(lambda role: role.adjust_speed(SPEED_STEP))),
-               Verb(SPEED_DOWN, _moves(lambda role: role.adjust_speed(-SPEED_STEP))),
+        verbs=(Verb(SPEED_UP, _moves(lambda role: role.adjust_speed(RATE_STEP))),
+               Verb(SPEED_DOWN, _moves(lambda role: role.adjust_speed(-RATE_STEP))),
                Verb(SET_SPEED, _reads(MainRole.set_speed_from), takes_a_value=True)),
     ),
     Control(
