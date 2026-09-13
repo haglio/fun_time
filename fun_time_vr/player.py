@@ -129,6 +129,7 @@ from .layout import (
     PORTRAIT,
     PRIMARY,
     REFERENCE,
+    default_player_layout,
     read_layout,
     rearranged,
     write_layout,
@@ -1900,7 +1901,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if session.focused:
                     for unit in (primary, *satellites):
                         unit.route_audio()
-                if primary.role.take_recenter():
+                if primary.role.recenter.take():
                     scene_yaw = yaw_of_orientation((
                         views[0].pose.orientation.x, views[0].pose.orientation.y,
                         views[0].pose.orientation.z, views[0].pose.orientation.w,
@@ -1908,6 +1909,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     logger.info(
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
+                reset = {}
+                if primary.role.layout_reset.take():
+                    reset = default_player_layout()
+                    logger.info("Put the players back in their default spots and sizes")
                 session.sync_controller(display_time)
                 scene_rotation = _scene_rotation(scene_yaw, primary.role.tilt_deg)
                 main = _main_slot_screen(primary, genau)
@@ -1928,12 +1933,12 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                            for name in (PRIMARY, PORTRAIT, LANDSCAPE)}
                 moved = frame.moved | rearranged(
                     players, grow=thumb.grow, nearer_by=thumb.nearer)
-                for name, placement in moved.items():
+                for name, placement in (moved | reset).items():
                     for screen in hanging[name]:
                         screen.placement = placement
                     keeper.place(  # the dashboard says which of its two spots moved
                         dash.layout_key if name == DASH else name, placement)
-                if frame.settled or thumb.settled:
+                if frame.settled or thumb.settled or reset:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own
                              *satellites, panel, dash, reference):

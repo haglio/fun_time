@@ -16,6 +16,7 @@ HELP_REFERENCE = "help_reference"
 FMODE_TOGGLE = "fmode_toggle"
 ENTER_VR = "enter_vr"
 EXIT_VR = "exit_vr"
+VR_RESET = "vr_reset"
 HELP_REFERENCE_CLOSE = "help_reference_close"
 # The pair that drives only the dashboard's own reference popup: they open and
 # dismiss a help window and reach no player, no shared state.  That is why the

@@ -99,6 +99,8 @@ def build_voice_commands(
         "enter v r": "enter_vr",
         "exit vr": "exit_vr",
         "exit v r": "exit_vr",
+        "vr reset": "vr_reset",
+        "v r reset": "vr_reset",
         "pause": "pause",
         "play": "play",
         # Synonyms for "play"/resume.

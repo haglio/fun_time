@@ -32,6 +32,13 @@ def test_the_bar_reads_left_to_right_in_the_order_it_is_written():
     assert layout.app_icon.x == PAD
 
 
+def test_the_vr_reset_stands_beside_the_crossing_it_belongs_with():
+    layout = compute_dashboard_bar_layout()
+
+    assert layout.vr_reset_button.y == layout.vr_button.y
+    assert layout.vr_reset_button.x == layout.vr_button.x + layout.vr_button.width + GAP
+
+
 def test_nothing_in_the_bar_overlaps_anything_else():
     layout = compute_dashboard_bar_layout()
     rects = _rects(layout)

@@ -37,6 +37,11 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
     REFERENCE: Placement(azimuth_deg=0.0, elevation_deg=6.0, width_deg=54.0),
 }
 
+
+def default_player_layout() -> dict[str, Placement]:
+    return {name: DEFAULT_LAYOUT[name] for name in (PRIMARY, LANDSCAPE, PORTRAIT)}
+
+
 AZIMUTH_LIMIT_DEG = 150.0
 ELEVATION_LIMIT_DEG = 75.0
 MIN_WIDTH_DEG = 10.0

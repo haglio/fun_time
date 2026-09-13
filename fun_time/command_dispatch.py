@@ -1581,6 +1581,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["tilt_reset"] = partial(_forward_to_the_vr_main_player, "TILT_RESET")
     handlers["main_scene_prev"] = partial(_forward_to_the_vr_main_player, "PREV_SCENE")
     handlers["main_scene_next"] = partial(_forward_to_the_vr_main_player, "NEXT_SCENE")
+    handlers["vr_reset"] = partial(_forward_to_the_vr_main_player, "LAYOUT_RESET")
     handlers.update({cmd: partial(_forward_to_main_player_on_screen, verb)
                      for cmd, verb in _MAIN_PLAYER_CMD_MAP.items()})
     handlers.update({cmd: partial(_set_muted, muted)

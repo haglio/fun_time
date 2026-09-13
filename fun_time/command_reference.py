@@ -123,6 +123,12 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("enter_vr", "exit_vr"),
             ),
+            _Row(
+                "VR reset — the main player and both satellites back to their "
+                "default spots and sizes in the headset",
+                (),
+                ("vr_reset",),
+            ),
             _Row("Omnipause / resume", ("Esc",), ("omnipause_toggle", "pause", "play")),
             # Space and "pause" both enter Omnipause; "pause" is shown for parity.
             _Row("Omnipause", ("Space",), ("enter_omnipause",), ("pause",)),

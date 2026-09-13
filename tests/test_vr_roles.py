@@ -301,18 +301,27 @@ class TestProjectionCycling:
 class TestRecenter:
     def test_recenter_is_carried_until_the_host_takes_it(self, role_parts):
         role = role_parts.role
-        assert role.take_recenter() is False
+        assert role.recenter.take() is False
         assert role.apply_command("RECENTER", on_quit=_never_quits) is True
-        assert role.take_recenter() is True
+        assert role.recenter.take() is True
         # Consumed: the host applies one re-zero per request, not per frame.
-        assert role.take_recenter() is False
+        assert role.recenter.take() is False
 
     def test_repeated_requests_collapse_into_one(self, role_parts):
         role = role_parts.role
         role.apply_command("RECENTER", on_quit=_never_quits)
         role.apply_command("RECENTER", on_quit=_never_quits)
-        assert role.take_recenter() is True
-        assert role.take_recenter() is False
+        assert role.recenter.take() is True
+        assert role.recenter.take() is False
+
+
+class TestLayoutReset:
+    def test_a_layout_reset_is_carried_until_the_host_takes_it(self, role_parts):
+        role = role_parts.role
+        assert role.layout_reset.take() is False
+        assert role.apply_command("LAYOUT_RESET", on_quit=_never_quits) is True
+        assert role.layout_reset.take() is True
+        assert role.layout_reset.take() is False
 
 
 class TestTilt:
@@ -355,7 +364,7 @@ class TestTilt:
         role.apply_command("TILT_DOWN", on_quit=_never_quits)
         tilted = role.tilt_deg
         role.apply_command("RECENTER", on_quit=_never_quits)
-        role.take_recenter()
+        role.recenter.take()
         assert role.tilt_deg == pytest.approx(tilted)
 
 

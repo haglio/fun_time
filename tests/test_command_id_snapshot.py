@@ -289,6 +289,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "video_activate",
     "voice_off",
     "voice_toggle",
+    "vr_reset",
 )
 
 
