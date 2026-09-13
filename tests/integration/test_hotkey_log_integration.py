@@ -8,15 +8,20 @@ with its session fully up.
 """
 from __future__ import annotations
 
+import ctypes
+import ctypes.wintypes
 import logging
 import re
+import subprocess
 import sys
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from fun_time.config import load_config
+from fun_time.win32_loader import get_last_error, load_dll
 from fun_time.windows_bridge_orchestrator import _AppendOnWriteHandler
 from tests.ahk_script import function_source
 
@@ -30,6 +35,18 @@ pytestmark = pytest.mark.skipif(
 
 LINE = "Session up; startup hold released"
 SCRIPT_LINES = 2000
+
+_kernel32 = load_dll("kernel32", use_last_error=True)
+_kernel32.CreateFileW.argtypes = [
+    ctypes.wintypes.LPCWSTR, ctypes.wintypes.DWORD, ctypes.wintypes.DWORD, ctypes.wintypes.LPVOID,
+    ctypes.wintypes.DWORD, ctypes.wintypes.DWORD, ctypes.wintypes.HANDLE,
+]
+_kernel32.CreateFileW.restype = ctypes.wintypes.HANDLE
+_kernel32.CloseHandle.argtypes = [ctypes.wintypes.HANDLE]
+_kernel32.CloseHandle.restype = ctypes.wintypes.BOOL
+_GENERIC_READ = 0x80000000
+_OPEN_EXISTING = 3
+_ERROR_SHARING_VIOLATION = 32
 
 
 def _logging_script(tmp_path: Path, body: str) -> Path:
@@ -100,3 +117,47 @@ def test_neither_writer_loses_a_line_to_the_other(tmp_path: Path):
     assert exit_code == 0, "the hotkey script did not run to completion"
     assert SCRIPT_LINES - len(script_landed) == 0, "the hotkey script lost lines to the orchestrator"
     assert sent - len(orchestrator_landed) == 0, "the orchestrator lost lines to the hotkey script"
+
+
+def _within(seconds: float, condition) -> bool:
+    deadline = time.monotonic() + seconds
+    while not condition():
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(0.05)
+    return True
+
+
+def _no_one_else_has_it_open(path: Path) -> bool:
+    handle = _kernel32.CreateFileW(str(path), _GENERIC_READ, 0, None, _OPEN_EXISTING, 0, None)
+    if handle == ctypes.wintypes.HANDLE(-1).value:
+        assert get_last_error() == _ERROR_SHARING_VIOLATION, f"{path} could not be opened at all"
+        return False
+    _kernel32.CloseHandle(handle)
+    return True
+
+
+def test_a_logged_line_leaves_no_handle_on_the_log_behind(tmp_path: Path):
+    log = tmp_path / "windows_bridge.log"
+    logged, finished = tmp_path / "logged.flag", tmp_path / "finished.flag"
+    script = _logging_script(
+        tmp_path,
+        f'loop 3\n    Log("{LINE}")\n'
+        'FileAppend("", A_Args[2])\n'
+        "deadline := A_TickCount + 120000\n"
+        "while !FileExist(A_Args[3]) && A_TickCount < deadline\n"
+        "    Sleep(50)",
+    )
+    hotkey_script = subprocess.Popen([_ahk_exe(), str(script), str(log), str(logged), str(finished)])
+    try:
+        assert _within(60, logged.exists), "the hotkey script never finished logging"
+        closed = _within(5, lambda: _no_one_else_has_it_open(log))
+    finally:
+        finished.touch()
+        try:
+            hotkey_script.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            hotkey_script.kill()
+            hotkey_script.wait()
+
+    assert closed, "the hotkey script, still running, holds the log open after its last line"
