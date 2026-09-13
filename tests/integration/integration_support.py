@@ -67,6 +67,16 @@ def read_recorded_children(state_dir: Path) -> dict[str, ChildProcess]:
     }
 
 
+def published_status(read, path: Path, *, budget_s: float = 2.0,
+                     now=time.monotonic, sleep=time.sleep):
+    deadline = now() + budget_s
+    status = read(path)
+    while status == type(status)() and now() < deadline:
+        sleep(0.01)
+        status = read(path)
+    return status
+
+
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
 
 # Every integration config is written under this name, in a temp tree of its own.
@@ -194,7 +204,7 @@ class FunTimeIntegrationSession:
 
     def read_main_player_status(self) -> MainPlayerStatus:
         """Parse the main player's published status file."""
-        return read_main_player_status(self.config.main_player_status_file)
+        return published_status(read_main_player_status, self.config.main_player_status_file)
 
     def read_main_player_duration_ms(self) -> int:
         """The main player's current video duration in ms (published, but not carried on
