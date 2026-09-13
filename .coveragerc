@@ -1,0 +1,28 @@
+[run]
+source =
+    .
+omit =
+    # the repo's own tests
+    tests/*
+    # names that quiet the dead-code scan, not code that runs
+    vulture_whitelist.py
+    # a player's shell: needs the playback engine's library
+    satellite/app.py
+    # needs a graphics context
+    fun_time_vr/gl_contexts.py
+    # the VR player's shell: needs a headset
+    fun_time_vr/player.py
+    # needs a graphics context
+    fun_time_vr/render.py
+    # needs a graphics context
+    fun_time_vr/video_thread.py
+    # needs a headset and a graphics context
+    fun_time_vr/vr_session.py
+relative_files = true
+
+[report]
+precision = 2
+fail_under = 94.9
+exclude_also =
+    if TYPE_CHECKING:
+    if __name__ == "__main__":
