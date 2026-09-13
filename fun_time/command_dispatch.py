@@ -26,13 +26,9 @@ from player_core.player_verbs import (
 )
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
-from .bridge_records import (
-    FAILED_NOTICE_LEVEL,
-    FAVORITE_NOTICE_LEVEL,
-    BridgeConfig,
-    WindowOp,
-)
+from .bridge_records import BridgeConfig, WindowOp
 from .event_log import (
+    FAVORITE,
     NOTICE,
     SOURCE_LANDSCAPE,
     SOURCE_MAIN,
@@ -334,7 +330,7 @@ def _discard(
     discard_ops = (
         [WindowOp(
             op="notice", key=plan.notice_message, source=satellite_source(player),
-            level=FAVORITE_NOTICE_LEVEL if plan.notice_about_favorites else NOTICE,
+            level=FAVORITE if plan.notice_about_favorites else NOTICE,
         )]
         if plan.notice_message
         else []
@@ -488,7 +484,7 @@ def _dispatch_lock_action(
         return state, []
     action = video_action_label(current, config)
     if not action:
-        return state, [WindowOp(op="notice", key="No action metadata", source=satellite_source(player), level=FAILED_NOTICE_LEVEL)]
+        return state, [WindowOp(op="notice", key="No action metadata", source=satellite_source(player), level=logging.WARNING)]
     return _dispatch_set_filter((player,), action.lower(), state, config)
 
 
@@ -902,7 +898,7 @@ def _dispatch_fmode(
         op="notice",
         key=f"{F_MODE_LABEL} enabled" if enabled else f"{F_MODE_LABEL} disabled",
         source=source,
-        level=FAVORITE_NOTICE_LEVEL if enabled else NOTICE,
+        level=FAVORITE if enabled else NOTICE,
     )
     return state, [notice_op]
 
@@ -996,7 +992,7 @@ def _dispatch_main_projection(
     logger.info("Main player shapes: %s", label)
     return state, [WindowOp(
         op="notice", key=label, source=SOURCE_MAIN,
-        level=FAILED_NOTICE_LEVEL if not (plays_vr or plays_flat) else NOTICE)]
+        level=logging.WARNING if not (plays_vr or plays_flat) else NOTICE)]
 
 
 def _dispatch_main_reset(
@@ -1158,8 +1154,8 @@ def _dispatch_set_filter(
             state = clear_side_grouping(state, player)
         logger.info(result.log_message)
         # A filter that selected nothing left the playlist untouched — a dead end,
-        # so it reads red like the other no-effect notices.
-        level = NOTICE if result.applied else FAILED_NOTICE_LEVEL
+        # so a warning like the other no-effect notices.
+        level = NOTICE if result.applied else logging.WARNING
         ops.append(WindowOp(op="notice", key=result.log_message, source=satellite_source(player), level=level))
     return state, ops
 
@@ -1279,7 +1275,7 @@ def _dispatch_satellites_switch(
     if not config.origenerator_enabled:
         return state, [WindowOp(
             op="notice", key="No Origenerator configured",
-            level=FAILED_NOTICE_LEVEL)]
+            level=logging.WARNING)]
     target = {
         "origenerator_activate": ORIGENERATOR_MODE,
         "satellites_video_activate": VIDEO_MODE,

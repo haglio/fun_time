@@ -90,8 +90,10 @@ class TestLevelColor:
     def test_the_favorites_and_the_funscripts_keep_the_green(self):
         assert level_color(FAVORITE).getRgb()[:3] == (48, 160, 48)
 
-    def test_a_dead_end_is_still_red_and_chatter_still_muted(self):
+    def test_an_error_is_red_a_warning_yellow_and_chatter_muted(self):
+        """Red is kept for errors: a dead end is a warning, not one."""
         assert level_color(logging.ERROR).getRgb()[:3] == (255, 60, 60)
+        assert level_color(logging.WARNING).getRgb()[:3] == (255, 200, 120)
         assert level_color(logging.INFO).getRgb()[:3] == (120, 120, 120)
 
 

@@ -183,16 +183,16 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         portrait = window._notices.player_rects.portrait
         assert portrait.x <= overlay.x() <= portrait.x + portrait.width
         assert overlay.y() < portrait.y + portrait.height // 2
-        # A normal notice reads green; a dead-end (ERROR) reads red.  The flash
-        # color is applied by stylesheet, so assert against level_color directly.
+        # A normal notice reads white; a dead end (WARNING) reads yellow.  The
+        # flash color is applied by stylesheet, so assert against level_color directly.
         from fun_time.log_panel import level_color
 
         assert level_color(NOTICE).name() in overlay.styleSheet()
-        notice(writer, "No other seeds", source="portrait", level=logging.ERROR)
+        notice(writer, "No other seeds", source="portrait", level=logging.WARNING)
         window._notices.poll()
         assert overlay.text() == "No other seeds"
-        assert level_color(logging.ERROR).name() in overlay.styleSheet()
-        assert level_color(NOTICE).name() != level_color(logging.ERROR).name()
+        assert level_color(logging.WARNING).name() in overlay.styleSheet()
+        assert level_color(NOTICE).name() != level_color(logging.WARNING).name()
     finally:
         window.close()
 

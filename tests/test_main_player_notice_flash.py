@@ -3,12 +3,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from fun_time.bridge_records import (
-    FAILED_NOTICE_LEVEL,
-    FAVORITE_NOTICE_LEVEL,
-    BridgeConfig,
-)
-from fun_time.event_log import NOTICE
+from fun_time.bridge_records import BridgeConfig
+from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.role_windows import ChildPids, WindowRoles
 from fun_time.windows_bridge_dispatch_loop import DispatchLoopRunner, read_main_player_notice
 from tests.role_window_fakes import MAIN_PLAYER_PID
@@ -88,7 +84,7 @@ class TestFlashMainPlayerNotice:
 
         assert len(first) == 1
         assert len(again) == 1  # the repeat tick adds nothing
-        assert first[0].levelno == FAILED_NOTICE_LEVEL
+        assert first[0].levelno == logging.ERROR
 
     def test_main_player_names_the_kind_and_this_side_picks_the_color(self, tmp_path, caplog):
         """The main player has no palette.  It says a funscript jump is about a funscript, and
@@ -102,7 +98,7 @@ class TestFlashMainPlayerNotice:
             loop._flash_main_player_notice()
 
         by_message = {r.message: r.levelno for r in caplog.records}
-        assert by_message["funscript jump"] == FAVORITE_NOTICE_LEVEL
+        assert by_message["funscript jump"] == FAVORITE
         assert by_message["full video"] == NOTICE
 
     def test_a_new_sequence_flashes_again(self, tmp_path, caplog):

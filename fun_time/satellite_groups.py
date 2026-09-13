@@ -10,12 +10,8 @@ from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file
 from player_core.playlist import PlaylistItem
 
-from .bridge_records import (
-    FAILED_NOTICE_LEVEL,
-    FAVORITE_NOTICE_LEVEL,
-    BridgeConfig,
-    WindowOp,
-)
+from .bridge_records import BridgeConfig, WindowOp
+from .event_log import FAVORITE
 from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
 from .media_metadata import (
     GroupIndex,
@@ -193,7 +189,7 @@ def cycle_variant(
         target = _next_seed_sibling(index, current)
         missing_message = "No other seeds"
     if target is None:
-        ops.append(WindowOp(op="notice", key=missing_message, source=source, level=FAILED_NOTICE_LEVEL))
+        ops.append(WindowOp(op="notice", key=missing_message, source=source, level=logging.WARNING))
         return state, ops
     play_video(config, player, target)
     if kind == "action":
@@ -227,7 +223,7 @@ def more_seeds(
     exact = {normalize_path_key(m) for m in seed_family_items(index, current)} - {current_key}
     wide = {normalize_path_key(m) for m in widened_seed_items(index, current)} - {current_key}
     if wide <= exact:
-        return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=FAILED_NOTICE_LEVEL)]
+        return state, [WindowOp(op="notice", key="Widening net failed", source=source, level=logging.WARNING)]
     state = state.with_side(player, widen_clip=current)
     # Loop the pool that was just widened: the widen anchor now matches the clip on
     # screen, so the loop gathers the wider row the HUD draws.  This starts a loop
@@ -258,7 +254,7 @@ def wrong_action(
     action = reject_action(current, config.regen_metadata_root)
     if not action:
         return state, [WindowOp(
-            op="notice", key="No action to remove", source=source, level=FAILED_NOTICE_LEVEL
+            op="notice", key="No action to remove", source=source, level=logging.WARNING
         )]
     # The grouping index carries the act it just lost — it decides the HUD's
     # action column, its labels and where a cycle goes next — so it has to be
@@ -310,7 +306,7 @@ def group_loop(
         # Green: locking a clip puts it in the favorites, so it says so in the
         # color the favorites own.
         return state, [WindowOp(op="notice", key="Locked", source=source,
-                                level=FAVORITE_NOTICE_LEVEL)]
+                                level=FAVORITE)]
     # A loop is repeat-all over the group, so a repeat-one lock must go first.
     state = cancel_lock(player, state, config)
     # Write the group as the side's playlist with the current clip first, then
@@ -494,6 +490,6 @@ def navigate_hud(
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):
         state = state.with_side(player, nav_anchor=anchor)
-        return state, [WindowOp(op="notice", key="No clip that way", source=source, level=FAILED_NOTICE_LEVEL)]
+        return state, [WindowOp(op="notice", key="No clip that way", source=source, level=logging.WARNING)]
     state = state.with_side(player, nav_anchor=root)
     return switch_to_video(player, target, state, config)

@@ -675,20 +675,21 @@ class TestDispatchLoopRunner:
         assert mock_notice.call_args[0][1] == "Clipper: MyVideo"
         assert mock_notice.call_args[1] == {"source": "main", "level": notice_op.level}
 
-    def test_a_dead_end_notice_is_logged_at_its_error_level(self, tmp_path):
-        """A no-effect notice carries ERROR so the panel and flash render it red;
-        the dispatch loop must pass that level through, not flatten it to NOTICE."""
+    def test_a_dead_end_notice_is_logged_at_its_warning_level(self, tmp_path):
+        """A no-effect notice carries WARNING so the panel and flash render it
+        yellow; the dispatch loop must pass that level through, not flatten it to
+        NOTICE."""
         import logging
 
         runner = make_runner(tmp_path)
 
-        notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.ERROR)
+        notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.WARNING)
         with patch("fun_time.windows_bridge_dispatch_loop.dispatch_command") as mock_dispatch, \
              patch("fun_time.windows_bridge_dispatch_loop.notice") as mock_notice:
             mock_dispatch.return_value = (runner.state, [notice_op])
             runner._dispatch("portrait_cycle_seed")
 
-        assert mock_notice.call_args[1] == {"source": "portrait", "level": logging.ERROR}
+        assert mock_notice.call_args[1] == {"source": "portrait", "level": logging.WARNING}
 
     def test_sync_tick_calls_update_dashboard_when_enabled(self, tmp_path):
         runner = make_runner(tmp_path, sync_interval_ms=100, dashboard_enabled=True)
