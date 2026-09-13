@@ -123,6 +123,15 @@ class TestTheScrubber:
 
         assert player.seeks == [pytest.approx(DURATION_MS / 2, abs=ONE_BAR_PIXEL_MS)]
 
+    def test_a_press_on_the_readout_neither_seeks_nor_pauses_the_room(self, tmp_path):
+        pointer, player, hud = _pointer(tmp_path, hud_takes=False)
+
+        _press(pointer, (_BAR_X0 // 2, WIN_H - 4))
+
+        assert player.seeks == []
+        assert hud.presses == []
+        assert _asked(tmp_path) == []
+
 
 class TestThePicture:
     """A satellite has no pause of its own to give — its paused state is the
