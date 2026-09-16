@@ -40,6 +40,10 @@ MODE_TOOLTIPS = {
     "origenerator_activate":
         "Origenerator mode — Origenerator over the browser, its shows over the players",
 }
+# The hover a dim Origenerator button gives instead: the room opens without
+# waiting out that app's boot, and a hover over a button that cannot be pressed
+# has to say why.
+STILL_STARTING_TOOLTIP = "Origenerator is still starting — this lights up when it is ready"
 CONTROL_FACES = {
     "prev": "⏮", "next": "⏭", "lock": "🔒",
     "trash": shared_mark("trash"), "reset": shared_mark("reset"),
@@ -49,7 +53,8 @@ CONTROL_FACES = {
 
 
 def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
-              latest: bool | None = None, mode: str = "") -> tuple[tuple[Button, ...], ...]:
+              latest: bool | None = None, mode: str = "",
+              origenerator_ready: bool = True) -> tuple[tuple[Button, ...], ...]:
     names = [name for group in CONTROL_GROUPS for name in group]
     if latest is None:
         names = [name for name in names if name not in _ORDER_CONTROLS]
@@ -57,11 +62,9 @@ def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
     if mode:
         names.remove("minimize")
         rows.append((
-            *(
-                Button(action, label, MODE_TOOLTIPS[action], width=FIT_THE_WORD,
-                       lit=mode == lit_mode)
-                for action, label, lit_mode in MODE_BUTTONS
-            ),
+            *(_mode_button(action, label, lit=mode == lit_mode,
+                           dim=action == "origenerator_activate" and not origenerator_ready)
+              for action, label, lit_mode in MODE_BUTTONS),
             _control(side, "minimize", group_break=True),
         ))
     lit = {"lock": locked, "fmode": f_mode, "latest": bool(latest), "shuffle": latest is False}
@@ -71,6 +74,11 @@ def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
         for index, name in enumerate(names)
     ))
     return tuple(rows)
+
+
+def _mode_button(action: str, label: str, *, lit: bool, dim: bool) -> Button:
+    return Button(action, label, STILL_STARTING_TOOLTIP if dim else MODE_TOOLTIPS[action],
+                  width=FIT_THE_WORD, lit=lit, dim=dim)
 
 
 def _control(side: str, name: str, *, lit: bool = False, group_break: bool) -> Button:
