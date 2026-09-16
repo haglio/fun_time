@@ -40,7 +40,7 @@ class TestStatusFields:
 
         assert list(status_fields(Stub())) == [
             "video", "position_ms", "duration_ms", "paused", "locked",
-            "speed", "playlist_length",
+            "speed", "picture", "playlist_length",
         ]
 
     def test_the_rate_the_satellite_plays_at_is_published(self, tmp_path):
