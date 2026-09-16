@@ -1123,6 +1123,37 @@ def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
     assert "dash" in ast.unparse(units.value)
 
 
+def test_everything_the_room_closes_when_it_ends_has_a_close():
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    built = {node.targets[0].id: node.value for node in ast.walk(tree)
+             if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
+    (closing,) = [node for node in ast.walk(tree)
+                  if isinstance(node, ast.For) and "unit.close()" in ast.unparse(node.body)]
+
+    def made_by(expr):
+        if isinstance(expr, ast.Name):
+            yield from made_by(built[expr.id])
+        elif isinstance(expr, ast.Starred):
+            yield from made_by(expr.value)
+        elif isinstance(expr, (ast.List, ast.Tuple)):
+            for element in expr.elts:
+                yield from made_by(element)
+        elif isinstance(expr, ast.ListComp):
+            yield from made_by(expr.elt)
+        elif isinstance(expr, ast.Call):
+            yield getattr(player, ast.unparse(expr.func))
+
+    closed = list(made_by(closing.iter))
+
+    assert player.NoticeBoard in closed
+    assert [kind.__name__ for kind in closed if not callable(getattr(kind, "close", None))] == []
+
+
 def test_the_reveal_waits_for_the_cover_to_have_been_seen():
     """The room being drawable is not the same as anyone having had the headset
     on while it was covered."""
