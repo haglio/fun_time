@@ -1,7 +1,20 @@
 """The buttons Fun Time declares on the main console, row by row."""
 from __future__ import annotations
 
-from player_core.console import GAP, GROUP_GAP, hit_test, place_rows, tooltip_at
+import itertools
+
+from player_core.console import (
+    GAP,
+    GROUP_GAP,
+    OSR2_CONTROL_BUTTONS,
+    OSR2_CONTROL_OFF,
+    OSR2_DRIVING,
+    OSR2_PARKED,
+    OSR2_RETRACTED,
+    hit_test,
+    place_rows,
+    tooltip_at,
+)
 from player_core.hud_button import BUTTON, Button
 from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
 from shared_ui.icon_geometry import glyph_names
@@ -35,6 +48,48 @@ _EVERY_FACE_SLOTS = (
 def _every_button() -> list[Button]:
     declared = [b for slot in _EVERY_FACE_SLOTS for row in console_rows(slot) for b in row]
     return declared + list(osr2_controls(broker=True))
+
+
+class TestOsr2ControlStates:
+    """parked / retracted / driving / control off: one radio group saying what
+    the room is doing to the OSR2, with exactly one of the four lit."""
+
+    def test_every_state_has_a_button_in_both_modes(self):
+        for mode in ("video", "genau"):
+            actions = _actions(MainSlot(mode=mode))
+            for action in OSR2_CONTROL_BUTTONS.values():
+                assert action in actions, (mode, action)
+
+    def test_the_state_it_is_in_is_the_one_that_lights(self):
+        for state in OSR2_CONTROL_BUTTONS:
+            slot = MainSlot(mode="video", osr2_control=state)
+            for other, action in OSR2_CONTROL_BUTTONS.items():
+                drawn = _button(slot, action)
+                assert (drawn.lit or drawn.warn) is (other == state), (state, other)
+
+    def test_control_off_lights_red_where_the_other_three_light_blue(self):
+        """Blue is this family's "engaged"; red is the one press that means the
+        device is hearing nothing, and what the pill below then reads in."""
+        for state in (OSR2_PARKED, OSR2_RETRACTED, OSR2_DRIVING):
+            drawn = _button(MainSlot(mode="video", osr2_control=state),
+                            OSR2_CONTROL_BUTTONS[state])
+            assert (drawn.lit, drawn.warn) == (True, False), state
+
+        off = _button(MainSlot(mode="video", osr2_control=OSR2_CONTROL_OFF),
+                      OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF])
+        assert (off.lit, off.warn) == (False, True)
+
+    def test_the_four_sit_together_as_one_group(self):
+        """A break between the third and the fourth would read as three holds
+        and a switch, where what they are is one control in four states."""
+        placed = _placed(MainSlot(mode="genau"))
+        edges = [placed[OSR2_CONTROL_BUTTONS[state]]
+                 for state in (OSR2_PARKED, OSR2_RETRACTED, OSR2_DRIVING,
+                               OSR2_CONTROL_OFF)]
+        gaps = [nxt[0] - (rect[0] + rect[2])
+                for rect, nxt in itertools.pairwise(edges)]
+
+        assert gaps == [GAP, GAP, GAP]
 
 
 class TestShapeLabel:

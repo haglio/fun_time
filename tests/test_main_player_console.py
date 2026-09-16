@@ -1,7 +1,13 @@
 """The console panel Fun Time publishes for the main player's HUD to draw."""
 from __future__ import annotations
 
-from player_core.console import ConsoleModel, console_text, parse_console
+from player_core.console import (
+    OSR2_CONTROL_OFF,
+    OSR2_DRIVING,
+    ConsoleModel,
+    console_text,
+    parse_console,
+)
 from player_core.hud_button import Button
 
 from fun_time.main_player_console import (
@@ -28,6 +34,14 @@ def _button(model: ConsoleModel, action: str) -> Button:
 
 def _actions(model: ConsoleModel) -> list[str]:
     return [b.action for row in model.rows for b in row if b.action]
+
+
+def test_the_panel_carries_what_the_room_does_to_the_osr2():
+    """Beside what HAS the device: the console's four-button group lights off
+    this, and the pill says so over the driver's name when nothing is sent."""
+    assert _payload().osr2_control == OSR2_DRIVING
+    assert _payload(osr2_control=OSR2_CONTROL_OFF).osr2_control == OSR2_CONTROL_OFF
+    assert _button(_payload(osr2_control=OSR2_CONTROL_OFF), "osr2_control_off").warn
 
 
 class TestOsr2State:

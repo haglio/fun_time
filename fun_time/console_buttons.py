@@ -8,7 +8,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from player_core.console import ROW_LABEL_W, VALUE_W
+from player_core.console import (
+    OSR2_CONTROL_OFF,
+    OSR2_DRIVING,
+    OSR2_PARKED,
+    OSR2_RETRACTED,
+    ROW_LABEL_W,
+    VALUE_W,
+)
 from player_core.hud_button import Button
 from player_core.hud_marks import BROKER_ICON, FMODE_ICON, MINIMIZE_ICON, shared_mark
 from player_core.hud_status import LATEST_LABEL, SHUFFLE_LABEL
@@ -53,6 +60,7 @@ class MainSlot:
     jump_to: str = ""
     favorites_filter: bool | None = None
     enhanced_filter: bool | None = None
+    osr2_control: str = OSR2_DRIVING
 
 
 # The glyphs this console types, as against the family's marks it names below.
@@ -78,6 +86,7 @@ FUNSCRIPT_JUMP_ICON = shared_mark("funscript_jump")
 PARK_ICON = shared_mark("park")
 RETRACT_ICON = shared_mark("retract")
 RELEASE_ICON = shared_mark("release")
+CONTROL_OFF_ICON = shared_mark("control_off")
 QUARTER_ICON = shared_mark("quarter_offset")
 WAVE_ICON = shared_mark("wave")
 
@@ -305,6 +314,7 @@ def _clip_seconds_row() -> tuple[Button, ...]:
 
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
+    control = slot.osr2_control
     return (
         Button("robot_hand_toggle_cruise", "cc",
                "Cruise control: vary the motion hands-free", lit=slot.cruise),
@@ -313,11 +323,20 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
         Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(slot.shape)}"),
         Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
         Button("robot_hand_park", PARK_ICON,
-               "Park — hold the motion still, settled home", group_break=True),
+               "Parked — the OSR2 held still, settled home",
+               lit=control == OSR2_PARKED, group_break=True),
         Button("robot_hand_retract", RETRACT_ICON,
-               "Retract — hold it still at the far end, away from you"),
+               "Retracted — the OSR2 held still at the far end, away from you",
+               lit=control == OSR2_RETRACTED),
         Button("robot_hand_release", RELEASE_ICON,
-               "Release — back to whatever the motion was doing, cruise included"),
+               "Driving — the OSR2 back on whatever the motion was doing, "
+               "cruise included",
+               lit=control == OSR2_DRIVING),
+        Button("osr2_control_off", CONTROL_OFF_ICON,
+               "Control off — the OSR2 is left exactly where it is and nothing "
+               "here moves it.  The device itself is untouched: this is the app "
+               "letting go of it, not the OSR2 switching off",
+               warn=control == OSR2_CONTROL_OFF),
         *((
             Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
                    "Skip ahead to where this video's scripting starts up again",

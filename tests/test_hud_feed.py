@@ -11,6 +11,8 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+from player_core.console import OSR2_CONTROL_OFF
+
 from fun_time.bridge_records import BridgeConfig
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
 from fun_time.hud_transport import HudPublisher
@@ -109,6 +111,15 @@ class TestHudPublishing:
         assert portrait["corner"]["path"] == "C:/v/p.mp4"
         assert landscape["locked"] is False
         assert landscape["corner"]["path"] == "C:/v/l.mp4"
+
+    def test_the_console_is_told_what_the_room_does_to_the_osr2(self, tmp_path):
+        """The state is the session's; the player drawing the console has no way
+        to know it, which is why it is published like the rest of the room."""
+        feed = make_feed(tmp_path)
+
+        feed.publish(replace(BridgeState(), osr2_control=OSR2_CONTROL_OFF))
+
+        assert console(tmp_path)["osr2_control"] == OSR2_CONTROL_OFF
 
     def test_origenerator_mode_publishes_mapless_mode_panels(self, tmp_path):
         """In origenerator mode the players are black and paused, so their clip

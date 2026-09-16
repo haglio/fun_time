@@ -123,6 +123,7 @@ class HudFeed:
             plays_vr=state.main_plays_vr if shapes_offered else None,
             plays_flat=state.main_plays_flat if shapes_offered else None,
             osr2_mode=self.osr2_mode(),
+            osr2_control=state.osr2_control,
             broker=is_broker_heartbeat_fresh(self.config.broker_heartbeat_file)
             if self.config.broker_heartbeat_file else False,
             # The console's buttons are lit and named from what each player
