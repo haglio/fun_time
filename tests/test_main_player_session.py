@@ -12,9 +12,10 @@ from main_player.session import (
     MIN_VOLUME,
     PlayerSession,
 )
+from tests.mpv_refusals import RefusesSeeks
 
 
-class FakePlayer:
+class FakePlayer(RefusesSeeks):
     """Stand-in for the mpv-backed player: records what the session drives."""
 
     def __init__(self, duration_ms: float = 60_000.0) -> None:
@@ -59,6 +60,7 @@ class FakePlayer:
         self.volumes.append(volume)
 
     def seek_ms(self, ms: float) -> None:
+        self.refuse_if_asked()
         self.position_ms = ms
         self.seeks.append(ms)
 
@@ -229,6 +231,17 @@ class TestTheLoopUnderTheSession:
         session.loop_cancel()
 
         assert (session.loop_state, player.ab_loop) == ("normal", None)
+
+    def test_a_seek_mpv_will_not_take_yet_is_asked_for_again(self, tmp_path):
+        """mpv refuses a seek until the file it is opening plays, which a known
+        duration does not prove -- and the refusal used to end the player."""
+        session, player, _tcode = _make_session(tmp_path)
+        player.refuse_seeks(1)
+
+        session.seek_to(2000)
+        session.advance()
+
+        assert player.seeks[-1] == 2000
 
     def test_a_restored_loop_waits_for_a_file_that_is_still_opening(self, tmp_path):
         """Startup queues this before mpv has the file, and mpv reports no

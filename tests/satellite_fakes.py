@@ -12,8 +12,10 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from tests.mpv_refusals import RefusesSeeks
 
-class FakeSatellitePlayer:
+
+class FakeSatellitePlayer(RefusesSeeks):
     def __init__(self, duration_ms: float = 5_000.0) -> None:
         self.opened: list[Path] = []        # cold plays (load) only
         self.playlist: list[Path] = []      # mpv's window: [current, next?]
@@ -67,6 +69,7 @@ class FakeSatellitePlayer:
         self.pace_s = seconds
 
     def seek_ms(self, ms: float) -> None:
+        self.refuse_if_asked()
         self.seeks.append(ms)
         self.position_ms = max(0.0, min(self.duration_ms, ms))
 

@@ -116,7 +116,7 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
 
 def hosted_model(side: str, hosted: HudModel | None, *, active: bool,
                  origenerator_ready: bool) -> HudModel:
-    """What *side* wears while the hosted app holds its player: that app's
+    """What *side* wears while the hosted app holds its player: that app's own
     panel, or the mode's name while it has none, under the session's row."""
     panel = hosted or HudModel(side=side, lock_label=ORIGENERATOR_MODE_LABEL)
     row = mode_row(side, mode=ORIGENERATOR_MODE, origenerator_ready=origenerator_ready)

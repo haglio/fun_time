@@ -25,6 +25,7 @@ from pathlib import Path
 from player_core.playback_rate import clamp_rate
 
 from main_player.play_points import PlayPoints
+from main_player.seeking import OwedSeek, seek_if_taken
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class SatelliteSession:
         self._speed = 1.0
         self._index = 0
         self._play_points = play_points or PlayPoints(None)
-        self._resume_to: float | None = None
+        self._resume = OwedSeek()
         self.load(0)
 
     @property
@@ -91,9 +92,9 @@ class SatelliteSession:
         """Navigate *delta* items (next = +1, prev = -1), wrapping the playlist."""
         self.load(self._index + delta)
 
-    def seek_to(self, ms: float) -> None:
-        """Jump to *ms* in the clip on screen; the playlist and its prefetch stand."""
-        self._player.seek_ms(ms)
+    def seek_to(self, ms: float) -> bool:
+        """Jump to *ms* in the clip on screen, or False where mpv refuses it."""
+        return seek_if_taken(self._player, ms)
 
     def set_paused(self, paused: bool) -> None:
         if paused == self._paused:
@@ -134,11 +135,10 @@ class SatelliteSession:
         end-of-file, so there is nothing to load here — the session just notices
         the roll, moves its index onto the clip now playing, discards the spent
         head, and stages the following clip.  A paused satellite never advances,
-        which is what makes OmniPause a settled state: freeze the flag and the
-        playlist cannot walk on its own.  A locked satellite holds its clip too
-        (repeat-one), with no staged next to roll onto.
+        which is what makes OmniPause a settled state; a locked one holds its
+        clip too (repeat-one), with no staged next to roll onto.
         """
-        self._resume_once_the_file_is_open()
+        self._resume.pay(self._player, self.seek_to)
         self._play_points.observe(
             self.current_video, self._player.position_ms, self._player.duration_ms)
         if self._paused or self._locked:
@@ -148,13 +148,7 @@ class SatelliteSession:
             self._index = (self._index + 1) % len(self._playlist)
             self._player.drop_consumed()
             self._stage_next()
-            self._resume_to = self._play_points.point_for(self.current_video) or None
-
-    def _resume_once_the_file_is_open(self) -> None:
-        if self._resume_to is None or self._player.duration_ms <= 0:
-            return
-        self.seek_to(self._resume_to)
-        self._resume_to = None
+            self._resume.owe(self._play_points.point_for(self.current_video) or None)
 
     def discard(self) -> None:
         """Drop the current clip from the playlist and play the next one — the
@@ -213,7 +207,7 @@ class SatelliteSession:
         self._player.load(video)
         self._player.set_paused(self._paused)
         self._stage_next()
-        self._resume_to = self._play_points.point_for(video) or None
+        self._resume.owe(self._play_points.point_for(video) or None)
 
     def _stage_next(self) -> None:
         """Hand mpv the upcoming clip so prefetch can open it before it is needed.

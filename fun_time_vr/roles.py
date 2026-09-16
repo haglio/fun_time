@@ -45,6 +45,7 @@ from player_core.status import status_fields as player_status_fields
 
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
 from main_player.play_points import PlayPoints
+from main_player.seeking import OwedSeek, seek_if_taken
 
 from .projection import next_projection, resolve_projection, save_projection
 
@@ -109,7 +110,7 @@ class MainRole:
         self._metadata_root = metadata_root
         self._vr_dirs = tuple(vr_dirs)
         self._play_points = play_points or PlayPoints(None)
-        self._resume_to: float | None = None
+        self._resume = OwedSeek()
         self._entries = read_playlist(self._playlist_file)
         if not self._entries:
             raise ValueError(f"primary playlist is empty: {playlist_file}")
@@ -214,7 +215,7 @@ class MainRole:
         self._load(self._index + delta)
 
     def seek_by(self, delta_ms: float) -> None:
-        self._player.seek_ms(self._player.position_ms + delta_ms)
+        self.seek_to(self._player.position_ms + delta_ms)
 
     def adjust_speed(self, delta: float) -> None:
         self._set_speed(self._speed + delta)
@@ -268,7 +269,7 @@ class MainRole:
         write down where this one is, then drive the OSR2 for this instant --
         waypoints while scripted, parked while unscripted, silent while paused
         or handed to the Robot Hand."""
-        self._resume_once_the_file_is_open()
+        self._resume.pay(self._player, self.seek_to)
         self._step_at_eof()
         if self._paused:
             return
@@ -285,12 +286,6 @@ class MainRole:
         else:
             self._driver.park(now=now)
 
-    def _resume_once_the_file_is_open(self) -> None:
-        if self._resume_to is None or self._player.duration_ms <= 0:
-            return
-        self.seek_to(self._resume_to)
-        self._resume_to = None
-
     def _step_at_eof(self) -> None:
         """The end of the file, with nothing holding it: on to the next entry,
         under the main player's own latch (``main_player.session.advance``) against a second read."""
@@ -303,8 +298,9 @@ class MainRole:
             self._play_points.ended()
             self._load(self._index + 1)
 
-    def seek_to(self, position_ms: float) -> None:
-        self._player.seek_ms(max(0.0, min(self._player.duration_ms, position_ms)))
+    def seek_to(self, position_ms: float) -> bool:
+        return seek_if_taken(
+            self._player, max(0.0, min(self._player.duration_ms, position_ms)))
 
     def nudge_tilt(self, degrees: float) -> None:
         self._tilt_deg = max(-TILT_LIMIT_DEG, min(TILT_LIMIT_DEG, self._tilt_deg + degrees))
@@ -354,7 +350,7 @@ class MainRole:
         self._driver.reset()
         self._projection = resolve_projection(str(item.path), self._metadata_root, self._vr_dirs)
         self._title = video_title(_recorded_for(item.path, self._metadata_root), item.path)
-        self._resume_to = self._play_points.point_for(item.path) or None
+        self._resume.owe(self._play_points.point_for(item.path) or None)
 
     @staticmethod
     def _load_funscript(path: Path | None) -> Funscript | None:
@@ -442,7 +438,8 @@ class MainRole:
         logger.warning("Reopening the main player at %.0fms", position_ms)
         self._load(self._index)
         if position_ms:
-            self._player.seek_ms(position_ms)
+            self._resume.owe(position_ms)
+            self._resume.pay(self._player, self.seek_to)
 
     def cycle_projection(self) -> None:
         self._projection = next_projection(self._projection)
