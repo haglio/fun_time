@@ -180,11 +180,6 @@ class ProjectConfig:
         return self.paths.broker_state_dir / state_files.GENAU_MODE
 
     @property
-    def genau_enabled_file(self) -> Path:
-        """Whether the broker may hand the OSR2 to Genau at all — our switch, its read."""
-        return self.paths.broker_state_dir / state_files.GENAU_ENABLED
-
-    @property
     def broker_cmd_file(self) -> Path:
         """The one verb the broker consumes per tick (park, retract, resume)."""
         return self.paths.broker_state_dir / state_files.BROKER_CMD

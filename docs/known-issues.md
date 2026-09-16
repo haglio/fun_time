@@ -73,9 +73,8 @@
 
 - Status: Resolved (2026-09-15) by removing the switch
 - Symptom: Toggling the takeover off and back on again behaved inconsistently.
-- Resolution: Fun Time accepts the OSR2's own auto mode always, so there is
-  no switch to toggle. Startup asserts the shared flag on, which is also what
-  lifts a suppression Origenerator failed to lift after a crash of its own.
+- Resolution: the OSR2's own auto mode is always accepted and wins over
+  everything else sending to the device, so there is no switch to toggle.
 
 ## OmniPause Does Not Fully Drop Fun Time Windows From Topmost
 

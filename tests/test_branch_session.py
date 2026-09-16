@@ -214,9 +214,8 @@ def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
             branch.osr2_serial_rx_file,
             branch.broker_cmd_file,
             branch.genau_mode_file,
-            branch.genau_enabled_file,
         )
-    ] == [live.paths.state_dir] * 5
+    ] == [live.paths.state_dir] * 4
 
 
 def test_a_branch_session_and_the_live_one_take_the_same_mutex(checkouts):
