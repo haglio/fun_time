@@ -1492,8 +1492,7 @@ def _robot_hand_release(state: BridgeState, config: BridgeConfig,
 
 def _osr2_control_off(state: BridgeState, _config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    # Nothing is written down: letting go moves no dial, so there is nothing to
-    # put back.  Pausing Genau is the device arbiter's, re-stated every tick.
+    # Nothing written down: letting go moves no dial, so nothing to put back.
     return replace(state, osr2_control=OSR2_CONTROL_OFF), []
 
 

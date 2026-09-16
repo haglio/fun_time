@@ -314,9 +314,6 @@ def _clip_seconds_row() -> tuple[Button, ...]:
 
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
-    """The motion's shape, then the four OSR2 control states as one radio group,
-    read from off to on: exactly one lit, red for off and blue for the three
-    that are control."""
     control = slot.osr2_control
     return (
         Button("robot_hand_toggle_cruise", "cc",

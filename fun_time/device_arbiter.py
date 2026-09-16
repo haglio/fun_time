@@ -6,9 +6,7 @@ edge-triggered on the main player's published status, and asserted rather than
 fired-and-forgotten, because a verb queued on a file channel can still die.
 
 Above it sits the console's own four-state switch: parked, retracted and
-control off are nobody driving, in either mode, and this is what carries them
-out -- the funscript gated, and Genau either stilled at an end of the travel or
-paused outright.
+control off are nobody driving, and this is what carries them out.
 """
 from __future__ import annotations
 
@@ -37,7 +35,6 @@ REASSERT_S = 1.0
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
 
-# Which of the console's two holds each of the room's hold commands carries out.
 _HELD_BY = {OSR2_PARKED: "robot_hand_park", OSR2_RETRACTED: "robot_hand_retract"}
 
 
@@ -65,8 +62,7 @@ class DeviceArbiter:
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
-        # Which control state was last carried out to both engines; None while
-        # somebody is driving, when the timestamp below times the handoff instead.
+        # The control state last carried out, None while somebody is driving.
         self._asserted_control: str | None = None
         self._asserted_at: float = 0.0
 
@@ -75,9 +71,8 @@ class DeviceArbiter:
         """In video mode, route the OSR2 to the funscript or the Robot Hand,
         moment to moment.
 
-        *control* off, parked or retracted is nobody driving: the funscript is
-        gated and Genau is held or paused, in every mode, and nothing below
-        runs because there is no device to hand over.
+        *control* off, parked or retracted is nobody driving, in every mode, and
+        nothing below runs: there is no device to hand over.
 
         The funscript drives while it is actively scripting (``has_funscript``
         and not ``funscript_resting``); the hand drives the unscripted stretches.
@@ -139,19 +134,8 @@ class DeviceArbiter:
             self._park_touch_deadline = None
 
     def _carry_out(self, control: str) -> None:
-        """Hold the device where *control* says, against both engines.
-
-        The funscript is gated either way -- a script driving through a park is
-        the device ignoring the hold.  A hold then stills Genau's motion at that
-        end of the travel and keeps it playing, since Genau's own stream is what
-        walks the device there and holds it; control off pauses Genau instead,
-        so nothing goes out at all and the device stays exactly where it is.
-
-        Asserted the way the handoff pair is, and for the same reason: a verb
-        queued on a file channel can still die.  Re-stated on the heartbeat, so a
-        dial nudged from a key or a spoken word is put back within the second
-        rather than quietly breaking the hold.
-        """
+        """Hold the device where *control* says against both engines, asserted on
+        the heartbeat the way the handoff pair is."""
         now = self._clock()
         if self._asserted_control == control and now - self._asserted_at < REASSERT_S:
             return
