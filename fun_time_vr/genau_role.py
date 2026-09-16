@@ -189,7 +189,7 @@ class GenauRole:
 
     @property
     def console_hud(self):
-        """The console the engine last composed, or None while the broker has the room."""
+        """The console the engine last composed, or None before its first tick."""
         return self._console_hud
 
     @property

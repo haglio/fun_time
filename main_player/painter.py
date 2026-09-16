@@ -70,7 +70,10 @@ class ConsolePanel:
         other way round, the pill and the line describe the frame before this
         one."""
         self._room.refresh()
-        drive = self._drive_gate.readout(self._room.drive)
+        drive = self._drive_gate.readout(
+            self._room.drive,
+            device_drives_itself=self._room.console.device_drives_itself,
+        )
         return self._console_hud.bgra(ConsoleHud(
             modes=self._modes.hud,
             # The main player knows its own playback rate; Fun Time does not publish it, so

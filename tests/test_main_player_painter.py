@@ -70,9 +70,11 @@ class SpyRoom:
 class SpyGate:
     def __init__(self, log: list[str]) -> None:
         self._log = log
+        self.told_the_device_drives_itself: list[bool] = []
 
-    def readout(self, published) -> DriveHud:
+    def readout(self, published, *, device_drives_itself: bool = False) -> DriveHud:
         self._log.append("readout")
+        self.told_the_device_drives_itself.append(device_drives_itself)
         return published if published is not None else DriveHud()
 
 
@@ -103,9 +105,11 @@ def _frame(height: int = 10, width: int = 20):
     return np.zeros((height, width, 4), dtype=np.uint8)
 
 
-def _console(session, log):
+def _console(session, log, *, osr2: str = "robot_hand"):
     from main_player.painter import ConsolePanel
-    return ConsolePanel(session, room=SpyRoom(log), drive_gate=SpyGate(log),
+    room = SpyRoom(log)
+    room.console = ConsoleModel(osr2=osr2)
+    return ConsolePanel(session, room=room, drive_gate=SpyGate(log),
                         console_hud=ConsolePainter(), modes=FakeModes())
 
 
@@ -223,6 +227,23 @@ class TestTheConsolePanel:
         _console(FakeSession(), log).bgra(hover=None)
 
         assert log == ["refresh", "readout"]
+
+    def test_the_gate_is_told_when_the_device_is_running_itself(self):
+        """In auto mode the OSR2 drives on its own firmware and the script's
+        T-Code is dropped at the broker, so folding the script into the picture
+        draws a plan for a device nothing here has."""
+        panel = _console(FakeSession(), [], osr2="auto")
+
+        panel.bgra(hover=None)
+
+        assert panel._drive_gate.told_the_device_drives_itself == [True]
+
+    def test_the_gate_composes_the_script_in_every_other_state(self):
+        panel = _console(FakeSession(), [], osr2="funscript")
+
+        panel.bgra(hover=None)
+
+        assert panel._drive_gate.told_the_device_drives_itself == [False]
 
     def test_a_frame_reads_the_room_exactly_once(self):
         """It is two file reads a frame, on a channel Genau and Fun Time are

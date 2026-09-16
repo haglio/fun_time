@@ -34,12 +34,12 @@ def _drive(**over) -> DriveHud:
     return DriveHud(**fields)
 
 
-def _engine_console(mode: str) -> ConsoleHud:
+def _engine_console(mode: str, osr2: str = "robot_hand") -> ConsoleHud:
     """What Genau's engine composes: the clip's name on top, the room and the
     drive under it."""
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
-        console=ConsoleModel(mode=mode, broker=True, locked=False),
+        console=ConsoleModel(mode=mode, osr2=osr2, broker=True, locked=False),
         drive=_drive(),
     )
 
@@ -50,9 +50,12 @@ class FakeGate:
 
     def __init__(self) -> None:
         self.asked: list[DriveHud | None] = []
+        self.told_the_device_drives_itself: list[bool] = []
 
-    def readout(self, published: DriveHud | None) -> DriveHud:
+    def readout(self, published: DriveHud | None, *,
+                device_drives_itself: bool = False) -> DriveHud:
         self.asked.append(published)
+        self.told_the_device_drives_itself.append(device_drives_itself)
         return _drive(speed=99)
 
 
@@ -108,6 +111,35 @@ class TestWhatThePanelNames:
     def test_with_no_engine_console_the_panel_still_names_what_is_playing(self):
         """The broker has the room: no console of Genau's own, but a panel."""
         assert _hud(None).modes.video == "feature"
+
+
+class TestTheDeviceRunningItself:
+    """Auto mode reaches the headset's panel exactly as it reaches the desktop's:
+    the gate is told, so the picture is the device's own motion rather than a
+    script folded over it."""
+
+    def test_the_gate_is_told_under_a_video(self):
+        gate = FakeGate()
+
+        _hud(_engine_console("video", osr2="auto"), gate=gate)
+
+        assert gate.told_the_device_drives_itself == [True]
+
+    def test_the_gate_is_told_in_genau_mode_too(self):
+        """The gate is asked in both modes -- told nothing was published in genau
+        mode, so its forecasts are voided there rather than left standing."""
+        gate = FakeGate()
+
+        _hud(_engine_console("genau", osr2="auto"), gate=gate)
+
+        assert gate.told_the_device_drives_itself == [True]
+
+    def test_every_other_state_composes_as_before(self):
+        gate = FakeGate()
+
+        _hud(_engine_console("video", osr2="funscript"), gate=gate)
+
+        assert gate.told_the_device_drives_itself == [False]
 
 
 class TestFModeOnTheStatusLine:

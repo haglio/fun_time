@@ -521,7 +521,8 @@ class TestThePanelUnderThePointer:
                 volume=70, muted=False, seek_to=seeks.append, f_mode=False,
                 speed=1.25, displayed=True, projection=projection,
             ),
-            drive_gate=SimpleNamespace(readout=lambda published: published),
+            drive_gate=SimpleNamespace(
+                readout=lambda published, device_drives_itself=False: published),
             target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PRIMARY]),
             controls=_SlotControls(
