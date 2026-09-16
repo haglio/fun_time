@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from fun_time.satellite_control import SatelliteStatus, read_satellite_status
+from unittest.mock import patch
+
+from fun_time.satellite_control import REREAD_ATTEMPTS, SatelliteStatus, read_satellite_status
 
 
 class TestReadSatelliteStatus:
@@ -26,6 +28,23 @@ class TestReadSatelliteStatus:
     def test_missing_file_is_an_empty_status(self, tmp_path):
         s = read_satellite_status(tmp_path / "nope.txt")
         assert s.video == "" and s.duration_ms == 0 and s.paused is False
+
+    def test_a_read_that_meets_the_player_replacing_the_file_reads_it_again(self, tmp_path):
+        replaced = [PermissionError(13, "Permission denied"), {"video": "C:/clips/a.mp4"}]
+        with patch("fun_time.satellite_control.read_key_values", side_effect=replaced):
+            assert read_satellite_status(tmp_path / "s.txt").video == "C:/clips/a.mp4"
+
+    def test_a_file_held_past_every_reread_reads_empty(self, tmp_path):
+        held = PermissionError(13, "Permission denied")
+        with patch("fun_time.satellite_control.read_key_values", side_effect=held) as read:
+            assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
+        assert read.call_count == REREAD_ATTEMPTS
+
+    def test_a_player_that_has_not_published_yet_is_not_waited_for(self, tmp_path):
+        with patch("fun_time.satellite_control.read_key_values",
+                   side_effect=FileNotFoundError(2, "No such file")) as read:
+            assert read_satellite_status(tmp_path / "s.txt") == SatelliteStatus()
+        assert read.call_count == 1
 
     def test_fraction_is_position_over_duration(self, tmp_path):
         status = tmp_path / "s.txt"
