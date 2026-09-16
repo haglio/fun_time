@@ -10,6 +10,7 @@ one difference spelled out there: that channel holds a single verb, not a queue.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -31,16 +32,25 @@ class SatelliteStatus(PlayerStatus):
         return self.position_ms / self.duration_ms
 
 
+REREAD_ATTEMPTS = 5
+REREAD_AFTER_S = 0.005
+
+
 def read_satellite_status(status_file: Path) -> SatelliteStatus:
     """Parse a native satellite's status file; an absent or blank file reads empty."""
-    try:
-        fields = read_key_values(Path(status_file))
-    except OSError:
-        return SatelliteStatus()
-    return SatelliteStatus(
-        **asdict(parse_status(fields)),
-        playlist_length=_int(fields.get("playlist_length")),
-    )
+    for _ in range(REREAD_ATTEMPTS):
+        try:
+            fields = read_key_values(Path(status_file))
+        except PermissionError:
+            time.sleep(REREAD_AFTER_S)
+            continue
+        except OSError:
+            break
+        return SatelliteStatus(
+            **asdict(parse_status(fields)),
+            playlist_length=_int(fields.get("playlist_length")),
+        )
+    return SatelliteStatus()
 
 
 def _int(value: str | None) -> int:
