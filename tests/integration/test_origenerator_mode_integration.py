@@ -14,7 +14,6 @@ ComfyUI, GPU queue, or gallery database — the same reason
 from __future__ import annotations
 
 import json
-import shutil
 import sys
 import textwrap
 import time
@@ -43,6 +42,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    retire_temp_root,
 )
 
 pytestmark = [
@@ -210,7 +210,7 @@ def hosted_session():
         yield session, hwnd
     finally:
         session.stop()
-        shutil.rmtree(temp_root, ignore_errors=True)
+        retire_temp_root(temp_root)
 
 
 def _wait(predicate, *, timeout: float, desc: str):
@@ -360,4 +360,4 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_over_the_players()
             time.sleep(0.5)
     finally:
         session.stop()
-        shutil.rmtree(temp_root, ignore_errors=True)
+        retire_temp_root(temp_root)
