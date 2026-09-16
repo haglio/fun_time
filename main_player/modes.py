@@ -121,13 +121,20 @@ class Modes:
     def hud(self) -> ModeHud:
         """What the console's top block says about what is playing."""
         return ModeHud(
-            video=self._jumps.title,
+            video=self._name_on_screen,
             length_mode=self.length_mode,
             compilation=self._jumps.compilation,
             position=self._session.index + 1,
             total=len(self._session.playlist),
             f_mode=self.f_mode,
         )
+
+    @property
+    def _name_on_screen(self) -> str:
+        session = self._session
+        if not session.switching_versions and session.on_default_version:
+            return self._jumps.title
+        return f"{self._jumps.title} ({session.current_video.name})"
 
     @property
     def library_status(self) -> LibraryStatus:
