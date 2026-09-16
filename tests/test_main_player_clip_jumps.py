@@ -76,6 +76,35 @@ def _jumps(nav, current: Path, funscripts=None, playlist=None):
     return ClipJumps(nav, session, funscripts or {}, notices), session, notices
 
 
+class CountingNav:
+    """A nav that notes every library walk asked of it, for the caching tests.
+
+    Each of these questions ranges over the whole library, and the console asks
+    several times a second, so what the tests are pinning is how MANY walks one
+    video costs -- hence a record of the calls rather than of the answers.
+    """
+
+    def __init__(self, real) -> None:
+        self._real = real
+        self.asked: list[tuple[str, Path]] = []
+
+    def _forward(self, name: str, video: Path):
+        self.asked.append((name, video))
+        return getattr(self._real, name)(video)
+
+    def compilation_of(self, video):
+        return self._forward("compilation_of", video)
+
+    def full_vid_of(self, video):
+        return self._forward("full_vid_of", video)
+
+    def clip_of(self, video):
+        return self._forward("clip_of", video)
+
+    def title_of(self, video):
+        return self._forward("title_of", video)
+
+
 class TestWhatTheButtonsCanDoFromHere:
     """The console draws its compilation and clip/scene buttons dim where a press
     would do nothing, and only this player can say which case it is in."""
@@ -102,30 +131,16 @@ class TestWhatTheButtonsCanDoFromHere:
         """The console asks several times a second, and each answer walks the
         clips against the scenes."""
         nav, _first, second, scene = _world(tmp_path)
-        walks: list[Path] = []
+        counting = CountingNav(nav)
 
-        class Counting:
-            def __init__(self, real):
-                self._real = real
-
-            def compilation_of(self, video):
-                return self._real.compilation_of(video)
-
-            def full_vid_of(self, video):
-                walks.append(video)
-                return self._real.full_vid_of(video)
-
-            def clip_of(self, video):
-                return self._real.clip_of(video)
-
-        jumps, session, _notices = _jumps(Counting(nav), second)
+        jumps, session, _notices = _jumps(counting, second)
         for _ in range(5):
             assert jumps.jump_to == "scene"
-        assert len(walks) == 1
+        assert [video for name, video in counting.asked if name == "full_vid_of"] == [second]
 
         session.current_video = scene
         assert jumps.jump_to == "clip"
-        assert len(walks) == 2
+        assert [video for name, video in counting.asked if name == "full_vid_of"] == [second, scene]
 
 
 class TestResume:
@@ -302,3 +317,25 @@ class TestSingleVideoJumps:
         jumps.play_full_vid()
 
         assert jumps.compilation == "Vol6"
+
+
+class TestWhatTheVideoIsCalled:
+    """The console's muted line under the status names the video, and the
+    library's record of it beats the filename wherever there is one."""
+
+    def test_a_scene_is_named_after_the_clip_cut_from_it(self, tmp_path):
+        nav, _first, _second, scene = _world(tmp_path)
+
+        assert _jumps(nav, scene)[0].title == "Ann Bly - Alpha Scene 2"
+
+    def test_the_name_rides_the_walk_the_buttons_already_paid_for(self, tmp_path):
+        """Naming the video asks the same question the buttons do -- which clip
+        belongs to this scene -- so it must not walk the library a second time."""
+        nav, _first, second, _scene = _world(tmp_path)
+        counting = CountingNav(nav)
+
+        jumps, _session, _notices = _jumps(counting, second)
+        for _ in range(5):
+            assert jumps.title == "Ann Bly - Alpha Scene 2"
+            assert jumps.jump_to == "scene"
+        assert [name for name, _video in counting.asked].count("title_of") == 1

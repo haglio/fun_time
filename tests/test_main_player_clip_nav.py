@@ -261,3 +261,59 @@ class TestAFileThatVanishedMidScan:
         gone.unlink()
 
         assert nav.full_vid_of(clip) == here
+
+
+class TestTitles:
+    def test_a_clip_is_called_by_the_pair_recorded_for_it(self, tmp_path):
+        """A Windows filename cannot hold a colon, so the movie's own punctuation
+        survives only in the record -- which is why the record names it and the
+        name it was saved under does not."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        clip = _clip(lib, meta, "w/Jane Doe - Alpha Study Part Two.mp4", "Vol2", 3,
+                     "Alpha Study: Part Two", "Jane Doe")
+        nav = ClipNav.build([clip], meta)
+
+        assert nav.title_of(clip) == "Jane Doe - Alpha Study: Part Two"
+
+    def test_a_scene_takes_the_name_of_the_clip_cut_from_it(self, tmp_path):
+        """The library saves a scene under whatever the download called it; the
+        clip carved from it is the only thing that knows the movie and who is in
+        it, so the scene is named after its clip."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t.mp4", {})
+        clip = _clip(lib, meta, "w/Jane Doe - Alpha Study 3.mp4", "Vol2", 3,
+                     "Alpha Study 3", "Jane Doe", full_video=str(scene))
+        nav = ClipNav.build([clip, scene], meta)
+
+        assert nav.title_of(scene) == "Jane Doe - Alpha Study 3"
+
+    def test_a_video_no_clip_names_keeps_the_family_it_was_recorded_under(self, tmp_path):
+        """Nothing here knows what the video is, so its name is all there is --
+        but the family Evolver recorded is that name without the upscale tags
+        the enhancer appended, which is the same name and less of a mouthful."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t_apo8_iris2.mp4",
+                         {"version": {"group": "Jane-Doe_540-hQ2vLm8t"}})
+        nav = ClipNav.build([scene], meta)
+
+        assert nav.title_of(scene) == "Jane-Doe_540-hQ2vLm8t"
+
+    def test_a_video_with_nothing_recorded_at_all_keeps_its_filename(self, tmp_path):
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t.mp4", {})
+        nav = ClipNav.build([scene], meta)
+
+        assert nav.title_of(scene) == "Jane-Doe_540-hQ2vLm8t"
+
+    def test_half_a_record_still_names_the_scene_better_than_the_filename(self, tmp_path):
+        """Not every clip was recorded with both halves, and the half there is
+        beats a download's hash either way."""
+        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
+        performer_only = _clip(lib, meta, "w/Jane Doe - 1.mp4", "Vol2", 1, "", "Jane Doe")
+        source_only = _clip(lib, meta, "w/Alpha Study 4.mp4", "Vol2", 2, "Alpha Study 4", "")
+        neither = _clip(lib, meta, "w/hQ2vLm8t.mp4", "Vol2", 3, "", "")
+        nav = ClipNav.build([performer_only, source_only, neither], meta)
+
+        assert nav.title_of(performer_only) == "Jane Doe"
+        assert nav.title_of(source_only) == "Alpha Study 4"
+        assert nav.title_of(neither) == "hQ2vLm8t"

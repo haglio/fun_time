@@ -64,8 +64,12 @@ class FakeJumps:
     """Where in a compilation this player is, and the two ways out of one."""
 
     def __init__(self, compilation: str = "", *, has_compilation: bool = False,
-                 jump_to: str = "") -> None:
+                 jump_to: str = "", title: str = "") -> None:
         self.compilation = compilation
+        # What the video on screen is called: the library's record of it where
+        # there is one, and the real ClipJumps falls back to the filename, so
+        # this is never empty in a running player.
+        self.title = title
         # What the console's own compilation and clip/scene buttons can do from
         # the video on screen — the player's answers, since only it has the
         # library to look in.
@@ -84,9 +88,10 @@ class FakeJumps:
 
 
 def _modes(*, remembered: str = MIXED, source: FakeSource | None = None,
-           compilation: str = "", current: Path = FIRST):
+           compilation: str = "", current: Path = FIRST, title: str = ""):
     source = FakeSource() if source is None else source
-    session, jumps = FakeSession(current), FakeJumps(compilation)
+    session = FakeSession(current)
+    jumps = FakeJumps(compilation, title=title or current.stem)
     return Modes(source, session, jumps, remembered=remembered), session, jumps, source
 
 
@@ -252,6 +257,14 @@ class TestWhatTheConsoleIsToldToDraw:
 
         assert (hud.video, hud.length_mode) == ("Jane Doe - scene one", SHORTS)
         assert (hud.position, hud.total) == (2, 2)
+
+    def test_the_name_is_the_librarys_record_of_the_video_not_its_filename(self):
+        """The muted line under the status is where the viewer reads what is
+        playing, and a download's filename is the worst name the library has
+        for it -- so the player says what Evolver recorded it as instead."""
+        modes, _session, _jumps, _source = _modes(title="Jane Doe - Alpha Study: Part Two")
+
+        assert modes.hud.video == "Jane Doe - Alpha Study: Part Two"
 
     def test_the_volume_is_named_while_inside_one(self):
         modes, _session, _jumps, _source = _modes(compilation="Vol6")

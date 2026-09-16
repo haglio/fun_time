@@ -2,8 +2,8 @@
 
 A clip carved out of a compilation gets a sidecar ``clip`` object recording its
 parent compilation, its running order within it, and the source movie + performer
-it was taken from (see Evolver). This module reads that field and turns it into
-the three navigations Fun Time exposes:
+it was taken from (see Evolver). This module reads that field for the name a
+video is shown under, and for the three navigations Fun Time exposes:
 
 * ``compilation`` — the clip's siblings, in original order (for a playlist);
 * ``full vid``    — the library video the clip's scene was taken from;
@@ -35,6 +35,13 @@ _TOKEN = re.compile(r"[a-z0-9]+")
 
 def _tokens(text: str) -> set[str]:
     return set(_TOKEN.findall(text.lower()))
+
+
+def clip_title(meta: dict) -> str:
+    """What a clip record calls its scene -- "performer - movie", or "" for neither."""
+    performer = str(meta.get("performer", "") or "").strip()
+    source = str(meta.get("source", "") or "").strip()
+    return " - ".join(part for part in (performer, source) if part)
 
 
 def _size(video: Path) -> int:
@@ -79,24 +86,26 @@ def _matches(meta: dict, text: set[str]) -> bool:
 class ClipNav:
     _clips: dict[Path, dict]
     _non_clips: tuple[Path, ...]
-    # Each scene's version family, so a match recorded against one version
-    # resolves from any of them. Keyed by path because the family is Evolver's
-    # to declare, not something either name can be read for.
-    _families: dict[Path, str]
+    # The version family Evolver recorded for each scene ("" for none), so a
+    # match recorded against one version resolves from any of them. Keyed by
+    # path because the family is Evolver's to declare, not a name's to be read for.
+    _groups: dict[Path, str]
 
     @classmethod
     def build(cls, videos: Iterable[Path], metadata_root: Path | None) -> ClipNav:
         clips: dict[Path, dict] = {}
         non_clips: list[Path] = []
-        families: dict[Path, str] = {}
+        groups: dict[Path, str] = {}
         for video in videos:
             meta = read_clip(video, metadata_root) if metadata_root is not None else None
             if meta is not None:
                 clips[video] = meta
             else:
                 non_clips.append(video)
-                families[video] = _family_of(video, metadata_root)
-        return cls(clips, tuple(non_clips), families)
+                groups[video] = (
+                    read_version_group(video, metadata_root) or ""
+                ) if metadata_root is not None else ""
+        return cls(clips, tuple(non_clips), groups)
 
     def _family(self, scene: Path) -> str:
         """*scene*'s version family, for a scene the library may not hold.
@@ -104,7 +113,18 @@ class ClipNav:
         A recorded ``full_video`` can name a file since renamed or moved out;
         reading its name is then all that is left of it.
         """
-        return self._families.get(scene) or stable_title(scene.stem)
+        return self._groups.get(scene) or stable_title(scene.stem)
+
+    def title_of(self, video: Path) -> str:
+        """What to call *video* on screen: its own clip record, else the record
+        of the clip carved from it, else the family it was grouped under, else
+        the filename."""
+        meta = self._clips.get(video)
+        if meta is None:
+            clip = self.clip_of(video)
+            meta = self._clips.get(clip) if clip is not None else None
+        recorded = clip_title(meta) if meta is not None else ""
+        return recorded or self._groups.get(video) or video.stem
 
     def compilation_of(self, video: Path) -> str:
         """The title of the compilation *video* was carved from, or "" for a
@@ -217,18 +237,6 @@ def _largest(candidates: list[Path]) -> Path | None:
     one scene are versions of it, and the largest is the best of them.
     """
     return max(candidates, key=_size) if candidates else None
-
-
-def _family_of(scene: Path, metadata_root: Path | None) -> str:
-    """*scene*'s version family: Evolver's record, or its name where there is none.
-
-    The record is the authority — it is what "cycle version" walks, and it knows
-    pairs no name betrays, like a 4K upscale of the best eight minutes saved
-    under a title of its own. The name is the fallback for a video Evolver has
-    never seen, where ``X.mp4`` and ``X_apo8_iris2.mp4`` still read as one.
-    """
-    recorded = read_version_group(scene, metadata_root) if metadata_root is not None else None
-    return recorded or stable_title(scene.stem)
 
 
 def _only_candidate(candidates: list[Path]) -> Path | None:

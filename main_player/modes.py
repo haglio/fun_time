@@ -121,7 +121,7 @@ class Modes:
     def hud(self) -> ModeHud:
         """What the console's top block says about what is playing."""
         return ModeHud(
-            video=self._session.current_video.stem,
+            video=self._jumps.title,
             length_mode=self.length_mode,
             compilation=self._jumps.compilation,
             position=self._session.index + 1,
