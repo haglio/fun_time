@@ -748,6 +748,7 @@ def _dispatch_leave_omnipause(
         broker_cmd_file=config.broker_cmd_file,
         origenerator_paused_file=config.origenerator_paused_file,
         satellites_origenerator=origenerator_shows(state.satellites_mode),
+        osr2_control=state.osr2_control,
     )
     state = replace(state, omni_paused=result.next_omni_paused)
     # Un-minimize first, then re-band, then focus: leaving OmniPause is the room

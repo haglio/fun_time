@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from player_core.console import OSR2_CONTROL_OFF, OSR2_PARKED
+
 from fun_time.broker_control import RETRACT_CMD
 from fun_time.omnipause import build_omnipause_plan
 
@@ -28,6 +30,30 @@ def test_leave_video_mode_resumes_main_player():
 
     assert plan.action == "leave"
     assert plan.resume_main_player_playback is True
+
+
+def test_leaving_gives_genau_the_device_back_in_genau_mode():
+    plan = build_omnipause_plan("leave", omni_paused=True, main_mode="genau")
+
+    assert plan.resume_genau_playback is True
+
+
+def test_leaving_does_not_give_it_back_while_control_is_off():
+    """The console's switch decides who drives, not the way out of a pause: a
+    resume here put Genau's motion back on a device the room had let go of."""
+    plan = build_omnipause_plan("leave", omni_paused=True, main_mode="genau",
+                                osr2_control=OSR2_CONTROL_OFF)
+
+    assert plan.resume_genau_playback is False
+
+
+def test_a_hold_still_resumes_it_so_the_stilled_motion_keeps_the_device_there():
+    """A hold is Genau playing with no travel left -- its own stream is what
+    walks the device to that end and keeps it there."""
+    plan = build_omnipause_plan("leave", omni_paused=True, main_mode="genau",
+                                osr2_control=OSR2_PARKED)
+
+    assert plan.resume_genau_playback is True
 
 
 def test_relief_enters_omnipause_but_retracts_the_osr2():

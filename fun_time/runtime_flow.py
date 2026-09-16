@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.file_channel import write_flag
+from player_core.console import OSR2_DRIVING
 from player_core.file_channel import append_command
 from player_core.player_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
 from player_core.playlist import PlaylistItem
@@ -435,11 +436,13 @@ def apply_leave_omnipause(
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
     satellites_origenerator: bool = False,
+    osr2_control: str = OSR2_DRIVING,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
         "leave",
         omni_paused=omni_paused,
         main_mode=main_mode,
+        osr2_control=osr2_control,
     )
     write_flag_file(genau_paused_file, False)
     write_flag_file(audio_paused_file, False)
