@@ -566,6 +566,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
             cmd_file=state_dir / "portrait_cmd.txt",
             paused_file=state_dir / "portrait_paused.txt",
             status_file=state_dir / "portrait_status.txt",
+            play_points_file="state/portrait_play_points.json",
             log_file=state_dir / "portrait_satellite.log",
             playlist_file=state_dir / "portrait_playlist.tsv",
             rect=WindowRect(x=2560, y=0, width=1440, height=2500),
@@ -576,6 +577,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
             cmd_file=state_dir / "landscape_cmd.txt",
             paused_file=state_dir / "landscape_paused.txt",
             status_file=state_dir / "landscape_status.txt",
+            play_points_file="state/landscape_play_points.json",
             log_file=state_dir / "landscape_satellite.log",
             playlist_file=state_dir / "landscape_playlist.tsv",
             rect=WindowRect(x=1664, y=0, width=896, height=1392),
@@ -1379,7 +1381,8 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
         command = _build_satellite_launch_command(
             "python.exe", "satellite", title="Portrait AI Player",
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", x=0, y=0, width=100, height=100,
+            status_file="status", play_points_file="points.json",
+            x=0, y=0, width=100, height=100,
         )
 
         assert self._identity(command) == APP_USER_MODEL_ID
@@ -1702,6 +1705,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
                 cmd_file=state_dir / "portrait_cmd.txt",
                 paused_file=state_dir / "portrait_paused.txt",
                 status_file=state_dir / "portrait_status.txt",
+                play_points_file="state/portrait_play_points.json",
                 log_file=state_dir / "portrait_satellite.log",
                 playlist_file=portrait_playlist,
                 rect=portrait_rect,
@@ -1712,6 +1716,7 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
                 cmd_file=state_dir / "landscape_cmd.txt",
                 paused_file=state_dir / "landscape_paused.txt",
                 status_file=state_dir / "landscape_status.txt",
+                play_points_file="state/landscape_play_points.json",
                 log_file=state_dir / "landscape_satellite.log",
                 playlist_file=landscape_playlist,
                 rect=landscape_rect,
@@ -1777,6 +1782,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
         command_file="state/portrait_cmd.txt",
         paused_file="state/portrait_paused.txt",
         status_file="state/portrait_status.txt",
+        play_points_file="state/portrait_play_points.json",
         x=2560, y=0, width=1440, height=2500,
     )
     assert cmd[:3] == ["python.exe", "-m", "satellite"]
@@ -1789,6 +1795,7 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
     assert _val("--command-file") == "state/portrait_cmd.txt"
     assert _val("--paused-file") == "state/portrait_paused.txt"
     assert _val("--status-file") == "state/portrait_status.txt"
+    assert _val("--play-points-file") == "state/portrait_play_points.json"
     assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
 
 
@@ -1800,6 +1807,7 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
         "python.exe", "satellite",
         title="Landscape AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        play_points_file="points.json",
         x=0, y=0, width=1, height=1,
     )
     assert cmd[cmd.index("--title") + 1] == "Landscape AI Player"
@@ -1813,6 +1821,7 @@ def test_build_satellite_launch_command_leaves_the_audio_switchable():
         "python.exe", "satellite",
         title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        play_points_file="points.json",
         x=0, y=0, width=1, height=1,
     )
     assert "--no-audio" not in cmd
@@ -1825,6 +1834,7 @@ def test_build_satellite_launch_command_passes_no_config_flag():
         "python.exe", "satellite",
         title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        play_points_file="points.json",
         x=0, y=0, width=1, height=1,
     )
     assert "--config" not in cmd
@@ -1847,6 +1857,7 @@ def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
             status_file="state/portrait_status.txt",
+            play_points_file="state/portrait_play_points.json",
             log_file=tmp_path / "portrait_satellite.log",
             x=2560,
             y=0,
@@ -1882,6 +1893,7 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
             command_file="state/portrait_cmd.txt",
             paused_file="state/portrait_paused.txt",
             status_file="state/portrait_status.txt",
+            play_points_file="state/portrait_play_points.json",
             log_file=log_file,
             x=0, y=0, width=1, height=1,
         )
@@ -1902,6 +1914,7 @@ def test_build_satellite_launch_command_forwards_the_hud_files():
         "python.exe", "satellite",
         title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        play_points_file="points.json",
         hud_file="state/portrait_hud.json", dashboard_cmd_file="state/dashboard_cmd.txt",
         x=0, y=0, width=1, height=1,
     )
@@ -1917,6 +1930,7 @@ def test_build_satellite_launch_command_omits_an_absent_hud():
         "python.exe", "satellite",
         title="Portrait AI Player",
         playlist_file="p", command_file="c", paused_file="pa", status_file="s",
+        play_points_file="points.json",
         hud_file=None, dashboard_cmd_file=None,
         x=0, y=0, width=1, height=1,
     )
@@ -2013,6 +2027,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                     command_file="cmd.txt",
                     paused_file="paused.txt",
                     status_file="status.txt",
+                    play_points_file="points.json",
                     log_file=tmp_path / f"{role}.log",
                     x=0, y=0, width=1, height=1,
                 )

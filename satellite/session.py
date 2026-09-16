@@ -24,6 +24,8 @@ from pathlib import Path
 
 from player_core.playback_rate import clamp_rate
 
+from main_player.play_points import PlayPoints
+
 logger = logging.getLogger(__name__)
 
 
@@ -34,6 +36,7 @@ class SatelliteSession:
         *,
         player,
         start_paused: bool = False,
+        play_points: PlayPoints | None = None,
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
@@ -43,6 +46,8 @@ class SatelliteSession:
         self._locked = False
         self._speed = 1.0
         self._index = 0
+        self._play_points = play_points or PlayPoints(None)
+        self._resume_to: float | None = None
         self.load(0)
 
     @property
@@ -133,12 +138,23 @@ class SatelliteSession:
         playlist cannot walk on its own.  A locked satellite holds its clip too
         (repeat-one), with no staged next to roll onto.
         """
+        self._resume_once_the_file_is_open()
+        self._play_points.observe(
+            self.current_video, self._player.position_ms, self._player.duration_ms)
         if self._paused or self._locked:
             return
         if self._player.advanced_to_next:
+            self._play_points.ended()
             self._index = (self._index + 1) % len(self._playlist)
             self._player.drop_consumed()
             self._stage_next()
+            self._resume_to = self._play_points.point_for(self.current_video) or None
+
+    def _resume_once_the_file_is_open(self) -> None:
+        if self._resume_to is None or self._player.duration_ms <= 0:
+            return
+        self.seek_to(self._resume_to)
+        self._resume_to = None
 
     def discard(self) -> None:
         """Drop the current clip from the playlist and play the next one — the
@@ -190,12 +206,14 @@ class SatelliteSession:
         self.load(0)
 
     def load(self, index: int) -> None:
+        self._play_points.leave()
         self._index = index % len(self._playlist)
         video = self._playlist[self._index]
         logger.info("Loading: %s", video.name)
         self._player.load(video)
         self._player.set_paused(self._paused)
         self._stage_next()
+        self._resume_to = self._play_points.point_for(video) or None
 
     def _stage_next(self) -> None:
         """Hand mpv the upcoming clip so prefetch can open it before it is needed.
@@ -210,4 +228,5 @@ class SatelliteSession:
 
     def close(self) -> None:
         """Tear down the underlying player, whatever thread is still driving it."""
+        self._play_points.leave()
         self._player.close()

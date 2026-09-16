@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 
+from main_player.play_points import PlayPoints
 from tests.satellite_fakes import make_satellite_session as _make_session
 
 
@@ -291,3 +292,68 @@ class TestClose:
         session.close()
 
         assert player.closed is True
+
+
+def _watch_to(session, player, position_ms):
+    """Two ticks at *position_ms*: the jump onto it, then playing on from it."""
+    player.position_ms = position_ms
+    session.advance()
+    session.advance()
+
+
+class TestWhereAClipWasLeft:
+    def test_a_clip_left_in_the_middle_opens_there_again(self, tmp_path):
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, entries=2, play_points=PlayPoints(file))
+        _watch_to(session, player, 2_000)
+
+        session.step(1)
+        session.step(-1)
+        session.advance()
+
+        assert player.seeks[-1] == 2_000
+
+    def test_leaving_a_clip_writes_down_the_very_spot(self, tmp_path):
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, entries=2, play_points=PlayPoints(file))
+        _watch_to(session, player, 2_000)
+        player.position_ms = 2_048
+        session.advance()
+
+        session.step(1)
+
+        assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 2_048
+
+    def test_a_clip_that_played_itself_out_is_not_remembered_at_its_end(self, tmp_path):
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, entries=2, play_points=PlayPoints(file))
+        _watch_to(session, player, 4_960)
+
+        player.simulate_eof_advance()
+        session.advance()
+
+        assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 0
+
+    def test_a_clip_rolled_onto_is_opened_where_it_was_left(self, tmp_path):
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, entries=2, play_points=PlayPoints(file))
+        session.step(1)
+        _watch_to(session, player, 2_000)
+        session.step(-1)
+
+        player.simulate_eof_advance()
+        session.advance()
+        session.advance()
+
+        assert player.seeks[-1] == 2_000
+
+    def test_closing_the_player_writes_down_the_very_spot(self, tmp_path):
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, play_points=PlayPoints(file))
+        _watch_to(session, player, 2_000)
+        player.position_ms = 2_048
+        session.advance()
+
+        session.close()
+
+        assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 2_048

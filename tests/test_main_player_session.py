@@ -1176,3 +1176,17 @@ def test_closing_the_player_writes_down_the_very_spot(tmp_path):
     session.close()
 
     assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 300_048
+
+
+def test_a_video_that_played_itself_out_is_not_remembered_at_its_end(tmp_path):
+    file = tmp_path / "points.json"
+    session, player, _ = _make_session(tmp_path, entries=2, duration_ms=HOUR_MS,
+                                       play_points=PlayPoints(file))
+    session.set_locked(False)
+    _watch_to(session, player, HOUR_MS - 40)
+
+    player.eof = True
+    session.advance()
+
+    assert player.opened[-1] == tmp_path / "v1.mp4"
+    assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 0

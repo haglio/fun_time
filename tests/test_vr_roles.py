@@ -829,3 +829,16 @@ class TestWhereAVideoWasLeft:
         role.close()
 
         assert points.point_for(one) == 300_048
+
+    def test_a_video_that_played_itself_out_is_not_remembered_at_its_end(self, role_parts):
+        role, player, points = role_parts.role, role_parts.player, role_parts.points
+        one, two, *_ = role_parts.files
+        player.duration_ms = HOUR_MS
+        role.set_locked(False)
+        _watch(role, player, HOUR_MS - 40)
+
+        player.eof = True
+        role.tick(now=2.0)
+
+        assert player.loaded[-1] == two
+        assert points.point_for(one) == 0

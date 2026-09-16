@@ -78,6 +78,7 @@ def test_native_satellite_plays_and_obeys_commands(tmp_path):
         title="Portrait AI Player",
         role="Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
+        play_points_file=tmp_path / "portrait_play_points.json",
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
         # This checkout's siblings, as a session launches them: a player
@@ -139,6 +140,7 @@ def test_another_sessions_startup_reap_leaves_this_satellite_alone(tmp_path):
         role="Portrait",
         playlist_file=playlist, command_file=cmd,
         paused_file=tmp_path / "portrait_paused.txt", status_file=status,
+        play_points_file=tmp_path / "portrait_play_points.json",
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
         # This checkout's siblings, as a session launches them: a player
@@ -210,6 +212,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
         title="Portrait AI Player",
         role="Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
+        play_points_file=tmp_path / "portrait_play_points.json",
         hud_file=hud_file, dashboard_cmd_file=dashboard_cmd,
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=800, height=600,
@@ -261,6 +264,7 @@ def test_a_satellite_holds_a_picture_for_the_pace_it_is_sent_and_under_a_lock(tm
         role="Portrait",
         playlist_file=playlist, command_file=cmd,
         paused_file=tmp_path / "portrait_paused.txt", status_file=status,
+        play_points_file=tmp_path / "portrait_play_points.json",
         log_file=tmp_path / "portrait_satellite.log",
         x=0, y=0, width=480, height=640,
         project_dirs=checkout_project_dirs(),

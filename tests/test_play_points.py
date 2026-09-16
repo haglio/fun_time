@@ -165,3 +165,13 @@ def test_a_file_holding_something_else_starts_the_videos_over(tmp_path):
     file = tmp_path / "points.json"
     file.write_text("[1, 2, 3]")
     assert PlayPoints(file).point_for(VIDEO) == 0
+
+
+def test_a_video_that_ran_out_has_no_point_to_come_back_to(tmp_path):
+    file = tmp_path / "points.json"
+    points = _points(file)
+    _watch(points, VIDEO, HOUR_MS - 40)
+
+    points.ended()
+
+    assert PlayPoints(file).point_for(VIDEO) == 0

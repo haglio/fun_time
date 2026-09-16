@@ -76,8 +76,7 @@ from fun_time.session_handoff import (
     report_the_headset_held,
 )
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
-from main_player.play_points import FILENAME as PLAY_POINTS_FILENAME
-from main_player.play_points import PlayPoints
+from main_player.play_points import PlayPoints, play_points_filename
 from satellite.hud_overlay import HudOverlay
 from satellite.pointer import OMNIPAUSE_TOGGLE
 from satellite.runtime import SatelliteControls
@@ -478,7 +477,8 @@ class _MainUnit(_VideoUnit):
                 vr.library_dirs
             ),
             start_paused=read_paused_state(self.paused_file, logger=logger),
-            play_points=PlayPoints(Path(commands.state_dir) / PLAY_POINTS_FILENAME),
+            play_points=PlayPoints(
+                Path(commands.state_dir) / play_points_filename("main_player")),
         )
         # The panel's forecasts of Genau's publish, and the touch each status carries.
         self.drive_gate = DriveGate(self.role)
@@ -626,6 +626,7 @@ class _SatelliteUnit(_VideoUnit):
             self._read_playlist(),
             player=self.player,
             start_paused=read_paused_state(self.paused_file, logger=logger),
+            play_points=PlayPoints(Path(commands.state_dir) / play_points_filename(side)),
         )
         self._status_writer = StatusWriter(
             Path(commands.side_file(side, "status")), satellite_status_fields

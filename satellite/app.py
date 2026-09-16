@@ -31,6 +31,8 @@ from player_core.status import StatusWriter
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHudPainter, chip_xy
 
+from main_player.play_points import PlayPoints
+
 from .cli import audio_muted, build_parser, resolve_playlist
 from .hud_overlay import HudOverlay
 from .pointer import Pointer
@@ -123,7 +125,8 @@ def _run(args, playlist: list[Path]) -> int:
     # auto-advance is seamless instead of a cold on-screen reload.
     # muted=True: a satellite is heard only once its chip is asked (satellite.volume).
     player = MpvPlayer(wid, muted=True, loop_file=False, prefetch=True)
-    session = SatelliteSession(playlist, player=player, start_paused=start_paused)
+    session = SatelliteSession(playlist, player=player, start_paused=start_paused,
+                               play_points=PlayPoints(args.play_points_file))
     status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
     # Composited into this window's video, so it needs no window of its own.
     hud = (

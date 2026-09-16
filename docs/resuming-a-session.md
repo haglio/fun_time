@@ -93,16 +93,25 @@ Resume puts the clip that was on screen back at the top of each playlist; the
 point inside that clip is the players' own, and is kept for every video rather
 than only the one a session ended on. `main_player.play_points` is the whole of
 it — a JSON file in the state dir keyed by video path, read when a player opens
-a file and written as it plays. Both players that show the library's videos use
-it: the desktop main player (`main_player.session.PlayerSession`) and its
-headset twin (`fun_time_vr.roles.MainRole`). The satellites do not: their clips
-loop in place, so there is no point in one to come back to.
+a file and written as it plays. Every player that shows a video takes it: the
+main player (`main_player.session.PlayerSession`), both satellites
+(`satellite.session.SatelliteSession`), and their headset twins
+(`fun_time_vr.roles.MainRole` and the same satellite session again).
+
+Each player keeps its own file — `<who>_play_points.json`. One file between them
+would have each player's whole-file write erasing what the others had added
+since it started, which is the lost update `app_support.json_store` exists for
+elsewhere; separate files need no lock, and no clip is played by two of them.
 
 Every video is remembered, whatever its length, and wherever in it the playhead
 was. There is no minimum watched and no "near enough to the end to count as
 finished": the library is mostly short videos, and a threshold at either end
-would have excluded most of it. A video wound back to its very top keeps no
-point, which is the same thing as opening at the top.
+would have excluded most of it. Two things clear a point rather than move it: a
+video wound back to its very top, which is the same thing as opening at the top,
+and a video that ran out — the end of the file, exactly, not a window near it.
+Without that second one a satellite would be unplayable: its clips auto-advance
+at end-of-file, so every clip it had ever shown would open at its last frame and
+step straight on, and the playlist would race.
 
 Leaving a video — stepping off it, or closing the player — writes the exact
 spot, so coming back lands where you left rather than near it. On top of that it
@@ -110,7 +119,7 @@ is written every `WRITE_EVERY_S` while the video plays: a session is as often
 killed as closed (above), and that periodic record is what a killed one comes
 back on.
 
-Two of the numbers are not preferences. Only a tick whose clock moved forward by
+One more number is not a preference. Only a tick whose clock moved forward by
 less than `PLAYED_ON_MS` is written down periodically — a larger jump is a seek,
 a wrap at end-of-file, or the clip just left, whose position mpv goes on
 reporting for a tick or two after it is told to open another. And `REMEMBERED`
@@ -119,4 +128,5 @@ rewritten while a video plays cannot grow without bound.
 
 The seek is held until the player reports a duration, the way the restored A/B
 loop above is, so a video opens *at* its point rather than visibly jumping there
-once the file is up.
+once the file is up. A satellite rolls onto its prefetched next clip by itself,
+so there the seek lands a tick or two into the clip rather than before it.
