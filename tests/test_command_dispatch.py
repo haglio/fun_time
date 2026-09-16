@@ -4132,9 +4132,11 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         presses = ("portrait_prev", "portrait_trash", "portrait_lock", "portrait_reset",
-                   "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
-                   "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
-                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop")
+                   "portrait_fmode", "portrait_enhanced", "portrait_shuffle",
+                   "portrait_seed_loop", "portrait_more_seeds",
+                   "portrait_play_video|C:/fixtures/one.png",
+                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop",
+                   "landscape_latest")
         for command in presses:
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == list(presses)

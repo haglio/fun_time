@@ -180,7 +180,7 @@ _SECTIONS: tuple[_Section, ...] = (
                 "a targeted fix (\"portrait fix teeth\"), \"go now\" to "
                 "animate the picture as a Genau clip, or \"enhanced only\" to "
                 "keep just the pictures the show has enhanced.  In this mode the "
-                "side's own \"latest\", \"trash\" and \"no filter\" reach the "
+                "side's own \"shuffle\", \"latest\", \"trash\" and \"no filter\" reach the "
                 "show too",
                 (),
                 tuple(
