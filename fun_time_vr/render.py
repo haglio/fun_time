@@ -13,9 +13,6 @@ stays off — so the bytes reach the sRGB swapchain exactly as mpv wrote them.
 (GenauVR sampled through an sRGB texture without re-encoding, which darkened
 everything and forced its brightness=1.4 hack; this pipeline needs none.)
 
-Every draw call rebinds the state it needs, because the mpv render contexts
-share this GL context and leave bindings wherever they finished.
-
 A GL shell.  The geometry and matrices it draws come tested from
 scene.py/matrices.py, and the offscreen pixel path is MpvRenderPlayer's,
 verified against the real DLL.  See CLAUDE.md, "Standing rules".
@@ -178,7 +175,7 @@ def _compile_program(vert_src: str, frag_src: str) -> int:
 
 
 class RenderTarget:
-    """One player's video as a texture: the FBO mpv renders into each frame.
+    """A player's picture as a texture, with the FBO that fills it.
 
     Plain RGBA8 (not sRGB) on purpose — see the module docstring's color note.
     Reallocated whenever the video's size changes, so the texture always holds
