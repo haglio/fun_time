@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from player_core.console import GAP, GROUP_GAP, hit_test, place_rows, tooltip_at
 from player_core.hud_button import BUTTON, Button
-from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON
+from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
+from shared_ui.icon_geometry import glyph_names
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls, shape_label
+from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
 
@@ -20,6 +22,19 @@ def _button(slot: MainSlot, action: str) -> Button:
 
 def _placed(slot: MainSlot) -> dict[str, tuple]:
     return {b.action: rect for rect, b in place_rows(console_rows(slot), x=0, y=0)}
+
+
+_EVERY_FACE_SLOTS = (
+    MainSlot(mode="video", latest=False, length_mode="mixed", plays_vr=True, plays_flat=True,
+             has_compilation=True, has_other_versions=True, jump_to="scene"),
+    MainSlot(mode="video", jump_to="clip"),
+    MainSlot(mode="genau", latest=False, favorites_filter=False, enhanced_filter=False),
+)
+
+
+def _every_button() -> list[Button]:
+    declared = [b for slot in _EVERY_FACE_SLOTS for row in console_rows(slot) for b in row]
+    return declared + list(osr2_controls(broker=True))
 
 
 class TestShapeLabel:
@@ -504,3 +519,22 @@ class TestLayout:
         for kept in ("robot_hand_toggle_cruise", "robot_hand_cycle_shape", "main_lock",
                      "genau_clip_seconds_up", "genau_clip_seconds_down"):
             assert kept in actions
+
+
+class TestFaces:
+    def test_every_typed_face_is_in_the_painters_symbol_face(self):
+        typed = {b.glyph for b in _every_button() if len(b.glyph) == 1 and not b.glyph.isalnum()}
+
+        assert typed
+        for face in typed:
+            assert typed_in_the_symbol_face(face), ascii(face)
+
+    def test_every_mark_a_button_names_is_one_the_family_draws(self):
+        named = {shared_mark_name(b.glyph) for b in _every_button()
+                 if b.glyph.startswith(SHARED_MARK)}
+
+        assert {"trash", "reset", "wave"} <= named
+        assert not named - set(glyph_names())
+
+    def test_the_bin_takes_something_away(self):
+        assert _button(MainSlot(mode="genau"), "genau_weird_clip").danger is True
