@@ -720,9 +720,16 @@ class TestWhatTheHeadsetCallsTheVideo:
 
         assert role.title == "Jane Doe - Alpha Study: Part Two"
 
+    def test_a_scene_wears_the_name_evolver_recorded_for_it(self, tmp_path):
+        """Which is the name of the clip cut out of it -- worked out once over
+        the whole library, so the headset reads it off the one sidecar in front
+        of it rather than indexing a library it does not hold."""
+        role = self._role(tmp_path, {"video": {"type": "full_length"},
+                                     "title": "Jane Doe - Alpha Study 3"})
+
+        assert role.title == "Jane Doe - Alpha Study 3"
+
     def test_a_video_with_no_record_keeps_its_filename(self, tmp_path):
-        """The headset has no library index -- only the sidecar in front of it --
-        so a scene named by the clip cut from it is out of reach here."""
         role = self._role(tmp_path, {"video": {"type": "full_length"}})
 
         assert role.title == "Jane Doe - Alpha Study Part Two_apo8_iris2"

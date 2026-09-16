@@ -21,12 +21,11 @@ from pathlib import Path
 
 from .media_metadata import (
     EXCERPT,
-    carved_from,
-    clip_title,
     load_metadata,
     metadata_path_for,
     normalize_path_key,
     recorded_group,
+    video_title,
     video_type_of,
 )
 from .modes import collect_video_files
@@ -255,7 +254,6 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
         video: recorded_group(payloads[video], video) or Path(video).stem
         for video in videos
     }
-    titles = _titles_by_family(payloads, groups)
 
     # Keyed by family AND by whether it is an excerpt: Evolver ties a cut to the
     # scene it came out of with the same version.group, but a cut is a *piece* of
@@ -288,7 +286,12 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     # first: the cuts came out of them, so they follow.  Ordering reads the band
     # key rather than the section name, which is only what the band is *called*.
     weight = Counter(folder for folder, _clip in keys.values())
-    shown = {family: titles.get(family[0], family[0]) for family in played}
+    # The name Evolver recorded for the family, read off the rendition the tile
+    # plays; every rendition of one video carries the same one.
+    shown = {
+        family: video_title(payloads[played[family][0]], played[family][0])
+        for family in played
+    }
     return [
         LibraryHandle(
             title=shown[family], versions=played[family], section=names[keys[family]]
@@ -301,20 +304,3 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
             ),
         )
     ]
-
-
-def _titles_by_family(payloads: dict[str, dict], groups: dict[str, str]) -> dict[str, str]:
-    """What to call each version family a clip record speaks for -- its own, and
-    that of the scene Evolver found it inside.  Keyed by family rather than by
-    path, the match having been recorded against one rendition of several."""
-    by_path = {normalize_path_key(video): group for video, group in groups.items()}
-    titles: dict[str, str] = {}
-    for video, payload in payloads.items():
-        title = clip_title(payload)
-        if not title:
-            continue
-        titles[groups[video]] = title
-        scene = by_path.get(normalize_path_key(carved_from(payload)))
-        if scene is not None:
-            titles[scene] = title
-    return titles

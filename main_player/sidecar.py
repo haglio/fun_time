@@ -44,16 +44,6 @@ def read_sidecar(video: Path, metadata_root: Path) -> dict:
     return payload if isinstance(payload, dict) else {}
 
 
-def read_clip(video: Path, metadata_root: Path) -> dict | None:
-    """The ``clip`` object Evolver recorded for *video*, or None.
-
-    Present only on a scene carved out of a compilation: it names the parent
-    compilation, the running order within it, and the source movie + performer.
-    """
-    clip = read_sidecar(video, metadata_root).get("clip")
-    return clip if isinstance(clip, dict) else None
-
-
 def read_version_group(video: Path, metadata_root: Path) -> str | None:
     """The version-family id Evolver recorded for *video*, or None.
 

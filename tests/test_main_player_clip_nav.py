@@ -275,15 +275,14 @@ class TestTitles:
 
         assert nav.title_of(clip) == "Jane Doe - Alpha Study: Part Two"
 
-    def test_a_scene_takes_the_name_of_the_clip_cut_from_it(self, tmp_path):
-        """The library saves a scene under whatever the download called it; the
-        clip carved from it is the only thing that knows the movie and who is in
-        it, so the scene is named after its clip."""
+    def test_the_name_evolver_recorded_is_what_the_video_is_called(self, tmp_path):
+        """Including for a scene, which wears the name of the clip cut out of it
+        -- an answer this player cannot reach, the clip being somewhere else in
+        a library it does not index."""
         lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t.mp4", {})
-        clip = _clip(lib, meta, "w/Jane Doe - Alpha Study 3.mp4", "Vol2", 3,
-                     "Alpha Study 3", "Jane Doe", full_video=str(scene))
-        nav = ClipNav.build([clip, scene], meta)
+        scene = _sidecar(lib, meta, "other/Jane-Doe_540-hQ2vLm8t.mp4",
+                         {"title": "Jane Doe - Alpha Study 3"})
+        nav = ClipNav.build([scene], meta)
 
         assert nav.title_of(scene) == "Jane Doe - Alpha Study 3"
 

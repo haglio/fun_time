@@ -4,7 +4,6 @@ import json
 from pathlib import Path
 
 from main_player.sidecar import (
-    read_clip,
     read_sidecar,
     read_version_group,
     read_video_type,
@@ -59,25 +58,6 @@ class TestReadSidecar:
         (meta / "w" / "x.json").write_text("{ truncated", encoding="utf-8")
 
         assert read_sidecar(video, meta) == {}
-
-
-class TestReadClip:
-    def test_reads_the_clip_object(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/Ann Bly - Alpha Scene 2.mp4", {
-            "video": {"action": "Alpha"},
-            "clip": {"compilation": "Vol6", "index": 9, "performer": "Ann Bly"},
-        })
-
-        assert read_clip(video, meta) == {
-            "compilation": "Vol6", "index": 9, "performer": "Ann Bly",
-        }
-
-    def test_a_sidecar_with_no_clip_object_is_none(self, tmp_path):
-        lib, meta = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
-        video = _write(lib, meta, "w/y.mp4", {"version": {"group": "w/y"}})
-
-        assert read_clip(video, meta) is None
 
 
 class TestReadVideoType:

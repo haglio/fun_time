@@ -28,7 +28,6 @@ is_process_alive  # tests and the integration reap
 get_process_image_name  # the integration reap, to tell a leftover app from pytest
 _.active_filter  # HudClicks lives in player_core; the reads are in that sibling
 
-video_title  # media_metadata; the VR main role names its video with it
 PROJECT_VR_ICON  # project_paths; read by fun_time_vr, a scan of its own
 set_window_icon  # win32; the VR session's window asks for it, a scan of its own
 draw_nothing_at_all  # win32; the VR session's window asks for it too

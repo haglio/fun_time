@@ -106,23 +106,24 @@ def recorded_group(payload: dict, video: str | Path) -> str:
     return f"{group} {found[-1]}" if found else str(group)
 
 
+TITLE_FIELD = "title"
+
+
 def video_title(payload: dict, video: str | Path) -> str:
-    """What to call *video* from its own sidecar alone: the pair recorded for the
-    clip, else the family it was grouped under, else its filename.
+    """What to call *video*: the name Evolver recorded, else the pair recorded
+    for the clip, else the family it was grouped under, else its filename.
 
-    The record beats the filename even where the two read alike, a filename
-    having had to drop whatever punctuation Windows forbids in one.
+    Evolver works the name out for the whole library at once -- a scene takes
+    the name of the clip cut out of it, which no reader could answer without
+    walking the library -- so the recorded name is the answer and the rest is
+    what to say about a video it has not reached yet.
     """
-    return clip_title(payload) or recorded_group(payload, video) or Path(video).stem
-
-
-def carved_from(payload: dict) -> str:
-    """The library scene Evolver's clip-match batch found *payload*'s clip
-    inside -- by its frames, not its name -- or ``""``."""
-    clip = payload.get("clip")
-    if not isinstance(clip, dict):
-        return ""
-    return str(clip.get("full_video", "") or "")
+    return (
+        str(payload.get(TITLE_FIELD, "") or "").strip()
+        or clip_title(payload)
+        or recorded_group(payload, video)
+        or Path(video).stem
+    )
 
 
 def watch_weight_of(payload: dict) -> float:
