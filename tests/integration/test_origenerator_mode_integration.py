@@ -79,13 +79,16 @@ pytestmark = [
 # written for each player it was handed, the verb that makes that player read
 # it, and a panel for the session to put on the player.  Launched without
 # --fun-time it opens on its own, as he opens the real one, offers itself to a
-# session and answers a takeover.
+# session and answers a takeover -- holding its first status back afterwards,
+# as a busy app would, so a session that waited to hear from an app already
+# open would show the mode closed.
 _STUB_MAIN = textwrap.dedent(
     """
     import argparse
     import ctypes
     import json
     import os
+    import time
     import tkinter as tk
     from ctypes import wintypes
     from pathlib import Path
@@ -112,6 +115,7 @@ _STUB_MAIN = textwrap.dedent(
     root.withdraw()  # the main window arrives only after the "boot"
 
     booted = False
+    silent_until = 0.0
     state_dir = Path(__file__).resolve().parent.parent / "state"
     offer = state_dir / "fun_time_offer.txt"
     takeover = state_dir / "fun_time_takeover.json"
@@ -156,7 +160,7 @@ _STUB_MAIN = textwrap.dedent(
         return (times[0].dwHighDateTime << 32) | times[0].dwLowDateTime
 
     def answer_a_takeover():
-        global args
+        global args, silent_until
         if booted or not takeover.exists():
             return
         try:
@@ -168,6 +172,7 @@ _STUB_MAIN = textwrap.dedent(
             return
         offer.unlink(missing_ok=True)
         args, _unused = parser.parse_known_args(asked["args"])
+        silent_until = time.monotonic() + 60
         park_as_hosted()
 
     def offer_itself():
@@ -216,7 +221,7 @@ _STUB_MAIN = textwrap.dedent(
         held.clear()
 
     def publish_status():
-        if not args.status_file or not booted:
+        if not args.status_file or not booted or time.monotonic() < silent_until:
             return
         lines = []
         for side in SIDES:
@@ -568,6 +573,9 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         session.start()
 
         assert session.read_child_pids().get("origenerator_pid") == offered_pid
+        state_file = shared_state_path(session.config.paths.state_dir)
+        _wait(lambda: read_shared_state(state_file).origenerator_ready, timeout=5,
+              desc="the mode to open without waiting to hear from the app")
         hwnd = _wait(lambda: _parked_main_window(offered_pid),
                      timeout=20, desc="the open app's window to be parked by the takeover")
         session.write_dashboard_command("origenerator_activate")

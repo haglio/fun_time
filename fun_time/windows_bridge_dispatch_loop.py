@@ -225,6 +225,7 @@ class DispatchLoopRunner:
         hud_publisher: HudPublisher | None = None,
         rfb_shortcut: Shortcut | None = None,
         sync_interval_ms: int = 200,
+        origenerator_already_open: bool = False,
     ) -> None:
         self.config = config
         self.dashboard_cmd_file = dashboard_cmd_file
@@ -282,7 +283,7 @@ class DispatchLoopRunner:
         )
         # Latched: the hosted app runs for the whole session, so this is a few
         # reads at the start of one and nothing after.
-        self._origenerator_is_up = False
+        self._origenerator_is_up = origenerator_already_open
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in video mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
@@ -301,8 +302,8 @@ class DispatchLoopRunner:
         and the hosted app's readiness read onto it.
 
         Two ways the mode is not on offer: a session hosting no Origenerator,
-        and one whose app has not finished booting — which is every session for
-        its first half-minute, the room opening without waiting the app out.
+        and one whose app has not finished booting, the room opening without
+        waiting a launched app out.
         """
         state = replace(state, origenerator_ready=self._the_hosted_app_has_answered())
         offered = self.config.origenerator_enabled and state.origenerator_ready

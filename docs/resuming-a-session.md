@@ -69,7 +69,9 @@ answered, was tried and is worse: the two sides would rearrange themselves under
 whatever had been started in video mode. So being in origenerator mode is simply
 not something a session remembers — and until the app is up the mode cannot be
 entered at all: the switch answers "Origenerator is still starting", and both
-satellite HUDs draw that button dim.
+satellite HUDs draw that button dim. An Origenerator that was already open when
+the session began — one he opened himself and the session took over, or one a
+crossing kept — has no boot left to wait out, so its mode is open from the start.
 
 ## The things that have to be re-sent
 

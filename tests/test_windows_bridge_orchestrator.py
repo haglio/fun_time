@@ -989,6 +989,36 @@ class TestLoadingScreenLifecycle:
             LaunchManifest.read(manifest_path).random_favs_browser.shortcut_path)
         assert runner.call_args.kwargs["rfb_shortcut"] == shortcut
 
+    @pytest.mark.parametrize("already_open", [True, False])
+    def test_the_dispatch_loop_is_told_whether_the_hosted_app_was_already_open(
+        self, cfg_factory, tmp_path, already_open,
+    ):
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        fake_ahk_proc = MagicMock()
+        fake_ahk_proc.wait.return_value = 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=replace(_fake_startup_result(),
+                                        origenerator_already_open=already_open)), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=fake_ahk_proc), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+
+            run_session(
+                manifest_path=manifest_path,
+                ahk_exe="ahk.exe",
+                hotkey_script="hotkeys.ahk",
+                state_dir=tmp_path / "state",
+                project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False),
+            )
+
+        assert runner.call_args.kwargs["origenerator_already_open"] is already_open
+
 
 class TestKeepingTheHostedApp:
     """A crossing parks Origenerator instead of closing it, because its boot is

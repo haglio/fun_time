@@ -229,10 +229,11 @@ again, as it always does.
 Identity is the pair and never the pid alone, because Windows hands freed pids
 straight back out.
 
-Its status file is deliberately left alone on adoption — the app is already
-answering through it, and clearing it would close the mode again for a boot
-this has skipped. The paused flag and the command file are cleared as ever: a
-stale freeze or an unread verb from the last session would land on this one.
+The arriving session opens the mode without waiting to hear from the app, since
+it was already open, and leaves its status file alone: the app rewrites that
+only when a show opens or closes, so a cleared one would stay missing until
+then. The paused flag and the command file are cleared as ever: a stale freeze
+or an unread verb from the last session would land on this one.
 
 Whoever ends up with nothing to hand it to lets it go: a VR session quitting
 rather than crossing back, and a relay whose crossing failed. A copy the
