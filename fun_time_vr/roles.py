@@ -336,12 +336,14 @@ class MainRole:
         }
 
     def close(self) -> None:
+        self._play_points.leave()
         self._driver.close()
         self._player.close()
 
     # ---------------------------------------------------------------- helpers
 
     def _load(self, index: int) -> None:
+        self._play_points.leave()
         self._index = index % len(self._entries)
         item = self._entries[self._index]
         logger.info("Main loading: %s", item.path.name)
