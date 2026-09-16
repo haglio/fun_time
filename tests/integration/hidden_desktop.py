@@ -36,6 +36,7 @@ Usage (default integration command):
 
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop
     .venv/Scripts/python.exe -m tests.integration.hidden_desktop -k main_player   # extra args pass through
+    .venv/Scripts/python.exe -m tests.integration.hidden_desktop --repeat-changed   # ten runs of what the branch changed
 """
 from __future__ import annotations
 
@@ -50,6 +51,7 @@ from pathlib import Path
 
 from fun_time.win32_loader import load_dll, win_functype
 
+from .flake_gate_install import flake_gate_python
 from .session_lock import INTEGRATION_LOCK_NAME, hold_integration_lock
 
 HIDDEN_DESKTOP_NAME = "FunTimeIntegration"
@@ -60,23 +62,38 @@ INTEGRATION_DIR = "tests/integration/"
 REFUSED_EXIT_CODE = 4
 
 
-def build_pytest_argv(extra_args: list[str]) -> list[str]:
-    """The pytest command the hidden desktop runs — the whole integration dir, with
-    caller *extra_args* appended last so they win."""
+REPEAT_CHANGED = "--repeat-changed"
+REPEAT_RUNS = 10
+
+
+def build_run_argv(extra_args: list[str]) -> list[str]:
+    """The command the hidden desktop runs: pytest over the whole integration dir,
+    with caller *extra_args* appended last so they win -- or, for
+    ``--repeat-changed [BASE]``, the flake gate over the integration tests changed
+    since BASE."""
+    if _is_a_repeat(extra_args):
+        base = extra_args[1] if len(extra_args) > 1 else "origin/main"
+        return [sys._base_executable, "-m", "app_support.flake_gate",
+                "--base", base, "--only", INTEGRATION_DIR, "--runs", str(REPEAT_RUNS),
+                "--python", sys.executable]
     return [
         sys._base_executable, "-m", "pytest", INTEGRATION_DIR,
         *extra_args,
     ]
 
 
-def _venv_environment() -> dict[str, str]:
-    """This environment, naming the venv the :func:`build_pytest_argv` interpreter runs in.
+def _is_a_repeat(extra_args: list[str]) -> bool:
+    return extra_args[:1] == [REPEAT_CHANGED]
+
+
+def _venv_environment(venv_python: str | Path) -> dict[str, str]:
+    """This environment, naming the venv the :func:`build_run_argv` interpreter runs in.
 
     A venv's python.exe is only a launcher that runs the real interpreter as its
     child, so a run started through it would hand back the launcher's handle.
     ``__PYVENV_LAUNCHER__`` is how that launcher hands the venv over itself, and
     how multiprocessing starts its workers without one (bpo-35797)."""
-    return {**os.environ, "__PYVENV_LAUNCHER__": sys.executable}
+    return {**os.environ, "__PYVENV_LAUNCHER__": str(venv_python)}
 
 
 # --- Win32 desktop isolation ---------------------------------------------------
@@ -388,15 +405,15 @@ _POLL_MS = 1000
 _TEARDOWN_GRACE_MS = 2000
 
 
-def _wait_for_the_run(process: int) -> int:
+def _wait_for_the_run(process: int, ceiling_s: float) -> int:
     """pytest's exit code, as soon as pytest has decided it.
 
     A process can have exited and never be gone: Windows records its exit code,
     then may never finish taking it down, and a handle to it never signals."""
-    deadline = time.monotonic() + RUN_CEILING_S
+    deadline = time.monotonic() + ceiling_s
     while (code := _exit_code(process)) == STILL_ACTIVE:
         if time.monotonic() >= deadline:
-            print(f"[hidden-desktop] the run passed {RUN_CEILING_S / 60:g} minutes "
+            print(f"[hidden-desktop] the run passed {ceiling_s / 60:g} minutes "
                   "without finishing, so it is being ended here; the job object "
                   "takes its children with it and the queue moves again",
                   file=sys.stderr, flush=True)
@@ -432,24 +449,27 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
     run that was merely queued reported a test timeout.
     """
     os.environ["FUN_TIME_RUN_INTEGRATION"] = "1"
+    venv_python = (flake_gate_python(_repo_root() / "state") if _is_a_repeat(extra_args)
+                   else sys.executable)
     with hold_integration_lock(notify=_announce_waiting):
-        return _run_the_suite(extra_args)
+        return _run_the_suite(extra_args, venv_python)
 
 
-def _run_the_suite(extra_args: list[str]) -> int:
+def _run_the_suite(extra_args: list[str], venv_python: str | Path) -> int:
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
         raise ctypes.WinError(ctypes.get_last_error())
     print(f"[hidden-desktop] running the integration suite on '{HIDDEN_DESKTOP_NAME}' "
           f"(off-screen, focus-safe)…", file=sys.stderr, flush=True)
     try:
-        cmdline = subprocess.list2cmdline(build_pytest_argv(extra_args))
+        cmdline = subprocess.list2cmdline(build_run_argv(extra_args))
         job = create_run_job()
         try:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
-                                    environment=_venv_environment())
+                                    environment=_venv_environment(venv_python))
             try:
-                return _wait_for_the_run(pi.hProcess)
+                runs = REPEAT_RUNS if _is_a_repeat(extra_args) else 1
+                return _wait_for_the_run(pi.hProcess, RUN_CEILING_S * runs)
             finally:
                 _close_process_handles(pi)
         finally:
