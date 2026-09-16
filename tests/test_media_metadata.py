@@ -23,6 +23,7 @@ from fun_time.media_metadata import (
     reject_action,
     seed_family_items,
     seed_group_key,
+    video_title,
     watch_weight_of,
     widened_seed_items,
 )
@@ -778,3 +779,27 @@ def test_a_video_reached_through_a_junction_is_still_placed_under_the_library(tm
 
     assert metadata_path_for(link / "2D" / "clip.mp4", root / "metadata") == (
         root / "metadata" / "2D" / "clip.json")
+
+
+class TestWhatAVideoIsCalled:
+    """Evolver works the name out once for the whole library and writes it down;
+    what is left here is reading it, and answering for a video it has not
+    reached yet."""
+
+    def test_the_recorded_name_is_what_the_video_is_called(self):
+        assert video_title(
+            {"title": "Jane Doe - Alpha Study: Part Two",
+             "version": {"group": "Jane Doe - Alpha Study Part Two"}},
+            "C:/lib/Jane Doe - Alpha Study Part Two_apo8.mp4",
+        ) == "Jane Doe - Alpha Study: Part Two"
+
+    def test_a_clip_evolver_has_not_named_yet_is_called_by_its_own_record(self):
+        assert video_title(
+            {"clip": {"performer": "Jane Doe", "source": "Alpha Study 3"}},
+            "C:/lib/whatever.mp4",
+        ) == "Jane Doe - Alpha Study 3"
+
+    def test_a_video_with_neither_falls_back_to_its_family_then_its_filename(self):
+        assert video_title({"version": {"group": "Jane-Doe_540-hQ2vLm8t"}},
+                           "C:/lib/Jane-Doe_540-hQ2vLm8t_apo8.mp4") == "Jane-Doe_540-hQ2vLm8t"
+        assert video_title({}, "C:/lib/Jane-Doe_540-hQ2vLm8t.mp4") == "Jane-Doe_540-hQ2vLm8t"

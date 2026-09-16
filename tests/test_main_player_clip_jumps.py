@@ -323,10 +323,10 @@ class TestWhatTheVideoIsCalled:
     """The console's muted line under the status names the video, and the
     library's record of it beats the filename wherever there is one."""
 
-    def test_a_scene_is_named_after_the_clip_cut_from_it(self, tmp_path):
-        nav, _first, _second, scene = _world(tmp_path)
+    def test_it_is_the_name_evolver_recorded_for_the_video(self, tmp_path):
+        nav, first, _second, _scene = _world(tmp_path)
 
-        assert _jumps(nav, scene)[0].title == "Ann Bly - Alpha Scene 2"
+        assert _jumps(nav, first)[0].title == "Jane Doe - Scene Two"
 
     def test_the_name_rides_the_walk_the_buttons_already_paid_for(self, tmp_path):
         """Naming the video asks the same question the buttons do -- which clip

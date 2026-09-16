@@ -28,7 +28,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from .library import stable_title
-from .sidecar import read_clip, read_version_group
+from .sidecar import read_sidecar
 
 _TOKEN = re.compile(r"[a-z0-9]+")
 
@@ -90,22 +90,28 @@ class ClipNav:
     # match recorded against one version resolves from any of them. Keyed by
     # path because the family is Evolver's to declare, not a name's to be read for.
     _groups: dict[Path, str]
+    # What Evolver recorded each video is called, "" where it recorded nothing.
+    _titles: dict[Path, str]
 
     @classmethod
     def build(cls, videos: Iterable[Path], metadata_root: Path | None) -> ClipNav:
         clips: dict[Path, dict] = {}
         non_clips: list[Path] = []
         groups: dict[Path, str] = {}
+        titles: dict[Path, str] = {}
         for video in videos:
-            meta = read_clip(video, metadata_root) if metadata_root is not None else None
-            if meta is not None:
+            payload = read_sidecar(video, metadata_root) if metadata_root is not None else {}
+            titles[video] = str(payload.get("title", "") or "").strip()
+            meta = payload.get("clip")
+            if isinstance(meta, dict):
                 clips[video] = meta
             else:
                 non_clips.append(video)
-                groups[video] = (
-                    read_version_group(video, metadata_root) or ""
-                ) if metadata_root is not None else ""
-        return cls(clips, tuple(non_clips), groups)
+                version = payload.get("version")
+                groups[video] = str(
+                    (version.get("group") or "") if isinstance(version, dict) else ""
+                )
+        return cls(clips, tuple(non_clips), groups, titles)
 
     def _family(self, scene: Path) -> str:
         """*scene*'s version family, for a scene the library may not hold.
@@ -116,15 +122,22 @@ class ClipNav:
         return self._groups.get(scene) or stable_title(scene.stem)
 
     def title_of(self, video: Path) -> str:
-        """What to call *video* on screen: its own clip record, else the record
-        of the clip carved from it, else the family it was grouped under, else
-        the filename."""
+        """What to call *video* on screen: the name Evolver recorded, else this
+        video's own clip record, else the family it was grouped under, else the
+        filename.
+
+        Evolver names a scene after the clip cut out of it, which takes the whole
+        library at once -- so that answer is read here rather than worked out,
+        and a library it has not been over keeps the ones a video can answer for
+        itself.
+        """
         meta = self._clips.get(video)
-        if meta is None:
-            clip = self.clip_of(video)
-            meta = self._clips.get(clip) if clip is not None else None
-        recorded = clip_title(meta) if meta is not None else ""
-        return recorded or self._groups.get(video) or video.stem
+        return (
+            self._titles.get(video)
+            or (clip_title(meta) if meta is not None else "")
+            or self._groups.get(video)
+            or video.stem
+        )
 
     def compilation_of(self, video: Path) -> str:
         """The title of the compilation *video* was carved from, or "" for a
