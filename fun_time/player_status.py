@@ -28,7 +28,7 @@ def read_genau_enabled(path: Path) -> bool:
 class MainPlayerStatus(PlayerStatus):
     """Snapshot of what the main player is playing, parsed from its status file.
 
-    The family's six and then the main player's own; only the fields with
+    The family's seven and then the main player's own; only the fields with
     consumers on this side are parsed.  ``position_ms`` and ``duration_ms``
     give the playback fraction watch tracking needs; the device arbiter drives
     the OSR2 from the funscript while ``has_funscript`` and not

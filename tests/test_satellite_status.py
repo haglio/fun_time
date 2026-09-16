@@ -56,7 +56,7 @@ class TestStatusFields:
 
         assert status_fields(session)["speed"] == "1.5"
 
-    def test_the_six_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
+    def test_the_seven_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
         from player_core.status import PlayerStatus, parse_status
 
         session, player = make_satellite_session(tmp_path)
