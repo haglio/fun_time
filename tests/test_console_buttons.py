@@ -79,13 +79,14 @@ class TestOsr2ControlStates:
                       OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF])
         assert (off.lit, off.warn) == (False, True)
 
-    def test_the_four_sit_together_as_one_group(self):
-        """A break between the third and the fourth would read as three holds
-        and a switch, where what they are is one control in four states."""
+    def test_they_read_from_off_to_on_left_to_right(self):
+        """One control in four states, in one group with no break inside it, and
+        laid out as the switch it is: off at the left, then the two holds, then
+        the device driving at the right."""
         placed = _placed(MainSlot(mode="genau"))
         edges = [placed[OSR2_CONTROL_BUTTONS[state]]
-                 for state in (OSR2_PARKED, OSR2_RETRACTED, OSR2_DRIVING,
-                               OSR2_CONTROL_OFF)]
+                 for state in (OSR2_CONTROL_OFF, OSR2_PARKED, OSR2_RETRACTED,
+                               OSR2_DRIVING)]
         gaps = [nxt[0] - (rect[0] + rect[2])
                 for rect, nxt in itertools.pairwise(edges)]
 

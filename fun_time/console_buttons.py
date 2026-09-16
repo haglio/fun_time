@@ -314,6 +314,9 @@ def _clip_seconds_row() -> tuple[Button, ...]:
 
 
 def _control_row(slot: MainSlot) -> tuple[Button, ...]:
+    """The motion's shape, then the four OSR2 control states as one radio group,
+    read from off to on: exactly one lit, red for off and blue for the three
+    that are control."""
     control = slot.osr2_control
     return (
         Button("robot_hand_toggle_cruise", "cc",
@@ -322,9 +325,14 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
                "Learned motion: play what real scripts do, not a waveform", lit=slot.learned),
         Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(slot.shape)}"),
         Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
+        Button("osr2_control_off", CONTROL_OFF_ICON,
+               "Control off — the OSR2 is left exactly where it is and nothing "
+               "here moves it.  The device itself is untouched: this is the app "
+               "letting go of it, not the OSR2 switching off",
+               warn=control == OSR2_CONTROL_OFF, group_break=True),
         Button("robot_hand_park", PARK_ICON,
                "Parked — the OSR2 held still, settled home",
-               lit=control == OSR2_PARKED, group_break=True),
+               lit=control == OSR2_PARKED),
         Button("robot_hand_retract", RETRACT_ICON,
                "Retracted — the OSR2 held still at the far end, away from you",
                lit=control == OSR2_RETRACTED),
@@ -332,11 +340,6 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
                "Driving — the OSR2 back on whatever the motion was doing, "
                "cruise included",
                lit=control == OSR2_DRIVING),
-        Button("osr2_control_off", CONTROL_OFF_ICON,
-               "Control off — the OSR2 is left exactly where it is and nothing "
-               "here moves it.  The device itself is untouched: this is the app "
-               "letting go of it, not the OSR2 switching off",
-               warn=control == OSR2_CONTROL_OFF),
         *((
             Button("main_player_funscript_jump", FUNSCRIPT_JUMP_ICON,
                    "Skip ahead to where this video's scripting starts up again",
