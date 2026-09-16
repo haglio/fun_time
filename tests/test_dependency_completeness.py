@@ -24,6 +24,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 # not have justified, and fun_time_vr brings the OpenXR/GL stack.
 PACKAGE_DIRS = (
     PROJECT_ROOT / "fun_time",
+    PROJECT_ROOT / "main_player",
     PROJECT_ROOT / "satellite",
     PROJECT_ROOT / "fun_time_vr",
 )
@@ -38,7 +39,7 @@ def test_all_third_party_imports_declared_in_pyproject():
     # own and the two import names its pyproject spells differently.
     assert_every_import_is_declared(
         PROJECT_ROOT, PACKAGE_DIRS, PYPROJECT,
-        local=("fun_time", "satellite", "fun_time_vr"),
+        local=("fun_time", "main_player", "satellite", "fun_time_vr"),
         import_names={"glfw": "glfw", "PyQt6": "PyQt6"})
 
 
