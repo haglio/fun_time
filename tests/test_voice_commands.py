@@ -215,6 +215,14 @@ class TestVoiceCommands:
                        "oh es are two resume"):
             assert VOICE_COMMANDS[phrase] == "robot_hand_release", phrase
 
+    def test_osr2_off_lets_go_of_the_device(self):
+        """The fourth of the console's control buttons, answered the way the
+        three beside it are.  Spelled with the letters vosk has, like "OSR2
+        resume", which is the way back."""
+        for phrase in ("o s r two off", "oh es are two off"):
+            assert VOICE_COMMANDS[phrase] == "osr2_control_off", phrase
+            assert friendly_voice(phrase) == "OSR2 off"
+
     def test_the_release_is_spelled_the_way_vosk_can_hear_it(self):
         """vosk has none of "unpark", "unretract" or "OSR2" in its lexicon, so a
         phrase built from them could never be recognized.  It does have "un" (as
