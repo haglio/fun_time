@@ -305,6 +305,9 @@ def _discard(
     # while the phrase was being recognized, jump back to the condemned clip
     # before trashing it, so the wrong (innocent) clip is never the one dropped.
     condemned = target_path or current_path
+    if not condemned:
+        logger.info("Nothing discarded on player %d: it has not said which clip it is showing", player)
+        return state, []
     already_moved_on = bool(target_path) and not same_video(target_path, current_path)
     # Whether this is a demotion or a condemnation is read from the same favs
     # file that lights the HUD's ★ for this clip, so the key does what the badge
@@ -315,7 +318,7 @@ def _discard(
         # A locked satellite is repeat-one; drop the lock so TRASH advances into
         # the playlist instead of looping the clip that replaced the discarded one.
         send_satellite(config, player, LOCK_OFF)
-    if plan.remove_from_favs and condemned:
+    if plan.remove_from_favs:
         remove_from_favs(config.favs_file, condemned)
     if plan.advance_playlist:
         if plan.drop_from_playlist:
@@ -329,7 +332,7 @@ def _discard(
             # be done to the clip itself, so a satellite that already moved on is
             # left alone rather than dragged back to a clip it would leave again.
             send_satellite(config, player, NEXT)
-    if plan.move_to_weird and condemned:
+    if plan.move_to_weird:
         move_to_weird(config.weird_dir, Path(condemned))
     if plan.log_message:
         logger.info(plan.log_message)
