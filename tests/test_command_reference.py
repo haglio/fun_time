@@ -549,6 +549,15 @@ def test_cruise_voice_lists_on_before_off():
     assert cruise.voice == ("cruise control", "cruise on", "cruise off")
 
 
+def test_learned_motion_follows_cruise_with_the_same_shape_of_voice():
+    rows = _all_rows()
+    cruise = next(i for i, r in enumerate(rows) if "robot_hand_toggle_cruise" in r.commands)
+    learned = rows[cruise + 1]
+    assert "robot_hand_toggle_learned" in learned.commands
+    assert learned.voice == ("learned motion", "learned on", "learned off")
+    assert _keys(learned) == ("Y",)
+
+
 def test_previous_next_pairs_are_ordered_previous_then_next():
     for section in build_reference_sections():
         descs = [r.description for r in section.rows]

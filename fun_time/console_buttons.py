@@ -41,6 +41,7 @@ class MainSlot:
     latest: bool | None = None
     record: str = "normal"
     cruise: bool = False
+    learned: bool = False
     shape: str = "sine"
     plays_vr: bool | None = None
     plays_flat: bool | None = None
@@ -307,6 +308,8 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
     return (
         Button("robot_hand_toggle_cruise", "cc",
                "Cruise control: vary the motion hands-free", lit=slot.cruise),
+        Button("robot_hand_toggle_learned", "lm",
+               "Learned motion: play what real scripts do, not a waveform", lit=slot.learned),
         Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(slot.shape)}"),
         Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
         Button("robot_hand_park", PARK_ICON,

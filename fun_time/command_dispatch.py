@@ -122,6 +122,9 @@ _GENAU_CMD_MAP = {
     "robot_hand_toggle_cruise": "TOGGLE_CRUISE",
     "robot_hand_cruise_on": "CRUISE_ON",
     "robot_hand_cruise_off": "CRUISE_OFF",
+    "robot_hand_toggle_learned": "TOGGLE_LEARNED",
+    "robot_hand_learned_on": "LEARNED_ON",
+    "robot_hand_learned_off": "LEARNED_OFF",
     # How long an unlocked Genau leaves each clip on screen, a second at a
     # time; the padlock (_MAIN_LOCK_COMMANDS) is the switch, this is its pace.
     "genau_clip_seconds_down": "CLIP_SECONDS_DOWN",

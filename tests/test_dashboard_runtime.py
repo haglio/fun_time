@@ -123,6 +123,14 @@ def test_read_genau_status_parses_active_cruise_and_shape(tmp_path: Path):
     assert status.shape == "triangle"
 
 
+def test_read_genau_status_parses_the_learned_motion(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("cruise=0\nlearned=1\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).learned_active is True
+    assert read_genau_status(tmp_path / "missing.txt").learned_active is False
+
+
 def test_read_genau_status_parses_the_clip_lock(tmp_path: Path):
     status_file = tmp_path / "genau_status.txt"
     status_file.write_text("locked=0\n", encoding="utf-8")
