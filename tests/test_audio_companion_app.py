@@ -394,43 +394,54 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
 
 class TestTheOutputItPlaysOn:
     """In VR the clip music belongs on the headset with everything else the
-    session plays; the default device is the room's speakers."""
+    session plays; the default device is the room's speakers.  Which output a
+    name means is player_core's rule, the one the players follow -- what is
+    tested here is that the companion asks it and opens on the answer."""
 
-    NAMES = ["Speakers (Realtek)", "Headphones (Pimax 8K)", "Digital Output"]
+    STREAMING = "Speakers (Example AirLink)"
+    HEADSET = "Headphones (Example Headset)"
+    NAMES = ["Speakers (Example Audio)", HEADSET, "Digital Output"]
 
-    def test_the_first_output_whose_name_contains_the_wanted_word_is_picked(self):
-        from fun_time.audio_companion_app import pick_audio_device
-
-        assert pick_audio_device(self.NAMES, "pimax") == "Headphones (Pimax 8K)"
-
-    def test_the_match_ignores_case_and_surrounding_space(self):
-        from fun_time.audio_companion_app import pick_audio_device
-
-        assert pick_audio_device(self.NAMES, "  PIMAX ") == "Headphones (Pimax 8K)"
-
-    def test_no_wanted_device_means_the_default(self):
-        from fun_time.audio_companion_app import pick_audio_device
-
-        assert pick_audio_device(self.NAMES, None) is None
-        assert pick_audio_device(self.NAMES, "") is None
-
-    def test_a_name_nothing_matches_means_the_default_too(self):
-        """Rather than a companion that will not start: the session still plays,
-        through the room."""
-        from fun_time.audio_companion_app import pick_audio_device
-
-        assert pick_audio_device(self.NAMES, "Quest") is None
-
-    def test_the_mixer_opens_on_the_picked_device(self):
+    def test_the_mixer_opens_on_the_output_the_session_named(self):
         from fun_time.audio_companion_app import init_mixer
 
         with patch("pygame._sdl2.audio.get_audio_device_names", return_value=self.NAMES), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \
              patch.object(audio_companion_app.pygame.mixer, "quit"):
-            picked = init_mixer("pimax")
+            picked = init_mixer("example headset")
 
-        assert picked == "Headphones (Pimax 8K)"
-        init.assert_any_call(devicename="Headphones (Pimax 8K)")
+        assert picked == self.HEADSET
+        init.assert_any_call(devicename=self.HEADSET)
+
+    def test_a_software_output_of_the_same_name_does_not_take_the_sound(self):
+        """The headset maker's own streaming driver carries its name too and
+        Windows lists it first, so taking the first match left the room silent.
+        """
+        from fun_time.audio_companion_app import init_mixer
+
+        with patch("player_core.audio_outputs.software_outputs",
+                   return_value=frozenset({self.STREAMING})), \
+             patch("pygame._sdl2.audio.get_audio_device_names",
+                   return_value=[self.STREAMING, self.HEADSET]), \
+             patch.object(audio_companion_app.pygame.mixer, "init") as init, \
+             patch.object(audio_companion_app.pygame.mixer, "quit"):
+            picked = init_mixer("example")
+
+        assert picked == self.HEADSET
+        init.assert_any_call(devicename=self.HEADSET)
+
+    def test_a_name_no_output_carries_means_the_default(self):
+        """Rather than a companion that will not start: the session still plays,
+        through the room."""
+        from fun_time.audio_companion_app import init_mixer
+
+        with patch("pygame._sdl2.audio.get_audio_device_names", return_value=self.NAMES), \
+             patch.object(audio_companion_app.pygame.mixer, "init") as init, \
+             patch.object(audio_companion_app.pygame.mixer, "quit"):
+            picked = init_mixer("Nowhere")
+
+        assert picked is None
+        init.assert_called_with(devicename=None)
 
     def test_the_outputs_are_listed_only_once_the_audio_subsystem_is_up(self):
         """Listing before the mixer opened raised "Audio system not initialised", crashing the companion on every VR launch."""
@@ -454,9 +465,9 @@ class TestTheOutputItPlaysOn:
         with patch.object(audio_companion_app.pygame.mixer, "init", side_effect=opened), \
              patch.object(audio_companion_app.pygame.mixer, "quit", side_effect=closed), \
              patch("pygame._sdl2.audio.get_audio_device_names", side_effect=listed):
-            picked = init_mixer("pimax")
+            picked = init_mixer("example headset")
 
-        assert picked == "Headphones (Pimax 8K)"
+        assert picked == self.HEADSET
 
     def test_with_nothing_wanted_the_devices_are_not_even_listed(self):
         """The desktop session: the default output, no SDL device enumeration."""

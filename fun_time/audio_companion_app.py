@@ -14,6 +14,7 @@ from typing import Any
 import pygame
 from app_support.cli import preparse_config_path
 from app_support.logging_utils import configure_logging, install_exception_logging
+from player_core.audio_outputs import Output, pick_output
 from player_core.file_channel import read_paused_state
 
 from .audio_companion_runtime import AudioCompanionRuntime
@@ -38,22 +39,11 @@ def build_parser(config) -> argparse.ArgumentParser:
     return ap
 
 
-def pick_audio_device(names, wanted: str | None) -> str | None:
-    """The first output whose name contains *wanted*, else None for the default
-    -- an unmatched name too, rather than a companion that will not start."""
-    if not wanted:
-        return None
-    needle = wanted.strip().lower()
-    for name in names:
-        if needle in str(name).lower():
-            return str(name)
-    return None
-
-
 def init_mixer(wanted: str | None) -> str | None:
     """Open the mixer on *wanted*'s output (the headset, in VR) else the default,
-    and say which.  Listing outputs needs the mixer already open or SDL raises
-    "Audio system not initialised" -- so open the default, list, reopen on it."""
+    and say which -- by the family's rule, so the clip music lands where the
+    players beside it play.  Listing outputs needs the mixer already open or SDL
+    raises "Audio system not initialised" -- so open the default, list, reopen."""
     if not wanted:
         pygame.mixer.init(devicename=None)
         return None
@@ -61,9 +51,11 @@ def init_mixer(wanted: str | None) -> str | None:
 
     pygame.mixer.init(devicename=None)
     try:
-        device = pick_audio_device(get_audio_device_names(False), wanted)
+        outputs = [Output(str(name), str(name)) for name in get_audio_device_names(False)]
     finally:
         pygame.mixer.quit()
+    picked = pick_output(outputs, wanted)
+    device = picked.handle if picked else None
     pygame.mixer.init(devicename=device)
     return device
 
