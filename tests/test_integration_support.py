@@ -10,6 +10,7 @@ PID Windows has since recycled is recognized rather than shot.
 """
 from __future__ import annotations
 
+import json
 import socket
 import time
 from pathlib import Path
@@ -28,6 +29,7 @@ from tests.integration.integration_support import (
     close_udp_sinks,
     isolate_shared_resources,
     library_clips,
+    point_the_main_player_at,
     published_status,
     readable_at_speed,
     sample_library_clips,
@@ -39,29 +41,26 @@ BROKER_TCODE_PORT = 50557
 GENAU_INBOUND_PORT = 50555
 AUDIO_COMPANION_PORT = 50556
 
+EXAMPLE_CONFIG = Path(__file__).resolve().parent.parent / "fun_time_config.example.json"
+
 
 def _the_users_config() -> tuple[dict, dict]:
-    """The two configs as the user's own session has them, naming what the machine shares."""
-    config = {
-        "audio_companion": {"host": "127.0.0.1", "port": AUDIO_COMPANION_PORT},
-        "paths": {
-            "broker_tray_launcher": "../osr2_broker/launch_broker_tray.vbs",
-            # A session may be pinned at the broker's own directory rather than
-            # its own state dir — a branch session is — and a run copies the
-            # config whole.
-            "broker_state_dir": "C:/Users/Example/workspace/fun_time/state",
-        },
-        "voice_control": {"enabled": True, "device_name": "Brio"},
-        "loopback_port": LOOPBACK_PORT,
-        # Vestigial: fun_time stopped parsing this when Genau moved to its own
-        # repo, but the section is still sitting in every config file written
-        # before then — including the one a run copies.
-        "genau": {"udp_host": "127.0.0.1", "udp_port": GENAU_INBOUND_PORT,
-                  "notify_port": AUDIO_COMPANION_PORT, "status_hide_ms": 1200},
-        # FunTimeVR's main player streams T-Code through this key — to the same
-        # broker inlet the main player and Genau use.
-        "vr": {"library_dirs": [], "tcode_udp_port": BROKER_TCODE_PORT},
-    }
+    """The two configs as the user's own session has them, naming what the machine shares.
+
+    Fun Time's side is read from the committed example his real config is written
+    from, so a section that moves into it reaches every check here the day it lands.
+    """
+    config = json.loads(EXAMPLE_CONFIG.read_text(encoding="utf-8"))
+    # A session may be pinned at the broker's own directory rather than its own
+    # state dir — a branch session is — and a run copies the config whole.
+    config["paths"]["broker_state_dir"] = "C:/Users/Example/workspace/fun_time/state"
+    config["voice_control"]["enabled"] = True
+    config["loopback_port"] = LOOPBACK_PORT
+    # Vestigial: fun_time stopped parsing this when Genau moved to its own
+    # repo, but the section is still sitting in every config file written
+    # before then — including the one a run copies.
+    config["genau"] = {"udp_host": "127.0.0.1", "udp_port": GENAU_INBOUND_PORT,
+                       "notify_port": AUDIO_COMPANION_PORT, "status_hide_ms": 1200}
     genau_config = {
         "genau": {
             "udp_port": GENAU_INBOUND_PORT,
@@ -69,7 +68,6 @@ def _the_users_config() -> tuple[dict, dict]:
             "notify_port": AUDIO_COMPANION_PORT,
             "tcode_udp_port": BROKER_TCODE_PORT,
         },
-        "main_player": {"tcode_udp_port": BROKER_TCODE_PORT},
     }
     return config, genau_config
 
@@ -224,9 +222,32 @@ def test_the_integration_config_never_streams_tcode_to_the_machines_broker(isola
     config, genau_config = isolated_ports
 
     assert genau_config["genau"]["tcode_udp_port"] != BROKER_TCODE_PORT
-    assert genau_config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
+    assert config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
     # The VR main player is the third sender at that inlet; it moves with them.
     assert config["vr"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
+
+
+def test_a_config_with_no_main_player_section_still_keeps_the_run_off_the_broker():
+    """The main player falls back to the broker's own port for a key its section does not name."""
+    config, genau_config = _the_users_config()
+    del config["main_player"]
+    try:
+        isolate_shared_resources(config, genau_config)
+
+        assert config["main_player"]["tcode_udp_port"] == genau_config["genau"]["tcode_udp_port"]
+    finally:
+        close_udp_sinks()
+
+
+def test_a_runs_main_player_browses_the_runs_copy_of_the_library_not_the_machines():
+    config, _genau_config = _the_users_config()
+    run_videos = Path("C:\\Temp\\fun_time_integration_run\\integration_runtime\\videos\\videos\\primary")
+
+    point_the_main_player_at(config, run_videos)
+
+    assert config["main_player"]["videos_dir"] == str(run_videos)
+    assert config["main_player"]["scripts_dir"] == str(
+        Path("C:\\Temp\\fun_time_integration_run\\integration_runtime\\videos\\scripts\\scripts\\primary"))
 
 
 def test_the_runs_tcode_port_is_bound_so_the_stream_has_somewhere_to_land(isolated_ports):

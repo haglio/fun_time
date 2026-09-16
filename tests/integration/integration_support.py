@@ -587,8 +587,11 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
       meant for the user's.
     * The **broker's T-Code inlet** is the one output that reaches hardware.  The
       broker holds the OSR2's serial port, so a run that keeps the production
-      inlet drives the user's device while they are using it.  The main player and Genau move
-      to one sink together, so a run's stream stays watchable where it lands.
+      inlet drives the user's device while they are using it.  Genau, the main
+      player and the VR main player move to one sink together, so a run's stream
+      stays watchable where it lands.  Both players read their port from Fun
+      Time's own config and fall back to the broker's for a section that is
+      missing, so theirs is set whether or not the section is there.
     """
     companion_port = _free_udp_port()
     config["audio_companion"]["port"] = companion_port
@@ -598,12 +601,8 @@ def _isolate_shared_udp_ports(config: dict, genau_config: dict) -> None:
 
     tcode_port = _sink_udp_port()
     genau_config["genau"]["tcode_udp_port"] = tcode_port
-    genau_config["main_player"]["tcode_udp_port"] = tcode_port
-    # The VR main player streams to the same broker inlet through fun_time's own
-    # config (``vr.tcode_udp_port``), so it moves onto the run's sink with
-    # them — set even when the section is absent, so a config written before
-    # FunTimeVR existed still cannot fall back to the production default.
-    config.setdefault("vr", {})["tcode_udp_port"] = tcode_port
+    for player in ("main_player", "vr"):
+        config.setdefault(player, {})["tcode_udp_port"] = tcode_port
 
 
 def real_config_path() -> Path:
@@ -718,6 +717,12 @@ def checkout_project_dirs() -> str:
     return os.pathsep.join(raw.get("paths", {}).get("genau_project_dirs", []))
 
 
+def point_the_main_player_at(config: dict, videos_dir: Path) -> None:
+    main_player = config.setdefault("main_player", {})
+    main_player["videos_dir"] = str(videos_dir)
+    main_player["scripts_dir"] = str(videos_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER)
+
+
 def build_integration_config(tmp_path: Path) -> Path:
     real = load_config(real_config_path())
     integration_root = tmp_path.resolve() / "integration_runtime"
@@ -748,18 +753,8 @@ def build_integration_config(tmp_path: Path) -> Path:
     config["random_favs_browser"]["enabled"] = False
     apply_checkout_project_dirs(config)
 
-    # The main player builds its version-index / length-mode source from main_player.videos_dir, so
-    # point the genau config's the main player dirs at the copied test library — otherwise it
-    # would scan the real one. Mirrors the videos->scripts layout that
-    # _link_primary_samples writes the funscripts into.
-    scripts_root = Path(str(primary_dir).replace(LIBRARY_MARKER, SCRIPTS_MARKER))
-    main_player_clips_dir = integration_root / "main_player_clips"
-    main_player_clips_dir.mkdir(parents=True, exist_ok=True)
+    point_the_main_player_at(config, primary_dir)
     genau_config = json.loads(Path(config["paths"]["genau_config_path"]).read_text(encoding="utf-8"))
-    genau_config.setdefault("main_player", {})
-    genau_config["main_player"]["videos_dir"] = str(primary_dir)
-    genau_config["main_player"]["scripts_dir"] = str(scripts_root)
-    genau_config["main_player"]["clips_dir"] = str(main_player_clips_dir)
     isolate_shared_resources(config, genau_config)
     test_genau_config = integration_root / "genau_integration_config.json"
     test_genau_config.write_text(json.dumps(genau_config), encoding="utf-8")
