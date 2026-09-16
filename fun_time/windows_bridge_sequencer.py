@@ -518,6 +518,7 @@ def _launch_the_main_slot_players(
         drive_file=genau_drive_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         log_file=state_dir / "main_player.log",
+        state_dir=state_dir,
         main_player_x=main_media_rect.x,
         main_player_y=main_media_rect.y,
         main_player_width=main_media_rect.width,

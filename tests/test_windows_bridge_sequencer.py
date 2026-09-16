@@ -355,6 +355,9 @@ class TestRunStartupSequence:
             "drive_file": Path(cfg.genau_cmd_file).parent / "genau_drive.txt",
             # The main player is the satellites' twin and gets the same crash log.
             "log_file": tmp_path / "main_player.log",
+            # Where it keeps the mode it was in and the point each video was left
+            # at; left to itself it puts them beside the config, in the checkout.
+            "state_dir": tmp_path,
             "main_player_x": PRIMARY_MEDIA_RECT["x"],
             "main_player_y": PRIMARY_MEDIA_RECT["y"],
             "main_player_width": PRIMARY_MEDIA_RECT["width"],
