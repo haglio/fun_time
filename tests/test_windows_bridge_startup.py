@@ -41,6 +41,7 @@ from fun_time.windows_bridge_startup import (
     launch_origenerator,
     launch_satellite,
     launch_ui_companions,
+    origenerator_interpreter,
     prepare_random_favs_browser_manifest,
     reap_orphaned_satellites,
     seed_startup_states,
@@ -2239,6 +2240,21 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
 
     env = popen.call_args.kwargs["env"]
     assert env["ORIGENERATOR_BRANCH_SESSION"] == "1"
+
+
+def test_a_hosted_checkout_is_run_from_its_own_install(tmp_path: Path):
+    checkout = tmp_path / "origenerator"
+
+    assert origenerator_interpreter(checkout) == checkout / ".venv" / "Scripts" / "python.exe"
+
+
+def test_a_hosted_worktree_is_run_from_the_primary_checkouts_install(tmp_path: Path):
+    """A worktree has no install of its own, and the primary's is the one its
+    own preview sessions run from."""
+    primary = tmp_path / "origenerator"
+    worktree = primary / ".claude" / "worktrees" / "my-branch"
+
+    assert origenerator_interpreter(worktree) == primary / ".venv" / "Scripts" / "python.exe"
 
 
 class TestLaunchingTheAudioCompanionOnItsOwn:

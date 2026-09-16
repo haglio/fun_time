@@ -33,6 +33,7 @@ from fun_time.config import load_config
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
     HandedPlayer,
+    origenerator_interpreter,
     origenerator_launch_command,
     origenerator_launch_kwargs,
 )
@@ -120,7 +121,7 @@ def _hosted_checkout_and_python():
     checkout = _named_checkout() or config.paths.origenerator_dir
     if not checkout or not Path(checkout).exists():
         pytest.skip("this session hosts no Origenerator (paths.origenerator_dir)")
-    python_exe = config.paths.origenerator_python_exe or config.paths.python_exe
+    python_exe = config.paths.origenerator_python_exe or origenerator_interpreter(checkout)
     if not python_exe or not Path(python_exe).exists():
         pytest.skip(f"the hosted app's interpreter is missing: {python_exe}")
     return Path(checkout), Path(python_exe)

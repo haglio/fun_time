@@ -630,6 +630,17 @@ def origenerator_launch_command(
     return cmd
 
 
+def is_a_worktree(checkout: Path) -> bool:
+    return checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude"
+
+
+def origenerator_interpreter(origenerator_dir: str | Path) -> Path:
+    """A worktree has no install of its own and runs from the primary's."""
+    checkout = Path(origenerator_dir)
+    repo = checkout.parents[2] if is_a_worktree(checkout) else checkout
+    return repo / ".venv" / "Scripts" / "python.exe"
+
+
 def origenerator_launch_kwargs(
     *,
     origenerator_dir: str | Path,
@@ -647,11 +658,9 @@ def origenerator_launch_kwargs(
     # install: run it as origenerator's own branch session (its preview
     # launcher sets the same flag), which seeds its database from the
     # primary's, skips the maintenance passes only the live app should run,
-    # and leaves its generations for the live app to adopt.  A worktree sits
-    # at exactly <repo>/.claude/worktrees/<name> by this suite's own working
-    # law — the same layout origenerator's launch_preview_branch.vbs walks.
+    # and leaves its generations for the live app to adopt.
     checkout = Path(origenerator_dir)
-    if checkout.parent.name == "worktrees" and checkout.parent.parent.name == ".claude":
+    if is_a_worktree(checkout):
         env = kwargs.get("env") or {**os.environ}
         kwargs["env"] = {**env, "ORIGENERATOR_BRANCH_SESSION": "1"}
     return kwargs

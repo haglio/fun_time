@@ -20,8 +20,7 @@
     "genau_python_exe": "C:/path/to/genau/.venv/Scripts/pythonw.exe",
     "genau_config_path": "C:/path/to/genau/genau_config.json",
     "broker_tray_launcher": "../broker/launch_broker_tray.vbs",
-    "origenerator_dir": "C:/path/to/origenerator",
-    "origenerator_python_exe": "C:/path/to/system/python.exe"
+    "origenerator_dir": "C:/path/to/origenerator"
   },
   "layout": {
     "primary_monitor": 1,
