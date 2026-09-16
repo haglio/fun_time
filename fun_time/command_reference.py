@@ -251,9 +251,9 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("robot_hand_release",),
             ),
             _Row(
-                "Control off — let go of the OSR2 and leave it exactly where it "
-                "is, until you park, retract or resume it.  The device itself "
-                "stays on: this is the app letting go, not the OSR2 switching off",
+                "Control off — settle the OSR2 home and let go of it there, "
+                "until you park, retract or resume it.  The device itself stays "
+                "on: this is the app letting go, not the OSR2 switching off",
                 (),
                 ("osr2_control_off",),
             ),

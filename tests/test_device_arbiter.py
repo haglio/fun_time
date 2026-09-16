@@ -87,10 +87,10 @@ class TestNobodyDriving:
 
         assert f"CENTER {HOLD_CENTERS['robot_hand_retract']}" in genau(driver)
 
-    def test_control_off_pauses_genau_rather_than_moving_the_device(self, tmp_path):
-        """park and retract are the two presses that MOVE the device; letting go
-        of it leaves it exactly where it stands, which is what a paused Genau
-        does -- it stops sending rather than sending a new place to be."""
+    def test_control_off_pauses_genau_rather_than_holding_it_somewhere(self, tmp_path):
+        """The press itself settles the device home through the broker; all this
+        has to do is see that nothing sends to it afterwards, which a paused
+        Genau does by stopping rather than by naming a new place to be."""
         driver = make_driver(tmp_path)
         publish_main_player(driver)
 

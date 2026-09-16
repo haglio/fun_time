@@ -51,9 +51,8 @@ new process reads:
   windows for (`fun_time.windows_bridge_startup.seed_startup_states`),
 - the OSR2's control state is carried out by the device arbiter
   (`fun_time.device_arbiter`) on the new session's first tick and every tick
-  after, exactly as it is after a press. Startup sends the device home first, so
-  a session left with control off comes back with the OSR2 at home rather than
-  wherever it stood when the last one ended.
+  after, exactly as it is after a press. Startup sends the device home first,
+  which is where control off leaves it anyway.
 
 Carrying a flag whose world is not put back with it is the same lie as dropping
 one that was true.
