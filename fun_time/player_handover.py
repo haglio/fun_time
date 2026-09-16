@@ -16,6 +16,33 @@ from .bridge_records import SideChannel
 from .modes import rotated_onto
 from .satellite_control import read_satellite_status
 
+PanelStamp = tuple[int, int] | None
+
+
+def panel_stamp(side: SideChannel) -> PanelStamp:
+    """Which copy of *side*'s hosted panel is on disk; each publish replaces it."""
+    if side.origenerator_hud_file is None:
+        return None
+    try:
+        stat = side.origenerator_hud_file.stat()
+    except OSError:
+        return None
+    return stat.st_ino, stat.st_mtime_ns
+
+
+def let_go_since(side: SideChannel, stamp: PanelStamp) -> bool:
+    """Whether the hosted app has published *side*'s panel empty since *stamp* --
+    its close, which only reading the way out makes it do.  An empty one already
+    there at *stamp* is an app that may not have taken the side yet."""
+    if panel_stamp(side) == stamp:
+        return False
+    try:
+        return not side.origenerator_hud_file.read_text(encoding="utf-8").strip()
+    except FileNotFoundError:
+        return True
+    except OSError:
+        return False
+
 
 def _kept(side: SideChannel) -> Path:
     """Where *side*'s own list waits while the hosted app has the player."""

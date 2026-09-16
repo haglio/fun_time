@@ -11,6 +11,7 @@ from unittest.mock import Mock, patch
 
 import pytest
 from app_support.threading_utils import wait_until
+from player_core.file_channel import publish_whole
 
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, WindowOp
@@ -2726,7 +2727,9 @@ def _hosting(tmp_path, **overrides):
     return replace(make_config(tmp_path, **overrides), origenerator_enabled=True,
                    origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
                    origenerator_paused_file=tmp_path / "origenerator_paused.txt",
-                   origenerator_status_file=tmp_path / "origenerator_status.txt")
+                   origenerator_status_file=tmp_path / "origenerator_status.txt",
+                   portrait_origenerator_hud_file=tmp_path / "origenerator_portrait_hud.json",
+                   landscape_origenerator_hud_file=tmp_path / "origenerator_landscape_hud.json")
 
 
 def _the_hosted_app_answers(tmp_path):
@@ -2863,14 +2866,13 @@ class TestThePlayersComeHome:
             write_playlist(side.playlist_file, [PlaylistItem(tmp_path / f"{player.label}.mp4")])
             keep_aside(side)
             write_playlist(side.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
+            publish_whole(side.origenerator_hud_file, f'{{"side": "{player.label}"}}')
         runner.expect_the_players_home(now=100.0)
         return runner, config
 
     @staticmethod
-    def _holding(tmp_path, *, portrait: bool, landscape: bool) -> None:
-        (tmp_path / "origenerator_status.txt").write_text(
-            f"portrait_active={int(portrait)}\nlandscape_active={int(landscape)}\n",
-            encoding="utf-8")
+    def _lets_go_of(config, player) -> None:
+        publish_whole(config.side(player).origenerator_hud_file, "")
 
     @staticmethod
     def _queued(config, player) -> list[str]:
@@ -2879,7 +2881,7 @@ class TestThePlayersComeHome:
 
     def test_a_side_the_app_has_let_go_of_comes_home(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path, locked=True)
-        self._holding(tmp_path, portrait=False, landscape=True)
+        self._lets_go_of(config, Player.PORTRAIT)
 
         runner.bring_the_players_home(now=100.5)
 
@@ -2889,7 +2891,6 @@ class TestThePlayersComeHome:
     def test_a_side_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
         """An app that has stalled or gone does not get to keep the players."""
         runner, config = self._left_for_origenerator(tmp_path)
-        self._holding(tmp_path, portrait=True, landscape=True)
 
         runner.bring_the_players_home(now=100.0 + LET_GO_TIMEOUT_S + 0.1)
 
@@ -2899,7 +2900,7 @@ class TestThePlayersComeHome:
     def test_going_back_into_the_mode_first_leaves_them_with_the_app(self, tmp_path):
         runner, config = self._left_for_origenerator(tmp_path)
         runner.state = replace(runner.state, satellites_mode="origenerator")
-        self._holding(tmp_path, portrait=False, landscape=False)
+        self._lets_go_of(config, Player.PORTRAIT)
 
         runner.bring_the_players_home(now=100.5)
 
@@ -2907,6 +2908,18 @@ class TestThePlayersComeHome:
         runner.state = replace(runner.state, satellites_mode="video")
         runner.bring_the_players_home(now=100.6)
         assert self._queued(config, Player.PORTRAIT) == []     # nothing owed any more
+
+    def test_a_side_the_app_had_not_taken_yet_waits_for_it_to_let_go(self, tmp_path):
+        """Out of the mode before the app had read the way in: it will still
+        write its list for the side, so handing the side's own back first would
+        leave the player on the app's."""
+        runner, config = self._left_for_origenerator(tmp_path)
+        self._lets_go_of(config, Player.PORTRAIT)
+        runner.expect_the_players_home(now=101.0)
+
+        runner.bring_the_players_home(now=101.5)
+
+        assert self._queued(config, Player.PORTRAIT) == []
 
     def test_the_switch_out_of_the_mode_is_what_sends_for_them(self, tmp_path):
         config = _hosting(tmp_path)
