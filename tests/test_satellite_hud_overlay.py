@@ -92,7 +92,7 @@ def test_the_players_own_rate_brings_a_speed_row_whose_buttons_post_this_sides_s
     player = FakeSatellitePlayer()
     overlay = _overlay(tmp_path, panel, player)
     overlay.tick(playback_speed=1.0)
-    rect = dict((name, r) for r, name in overlay.targets.control)["speed_up"]
+    rect = {b.action: r for r, b in overlay.targets.buttons}["portrait_speed_up"]
 
     overlay.press(rect[0] + MARGIN + 2, rect[1] + MARGIN + 2)
 
@@ -121,7 +121,7 @@ def test_no_speed_row_while_origenerator_mode_blacks_the_player_out(tmp_path: Pa
 
     overlay.tick(playback_speed=1.0)
 
-    assert "speed_up" not in [name for _rect, name in overlay.targets.control]
+    assert "portrait_speed_up" not in [b.action for _rect, b in overlay.targets.buttons]
 
 
 def test_no_panel_file_means_no_overlay(tmp_path: Path):
