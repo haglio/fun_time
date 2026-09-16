@@ -566,6 +566,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             config_path=manifest.runtime.config_path,
             audio_folder=manifest.media.genau_audio,
             audio_device=config.vr.audio_device,
+            project_dirs=manifest.runtime.genau_project_dirs,
         )
         logger.info("Audio companion launched (pid=%d)", audio.pid)
         children["audio_pid"] = ChildProcess(

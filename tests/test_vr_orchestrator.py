@@ -925,6 +925,7 @@ class TestTheAudioCompanionInVr:
 
         assert given["audio_device"] == "config.vr.audio_device"
         assert given["audio_folder"] == "manifest.media.genau_audio"
+        assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
 
     def test_it_is_launched_before_the_player_and_killed_with_it(self):
         import inspect
