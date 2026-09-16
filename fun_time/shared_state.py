@@ -18,6 +18,8 @@ import configparser
 from dataclasses import MISSING, dataclass, field, fields, replace
 from pathlib import Path
 
+from player_core.console import OSR2_DRIVING
+
 from .audio_volume import MAX_VOLUME
 from .mode_plan import MAIN_VIDEO_MODE, STARTUP_MAIN_MODE
 from .players import Player
@@ -101,6 +103,7 @@ class BridgeState:
     # mute leaves the level alone so a second "mute" restores what was set.
     volume: int = MAX_VOLUME
     muted: bool = False
+    osr2_control: str = OSR2_DRIVING  # the console's four-button group sets it
 
     def side(self, player: Player) -> SideState:
         """The slice of this state one satellite carries."""

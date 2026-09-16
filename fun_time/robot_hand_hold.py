@@ -5,8 +5,13 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from player_core.robot_hand import PARK_CENTER, RETRACT_CENTER
+
 # The two ends the broker's own PARK and RETRACT hold, hence the two words.
-HOLD_CENTERS: dict[str, int] = {"robot_hand_park": 0, "robot_hand_retract": 100}
+HOLD_CENTERS: dict[str, int] = {
+    "robot_hand_park": PARK_CENTER,
+    "robot_hand_retract": RETRACT_CENTER,
+}
 
 
 @dataclass(frozen=True)
@@ -24,9 +29,13 @@ def held(dials: MotionDials) -> bool:
     return dials.amplitude == 0
 
 
+STILL_COMMANDS = ("CRUISE_OFF", "AMP 0", "SPEED 0")  # cruise first: it rewrites
+
+
 def hold_commands(center: int) -> tuple[str, ...]:
-    """Still the motion at *center*; cruise off first, as it rewrites the dials."""
-    return ("CRUISE_OFF", "AMP 0", f"CENTER {center}", "SPEED 0")
+    """Still the motion and send it to *center* -- one end of the travel."""
+    cruise, amp, speed = STILL_COMMANDS
+    return (cruise, amp, f"CENTER {center}", speed)
 
 
 def release_commands(dials: MotionDials) -> tuple[str, ...]:

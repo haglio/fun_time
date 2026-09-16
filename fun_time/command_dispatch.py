@@ -10,6 +10,11 @@ from functools import partial
 from pathlib import Path
 
 from app_support.file_channel import write_flag
+from player_core.console import (
+    OSR2_CONTROL_BUTTONS,
+    OSR2_CONTROL_OFF,
+    OSR2_DRIVING,
+)
 from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
@@ -1442,29 +1447,43 @@ def _read_held_dials(config: BridgeConfig) -> MotionDials | None:
         return None
 
 
+_OSR2_CONTROL_BY_COMMAND = {verb: state for state, verb in OSR2_CONTROL_BUTTONS.items()}
+
+
+def _remember_the_motion(config: BridgeConfig) -> None:
+    if _read_held_dials(config) is not None:
+        return
+    dials = _read_motion_dials(config)
+    if dials is not None:
+        config.robot_hand_hold_file.parent.mkdir(parents=True, exist_ok=True)
+        config.robot_hand_hold_file.write_text(dials_text(dials), encoding="utf-8")
+
+
 def _robot_hand_hold(command: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """park / retract: record the motion (only if nothing is), then still it."""
-    if _read_held_dials(config) is None:
-        dials = _read_motion_dials(config)
-        if dials is not None:
-            config.robot_hand_hold_file.parent.mkdir(parents=True, exist_ok=True)
-            config.robot_hand_hold_file.write_text(dials_text(dials), encoding="utf-8")
+    _remember_the_motion(config)
     for verb in hold_commands(HOLD_CENTERS[command]):
         append_command(config.genau_cmd_file, verb)
-    return state, []
+    return replace(state, osr2_control=_OSR2_CONTROL_BY_COMMAND[command]), []
 
 
 def _robot_hand_release(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """unpark / unretract / OSR2 resume: replay the recording and spend it."""
     dials = _read_held_dials(config)
-    if dials is None:
-        return state, []
-    for verb in release_commands(dials):
-        append_command(config.genau_cmd_file, verb)
-    config.robot_hand_hold_file.unlink(missing_ok=True)
-    return state, []
+    if dials is not None:
+        for verb in release_commands(dials):
+            append_command(config.genau_cmd_file, verb)
+        config.robot_hand_hold_file.unlink(missing_ok=True)
+    return replace(state, osr2_control=OSR2_DRIVING), []  # also the way off "off"
+
+
+def _osr2_control_off(state: BridgeState, config: BridgeConfig,
+                      _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    _remember_the_motion(config)  # so the driving button can put it back
+    # The stilling itself is the device arbiter's, re-stated every tick.
+    return replace(state, osr2_control=OSR2_CONTROL_OFF), []
 
 
 def _set_muted(muted: bool, state: BridgeState, config: BridgeConfig,
@@ -1651,7 +1670,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
     handlers.update({cmd: partial(_robot_hand_hold, cmd) for cmd in HOLD_CENTERS})
-    handlers["robot_hand_release"] = _robot_hand_release
+    handlers[OSR2_CONTROL_BUTTONS[OSR2_DRIVING]] = _robot_hand_release
+    handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
     handlers["clipper_save"] = _save_clip
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up

@@ -9,9 +9,11 @@ from __future__ import annotations
 from pathlib import Path
 from unittest.mock import patch
 
+from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import REASSERT_S, DeviceArbiter
+from fun_time.robot_hand_hold import STILL_COMMANDS
 from tests.role_window_fakes import FakeClock
 
 
@@ -45,6 +47,92 @@ def genau(driver: DeviceArbiter) -> str:
 
 def main_player(driver: DeviceArbiter) -> str:
     return driver.main_player_cmd_file.read_text(encoding="utf-8").strip()
+
+
+class TestControlOff:
+    """The console's fourth control state: nothing here moves the device, in
+    either mode.
+
+    The point of doing it here rather than at the button is that this is the
+    thing that re-states its pair every second -- a verb fired from a handler
+    would be undone by the arbiter's very next assertion.
+    """
+
+    def test_the_funscript_is_gated_and_the_motion_flattened_in_either_mode(
+            self, tmp_path):
+        for mode in ("video", "genau"):
+            driver = make_driver(tmp_path / mode)
+            driver.main_player_cmd_file.parent.mkdir(parents=True, exist_ok=True)
+            publish_main_player(driver)
+
+            driver.sync(mode, paused=False, control=OSR2_CONTROL_OFF)
+
+            assert main_player(driver) == "SET_TCODE_ENABLED 0", mode
+            assert genau(driver).splitlines() == list(STILL_COMMANDS), mode
+
+    def test_the_motion_is_stilled_rather_than_paused(self, tmp_path):
+        """PAUSE stops Genau's clips too, and letting go of the OSR2 must not
+        stop the picture on the main slot."""
+        driver = make_driver(tmp_path)
+        publish_main_player(driver)
+
+        driver.sync("genau", paused=False, control=OSR2_CONTROL_OFF)
+
+        assert "PAUSE" not in genau(driver)
+
+    def test_the_device_is_not_moved_by_letting_go_of_it(self, tmp_path):
+        """park and retract are the two presses that MOVE the device; this is
+        the one that leaves it exactly where it stands."""
+        driver = make_driver(tmp_path)
+        publish_main_player(driver)
+
+        driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
+
+        assert "CENTER" not in genau(driver)
+
+    def test_the_stilling_is_re_stated_on_the_heartbeat_and_not_every_tick(
+            self, tmp_path):
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock=clock)
+        publish_main_player(driver)
+
+        driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
+        driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
+        assert genau(driver).splitlines() == list(STILL_COMMANDS)
+
+        clock.advance(REASSERT_S)
+        driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
+        assert genau(driver).splitlines() == list(STILL_COMMANDS) * 2
+
+    def test_control_coming_back_stops_the_stilling(self, tmp_path):
+        """What puts the motion back is the press itself -- the driving button
+        replays what it wrote down -- so all this has to do is stop asserting."""
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock=clock)
+        publish_main_player(driver)
+        driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
+
+        clock.advance(REASSERT_S)
+        driver.sync("genau", paused=False, control=OSR2_DRIVING)
+        driver.sync("genau", paused=False, control=OSR2_DRIVING)
+
+        assert genau(driver).splitlines() == list(STILL_COMMANDS)
+
+    def test_the_handoff_re_asserts_when_control_comes_back(self, tmp_path):
+        """Nobody had the device through the silence, so re-entry must say who
+        has it again rather than believing the driver it remembered."""
+        clock = FakeClock()
+        driver = make_driver(tmp_path, clock=clock)
+        publish_main_player(driver)
+        driver.sync("video", paused=False, control=OSR2_DRIVING)
+        clock.advance(REASSERT_S)
+        driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
+
+        clock.advance(REASSERT_S)
+        driver.sync("video", paused=False, control=OSR2_DRIVING)
+
+        assert genau(driver).splitlines()[-1] == "PAUSE"
+        assert main_player(driver).splitlines()[-1] == "SET_TCODE_ENABLED 1"
 
 
 class TestVideoModeFunscriptHandoff:
