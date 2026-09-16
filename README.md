@@ -491,11 +491,14 @@ Values:
 - `TOGGLE_CLIP_LOCK`
 - `CLIP_SECONDS_UP` / `CLIP_SECONDS_DOWN` / `CLIP_SECONDS <seconds>`
 - `TOGGLE_CRUISE` / `CRUISE_ON` / `CRUISE_OFF`
+- `TOGGLE_LEARNED` / `LEARNED_ON` / `LEARNED_OFF`
 
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
 Cruise control and the clip interval are separate: cruise wanders the motion's
-amplitude, center, speed and waveform, while the interval is how long a clip
+amplitude, center, speed and waveform (and learned motion replaces the waveform
+with what real scripts do, inside the dials' range and at the speed dial's pace;
+the two are never on together), while the interval is how long a clip
 holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS
 <seconds>` names a pace. It is spelled for what the number is rather than for
 the auto-advance that spends it, because that is the word the reference shows

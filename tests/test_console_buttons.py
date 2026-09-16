@@ -416,6 +416,15 @@ class TestDriveControls:
         for action in ("robot_hand_amplitude_up", "robot_hand_center_down", "robot_hand_speed_up"):
             assert action not in actions
 
+    def test_learned_motion_sits_beside_cruise_and_lights_while_it_has_the_hand(self):
+        actions = _actions(MainSlot(mode="genau"))
+
+        assert actions.index("robot_hand_toggle_learned") == actions.index("robot_hand_toggle_cruise") + 1
+        assert _button(MainSlot(mode="genau"), "robot_hand_toggle_learned").lit is False
+        lit = _button(MainSlot(mode="genau", learned=True), "robot_hand_toggle_learned")
+        assert lit.lit is True
+        assert (lit.favorite, lit.warn, lit.hold) == (False, False, False)
+
     def test_cruise_lights_and_the_waveform_names_itself(self):
         slot = MainSlot(mode="genau", cruise=True, shape="rounded_square")
 

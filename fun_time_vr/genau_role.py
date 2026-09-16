@@ -34,6 +34,7 @@ from player_core.file_channel import read_paused_state
 from player_core.flag import Flag
 from player_core.genau_controls import GenauControls
 from player_core.genau_refresh import GenauRefreshController
+from player_core.learned_motion import LearnedMotionState, load_default_model
 from player_core.robot_hand import RobotHandState, bpm_for_speed
 from player_core.robot_hand_beat import BeatEngine
 from player_core.robot_hand_driver import RobotHandTCodeDriver
@@ -107,10 +108,12 @@ class GenauRole:
             condemn_clip=lambda path: self._condemn(path, weird_dir_for_clips_folder(path.parent)),
         )
 
-        # The same hand, cruise stack, clip advance and driver the desktop builds.
+        # The same hand, cruise stack, learned motion, clip advance and driver the desktop builds.
         self.robot_hand = RobotHandState(playing=False, speed=50, bpm=bpm_for_speed(50))
         cruise = CruiseControlState()
-        self._driver = RobotHandTCodeDriver(tcode_sink, robot_hand=self.robot_hand, cruise=cruise)
+        learned = LearnedMotionState(model=load_default_model())
+        self._driver = RobotHandTCodeDriver(
+            tcode_sink, robot_hand=self.robot_hand, cruise=cruise, learned=learned)
         self._hud = Flag()
         self._broker = BrokerFeed()
         start_thread(
@@ -125,6 +128,7 @@ class GenauRole:
             condemn_clip=self._selection.condemn_current,
             robot_hand=self.robot_hand,
             cruise_control_state=cruise,
+            learned_motion_state=learned,
             set_motion_phase=self._driver.set_motion_phase,
             clip_advance_state=ClipAdvanceState(),
             stop_event=stop_event,

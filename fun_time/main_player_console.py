@@ -73,6 +73,7 @@ def console_model(
         latest=latest if video else genau_latest,
         record=main_player.state,
         cruise=genau.cruise_active,
+        learned=genau.learned_active,
         shape=genau.shape,
         plays_vr=plays_vr,
         plays_flat=plays_flat,

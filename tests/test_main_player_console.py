@@ -92,6 +92,13 @@ class TestPayload:
         assert _button(payload, "robot_hand_toggle_cruise").lit is True
         assert _button(payload, "robot_hand_cycle_shape").tooltip == "Waveform: Sawtooth"
 
+    def test_declares_the_learned_motion_beside_cruise(self):
+        payload = _payload(genau=GenauStatus(learned_active=True))
+
+        assert _button(payload, "robot_hand_toggle_learned").lit is True
+        assert _button(payload, "robot_hand_toggle_cruise").lit is False
+        assert _button(_payload(), "robot_hand_toggle_learned").lit is False
+
     def test_declares_the_main_players_loop_machine_on_the_record_button(self):
         """The console is drawn in genau mode too, by a player with no loop machine
         to ask — so where the main player is in the gesture rides here with the rest of the

@@ -229,6 +229,13 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Next waveform shape", ("I",), ("robot_hand_cycle_shape",)),
             _Row("Enable / disable cruise control (varies the motion)", ("C",), ("robot_hand_toggle_cruise", "robot_hand_cruise_on", "robot_hand_cruise_off")),
             _Row(
+                "Enable / disable learned motion — plays what real scripts do in "
+                "place of the waveform, inside the amplitude and center dials, at "
+                "the speed dial's pace; switches cruise off",
+                ("Y",),
+                ("robot_hand_toggle_learned", "robot_hand_learned_on", "robot_hand_learned_off"),
+            ),
+            _Row(
                 "Hold the motion still — cruise off, no amplitude, and the "
                 "center at one end: park settles the OSR2 home, retract sends "
                 "it to the far end, away from you.  Unlike OmniPause the room "

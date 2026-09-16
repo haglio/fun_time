@@ -2685,6 +2685,22 @@ def test_genau_toggle_cruise_writes_cmd_file(tmp_path: Path):
     assert ops == []
 
 
+@pytest.mark.parametrize("command, verb", [
+    ("robot_hand_toggle_learned", "TOGGLE_LEARNED"),
+    ("robot_hand_learned_on", "LEARNED_ON"),
+    ("robot_hand_learned_off", "LEARNED_OFF"),
+])
+def test_genau_learned_motion_verbs_write_cmd_file(tmp_path: Path, command, verb):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode="genau")
+
+    new_state, ops = dispatch_command(command, state, config)
+
+    assert config.genau_cmd_file.read_text(encoding="utf-8") == f"{verb}\n"
+    assert new_state == state
+    assert ops == []
+
+
 def test_genau_cruise_on_writes_cmd_file(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")

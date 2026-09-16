@@ -143,6 +143,7 @@ def genau_status_path(state_dir: Path) -> Path:
 @dataclass(frozen=True)
 class GenauStatus:
     cruise_active: bool = False
+    learned_active: bool = False
     # Whether Genau is holding the clip on screen rather than letting its interval
     # carry it on — the same lock the main player has, and on for the same reason: a clip
     # repeating is where Genau opens.  Cruise is a separate thing entirely; it
@@ -172,6 +173,7 @@ def read_genau_status(path: Path) -> GenauStatus:
         values = read_key_values(path)
         return GenauStatus(
             cruise_active=_status_bool(values, "cruise"),
+            learned_active=_status_bool(values, "learned"),
             locked=_status_bool(values, "locked", default=True),
             shape=values.get("shape", "sine").strip(),
             clip=values.get("clip", "").strip(),
