@@ -71,7 +71,6 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
-from fun_time.library_handles import build_library_handles
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.player_status import genau_status_path, read_genau_status, read_main_player_status
@@ -145,6 +144,7 @@ from .library_panel import (
     LibraryShelf,
     LibraryStills,
     cached_or_extracted,
+    handles_by_shape,
     library_height,
     paint_library,
 )
@@ -1874,8 +1874,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     library = _LibraryUnit(
         placement=layout[LIBRARY],
         flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
-        shelf=LibraryShelf(lambda: build_library_handles(
-            manifest.media.main_player_library_sources, _metadata_root(manifest))),
+        shelf=LibraryShelf(lambda: handles_by_shape(
+            manifest.media.main_player_library_sources, manifest.media.vr_library_dirs,
+            _metadata_root(manifest))),
         stills=LibraryStills(state_dir / THUMBNAIL_CACHE_DIRNAME, fetch=cached_or_extracted),
         main_player_cmd_file=Path(commands.main_player_cmd_file),
         main_player_status_file=Path(commands.main_player_status_file),

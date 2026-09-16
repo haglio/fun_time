@@ -22,6 +22,7 @@ from fun_time_vr.library_panel import (
     LibraryShelf,
     LibraryStills,
     cached_or_extracted,
+    handles_by_shape,
     label_of,
     library_actions,
     library_height,
@@ -418,6 +419,58 @@ class TestWhereAStillComesFrom:
             assert cached_or_extracted("C:/videos/Scene One.mp4", tmp_path) is None
 
         assert warmed == [(["C:/videos/Scene One.mp4"], tmp_path)]
+
+
+def _headset_library(tmp_path, *, vr_videos=("scene_one.mp4",)):
+    vr, flat = tmp_path / "vr", tmp_path / "flat"
+    for name in vr_videos:
+        (vr / name).parent.mkdir(parents=True, exist_ok=True)
+        (vr / name).write_bytes(b"")
+    for name in ("batch_one/scene_two.mp4", "batch_two/scene_three.mp4"):
+        (flat / name).parent.mkdir(parents=True, exist_ok=True)
+        (flat / name).write_bytes(b"")
+    vr.mkdir(exist_ok=True)
+    return vr, flat
+
+
+def _opened_on(handles):
+    browse, _played, _closed = _browse()
+    browse.stocked(handles)
+    browse.showing(True)
+    return browse
+
+
+class TestTheHeadsetsTwoLibraries:
+    def test_it_opens_on_the_vr_videos_beside_the_flat_ones(self, tmp_path):
+        vr, flat = _headset_library(tmp_path)
+
+        browse = _opened_on(handles_by_shape(f"{vr}|{flat}", str(vr), None))
+
+        assert _names(browse) == ["VR", "2D"]
+
+    def test_the_vr_videos_sitting_straight_in_their_folder_are_one_press_away(self, tmp_path):
+        vr, flat = _headset_library(tmp_path)
+        browse = _opened_on(handles_by_shape(f"{vr}|{flat}", str(vr), None))
+
+        browse.press(*_middle(tile_rects()[0]))
+
+        assert _names(browse) == ["scene_one"]
+
+    def test_the_flat_videos_keep_their_own_folders_inside_theirs(self, tmp_path):
+        vr, flat = _headset_library(tmp_path)
+        browse = _opened_on(handles_by_shape(f"{vr}|{flat}", str(vr), None))
+
+        browse.press(*_middle(tile_rects()[1]))
+
+        assert _names(browse) == ["batch_one", "batch_two"]
+
+    def test_a_session_with_no_vr_videos_opens_straight_on_the_flat_folders(self, tmp_path):
+        vr, flat = _headset_library(tmp_path, vr_videos=())
+
+        for vr_sources in (str(vr), ""):
+            browse = _opened_on(handles_by_shape(f"{vr}|{flat}", vr_sources, None))
+
+            assert _names(browse) == ["batch_one", "batch_two"]
 
 
 class TestReadingTheLibrary:

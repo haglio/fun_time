@@ -290,14 +290,17 @@ since the dispatch loop that launched it holds it until it ends.
 In the headset the browser is a panel rather than a window, because nothing in
 the headset can see a window on the monitors. `N`, "browse" and the console's
 browse button open it in front of you, and the same again puts it away. It
-walks the same folders fifteen tiles to a page, with the controllers: a folder
-tile opens that folder, `Back` goes up to the page the folder was on, the page
-arrows turn the pages, and a video tile plays that video on the main player and
-puts the panel away, as its close button does. It opens on the folder and page
-of the video that is playing, with that tile lit, and no hotkey is suspended
-while it is up, since a pointer needs none of them. The library is read once,
-in the background, when the headset's player starts, so a browse opened in the
-first moments of a session says it is still reading.
+opens on two tiles: `VR`, the headset's own library (`vr.library_dirs`), and
+`2D`, the folders the desktop browser walks; a session with videos of only one
+kind opens straight on that kind's folders. It walks them fifteen tiles to a
+page, with the controllers: a folder tile opens that folder, `Back` goes up to
+the page the folder was on, the page arrows turn the pages, and a video tile
+plays that video on the main player and puts the panel away, as its close
+button does. It opens on the folder and page of the video that is playing, with
+that tile lit, and no hotkey is suspended while it is up, since a pointer needs
+none of them. The library is read once, in the background, when the headset's
+player starts, so a browse opened in the first moments of a session says it is
+still reading.
 
 The grid is one you **walk**. It opens on the library's own folders — one tile
 per folder under a `main_player_library_dirs` source, showing four of its videos laid out
