@@ -642,20 +642,10 @@ def _fix_post_loading_windows(result: StartupResult, *,
         beneath=overlay_hwnd,
     )
     logger.info("Post-loading window state corrected")
-    # The banding above can silently miss a player: SetWindowPos waits on the
-    # target's own thread, the satellites are at their busiest now, and a
-    # promotion that times out leaves the player under whatever was on that
-    # monitor.  So walk the real z-order for a few seconds and re-promote
-    # whoever is still buried.  Both players, always: the room opens in video
-    # mode, so each satellite rect is its own player's for the whole of startup.
     _settle_the_players(portrait_hwnd, landscape_hwnd, overlay_hwnd=overlay_hwnd)
-    portrait_owner, landscape_owner = portrait_hwnd, landscape_hwnd
-    # Genau's window sits over the main player on purpose in both modes — the transparent
-    # HUD layer, or the display itself — so it is not a covering worth a
-    # warning.
     _log_window_obstruction("Main Player", main_player_hwnd, expected_over=genau_hwnd)
-    _log_window_obstruction("Portrait satellite", portrait_owner, ignore=overlay_hwnd)
-    _log_window_obstruction("Landscape satellite", landscape_owner, ignore=overlay_hwnd)
+    _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
+    _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
     return role_hwnds
 
 

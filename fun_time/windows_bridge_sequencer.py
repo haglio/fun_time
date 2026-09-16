@@ -39,12 +39,14 @@ from .session_handoff import KeptOrigenerator, forget_the_kept_origenerator, kep
 from .shortcuts import resolve_shortcut
 from .standalone_origenerator import take_it_over, the_open_origenerator
 from .win32 import (
+    ANSWER_TIMEOUT_MS,
     disable_window_transitions,
     find_windows_by_class,
     minimize_window,
     move_window,
     set_always_on_top,
     wait_for_window_by_title,
+    window_answers,
 )
 from .win32_process import get_process_creation_time
 from .window_layout import (
@@ -78,6 +80,8 @@ logger = logging.getLogger(__name__)
 # returns the moment the window appears — a satellite's takes about half a second
 # — so this is a ceiling for a machine under load, not a cost anyone pays.
 WINDOW_RESOLVE_TIMEOUT_S = 15.0
+
+GENAU_ANSWER_TIMEOUT_S = 12.0  # player_core's FirstClipPreload caps Genau's first decode at 10s
 
 # How long startup waits for the main player to finish loading.  Wide enough for the worst
 # case, a cold duration cache: one ffprobe per unprobed video, measured at 28s
@@ -669,7 +673,8 @@ _COMPANION_LAUNCH_DELAY_S = 1.2
 
 
 def _position_windows_now(plan: WindowLayoutPlan, main_mode: MainMode, *,
-                          env: SessionEnvironment) -> dict[str, int]:
+                          env: SessionEnvironment,
+                          progress: ProgressReporter) -> dict[str, int]:
     """Phase 2, on the path with no cover: place and band every window at once.
 
     No progress reporting here: this is the integration path, and the loading
@@ -684,7 +689,7 @@ def _position_windows_now(plan: WindowLayoutPlan, main_mode: MainMode, *,
     role_hwnds = apply_startup_window_state(
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+        genau_hwnd=_resolve_genau_window(progress),
         main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         mode=main_mode,
     )
@@ -772,6 +777,7 @@ def _place_and_park_under_the_cover(
     landscape_hwnd: int,
     rfb_hwnd: int,
     dashboard_pid: int,
+    progress: ProgressReporter,
 ) -> dict[str, int]:
     """Place every window where the plan says and park the idle slot-mate.
 
@@ -796,7 +802,7 @@ def _place_and_park_under_the_cover(
         rfb_hwnd=rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
         landscape_hwnd=landscape_hwnd,
-        genau_hwnd=wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S),
+        genau_hwnd=_resolve_genau_window(progress),
         main_player_hwnd=wait_for_window_by_title("Main Player", timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True),
         dashboard_hwnd=dash_hwnd,
     )
@@ -832,6 +838,7 @@ def _settle_the_room_under_the_cover(
         landscape_hwnd=landscape_hwnd,
         rfb_hwnd=rfb_hwnd,
         dashboard_pid=dashboard_pid,
+        progress=progress,
     )
     progress.advance("finalizing")
     return role_hwnds
@@ -860,7 +867,8 @@ def _run_startup_phases(
     # --- Phase 2: Position windows (layout computed up front) ---
     role_hwnds: dict[str, int] = {}
     if not hide_windows:
-        role_hwnds = _position_windows_now(plan, core.main_mode, env=env)
+        role_hwnds = _position_windows_now(
+            plan, core.main_mode, env=env, progress=progress)
 
     # --- Phase 2.5: Launch Random Favs Browser ---
     progress.advance("browser")
@@ -908,6 +916,22 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
                      label, hwnd, rect.x, rect.y, rect.width, rect.height)
     else:
         logger.warning("Could not find window for %s", label)
+
+
+def _resolve_genau_window(progress: ProgressReporter) -> int:
+    """Genau's window, once its thread takes messages: it waits out its first
+    clip's decode before its loop starts, and a placement sent sooner lands late."""
+    hwnd = wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S)
+    if not hwnd:
+        return 0
+    for _ in range(int(GENAU_ANSWER_TIMEOUT_S * 1000 / ANSWER_TIMEOUT_MS)):
+        if progress.cancelled:
+            raise StartupCancelled()
+        if window_answers(hwnd):  # waits up to ANSWER_TIMEOUT_MS on a busy thread
+            return hwnd
+    logger.warning("Genau took no messages within %.0fs; placing it anyway, and "
+                   "that placement may land late", GENAU_ANSWER_TIMEOUT_S)
+    return hwnd
 
 
 def _resolve_satellite_hwnds() -> tuple[int, int]:
