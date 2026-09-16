@@ -210,9 +210,9 @@ def build_voice_commands(
         "cruise control": "robot_hand_toggle_cruise",
         "cruise on": "robot_hand_cruise_on",
         "cruise off": "robot_hand_cruise_off",
-        "learned motion": "robot_hand_toggle_learned",
-        "learned on": "robot_hand_learned_on",
-        "learned off": "robot_hand_learned_off",
+        "human inspired": "robot_hand_toggle_learned",
+        "human inspired on": "robot_hand_learned_on",
+        "human inspired off": "robot_hand_learned_off",
         "previous clip": "genau_prev_clip",
         "next clip": "genau_next_clip",
         # Bare "weird" already addresses the active satellite, so Genau's own clip

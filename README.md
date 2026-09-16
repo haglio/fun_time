@@ -496,7 +496,7 @@ Values:
 `OFFSET_QUARTER_CYCLE` advances Genau playback by one quarter of the current loop.
 
 Cruise control and the clip interval are separate: cruise wanders the motion's
-amplitude, center, speed and waveform (and learned motion replaces the waveform
+amplitude, center, speed and waveform (and human-inspired motion replaces the waveform
 with what real scripts do, inside the dials' range and at the speed dial's pace;
 the two are never on together), while the interval is how long a clip
 holds the screen before Genau moves on — 8–12 seconds unless `CLIP_SECONDS

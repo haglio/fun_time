@@ -235,7 +235,7 @@ l::QueueCommand("speed_up")
 ; Cruise varies the motion; moving on from a clip is what an unlocked Genau does
 ; by itself, so it is the apostrophe's lock rather than a switch of its own.
 c::QueueCommand("robot_hand_toggle_cruise")
-; The learned motion: real scripting in place of the waveform, never on with cruise.
+; Human-inspired motion: real scripting in place of the waveform, never on with cruise.
 y::QueueCommand("robot_hand_toggle_learned")
 SC035::QueueCommand("genau_toggle_auto")
 
