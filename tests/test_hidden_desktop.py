@@ -17,6 +17,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -28,7 +29,7 @@ from tests.integration.hidden_desktop import (
     _close_process_handles,
     _launch_on_desktop,
     _repo_root,
-    build_pytest_argv,
+    build_run_argv,
     close_run_job,
     create_run_job,
     main,
@@ -36,14 +37,83 @@ from tests.integration.hidden_desktop import (
 
 
 def test_argv_runs_pytest_on_the_integration_dir():
-    argv = build_pytest_argv([])
+    argv = build_run_argv([])
     assert argv[1:3] == ["-m", "pytest"]
     assert "tests/integration/" in argv
 
 
 def test_argv_appends_caller_args_after_the_defaults():
-    argv = build_pytest_argv(["-k", "smoke", "-x"])
+    argv = build_run_argv(["-k", "smoke", "-x"])
     assert argv[-3:] == ["-k", "smoke", "-x"]
+
+
+def test_a_repeat_run_hands_the_integration_dir_to_the_flake_gate():
+    argv = build_run_argv(["--repeat-changed", "origin/main"])
+
+    assert argv[1:] == ["-m", "app_support.flake_gate", "--base", "origin/main",
+                        "--only", "tests/integration/", "--runs", "10",
+                        "--python", sys.executable]
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tmp_path):
+    """This venv pins the app_support its players run on, and the gate may be in
+    a newer one; the tests it repeats still run here, through --python.  Making
+    that install can take a download, which no other session should queue for."""
+    events = []
+    gate_python = tmp_path / "gate" / "Scripts" / "python.exe"
+
+    class _Lock:
+        def __enter__(self):
+            events.append("lock")
+
+        def __exit__(self, *exc):
+            events.append("unlock")
+
+    def install(state_dir):
+        events.append("install")
+        return gate_python
+
+    def launch(*args, environment=None, **kwargs):
+        events.append(environment["__PYVENV_LAUNCHER__"])
+        return SimpleNamespace(hProcess=None)
+
+    with (patch.object(hidden_desktop, "hold_integration_lock", lambda **_kw: _Lock()),
+          patch.object(hidden_desktop, "flake_gate_python", install),
+          patch.object(hidden_desktop, "_launch_on_desktop", launch),
+          patch.object(hidden_desktop, "_close_process_handles", lambda pi: None),
+          patch.object(hidden_desktop, "_wait_for_the_run", lambda process, ceiling_s: 0),
+          patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}")):
+        hidden_desktop.run_on_hidden_desktop(["--repeat-changed"])
+        hidden_desktop.run_on_hidden_desktop([])
+
+    assert events == ["install", "lock", str(gate_python), "unlock",
+                      "lock", sys.executable, "unlock"]
+
+
+def test_a_repeat_run_compares_with_origin_main_unless_told_otherwise():
+    argv = build_run_argv(["--repeat-changed"])
+
+    assert argv[argv.index("--base") + 1] == "origin/main"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
+def test_a_repeat_run_is_given_ten_runs_worth_of_time_before_it_counts_as_wedged():
+    waited = []
+
+    def wait(process, ceiling_s):
+        waited.append(ceiling_s)
+        return 0
+
+    launched = SimpleNamespace(hProcess=None)
+    with (patch.object(hidden_desktop, "_launch_on_desktop", lambda *args, **kwargs: launched),
+          patch.object(hidden_desktop, "_close_process_handles", lambda pi: None),
+          patch.object(hidden_desktop, "_wait_for_the_run", wait),
+          patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}")):
+        hidden_desktop._run_the_suite(["--repeat-changed", "origin/main"], sys.executable)
+        hidden_desktop._run_the_suite([], sys.executable)
+
+    assert waited == [10 * hidden_desktop.RUN_CEILING_S, hidden_desktop.RUN_CEILING_S]
 
 
 def test_the_queue_is_waited_out_before_pytest_is_started():
@@ -85,7 +155,7 @@ class _StopTheRun(Exception):
 def test_a_run_that_never_decides_an_exit_code_is_ended_at_the_ceiling_with_its_children():
     with _the_run_runs("-c", "import time; time.sleep(60)") as launched, \
          patch.object(hidden_desktop, "RUN_CEILING_S", 1):
-        assert hidden_desktop._run_the_suite([]) == hidden_desktop.WEDGED_EXIT_CODE
+        assert hidden_desktop._run_the_suite([], sys.executable) == hidden_desktop.WEDGED_EXIT_CODE
 
     assert _wait_until_dead(launched[0])
 
@@ -99,7 +169,7 @@ def test_the_ceiling_leaves_a_green_suite_room_to_finish():
 
 @contextlib.contextmanager
 def _the_run_runs(*python_args: str):
-    interpreter = build_pytest_argv([])[0]
+    interpreter = build_run_argv([])[0]
     launched: list[int] = []
 
     def launch_and_record(*args, **kwargs):
@@ -107,7 +177,7 @@ def _the_run_runs(*python_args: str):
         launched.append(pi.dwProcessId)
         return pi
 
-    with patch.object(hidden_desktop, "build_pytest_argv", lambda _extra: [interpreter, *python_args]), \
+    with patch.object(hidden_desktop, "build_run_argv", lambda _extra: [interpreter, *python_args]), \
          patch.object(hidden_desktop, "HIDDEN_DESKTOP_NAME", f"FunTimeIntegrationUnit{os.getpid()}"), \
          patch.object(hidden_desktop, "_launch_on_desktop", launch_and_record):
         yield launched
@@ -119,7 +189,7 @@ def test_the_process_a_run_waits_on_is_the_interpreter_itself_running_in_this_ve
     probe = (f"import json, os, pathlib, sys; pathlib.Path({str(report)!r})"
              ".write_text(json.dumps([os.getpid(), sys.prefix]))")
     with _the_run_runs("-c", probe) as launched:
-        assert hidden_desktop._run_the_suite([]) == 0
+        assert hidden_desktop._run_the_suite([], sys.executable) == 0
 
     assert json.loads(report.read_text()) == [launched[0], sys.prefix]
 
@@ -218,7 +288,7 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
     )
     ended: list[int] = []
     with _the_run_runs(str(stand_in)):
-        run = threading.Thread(target=lambda: ended.append(hidden_desktop._run_the_suite([])),
+        run = threading.Thread(target=lambda: ended.append(hidden_desktop._run_the_suite([], sys.executable)),
                                daemon=True)
         run.start()
         try:
