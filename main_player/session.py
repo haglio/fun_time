@@ -456,14 +456,15 @@ class PlayerSession:
             self.load(self._index + 1)
 
     def close(self) -> None:
+        self._play_points.leave()
         self._tcode.close()
         self._player.close()
 
     def load(self, index: int) -> None:
+        self._play_points.leave()
         self._index = index % len(self._playlist)
         item = self._playlist[self._index]
         logger.info("Loading: %s", item.path.name)
-        # A seek still waiting on the outgoing file belonged to that file.
         self._pending_seek_ms = None
         self._funscript = load_funscript(item.funscript) if item.funscript is not None else None
         self._loops.open(self._funscript)
@@ -471,6 +472,6 @@ class PlayerSession:
         self._player.set_paused(self._paused)
         self._take_the_device_over()
         self._last_pos_ms = 0.0
-        point_ms = self._play_points.point_for(vid_path)
+        point_ms = self._play_points.point_for(item.path)
         if point_ms:
             self.seek_to(point_ms)

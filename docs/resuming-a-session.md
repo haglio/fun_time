@@ -96,23 +96,26 @@ it — a JSON file in the state dir keyed by video path, read when a player open
 a file and written as it plays. Both players that show the library's videos use
 it: the desktop main player (`main_player.session.PlayerSession`) and its
 headset twin (`fun_time_vr.roles.MainRole`). The satellites do not: their clips
-are seconds long and loop, so there is no point in one to come back to.
+loop in place, so there is no point in one to come back to.
 
-Five rules shape what is kept, each with a test named for it:
+Every video is remembered, whatever its length, and wherever in it the playhead
+was. There is no minimum watched and no "near enough to the end to count as
+finished": the library is mostly short videos, and a threshold at either end
+would have excluded most of it. A video wound back to its very top keeps no
+point, which is the same thing as opening at the top.
 
-- a video is only remembered past `LEAD_IN_MS`, so a clip barely started, and
-  any video shorter than the lead-in and tail together, keeps nothing;
-- within `TAIL_MS` of the end it counts as watched through and is forgotten, so
-  next time it opens at the top;
-- the point is kept to `RESOLUTION_MS`, which is both how far before the moment
-  it was left a video reopens and how often the file is rewritten;
-- only a tick whose clock moved forward by less than `PLAYED_ON_MS` says where a
-  video is. A larger jump is a seek, a wrap at end-of-file, or — the one that
-  would otherwise write the wrong video's point — the clip just left, whose
-  position mpv goes on reporting for a tick or two after it is told to open
-  another;
-- `REMEMBERED` videos keep a point, the least recently watched dropping off the
-  end, so a file rewritten during playback cannot grow without bound.
+Leaving a video — stepping off it, or closing the player — writes the exact
+spot, so coming back lands where you left rather than near it. On top of that it
+is written every `WRITE_EVERY_S` while the video plays: a session is as often
+killed as closed (above), and that periodic record is what a killed one comes
+back on.
+
+Two of the numbers are not preferences. Only a tick whose clock moved forward by
+less than `PLAYED_ON_MS` is written down periodically — a larger jump is a seek,
+a wrap at end-of-file, or the clip just left, whose position mpv goes on
+reporting for a tick or two after it is told to open another. And `REMEMBERED`
+videos keep a point, the least recently watched dropping off the end, so a file
+rewritten while a video plays cannot grow without bound.
 
 The seek is held until the player reports a duration, the way the restored A/B
 loop above is, so a video opens *at* its point rather than visibly jumping there

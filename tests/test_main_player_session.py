@@ -1150,3 +1150,29 @@ def test_a_loop_handed_back_beats_the_point_the_video_was_left_at(tmp_path):
     session.advance()
 
     assert player.seeks[-1] == 10_000
+
+
+def test_leaving_a_video_for_another_writes_down_the_very_spot(tmp_path):
+    file = tmp_path / "points.json"
+    session, player, _ = _make_session(tmp_path, entries=2, duration_ms=HOUR_MS,
+                                       play_points=PlayPoints(file))
+    _watch_to(session, player, 300_000)
+    player.position_ms = 300_048
+    session.advance()
+
+    session.step(1)
+
+    assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 300_048
+
+
+def test_closing_the_player_writes_down_the_very_spot(tmp_path):
+    file = tmp_path / "points.json"
+    session, player, _ = _make_session(tmp_path, duration_ms=HOUR_MS,
+                                       play_points=PlayPoints(file))
+    _watch_to(session, player, 300_000)
+    player.position_ms = 300_048
+    session.advance()
+
+    session.close()
+
+    assert PlayPoints(file).point_for(tmp_path / "v0.mp4") == 300_048

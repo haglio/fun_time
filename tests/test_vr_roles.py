@@ -805,3 +805,27 @@ class TestWhereAVideoWasLeft:
         role.tick(now=2.1)
 
         assert player.seeks[-1] == 300_000
+
+    def test_leaving_a_video_for_another_writes_down_the_very_spot(self, role_parts):
+        role, player, points = role_parts.role, role_parts.player, role_parts.points
+        one, *_ = role_parts.files
+        player.duration_ms = HOUR_MS
+        _watch(role, player, 300_000)
+        player.position_ms = 300_048
+        role.tick(now=1.2)
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+
+        assert points.point_for(one) == 300_048
+
+    def test_closing_the_player_writes_down_the_very_spot(self, role_parts):
+        role, player, points = role_parts.role, role_parts.player, role_parts.points
+        one, *_ = role_parts.files
+        player.duration_ms = HOUR_MS
+        _watch(role, player, 300_000)
+        player.position_ms = 300_048
+        role.tick(now=1.2)
+
+        role.close()
+
+        assert points.point_for(one) == 300_048
