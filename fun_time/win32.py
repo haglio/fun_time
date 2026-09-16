@@ -79,6 +79,20 @@ WNDENUMPROC = win_functype(
 
 
 WM_CLOSE = 0x0010
+WM_NULL = 0x0000
+SMTO_NORMAL = 0x0000
+ANSWER_TIMEOUT_MS = 200  # past a scheduling hiccup, and short enough to ask again and again
+
+_user32.SendMessageTimeoutW.argtypes = [
+    ctypes.wintypes.HWND,             # hWnd
+    ctypes.wintypes.UINT,             # Msg
+    ctypes.wintypes.WPARAM,           # wParam
+    ctypes.wintypes.LPARAM,           # lParam
+    ctypes.wintypes.UINT,             # fuFlags
+    ctypes.wintypes.UINT,             # uTimeout
+    ctypes.POINTER(ctypes.c_size_t),  # lpdwResult
+]
+_user32.SendMessageTimeoutW.restype = ctypes.c_ssize_t
 
 
 def close_window(hwnd: int) -> None:
@@ -260,9 +274,8 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
     changes — including the ORDER the caller makes these calls in, which is what
     stacks Genau's HUD above the main player's video and which posting the requests
     (SWP_ASYNCWINDOWPOS) would have given up.  A window that does not answer is
-    named in the log and left where it is.  Its worker stays blocked in the
-    kernel until that window's owner recovers or dies: one leaked thread per
-    call to a stalled window, against a wedged session.
+    named in the log, and the call it gave up on is still carried out once that
+    window takes messages again — after everything placed meanwhile.
 
     Our OWN windows are called straight, and must be: the send would go to this
     process's UI thread, which is the very thread waiting here.  See
@@ -288,6 +301,15 @@ def _without_hanging(call, hwnd, *args, what: str) -> bool:
         "carrying on without it", what, STALLED_WINDOW_TIMEOUT_S,
     )
     return False
+
+
+def window_answers(hwnd: int, *, timeout_ms: int = ANSWER_TIMEOUT_MS) -> bool:
+    """Whether the thread that owns *hwnd* takes a message within *timeout_ms*."""
+    if not hwnd:
+        return False
+    answer = ctypes.c_size_t(0)
+    return bool(_user32.SendMessageTimeoutW(
+        hwnd, WM_NULL, 0, 0, SMTO_NORMAL, timeout_ms, ctypes.byref(answer)))
 
 
 def move_window(hwnd: int, x: int, y: int, w: int, h: int, *, activate: bool = True) -> None:

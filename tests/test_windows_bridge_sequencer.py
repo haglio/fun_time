@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import configparser
 import contextlib
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
@@ -27,14 +28,17 @@ from fun_time.player_status import (
 from fun_time.players import Player
 from fun_time.session_environment import SessionEnvironment
 from fun_time.shortcuts import Shortcut
+from fun_time.win32 import ANSWER_TIMEOUT_MS
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
 )
 from fun_time.windows_bridge_sequencer import (
+    GENAU_ANSWER_TIMEOUT_S,
     MAIN_PLAYER_LOAD_TIMEOUT_S,
     WINDOW_RESOLVE_TIMEOUT_S,
     _maybe_launch_random_favs_browser,
+    _resolve_genau_window,
     _resolve_satellite_hwnds,
     _wait_for_main_player_loaded,
     _wait_for_players_drawing,
@@ -143,6 +147,7 @@ def _sequencer_stubs(**overrides):
         "launch_ui_companions": dict(side_effect=_fake_ui),
         "enumerate_monitors": dict(return_value=FAKE_MONITORS),
         "wait_for_window_by_title": dict(return_value=99999),
+        "window_answers": dict(return_value=True),
         "move_window": {},
         "set_always_on_top": {},
         "minimize_window": {},
@@ -1109,6 +1114,12 @@ class TestMainPlayerGatesTheReveal:
         """
         assert WINDOW_RESOLVE_TIMEOUT_S + MAIN_PLAYER_LOAD_TIMEOUT_S < STALE_TIMEOUT_S
 
+    def test_the_windows_phase_cannot_outlast_it_either(self):
+        """That phase resolves three windows and then waits for Genau to take
+        messages, all under one progress write."""
+        assert (3 * WINDOW_RESOLVE_TIMEOUT_S + GENAU_ANSWER_TIMEOUT_S
+                < STALE_TIMEOUT_S)
+
 
 FAKE_LAYOUT_CFG = LayoutConfig(
     primary_monitor=0,
@@ -1541,6 +1552,98 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
 
         assert seen["stale_at_launch"] is False
 
+
+
+class TestGenauIsPlacedOnlyOnceItCanTakeIt:
+    """Genau's window exists for seconds before its frame loop does: it waits out
+    the first clip's decode and takes no messages meanwhile.  A placement sent
+    into that gap is not refused — it waits in Genau's queue and is carried out
+    when the loop starts, over everything placed since, which is how Genau came
+    up on top of the hosted app's shows (``test_win32.py``'s
+    ``test_a_call_that_outlasted_the_wait_still_lands_when_the_window_answers``).
+    """
+
+    @staticmethod
+    def _asks_until(answers: list[bool], story: list[str]):
+        def asked(_hwnd, **_kwargs):
+            answering = answers.pop(0) if answers else True
+            story.append(f"asked ({answering})")
+            return answering
+        return asked
+
+    def test_nothing_is_placed_on_genau_until_its_window_answers(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        story: list[str] = []
+
+        with _sequencer_stubs(
+                window_answers=dict(side_effect=self._asks_until([False, False], story)),
+                disable_window_transitions=dict(
+                    side_effect=lambda hwnd: story.append(f"placed {hwnd}"))):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert story[:3] == ["asked (False)", "asked (False)", "asked (True)"]
+        assert story[3].startswith("placed")
+
+    def test_the_path_with_no_cover_waits_the_same_way(self, cfg_factory, tmp_path):
+        """The bands go on in phase 2 there rather than under a curtain, and a
+        band is exactly the call that lands late."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+        story: list[str] = []
+
+        with _sequencer_stubs(
+                window_answers=dict(side_effect=self._asks_until([False], story)),
+                set_always_on_top=dict(
+                    side_effect=lambda hwnd, on, **_kw: story.append(f"banded {hwnd}"))):
+            run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=False)
+
+        assert story[:2] == ["asked (False)", "asked (True)"]
+        assert story[2].startswith("banded")
+
+    def test_a_genau_that_never_answers_does_not_keep_the_curtain_up(
+            self, cfg_factory, tmp_path, caplog):
+        """Bounded like the player waits: a Genau stuck on a bad clip must not
+        hold the room shut, so it is placed anyway and the log says why."""
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(window_answers=dict(return_value=False)) as stubs, \
+                caplog.at_level(logging.WARNING,
+                                logger="fun_time.windows_bridge_sequencer"):
+            result = run_startup_sequence(
+                manifest_path=manifest_path, state_dir=tmp_path, hide_windows=True)
+
+        assert result.role_hwnds["genau"] == 99999
+        assert "Genau took no messages" in caplog.text
+        # Each ask is the wait itself, so the asks are what add up to the budget.
+        asked_for = stubs.window_answers.call_count * ANSWER_TIMEOUT_MS / 1000
+        assert asked_for == GENAU_ANSWER_TIMEOUT_S
+
+    def test_esc_is_answered_inside_the_wait_not_at_the_end_of_it(self):
+        """The wait can run for the length of a clip decode, and the curtain over
+        it says "Press Esc to cancel"."""
+        class Cancelled:
+            cancelled = True
+            def advance(self, phase: str) -> None: pass
+            def finish(self) -> None: pass
+
+        with patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
+                   return_value=6060), \
+                patch("fun_time.windows_bridge_sequencer.window_answers",
+                      return_value=False) as answers:
+            with pytest.raises(StartupCancelled):
+                _resolve_genau_window(Cancelled())
+
+        answers.assert_not_called()
+
+    def test_a_genau_that_never_opened_a_window_is_not_waited_on(self):
+        """No window, nothing to place, and nothing to hold the room for."""
+        with patch("fun_time.windows_bridge_sequencer.wait_for_window_by_title",
+                   return_value=0), \
+                patch("fun_time.windows_bridge_sequencer.window_answers") as answers:
+            assert _resolve_genau_window(NullProgress()) == 0
+
+        answers.assert_not_called()
 
 
 class TestWaitingForThePlayersToDraw:
