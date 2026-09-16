@@ -78,6 +78,7 @@ def build_windows_bridge_manifest(
         },
         "commands": {
             "genau_mode_file": str(config.genau_mode_file),
+            "genau_enabled_file": str(config.genau_enabled_file),
             "genau_cmd_file": str(config.genau_cmd_file),
             "genau_paused_file": str(config.genau_paused_file),
             "main_player_cmd_file": str(config.main_player_cmd_file),
@@ -214,6 +215,7 @@ class CommandFiles:
     """[commands]: every file channel and flag a child of this session reads."""
 
     genau_mode_file: str
+    genau_enabled_file: str
     genau_cmd_file: str
     genau_paused_file: str
     main_player_cmd_file: str

@@ -71,11 +71,11 @@
 
 ## Genau Disable / Re-enable Reliability
 
-- Status: Deferred
-- Symptom: Toggling Genau with `r` can behave inconsistently when disabling takeover and then re-enabling it later.
-- Notes:
-  - This behavior predates the current extraction work.
-  - Genau transition planning has been extracted into Python, which should make this easier to fix later without adding more controller-side complexity.
+- Status: Resolved (2026-09-15) by removing the switch
+- Symptom: Toggling the takeover off and back on again behaved inconsistently.
+- Resolution: Fun Time accepts the OSR2's own auto mode always, so there is
+  no switch to toggle. Startup asserts the shared flag on, which is also what
+  lifts a suppression Origenerator failed to lift after a crash of its own.
 
 ## OmniPause Does Not Fully Drop Fun Time Windows From Topmost
 

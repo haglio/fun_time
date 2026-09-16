@@ -398,6 +398,7 @@ def _launch_the_satellites(
         main_player_paused_file=m.commands.main_player_paused_file,
         audio_volume_file=m.commands.audio_volume_file,
         main_player_cmd_file=m.commands.main_player_cmd_file,
+        genau_enabled_file=m.commands.genau_enabled_file,
         satellite_python_exe=m.executables.python_exe,
         satellite_module=m.modules.satellite_module,
         portrait=portrait_slot,

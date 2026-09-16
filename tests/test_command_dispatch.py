@@ -2626,46 +2626,6 @@ def test_genau_next_clip_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "NEXT\n"
 
 
-def test_genau_toggle_auto_flips_genau_enabled_flag(tmp_path: Path):
-    from fun_time.command_dispatch import read_genau_enabled
-    config = _make_config(tmp_path)
-    state = _make_state()
-    flag = config.genau_enabled_file
-
-    # Missing flag means takeover allowed; first toggle suppresses it.
-    assert read_genau_enabled(flag) is True
-    dispatch_command("genau_toggle_auto", state, config)
-    assert flag.read_text(encoding="utf-8").strip() == "0"
-    assert read_genau_enabled(flag) is False
-
-    # Toggling again re-allows takeover.
-    dispatch_command("genau_toggle_auto", state, config)
-    assert flag.read_text(encoding="utf-8").strip() == "1"
-    assert read_genau_enabled(flag) is True
-
-
-def test_genau_toggle_auto_writes_the_flag_the_broker_actually_reads(tmp_path: Path):
-    """The switch is ours; the file is the broker's, so it goes where the broker
-    looks — not into the state dir of whichever session flipped it."""
-    from fun_time.command_dispatch import read_genau_enabled
-    broker_state = tmp_path / "primary_state"
-    broker_state.mkdir()
-    config = replace(_make_config(tmp_path), broker_state_dir=broker_state)
-
-    dispatch_command("genau_toggle_auto", _make_state(), config)
-
-    assert (broker_state / "genau_enabled.txt").read_text(encoding="utf-8").strip() == "0"
-    assert not (config.state_dir / "genau_enabled.txt").exists()
-    assert read_genau_enabled(config.genau_enabled_file) is False
-
-
-def test_genau_toggle_auto_does_not_write_genau_cmd_file(tmp_path: Path):
-    # It must drive the broker flag, not the (unrelated) Genau command file.
-    config = _make_config(tmp_path)
-    dispatch_command("genau_toggle_auto", _make_state(), config)
-    assert not config.genau_cmd_file.exists()
-
-
 def test_genau_cycle_shape_prev_writes_cmd_file_when_in_genau_mode(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode="genau")

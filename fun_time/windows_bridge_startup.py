@@ -295,6 +295,7 @@ def seed_startup_states(
     genau_cmd_file: str | Path,
     *,
     main_player_cmd_file: str | Path,
+    genau_enabled_file: str | Path,
     volume: int = MAX_VOLUME,
     muted: bool = False,
     f_mode: bool = False,
@@ -346,6 +347,10 @@ def seed_startup_states(
     # whole and no RESUME follows it.
     for path in (genau_paused_file, audio_paused_file, main_player_paused_file):
         write_flag_file(path, True)
+    # Fun Time accepts the OSR2's own auto mode, always: there is no switch for
+    # it.  Origenerator still suppresses the takeover while one of its videos
+    # drives, and a crash there would leave that standing for every session.
+    write_flag_file(genau_enabled_file, True)
     publish_audio_level(
         main_player_cmd_file=Path(main_player_cmd_file),
         genau_cmd_file=Path(genau_cmd_file),
@@ -386,6 +391,7 @@ def start_core_session(
     main_player_paused_file: str | Path,
     audio_volume_file: str | Path,
     main_player_cmd_file: str | Path,
+    genau_enabled_file: str | Path,
     satellite_python_exe: str | Path,
     satellite_module: str,
     portrait: SatelliteSlot,
@@ -443,6 +449,7 @@ def start_core_session(
     seed_startup_states(
         genau_paused_file, audio_paused_file, main_player_paused_file, audio_volume_file,
         genau_cmd_file, main_player_cmd_file=main_player_cmd_file,
+        genau_enabled_file=genau_enabled_file,
         volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
         mode=carried.main_mode,
     )

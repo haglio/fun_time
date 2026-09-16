@@ -237,7 +237,6 @@ l::QueueCommand("speed_up")
 c::QueueCommand("robot_hand_toggle_cruise")
 ; Human-inspired motion: real scripting in place of the waveform, never on with cruise.
 y::QueueCommand("robot_hand_toggle_learned")
-SC035::QueueCommand("genau_toggle_auto")
 
 ; Genau's clip cluster, laid out like the arrow keys are for the portrait side:
 ; K above to condemn the clip, M and . either side for previous and next.  The

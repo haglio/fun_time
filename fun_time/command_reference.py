@@ -269,7 +269,6 @@ _SECTIONS: tuple[_Section, ...] = (
             # The same two commands the main player's section carries: one sound level reaches
             # both sinks, and which is audible is which mode owns the display.
             _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
-            _Row("Allow / suppress Genau takeover (OSR2 auto)", ("/",), ("genau_toggle_auto",)),
             _Row(
                 "Seconds a clip holds the screen before Genau moves on — only "
                 "while it is unlocked (the ' key in the main player holds it)",

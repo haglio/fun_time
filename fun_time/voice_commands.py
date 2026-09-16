@@ -208,7 +208,6 @@ def build_voice_commands(
         "center up": "robot_hand_center_up",
         "next shape": "robot_hand_cycle_shape",
         "previous shape": "robot_hand_cycle_shape_prev",
-        "go now auto": "genau_toggle_auto",
         "cruise control": "robot_hand_toggle_cruise",
         "cruise on": "robot_hand_cruise_on",
         "cruise off": "robot_hand_cruise_off",

@@ -538,6 +538,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             commands.genau_paused_file, commands.audio_paused_file,
             commands.main_player_paused_file, commands.audio_volume_file,
             commands.genau_cmd_file, main_player_cmd_file=commands.main_player_cmd_file,
+            genau_enabled_file=commands.genau_enabled_file,
             volume=carried.volume, muted=carried.muted, f_mode=carried.main_f_mode,
             mode=carried.main_mode,
         )
