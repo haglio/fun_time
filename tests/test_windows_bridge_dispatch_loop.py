@@ -2830,7 +2830,7 @@ def _the_hosted_app_answers(tmp_path):
 
 class TestOrigeneratorModeOpensWhenTheAppDoes:
     """Startup stops holding the room up for the hosted app, so every session
-    spends its first half-minute with an Origenerator that is still booting.
+    that launches one spends its first half-minute with it still booting.
     Over that stretch the mode cannot be entered at all, and the loop is what
     knows: it reads the app's status file each tick, publishes the answer onto
     the state both HUDs draw from, and refuses the switch until it is yes.
@@ -2844,6 +2844,15 @@ class TestOrigeneratorModeOpensWhenTheAppDoes:
 
         _the_hosted_app_answers(tmp_path)
         runner.tick()
+        assert runner.state.origenerator_ready is True
+
+    def test_an_app_already_open_when_the_session_began_opens_the_mode_at_once(
+            self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path),
+                             origenerator_already_open=True)
+
+        runner.tick()
+
         assert runner.state.origenerator_ready is True
 
     def test_the_answer_is_latched_rather_than_re_read_all_session(self, tmp_path):

@@ -1511,6 +1511,50 @@ class TestOrigeneratorLaunch:
         assert open_app not in excinfo.value.launched_pids
         assert excinfo.value.origenerator_taken_over
 
+    def test_a_room_that_took_an_open_app_over_knows_it_was_already_open(
+        self, cfg_factory, tmp_path
+    ):
+        _cfg, manifest_path, _checkout, _open_app = self._checkout_with_an_open_app(
+            cfg_factory, tmp_path)
+
+        with _sequencer_stubs(launch_origenerator=dict()):
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert result.origenerator_already_open
+
+    def test_a_room_that_adopted_the_app_a_crossing_kept_knows_it_was_already_open(
+        self, cfg_factory, tmp_path
+    ):
+        from fun_time.session_handoff import keep_the_origenerator
+
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator")}}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        kept_app = os.getpid()
+        keep_the_origenerator(Path(cfg.origenerator_status_file).parent, pid=kept_app,
+                              created_at=get_process_creation_time(kept_app))
+
+        with _sequencer_stubs(launch_origenerator=dict()):
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert result.origenerator_pid == kept_app
+        assert result.origenerator_already_open
+
+    def test_a_room_that_launched_its_app_has_to_hear_from_it(self, cfg_factory, tmp_path):
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator")}}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=_fake_origenerator)):
+            result = run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert result.origenerator_pid == ORIGENERATOR_PID
+        assert not result.origenerator_already_open
+
     def test_an_offer_left_by_an_app_since_closed_launches_one(self, cfg_factory, tmp_path):
         cfg, manifest_path, checkout, _open_app = self._checkout_with_an_open_app(
             cfg_factory, tmp_path, created_at=1)
@@ -1834,8 +1878,8 @@ class TestAdoptingAKeptOrigenerator:
         assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
     def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
-        """The app is already answering through its status file, and clearing it
-        would buy back the forty seconds this saves."""
+        """The app rewrites its status file only when a region changes, so one
+        cleared here would stay empty while nothing did."""
         from unittest.mock import patch
 
         from fun_time.session_handoff import keep_the_origenerator

@@ -103,6 +103,7 @@ class StartupResult:
     # The hosted Origenerator's process, or 0 for a session with none configured.
     origenerator_pid: int = 0
     origenerator_taken_over: bool = False
+    origenerator_already_open: bool = False
     # Which player the main slot was revealed on — last session's, resumed.
     # Carried out because the post-overlay z-order pass runs from the
     # orchestrator and has to re-assert the same policy these phases applied.
@@ -236,13 +237,18 @@ class _LaunchedChildren:
     pids: list[int] = field(default_factory=list)
     rfb_hwnd: int = 0
     origenerator_taken_over: bool = False
+    origenerator_already_open: bool = False
 
-    def hosts(self, origenerator_pid: int, *, taken_over: bool) -> int:
+    def hosts_an_app_it_launched(self, origenerator_pid: int) -> int:
+        self.pids.append(origenerator_pid)
+        return origenerator_pid
+
+    def hosts_an_app_already_open(self, origenerator_pid: int, *, taken_over: bool) -> int:
+        self.origenerator_already_open = True
         if taken_over:
             self.origenerator_taken_over = True
-        else:
-            self.pids.append(origenerator_pid)
-        return origenerator_pid
+            return origenerator_pid
+        return self.hosts_an_app_it_launched(origenerator_pid)
 
 
 def release_the_players(m: LaunchManifest, main_mode: MainMode) -> None:
@@ -338,6 +344,7 @@ class _CoreSession:
     main_player_pid: int
     origenerator_pid: int
     origenerator_taken_over: bool
+    origenerator_already_open: bool
     # The main player's status file, dropped once phase 1 has spent last session's copy —
     # phase 4 holds the overlay on the new one appearing.
     main_player_status_file: Path
@@ -570,16 +577,15 @@ def _launch_the_hosted_origenerator(
 
     Launched FIRST because it is far and away the slowest child — ten to thirty
     seconds against five to eight for the rest of the room — and NOTHING waits
-    for it: the reveal used to, which made its boot the length of every launch.
-    The room opens in video mode instead, and the dispatch loop opens that mode
-    up once this app's status file says it has arrived.
+    for it: the room opens in video mode, and that mode opens once the app has
+    booted, or at once for an app that was already open.
     """
     origenerator_dir = m.runtime.origenerator_dir.strip()
     if not origenerator_dir:
         return 0
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
-        return launched.hosts(kept.pid, taken_over=kept.taken_over)
+        return launched.hosts_an_app_already_open(kept.pid, taken_over=kept.taken_over)
     # A "1" a prior OmniPause stranded opens every show frozen while the
     # room runs, and an unread verb lands on this session: the app reads
     # both on its first tick, and a room never opens paused.
@@ -587,8 +593,8 @@ def _launch_the_hosted_origenerator(
     origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
     origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
     origenerator_cmd_file.write_text("", encoding="utf-8")
-    # And the status file: last session's answers the readiness wait before
-    # this app has drawn anything.
+    # And the status file: last session's would open the mode before this app
+    # has drawn anything.
     Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
     players = _the_players_it_is_handed(m)
     for player in players.values():
@@ -609,7 +615,7 @@ def _launch_the_hosted_origenerator(
                      args=origenerator_session_args(**contract))
         logger.info("Took over the Origenerator already open from %s (pid %d)",
                     origenerator_dir, origenerator_pid)
-        return launched.hosts(origenerator_pid, taken_over=True)
+        return launched.hosts_an_app_already_open(origenerator_pid, taken_over=True)
     origenerator_pid = launch_origenerator(
         python_exe=(m.executables.origenerator_python_exe.strip()
                     or origenerator_interpreter(origenerator_dir)),
@@ -620,7 +626,7 @@ def _launch_the_hosted_origenerator(
         **contract,
     )
     logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
-    return launched.hosts(origenerator_pid, taken_over=False)
+    return launched.hosts_an_app_it_launched(origenerator_pid)
 
 
 def _launch_core_media(
@@ -658,6 +664,7 @@ def _launch_core_media(
         main_player_pid=main_player_pid,
         origenerator_pid=origenerator_pid,
         origenerator_taken_over=launched.origenerator_taken_over,
+        origenerator_already_open=launched.origenerator_already_open,
         main_player_status_file=main_player_status_file,
     )
 
@@ -902,6 +909,7 @@ def _run_startup_phases(
         audio_pid=ui_pids["audio_pid"],
         origenerator_pid=core.origenerator_pid,
         origenerator_taken_over=core.origenerator_taken_over,
+        origenerator_already_open=core.origenerator_already_open,
         main_mode=core.main_mode,
         role_hwnds=role_hwnds,
         rfb_hwnd=rfb_hwnd,

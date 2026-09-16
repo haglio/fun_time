@@ -980,6 +980,7 @@ def _start_the_dispatch_loop(
         env=env,
         hud_publisher=hud_publisher,
         rfb_shortcut=rfb_shortcut,
+        origenerator_already_open=result.origenerator_already_open,
     )
     dispatch_thread = threading.Thread(target=dispatch_runner.run, daemon=True, name="dispatch-loop")
     dispatch_thread.start()
