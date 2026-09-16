@@ -181,7 +181,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # 8114 since 2026-09-16, measured on the merged tree: each headset video moved
 # to a thread of its own, and the paragraphs describing mpv rendering on the
 # frame loop went with it.
-MAX_PROSE_LINES = 8113
+# 8095 since 2026-09-16, when the headset's library browser went in as names
+# and tests, the headset panels' five font loaders and three cut-to-width
+# copies became one, and the reference's toggle docstring and the dispatch
+# loop's pick comment went with the code they had explained.
+MAX_PROSE_LINES = 8095
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
