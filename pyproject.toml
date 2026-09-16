@@ -8,17 +8,24 @@ version = "0.1.0"
 # 3.12, not 3.10: branch_session.py:592 is a PEP 701 f-string (a `"` and a
 # backslash inside the replacement field), which will not parse before it.
 requires-python = ">=3.12"
-# The shared siblings are in [tool.haglio] below, not here — ../player_core (the
-# satellite players' engine, which brings python-mpv and the libmpv DLL),
-# ../app_support (logging, threading, CLI and subprocess scaffolding) and
-# ../shared_ui. Each is installed editable from a local path (see their READMEs)
-# and none is published, so pip would go looking for them on PyPI.
+# The three family siblings -- player_core (the players' engine, which brings
+# python-mpv; its DLL lives in %LOCALAPPDATA%\haglio\libmpv), app_support and
+# shared_ui -- are listed first below, each at the tag this repo was built
+# against, and [tool.haglio] siblings still names them for the gates.
 # Every requirement carries a ceiling. Without one each run installs whatever
 # PyPI served that morning: this repo's venv holds opencv-python 4 and the gate
 # was installing opencv-python 5, so the imaging stack the players stand on was
 # a different major version in CI than in production. Floors are what this
 # repo's venv holds today.
+# The family repos this one runs are named at the tags it was built against
+# rather than left to be whatever checkouts sit beside it. Unpinned, a change
+# landing in one of them reached every consumer the same minute, and one whose
+# other half had not landed turned all of them red at once. Moving to a newer
+# one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.140",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.231",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.123",
     "numpy>=2.4,<3",
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",
