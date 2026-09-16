@@ -23,6 +23,7 @@ from .cli import (
     library_source,
     load_config,
     mode_memory,
+    play_points,
     resolve_playlist,
 )
 from .clip_jumps import ClipJumps
@@ -198,6 +199,7 @@ def _run(args) -> int:
         tcode=FunscriptTCodeDriver(UdpTCodeSink(args.tcode_host, args.tcode_port)),
         start_paused=start_paused,
         version_index=source.version_index if source is not None else None,
+        play_points=play_points(args),
     )
     # Whether this window paints at all.  Fun Time gives the main slot's rect to
     # Genau in genau mode and minimizes the main player — minimized, so it keeps its taskbar

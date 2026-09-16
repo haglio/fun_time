@@ -86,3 +86,34 @@ and changing nothing you could see. Writing defaults clears a crashed session's
 leftovers just as the delete did, and the state carried forward is only ever the
 state that explains the files on disk: a session built fresh, or rebuilt over
 the top, opens on defaults.
+
+## Where the video was left
+
+Resume puts the clip that was on screen back at the top of each playlist; the
+point inside that clip is the players' own, and is kept for every video rather
+than only the one a session ended on. `main_player.play_points` is the whole of
+it — a JSON file in the state dir keyed by video path, read when a player opens
+a file and written as it plays. Both players that show the library's videos use
+it: the desktop main player (`main_player.session.PlayerSession`) and its
+headset twin (`fun_time_vr.roles.MainRole`). The satellites do not: their clips
+are seconds long and loop, so there is no point in one to come back to.
+
+Five rules shape what is kept, each with a test named for it:
+
+- a video is only remembered past `LEAD_IN_MS`, so a clip barely started, and
+  any video shorter than the lead-in and tail together, keeps nothing;
+- within `TAIL_MS` of the end it counts as watched through and is forgotten, so
+  next time it opens at the top;
+- the point is kept to `RESOLUTION_MS`, which is both how far before the moment
+  it was left a video reopens and how often the file is rewritten;
+- only a tick whose clock moved forward by less than `PLAYED_ON_MS` says where a
+  video is. A larger jump is a seek, a wrap at end-of-file, or — the one that
+  would otherwise write the wrong video's point — the clip just left, whose
+  position mpv goes on reporting for a tick or two after it is told to open
+  another;
+- `REMEMBERED` videos keep a point, the least recently watched dropping off the
+  end, so a file rewritten during playback cannot grow without bound.
+
+The seek is held until the player reports a duration, the way the restored A/B
+loop above is, so a video opens *at* its point rather than visibly jumping there
+once the file is up.

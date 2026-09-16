@@ -18,6 +18,8 @@ from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
 from .mode_memory import ModeMemory
+from .play_points import FILENAME as PLAY_POINTS_FILENAME
+from .play_points import PlayPoints
 
 
 def load_config(config_path: Path) -> dict:
@@ -110,6 +112,10 @@ def mode_memory(args) -> ModeMemory:
     compilation — so the next session, which Fun Time opens on this one's resumed
     playlist, can name it and re-enter the compilation."""
     return ModeMemory(_state_path(args, "main_player_mode.txt"))
+
+
+def play_points(args) -> PlayPoints:
+    return PlayPoints(_state_path(args, PLAY_POINTS_FILENAME))
 
 
 def library_source(

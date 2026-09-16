@@ -192,6 +192,13 @@ class TestHowTheSevenPartsAreJoinedUp:
         assert [_said(a) for a in _call(run, "painter.paint").args] == ["win_w", "win_h"]
         assert [_said(a) for a in _call(run, "window_input.deal").args[1:]] == ["win_w", "win_h"]
 
+    def test_the_session_is_handed_where_each_video_was_left(self):
+        """Dropped, every video plays from the top: the points are written down
+        and never read, so nothing is ever resumed."""
+        given = {kw.arg: _said(kw.value) for kw in _call(_run_body(), "PlayerSession").keywords}
+
+        assert given["play_points"] == "play_points(args)"
+
     def test_the_mode_is_written_down_out_of_the_modes_themselves(self):
         """Dropped, the main player writes main_player_mode.txt once at startup and never again: the
         next session opens on this one's playlist while the HUD names a mode
