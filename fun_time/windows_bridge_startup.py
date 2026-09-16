@@ -769,9 +769,11 @@ def launch_audio_companion(
     config_path: str | Path,
     audio_folder: str | Path,
     audio_device: str | None = None,
+    project_dirs: str | None = None,
 ) -> subprocess.Popen:
     """Start the audio companion; *audio_device* sends its sound to the output
-    whose name contains it (the headset, in VR) rather than the default."""
+    whose name contains it (the headset, in VR) rather than the default, and
+    *project_dirs* names the checkouts it reads that rule out of."""
     cmd = [
         NAMER.named_exe(str(python_exe), "AudioCompanion"),
         "-m",
@@ -783,7 +785,8 @@ def launch_audio_companion(
     ]
     if audio_device:
         cmd.extend(["--audio-device", audio_device])
-    return subprocess.Popen(cmd, **no_child_log(), **subprocess_window_kwargs())
+    return subprocess.Popen(cmd, **no_child_log(), **genau_project_kwargs(project_dirs),
+                            **subprocess_window_kwargs())
 
 
 def launch_ui_companions(
@@ -857,6 +860,7 @@ def launch_ui_companions(
     audio_proc = launch_audio_companion(
         python_exe=python_exe, audio_module=audio_module,
         config_path=config_path, audio_folder=audio_folder,
+        project_dirs=project_dirs,
     )
 
     _write_result_file(

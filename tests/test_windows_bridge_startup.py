@@ -1621,7 +1621,7 @@ _AUDIO_COMMAND = [
     "python.exe", "-m", "fun_time.audio_companion_app",
     "--config", "cfg.json", "--audio-folder", "audio",
 ]
-def _call_launch_ui_companions(result_file, *, dashboard_enabled):
+def _call_launch_ui_companions(result_file, *, dashboard_enabled, **over):
     launch_ui_companions(
         python_exe="python.exe",
         dashboard_module="fun_time.dashboard_app",
@@ -1633,6 +1633,7 @@ def _call_launch_ui_companions(result_file, *, dashboard_enabled):
         config_path="cfg.json",
         audio_folder="audio",
         result_file=result_file,
+        **over,
     )
 
 
@@ -1662,6 +1663,27 @@ def test_launch_ui_companions_launches_dashboard_and_audio(tmp_path: Path):
     assert result["dashboard_pid"] == "11"
     assert result["audio_pid"] == "33"
     assert set(result.keys()) == {"dashboard_pid", "audio_pid"}
+
+
+def test_launch_ui_companions_sends_both_companions_to_the_named_checkouts(tmp_path: Path):
+    """The dashboard has always run the checkouts a session names, and the
+    companion reads the same player_core beside it -- the flag files, and which
+    output the session's named device is."""
+    checkout = tmp_path / "player_core"
+    checkout.mkdir()
+    result_file = tmp_path / "ui_companions.ini"
+
+    with patch(
+        "fun_time.windows_bridge_startup.subprocess.Popen",
+        side_effect=[_FakeProc(11), _FakeProc(33)],
+    ) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        _call_launch_ui_companions(result_file, dashboard_enabled=True,
+                                   project_dirs=str(checkout))
+
+    for call in popen.call_args_list:
+        assert call.kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
 
 
 def test_launch_ui_companions_skips_dashboard_when_disabled(tmp_path: Path):
@@ -2235,3 +2257,15 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
         _proc, argv, _kwargs = self._launch(audio_device=None)
 
         assert "--audio-device" not in argv
+
+    def test_it_runs_the_checkouts_this_session_names(self, tmp_path: Path):
+        """It reaches into player_core like every other child -- for the flag
+        files, and for which output a named device is -- so a branch of that
+        checkout has to reach it too, or the companion answers a session with
+        the landed copy while the players beside it run the branch."""
+        checkout = tmp_path / "player_core"
+        checkout.mkdir()
+
+        _proc, _argv, kwargs = self._launch(project_dirs=str(checkout))
+
+        assert kwargs["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(checkout)
