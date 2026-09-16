@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
+from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 
 from fun_time.players import Player
 from fun_time.runtime_flow import (
@@ -646,10 +647,12 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
 
-def _leave_omnipause(files, *, main_mode, broker=True):
+def _leave_omnipause(files, *, main_mode, broker=True,
+                     osr2_control=OSR2_DRIVING):
     return apply_leave_omnipause(
         omni_paused=True,
         main_mode=main_mode,
+        osr2_control=osr2_control,
         portrait_paused_file=files["portrait_paused_file"],
         landscape_paused_file=files["landscape_paused_file"],
         genau_paused_file=files["genau_paused_file"],
@@ -696,6 +699,17 @@ def test_apply_leave_omnipause_in_video_mode_leaves_genaus_motion_to_the_arbiter
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "0"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "0"
+
+
+def test_leaving_omnipause_with_control_off_sends_genau_nothing(flow_files):
+    """Genau's motion is the OSR2 in genau mode, so a RESUME here is the device
+    moving again -- against the console switch that says the room let go of it."""
+    flow_files["genau_paused_file"].write_text("1", encoding="utf-8")
+
+    _leave_omnipause(flow_files, main_mode="genau", broker=False,
+                     osr2_control=OSR2_CONTROL_OFF)
+
+    assert not flow_files["genau_cmd_file"].exists()
 
 
 def test_apply_leave_omnipause_in_genau_mode_resumes_genau_only(flow_files):

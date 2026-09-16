@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
+
 from .broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from .mode_plan import MAIN_GENAU_MODE, main_player_displays
 
@@ -22,7 +24,8 @@ class OmniPausePlan:
     resume_genau_playback: bool = False
 
 
-def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str) -> OmniPausePlan:
+def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
+                        osr2_control: str = OSR2_DRIVING) -> OmniPausePlan:
     """Decide what one omnipause action means.
 
     ``toggle`` resolves against the current state; ``enter`` and ``leave`` are
@@ -57,7 +60,11 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str) -> O
             # Only genau mode, where the hand always has the device.  In video mode
             # the arbiter re-asserts the driver on its next tick, and resuming it
             # here would race it onto a funscript's stretch.
-            resume_genau_playback=main_mode == MAIN_GENAU_MODE,
+            # Never while the room has let go of the OSR2: resuming Genau
+            # there would put its motion back on the device, and the console's
+            # own switch is what decides that, not the way out of a pause.
+            resume_genau_playback=(main_mode == MAIN_GENAU_MODE
+                                   and osr2_control != OSR2_CONTROL_OFF),
             broker_command=RESUME_CMD,
             log_message="OmniPause: leaving",
         )
