@@ -476,6 +476,7 @@ class TestDriveControls:
         actions = _actions(MainSlot(mode="genau"))
 
         assert actions.index("robot_hand_toggle_learned") == actions.index("robot_hand_toggle_cruise") + 1
+        assert _button(MainSlot(mode="genau"), "robot_hand_toggle_learned").glyph == "hi"
         assert _button(MainSlot(mode="genau"), "robot_hand_toggle_learned").lit is False
         lit = _button(MainSlot(mode="genau", learned=True), "robot_hand_toggle_learned")
         assert lit.lit is True

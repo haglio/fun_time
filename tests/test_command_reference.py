@@ -554,7 +554,7 @@ def test_learned_motion_follows_cruise_with_the_same_shape_of_voice():
     cruise = next(i for i, r in enumerate(rows) if "robot_hand_toggle_cruise" in r.commands)
     learned = rows[cruise + 1]
     assert "robot_hand_toggle_learned" in learned.commands
-    assert learned.voice == ("learned motion", "learned on", "learned off")
+    assert learned.voice == ("human inspired", "human inspired on", "human inspired off")
     assert _keys(learned) == ("Y",)
 
 

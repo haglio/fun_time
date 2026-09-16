@@ -318,8 +318,9 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
     return (
         Button("robot_hand_toggle_cruise", "cc",
                "Cruise control: vary the motion hands-free", lit=slot.cruise),
-        Button("robot_hand_toggle_learned", "lm",
-               "Learned motion: play what real scripts do, not a waveform", lit=slot.learned),
+        Button("robot_hand_toggle_learned", "hi",
+               "Human inspired: motion drawn from real hand-made scripts, not a waveform",
+               lit=slot.learned),
         Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(slot.shape)}"),
         Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
         Button("osr2_control_off", CONTROL_OFF_ICON,
