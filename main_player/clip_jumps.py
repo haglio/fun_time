@@ -31,7 +31,7 @@ class ClipJumps:
         # walk the library's clips against its scenes, which is not a thing to do
         # several times a second for a video that has not changed.
         self._asked_about: Path | None = None
-        self._reachable: tuple[bool, str] = (False, "")
+        self._reachable: tuple[bool, str, str] = (False, "", "")
 
     @property
     def compilation(self) -> str:
@@ -55,7 +55,13 @@ class ClipJumps:
         common answer."""
         return self._reach()[1]
 
-    def _reach(self) -> tuple[bool, str]:
+    @property
+    def title(self) -> str:
+        """What to call the video on screen, out of the same per-video walk the
+        buttons use — naming a scene asks :attr:`jump_to`'s own question."""
+        return self._reach()[2]
+
+    def _reach(self) -> tuple[bool, str, str]:
         current = self._session.current_video
         if current != self._asked_about:
             self._asked_about = current
@@ -63,6 +69,7 @@ class ClipJumps:
                 bool(self._nav.compilation_of(current)),
                 "scene" if self._nav.full_vid_of(current) is not None
                 else "clip" if self._nav.clip_of(current) is not None else "",
+                self._nav.title_of(current),
             )
         return self._reachable
 
