@@ -238,17 +238,24 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row(
                 "Hold the motion still — cruise off, no amplitude, and the "
                 "center at one end: park settles the OSR2 home, retract sends "
-                "it to the far end, away from you.  Unlike OmniPause the room "
-                "plays on",
+                "it to the far end, away from you.  A funscript stands down for "
+                "it too.  Unlike OmniPause the room plays on",
                 (),
                 ("robot_hand_park", "robot_hand_retract"),
             ),
             _Row(
                 "Off the hold — put the motion back to whatever it was doing "
                 "before the park or retract, cruise included.  Any of the three "
-                "words undoes either hold",
+                "words undoes either hold, and ends control off too",
                 (),
                 ("robot_hand_release",),
+            ),
+            _Row(
+                "Control off — let go of the OSR2 and leave it exactly where it "
+                "is, until you park, retract or resume it.  The device itself "
+                "stays on: this is the app letting go, not the OSR2 switching off",
+                (),
+                ("osr2_control_off",),
             ),
             _Row("Offset the motion a ¼ cycle", ("\\",), ("quarter_button",)),
         ),

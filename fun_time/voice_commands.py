@@ -114,8 +114,8 @@ def build_voice_commands(
         # below: relief is the one that stops the room with it.
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
-        # Stopping the device alone, at either end of its axis, and back off
-        # that hold onto the motion it took away (see fun_time.robot_hand_hold).
+        # Stopping the device alone, at either end of its axis, back off that
+        # hold (see fun_time.robot_hand_hold), and letting go of it outright.
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
         "retract": "robot_hand_retract",
@@ -123,6 +123,8 @@ def build_voice_commands(
         "un retract": "robot_hand_release",
         "o s r two resume": "robot_hand_release",
         "oh es are two resume": "robot_hand_release",
+        "o s r two off": "osr2_control_off",
+        "oh es are two off": "osr2_control_off",
         # Satellite commands (portrait/landscape/both nav, lock, weird, cycle) are
         # generated as an order-agnostic grid below the literal — F-mode among them,
         # bare and sided both.
