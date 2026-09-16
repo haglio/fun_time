@@ -27,6 +27,7 @@ from fun_time.modes import (
 from fun_time.notice_overlay import is_announcement
 from fun_time.player_status import (
     MainPlayerStatus,
+    read_key_values,
     read_main_player_status,
 )
 from fun_time.process_identity import NAMER
@@ -75,6 +76,14 @@ def published_status(read, path: Path, *, budget_s: float = 2.0,
         sleep(0.01)
         status = read(path)
     return status
+
+
+def _status_fields(path: Path) -> dict[str, str]:
+    """A published status file's fields, or none while it is missing or being replaced."""
+    try:
+        return read_key_values(path)
+    except (OSError, ValueError):
+        return {}
 
 
 VIDEO_EXTENSIONS = (".mp4", ".mkv", ".avi", ".mov", ".m4v", ".wmv")
@@ -210,16 +219,11 @@ class FunTimeIntegrationSession:
         """The main player's current video duration in ms (published, but not carried on
         MainPlayerStatus, which only parses fields with production consumers).  A
         non-zero value means mpv has loaded the file and knows its length."""
-        path = self.config.main_player_status_file
-        if not path.exists():
+        fields = published_status(_status_fields, self.config.main_player_status_file)
+        try:
+            return int(fields.get("duration_ms", "").strip() or 0)
+        except ValueError:
             return 0
-        for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
-            if line.startswith("duration_ms="):
-                try:
-                    return int(line.split("=", 1)[1].strip() or 0)
-                except ValueError:
-                    return 0
-        return 0
 
     def read_child_pids(self) -> dict[str, int]:
         """Read all child PIDs from bridge_pids.ini."""

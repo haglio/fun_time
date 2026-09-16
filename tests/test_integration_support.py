@@ -546,6 +546,21 @@ def test_a_status_read_that_caught_the_file_mid_replace_is_read_again():
     assert published_status(lambda path: next(reads), Path("main_player_status.txt")) == published
 
 
+def test_a_duration_read_refused_mid_replace_is_read_again(session, monkeypatch):
+    """Windows can refuse a read outright while the player replaces its status
+    file, and the refusal went straight up into the test that asked."""
+    refusals = iter([PermissionError(13, "Permission denied")])
+
+    def read(path):
+        for refusal in refusals:
+            raise refusal
+        return {"video": "C:/example/scene one.mp4", "duration_ms": "61000"}
+
+    monkeypatch.setattr(integration_support, "read_key_values", read)
+
+    assert session.read_main_player_duration_ms() == 61_000
+
+
 def test_a_replace_that_outlasts_one_retry_is_still_waited_out():
     published = MainPlayerStatus(video="C:/example/scene two.mp4", duration_ms=45_000, paused=True)
     reads = iter([MainPlayerStatus(), MainPlayerStatus(), MainPlayerStatus(), published])
