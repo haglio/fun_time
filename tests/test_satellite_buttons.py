@@ -9,6 +9,7 @@ from player_core.hud_marks import FMODE_ICON, MINIMIZE_ICON, SHARED_MARK, shared
 from shared_ui.icon_geometry import glyph_names
 
 from fun_time.satellite_buttons import CONTROL_FACES, side_rows
+from tests.symbol_face import typed_in_the_symbol_face
 
 
 def _band(**fields) -> tuple[Button, ...]:
@@ -108,3 +109,11 @@ def test_the_gaps_fall_between_groups_and_nowhere_else():
     for previous, button in pairwise(_band(latest=False)):
         assert button.group_break == (
             previous.action.removeprefix("portrait_") in ("next", "fmode", "reset", "latest"))
+
+
+def test_the_typed_faces_are_in_the_painters_symbol_face():
+    typed = {face for face in CONTROL_FACES.values() if len(face) == 1 and not face.isalnum()}
+
+    assert typed
+    for face in typed:
+        assert typed_in_the_symbol_face(face), ascii(face)
