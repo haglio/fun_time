@@ -1,7 +1,7 @@
 """What the main player publishes in its status file for the Fun Time orchestrator.
 
 The dispatch side reads these to drive clipper_save, the dashboard funscript
-highlight, and the record-button state.  The six lines every player leads
+highlight, and the record-button state.  The seven lines every player leads
 with are :class:`player_core.status.PlayerStatus`; after them come the main
 player's own — its funscript, its loop machine and the touch the trace chose —
 which FunTimeVR's main role keeps in step.
@@ -43,7 +43,7 @@ def status_fields(session, handoff_touch_ms: int | None, *,
         # Whether the video repeats rather than ending is the main player's own
         # state, but the console that draws its lock is drawn by whoever holds
         # the main slot — Genau in genau mode, which has no such lock to ask —
-        # so it goes out with the family's six and comes back down on the
+        # so it goes out with the family's seven and comes back down on the
         # console panel, the way the loop state does.
         **player_status_fields(PlayerStatus(
             video=str(session.current_video),

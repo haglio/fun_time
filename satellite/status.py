@@ -1,7 +1,7 @@
 """What a satellite publishes in its status file for the dispatch loop.
 
 fun_time reads its current clip, playhead and pause/lock state from here — the
-watch-sampler and the lock HUD's own model both do.  The six lines every player
+watch-sampler and the lock HUD's own model both do.  The seven lines every player
 leads with are :class:`player_core.status.PlayerStatus`; a satellite adds how
 many clips its playlist holds, which the dispatch loop reads to know when a loop
 is down to one.

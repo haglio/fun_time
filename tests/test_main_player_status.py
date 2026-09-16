@@ -53,7 +53,7 @@ class TestStatusFields:
             "length_mode", "compilation", "has_compilation", "has_other_versions", "jump_to",
         ]
 
-    def test_the_six_every_player_leads_with_read_back_as_the_familys_record(self):
+    def test_the_seven_every_player_leads_with_read_back_as_the_familys_record(self):
         from player_core.status import PlayerStatus, parse_status
 
         assert parse_status(status_fields(StubSession(), None)) == PlayerStatus(
