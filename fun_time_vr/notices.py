@@ -88,3 +88,6 @@ class NoticeBoard:
     @property
     def records(self) -> tuple:  # the whole stream, unfiltered, oldest first
         return tuple(self._records)
+
+    def close(self) -> None:  # the player closes all it pumps; a board holds nothing open
+        pass
