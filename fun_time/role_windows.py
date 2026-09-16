@@ -361,18 +361,17 @@ class WindowRoles:
     def converge_origenerator_window(self, main_mode: str, satellites_mode: str) -> None:
         """Keep the hosted app's main window where the satellites' mode says.
 
-        The mode-switch ops restore or park it when a command fires, but two
-        paths arrive with no op to run: a session RESUMED into origenerator
-        mode (the mode was seeded, never switched), and a switch made while the
-        app was still booting (the op resolved no window and fell through).
-        This converges both.
+        The mode-switch ops restore or park it when a command fires, but the
+        window arrives mid-session — the room opens without waiting the app
+        out — so this is what meets it: parked while the room is in video mode,
+        and up in the other.
 
         Judged from the WINDOW, not from a memory of what was asked: the app's
         main thread blocks for long stretches while it boots, so a restore sent
         to it can time out through the stalled-window guard and do nothing — and a
-        converger that then remembered "shown" never tried again, which left a
-        resumed session's window parked until the user dug it out of the
-        taskbar.  Reading the minimized state each pass makes every miss retry.
+        converger that then remembered "shown" never tried again, which left the
+        window parked until the user dug it out of the taskbar.  Reading the
+        minimized state each pass makes every miss retry.
         """
         if not self.pids.origenerator:
             return

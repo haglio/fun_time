@@ -4025,6 +4025,13 @@ def _origenerator_config(tmp_path: Path) -> BridgeConfig:
     )
 
 
+def _up(**fields) -> BridgeState:
+    """A state whose hosted Origenerator has finished booting, which is every
+    session past its first half-minute.  Before that the mode is refused
+    outright, so a test about the switch itself has to say the app is up."""
+    return BridgeState(origenerator_ready=True, **fields)
+
+
 def _origenerator_cmds(config: BridgeConfig) -> list[str]:
     cmd_file = config.origenerator_cmd_file
     if not cmd_file.exists():
@@ -4035,7 +4042,7 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
 class TestSatellitesModeSwitch:
     def test_origenerator_activate_shows_restacks_and_pauses_the_players(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
+        state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.satellites_mode == "origenerator"
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("show_role", "origenerator"),
@@ -4049,7 +4056,7 @@ class TestSatellitesModeSwitch:
 
     def test_players_activate_closes_shows_and_unpauses_the_players(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
         state, ops = dispatch_command("satellites_video_activate", state, config)
         assert state.satellites_mode == "video"
         # The shows are the hosted app's to close; the blacked players resume.
@@ -4062,20 +4069,36 @@ class TestSatellitesModeSwitch:
 
     def test_satellites_toggle_flips_between_the_two(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state, _ = dispatch_command("satellites_toggle", BridgeState(), config)
+        state, _ = dispatch_command("satellites_toggle", _up(), config)
         assert state.satellites_mode == "origenerator"
         state, _ = dispatch_command("satellites_toggle", state, config)
         assert state.satellites_mode == "video"
 
     def test_without_an_origenerator_the_switch_reports_and_stays(self, tmp_path):
         config = _make_config(tmp_path)
-        state, ops = dispatch_command("origenerator_activate", BridgeState(), config)
+        state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.satellites_mode == "video"
         assert any(op.op == "notice" and op.level == logging.WARNING for op in ops)
 
+    def test_a_hosted_app_still_booting_refuses_the_switch_and_says_so(self, tmp_path):
+        """The room opens without waiting that app out, so for the first
+        half-minute of a session this mode is made of windows that do not
+        exist.  Both HUDs draw their Origenerator button dim over that stretch
+        and post nothing; this is the answer for the key and the spoken word,
+        which have no dim button to look at.
+        """
+        config = _origenerator_config(tmp_path)
+
+        for command in ("origenerator_activate", "satellites_toggle"):
+            state, ops = dispatch_command(command, BridgeState(), config)
+            assert state.satellites_mode == "video"
+            assert [(op.op, op.key) for op in ops] == [
+                ("notice", "Origenerator is still starting")]
+            assert _origenerator_cmds(config) == []
+
     def test_omnipaused_switch_is_state_only(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(omni_paused=True)
+        state = _up(omni_paused=True)
         state, ops = dispatch_command("origenerator_activate", state, config)
         assert state.satellites_mode == "origenerator"
         assert ops == []
@@ -4084,7 +4107,7 @@ class TestSatellitesModeSwitch:
 class TestOrigeneratorTransport:
     def test_side_transport_reaches_the_hosted_app_not_the_player(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
         state, _ = dispatch_command("portrait_next", state, config)
         assert _origenerator_cmds(config) == ["PORTRAIT_NEXT"]
         # The player is black and paused for the whole mode — driving it would
@@ -4095,7 +4118,7 @@ class TestOrigeneratorTransport:
         """The gestures the shared control band draws — reset among them, since
         it is on that band and means the same thing on a show as on a player."""
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
         for command in ("portrait_prev", "portrait_trash", "portrait_lock",
                         "portrait_reset", "landscape_next", "landscape_lock",
                         "landscape_reset"):
@@ -4112,7 +4135,7 @@ class TestOrigeneratorTransport:
         it knows which shelves its tree has and which detail parts have
         detectors installed."""
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
         for command in ("landscape_say_favorites", "portrait_say_play_slideshow",
                         "landscape_say_fix_teeth", "portrait_say_enhanced_only"):
             state, _ = dispatch_command(command, state, config)
@@ -4128,7 +4151,7 @@ class TestOrigeneratorTransport:
         the same words drop both switches on its HUD.  One phrase, one meaning
         per mode -- and in video mode the player keeps it."""
         config = _origenerator_config(tmp_path)
-        state = BridgeState(portrait=SideState(filter="alpha"), satellites_mode="origenerator")
+        state = _up(portrait=SideState(filter="alpha"), satellites_mode="origenerator")
 
         state, _ = dispatch_command("portrait_no_filter", state, config)
 
@@ -4149,7 +4172,7 @@ class TestOrigeneratorTransport:
         from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
 
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
         for side in ("portrait", "landscape"):
             for phrase in ORIGENERATOR_PHRASES:
                 command = VOICE_COMMANDS[f"{side} {phrase}"]
@@ -4160,7 +4183,7 @@ class TestOrigeneratorTransport:
         and posts genau_filter_enhanced for it.  Nothing here answered that verb,
         so the button lit and the shows played on unchanged (bug 90)."""
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
 
         state, _ = dispatch_command("genau_filter_enhanced", state, config)
 
@@ -4186,7 +4209,7 @@ class TestOrigeneratorTransport:
 class TestOmniPauseWithOrigenerator:
     def test_enter_freezes_the_hosted_app_too(self, tmp_path):
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
         state, _ = dispatch_command("enter_omnipause", state, config)
         assert state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
@@ -4195,7 +4218,7 @@ class TestOmniPauseWithOrigenerator:
         # The regions are the hosted app's for the whole mode: the room
         # resuming must not set the blacked players playing underneath it.
         config = _origenerator_config(tmp_path)
-        state = BridgeState(satellites_mode="origenerator", omni_paused=True)
+        state = _up(satellites_mode="origenerator", omni_paused=True)
         state, _ = dispatch_command("relief_omnipause", state, config)  # enters relief
         state = replace(state, omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)
@@ -4410,7 +4433,7 @@ class TestASessionThatHostsNoOrigenerator:
         mode over from a desktop session: every satellite verb then went to an
         app that was not there, and "portrait next" did nothing."""
         config = replace(_origenerator_config(tmp_path), origenerator_enabled=False)
-        state = BridgeState(satellites_mode="origenerator")
+        state = _up(satellites_mode="origenerator")
 
         assert not routes_to_origenerator("portrait_next", state, config)
         dispatch_command("portrait_next", state, config)

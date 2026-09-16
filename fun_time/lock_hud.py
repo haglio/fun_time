@@ -102,6 +102,10 @@ class HudPanel:
     # side so each panel can draw the mode pair — the satellite counterpart of
     # the main console's Video/Genau row.
     satellites_mode: str = ""
+    # Whether the hosted app that mode is made of is up yet — global the same
+    # way, and false for a session's first half-minute, over which the HUD
+    # draws that button dim.
+    origenerator_ready: bool = True
 
 
 def _others(items: list[str], current: str) -> list[str]:
@@ -304,6 +308,7 @@ def build_hud_panel(
     index: GroupIndex | None,
     active: bool = False,
     satellites_mode: str = "",
+    origenerator_ready: bool = True,
 ) -> HudPanel:
     """One side's HUD panel, from everything that side is (:class:`SideInputs`).
 
@@ -430,12 +435,13 @@ def build_hud_panel(
         active_loop=active_loop,
         playing=playing,
         satellites_mode=satellites_mode,
+        origenerator_ready=origenerator_ready,
     )
 
 
 def _side_panel(
     inputs: SideInputs, metadata_root: Path | None, active_side: str,
-    satellites_mode: str = "",
+    satellites_mode: str = "", origenerator_ready: bool = True,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -451,7 +457,7 @@ def _side_panel(
         )
     return build_hud_panel(
         inputs, index=index, active=active_side == inputs.side,
-        satellites_mode=satellites_mode,
+        satellites_mode=satellites_mode, origenerator_ready=origenerator_ready,
     )
 
 
@@ -496,7 +502,7 @@ def origenerator_mode_panel(side: str, *, active: bool = False) -> HudPanel:
 def build_panels(
     portrait: SideInputs, landscape: SideInputs, *,
     metadata_root: Path | None = None, active_side: str = "",
-    satellites_mode: str = "",
+    satellites_mode: str = "", origenerator_ready: bool = True,
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -513,8 +519,10 @@ def build_panels(
     rather than the dispatcher's slot number, because that is what a side is
     called everywhere else in here; the one translation lives where the number does.
     """
-    return (_side_panel(portrait, metadata_root, active_side, satellites_mode),
-            _side_panel(landscape, metadata_root, active_side, satellites_mode))
+    return (_side_panel(portrait, metadata_root, active_side, satellites_mode,
+                        origenerator_ready),
+            _side_panel(landscape, metadata_root, active_side, satellites_mode,
+                        origenerator_ready))
 
 
 def panel_thumbnails(

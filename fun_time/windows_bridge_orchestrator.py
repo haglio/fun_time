@@ -54,7 +54,7 @@ from .press_channel import PRESS_PORT_FILENAME
 from .process_identity import NAMER
 from .role_windows import ChildPids, WindowRoles
 from .runtime_flow import write_flag_file
-from .satellites_mode import CLOSE_SHOWS, origenerator_shows
+from .satellites_mode import CLOSE_SHOWS
 from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
@@ -89,7 +89,6 @@ from .win32 import (
     windows_obscuring,
 )
 from .win32_process import get_process_creation_time
-from .window_roles import ORIGENERATOR_ROLE_TITLES
 from .windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -609,24 +608,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
     landscape_hwnd = find_window_by_pid(result.landscape_pid) or wait_for_window_by_title(
         SATELLITE_LANDSCAPE_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
-    # A session opening in origenerator mode has its hosted window restored
-    # under the overlay already (the sequencer held the reveal for it); this
-    # pass is where it joins the topmost band, over the RFB it covers.  Its two
-    # REGION shows join with it, over the players they cover: they are managed
-    # roles promoted after the players precisely so they end up on top, and
-    # leaving them out of this pass is what put two blacked players over them.
-    hosted = result.origenerator_pid and origenerator_shows(result.satellites_mode)
-    origenerator_hwnd = (
-        find_window_for_process(
-            result.origenerator_pid, "Origenerator", include_hidden=True)
-        if hosted else 0
-    )
-    show_hwnds = {
-        role: (find_window_for_process(result.origenerator_pid, title,
-                                       include_hidden=True) if hosted else 0)
-        for role, title in ORIGENERATOR_ROLE_TITLES.items()
-        if role != "origenerator"
-    }
+    # No hosted Origenerator window is resolved here: it is still booting, and
+    # its three are the dispatch loop's to find and band once it has them.
     role_hwnds = apply_startup_window_state(
         rfb_hwnd=result.rfb_hwnd,
         portrait_hwnd=portrait_hwnd,
@@ -634,24 +617,18 @@ def _fix_post_loading_windows(result: StartupResult, *,
         genau_hwnd=genau_hwnd,
         main_player_hwnd=main_player_hwnd,
         dashboard_hwnd=dash_hwnd,
-        origenerator_hwnd=origenerator_hwnd,
-        origenerator_portrait_hwnd=show_hwnds["origenerator_portrait"],
-        origenerator_landscape_hwnd=show_hwnds["origenerator_landscape"],
         mode=result.main_mode,
-        satellites_mode=result.satellites_mode,
         beneath=overlay_hwnd,
     )
     logger.info("Post-loading window state corrected")
     # The banding above can silently miss a player: SetWindowPos waits on the
     # target's own thread, the satellites are at their busiest now, and a
     # promotion that times out leaves the player under whatever was on that
-    # monitor.  So walk the real z-order for a few seconds and re-promote whoever
-    # is still buried -- settled on whoever OWNS each satellite rect in this
-    # mode, since in origenerator mode the hosted app's shows cover the players
-    # on purpose and re-promoting a "buried" player would bury the show.
-    owners = satellite_rect_owners(result, portrait_hwnd, landscape_hwnd)
-    _settle_the_players(owners, overlay_hwnd=overlay_hwnd)
-    portrait_owner, landscape_owner = (hwnd for _name, hwnd in owners())
+    # monitor.  So walk the real z-order for a few seconds and re-promote
+    # whoever is still buried.  Both players, always: the room opens in video
+    # mode, so each satellite rect is its own player's for the whole of startup.
+    _settle_the_players(portrait_hwnd, landscape_hwnd, overlay_hwnd=overlay_hwnd)
+    portrait_owner, landscape_owner = portrait_hwnd, landscape_hwnd
     # Genau's window sits over the main player on purpose in both modes — the transparent
     # HUD layer, or the display itself — so it is not a covering worth a
     # warning.
@@ -661,44 +638,15 @@ def _fix_post_loading_windows(result: StartupResult, *,
     return role_hwnds
 
 
-def satellite_rect_owners(result, portrait_hwnd: int, landscape_hwnd: int):
-    """A callable answering who owns each satellite rect in this session's mode.
-
-    The players in video mode.  In origenerator mode the hosted app's two
-    region shows: they cover the players on purpose, and the players are
-    blacked and held for the whole mode, so "the player is covered" is the
-    normal state there rather than a burial to undo.
-
-    A callable rather than a pair: a show can still arrive mid-settle where
-    the hosted boot outran the reveal's wait for it, and one resolved as 0 up
-    front was never settled — it stayed under the player promoted a moment
-    earlier, a picture and then a black rectangle wearing the player's own HUD.
-    """
-    hosted = bool(result.origenerator_pid) and origenerator_shows(result.satellites_mode)
-
-    def owners() -> list[tuple[str, int]]:
-        if not hosted:
-            return [("portrait", portrait_hwnd), ("landscape", landscape_hwnd)]
-        return [
-            (role.removeprefix("origenerator_"),
-             find_window_for_process(result.origenerator_pid, title,
-                                     include_hidden=True))
-            for role, title in ORIGENERATOR_ROLE_TITLES.items()
-            if role != "origenerator"
-        ]
-
-    return owners
-
-
-def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
+def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
+                        overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
                         wait_s: float = SETTLE_WAIT_S) -> None:
-    """Re-promote whoever owns each satellite rect until it is genuinely
-    frontmost over it — the players in video mode, the hosted app's region
-    shows in origenerator mode, where the players are blacked underneath them.
+    """Re-promote each satellite player until it is genuinely frontmost over its
+    own rect.
 
-    *owners* is called for each pass and answers ``[(name, hwnd), ...]``, so a
-    window that appears mid-settle is settled too and one that has gone is
-    dropped.
+    Both rects are the players' own throughout: every room is built in video
+    mode, so the hosted app's region shows can only arrive once the dispatch
+    loop has taken over.
 
     The banding above can silently miss one: SetWindowPos waits on the target's
     own thread, and the satellites are at their busiest exactly now (first clips
@@ -710,10 +658,11 @@ def _settle_the_players(owners, *, overlay_hwnd: int = 0, passes: int = SETTLE_P
     The loading overlay covers everything on purpose, so it is not a burial,
     and a re-promotion made while it is up goes under it.
     """
+    players = (("portrait", portrait_hwnd), ("landscape", landscape_hwnd))
     for _ in range(passes):
         stack = iter_zorder()
         buried = [
-            (name, hwnd) for name, hwnd in owners()
+            (name, hwnd) for name, hwnd in players
             if hwnd and _covering(hwnd, stack, ignore=overlay_hwnd)
         ]
         if not buried:
@@ -915,17 +864,9 @@ def _reveal_the_room(
     # The overlay's own teardown hands activation to whatever is next in
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
-    owners = satellite_rect_owners(
-        result, role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0))
-    # A show that came up after the pass under the curtain has a handle
-    # now, and this band is what puts it back above the player it covers:
-    # the role order promotes it last for exactly that reason, and with a
-    # zero in the map it was simply skipped.
-    for name, hwnd in owners():
-        if hwnd and origenerator_shows(result.satellites_mode):
-            role_hwnds[f"origenerator_{name}"] = hwnd
-    apply_topmost_bands(role_hwnds, result.main_mode, result.satellites_mode)
-    _settle_the_players(owners, passes=3, wait_s=0.4)
+    apply_topmost_bands(role_hwnds, result.main_mode)
+    _settle_the_players(role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0),
+                        passes=3, wait_s=0.4)
 
 
 def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> ThreadingHTTPServer | None:

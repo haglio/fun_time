@@ -56,6 +56,16 @@ Nothing else survives, because nothing carries it into the new session:
 OmniPause's paused flags are cleared before the players launch, and a
 keyboard-navigation selection was never a thing you could leave running.
 
+The satellite side's mode is dropped on purpose rather than for want of a way
+to carry it. Every room is built in video mode, because the hosted Origenerator
+that origenerator mode is made of is still booting when the room opens and
+nothing waits for it any more. Coming back to the mode LATER, once that app
+answered, was tried and is worse: the two sides would rearrange themselves under
+whatever had been started in video mode. So being in origenerator mode is simply
+not something a session remembers — and until the app is up the mode cannot be
+entered at all: the switch answers "Origenerator is still starting", and both
+satellite HUDs draw that button dim.
+
 ## The things that have to be re-sent
 
 A satellite's lock is repeat-one in mpv's own `loop_file`, and the main player's

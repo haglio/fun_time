@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
-import os
 import shutil
 import subprocess
 import sys
@@ -30,17 +29,13 @@ import threading
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
 
 from fun_time.loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from fun_time.mode_plan import STARTUP_MAIN_MODE
-from fun_time.overlay_progress import NullProgress
-from fun_time.satellites_mode import ORIGENERATOR_MODE
 from fun_time.win32 import find_window_by_title, is_window_topmost, wait_for_window_by_title
 from fun_time.windows_bridge_sequencer import (
-    _hold_the_cover_for_the_hosted_app,
     apply_topmost_bands,
 )
 
@@ -282,29 +277,4 @@ def test_a_room_banded_under_a_cover_too_busy_to_answer_never_shows_through_it(t
         )
         assert all(is_window_topmost(hwnd) for hwnd in players.values()), (
             "the room never made it into the topmost band"
-        )
-
-
-def test_a_parked_hosted_window_restored_under_a_cover_too_busy_to_answer_never_shows_through_it(
-        tmp_path):
-    status_file = tmp_path / "origenerator_status.txt"
-    status_file.write_text("portrait_active=1\nlandscape_active=1\n", encoding="utf-8")
-    manifest = SimpleNamespace(
-        commands=SimpleNamespace(origenerator_status_file=str(status_file)))
-    core = SimpleNamespace(origenerator_pid=os.getpid(), satellites_mode=ORIGENERATOR_MODE)
-    watcher = _AboveTheCover(timeout_s=60.0)
-    with _Windows("Origenerator", style=WS_OVERLAPPEDWINDOW, ex_style=WS_EX_TOPMOST) as hosted:
-        _user32.ShowWindow(hosted["Origenerator"], SW_SHOWMINNOACTIVE)
-        with _a_real_cover(tmp_path / "startup_progress.txt") as cover:
-            _sampling(watcher)
-            with _unable_to_run(cover):
-                restored = _hold_the_cover_for_the_hosted_app(
-                    manifest, core=core, progress=NullProgress())
-        watcher.join(timeout=15.0)
-
-        assert restored == hosted["Origenerator"]
-        assert not _user32.IsIconic(restored), "the hosted window was left parked"
-        assert not watcher.too_long(), (
-            "restored while the cover could not answer, these sat over it: "
-            + "; ".join(watcher.too_long())
         )

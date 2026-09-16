@@ -1282,6 +1282,13 @@ def _dispatch_satellites_switch(
         return state, [WindowOp(
             op="notice", key="No Origenerator configured",
             level=logging.WARNING)]
+    if not state.origenerator_ready:
+        # The HUDs draw their Origenerator button dim over the same stretch and
+        # post nothing; this answers the key and the spoken word, which have no
+        # dim button to look at.
+        return state, [WindowOp(
+            op="notice", key="Origenerator is still starting",
+            level=logging.WARNING)]
     target = {
         "origenerator_activate": ORIGENERATOR_MODE,
         "satellites_video_activate": VIDEO_MODE,

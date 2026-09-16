@@ -1042,13 +1042,15 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     assert landscape_paused.read_text(encoding="utf-8") == "0"
 
 
-def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_path: Path):
-    """The regions are the hosted app's for the whole of origenerator mode, so a
-    session that closed in it comes back with both players paused (and black,
-    off the published mode) — exactly as the mode switch would have left them,
-    rather than playing invisibly under the restored app."""
-    from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
-
+def test_a_session_resumed_into_origenerator_mode_still_seeds_its_players_playing(
+    tmp_path: Path,
+):
+    """Every room is BUILT in video mode: the hosted app that owns those regions
+    is still booting when the room opens, and nothing waits for it any more.  So
+    both players come up playing whatever mode the last session ended in, and
+    the switch into origenerator mode — which the dispatch loop makes once the
+    app answers — is what pauses them.  Seeded paused off the resumed mode, they
+    sat frozen at position 0 under a mode nothing had entered."""
     kwargs = _start_core_session_kwargs(tmp_path)
     write_shared_state(shared_state_path(kwargs["state_dir"]),
                        BridgeState(satellites_mode="origenerator"))
@@ -1064,8 +1066,8 @@ def test_a_session_resumed_into_origenerator_mode_seeds_its_players_paused(tmp_p
     ):
         start_core_session(**kwargs)
 
-    assert kwargs["portrait"].paused_file.read_text(encoding="utf-8") == "1"
-    assert kwargs["landscape"].paused_file.read_text(encoding="utf-8") == "1"
+    assert kwargs["portrait"].paused_file.read_text(encoding="utf-8") == "0"
+    assert kwargs["landscape"].paused_file.read_text(encoding="utf-8") == "0"
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):

@@ -2698,13 +2698,108 @@ class TestASessionThatHostsNoOrigenerator:
 
         assert runner.state.satellites_mode == "video"
 
-    def test_with_an_origenerator_the_resumed_mode_stands(self, tmp_path):
-        runner = make_runner(tmp_path, config=replace(make_config(tmp_path), origenerator_enabled=True))
+    def test_with_an_origenerator_that_is_up_the_mode_stands(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
         write_shared_state(tmp_path / "shared_state.ini", BridgeState(satellites_mode="origenerator"))
 
         runner.tick()
 
         assert runner.state.satellites_mode == "origenerator"
+
+
+def _hosting(tmp_path, **overrides):
+    """A config for a session hosting an Origenerator, whose status file is
+    where that app says it has finished booting."""
+    return replace(make_config(tmp_path, **overrides), origenerator_enabled=True,
+                   origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
+                   origenerator_paused_file=tmp_path / "origenerator_paused.txt",
+                   origenerator_status_file=tmp_path / "origenerator_status.txt")
+
+
+def _the_hosted_app_answers(tmp_path):
+    (tmp_path / "origenerator_status.txt").write_text(
+        "portrait_active=0\nlandscape_active=0\n", encoding="utf-8")
+
+
+class TestOrigeneratorModeOpensWhenTheAppDoes:
+    """Startup stops holding the room up for the hosted app, so every session
+    spends its first half-minute with an Origenerator that is still booting.
+    Over that stretch the mode cannot be entered at all, and the loop is what
+    knows: it reads the app's status file each tick, publishes the answer onto
+    the state both HUDs draw from, and refuses the switch until it is yes.
+    """
+
+    def test_the_mode_is_closed_until_the_app_publishes_a_status(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+
+        runner.tick()
+        assert runner.state.origenerator_ready is False
+
+        _the_hosted_app_answers(tmp_path)
+        runner.tick()
+        assert runner.state.origenerator_ready is True
+
+    def test_the_answer_is_latched_rather_than_re_read_all_session(self, tmp_path):
+        """The app runs for the whole session, so this is a handful of reads at
+        the start of one and nothing after -- and a status file momentarily
+        unreadable mid-session cannot close a mode the user is standing in."""
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+        runner.tick()
+
+        (tmp_path / "origenerator_status.txt").unlink()
+        runner.tick()
+
+        assert runner.state.origenerator_ready is True
+
+    def test_a_session_hosting_none_is_never_waiting_on_one(self, tmp_path):
+        runner = make_runner(tmp_path)
+
+        runner.tick()
+
+        assert runner.state.origenerator_ready is False
+
+    def test_the_answer_is_written_back_to_the_file_the_moment_it_changes(self, tmp_path):
+        """This is shared state, so it has to reach the file other processes
+        read it from -- and nothing else writes that file until some command is
+        dispatched, which on a session nobody is touching may be never."""
+        state_file = tmp_path / "shared_state.ini"
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        write_shared_state(state_file, BridgeState())
+
+        runner.tick()
+        assert read_shared_state(state_file).origenerator_ready is False
+
+        _the_hosted_app_answers(tmp_path)
+        runner.tick()
+        assert read_shared_state(state_file).origenerator_ready is True
+
+    def test_it_never_switches_the_mode_of_its_own_accord(self, tmp_path):
+        """The app arriving opens the mode up; it does not enter it.  A session
+        that put itself into origenerator mode the moment that app was ready
+        would rearrange both sides under whatever he had started doing in video
+        mode, which is why the satellite mode is not remembered at all
+        (``session_resume.NOT_RESUMED``)."""
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        write_shared_state(tmp_path / "shared_state.ini",
+                           BridgeState(satellites_mode="origenerator"))
+
+        runner.tick()
+        _the_hosted_app_answers(tmp_path)
+        runner.tick()
+
+        assert runner.state.origenerator_ready is True
+        assert not (tmp_path / "origenerator_cmd.txt").exists()
+
+    def test_a_session_left_in_video_mode_is_switched_to_nothing(self, tmp_path):
+        runner = make_runner(tmp_path, config=_hosting(tmp_path))
+        _the_hosted_app_answers(tmp_path)
+
+        runner.tick()
+
+        assert runner.state.satellites_mode == "video"
+        assert not (tmp_path / "origenerator_cmd.txt").exists()
 
 
 class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:

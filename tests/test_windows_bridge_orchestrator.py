@@ -242,57 +242,16 @@ class TestFixPostLoadingWindows:
         promote.assert_not_called()
         slept.assert_not_called()
 
-    def test_origenerator_mode_bands_and_settles_the_shows_over_the_players(self):
-        """In origenerator mode the players are blacked and held for the whole
-        mode and the hosted app's region shows cover them on purpose.
+    def test_the_hosted_app_is_left_entirely_to_the_dispatch_loop(self):
+        """This pass no longer looks for the hosted app at all.
 
-        So the shows are what this pass has to band (as managed roles promoted
-        after the players) and what it has to settle: pointed at the players,
-        the settle loop reads a show covering its player as a burial and
-        re-promotes the blacked player over it, once every pass for twelve
-        seconds — which on a session that opened in the mode is one picture and
-        then a black rectangle."""
-        result = replace(_fake_startup_result(), satellites_mode="origenerator")
-        by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
-        for_process = {"Origenerator": 800, "Origenerator Portrait": 801,
-                       "Origenerator Landscape": 802}
-        promoted = []
-
-        with patch(
-            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
-        ) as apply, patch(
-            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
-            side_effect=lambda title, **kwargs: by_title.get(title, 0),
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.find_window_for_process",
-            side_effect=lambda _pid, title, *, include_hidden=False: (
-                for_process.get(title, 0) if include_hidden else 0),
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.windows_obscuring",
-            side_effect=lambda hwnd, _stack: [],
-        ), patch(
-            "fun_time.windows_bridge_orchestrator.set_always_on_top",
-            side_effect=lambda hwnd, on, **_kw: promoted.append(hwnd),
-        ), patch(
-            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
-        ) as obstruction:
-            _fix_post_loading_windows(result)
-
-        assert apply.call_args.kwargs["origenerator_portrait_hwnd"] == 801
-        assert apply.call_args.kwargs["origenerator_landscape_hwnd"] == 802
-        # And the burial test asks about the shows, never the players under them.
-        watched = [call.args[1] for call in obstruction.call_args_list]
-        assert 801 in watched and 802 in watched
-        assert 111 not in watched and 222 not in watched
-
-    def test_player_mode_still_settles_the_players_themselves(self):
-        """Nothing covers a player when no show is hosted over it, so the pass
-        is unchanged there — and a session with no Origenerator at all resolves
-        no show windows to settle."""
+        It used to, because a session could open already in origenerator mode:
+        the curtain was held for that app's boot, its window restored under the
+        cover, and the shows banded here as the roles that cover the players.
+        Every room opens in video mode now -- the boot is what made a launch
+        long -- so the app is still coming up when this runs, and its three
+        windows are the dispatch loop's to find and band when it has them.
+        """
         result = _fake_startup_result()
         by_title = {"Portrait AI Player": 111, "Landscape AI Player": 222}
 
@@ -312,7 +271,9 @@ class TestFixPostLoadingWindows:
         ) as obstruction:
             _fix_post_loading_windows(result)
 
-        assert apply.call_args.kwargs["origenerator_portrait_hwnd"] == 0
+        assert not [name for name in apply.call_args.kwargs
+                    if name.startswith("origenerator")]
+        # And each satellite rect is watched for its own player, always.
         watched = [call.args[1] for call in obstruction.call_args_list]
         assert 111 in watched and 222 in watched
 

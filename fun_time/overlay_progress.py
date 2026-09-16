@@ -137,14 +137,14 @@ class Phase:
 # advances by TIME rather than step count: an equal share per step parked it at
 # 83% through the one phase that waits on other processes.  The last is
 # weightless so the bar reads full while the room is settled under the cover.
+# There is no phase for the hosted Origenerator: it used to be nine parts
+# against the other six's three and a half, and taking its wait out is what
+# made a launch short.  It boots on out of sight now.
 STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
     Phase("companions", "Launching companions...", 1.3),
     Phase("players", "Waiting for players...", 0.5),
-    # The long one: the hosted app's window lands 10-28s after launch (its own
-    # boot log) against 5-8s for the rest of the room.
-    Phase("origenerator", "Waiting for Origenerator...", 9.0),
     Phase("windows", "Positioning windows...", 0.5),
     Phase("finalizing", "Finalizing...", 0.0),
 )
