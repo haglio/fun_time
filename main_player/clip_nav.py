@@ -123,14 +123,7 @@ class ClipNav:
 
     def title_of(self, video: Path) -> str:
         """What to call *video* on screen: the name Evolver recorded, else this
-        video's own clip record, else the family it was grouped under, else the
-        filename.
-
-        Evolver names a scene after the clip cut out of it, which takes the whole
-        library at once -- so that answer is read here rather than worked out,
-        and a library it has not been over keeps the ones a video can answer for
-        itself.
-        """
+        video's own clip record, else its family, else the filename."""
         meta = self._clips.get(video)
         return (
             self._titles.get(video)
