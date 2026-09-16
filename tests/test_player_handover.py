@@ -9,11 +9,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.file_channel import consume_command_file
+from player_core.file_channel import consume_command_file, publish_whole
 from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 
 from fun_time.bridge_records import SideChannel
-from fun_time.player_handover import hand_back, keep_aside
+from fun_time.player_handover import hand_back, keep_aside, let_go_since, panel_stamp
 
 
 def _side(tmp_path: Path) -> SideChannel:
@@ -23,6 +23,7 @@ def _side(tmp_path: Path) -> SideChannel:
         status_file=tmp_path / "portrait_status.txt",
         playlist_file=tmp_path / "portrait_playlist.tsv",
         sources="",
+        origenerator_hud_file=tmp_path / "origenerator_portrait_hud.json",
     )
 
 
@@ -70,6 +71,37 @@ def test_a_side_with_no_list_of_its_own_has_nothing_to_keep(tmp_path):
 
     assert hand_back(side) is False
     assert not side.cmd_file.exists()
+
+
+def test_the_app_has_let_go_once_it_publishes_the_side_empty_after_the_leave(tmp_path):
+    """Its close is the one thing it publishes only after it has read the
+    leave, so an empty panel from before the leave says nothing."""
+    side = _side(tmp_path)
+    publish_whole(side.origenerator_hud_file, '{"side": "portrait"}')
+    since = panel_stamp(side)
+    assert not let_go_since(side, since)
+
+    publish_whole(side.origenerator_hud_file, "")
+
+    assert let_go_since(side, since)
+
+
+def test_an_empty_panel_already_there_at_the_leave_is_no_letting_go(tmp_path):
+    """The app had not taken the side yet: the list it is about to write would
+    land on top of the one handed back."""
+    side = _side(tmp_path)
+    publish_whole(side.origenerator_hud_file, "")
+
+    assert not let_go_since(side, panel_stamp(side))
+
+
+def test_a_panel_the_app_publishes_after_the_leave_is_the_side_still_held(tmp_path):
+    side = _side(tmp_path)
+    since = panel_stamp(side)
+
+    publish_whole(side.origenerator_hud_file, '{"side": "portrait"}')
+
+    assert not let_go_since(side, since)
 
 
 def test_a_side_that_never_came_home_keeps_the_list_it_left_with(tmp_path):

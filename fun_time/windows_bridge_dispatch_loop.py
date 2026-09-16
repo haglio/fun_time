@@ -35,11 +35,10 @@ from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
-from .player_handover import hand_back
+from .player_handover import PanelStamp, hand_back, let_go_since, panel_stamp
 from .player_status import (
     is_broker_heartbeat_fresh,
     origenerator_has_published,
-    origenerator_holds,
     read_main_player_status,
 )
 from .players import Player
@@ -261,8 +260,9 @@ class DispatchLoopRunner:
         self.voice_controller: VoiceController | None = None
         # Watch tracking ("breeding"): every player's current clip, sampled and
         # classified into completions and skips for the stats file.
-        # Satellites on their way back from the hosted app, by when they land.
-        self._coming_home: dict[Player, float] = {}
+        # Satellites on their way back from the hosted app: by when they land,
+        # and which of their hosted panels was up when they were sent for.
+        self._coming_home: dict[Player, tuple[float, PanelStamp]] = {}
         self.watch = WatchSampler(
             main_player_status_file=config.main_player_status_file,
             satellite_status_files={2: config.portrait_status_file,
@@ -375,7 +375,10 @@ class DispatchLoopRunner:
 
     def expect_the_players_home(self, *, now: float) -> None:
         """Both satellites are on their way back from the hosted app."""
-        self._coming_home = dict.fromkeys(Player.SATELLITES, now + LET_GO_TIMEOUT_S)
+        self._coming_home = {
+            player: (now + LET_GO_TIMEOUT_S, panel_stamp(self.config.side(player)))
+            for player in Player.SATELLITES
+        }
 
     def bring_the_players_home(self, *, now: float) -> None:
         """Hand each satellite its own list again once the hosted app has let
@@ -385,16 +388,13 @@ class DispatchLoopRunner:
         if origenerator_shows(self.state.satellites_mode):
             self._coming_home.clear()
             return
-        for player, deadline in list(self._coming_home.items()):
-            held = (self.config.origenerator_status_file is not None
-                    and origenerator_holds(self.config.origenerator_status_file, player.label))
-            if held and now < deadline:
+        for player, (deadline, stamp) in list(self._coming_home.items()):
+            side = self.config.side(player)
+            if now < deadline and not let_go_since(side, stamp):
                 continue
             del self._coming_home[player]
-            side = self.config.side(player)
             hand_back(side)
-            # Whatever the app left the player holding, the session's own
-            # hold is what stands now.
+            # The session's own hold stands again, whatever the app left.
             append_command(side.cmd_file,
                            LOCK_ON if self.state.side(player).locked else LOCK_OFF)
 

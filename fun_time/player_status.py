@@ -199,21 +199,6 @@ def origenerator_has_published(path: Path) -> bool:
     return True
 
 
-def origenerator_holds(path: Path, side: str) -> bool:
-    """Whether the hosted Origenerator says it still has *side*'s player.
-
-    No file is an app that has gone, holding nothing; one that cannot be read is
-    being rewritten, and is asked again.
-    """
-    if not path.exists():
-        return False
-    try:
-        values = read_key_values(path)
-    except (OSError, ValueError):
-        return True
-    return _status_bool(values, f"{side}_active")
-
-
 def is_osr2_device_on(path: Path, *, max_age_seconds: float = 16.0, now: float | None = None) -> bool:
     age = stamp_age(path, now)
     return age is not None and age < max_age_seconds
