@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from player_core.console import ConsoleModel
+from player_core.console import OSR2_DRIVING, ConsoleModel
 
 from .console_buttons import MainSlot, console_rows, osr2_controls
 from .mode_plan import main_player_displays
@@ -52,6 +52,7 @@ def console_model(
     osr2_mode: str,
     broker: bool,
     main_player: MainPlayerStatus,
+    osr2_control: str = OSR2_DRIVING,
     genau: GenauStatus,
     genau_pace_s: int = 0,
     f_mode: bool = False,
@@ -83,12 +84,14 @@ def console_model(
         has_compilation=main_player.has_compilation,
         has_other_versions=main_player.has_other_versions,
         jump_to=main_player.jump_to,
+        osr2_control=osr2_control,
     )
     return ConsoleModel(
         mode=mode,
         active=active,
         osr2=osr2_state(mode=mode, osr2_mode=osr2_mode,
                         funscript_driving=main_player.funscript_driving),
+        osr2_control=slot.osr2_control,  # beside what has the device, what is DONE to it
         locked=slot.locked,
         latest=slot.latest,
         rows=console_rows(slot),
