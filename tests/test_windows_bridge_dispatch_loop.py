@@ -34,6 +34,7 @@ from fun_time.shortcuts import Shortcut
 from fun_time.voice_commands import parse_command_line
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
+    LET_GO_TIMEOUT_S,
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
     detect_sleep_gap,
@@ -193,6 +194,17 @@ def test_only_a_desktop_session_hosts_the_origenerator_its_config_names(
     assert build_bridge_config_from_manifest(manifest).origenerator_enabled
     assert not build_bridge_config_from_manifest(
         manifest, vr_main_player=True).origenerator_enabled
+
+
+def test_each_side_reads_the_hosted_panel_where_the_manifest_names_it(cfg_factory, tmp_path):
+    config = load_config(cfg_factory({}))
+    manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
+
+    bridge = build_bridge_config_from_manifest(manifest)
+
+    for player in Player.SATELLITES:
+        assert bridge.side(player).origenerator_hud_file == (
+            config.side(player).origenerator_hud_file)
 
 
 def _wait_for_the_browse(mock_browse) -> None:
@@ -2830,3 +2842,79 @@ class TestTheConfigTakesWhatTheManifestSaysRatherThanDerivingIt:
 
         assert build_bridge_config_from_manifest(manifest).main_player_notice_file == (
             tmp_path / "elsewhere" / "notices.txt")
+
+
+class TestThePlayersComeHome:
+    """Leaving origenerator mode asks the hosted app to let go of the two
+    players, and each comes home once it has: its own list back, turned onto
+    the clip it left, with the session's own hold put back on it."""
+
+    def _left_for_origenerator(self, tmp_path, *, locked=False):
+        from player_core.playlist import PlaylistItem, write_playlist
+
+        from fun_time.player_handover import keep_aside
+
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
+        runner.state = replace(runner.state, origenerator_ready=True,
+                               portrait=SideState(locked=locked))
+        for player in Player.SATELLITES:
+            side = config.side(player)
+            write_playlist(side.playlist_file, [PlaylistItem(tmp_path / f"{player.label}.mp4")])
+            keep_aside(side)
+            write_playlist(side.playlist_file, [PlaylistItem(tmp_path / "picture.png")])
+        runner.expect_the_players_home(now=100.0)
+        return runner, config
+
+    @staticmethod
+    def _holding(tmp_path, *, portrait: bool, landscape: bool) -> None:
+        (tmp_path / "origenerator_status.txt").write_text(
+            f"portrait_active={int(portrait)}\nlandscape_active={int(landscape)}\n",
+            encoding="utf-8")
+
+    @staticmethod
+    def _queued(config, player) -> list[str]:
+        cmd_file = config.side(player).cmd_file
+        return cmd_file.read_text(encoding="utf-8").split() if cmd_file.exists() else []
+
+    def test_a_side_the_app_has_let_go_of_comes_home(self, tmp_path):
+        runner, config = self._left_for_origenerator(tmp_path, locked=True)
+        self._holding(tmp_path, portrait=False, landscape=True)
+
+        runner.bring_the_players_home(now=100.5)
+
+        assert self._queued(config, Player.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_ON"]
+        assert self._queued(config, Player.LANDSCAPE) == []    # still the app's
+
+    def test_a_side_the_app_never_lets_go_of_comes_home_anyway(self, tmp_path):
+        """An app that has stalled or gone does not get to keep the players."""
+        runner, config = self._left_for_origenerator(tmp_path)
+        self._holding(tmp_path, portrait=True, landscape=True)
+
+        runner.bring_the_players_home(now=100.0 + LET_GO_TIMEOUT_S + 0.1)
+
+        assert self._queued(config, Player.PORTRAIT) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
+        assert self._queued(config, Player.LANDSCAPE) == ["RELOAD_PLAYLIST", "LOCK_OFF"]
+
+    def test_going_back_into_the_mode_first_leaves_them_with_the_app(self, tmp_path):
+        runner, config = self._left_for_origenerator(tmp_path)
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+        self._holding(tmp_path, portrait=False, landscape=False)
+
+        runner.bring_the_players_home(now=100.5)
+
+        assert self._queued(config, Player.PORTRAIT) == []
+        runner.state = replace(runner.state, satellites_mode="video")
+        runner.bring_the_players_home(now=100.6)
+        assert self._queued(config, Player.PORTRAIT) == []     # nothing owed any more
+
+    def test_the_switch_out_of_the_mode_is_what_sends_for_them(self, tmp_path):
+        config = _hosting(tmp_path)
+        runner = make_runner(tmp_path, config=config)
+        runner.state = replace(runner.state, origenerator_ready=True,
+                               satellites_mode="origenerator")
+
+        with patch.object(runner, "expect_the_players_home") as expect:
+            runner._dispatch("satellites_video_activate")
+
+        expect.assert_called_once()

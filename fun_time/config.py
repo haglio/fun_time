@@ -129,13 +129,15 @@ class VrConfig:
 
 @dataclass(frozen=True)
 class SideFiles:
-    """One satellite's own files, under the session's state dir."""
+    """One satellite's own files, under the session's state dir — the last of
+    them where the hosted Origenerator publishes that side's panel."""
 
     cmd_file: Path
     paused_file: Path
     status_file: Path
     playlist_file: Path
     hud_file: Path
+    origenerator_hud_file: Path
 
 
 @dataclass(frozen=True)
@@ -226,7 +228,7 @@ class ProjectConfig:
         return self.paths.state_dir / "main_player_playlist.tsv"
 
     # --- The hosted Origenerator's channel (see fun_time.satellites_mode):
-    # verbs in, the OmniPause flag over it, and region occupancy back.
+    # verbs in, the OmniPause flag over it, and which players it holds back.
     @property
     def origenerator_cmd_file(self) -> Path:
         return self.paths.state_dir / "origenerator_cmd.txt"
@@ -261,6 +263,7 @@ class ProjectConfig:
             status_file=self.paths.state_dir / f"{label}_status.txt",
             playlist_file=self.paths.state_dir / f"{label}_playlist.tsv",
             hud_file=self.paths.state_dir / f"{label}_hud.json",
+            origenerator_hud_file=self.paths.state_dir / f"origenerator_{label}_hud.json",
         )
 
     # What the dashboard publishes about itself, and its buttons coming back.

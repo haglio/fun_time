@@ -2,7 +2,7 @@
 
 Both the :class:`fun_time.role_windows.WindowRoles` tests and the dispatch
 loop's drive the same imaginary desktop: five children with known pids, the
-hosted Origenerator's three same-pid captions, and the browser window startup
+hosted Origenerator's own caption, and the browser window startup
 captured.  One home for it, so a test in either file that says ``PORTRAIT_HWND``
 means the same window a test in the other one does.
 """
@@ -18,11 +18,9 @@ DASHBOARD_HWND = 5001
 GENAU_HWND = 6001
 RFB_HWND = 7777
 
-# The hosted Origenerator's three windows, resolved by pid AND caption together.
+# The hosted Origenerator's window, resolved by pid AND caption together.
 HOSTED_PID = 900
 HOSTED_HWND = 8001
-HOSTED_PORTRAIT_HWND = 8002
-HOSTED_LANDSCAPE_HWND = 8003
 
 MAIN_PLAYER_PID = 200
 PORTRAIT_PID = 300
@@ -52,18 +50,14 @@ def lookup_title(title, exact=False):
 
 
 def lookup_hosted(pid, title, *, include_hidden=False):
-    """The hosted app's windows, which resolve by pid AND caption together.
+    """The hosted app's window, which resolves by pid AND caption together.
 
     Parked, so a caller that does not ask for hidden windows finds nothing —
     which is the state the hosted app boots in and spends every mode switch
     away from it in."""
     if pid != HOSTED_PID or not include_hidden:
         return 0
-    return {
-        "Origenerator": HOSTED_HWND,
-        "Origenerator Portrait": HOSTED_PORTRAIT_HWND,
-        "Origenerator Landscape": HOSTED_LANDSCAPE_HWND,
-    }.get(title, 0)
+    return HOSTED_HWND if title == "Origenerator" else 0
 
 
 class FakeClock:

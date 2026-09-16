@@ -21,24 +21,17 @@ from .satellites_mode import VIDEO_MODE, origenerator_shows
 # dashboard window, not a role of its own, so it rides the dashboard's band.
 FIXED_TOPMOST_ROLES: tuple[str, ...] = ("rfb", "portrait", "landscape", "dashboard")
 
-# The hosted Origenerator's windows: its main window SHARES the RFB's rect and
-# its region shows share the players', so like the main-slot pair they are
-# mode-dependent — in the band only while the satellites are in origenerator
-# mode.  Listed AFTER the fixed roles because HWND_TOPMOST inserts at the top
-# of the band: promoted later means stacked above the windows they cover.
-ORIGENERATOR_ROLES: tuple[str, ...] = (
-    "origenerator", "origenerator_portrait", "origenerator_landscape",
-)
+# The hosted Origenerator's one window: it SHARES the RFB's rect, so like the
+# main-slot pair it is mode-dependent — in the band only while the satellites
+# are in origenerator mode.  Listed AFTER the fixed roles because HWND_TOPMOST
+# inserts at the top of the band: promoted later means stacked above the
+# window it covers.  Its slideshows need no window of their own; they play on
+# the satellite players (fun_time.player_handover).
+ORIGENERATOR_ROLE = "origenerator"
 
-# The window captions the hosted app gives its three windows (its
-# ``fun_time_mode`` names the show titles), resolved together with its PID —
-# by pid alone the three are indistinguishable, and by title alone a
-# standalone Origenerator's windows would match.
-ORIGENERATOR_ROLE_TITLES: dict[str, str] = {
-    "origenerator": "Origenerator",
-    "origenerator_portrait": "Origenerator Portrait",
-    "origenerator_landscape": "Origenerator Landscape",
-}
+# The caption that window wears, resolved together with the app's PID: by
+# title alone a standalone Origenerator of his would match.
+ORIGENERATOR_TITLE = "Origenerator"
 
 # The two players that share the main slot's rect and therefore need
 # explicit stacking (the main player under Genau's HUD in video mode).
@@ -46,7 +39,7 @@ MAIN_SLOT_ROLES: tuple[str, ...] = ("main_player", "genau")
 
 # Every window role the bridge manages, in promotion order.
 MANAGED_ROLES: tuple[str, ...] = (
-    FIXED_TOPMOST_ROLES + ORIGENERATOR_ROLES + MAIN_SLOT_ROLES
+    FIXED_TOPMOST_ROLES + (ORIGENERATOR_ROLE,) + MAIN_SLOT_ROLES
 )
 
 
@@ -57,15 +50,15 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = VIDEO_MODE) -
     Browser, which shares its own with the hosted app's main window: each is
     topmost only where it shows something, and the hidden slot-mate stays out of
     the band.  Genau is in the band in both modes and promoted last, so it lands
-    ABOVE the main player.  The origenerator trio shares rects the same way, so it rides
-    *satellites_mode* as the main player rides *main_mode*.  Every other managed window owns
+    ABOVE the main player.  The hosted app's window shares the RFB's rect the same
+    way, so it rides *satellites_mode* as the main player rides *main_mode*.  Every other managed window owns
     its own rect and is unconditionally topmost.
     """
     if role == "main_player":
         return main_player_displays(main_mode)
     if role == "genau":
         return True
-    if role in ORIGENERATOR_ROLES:
+    if role == ORIGENERATOR_ROLE:
         return origenerator_shows(satellites_mode)
     if role == "rfb":
         # The RFB shares its rect with the hosted app's main window, so it is
@@ -80,7 +73,7 @@ def role_topmost(role: str, main_mode: str, satellites_mode: str = VIDEO_MODE) -
 
 def visible_roles(main_mode: str, satellites_mode: str = VIDEO_MODE) -> list[str]:
     """Every managed role whose window these modes keep on screen."""
-    origenerator = ORIGENERATOR_ROLES if origenerator_shows(satellites_mode) else ()
+    origenerator = (ORIGENERATOR_ROLE,) if origenerator_shows(satellites_mode) else ()
     return [*FIXED_TOPMOST_ROLES, *origenerator, *visible_main_slot_roles(main_mode)]
 
 

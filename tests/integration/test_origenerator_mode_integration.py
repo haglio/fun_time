@@ -1,14 +1,16 @@
 """The satellite side's origenerator mode, proven on a real session.
 
-The unit tests prove the plans and ops; what they cannot prove is the window
-choreography — that the hosted app's parked window actually rises over the RFB
-on the switch and parks again on the way back, and that the satellites hold
-their topmost band.  Those are claims about real HWNDs, so they are tested by
-running a real session against a STUB hosted app: a fabricated tkinter window
-that speaks just enough of the ``--fun-time`` contract (the captions, the
-parked boot, the QUIT verb) for the session to manage it.  A stub rather than
-the real Origenerator because the suite must not touch the machine's one
-ComfyUI, GPU queue, or gallery database — the same reason
+The unit tests prove the plans and ops; what they cannot prove is what the
+room does with them — that the hosted app's parked window actually rises over
+the RFB on the switch and parks again on the way back, that the two players
+really play what the hosted app hands them and get their own lists back
+afterwards, and that the satellites hold their topmost band.  Those are claims
+about real HWNDs and real players, so they are tested by running a real
+session against a STUB hosted app: a fabricated tkinter window that speaks
+just enough of the ``--fun-time`` contract (the captions, the parked boot, the
+players it is handed, the QUIT verb) for the session to manage it.  A stub
+rather than the real Origenerator because the suite must not touch the
+machine's one ComfyUI, GPU queue, or gallery database — the same reason
 ``isolate_shared_resources`` strips the config key outright.
 """
 from __future__ import annotations
@@ -20,8 +22,13 @@ import time
 from pathlib import Path
 
 import pytest
+from PIL import Image
+from player_core.playlist import read_playlist
+from player_core.satellite_hud import parse_hud
 
 from fun_time.event_log import event_log_path
+from fun_time.players import Player
+from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import (
     read_shared_state,
     shared_state_path,
@@ -37,6 +44,10 @@ from fun_time.win32 import (
 )
 from fun_time.windows_bridge_orchestrator import _fix_post_loading_windows
 from fun_time.windows_bridge_sequencer import StartupResult
+from fun_time.windows_bridge_startup import (
+    SATELLITE_LANDSCAPE_TITLE,
+    SATELLITE_PORTRAIT_TITLE,
+)
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -62,27 +73,49 @@ pytestmark = [
 # publishes the status file too, from the same poll and only once booted, which
 # is what the real app's Fun Time bridge does and what a session reads to learn
 # the app is up: a stub that stayed silent there would leave origenerator mode
-# closed for the whole run.
+# closed for the whole run.  Its shows are the real app's shape too: a list
+# written for each player it was handed, the verb that makes that player read
+# it, and a panel for the session to put on the player.
 _STUB_MAIN = textwrap.dedent(
     """
     import argparse
+    import ctypes
     import tkinter as tk
+    from ctypes import wintypes
     from pathlib import Path
+
+    from player_core.file_channel import append_command, publish_whole
+    from player_core.playlist import PlaylistItem, write_playlist
+    from player_core.satellite_hud import HudModel, hud_text
+
+    SIDES = ("portrait", "landscape")
+    PICTURES = Path(__file__).resolve().parent.parent / "pictures"
 
     parser = argparse.ArgumentParser()
     for flag in ("--x", "--y", "--width", "--height"):
         parser.add_argument(flag, type=int, default=0)
-    for side in ("portrait", "landscape"):
-        for field in ("x", "y", "width", "height"):
-            parser.add_argument(f"--{side}_{field}", type=int, default=0)
     parser.add_argument("--command-file")
     parser.add_argument("--status-file")
+    for side in SIDES:
+        for name in ("playlist", "cmd-file", "status-file", "hud-file"):
+            parser.add_argument(f"--{side}-{name}")
     args, _rest = parser.parse_known_args()
 
     root = tk.Tk()
     root.withdraw()  # the main window arrives only after the "boot"
 
     booted = False
+
+    user32 = ctypes.WinDLL("user32")
+    user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int,
+                                    ctypes.c_int, ctypes.c_int, ctypes.c_int, wintypes.UINT]
+
+    def pin_to_the_named_rect():
+        # By the OUTER rect, the way the real app pins its frameless window: a
+        # frame spilling past the rect it was named sits over a player.
+        user32.SetWindowPos(int(root.wm_frame(), 16), None, args.x, args.y,
+                            max(args.width, 120), max(args.height, 80),
+                            0x0014)  # SWP_NOZORDER | SWP_NOACTIVATE
 
     splash = tk.Toplevel(root)
     splash.title("Origenerator")  # the caption twin the session must survive
@@ -96,38 +129,39 @@ _STUB_MAIN = textwrap.dedent(
             f"{max(args.width, 120)}x{max(args.height, 80)}+{args.x}+{args.y}")
         root.attributes("-topmost", True)
         root.deiconify()
+        root.update_idletasks()
+        pin_to_the_named_rect()
         root.iconify()  # boots parked, like the real app
         booted = True  # only now does the real app's bridge start publishing
 
-    shows = {}
+    held = set()
+
+    def handed(side, name):
+        value = getattr(args, f"{side}_{name}")
+        return Path(value) if value else None
 
     def open_shows():
-        # The region shows: frameless, topmost, on the rects the session named
-        # — the same shape the real app gives them.
-        for side, title in (("portrait", "Origenerator Portrait"),
-                            ("landscape", "Origenerator Landscape")):
-            if side in shows:
+        for side in SIDES:
+            playlist = handed(side, "playlist")
+            if side in held or playlist is None:
                 continue
-            rect = [getattr(args, f"{side}_{field}")
-                    for field in ("x", "y", "width", "height")]
-            show = tk.Toplevel(root)
-            show.title(title)
-            show.overrideredirect(False)
-            show.geometry(f"{max(rect[2], 120)}x{max(rect[3], 80)}+{rect[0]}+{rect[1]}")
-            show.attributes("-topmost", True)
-            shows[side] = show
+            write_playlist(playlist, [PlaylistItem(PICTURES / f"{side}.png")])
+            append_command(handed(side, "cmd_file"), "RELOAD_PLAYLIST")
+            publish_whole(handed(side, "hud_file"), hud_text(
+                HudModel(side=side, lock_label=f"Stub {side} show")))
+            held.add(side)
 
     def close_shows():
-        for show in shows.values():
-            show.destroy()
-        shows.clear()
+        for side in held:
+            publish_whole(handed(side, "hud_file"), "")
+        held.clear()
 
     def publish_status():
         if not args.status_file or not booted:
             return
         lines = []
-        for side in ("portrait", "landscape"):
-            lines.append(f"{side}_active={'1' if side in shows else '0'}")
+        for side in SIDES:
+            lines.append(f"{side}_active={'1' if side in held else '0'}")
             lines.append(f"{side}_video=")
             lines.append(f"{side}_locked=0")
         Path(args.status_file).write_text(
@@ -158,19 +192,27 @@ _STUB_MAIN = textwrap.dedent(
     """
 )
 
+_PLAYERS = (Player.PORTRAIT, Player.LANDSCAPE)
+_PLAYER_TITLES = (SATELLITE_PORTRAIT_TITLE, SATELLITE_LANDSCAPE_TITLE)
+
 
 def _write_stub_checkout(destination: Path) -> Path:
     package = destination / "origenerator"
     package.mkdir(parents=True, exist_ok=True)
     (package / "__init__.py").write_text("", encoding="utf-8")
     (package / "__main__.py").write_text(_STUB_MAIN, encoding="utf-8")
+    pictures = destination / "pictures"
+    pictures.mkdir(exist_ok=True)
+    for player, color in zip(_PLAYERS, ((40, 90, 160), (160, 90, 40)), strict=True):
+        Image.new("RGB", (320, 240), color).save(pictures / f"{player.label}.png")
     return destination
 
 
 def _host_stub(config_path: Path, stub_root: Path) -> None:
     raw = json.loads(config_path.read_text(encoding="utf-8"))
     raw["paths"]["origenerator_dir"] = str(stub_root)
-    # The stub is plain tkinter, so the suite's own interpreter runs it.
+    # The stub is plain tkinter over player_core, so the suite's own
+    # interpreter runs it.
     raw["paths"]["origenerator_python_exe"] = sys.executable
     config_path.write_text(json.dumps(raw), encoding="utf-8")
 
@@ -224,6 +266,47 @@ def _wait(predicate, *, timeout: float, desc: str):
     pytest.fail(f"timed out waiting for {desc} (last={last!r})")
 
 
+def _playing(session, player: Player) -> str:
+    return read_satellite_status(session.config.side(player).status_file).video
+
+
+def _shows_the_stub(session, player: Player) -> bool:
+    return Path(_playing(session, player)).name == f"{player.label}.png"
+
+
+def _own_clips(session, player: Player) -> list[Path]:
+    """What *player*'s playlist holds, once that is the session's own clips
+    again rather than anything the hosted app wrote there."""
+    folders = (session.config.paths.portrait_dirs if player is Player.PORTRAIT
+               else session.config.paths.landscape_dirs)
+    listed = [item.path for item in read_playlist(session.config.side(player).playlist_file)]
+    if listed and all(path.parent in folders for path in listed):
+        return listed
+    return []
+
+
+def _leave_the_mode(session) -> None:
+    """Press the way back, and wait for both players to be handed theirs."""
+    session.write_dashboard_command("satellites_video_activate")
+    for player in _PLAYERS:
+        _wait(lambda player=player: _own_clips(session, player)
+              and not _shows_the_stub(session, player),
+              timeout=20, desc=f"the {player.label} player to play its own clips again")
+
+
+def _enter_the_mode(session) -> None:
+    """Press the mode button, once the hosted app is up to answer it."""
+    state_file = shared_state_path(session.config.paths.state_dir)
+    # The room opens in video mode and the hosted app boots on out of sight,
+    # so the switch has to wait for it — pressed any earlier it is refused,
+    # which is the whole point of the button being dim until then.
+    _wait(lambda: read_shared_state(state_file).origenerator_ready,
+          timeout=90, desc="the hosted app to publish a status")
+    session.write_dashboard_command("origenerator_activate")
+    _wait(lambda: read_shared_state(state_file).satellites_mode == "origenerator",
+          timeout=30, desc="the session to enter origenerator mode")
+
+
 def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_session):
     """The user-visible contract of the mode pair, on real windows: the hosted
     app boots parked; origenerator mode restores it over the RFB's rect and
@@ -239,17 +322,35 @@ def test_the_switch_raises_the_parked_window_and_the_way_back_parks_it(hosted_se
     session.write_dashboard_command("omnipause_toggle")
     session.wait_for_log("OmniPause: leaving")
 
-    session.write_dashboard_command("origenerator_activate")
+    _enter_the_mode(session)
     session.wait_for_log("Satellites switched to origenerator mode")
     _wait(lambda: not is_window_minimized(hwnd),
           timeout=10, desc="the hosted window to be restored")
     _wait(lambda: is_window_topmost(hwnd),
           timeout=10, desc="the hosted window to join the topmost band")
 
-    session.write_dashboard_command("satellites_video_activate")
+    _leave_the_mode(session)
     session.wait_for_log("Satellites switched to video mode")
     _wait(lambda: is_window_minimized(hwnd),
           timeout=10, desc="the hosted window to park again")
+
+
+def test_the_players_play_the_hosted_apps_shows_and_come_back_to_their_own(hosted_session):
+    """What the mode is for, on the real players: each one plays the list the
+    hosted app writes for it, and leaving the mode hands it back the session's
+    own list — the same clips, not the app's picture and not an empty list."""
+    session, _hwnd = hosted_session
+    own_lists = {player: sorted(_own_clips(session, player)) for player in _PLAYERS}
+    assert all(own_lists.values()), "the players had no lists of their own to begin with"
+
+    _enter_the_mode(session)
+    for player in _PLAYERS:
+        _wait(lambda player=player: _shows_the_stub(session, player),
+              timeout=20, desc=f"the {player.label} player to show the hosted app's picture")
+
+    _leave_the_mode(session)
+    for player in _PLAYERS:
+        assert sorted(_own_clips(session, player)) == own_lists[player]
 
 
 def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hosted_session):
@@ -285,17 +386,17 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     assert is_window_topmost(landscape)
 
 
-def test_entering_the_mode_on_a_real_session_leaves_its_shows_over_the_players():
-    """The one he kept reporting: the mode shows a picture on each region and
-    then a black rectangle wearing the satellite's own HUD — the blacked
-    player, back on top of the show it is supposed to be under.
+def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
+    """The one he kept reporting: the mode puts a picture on each side and then
+    something buries it a few seconds later.
 
-    A session of its own rather than the module's, because what buries a show
+    A session of its own rather than the module's, because what buries a side
     is the settle pass and the bands a full launch lays down, so the mode has
     to be entered on a session that took the loading-screen path with every
-    window real.  Asked over ten seconds rather than once: the burial arrived a
-    few seconds late every time he saw it, so a single look right after the
-    switch is exactly the check that kept passing.
+    window real — and with the dashboard enabled, since that is what publishes
+    the panels the players wear.  Asked over ten seconds rather than once: the
+    burial arrived a few seconds late every time he saw it, so a single look
+    right after the switch is exactly the check that kept passing.
     """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -304,23 +405,16 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_over_the_players()
     session = FunTimeIntegrationSession(config_path)
     # Faked side-by-side monitors for the same reason the loading-screen test
     # fakes them: on the hidden desktop's single screen the real layout
-    # collapses every window onto it and the regions legitimately overlap,
-    # which makes "is this show frontmost over its rect" unanswerable.
+    # collapses every window onto it and the players legitimately overlap,
+    # which makes "is this player frontmost over its rect" unanswerable.
     overlay_env = {
         "FUN_TIME_INTEGRATION_OVERLAYS": "1",
+        "FUN_TIME_DISABLE_DASHBOARD": "0",
         "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
     }
     try:
-        session.start(wait_seconds=120.0, env_overrides=overlay_env)
-        state_file = shared_state_path(session.config.paths.state_dir)
-        # The room opens in video mode and the hosted app boots on out of
-        # sight, so the switch has to wait for it — pressed any earlier it is
-        # refused, which is the whole point of the button being dim until then.
-        _wait(lambda: read_shared_state(state_file).origenerator_ready,
-              timeout=90, desc="the hosted app to publish a status")
-        session.write_dashboard_command("origenerator_activate")
-        _wait(lambda: read_shared_state(state_file).satellites_mode == "origenerator",
-              timeout=30, desc="the session to enter origenerator mode")
+        session.start(wait_seconds=180.0, env_overrides=overlay_env)
+        _enter_the_mode(session)
         events = event_log_path(session.config.paths.state_dir)
         text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
         assert "Loading screen launched" in text, (
@@ -328,30 +422,33 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_over_the_players()
             "the reveal and the settle pass live"
         )
 
-        shows = {
-            title: wait_for_window_by_title(title, timeout_s=30, exact=True)
-            for title in ("Origenerator Portrait", "Origenerator Landscape")
-        }
-        for title, hwnd in shows.items():
-            assert hwnd, (
-                f"{title} never appeared — a session opening in the mode has to "
-                "send OPEN_SHOWS, and the hosted app answers it by filling both "
-                "regions"
-            )
+        for player in _PLAYERS:
+            _wait(lambda player=player: _shows_the_stub(session, player),
+                  timeout=30,
+                  desc=f"the {player.label} player to show the hosted app's picture")
+            hud_file = session.config.side(player).hud_file
+            worn = _wait(
+                lambda hud_file=hud_file, player=player: _panel_of(hud_file, player),
+                timeout=10, desc=f"the {player.label} player to wear the hosted app's panel")
+            assert [button.action for button in worn.rows[0]][:2] == [
+                "satellites_video_activate", "origenerator_activate"]
+            assert worn.rows[0][1].lit
 
+        players = {title: wait_for_window_by_title(title, timeout_s=10, exact=True)
+                   for title in _PLAYER_TITLES}
         # Ten seconds of it, because the burial he saw landed seconds after the
         # picture did.  The first cover wins: report it and stop.
         # Each other is not a burial: the faked monitors are small enough that
-        # the two region rects overlap here, which they never do on his.
-        siblings = set(shows.values())
+        # the two players' rects overlap here, which they never do on his.
+        siblings = set(players.values())
         deadline = time.monotonic() + 10.0
         while time.monotonic() < deadline:
             stack = iter_zorder()
-            for title, hwnd in shows.items():
+            for title, hwnd in players.items():
                 covering = [w for w in windows_obscuring(hwnd, stack)
                             if w.hwnd not in siblings]
                 assert not covering, (
-                    f"{title} (hwnd={hwnd}) was covered after the reveal by: "
+                    f"{title} (hwnd={hwnd}) was covered after the switch by: "
                     + "; ".join(
                         f"{w.title!r} hwnd={w.hwnd} topmost={w.topmost} rect={w.rect}"
                         for w in covering
@@ -361,3 +458,11 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_over_the_players()
     finally:
         session.stop()
         retire_temp_root(temp_root)
+
+
+def _panel_of(hud_file: Path, player: Player):
+    """The panel published for *player*, once it is the hosted app's own."""
+    if not hud_file.exists():
+        return None
+    panel = parse_hud(hud_file.read_text(encoding="utf-8"))
+    return panel if panel is not None and panel.lock_label == f"Stub {player.label} show" else None

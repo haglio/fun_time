@@ -51,7 +51,7 @@ def parse_command_line(line: str) -> tuple[str, float | None]:
         return line, None
 
 
-# A hosted Origenerator's own vocabulary, said to one of its regions.
+# A hosted Origenerator's own vocabulary, said to one of its sides.
 #
 # The session owns the microphone for the whole room — one mic, one
 # transcription — so these are heard HERE and posted on the hosted app's

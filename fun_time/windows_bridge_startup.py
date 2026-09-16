@@ -10,7 +10,8 @@ import logging
 import os
 import re
 import subprocess
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.file_channel import append_command
@@ -365,9 +366,7 @@ def reset_satellite_paused_states(
     ``seed_startup_states``' scope and nothing else clears them: a ``"1"`` left
     stranded by a prior session's OmniPause would freeze this session's
     satellites at position 0.  Playing whatever mode the last session ended in,
-    because every room is BUILT in video mode -- the hosted app that would own
-    these regions is still booting -- and the switch into origenerator mode,
-    made once that app answers, is what pauses them.
+    since no mode pauses them.
     """
     for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -578,6 +577,18 @@ def launch_genau(
     return proc.pid
 
 
+@dataclass(frozen=True)
+class HandedPlayer:
+    """One satellite player as the hosted app is handed it: the files the
+    player contract trades through, plus the one that app publishes the side's
+    panel to for the session to put on the player."""
+
+    playlist_file: str | Path
+    cmd_file: str | Path
+    status_file: str | Path
+    hud_file: str | Path
+
+
 def origenerator_launch_command(
     *,
     python_exe: str | Path,
@@ -586,6 +597,7 @@ def origenerator_launch_command(
     paused_file: str | Path,
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
+    players: Mapping[str, HandedPlayer],
 ) -> list[str]:
     """The argv a session launches the hosted Origenerator with.
 
@@ -601,12 +613,12 @@ def origenerator_launch_command(
         "--x", str(rfb.x), "--y", str(rfb.y),
         "--width", str(rfb.width), "--height", str(rfb.height),
     ]
-    for prefix, rect in (("portrait", layout_plan.portrait),
-                         ("landscape", layout_plan.landscape)):
+    for side, player in players.items():
         cmd.extend([
-            f"--{prefix}_x", str(rect.x), f"--{prefix}_y", str(rect.y),
-            f"--{prefix}_width", str(rect.width),
-            f"--{prefix}_height", str(rect.height),
+            f"--{side}-playlist", str(player.playlist_file),
+            f"--{side}-cmd-file", str(player.cmd_file),
+            f"--{side}-status-file", str(player.status_file),
+            f"--{side}-hud-file", str(player.hud_file),
         ])
     cmd.extend(TASKBAR_IDENTITY_ARGS)
     cmd.extend([
@@ -654,12 +666,13 @@ def launch_origenerator(
     paused_file: str | Path,
     status_file: str | Path,
     dashboard_cmd_file: str | Path,
+    players: Mapping[str, HandedPlayer],
     project_dirs: str | None = None,
 ) -> int:
     """Launch the hosted Origenerator, returning its PID.
 
     Its ``--fun-time`` contract (``origenerator.fun_time_mode``): the main
-    window takes the RFB's rect, the shows take the two satellite region rects,
+    window takes the RFB's rect, its shows go to the two players it is handed,
     and the file trio is how the session drives and observes it.  Run with
     ``cwd`` in the checkout so ``-m`` resolves that checkout's code — the same
     way its own launcher picks a checkout, and what lets a worktree of it be
@@ -669,7 +682,7 @@ def launch_origenerator(
     cmd = origenerator_launch_command(
         python_exe=python_exe, layout_plan=layout_plan, command_file=command_file,
         paused_file=paused_file, status_file=status_file,
-        dashboard_cmd_file=dashboard_cmd_file,
+        dashboard_cmd_file=dashboard_cmd_file, players=players,
     )
     kwargs = origenerator_launch_kwargs(
         origenerator_dir=origenerator_dir, project_dirs=project_dirs)

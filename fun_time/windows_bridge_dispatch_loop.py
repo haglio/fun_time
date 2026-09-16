@@ -15,13 +15,13 @@ from pathlib import Path
 
 from app_support.file_channel import consume_command_file, read_flag, write_flag
 from player_core.file_channel import append_command
-from player_core.player_verbs import play_file
+from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import PARK_CMD, write_broker_command
 from .child_log import no_child_log
 from .clipper_save import save_clip_session
-from .command_dispatch import dispatch_command, routes_to_origenerator
+from .command_dispatch import dispatch_command, hosting_origenerator, routes_to_origenerator
 from .dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
@@ -35,9 +35,11 @@ from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
+from .player_handover import hand_back
 from .player_status import (
     is_broker_heartbeat_fresh,
     origenerator_has_published,
+    origenerator_holds,
     read_main_player_status,
 )
 from .players import Player
@@ -191,6 +193,12 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
     return gap if gap >= threshold_s else None
 
 
+# How long the hosted app is given to let go of the players when origenerator
+# mode ends — a ceiling for an app that has stalled or gone, not a wait anyone
+# sits through: it drains its channel several times a second.
+LET_GO_TIMEOUT_S = 3.0
+
+
 class DispatchLoopRunner:
     """Runs dashboard polling and genau sync in-process."""
 
@@ -254,6 +262,8 @@ class DispatchLoopRunner:
         self.voice_controller: VoiceController | None = None
         # Watch tracking ("breeding"): every player's current clip, sampled and
         # classified into completions and skips for the stats file.
+        # Satellites on their way back from the hosted app, by when they land.
+        self._coming_home: dict[Player, float] = {}
         self.watch = WatchSampler(
             main_player_status_file=config.main_player_status_file,
             satellite_status_files={2: config.portrait_status_file,
@@ -293,9 +303,8 @@ class DispatchLoopRunner:
     def _the_hosted_app_has_answered(self) -> bool:
         """Whether the hosted Origenerator is up.
 
-        Its CONTENTS are not asked about, only that it has published: a session
-        in video mode wants nothing of the regions, and one entering the mode
-        sends OPEN_SHOWS, so an app answering at all can take the switch.
+        Only that it has published: a session entering the mode sends
+        OPEN_SHOWS, so an app answering at all can take the switch.
         """
         if self._origenerator_is_up:
             return True
@@ -360,8 +369,35 @@ class DispatchLoopRunner:
             self.satellite_speeds.take_the_main_players_rate()
             if self.dashboard_enabled:
                 self._update_dashboard()
-        self.watch.sample_due(now=now, paused=self.state.omni_paused)
+        self.bring_the_players_home(now=now)
+        self.watch.sample_due(now=now, paused=self.state.omni_paused,
+                              satellites=not hosting_origenerator(self.state, self.config))
         self.hud.publish_due(self.state, now=now)
+
+    def expect_the_players_home(self, *, now: float) -> None:
+        """Both satellites are on their way back from the hosted app."""
+        self._coming_home = dict.fromkeys(Player.SATELLITES, now + LET_GO_TIMEOUT_S)
+
+    def bring_the_players_home(self, *, now: float) -> None:
+        """Hand each satellite its own list again once the hosted app has let
+        go of it, or has had long enough to -- never before, when a list the app
+        wrote after it would take the player straight back.
+        """
+        if origenerator_shows(self.state.satellites_mode):
+            self._coming_home.clear()
+            return
+        for player, deadline in list(self._coming_home.items()):
+            held = (self.config.origenerator_status_file is not None
+                    and origenerator_holds(self.config.origenerator_status_file, player.label))
+            if held and now < deadline:
+                continue
+            del self._coming_home[player]
+            side = self.config.side(player)
+            hand_back(side)
+            # Whatever the app left the player holding, the session's own
+            # hold is what stands now.
+            append_command(side.cmd_file,
+                           LOCK_ON if self.state.side(player).locked else LOCK_OFF)
 
     def _sync_voice_suspension(self) -> None:
         """Freeze voice while omnipause holds, as AHK's ``Suspend`` freezes the keys.
@@ -505,9 +541,8 @@ class DispatchLoopRunner:
 
     def _dispatch(self, command: str, spoken_at: float | None = None) -> None:
         logger.info("Dispatching command: %s", command)
-        # A transport verb bound for an Origenerator show steps that show, not
-        # the paused player underneath — booking it here would classify the
-        # player's frozen clip as skipped or discarded when nobody touched it.
+        # A press bound for an Origenerator show steps that show, and booking
+        # it here would count a library clip as skipped or discarded.
         if not routes_to_origenerator(command, self.state, self.config):
             self.watch.note_command(command)
         new_state, ops = dispatch_command(
@@ -866,8 +901,8 @@ def _run_restack_main(runner: DispatchLoopRunner, _op: WindowOp) -> None:
     runner.windows.restack_main_slot(runner.state.main_mode)
 
 
-def _run_restack_satellites(runner: DispatchLoopRunner, _op: WindowOp) -> None:
-    runner.windows.restack_satellites(
+def _run_restack_origenerator(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+    runner.windows.restack_origenerator(
         runner.state.main_mode, runner.state.satellites_mode)
 
 
@@ -898,6 +933,10 @@ def _run_notice(_runner: DispatchLoopRunner, op: WindowOp) -> None:
     notice(logger, op.key, source=op.source, level=op.level)
 
 
+def _run_take_back_players(runner: DispatchLoopRunner, _op: WindowOp) -> None:
+    runner.expect_the_players_home(now=time.monotonic())
+
+
 def _run_ahk_passthrough(runner: DispatchLoopRunner, op: WindowOp) -> None:
     if op.op == Op.UNSUSPEND_HOTKEYS and runner.env.integration:
         return
@@ -912,13 +951,14 @@ _OP_HANDLERS = {
     Op.MINIMIZE_ROLE: _run_minimize_role,
     Op.RESTORE_PARKED: _run_restore_parked,
     Op.RESTACK_MAIN: _run_restack_main,
-    Op.RESTACK_SATELLITES: _run_restack_satellites,
+    Op.RESTACK_ORIGENERATOR: _run_restack_origenerator,
     Op.DISABLE_ALL_TOPMOST: _run_disable_all_topmost,
     Op.RESTORE_ALL_TOPMOST: _run_restore_all_topmost,
     Op.SUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.UNSUSPEND_HOTKEYS: _run_ahk_passthrough,
     Op.OPEN_RFB_TAB: _run_open_rfb_tab,
     Op.SAVE_CLIP: _run_save_clip,
+    Op.TAKE_BACK_PLAYERS: _run_take_back_players,
 }
 assert set(_OP_HANDLERS) == set(Op), "every window op needs a handler"
 
@@ -934,8 +974,7 @@ def build_bridge_config_from_manifest(
     scene rather than launching the main player.  The manifest cannot answer it — both
     sessions build from the same one — so the orchestrator that knows says so.
     It answers for Origenerator too: the hosted app rides in the Random Favs
-    Browser's Chrome window, which a VR session never launches, so a headset
-    that kept the mode had two black satellite players and no key for them.
+    Browser's Chrome window, which a VR session never launches.
     """
     commands = manifest.commands
     return BridgeConfig(
@@ -981,4 +1020,8 @@ def build_bridge_config_from_manifest(
         origenerator_cmd_file=Path(v) if (v := commands.origenerator_cmd_file.strip()) else None,
         origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
         origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,
+        portrait_origenerator_hud_file=(
+            Path(v) if (v := commands.portrait_origenerator_hud_file.strip()) else None),
+        landscape_origenerator_hud_file=(
+            Path(v) if (v := commands.landscape_origenerator_hud_file.strip()) else None),
     )

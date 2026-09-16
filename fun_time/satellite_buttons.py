@@ -61,12 +61,7 @@ def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
     rows: list[tuple[Button, ...]] = []
     if mode:
         names.remove("minimize")
-        rows.append((
-            *(_mode_button(action, label, lit=mode == lit_mode,
-                           dim=action == "origenerator_activate" and not origenerator_ready)
-              for action, label, lit_mode in MODE_BUTTONS),
-            _control(side, "minimize", group_break=True),
-        ))
+        rows.append(mode_row(side, mode=mode, origenerator_ready=origenerator_ready))
     lit = {"lock": locked, "fmode": f_mode, "latest": bool(latest), "shuffle": latest is False}
     rows.append(tuple(
         _control(side, name, lit=lit.get(name, False),
@@ -74,6 +69,16 @@ def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
         for index, name in enumerate(names)
     ))
     return tuple(rows)
+
+
+def mode_row(side: str, *, mode: str, origenerator_ready: bool = True) -> tuple[Button, ...]:
+    """The session's own row over a side: the mode pair, and minimize."""
+    return (
+        *(_mode_button(action, label, lit=mode == lit_mode,
+                       dim=action == "origenerator_activate" and not origenerator_ready)
+          for action, label, lit_mode in MODE_BUTTONS),
+        _control(side, "minimize", group_break=True),
+    )
 
 
 def _mode_button(action: str, label: str, *, lit: bool, dim: bool) -> Button:

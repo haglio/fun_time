@@ -29,8 +29,8 @@ from .win32 import (
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
     MANAGED_ROLES,
-    ORIGENERATOR_ROLE_TITLES,
-    ORIGENERATOR_ROLES,
+    ORIGENERATOR_ROLE,
+    ORIGENERATOR_TITLE,
     role_topmost,
 )
 from .windows_bridge_startup import (
@@ -102,14 +102,8 @@ class WindowRoles:
         window's HWND must be captured while it is visible (startup shows
         everything) and reused to show it again later.
         """
-        if role in ("origenerator_portrait", "origenerator_landscape"):
-            # The region shows come and go with the slideshows, so a cached
-            # handle would name a destroyed window — resolved fresh every time.
-            return find_window_for_process(
-                self.pids.origenerator, ORIGENERATOR_ROLE_TITLES[role],
-                include_hidden=True)
         hwnd = self._role_hwnds.get(role, 0)
-        if hwnd and role == "origenerator" and not window_exists(hwnd):
+        if hwnd and role == ORIGENERATOR_ROLE and not window_exists(hwnd):
             # The hosted app's boot can put a short-lived twin of this caption
             # up first (its splash), and caching that leaves every later
             # restore aimed at a dead handle — the switch that visibly did
@@ -142,13 +136,12 @@ class WindowRoles:
             hwnd = self._dashboard_hwnd()
         elif role == "rfb":
             hwnd = self.rfb_hwnd
-        elif role == "origenerator":
-            # Pid AND title: the process owns three titled windows, and a
-            # standalone Origenerator of his owns windows with the same titles.
-            # Children included, for a recorded pid that is a launcher's.
+        elif role == ORIGENERATOR_ROLE:
+            # Pid AND title: a standalone Origenerator of his owns a window
+            # with the same caption.  Children included, for a recorded pid
+            # that is a launcher's.
             hwnd = find_window_for_process(
-                self.pids.origenerator, ORIGENERATOR_ROLE_TITLES[role],
-                include_hidden=True)
+                self.pids.origenerator, ORIGENERATOR_TITLE, include_hidden=True)
         if hwnd:
             self._role_hwnds[role] = hwnd
         return hwnd
@@ -303,10 +296,10 @@ class WindowRoles:
         rect with the hosted app's main window and the policy already answers
         "not topmost" for it in origenerator mode, but this path put it in the
         band anyway — and ``HWND_TOPMOST`` inserts at the TOP of the band, so
-        it sat above Origenerator until :meth:`restack_satellites`, a few
+        it sat above Origenerator until :meth:`restack_origenerator`, a few
         SetWindowPos calls later, promoted the host back over it.
 
-        The hosted trio then goes up (:meth:`restack_satellites`), and the
+        The hosted window then goes up (:meth:`restack_origenerator`), and the
         overlapping main player/Genau pair last (:meth:`restack_main_slot`), so Genau's
         HUD sits above the main player's video in video mode.
         """
@@ -316,23 +309,22 @@ class WindowRoles:
             hwnd = self.hwnd(role)
             if hwnd:
                 set_always_on_top(hwnd, True)
-        self.restack_satellites(main_mode, satellites_mode)
+        self.restack_origenerator(main_mode, satellites_mode)
         self.restack_main_slot(main_mode)
 
-    def restack_satellites(self, main_mode: str, satellites_mode: str) -> None:
-        """Promote the hosted Origenerator's windows above the ones they cover.
+    def restack_origenerator(self, main_mode: str, satellites_mode: str) -> None:
+        """Promote the hosted Origenerator's window above the RFB it covers.
 
-        Only in origenerator mode — its windows share the RFB's and the
-        players' rects, and ``HWND_TOPMOST`` inserts at the top of the band, so
-        promoting them after the fixed roles is what stacks them on top.  In
-        video mode they are parked and stay out of the band.
+        Only in origenerator mode — the two share one rect, and
+        ``HWND_TOPMOST`` inserts at the top of the band, so promoting this one
+        after the fixed roles is what stacks it on top.  In video mode it is
+        parked and stays out of the band.
         """
-        for role in ORIGENERATOR_ROLES:
-            if not role_topmost(role, main_mode, satellites_mode):
-                continue
-            hwnd = self.hwnd(role)
-            if hwnd:
-                set_always_on_top(hwnd, True)
+        if not role_topmost(ORIGENERATOR_ROLE, main_mode, satellites_mode):
+            return
+        hwnd = self.hwnd(ORIGENERATOR_ROLE)
+        if hwnd:
+            set_always_on_top(hwnd, True)
 
     def restack_main_slot(self, main_mode: str) -> None:
         """Re-establish the main player/Genau z-order for this mode.
@@ -375,7 +367,7 @@ class WindowRoles:
         """
         if not self.pids.origenerator:
             return
-        hwnd = self.hwnd("origenerator")
+        hwnd = self.hwnd(ORIGENERATOR_ROLE)
         if not hwnd:
             return  # still booting — try again next sync
         minimized = is_window_minimized(hwnd)
@@ -383,7 +375,7 @@ class WindowRoles:
             if minimized:
                 restore_window(hwnd, activate=False)
             if minimized or not is_window_topmost(hwnd):
-                self.restack_satellites(main_mode, satellites_mode)
+                self.restack_origenerator(main_mode, satellites_mode)
         elif not minimized:
             minimize_window(hwnd, activate=False)
 

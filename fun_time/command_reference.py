@@ -161,13 +161,13 @@ _SECTIONS: tuple[_Section, ...] = (
                 (),
                 ("video_activate",),
             ),
-            # The hosted app's own vocabulary, said to one of its regions.  The
+            # The hosted app's own vocabulary, said to one of its sides.  The
             # session owns the room's microphone, so these are heard here and
             # posted there as the words themselves; one row, because they are
             # one idea — say the side, then what you would have said to
             # Origenerator.
             _Row(
-                "Speak to a hosted Origenerator region — the side, then its own "
+                "Speak to a hosted Origenerator show — the side, then its own "
                 "words: a shelf to play (\"portrait favorites\", "
                 "\"landscape experiments\"), the show's controls "
                 "(\"landscape play slideshow\", \"portrait stop slideshow\"), "

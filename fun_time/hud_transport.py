@@ -9,19 +9,24 @@ This module is the seam between the two: it turns a :class:`~fun_time.lock_hud.H
 into the :class:`~player_core.satellite_hud.HudModel` the player parses back, and
 writes its text only when it actually changed, so a player polling the file
 re-renders per clip change rather than per tick.  The main player's console
-(:mod:`fun_time.main_player_console`) rides the same publisher — a different
-panel, the same "write it whole, and only when it moved".
+rides the same publisher, and so does a side the hosted Origenerator holds —
+whose panel is that app's own, under the session's row.
 """
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from player_core.file_channel import publish_whole
 from player_core.satellite_hud import HudCell, HudModel, hud_text
 
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
-from .satellite_buttons import side_rows
+from .satellite_buttons import mode_row, side_rows
+from .satellites_mode import ORIGENERATOR_MODE
 from .thumbnail_cache import cached_thumbnail
+
+# What a side the hosted app holds says before that app has anything on it.
+ORIGENERATOR_MODE_LABEL = "Origenerator mode"
 
 
 def _cell(path: str, thumb: object, label: str = "") -> HudCell:
@@ -93,7 +98,6 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
         locked=panel.locked,
         lock_label=panel.lock_label,
         active=panel.active,
-        satellites_mode=panel.satellites_mode,
         is_favorite=panel.is_favorite,
         rows=side_rows(panel.side, locked=panel.locked, f_mode=panel.f_mode,
                        latest=panel.latest, mode=panel.satellites_mode,
@@ -108,6 +112,15 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
         seeds=seeds,
         actions=actions,
     )
+
+
+def hosted_model(side: str, hosted: HudModel | None, *, active: bool,
+                 origenerator_ready: bool) -> HudModel:
+    """What *side* wears while the hosted app holds its player: that app's
+    panel, or the mode's name while it has none, under the session's row."""
+    panel = hosted or HudModel(side=side, lock_label=ORIGENERATOR_MODE_LABEL)
+    row = mode_row(side, mode=ORIGENERATOR_MODE, origenerator_ready=origenerator_ready)
+    return replace(panel, side=side, active=active, rows=(row, *panel.rows))
 
 
 class HudPublisher:

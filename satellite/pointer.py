@@ -44,16 +44,15 @@ class Pointer:
     def press(self, mx: int, my: int, *, win_w: int, win_h: int) -> None:
         """Take a press at window ``(mx, my)``; on the picture itself it asks
         for the room to pause or resume as a whole."""
-        if not self._suppressed:
-            if self._volume.press_at(mx, my, win_w=win_w, win_h=win_h,
-                                     timeline_h=TIMELINE_HEIGHT):
-                return
-            if on_readout(mx, my, win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT):
-                return
-            if my >= win_h - TIMELINE_HEIGHT and not self._session.showing_picture:
-                self._session.seek_to(
-                    time_at(mx, win_w=win_w, duration_ms=self._session.duration_ms))
-                return
+        if self._volume.press_at(mx, my, win_w=win_w, win_h=win_h,
+                                 timeline_h=TIMELINE_HEIGHT):
+            return
+        if on_readout(mx, my, win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT):
+            return
+        if my >= win_h - TIMELINE_HEIGHT and not self._session.showing_picture:
+            self._session.seek_to(
+                time_at(mx, win_w=win_w, duration_ms=self._session.duration_ms))
+            return
         if self._hud is not None and self._hud.press(mx, my):
             return
         ask_for_omnipause(self._dashboard_cmd_file)
@@ -64,10 +63,6 @@ class Pointer:
         own question, and a held one also drags the volume slider."""
         if self._hud is not None:
             self._hud.motion(mx, my)
-        if held and not self._suppressed:
+        if held:
             self._volume.drag_at(mx, my, win_w=win_w, win_h=win_h,
                                  timeline_h=TIMELINE_HEIGHT)
-
-    @property
-    def _suppressed(self) -> bool:
-        return self._hud is not None and self._hud.display_suppressed

@@ -74,16 +74,6 @@ class HudOverlay:
         authoritative from the next published panel."""
         return self._clicks.active_loop if self._clicks is not None else ""
 
-    @property
-    def display_suppressed(self) -> bool:
-        """Whether the published panel says the satellite side is in
-        origenerator mode.  The regions are the hosted app's for the whole
-        mode, so the player blacks its video out underneath (the run loop's
-        job, keyed off this) — keeping the HUD itself up, whose mode row is
-        the way back to video mode when no show covers the region."""
-        return (self._model is not None
-                and self._model.satellites_mode == "origenerator")
-
     def tick(self, video: str = "", playback_speed: float | None = None) -> None:
         """Re-read the published panel, redraw if it or the clip on screen moved,
         and post a due click.
@@ -179,8 +169,7 @@ class HudOverlay:
             self.close()
             return
         rendered = self._renderer.render(
-            replace(self._model,
-                    playback_speed=None if self.display_suppressed else self._playback_speed),
+            replace(self._model, playback_speed=self._playback_speed),
             video=self._video, hover_loop=self._hover_loop,
             hover_tip=self._hover_tip, hover_pos=self._hover_pos,
         )

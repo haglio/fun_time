@@ -52,9 +52,9 @@
     (`build_bridge_config_from_manifest(..., vr_main_player=True)`) however the
     config is set up: the hosted app rides in the Random Favs Browser's Chrome
     window, which is not launched. Without that, a session resuming origenerator
-    mode from a desktop session sat in the headset in front of two black
-    satellite players — the mode pauses them and routes their verbs to the app —
-    with no key that reached them, and `X` did the same on purpose.
+    mode from a desktop session sat in the headset in front of two satellite
+    players the mode had handed to an app that was never started, every verb
+    for them routed to it, and `X` did the same on purpose.
   - Every notice a command raises is a desktop overlay window the session does not
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
     session, say) shows nothing in the headset. What the panel and the satellite

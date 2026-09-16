@@ -60,9 +60,9 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "main_player_cmd_file", "main_player_paused_file", "main_player_status_file",
         "main_player_console_file", "main_player_playlist_file",
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",
-        "portrait_playlist_file", "portrait_hud_file",
+        "portrait_playlist_file", "portrait_hud_file", "portrait_origenerator_hud_file",
         "landscape_cmd_file", "landscape_paused_file", "landscape_status_file",
-        "landscape_playlist_file", "landscape_hud_file",
+        "landscape_playlist_file", "landscape_hud_file", "landscape_origenerator_hud_file",
         "broker_cmd_file", "broker_heartbeat_file", "broker_state_dir",
         "broker_tray_launcher", "audio_paused_file", "audio_volume_file",
         "dashboard_state_file", "dashboard_cmd_file",
@@ -190,6 +190,8 @@ class TestReadingItBack:
         assert commands.side_file("portrait", "hud") == commands.portrait_hud_file
         assert commands.side_file("landscape", "cmd") == commands.landscape_cmd_file
         assert commands.side_file("portrait", "playlist") == commands.portrait_playlist_file
+        assert (commands.side_file("landscape", "origenerator_hud")
+                == commands.landscape_origenerator_hud_file)
 
     def test_a_missing_key_names_the_key_and_the_file(self, cfg_path, tmp_path):
         """The interesting question when this happens is always WHICH manifest

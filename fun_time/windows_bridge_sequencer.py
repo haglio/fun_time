@@ -60,6 +60,7 @@ from .windows_bridge_random_favs_browser import (
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
+    HandedPlayer,
     launch_genau,
     launch_main_player,
     launch_origenerator,
@@ -529,6 +530,18 @@ def _adopt_a_kept_origenerator(m: LaunchManifest) -> int:
     return pid
 
 
+def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
+    return {
+        player.label: HandedPlayer(
+            playlist_file=m.commands.side_file(player.label, "playlist"),
+            cmd_file=m.commands.side_file(player.label, "cmd"),
+            status_file=m.commands.side_file(player.label, "status"),
+            hud_file=m.commands.side_file(player.label, "origenerator_hud"),
+        )
+        for player in Player.SATELLITES
+    }
+
+
 def _launch_the_hosted_origenerator(
     m: LaunchManifest,
     *,
@@ -562,6 +575,11 @@ def _launch_the_hosted_origenerator(
         # And the status file: last session's answers the readiness wait before
         # this app has drawn anything.
         Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
+        players = _the_players_it_is_handed(m)
+        for player in players.values():
+            # Last session's panels, which would put a show that is not
+            # running on a side the moment the mode is entered.
+            Path(player.hud_file).unlink(missing_ok=True)
         origenerator_pid = launch_origenerator(
             python_exe=(m.executables.origenerator_python_exe.strip()
                         or m.executables.python_exe),
@@ -571,6 +589,7 @@ def _launch_the_hosted_origenerator(
             paused_file=m.commands.origenerator_paused_file,
             status_file=m.commands.origenerator_status_file,
             dashboard_cmd_file=m.commands.dashboard_cmd_file,
+            players=players,
             # It imports player_core too (the shows' HUD is the players'
             # shared one), so a named checkout reaches it like everyone else.
             project_dirs=project_dirs,

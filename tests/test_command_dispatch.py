@@ -4,6 +4,7 @@ import json
 import logging
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
@@ -27,6 +28,7 @@ from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.loopback_server import omnipause_url
 from fun_time.media_actions import ensure_in_favs
 from fun_time.media_metadata import normalize_path_key
+from fun_time.modes import write_playlist_file
 from fun_time.players import Player
 from fun_time.satellite_groups import cancel_lock
 from fun_time.shared_state import BridgeState, SideState
@@ -4062,32 +4064,43 @@ def _origenerator_cmds(config: BridgeConfig) -> list[str]:
 
 
 class TestSatellitesModeSwitch:
-    def test_origenerator_activate_shows_restacks_and_pauses_the_players(self, tmp_path):
+    def test_origenerator_activate_hands_the_players_to_the_hosted_app(self, tmp_path):
+        """The players are what shows the hosted app's slideshows now, so the
+        switch hands them over playing: each side's own list is kept aside for
+        the way back, and its hold is let go so the app decides what holds."""
         config = _origenerator_config(tmp_path)
+        for player in Player.SATELLITES:
+            write_playlist_file(config.side(player).playlist_file,
+                                [str(tmp_path / f"{player.label}.mp4")])
         state, ops = dispatch_command("origenerator_activate", _up(), config)
         assert state.satellites_mode == "origenerator"
         assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
             ("show_role", "origenerator"),
             ("activate_role", "origenerator"),
-            ("restack_satellites", ""),
+            ("restack_origenerator", ""),
         ]
-        # The regions are the hosted app's for the whole mode: both players
-        # pause (and black themselves out, off the published HUD panel's mode).
-        assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
-        assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+        assert _origenerator_cmds(config) == ["OPEN_SHOWS"]
+        for player in Player.SATELLITES:
+            side = config.side(player)
+            assert not side.paused_file.exists()          # they go on playing
+            assert _cmds(config, player) == ["LOCK_OFF"]
+            assert side.playlist_file.with_name(
+                f"{side.playlist_file.stem}.kept.tsv").exists()
 
-    def test_players_activate_closes_shows_and_unpauses_the_players(self, tmp_path):
+    def test_players_activate_asks_the_hosted_app_to_let_go_of_them(self, tmp_path):
+        """The players come home once the app has let go of them -- the loop
+        takes them back (take_back_players) -- and nothing pauses on the way."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         state, ops = dispatch_command("satellites_video_activate", state, config)
         assert state.satellites_mode == "video"
-        # The shows are the hosted app's to close; the blacked players resume.
         assert _origenerator_cmds(config) == ["CLOSE_SHOWS"]
-        assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
-        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
-        # Its windows leave the screen: the main one parks, the shows close
-        # themselves (the hides are the backstop for a stalled app).
-        assert ("hide_role", "origenerator") in [(op.op, op.key) for op in ops]
+        assert not config.portrait_paused_file.exists()
+        assert not config.landscape_paused_file.exists()
+        assert [(op.op, op.key) for op in ops if op.op != "notice"] == [
+            ("hide_role", "origenerator"),
+            ("take_back_players", ""),
+        ]
 
     def test_satellites_toggle_flips_between_the_two(self, tmp_path):
         config = _origenerator_config(tmp_path)
@@ -4128,27 +4141,67 @@ class TestSatellitesModeSwitch:
 
 class TestOrigeneratorTransport:
     def test_side_transport_reaches_the_hosted_app_not_the_player(self, tmp_path):
+        """The hosted app drives its own player: a press on its panel is its to
+        answer, so it goes there as the panel posted it, and the session does
+        not step the player on its own account."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         state, _ = dispatch_command("portrait_next", state, config)
-        assert _origenerator_cmds(config) == ["PORTRAIT_NEXT"]
-        # The player is black and paused for the whole mode — driving it would
-        # walk its playlist invisibly (and book watch stats nobody watched).
+        assert _origenerator_cmds(config) == ["portrait_next"]
         assert _cmds(config, 2) == []
 
-    def test_every_control_band_verb_routes(self, tmp_path):
-        """The gestures the shared control band draws — reset among them, since
-        it is on that band and means the same thing on a show as on a player."""
+    def test_every_press_on_a_hosted_side_routes_as_it_was_posted(self, tmp_path):
+        """The buttons on that side's panel are the hosted app's own, and so is
+        the map under them -- whatever it declared, it answers, so the session
+        routes every one of them without needing to know what it means."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
-        for command in ("portrait_prev", "portrait_trash", "portrait_lock",
-                        "portrait_reset", "landscape_next", "landscape_lock",
-                        "landscape_reset"):
+        presses = ("portrait_prev", "portrait_trash", "portrait_lock", "portrait_reset",
+                   "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
+                   "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
+                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop")
+        for command in presses:
             state, _ = dispatch_command(command, state, config)
-        assert _origenerator_cmds(config) == [
-            "PORTRAIT_PREV", "PORTRAIT_TRASH", "PORTRAIT_LOCK", "PORTRAIT_RESET",
-            "LANDSCAPE_NEXT", "LANDSCAPE_LOCK", "LANDSCAPE_RESET",
-        ]
+        assert _origenerator_cmds(config) == list(presses)
+        assert _cmds(config, 2) == [] and _cmds(config, 3) == []
+
+    def test_a_side_filter_goes_to_the_hosted_app_rather_than_into_a_rebuild(self, tmp_path):
+        """A rebuild would write the session's own list over the one the hosted
+        app handed that player."""
+        config = _origenerator_config(tmp_path)
+        state = _up(satellites_mode="origenerator")
+
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
+            state, _ = dispatch_command("filter_portrait_scene_one", state, config)
+
+        rebuild.assert_not_called()
+        assert _origenerator_cmds(config) == ["filter_portrait_scene_one"]
+
+    def test_the_players_own_controls_stay_the_sessions(self, tmp_path):
+        """Minimize parks the player's window and speed is the rate it plays at:
+        both are the player's, whoever is handing it what to play."""
+        config = _origenerator_config(tmp_path)
+        state = _up(satellites_mode="origenerator")
+
+        state, _ops = dispatch_command("portrait_speed_up", state, config)
+        state, minimize_ops = dispatch_command("portrait_minimize", state, config)
+
+        assert _origenerator_cmds(config) == []
+        assert _cmds(config, 2) == ["SPEED_UP"]
+        assert minimize_ops
+
+    def test_the_rooms_f_mode_leaves_the_hosted_sides_alone(self, tmp_path):
+        """The F key narrows every player the session drives; the hosted app's
+        two are not the session's to rebuild while it has them."""
+        config = _origenerator_config(tmp_path)
+        state = _up(satellites_mode="origenerator")
+
+        with patch("fun_time.command_dispatch.apply_fmode") as fmode:
+            fmode.return_value = SimpleNamespace(players=(Player.MAIN,), log_message="")
+            state, _ = dispatch_command("fmode_toggle", state, config)
+
+        assert fmode.call_args.kwargs["players"] == (Player.MAIN,)
+        assert not state.side(Player.PORTRAIT).f_mode
 
     def test_a_spoken_phrase_reaches_the_hosted_app_as_words(self, tmp_path):
         """The session owns the room's microphone — one mic, one transcription —
@@ -4236,18 +4289,16 @@ class TestOmniPauseWithOrigenerator:
         assert state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "1"
 
-    def test_leave_keeps_the_players_paused_in_origenerator_mode(self, tmp_path):
-        # The regions are the hosted app's for the whole mode: the room
-        # resuming must not set the blacked players playing underneath it.
+    def test_leave_sets_the_players_going_again_in_origenerator_mode(self, tmp_path):
+        """The players show the hosted app's slideshows through the mode, so the
+        room resuming resumes them as it does in video mode."""
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator", omni_paused=True)
-        state, _ = dispatch_command("relief_omnipause", state, config)  # enters relief
-        state = replace(state, omni_paused=True)
         state, _ = dispatch_command("omnipause_toggle", state, config)
         assert not state.omni_paused
         assert config.origenerator_paused_file.read_text(encoding="utf-8") == "0"
-        assert config.portrait_paused_file.read_text(encoding="utf-8") == "1"
-        assert config.landscape_paused_file.read_text(encoding="utf-8") == "1"
+        assert config.portrait_paused_file.read_text(encoding="utf-8") == "0"
+        assert config.landscape_paused_file.read_text(encoding="utf-8") == "0"
 
 
 # --- the lock helpers, at the file channel ----------------------------------

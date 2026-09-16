@@ -9,6 +9,7 @@ import pytest
 from fun_time import config
 from fun_time.config import ProjectConfig, load_config
 from fun_time.loopback_server import LOOPBACK_PORT
+from fun_time.players import Player
 
 # ---------------------------------------------------------------------------
 # load_config
@@ -403,6 +404,14 @@ class TestOrigeneratorPaths:
         assert cfg.origenerator_cmd_file == state / "origenerator_cmd.txt"
         assert cfg.origenerator_paused_file == state / "origenerator_paused.txt"
         assert cfg.origenerator_status_file == state / "origenerator_status.txt"
+
+    def test_each_sides_hosted_panel_lives_in_the_state_dir(self, cfg_path: Path, tmp_path: Path):
+        cfg = load_config(cfg_path)
+        state = (tmp_path / "state").resolve()
+        assert cfg.side(Player.PORTRAIT).origenerator_hud_file == (
+            state / "origenerator_portrait_hud.json")
+        assert cfg.side(Player.LANDSCAPE).origenerator_hud_file == (
+            state / "origenerator_landscape_hud.json")
 
 
 class TestTheProjectsOwnPaths:

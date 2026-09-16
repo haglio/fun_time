@@ -26,7 +26,8 @@ def _side_files(config) -> dict[str, str]:
     return {
         f"{player.label}_{name}": str(getattr(config.side(player), name))
         for player in Player.SATELLITES
-        for name in ("cmd_file", "paused_file", "status_file", "playlist_file", "hud_file")
+        for name in ("cmd_file", "paused_file", "status_file", "playlist_file", "hud_file",
+                     "origenerator_hud_file")
     }
 
 
@@ -239,12 +240,14 @@ class CommandFiles:
     state_dir: str
     main_player_notice_file: str
     origenerator_status_file: str
-    # The five a reader has always defaulted rather than demanded, kept
+    # The ones a reader has always defaulted rather than demanded, kept
     # defaulted so this parse refuses nothing today's readers accept.
     broker_state_dir: str = ""
     broker_tray_launcher: str = ""
     origenerator_cmd_file: str = ""
     origenerator_paused_file: str = ""
+    portrait_origenerator_hud_file: str = ""
+    landscape_origenerator_hud_file: str = ""
 
     def side_file(self, side: str, kind: str) -> str:
         """One satellite side's file of a given kind, asked for by side rather

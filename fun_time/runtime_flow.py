@@ -8,11 +8,12 @@ from pathlib import Path
 from app_support.file_channel import write_flag
 from player_core.console import OSR2_DRIVING
 from player_core.file_channel import append_command
-from player_core.player_verbs import RELOAD_PLAYLIST, SET_F_MODE, play_file
+from player_core.player_verbs import LOCK_OFF, RELOAD_PLAYLIST, SET_F_MODE, play_file
 from player_core.playlist import PlaylistItem
 
 logger = logging.getLogger(__name__)
 
+from .bridge_records import SideChannel
 from .broker_control import write_broker_command
 from .mode_plan import build_mode_switch_plan
 from .modes import (
@@ -29,6 +30,7 @@ from .modes import (
     write_playlist_file,
 )
 from .omnipause import build_omnipause_plan
+from .player_handover import keep_aside
 from .players import Player
 from .satellites_mode import CLOSE_SHOWS, OPEN_SHOWS, VIDEO_MODE
 
@@ -326,21 +328,18 @@ def apply_satellites_switch(
     target_mode: str,
     omni_paused: bool,
     origenerator_cmd_file: str | Path | None,
-    portrait_paused_file: str | Path,
-    landscape_paused_file: str | Path,
+    sides: Sequence[SideChannel],
 ) -> SatellitesSwitchFlowResult:
     """Switch the satellite side between video and origenerator mode.
 
-    Like the main slot's switch, nothing is torn down.  Entering origenerator
-    mode pauses both players: the regions belong to the hosted app now, and a
-    player that kept playing under it would be decoding for nobody — the
-    players also go BLACK for the whole mode, but that is the satellites' own
-    doing, off the mode the published HUD panel carries.  Leaving tells the
-    hosted app to close its shows and unpauses both players; entering tells it
-    to fill both regions, so the mode opens playing rather than empty.  Under OmniPause
-    the switch is state-only, exactly as a main-mode switch is: the room is
-    frozen, so nothing may move until it resumes — the OmniPause exit lands
-    the pause flags where the then-current mode says.
+    Like the main slot's switch, nothing is torn down, and nothing pauses: in
+    origenerator mode the two players show the hosted app's slideshows.
+    Entering keeps each side's own list aside for the way back, lets go of the
+    session's hold on the player -- what holds is the app's to say now -- and
+    tells the app to fill both, so the mode opens playing rather than empty.
+    Leaving tells it to let go; the players come home once it has (see
+    :mod:`fun_time.player_handover`).  Under OmniPause the switch is
+    state-only, exactly as a main-mode switch is: the room is frozen.
     """
     if current_mode == target_mode:
         return SatellitesSwitchFlowResult(
@@ -353,18 +352,16 @@ def apply_satellites_switch(
     if target_mode == VIDEO_MODE:
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), CLOSE_SHOWS)
-        write_flag_file(portrait_paused_file, False)
-        write_flag_file(landscape_paused_file, False)
     else:
-        # Both regions come up playing, the way both players are playing the
-        # moment video mode is entered: a mode that opened onto two empty
-        # rectangles asked the user to go and start it before it was the mode
-        # they had asked for.  The hosted app picks the sets — its whole
-        # library, shuffled, one shape per region.
+        for side in sides:
+            keep_aside(side)
+            append_command(Path(side.cmd_file), LOCK_OFF)
+        # Both players come up playing, the way they are playing the moment
+        # video mode is entered: a mode that opened onto two players with
+        # nothing new on them asked the user to go and start it.  The hosted
+        # app picks the sets -- its whole library, shuffled, one shape each.
         if origenerator_cmd_file is not None:
             append_command(Path(origenerator_cmd_file), OPEN_SHOWS)
-        write_flag_file(portrait_paused_file, True)
-        write_flag_file(landscape_paused_file, True)
     return SatellitesSwitchFlowResult(
         next_mode=target_mode, is_transition=True,
         log_message=f"Satellites switched to {target_mode} mode")
@@ -435,7 +432,6 @@ def apply_leave_omnipause(
     main_player_paused_file: str | Path,
     broker_cmd_file: str | Path | None = None,
     origenerator_paused_file: str | Path | None = None,
-    satellites_origenerator: bool = False,
     osr2_control: str = OSR2_DRIVING,
 ) -> OmniPauseFlowResult:
     plan = build_omnipause_plan(
@@ -453,12 +449,10 @@ def apply_leave_omnipause(
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
     # Unfreeze both satellites; a locked one holds its clip (its lock is
-    # independent of the pause flag), an unlocked one resumes auto-advancing.
-    # In origenerator mode they stay paused instead: the regions are the hosted
-    # app's for the whole mode, and the room resuming must not set the blacked
-    # players playing invisibly underneath it.
-    write_flag_file(portrait_paused_file, satellites_origenerator)
-    write_flag_file(landscape_paused_file, satellites_origenerator)
+    # independent of the pause flag), an unlocked one resumes auto-advancing --
+    # whichever of the session and the hosted app is handing it what to play.
+    write_flag_file(portrait_paused_file, False)
+    write_flag_file(landscape_paused_file, False)
     if origenerator_paused_file is not None:
         write_flag_file(origenerator_paused_file, False)
     return OmniPauseFlowResult(

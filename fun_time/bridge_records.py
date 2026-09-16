@@ -72,10 +72,13 @@ class BridgeConfig:
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_paused_file: Path | None = None
-    # Where the hosted app publishes what it has on its two regions.  Read every
-    # tick until it appears: the file existing is how a session learns the app
-    # has finished booting, which is when origenerator mode opens up.
+    # Where the hosted app publishes which players it holds.  Read every tick
+    # until it appears: the file existing is how a session learns the app has
+    # finished booting, which is when origenerator mode opens up.
     origenerator_status_file: Path | None = None
+    # Where the hosted app publishes the panel for each player it holds.
+    portrait_origenerator_hud_file: Path | None = None
+    landscape_origenerator_hud_file: Path | None = None
     # Where the broker keeps the rest of its channel.  Unset it falls back to
     # ``state_dir``, which is what the two are for every session that runs from
     # the primary checkout; a branch session moves ``state_dir`` into its worktree
@@ -96,6 +99,7 @@ class BridgeConfig:
                 status_file=self.portrait_status_file,
                 playlist_file=self.portrait_playlist_file,
                 sources=self.portrait_sources,
+                origenerator_hud_file=self.portrait_origenerator_hud_file,
             )
         return SideChannel(
             cmd_file=self.landscape_cmd_file,
@@ -103,6 +107,7 @@ class BridgeConfig:
             status_file=self.landscape_status_file,
             playlist_file=self.landscape_playlist_file,
             sources=self.landscape_sources,
+            origenerator_hud_file=self.landscape_origenerator_hud_file,
         )
 
     @property
@@ -151,13 +156,15 @@ class BridgeConfig:
 @dataclass(frozen=True)
 class SideChannel:
     """One satellite's channel, by value: the file quartet it is driven and
-    read through, and the sources its browse is built from."""
+    read through, its browse sources, and where the hosted app publishes the
+    panel for it."""
 
     cmd_file: Path
     paused_file: Path
     status_file: Path
     playlist_file: Path
     sources: str
+    origenerator_hud_file: Path | None = None
 
 
 class Op(StrEnum):
@@ -172,13 +179,14 @@ class Op(StrEnum):
     MINIMIZE_ROLE = "minimize_role"
     RESTORE_PARKED = "restore_parked"
     RESTACK_MAIN = "restack_main"
-    RESTACK_SATELLITES = "restack_satellites"
+    RESTACK_ORIGENERATOR = "restack_origenerator"
     DISABLE_ALL_TOPMOST = "disable_all_topmost"
     RESTORE_ALL_TOPMOST = "restore_all_topmost"
     SUSPEND_HOTKEYS = "suspend_hotkeys"
     UNSUSPEND_HOTKEYS = "unsuspend_hotkeys"
     OPEN_RFB_TAB = "open_rfb_tab"
     SAVE_CLIP = "save_clip"
+    TAKE_BACK_PLAYERS = "take_back_players"
 
 
 @dataclass(frozen=True)

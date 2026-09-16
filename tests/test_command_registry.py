@@ -284,28 +284,20 @@ def test_the_reference_and_the_handlers_agree():
     assert not undocumented, f"handled commands the reference omits: {sorted(undocumented)}"
 
 
-def test_the_origenerator_shadow_set_is_exactly_the_transport_and_latest_pair():
-    """The routing guard runs ahead of the handler map, so the ids it may
-    shadow are pinned: the five transport verbs per side, plus each side's
-    "latest" (which the hosted app answers as its newest-first listing) and
-    each side's "no filter" -- on a player it drops the act filter, and on a
-    hosted show it drops both switches on the show's HUD (F-mode and
-    enhanced-only), the same gesture in the same words, so one phrase serves
-    both modes.  Anything else joining the routed set must be argued here
-    first."""
-    routed = set(command_dispatch._ORIGENERATOR_TRANSPORT) | set(
-        command_dispatch._ORIGENERATOR_SPEECH
-    )
-    player_handled = {
-        command
-        for command in routed
-        if command_dispatch._HANDLERS.get(command)
-        is not command_dispatch._words_for_a_show_that_is_not_up
-        and command in command_dispatch._HANDLERS
-    }
-    assert player_handled == set(command_dispatch._ORIGENERATOR_TRANSPORT) | {
-        "portrait_latest",
-        "landscape_latest",
-        "portrait_no_filter",
-        "landscape_no_filter",
-    }, sorted(player_handled)
+def test_the_session_keeps_only_the_players_own_controls_in_origenerator_mode():
+    """The routing guard runs ahead of the handler map, so what it may shadow is
+    pinned by rule: every side command about what the player plays goes to the
+    hosted app, and the session keeps only what is about the player itself --
+    parking its window, and the rate it plays at.  A side command the session
+    must go on answering while the app has the player has to be argued here."""
+    side_commands = {command for command in command_dispatch._HANDLERS
+                     if command.startswith(("portrait_", "landscape_"))}
+    kept = {command for command in side_commands
+            if not command_dispatch._about_a_side(command)}
+
+    assert kept == {
+        f"{side}_{own}"
+        for side in ("portrait", "landscape")
+        for own in ("minimize", "speed_up", "speed_down", "speed_reset",
+                    "speed_min", "speed_max")
+    } & side_commands, sorted(kept)
