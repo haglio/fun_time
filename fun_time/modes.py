@@ -322,6 +322,21 @@ def build_playlist_file_path(state_dir: Path, name: str) -> Path:
     return state_dir / f"{name}.tsv"
 
 
+def rotated_onto(entries: list[PlaylistItem], last_video: str) -> list[PlaylistItem]:
+    """*entries* rotated so *last_video* leads them.
+
+    Unchanged when that video is not among them — it was deleted since, or the
+    player published no status at all; the queue comes back from its top rather
+    than being thrown away.  A player handed a list it is not playing opens at
+    the top, which is what makes this a way back to the clip it left.
+    """
+    key = normalize_path_key(last_video)
+    for position, item in enumerate(entries):
+        if normalize_path_key(str(item.path)) == key:
+            return entries[position:] + entries[:position]
+    return entries
+
+
 def write_playlist_file(path: Path, paths: list[str]) -> None:
     """Write a satellite playlist: one video path per line, no funscript column.
 

@@ -1,7 +1,6 @@
 """The satellite's run loop, actually run.
 
-``satellite/app.py::_run`` — the origenerator blackout machine, the status
-publish, the paused poll, the command drain and the overlay painting — was
+``satellite/app.py::_run`` — the status publish, the paused poll, the command drain and the overlay painting — was
 guarded only by AST scans over its source, which hold no matter what the loop
 does.  Here the loop runs for real: pygame and mpv are the two fakes (the
 window system and the video engine, this process's true boundaries), the args
@@ -13,13 +12,11 @@ number of passes instead of an event loop the test would have to break into.
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
-from PIL import Image
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import chip_xy
@@ -214,42 +211,3 @@ def test_no_audio_leaves_the_chip_a_read_only_indicator(tmp_path):
     _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
 
     assert player.muted is True
-
-
-def _suppressed_panel(tmp_path: Path) -> Path:
-    thumb = tmp_path / "t.jpg"
-    Image.new("RGB", (40, 60), (90, 90, 90)).save(thumb)
-    panel = tmp_path / "portrait_hud.json"
-    panel.write_text(json.dumps({
-        "side": "portrait", "locked": False, "lock_label": "Unlocked",
-        "satellites_mode": "origenerator",
-        "corner": None, "seeds": [], "actions": [],
-    }), encoding="utf-8")
-    return panel
-
-
-def test_origenerator_mode_blacks_the_video_out_under_the_hud(tmp_path):
-    """The region is the hosted app's: an opaque frame goes up over the video
-    and the scrubber and volume chip come down — the blackout the HUD's own
-    tests pin the FLAG for, acted on here by the loop itself."""
-    clips = _clips(tmp_path, "v0")
-    panel = _suppressed_panel(tmp_path)
-    args = _loop_args(
-        tmp_path, clips,
-        hud_file=str(panel), dashboard_cmd_file=str(tmp_path / "dash_cmd.txt"),
-    )
-    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
-
-    _code, player, _fake = _run_loop(tmp_path, args)
-
-    # One overlay is the HUD's own panel; the blackout frame is a full-window
-    # opaque plate at the origin.  No scrubber, no volume chip.
-    plates = [
-        (x, y, bgra) for (x, y, bgra) in player.overlays.values()
-        if getattr(bgra, "shape", None) == (480, 640, 4)
-    ]
-    assert len(plates) == 1
-    x, y, plate = plates[0]
-    assert (x, y) == (0, 0)
-    assert int(plate[:, :, 3].min()) == 255      # opaque…
-    assert int(plate[:, :, :3].max()) == 0       # …and black

@@ -19,7 +19,6 @@ import os
 import threading
 from pathlib import Path
 
-import numpy as np
 import pygame
 from app_support.win32 import set_app_user_model_id
 from player_core.file_channel import consume_command_file, read_paused_state
@@ -43,10 +42,7 @@ from .volume import SatelliteVolume
 
 logger = logging.getLogger(__name__)
 
-# Overlay ids, against the lock HUD's 10.  mpv draws them in ascending order, so
-# the blackout sits UNDER the HUD (whose mode row is the way back off a blacked
-# player) and the two above it are simply not drawn while black.
-_OV_BLACKOUT = 5
+# Overlay ids, over the lock HUD's 10: mpv draws them in ascending order.
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
 _OV_READOUT = 13
@@ -145,9 +141,6 @@ def _run(args, playlist: list[Path]) -> int:
     readout_painter = PlayheadHudPainter()
     pointer = Pointer(session=session, volume=volume, hud=hud,
                       dashboard_cmd_file=args.dashboard_cmd_file)
-    # The window size the blackout frame was last composited for, or None while
-    # the video shows — the frame is re-made only when the size moves.
-    blackout_size: tuple[int, int] | None = None
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
@@ -191,38 +184,21 @@ def _run(args, playlist: list[Path]) -> int:
             # is decoding, the same way the main player names its file from its own session.
             hud.tick(video=session.current_video.stem, playback_speed=session.speed)
 
-        if hud is not None and hud.display_suppressed:
-            # Origenerator mode: the region is the hosted app's, so the player
-            # goes black — an opaque frame over the video, under the HUD (whose
-            # mode row is the way back).  Composited once per size, not per
-            # tick: mpv holds an overlay until it is removed or replaced.
-            if blackout_size != (win_w, win_h):
-                blackout_size = (win_w, win_h)
-                player.remove_overlay(_OV_SCRUBBER)
-                player.remove_overlay(_OV_VOLUME)
-                player.remove_overlay(_OV_READOUT)
-                black = np.zeros((win_h, win_w, 4), dtype=np.uint8)
-                black[:, :, 3] = 255  # opaque black; BGR stays zero
-                player.overlay(_OV_BLACKOUT, 0, 0, black)
+        if session.showing_picture:
+            player.remove_overlay(_OV_SCRUBBER)
         else:
-            if blackout_size is not None:
-                blackout_size = None
-                player.remove_overlay(_OV_BLACKOUT)
-            if session.showing_picture:
-                player.remove_overlay(_OV_SCRUBBER)
-            else:
-                scrubber = progress_bar_bgra(
-                    session.position_ms, session.duration_ms, None, win_w)
-                player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
-            vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
-            player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
-            readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)
-            if readout is None:
-                player.remove_overlay(_OV_READOUT)
-            else:
-                pill = readout_painter.bgra(readout)
-                player.overlay(_OV_READOUT, *readout_xy(
-                    pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
+            scrubber = progress_bar_bgra(
+                session.position_ms, session.duration_ms, None, win_w)
+            player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
+        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
+        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
+        readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)
+        if readout is None:
+            player.remove_overlay(_OV_READOUT)
+        else:
+            pill = readout_painter.bgra(readout)
+            player.overlay(_OV_READOUT, *readout_xy(
+                pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
 
         clock.tick(60)
 

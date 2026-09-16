@@ -23,9 +23,7 @@ from tests.role_window_fakes import (
     DASHBOARD_PID,
     GENAU_HWND,
     HOSTED_HWND,
-    HOSTED_LANDSCAPE_HWND,
     HOSTED_PID,
-    HOSTED_PORTRAIT_HWND,
     LANDSCAPE_HWND,
     LANDSCAPE_PID,
     MAIN_PLAYER_HWND,
@@ -211,7 +209,7 @@ class TestTopmostBands:
         band policy already answers "not topmost" for it in origenerator mode
         — but this path promoted every fixed role without asking, so the
         browser went to the top of the band (HWND_TOPMOST inserts there) and
-        stayed above Origenerator until the hosted trio's own promotion pushed
+        stayed above Origenerator until the hosted window's own promotion pushed
         the host back over it a moment later.  That gap is the flash.
         """
         windows = make_windows(rfb_hwnd=RFB_HWND, pids={"origenerator": HOSTED_PID})
@@ -227,8 +225,7 @@ class TestTopmostBands:
         )
         # Everything the mode really does show still comes back.
         assert {PORTRAIT_HWND, LANDSCAPE_HWND, DASHBOARD_HWND, MAIN_PLAYER_HWND,
-                HOSTED_HWND, HOSTED_PORTRAIT_HWND,
-                HOSTED_LANDSCAPE_HWND} <= set(promoted)
+                HOSTED_HWND} <= set(promoted)
 
 
 class TestOrigeneratorWindowConverger:

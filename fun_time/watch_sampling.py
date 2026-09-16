@@ -52,18 +52,22 @@ class WatchSampler:
         self._timelines: dict[int, VideoTimeline] = {2: VideoTimeline(), 3: VideoTimeline()}
         self._last_sample = 0.0
 
-    def sample_due(self, *, now: float, paused: bool) -> None:
+    def sample_due(self, *, now: float, paused: bool, satellites: bool = True) -> None:
         """Sample every player, if the cadence says it is time.
 
         The clock advances whether or not the room is paused, so resuming does
         not fire an off-cadence sample the moment the pause lifts.
+        *satellites* off leaves the two satellites out: in origenerator mode
+        they play the hosted app's pictures, which are no library videos to
+        book a watch against.
         """
         if now - self._last_sample < SAMPLE_INTERVAL_S:
             return
         self._last_sample = now
         if paused:
             return
-        self._sample_satellites(now=now)
+        if satellites:
+            self._sample_satellites(now=now)
         self._sample_main()
 
     def _sample_satellites(self, *, now: float) -> None:

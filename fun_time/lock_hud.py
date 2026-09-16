@@ -98,13 +98,11 @@ class HudPanel:
     active_loop: str = ""
     playing: str = ""
     # The satellite side's mode axis ("video" / "origenerator"), or "" for a
-    # session hosting no Origenerator.  Global like ``active``, published per
-    # side so each panel can draw the mode pair — the satellite counterpart of
-    # the main console's Video/Genau row.
+    # session hosting no Origenerator — what draws the mode pair, the satellite
+    # counterpart of the main console's Video/Genau row.
     satellites_mode: str = ""
-    # Whether the hosted app that mode is made of is up yet — global the same
-    # way, and false for a session's first half-minute, over which the HUD
-    # draws that button dim.
+    # Whether the hosted app that mode is made of is up yet: false for a
+    # session's first half-minute, over which that button is drawn dim.
     origenerator_ready: bool = True
 
 
@@ -474,29 +472,6 @@ def prime_group_indexes(sources: tuple[str, ...], metadata_root: Path | None) ->
                 metadata_root=metadata_root,
                 must_contain=None,
             )
-
-
-def origenerator_mode_panel(side: str, *, active: bool = False) -> HudPanel:
-    """The panel a side wears while origenerator mode holds it.
-
-    The player under it is black and paused for the whole mode, so its clip
-    map would be a map of videos nobody is being shown — the panel that made
-    the HUDs "still show thumbnails for videos as if they are in Player mode".
-    What the side still has to say is the mode itself: the status line names
-    it, the mode row (drawn off ``satellites_mode``) is the way back, and the
-    map stays off — a show covering the region wears its own map of the
-    origenerator items instead.
-    """
-    return HudPanel(
-        side=side,
-        locked=False,
-        lock_label="Origenerator mode",
-        current="",
-        seed_siblings=[],
-        action_siblings=[],
-        active=active,
-        satellites_mode="origenerator",
-    )
 
 
 def build_panels(

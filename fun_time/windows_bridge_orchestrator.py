@@ -644,10 +644,6 @@ def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
     """Re-promote each satellite player until it is genuinely frontmost over its
     own rect.
 
-    Both rects are the players' own throughout: every room is built in video
-    mode, so the hosted app's region shows can only arrive once the dispatch
-    loop has taken over.
-
     The banding above can silently miss one: SetWindowPos waits on the target's
     own thread, and the satellites are at their busiest exactly now (first clips
     decoding), so a promotion can time out through the stalled-window guard and
@@ -668,7 +664,7 @@ def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
         if not buried:
             break
         for name, hwnd in buried:
-            logger.info("The %s region is still buried; re-asserting its band", name)
+            logger.info("The %s player is still buried; re-asserting its band", name)
             set_always_on_top(hwnd, True, under=overlay_hwnd)
         time.sleep(wait_s)
 

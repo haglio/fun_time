@@ -112,18 +112,6 @@ def test_tick_redraws_when_the_players_rate_changes(tmp_path: Path, panel: Path)
     assert player.overlays[overlay.overlay_id][2] is not first
 
 
-def test_no_speed_row_while_origenerator_mode_blacks_the_player_out(tmp_path: Path, panel: Path):
-    player = FakeSatellitePlayer()
-    panel.write_text(panel.read_text(encoding="utf-8").replace(
-        '"side": "portrait"',
-        '"side": "portrait", "satellites_mode": "origenerator"'), encoding="utf-8")
-    overlay = _overlay(tmp_path, panel, player)
-
-    overlay.tick(playback_speed=1.0)
-
-    assert "portrait_speed_up" not in [b.action for _rect, b in overlay.targets.buttons]
-
-
 def test_no_panel_file_means_no_overlay(tmp_path: Path):
     """A satellite fun_time hasn't published a HUD for (an integration run, or
     before the first publish) simply shows no map."""
@@ -321,25 +309,3 @@ def test_the_published_loop_state_wins_over_the_optimistic_one(tmp_path: Path, p
     assert overlay.active_loop == ""
 
 
-def test_display_suppressed_follows_the_published_satellites_mode(
-    tmp_path: Path, panel: Path
-):
-    """In origenerator mode the run loop blacks the video out under the HUD —
-    the mode arrives on the published panel, so the overlay is the one place
-    the player learns it from."""
-    player = FakeSatellitePlayer()
-    overlay = _overlay(tmp_path, panel, player)
-    overlay.tick()
-    assert overlay.display_suppressed is False  # no satellites_mode published
-
-    panel.write_text(panel.read_text(encoding="utf-8").replace(
-        '"side": "portrait"',
-        '"side": "portrait", "satellites_mode": "origenerator"'), encoding="utf-8")
-    overlay.tick()
-    assert overlay.display_suppressed is True
-
-    panel.write_text(panel.read_text(encoding="utf-8").replace(
-        '"satellites_mode": "origenerator"',
-        '"satellites_mode": "video"'), encoding="utf-8")
-    overlay.tick()
-    assert overlay.display_suppressed is False

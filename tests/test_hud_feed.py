@@ -12,6 +12,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from player_core.console import OSR2_CONTROL_OFF
+from player_core.hud_button import Button
+from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
 
 from fun_time.bridge_records import BridgeConfig
 from fun_time.hud_feed import PUBLISH_INTERVAL_S, HudFeed
@@ -48,6 +50,16 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
     )
     settings.update(overrides)
     return BridgeConfig(**settings)
+
+
+def hosting_config(tmp_path) -> BridgeConfig:
+    """A session hosting an Origenerator, with the files that app publishes
+    each side's panel to."""
+    return make_config(
+        tmp_path, origenerator_enabled=True,
+        origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
+        portrait_origenerator_hud_file=tmp_path / "origenerator_portrait_hud.json",
+        landscape_origenerator_hud_file=tmp_path / "origenerator_landscape_hud.json")
 
 
 def make_feed(tmp_path, *, config=None) -> HudFeed:
@@ -121,27 +133,70 @@ class TestHudPublishing:
 
         assert console(tmp_path)["osr2_control"] == OSR2_CONTROL_OFF
 
-    def test_origenerator_mode_publishes_mapless_mode_panels(self, tmp_path):
-        """In origenerator mode the players are black and paused, so their clip
-        maps would be thumbnails of videos nobody is being shown — the HUDs
-        looked like Player mode.  The sides publish the mode instead: no map,
-        the status naming it, and satellites_mode riding along (the mode row's
-        way back, and what keys the players' own blackout)."""
-        feed = make_feed(tmp_path, config=make_config(
-            tmp_path, origenerator_enabled=True,
-            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
-        state = BridgeState()
+    def test_a_side_the_hosted_app_has_wears_that_apps_own_panel(self, tmp_path):
+        """The hosted app publishes the side's map, line and buttons; the
+        session puts its own row over them -- the way back to its videos, and
+        minimize for the player's window -- and says which side has the floor."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        hosted = HudModel(
+            side="portrait", lock_label="Unlocked · Shuffle",
+            corner=HudCell(path="C:/g/scene one.png"),
+            seeds=(HudCell(path="C:/g/scene two.png"),), seed_count=2,
+            rows=((Button("portrait_next", "N", "Next slide"),),),
+        )
+        (tmp_path / "origenerator_portrait_hud.json").write_text(
+            hud_text(hosted), encoding="utf-8")
+
+        feed.publish(BridgeState(satellites_mode="origenerator", active_side=2))
+
+        portrait = parse_hud((tmp_path / "portrait_hud.json").read_text(encoding="utf-8"))
+        assert portrait.corner.path == "C:/g/scene one.png"
+        assert portrait.seeds == hosted.seeds
+        assert portrait.lock_label == "Unlocked · Shuffle"
+        assert portrait.active is True
+        assert [button.action for button in portrait.rows[0]] == [
+            "satellites_video_activate", "origenerator_activate", "portrait_minimize"]
+        assert [button.lit for button in portrait.rows[0][:2]] == [False, True]
+        assert [button.action for button in portrait.rows[1]] == ["portrait_next"]
+
+    def test_a_side_the_hosted_app_has_not_filled_wears_the_mode_alone(self, tmp_path):
+        """Between the switch and the app's first panel -- and after it lets a
+        side go -- there is nothing of the app's to draw: the side names the
+        mode, with the way back on it, and no map of the videos it left."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
-        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
-        state = replace(state, satellites_mode="origenerator")
+        (tmp_path / "origenerator_landscape_hud.json").write_text("", encoding="utf-8")
 
+        feed.publish(BridgeState(satellites_mode="origenerator"))
+
+        for side in ("portrait", "landscape"):
+            published = parse_hud((tmp_path / f"{side}_hud.json").read_text(encoding="utf-8"))
+            assert published.corner is None
+            assert published.seeds == ()
+            assert published.lock_label == "Origenerator mode"
+            assert [[button.action for button in row] for row in published.rows] == [
+                ["satellites_video_activate", "origenerator_activate", f"{side}_minimize"]]
+
+    def test_a_hosted_panel_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
+        """A read that loses to the app's own republish is not the app letting
+        go: the side keeps the panel it had rather than flashing the mode's."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        hosted_file = tmp_path / "origenerator_portrait_hud.json"
+        hosted_file.write_text(hud_text(HudModel(side="portrait", lock_label="Locked")),
+                               encoding="utf-8")
+        state = BridgeState(satellites_mode="origenerator")
         feed.publish(state)
+        real_read = Path.read_text
 
-        portrait = panel(tmp_path, "portrait")
-        assert portrait["corner"] is None          # no map of unseen videos
-        assert portrait["seeds"] == []
-        assert portrait["lock_label"] == "Origenerator mode"
-        assert portrait["satellites_mode"] == "origenerator"
+        def busy(path, *args, **kwargs):
+            if path == hosted_file:
+                raise PermissionError("being replaced")
+            return real_read(path, *args, **kwargs)
+
+        with patch.object(Path, "read_text", busy):
+            feed.publish(replace(state, active_side=3))
+
+        assert panel(tmp_path, "portrait")["lock_label"] == "Locked"
 
     def test_a_hosted_app_still_booting_is_published_so_the_button_can_dim(
         self, tmp_path,

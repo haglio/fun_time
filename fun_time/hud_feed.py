@@ -11,10 +11,11 @@ from pathlib import Path
 
 from player_core.console import console_text
 from player_core.drive_readout import read_drive
+from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
-from .hud_transport import HudPublisher
-from .lock_hud import SideInputs, build_panels, origenerator_mode_panel
+from .hud_transport import HudPublisher, hosted_model
+from .lock_hud import SideInputs, build_panels
 from .main_player_console import console_model
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
@@ -51,6 +52,8 @@ class HudFeed:
         # The clip each satellite last named, so a status read that loses the
         # race with the player's own republish does not blank its map.
         self._last_satellite_clip: dict[str, str] = {}
+        # The panel the hosted app last had on each side it holds.
+        self._hosted_panels: dict[Player, HudModel | None] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
         """Publish, if the cadence says it is time."""
@@ -85,12 +88,11 @@ class HudFeed:
             )
 
         if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):
-            # A clip map here would be thumbnails of videos nobody is being
-            # shown; the sides say the mode instead (status + the mode row home).
-            portrait = origenerator_mode_panel(
-                "portrait", active=Player.label_of(state.active_side) == "portrait")
-            landscape = origenerator_mode_panel(
-                "landscape", active=Player.label_of(state.active_side) == "landscape")
+            for player in Player.SATELLITES:
+                self.publisher.publish_text(player.label, hud_text(hosted_model(
+                    player.label, self._hosted_panel(player),
+                    active=state.active_side == player,
+                    origenerator_ready=state.origenerator_ready)))
         else:
             portrait, landscape = build_panels(
                 side("portrait", 2, sources=self.config.portrait_sources,
@@ -105,8 +107,8 @@ class HudFeed:
                                  if self.config.origenerator_enabled else ""),
                 origenerator_ready=state.origenerator_ready,
             )
-        self.publisher.publish("portrait", portrait)
-        self.publisher.publish("landscape", landscape)
+            self.publisher.publish("portrait", portrait)
+            self.publisher.publish("landscape", landscape)
         # The main console: the controls the dashboard used to hold for
         # whichever player owns the slot, what has the OSR2, whether the broker is
         # up, and which player a bare command reaches — none of which the player
@@ -132,6 +134,21 @@ class HudFeed:
             genau=read_genau_status(genau_status_path(self.config.state_dir)),
             genau_pace_s=self._genau_pace_s(),
         )))
+
+    def _hosted_panel(self, player: Player) -> HudModel | None:
+        """The hosted app's panel for *player*'s side, or None; a file it is
+        replacing this instant leaves the panel read before it standing."""
+        path = self.config.side(player).origenerator_hud_file
+        if path is None:
+            return None
+        try:
+            text = path.read_text(encoding="utf-8")
+        except FileNotFoundError:
+            text = ""
+        except OSError:
+            return self._hosted_panels.get(player)
+        panel = self._hosted_panels[player] = parse_hud(text)
+        return panel
 
     def _genau_pace_s(self) -> int:
         drive = read_drive(self.config.genau_drive_file)

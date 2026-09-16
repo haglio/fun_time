@@ -30,6 +30,7 @@ from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
 from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
+    HandedPlayer,
     _build_satellite_launch_command,
     broker_source_mtime,
     ensure_broker,
@@ -2114,6 +2115,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 paused_file="state/origenerator_paused.txt",
                 status_file="state/origenerator_status.txt",
                 dashboard_cmd_file="state/dashboard_cmd.txt",
+                players=_handed_players(),
             )
 
         assert self._launched_exe(popen) == "FunTime-Origenerator.exe"
@@ -2134,11 +2136,23 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
         assert "pythonw?" in ps_command
 
 
+def _handed_players() -> dict[str, HandedPlayer]:
+    return {
+        side: HandedPlayer(
+            playlist_file=f"state/{side}_playlist.tsv",
+            cmd_file=f"state/{side}_cmd.txt",
+            status_file=f"state/{side}_status.txt",
+            hud_file=f"state/origenerator_{side}_hud.json",
+        )
+        for side in ("portrait", "landscape")
+    }
+
+
 def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     """The argv is origenerator's --fun-time contract: the RFB rect as the main
-    window's, both satellite region rects, the channel files, and the session's
-    taskbar identity — run from the checkout so ``-m`` resolves that checkout's
-    code, exactly like its own launcher does."""
+    window's, both satellite players' channels, the hosted app's own files, and
+    the session's taskbar identity — run from the checkout so ``-m`` resolves
+    that checkout's code, exactly like its own launcher does."""
 
     class FakeProc:
         pid = 77
@@ -2162,6 +2176,7 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
             paused_file="state/origenerator_paused.txt",
             status_file="state/origenerator_status.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
+            players=_handed_players(),
         )
 
     assert pid == 77
@@ -2170,8 +2185,12 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     assert "--fun-time" in command
     for flag, value in (
         ("--x", "0"), ("--y", "206"), ("--width", "853"), ("--height", "1234"),
-        ("--portrait_x", "2560"), ("--portrait_height", "1870"),
-        ("--landscape_x", "853"), ("--landscape_width", "1707"),
+        ("--portrait-playlist", "state/portrait_playlist.tsv"),
+        ("--portrait-cmd-file", "state/portrait_cmd.txt"),
+        ("--portrait-status-file", "state/portrait_status.txt"),
+        ("--portrait-hud-file", "state/origenerator_portrait_hud.json"),
+        ("--landscape-playlist", "state/landscape_playlist.tsv"),
+        ("--landscape-hud-file", "state/origenerator_landscape_hud.json"),
         ("--command-file", "state/origenerator_cmd.txt"),
         ("--paused-file", "state/origenerator_paused.txt"),
         ("--status-file", "state/origenerator_status.txt"),
@@ -2180,6 +2199,9 @@ def test_launch_origenerator_speaks_the_fun_time_contract(tmp_path: Path):
     ):
         assert flag in command, flag
         assert command[command.index(flag) + 1] == value, flag
+    # The players are handed over, so the regions are no longer the hosted
+    # app's to cover with windows of its own: no rect of theirs goes across.
+    assert not any(flag.startswith(("--portrait_", "--landscape_")) for flag in command)
     # cwd is what picks the checkout: -m resolves the package from it.
     assert popen.call_args.kwargs["cwd"] == str(tmp_path / "origenerator")
     # A primary checkout is the live install — no branch-session flag.
@@ -2212,6 +2234,7 @@ def test_hosting_a_worktree_runs_it_as_a_branch_session(tmp_path: Path):
             layout_plan=plan,
             command_file="c.txt", paused_file="p.txt",
             status_file="s.txt", dashboard_cmd_file="d.txt",
+            players=_handed_players(),
         )
 
     env = popen.call_args.kwargs["env"]

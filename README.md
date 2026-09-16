@@ -256,7 +256,7 @@ The `-`/`=` nudge keys and the `[`/`]` prev/next keys drive the main player in e
 
 Spoken, "video mode" puts both sides on their video players at once; "main video mode" and "satellite video mode" do one side, and "genau mode" or "origenerator mode" puts a side back — heard as "go now mode" and "aura generator mode", since neither name is in the recognizer's vocabulary.
 
-The satellite side has a mode axis of its own, orthogonal to the two above: **video mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "origenerator mode" / "satellite video mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in video mode), and the slideshows and fullscreen views it opens land on the portrait or landscape satellite region by each subject's orientation — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both regions on the whole Origenerator library of their own shape, shuffled — the same base state each satellite player holds in video mode, and what a region's reset button goes back to. Both satellite players are paused and blacked out for the whole of the mode (the regions are the hosted app's throughout, and a player decoding under a show was decoding for nobody), so the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`) reach the hosted app for as long as the mode lasts. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
+The satellite side has a mode axis of its own, orthogonal to the two above: **video mode** (the session as ever — the Random Favs Browser plus the two satellite players) and **Origenerator mode**, toggled with `X` or spoken as "origenerator mode" / "satellite video mode". With `paths.origenerator_dir` configured, the session launches that checkout of [Origenerator](../origenerator) at startup with its `--fun-time` flag: its main window sits over the RFB's rect (parked while in video mode), and the slideshows it opens play on the portrait or landscape satellite player by each subject's orientation — the session hands both players to the app for the mode — so up to two shows can run while the Origenerator window itself stays usable. Entering the mode opens both players on the whole Origenerator library of their own shape, shuffled — the same base state each satellite player holds in video mode, and what a side's reset button goes back to. Each player then wears the app's own map and buttons under the session's mode row, and everything said to a side — its buttons, the satellite transport hotkeys (arrows, `A`/`D`/`W`/`S`), its spoken commands — reaches the hosted app for as long as the mode lasts; only minimize and the playback speed stay the player's own. Leaving the mode gives each player back its own list, on the clip it was playing when the mode began. The OSR2 stays entirely with the main stack: a hosted Origenerator builds none of its own OSR2 surface. Origenerator keeps generating throughout; it is the same live install, just wearing the session's geometry.
 
 ### The library browser
 
@@ -368,7 +368,7 @@ Each satellite draws the same two controls the main player does along the lower 
 
 A satellite **opens muted** whatever its clips carry — the room's sound is the main player's, and two more voices under it would be noise — so the speaker is how you hear one, and the fill under the mute is the level unmuting comes back to. The level is that player's own: it goes straight to its mpv rather than through Fun Time, which arbitrates only the main slot's two sinks. The hidden-desktop integration runs stay permanently silent (`FUN_TIME_MUTE_AUDIO`), their chips read-only indicators, so an unattended run beside a live session can never be heard.
 
-A press on the video itself still does nothing: a satellite's paused state belongs to the flag file under OmniPause, so a pause toggled in the window would be gone by the next frame. In Origenerator mode both controls come off the video with the rest of it, and the whole window belongs to the HUD.
+A press on the video itself still does nothing: a satellite's paused state belongs to the flag file under OmniPause, so a pause toggled in the window would be gone by the next frame.
 
 ### Getting a window out of the way
 
@@ -556,20 +556,25 @@ Cleared before every browse, so abandoning one never replays the last pick.
 
 One video per line, with a TAB plus the funscript path when one exists. Written by `build_all_playlists` at startup and by `apply_fmode` whenever the main player's F-mode changes (which also queues `RELOAD_PLAYLIST` and `SET_F_MODE` on the main player's command file). Every playlist is written and read through `player_core.playlist`, one `PlaylistItem` per line.
 
-### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`
+### `origenerator_cmd.txt`, `origenerator_paused.txt`, `origenerator_status.txt`, `origenerator_portrait_hud.json`, `origenerator_landscape_hud.json`
 
 The hosted Origenerator's channel, spoken in the same idioms as the satellites'
-(`player_core.file_channel`). The command file carries side-prefixed transport
-verbs (`PORTRAIT_NEXT`, `LANDSCAPE_LOCK`, `PORTRAIT_RESET`, …) — the gestures
-the shared control band draws, so a show answers each of them the way the
-player under it would — plus `OPEN_SHOWS` (entering the mode, which fills both
-regions with their base state), `CLOSE_SHOWS` and `QUIT`, and
-`PORTRAIT_SAY:<phrase>` for a spoken command the session heard about one
-region. The paused flag freezes its shows — and its own looping thumbnails —
-for OmniPause. The status file reports which satellite regions its shows cover
+(`player_core.file_channel`). The command file carries whatever is said to a
+side, exactly as it was said (`portrait_next`, `landscape_lock`,
+`portrait_fmode`, …) — the app declared those buttons, so it is what answers
+them — plus `OPEN_SHOWS` (entering the mode, which fills both players with
+their base state), `CLOSE_SHOWS` and `QUIT`, and `PORTRAIT_SAY:<phrase>` for a
+spoken command the session heard about one side. The paused flag freezes its
+shows for OmniPause. The status file reports which players its shows hold
 (`portrait_active=`, `portrait_video=`, `portrait_locked=`, and the landscape
-trio): a readout for the session's diagnostics, since the players are held for
-the whole mode rather than per show.
+trio); a side it has let go of is what the session waits for, up to three
+seconds, before handing that player its own list back — kept meanwhile in
+`portrait_playlist.kept.tsv` / `landscape_playlist.kept.tsv`.
+
+The app is handed each player's own playlist, command and status files at
+launch, and publishes the panel for each player it holds to its
+`origenerator_<side>_hud.json`; the session puts its own mode row over that
+panel and publishes the result to the player's HUD file.
 
 ### `event_log.jsonl`
 

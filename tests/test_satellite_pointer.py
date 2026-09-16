@@ -43,8 +43,7 @@ class _StubHud:
     from the panel it last drew, which is a question about a bitmap's size.
     """
 
-    def __init__(self, *, suppressed: bool = False, takes: bool = True) -> None:
-        self.display_suppressed = suppressed
+    def __init__(self, *, takes: bool = True) -> None:
         self._takes = takes
         self.presses: list[tuple[int, int]] = []
         self.motions: list[tuple[int, int]] = []
@@ -66,11 +65,11 @@ def _asked(tmp_path) -> list[str]:
     return path.read_text(encoding="utf-8").split() if path.exists() else []
 
 
-def _pointer(tmp_path, *, suppressed: bool = False, hud: bool = True,
+def _pointer(tmp_path, *, hud: bool = True,
              hud_takes: bool = True, in_a_session: bool = True):
     session, player = make_satellite_session(tmp_path, duration_ms=DURATION_MS)
     volume = SatelliteVolume(player)
-    stub = _StubHud(suppressed=suppressed, takes=hud_takes) if hud else None
+    stub = _StubHud(takes=hud_takes) if hud else None
     return Pointer(session=session, volume=volume, hud=stub,
                    dashboard_cmd_file=_asks(tmp_path) if in_a_session else None), player, stub
 
@@ -250,23 +249,3 @@ class TestDragging:
         assert hud.motions == [ON_THE_VIDEO, CHIP_HALFWAY]
 
 
-class TestOrigeneratorMode:
-    def test_a_suppressed_player_gives_the_whole_window_to_the_hud(self, tmp_path):
-        # The region is the hosted app's: the scrubber and the chip come off the
-        # video for the whole mode, and the HUD's mode row is the way back — so
-        # nothing under them may take a press away from it.
-        pointer, player, hud = _pointer(tmp_path, suppressed=True)
-
-        _press(pointer, BAR_MIDPOINT)
-        _press(pointer, CHIP_HALFWAY)
-
-        assert player.seeks == []
-        assert (player.volume, player.muted) == (100, True)
-        assert hud.presses == [BAR_MIDPOINT, CHIP_HALFWAY]
-
-    def test_a_suppressed_player_takes_no_drag_either(self, tmp_path):
-        pointer, player, _hud = _pointer(tmp_path, suppressed=True)
-
-        _motion(pointer, CHIP_HALFWAY, held=True)
-
-        assert player.volume == 100

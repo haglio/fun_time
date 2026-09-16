@@ -16,7 +16,7 @@ from player_core.player_verbs import LOCK_ON
 from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 
 from .media_metadata import normalize_path_key
-from .modes import source_roots
+from .modes import rotated_onto, source_roots
 from .players import Player
 from .runtime_flow import SET_LOOP_CMD
 from .shared_state import BridgeState, SideState, read_shared_state, write_shared_state
@@ -105,7 +105,7 @@ def playlist_opens_on(playlist_file: Path, video: str) -> bool:
     whether the player handed this file will load that clip, since every player
     starts at the top.  Asked before the main player's loop is handed back
     (docs/resuming-a-session.md).  Matched on the normalized key
-    :func:`_rotate_onto` uses: case alone is not a different file, and the
+    :func:`rotated_onto` uses: case alone is not a different file, and the
     playlist and the status file are written by different processes.
     """
     return playlist_leads_with(read_playlist(playlist_file), video)
@@ -125,20 +125,6 @@ def _surviving_entries(playlist_file: Path) -> PlaylistEntries:
     return [item for item in read_playlist(playlist_file) if item.path.exists()]
 
 
-def _rotate_onto(entries: PlaylistEntries, last_video: str) -> PlaylistEntries:
-    """*entries* rotated so *last_video* leads them.
-
-    Unchanged when that video is not among them — it was deleted since, or the
-    player published no status at all.  Last session's queue is the thing worth
-    keeping, so it comes back from its top rather than being thrown away.
-    """
-    key = normalize_path_key(last_video)
-    for position, item in enumerate(entries):
-        if normalize_path_key(str(item.path)) == key:
-            return entries[position:] + entries[:position]
-    return entries
-
-
 def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     """Rotate each playlist file onto the video its player last had on screen.
 
@@ -153,7 +139,7 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
         entries = _surviving_entries(playlist_file)
         if not entries:
             return False
-        rotated.append((playlist_file, _rotate_onto(entries, last_video)))
+        rotated.append((playlist_file, rotated_onto(entries, last_video)))
     for playlist_file, entries in rotated:
         write_playlist(playlist_file, entries)
     return True
@@ -167,7 +153,7 @@ def resume_main_video(playlist_file: Path, video: str) -> bool:
     session that cannot play it, and it decides whether the loop comes back.
     """
     entries = read_playlist(playlist_file)
-    rotated = _rotate_onto(entries, video)
+    rotated = rotated_onto(entries, video)
     if not playlist_leads_with(rotated, video):
         return False
     write_playlist(playlist_file, rotated)

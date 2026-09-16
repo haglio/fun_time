@@ -24,6 +24,7 @@ from fun_time.player_status import (
     genau_status_path,
     read_main_player_status,
 )
+from fun_time.players import Player
 from fun_time.session_environment import SessionEnvironment
 from fun_time.shortcuts import Shortcut
 from fun_time.window_layout import (
@@ -40,6 +41,7 @@ from fun_time.windows_bridge_sequencer import (
     release_the_players,
     run_startup_sequence,
 )
+from fun_time.windows_bridge_startup import HandedPlayer
 from tests.sleeps import sleeps_in
 
 FAKE_MONITORS = [
@@ -1344,6 +1346,37 @@ class TestOrigeneratorLaunch:
         # cleared before the app launches — a stale freeze made every show
         # open frozen while the room ran.
         assert Path(captured["paused_file"]).read_text(encoding="utf-8") == "0"
+
+    def test_the_hosted_app_is_handed_both_players(self, cfg_factory, tmp_path):
+        """Each side's own channel -- the list its player plays, the verbs it
+        drains, the status it publishes -- and where the app publishes the
+        panel the session puts on that player.  Last session's panel is gone
+        before the app starts, so no side wears a show that is not running."""
+        cfg = load_config(cfg_factory({"paths": {
+            "origenerator_dir": str(tmp_path / "origenerator"),
+        }}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+        stale = cfg.side(Player.PORTRAIT).origenerator_hud_file
+        stale.parent.mkdir(parents=True, exist_ok=True)
+        stale.write_text('{"side": "portrait"}', encoding="utf-8")
+        captured = {}
+
+        def capture(**kwargs):
+            captured.update(kwargs, stale_at_launch=stale.exists())
+            return 91
+
+        with _sequencer_stubs(launch_origenerator=dict(side_effect=capture)):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        for player in Player.SATELLITES:
+            files = cfg.side(player)
+            assert captured["players"][player.label] == HandedPlayer(
+                playlist_file=str(files.playlist_file), cmd_file=str(files.cmd_file),
+                status_file=str(files.status_file),
+                hud_file=str(files.origenerator_hud_file))
+        assert captured["stale_at_launch"] is False
 
     def test_without_a_configured_origenerator_nothing_launches(self, cfg_factory, tmp_path):
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
