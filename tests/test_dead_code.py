@@ -198,7 +198,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7937 since 2026-09-19, when the headset's own library browser gave way to the
 # desktop's: a panel, a painter and their tests went, and what is left is the
 # process that runs the desktop window with no window.
-MAX_PROSE_LINES = 7937
+# 7930 since 2026-09-19, measured on the merged tree, when Genau's startup
+# placement stopped landing late: two comments in the startup pass that
+# restated the docstrings under them went, one of them repeating the stall
+# guard's claim that a call it gives up on is dropped.
+MAX_PROSE_LINES = 7930
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
