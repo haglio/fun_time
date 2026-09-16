@@ -1194,11 +1194,8 @@ _ORIGENERATOR_SPEECH: dict[str, tuple[str, str]] = {
         for side in ("portrait", "landscape")
         for phrase in ORIGENERATOR_PHRASES
     },
-    # Two the session already says to a player, which mean the same thing to
-    # the hosted app: "portrait latest" is that side's newest-first listing
-    # either way, so it needs no second spelling.
-    "portrait_latest": ("portrait", "latest"),
-    "landscape_latest": ("landscape", "latest"),
+    # One the session already says to a player, which means the same thing to
+    # the hosted app's show on that side.
     "portrait_no_filter": ("portrait", "clear filter"),
     "landscape_no_filter": ("landscape", "clear filter"),
 }
