@@ -36,14 +36,15 @@ PlaylistEntries = list[PlaylistItem]
 # fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
-# These are dropped because nothing carries them into the new session:
-# OmniPause's flags are cleared before the players launch, Genau reshuffles its
-# clips at every launch, whichever player was last addressed is a fact about the
+# These are dropped because nothing carries them into the new session: OmniPause's
+# flags are cleared and the OSR2 parked before the players launch, Genau reshuffles
+# its clips at every launch, whichever player was last addressed is a fact about the
 # session that ended, and a keyboard selection was never a thing to leave.
 NOT_RESUMED = frozenset({
     "omni_paused",
     "active_side",
     "genau_latest",
+    "osr2_control",
 })
 
 # The same answer for a value one satellite carries (:class:`SideState`), since

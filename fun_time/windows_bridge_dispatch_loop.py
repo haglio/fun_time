@@ -288,7 +288,8 @@ class DispatchLoopRunner:
         # genau_cmd (RESUME + HUD_ON on entering video mode) is never clobbered
         # by the handoff in the same tick — the handoff instead lands next tick,
         # once that entry is on the current, now-video mode.
-        self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused)
+        self.arbiter.sync(self.state.main_mode, paused=self.state.omni_paused,
+                          control=self.state.osr2_control)
 
         # Dashboard commands, several at once under rapid hotkey presses.  Each
         # raw line yields a command plus, for a spoken one, when the utterance

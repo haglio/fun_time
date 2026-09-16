@@ -1,9 +1,12 @@
-"""Who has the OSR2 in video mode, moment to moment.
+"""Who has the OSR2, moment to moment — and whether anyone does.
 
 The Robot Hand and a funscript both feed the broker's one UDP T-Code inlet, so only one
 may drive at a time.  This is the arbiter that hands the device between them —
 edge-triggered on the main player's published status, and asserted rather than
 fired-and-forgotten, because a verb queued on a file channel can still die.
+
+Above it sits the console's own switch: control off is nobody driving, in either
+mode, and this is what keeps the funscript gated and the motion flat.
 """
 from __future__ import annotations
 
@@ -11,16 +14,21 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
+from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .mode_plan import main_player_displays
 from .player_status import read_main_player_status
+from .robot_hand_hold import STILL_COMMANDS
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
 # without an edge, so a verb lost in transit converges instead of staying lost
 # until the next turn boundary.
 REASSERT_S = 1.0
+
+TCODE_OFF = "SET_TCODE_ENABLED 0"
+TCODE_ON = "SET_TCODE_ENABLED 1"
 
 
 class DeviceArbiter:
@@ -48,10 +56,16 @@ class DeviceArbiter:
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
+        self._silenced = False  # both engines told to stop, and when
+        self._silenced_at = 0.0
 
-    def sync(self, main_mode: str, *, paused: bool) -> None:
+    def sync(self, main_mode: str, *, paused: bool,
+             control: str = OSR2_DRIVING) -> None:
         """In video mode, route the OSR2 to the funscript or the Robot Hand,
         moment to moment.
+
+        *control* off gates the funscript and flattens the motion, in every
+        mode, and keeps them that way.
 
         The funscript drives while it is actively scripting (``has_funscript``
         and not ``funscript_resting``); the hand drives the unscripted stretches.
@@ -67,6 +81,12 @@ class DeviceArbiter:
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
+        if control == OSR2_CONTROL_OFF:
+            self._silence()
+            self._funscript_driving = None
+            self._park_touch_deadline = None
+            return
+        self._silenced = False
         if not main_player_displays(main_mode) or paused:
             self._funscript_driving = None
             self._park_touch_deadline = None
@@ -92,18 +112,10 @@ class DeviceArbiter:
                 return
         else:
             self._park_touch_deadline = None
-        # ASSERTED, not fired-and-forgotten.  A verb queued on a file channel
-        # can still die — a writer replacing the file whole, a drain racing the
-        # append, a locked file exhausting the retries — and an edge-triggered
-        # arbiter that assumed delivery left the session split-brained for a
-        # whole cluster: the hand paused, the funscript never enabled, everything
-        # idle and grey.  So the edge is recorded only once both verbs actually
-        # queued, and the standing pair is re-queued on a slow heartbeat — both
-        # verbs are idempotent at their players — so any lost one converges
-        # within a second instead of at the next turn boundary.
+        # The edge is recorded only once both verbs actually queued.
         queued_main_player = append_command(
             self.main_player_cmd_file,
-            "SET_TCODE_ENABLED 1" if funscript_driving else "SET_TCODE_ENABLED 0",
+            TCODE_ON if funscript_driving else TCODE_OFF,
         )
         queued_genau = append_command(
             self.genau_cmd_file,
@@ -113,6 +125,19 @@ class DeviceArbiter:
             self._funscript_driving = funscript_driving
             self._asserted_at = now
             self._park_touch_deadline = None
+
+    def _silence(self) -> None:
+        """The funscript gated and the motion flat where it stands.  Stilled
+        rather than paused (Genau's clips are the picture in genau mode), and
+        with no CENTER: this is the press that does not move the device."""
+        now = self._clock()
+        if self._silenced and now - self._silenced_at < REASSERT_S:
+            return
+        queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
+        queued += [append_command(self.genau_cmd_file, verb)
+                   for verb in STILL_COMMANDS]
+        if all(queued):
+            self._silenced, self._silenced_at = True, now
 
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.

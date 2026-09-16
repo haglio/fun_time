@@ -2467,7 +2467,7 @@ class TestVideoModeFunscriptHandoff:
         with patch.object(runner.arbiter, "sync") as sync:
             runner.tick()
 
-        sync.assert_called_once_with("video", paused=True)
+        sync.assert_called_once_with("video", paused=True, control="driving")
 
 
 class TestTheSatellitesTakeTheMainPlayersRate:

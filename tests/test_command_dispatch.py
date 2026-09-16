@@ -9,6 +9,11 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 import pytest
+from player_core.console import (
+    OSR2_CONTROL_BUTTONS,
+    OSR2_DRIVING,
+    OSR2_PARKED,
+)
 
 from fun_time.bridge_records import BridgeConfig, WindowOp
 from fun_time.command_dispatch import (
@@ -2700,6 +2705,56 @@ def test_genau_cruise_off_writes_cmd_file(tmp_path: Path):
     assert config.genau_cmd_file.read_text(encoding="utf-8") == "CRUISE_OFF\n"
     assert new_state == state
     assert ops == []
+
+
+class TestOsr2ControlState:
+    """The console's four control buttons are a radio group over one field, and
+    the field is what lights exactly one of them and what the arbiter reads."""
+
+    def test_each_button_leaves_the_session_in_the_state_it_names(self, tmp_path: Path):
+        config = _make_config(tmp_path)
+        _publish_drive(config, amplitude=50)
+
+        for state_name, command in OSR2_CONTROL_BUTTONS.items():
+            after, ops = dispatch_command(command, _make_state(), config)
+
+            assert after.osr2_control == state_name, command
+            assert ops == []
+
+    def test_control_off_sends_nothing_itself(self, tmp_path: Path):
+        """The arbiter re-states the stilling every tick, so a verb fired here
+        would be undone by its very next assertion."""
+        config = _make_config(tmp_path)
+        _publish_drive(config, amplitude=50)
+
+        dispatch_command("osr2_control_off", _make_state(), config)
+
+        assert not config.genau_cmd_file.exists()
+        assert not config.main_player_cmd_file.exists()
+
+    def test_driving_puts_back_the_motion_control_off_wrote_down(
+            self, tmp_path: Path):
+        """Letting go of the device flattens the motion, so the way back has to
+        restore it -- the same recording the two holds take and this spends."""
+        config = _make_config(tmp_path)
+        _publish_drive(config, amplitude=50)
+        off, _ops = dispatch_command("osr2_control_off", _make_state(), config)
+
+        after, _ops = dispatch_command("robot_hand_release", off, config)
+
+        assert after.osr2_control == OSR2_DRIVING
+        assert "AMP 50" in config.genau_cmd_file.read_text(encoding="utf-8")
+
+    def test_a_hold_pressed_from_control_off_still_stills_the_motion(self, tmp_path: Path):
+        config = _make_config(tmp_path)
+        _publish_drive(config, amplitude=50)
+        off, _ops = dispatch_command("osr2_control_off", _make_state(), config)
+
+        after, _ops = dispatch_command("robot_hand_park", off, config)
+
+        assert after.osr2_control == OSR2_PARKED
+        assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == [
+            "CRUISE_OFF", "AMP 0", "CENTER 0", "SPEED 0"]
 
 
 def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
