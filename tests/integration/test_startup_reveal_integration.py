@@ -22,11 +22,9 @@ here would go red on a toast doing exactly what it is for.
 """
 from __future__ import annotations
 
-import shutil
 import sys
 import threading
 import time
-from pathlib import Path
 
 import pytest
 
@@ -38,6 +36,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    retire_temp_root,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -140,16 +139,6 @@ def test_the_room_is_finished_when_the_cover_lifts():
         ]
         # Which children the session recorded, so "no window at all" can be
         # told from "a child that never launched".
-        # The session's logs outlive the temp root's teardown: a failure here is
-        # a choreography failure, and the orchestrator's own account of what it
-        # waited for is the diagnosis.
-        keep = Path(__file__).resolve().parents[2] / "state" / "reveal_test_logs"
-        keep.mkdir(parents=True, exist_ok=True)
-        for name in ("windows_bridge.log", "orchestrator.log", "event_log.jsonl",
-                     "orchestrator_stderr.log", "dashboard.log"):
-            candidate = session.config.paths.state_dir / name
-            if candidate.exists():
-                shutil.copy2(candidate, keep / name)
         pids = session.read_child_pids()
         assert not missing, (
             "the cover lifted on a room still missing "
@@ -167,4 +156,4 @@ def test_the_room_is_finished_when_the_cover_lifts():
         )
     finally:
         session.stop()
-        shutil.rmtree(temp_root, ignore_errors=True)
+        retire_temp_root(temp_root)

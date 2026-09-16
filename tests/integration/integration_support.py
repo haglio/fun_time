@@ -773,6 +773,32 @@ def build_integration_temp_root() -> Path:
     return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
 
 
+RETIRED_ROOTS: list[Path] = []
+
+
+def retire_temp_root(temp_root: Path) -> None:
+    RETIRED_ROOTS.append(Path(temp_root))
+
+
+def clear_retired_roots(*, run_failed: bool, keep_in: Path) -> Path | None:
+    kept = None
+    if run_failed and RETIRED_ROOTS:
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        kept = Path(keep_in) / stamp
+        suffix = 1
+        while kept.exists():
+            suffix += 1
+            kept = Path(keep_in) / f"{stamp}.{suffix}"
+        for number, root in enumerate(RETIRED_ROOTS, 1):
+            state = root / "integration_runtime" / "state"
+            if state.is_dir():
+                shutil.copytree(state, kept / f"{number:02d}-{root.name}")
+    for root in RETIRED_ROOTS:
+        shutil.rmtree(root, ignore_errors=True)
+    RETIRED_ROOTS.clear()
+    return kept
+
+
 # How long a draw may spend probing what it drew before it gives up.  Every
 # skipped clip costs a real wait, so a slow library could otherwise outlast
 # pytest's own per-test timeout -- and that timeout runs on a thread, which

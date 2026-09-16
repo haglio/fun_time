@@ -22,7 +22,6 @@ from __future__ import annotations
 
 import ctypes
 import ctypes.wintypes as wt
-import shutil
 import subprocess
 import sys
 import threading
@@ -43,6 +42,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    retire_temp_root,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -183,7 +183,7 @@ def test_nothing_stays_over_the_cover_long_enough_to_be_seen():
         )
     finally:
         session.stop()
-        shutil.rmtree(temp_root, ignore_errors=True)
+        retire_temp_root(temp_root)
 
 
 class _Windows(threading.Thread):

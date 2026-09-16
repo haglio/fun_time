@@ -33,6 +33,7 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
+    retire_temp_root,
 )
 
 pytestmark = [
@@ -109,7 +110,7 @@ def test_the_satellites_end_startup_frontmost_over_their_rects():
             )
     finally:
         session.stop()
-        shutil.rmtree(temp_root, ignore_errors=True)
+        retire_temp_root(temp_root)
 
 
 def _preserve_session_logs(session) -> None:

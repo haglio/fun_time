@@ -20,11 +20,12 @@ from __future__ import annotations
 
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
 from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
-from .integration_support import close_udp_sinks
+from .integration_support import clear_retired_roots, close_udp_sinks
 
 # Only on the desktop this suite is allowed to run on.  Importing this file is not
 # the same thing as running it: a unit run that merely *recurses* into this
@@ -78,6 +79,16 @@ def pytest_collection_modifyitems(session, config, items):
     decides what is allowed to *launch*, and only the second is a guard.
     """
     _refuse_a_run_off_the_hidden_desktop()
+
+
+FAILURE_EVIDENCE = Path(__file__).resolve().parents[2] / "state" / "integration_failures"
+
+
+def pytest_sessionfinish(session, exitstatus):
+    kept = clear_retired_roots(run_failed=exitstatus != 0, keep_in=FAILURE_EVIDENCE)
+    if kept is not None:
+        print(f"\n[integration] every session's logs from this failed run are in {kept}",
+              file=sys.stderr, flush=True)
 
 
 @pytest.fixture(autouse=True)
