@@ -194,8 +194,7 @@ def detect_sleep_gap(prev_wall: float, now_wall: float, *, threshold_s: float = 
 
 
 # How long the hosted app is given to let go of the players when origenerator
-# mode ends — a ceiling for an app that has stalled or gone, not a wait anyone
-# sits through: it drains its channel several times a second.
+# mode ends: a ceiling for an app that has stalled, not a wait anyone sits through.
 LET_GO_TIMEOUT_S = 3.0
 
 

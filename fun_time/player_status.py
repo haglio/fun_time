@@ -202,8 +202,8 @@ def origenerator_has_published(path: Path) -> bool:
 def origenerator_holds(path: Path, side: str) -> bool:
     """Whether the hosted Origenerator says it still has *side*'s player.
 
-    A file that is not there is an app that has gone, which holds nothing; one
-    that cannot be read is being rewritten, and is asked again.
+    No file is an app that has gone, holding nothing; one that cannot be read is
+    being rewritten, and is asked again.
     """
     if not path.exists():
         return False

@@ -52,7 +52,6 @@ class HudFeed:
         # The clip each satellite last named, so a status read that loses the
         # race with the player's own republish does not blank its map.
         self._last_satellite_clip: dict[str, str] = {}
-        # The panel the hosted app last had on each side it holds.
         self._hosted_panels: dict[Player, HudModel | None] = {}
 
     def publish_due(self, state: BridgeState, *, now: float) -> None:
@@ -136,7 +135,7 @@ class HudFeed:
         )))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:
-        """The hosted app's panel for *player*'s side, or None; a file it is
+        """The hosted app's panel for *player*'s side, or None; one it is
         replacing this instant leaves the panel read before it standing."""
         path = self.config.side(player).origenerator_hud_file
         if path is None:

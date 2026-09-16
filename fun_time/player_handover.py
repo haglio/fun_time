@@ -1,8 +1,8 @@
 """A satellite player handed to the hosted Origenerator, and taken back.
 
 The app writes the player's own playlist file, so the session's list is kept
-aside first — turned onto the clip on screen — and put back when the side comes
-home, where the player opens at its top: exactly where it left off.
+aside — turned onto the clip on screen — and put back when the side comes home,
+where the player opens at its top: exactly where it left off.
 """
 from __future__ import annotations
 

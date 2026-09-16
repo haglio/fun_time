@@ -11,6 +11,7 @@ from fun_time.player_status import read_main_player_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 from fun_time_vr.roles import TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
 from main_player.play_points import PlayPoints
+from tests.mpv_refusals import RefusesSeeks
 
 
 def _never_quits() -> None:
@@ -18,7 +19,7 @@ def _never_quits() -> None:
     raise AssertionError("QUIT was not the command under test")
 
 
-class FakePlayer:
+class FakePlayer(RefusesSeeks):
     """The _MpvControl surface, recorded — mirrors tests/satellite_fakes.py's idea."""
 
     def __init__(self):
@@ -63,6 +64,7 @@ class FakePlayer:
         self.loop_file = loop
 
     def seek_ms(self, ms: float) -> None:
+        self.refuse_if_asked()
         self.seeks.append(ms)
         self.position_ms = ms
 
@@ -707,6 +709,15 @@ class TestReopen:
         assert role_parts.player.loaded[-1] == role_parts.role.current_video
         assert role_parts.player.seeks[-1] == 8_000.0
 
+    def test_a_seek_back_mpv_will_not_take_yet_is_asked_for_again(self, role_parts):
+        role_parts.player.position_ms = 8_000.0
+        role_parts.player.refuse_seeks(1)
+
+        role_parts.role.reopen()
+        role_parts.role.tick(now=2.0)
+
+        assert role_parts.player.seeks[-1] == 8_000.0
+
     def test_it_does_not_seek_a_video_that_never_started(self, role_parts):
         """Frozen on frame one is the shape this is for; seeking to zero would
         only ask mpv for a seek it does not need."""
@@ -802,6 +813,19 @@ class TestWhereAVideoWasLeft:
         assert len(player.seeks) == seeks
 
         player.duration_ms = HOUR_MS
+        role.tick(now=2.1)
+
+        assert player.seeks[-1] == 300_000
+
+    def test_a_spot_mpv_will_not_take_yet_is_asked_for_again(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        player.duration_ms = HOUR_MS
+        _watch(role, player, 300_000)
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("PREV", on_quit=_never_quits)
+        player.refuse_seeks(1)
+
+        role.tick(now=2.0)
         role.tick(now=2.1)
 
         assert player.seeks[-1] == 300_000

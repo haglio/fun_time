@@ -3,6 +3,7 @@ from __future__ import annotations
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 
 from main_player.play_points import PlayPoints
+from main_player.seeking import GIVE_UP_AFTER
 from tests.satellite_fakes import make_satellite_session as _make_session
 
 
@@ -312,6 +313,34 @@ class TestWhereAClipWasLeft:
         session.advance()
 
         assert player.seeks[-1] == 2_000
+
+    def test_a_spot_mpv_will_not_take_yet_is_asked_for_again(self, tmp_path):
+        """mpv refuses a seek until the clip it is opening plays, which a known
+        duration does not prove -- and the refusal used to end the player."""
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, entries=2, play_points=PlayPoints(file))
+        _watch_to(session, player, 2_000)
+        session.step(1)
+        session.step(-1)
+        player.refuse_seeks(1)
+
+        session.advance()
+        session.advance()
+
+        assert player.seeks[-1] == 2_000
+
+    def test_a_spot_mpv_never_takes_is_let_go_of(self, tmp_path):
+        file = tmp_path / "points.json"
+        session, player = _make_session(tmp_path, entries=2, play_points=PlayPoints(file))
+        _watch_to(session, player, 2_000)
+        session.step(1)
+        session.step(-1)
+        player.refuse_seeks(10 * GIVE_UP_AFTER)
+
+        for _ in range(2 * GIVE_UP_AFTER):
+            session.advance()
+
+        assert player.refused == GIVE_UP_AFTER
 
     def test_leaving_a_clip_writes_down_the_very_spot(self, tmp_path):
         file = tmp_path / "points.json"

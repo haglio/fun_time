@@ -106,6 +106,14 @@ class TestTheScrubber:
 
         assert player.seeks == [DURATION_MS]
 
+    def test_a_press_mpv_will_not_take_leaves_the_player_playing(self, tmp_path):
+        pointer, player, _hud = _pointer(tmp_path)
+        player.refuse_seeks(1)
+
+        _press(pointer, BAR_MIDPOINT)
+
+        assert (player.seeks, player.refused) == ([], 1)
+
     def test_under_a_picture_the_bottom_row_is_the_picture_and_seeks_nothing(self, tmp_path):
         pointer, player, _hud = _pointer(tmp_path, hud_takes=False)
         player.showing_picture = True

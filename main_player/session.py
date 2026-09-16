@@ -17,6 +17,7 @@ from player_core.playback_rate import clamp_rate
 from player_core.playlist import PlaylistItem
 
 from .play_points import PlayPoints
+from .seeking import OwedSeek, seek_if_taken
 from .session_loops import SessionLoops
 
 logger = logging.getLogger(__name__)
@@ -73,7 +74,7 @@ class PlayerSession:
             take_the_device_over=self._take_the_device_over,
         )
         self._last_pos_ms = 0.0
-        self._pending_seek_ms: float | None = None
+        self._owed_seek = OwedSeek()
         self._stepped_at_eof = False
         self.load(0)
 
@@ -171,7 +172,7 @@ class PlayerSession:
         self._loops.record_up(int(self._player.position_ms))
 
     def restore_loop(self, in_ms: int, out_ms: int) -> None:
-        self._pending_seek_ms = None
+        self._owed_seek.owe(None)
         self._loops.restore(in_ms, out_ms)
 
     def loop_cancel(self) -> None:
@@ -344,26 +345,20 @@ class PlayerSession:
         While marking a loop, the record-down point is a floor: a backward seek
         can't rewind before where the loop started — it lands on the start.
 
-        A seek issued in the same breath as a ``load`` is held rather than
-        clamped: mpv opens a file asynchronously and reports no duration for a
-        tick or two, and the ceiling below would read that as "this video is
-        zero long" and put the playhead back at the top.  :meth:`advance`
-        applies the held seek on the first tick the duration is known.
+        A seek mpv cannot take yet is owed rather than dropped or clamped
+        against the zero length a file still opening reports; :meth:`advance`
+        asks for it again each tick until mpv takes it.
         """
-        if self._player.duration_ms <= 0:
-            self._pending_seek_ms = position_ms
-            return
+        self._owed_seek.owe(position_ms)
+        self._owed_seek.pay(self._player, self._seek_now)
+
+    def _seek_now(self, position_ms: float) -> bool:
         floor = 0.0 if self.record_in_ms is None else float(self.record_in_ms)
         target = max(floor, min(self._player.duration_ms, position_ms))
-        self._player.seek_ms(target)
+        if not seek_if_taken(self._player, target):
+            return False
         self._take_the_device_over()
-
-    def _flush_pending_seek(self) -> None:
-        """Take a seek held over a file open, once the file is open."""
-        if self._pending_seek_ms is None or self._player.duration_ms <= 0:
-            return
-        target, self._pending_seek_ms = self._pending_seek_ms, None
-        self.seek_to(target)
+        return True
 
     def advance(self) -> None:
         """Per-tick update: what the loop makes of the clock, then the device,
@@ -372,10 +367,9 @@ class PlayerSession:
         mpv renders the video itself, so nothing is returned — the caller reads
         the session's position/state for the overlays.
         """
-        # Ahead of the pause check: a seek waiting on a file to open is owed
-        # whether or not the room is running, and a paused main player that never landed
-        # it would show the wrong frame for as long as the pause lasts.
-        self._flush_pending_seek()
+        # Ahead of the pause check: a paused main player that never landed the
+        # seek it owes would show the wrong frame for as long as the pause lasts.
+        self._owed_seek.pay(self._player, self._seek_now)
         if self._paused:
             return
 
@@ -466,7 +460,7 @@ class PlayerSession:
         self._index = index % len(self._playlist)
         item = self._playlist[self._index]
         logger.info("Loading: %s", item.path.name)
-        self._pending_seek_ms = None
+        self._owed_seek.owe(None)
         self._funscript = load_funscript(item.funscript) if item.funscript is not None else None
         self._loops.open(self._funscript)
         self._player.load(item.path)
