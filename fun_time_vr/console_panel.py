@@ -113,18 +113,21 @@ def panel_hud(
     (:class:`player_core.drive_gate.DriveGate`) under a video, as the desktop's
     video-mode console draws it; the clip's name (or the one still decoding)
     over Genau's own motion in genau mode, where the gate is told nothing was
-    published, the video waiting paused while the wave moves on.  With no
-    engine console (the broker has the room) the panel still names what plays.
+    published, the video waiting paused while the wave moves on.  Before the
+    engine's first tick there is none, and the panel still names what plays.
 
     *f_mode* is the main player's own, folded in as the main player folds in its own: the
     published console lights the F button, the line beside it is the drawing
     player's, and in genau mode that slot is Genau's filters'.
     """
     hud = engine_hud if engine_hud is not None else ConsoleHud()
+    drives_itself = hud.console.device_drives_itself
     if main_player_displays(hud.console.mode):
-        title, drive = video_title, drive_gate.readout(hud.drive)
+        title = video_title
+        drive = drive_gate.readout(hud.drive,
+                                   device_drives_itself=drives_itself)
     else:
-        drive_gate.readout(None)
+        drive_gate.readout(None, device_drives_itself=drives_itself)
         title, drive = loading or clip_title, hud.drive
     return replace(
         hud,
