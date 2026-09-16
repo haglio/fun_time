@@ -17,6 +17,7 @@ from .checkout_overrides import (
     apply_origenerator_dir_override,
 )
 from .config import DEFAULT_CONFIG_PATH, load_config
+from .engine_preflight import engine_missing_abort
 
 # Before the bridge imports: a worktree's genau_project_dirs override reaches
 # Genau and the main player as subprocess PYTHONPATH, but THIS process — and the dispatch
@@ -215,6 +216,10 @@ def main(argv: list[str] | None = None) -> int:
     if args.check:
         logger.info("Config validation succeeded")
         return 0
+
+    if engine_missing_abort(config, log=logger.error):
+        signal_startup_resolved(config)
+        return 1
 
     # Config validated and we are committing to launch the stack: past here any
     # crash is logged through the excepthook installed above, so the launcher's

@@ -333,6 +333,7 @@ class TestBrokerHelpers:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
             result = main(["--config", str(cfg_path)])
 
@@ -383,6 +384,7 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_bridge:
             main(["--config", str(cfg_path)])
 
@@ -397,6 +399,7 @@ class TestTheWayBackOffersNoEsc:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.prepare_orchestrator_launcher"), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_bridge:
             main(["--config", str(cfg_path), "--no-cancel"])
@@ -411,6 +414,7 @@ class TestMainCheckFlag:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
             result = main(["--config", str(cfg_path), "--check"])
 
@@ -431,6 +435,7 @@ class TestTheCrossingIntoTheOtherSession:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.prepare_orchestrator_launcher"), \
              patch("fun_time.session_handoff.subprocess.Popen") as popen, \
              patch("fun_time.orchestrator.run_windows_bridge",
@@ -485,6 +490,7 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.stamp_shortcut_aumid", stamp), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
             return main(["--config", str(cfg_path)])
@@ -572,6 +578,7 @@ class TestStartupMarker:
              patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
+             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
              patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
             result = main(["--config", str(cfg_path)])
 
