@@ -92,6 +92,24 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
     assert len(side_rows("portrait")) == 1
 
 
+def test_the_origenerator_button_is_dim_until_that_app_is_up():
+    """The room opens without waiting out the hosted app's boot, so for the
+    first half-minute the switch would land on windows that do not exist.  Dim
+    is this family's unpressable state: the player draws it faded, posts
+    nothing for a press on it, and still answers a hover -- with what it is
+    waiting for, since knowing why it cannot be pressed is the point."""
+    starting = {b.action: b for b in side_rows(
+        "portrait", mode="video", origenerator_ready=False)[0]}
+    ready = {b.action: b for b in side_rows(
+        "portrait", mode="video", origenerator_ready=True)[0]}
+
+    assert starting["origenerator_activate"].dim
+    assert "starting" in starting["origenerator_activate"].tooltip
+    assert not starting["satellites_video_activate"].dim
+    assert not ready["origenerator_activate"].dim
+    assert "starting" not in ready["origenerator_activate"].tooltip
+
+
 def test_the_faces_are_the_familys_marks_where_it_has_them():
     """The bin is the bin Origenerator's toolbar wears, reset the gear with the
     circular arrow, F-mode its magenta badge; the transport and the padlock stay

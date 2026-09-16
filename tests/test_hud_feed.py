@@ -138,18 +138,22 @@ class TestHudPublishing:
         """The HUDs draw the mode pair, so they are where a mode that cannot be
         entered yet has to show — dim, and posting nothing.  What they cannot
         work out for themselves is whether the app is up: only the loop reads
-        its status file, so the answer rides out with the panel."""
+        its status file, so the answer rides out on the button it declares."""
         feed = make_feed(tmp_path, config=make_config(
             tmp_path, origenerator_enabled=True,
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
         publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
         publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
 
+        def origenerator_button() -> dict:
+            return next(button for row in panel(tmp_path, "portrait")["rows"]
+                        for button in row if button["action"] == "origenerator_activate")
+
         feed.publish(BridgeState())
-        assert panel(tmp_path, "portrait")["origenerator_ready"] is False
+        assert origenerator_button().get("dim") is True
 
         feed.publish(BridgeState(origenerator_ready=True))
-        assert panel(tmp_path, "portrait")["origenerator_ready"] is True
+        assert not origenerator_button().get("dim")
 
     def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the player can see, so the

@@ -175,7 +175,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # audit stack's landing (the hosted app in the suite, the sibling pin, the VR
 # icon) brought their prose with them, through the ratio gate that held main
 # then; the count ratchets down from the merged tree, not from either side.
-MAX_PROSE_LINES = 8123
+# 8118 since 2026-09-16, when the room stopped waiting out the hosted app's
+# boot: the wait, its timeout, its phase and every "a session that opens in
+# origenerator mode" branch went with it.
+MAX_PROSE_LINES = 8118
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
