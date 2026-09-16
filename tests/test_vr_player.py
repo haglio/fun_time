@@ -104,7 +104,7 @@ from fun_time_vr.pointer import (
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.scene import Placement, attached_below, surface_vertices
-from main_player.play_points import FILENAME as PLAY_POINTS_FILENAME
+from main_player.play_points import play_points_filename
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -218,7 +218,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
     assert faked_collaborators["MainRole"].call_args.kwargs["playlist_file"] == Path(
         commands.main_player_playlist_file)
     assert faked_collaborators["PlayPoints"].call_args.args[0] == (
-        Path(commands.state_dir) / PLAY_POINTS_FILENAME)
+        Path(commands.state_dir) / play_points_filename("main_player"))
     # The one that is not a path, and the one that had no field to land in at
     # all until this branch: without it `route_audio` never asks mpv for the
     # headset's sink, and the primary's sound stays on the room speakers.
@@ -246,6 +246,8 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     assert unit.playlist_file == Path(commands.side_file(side, "playlist"))
     assert faked_collaborators["StatusWriter"].call_args.args[0] == Path(
         commands.side_file(side, "status"))
+    assert faked_collaborators["PlayPoints"].call_args.args[0] == (
+        Path(commands.state_dir) / play_points_filename(side))
     hud = faked_collaborators["HudOverlay"].call_args.kwargs
     assert hud["hud_file"] == Path(commands.side_file(side, "hud"))
     assert hud["command_file"] == Path(commands.dashboard_cmd_file)

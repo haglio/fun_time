@@ -453,6 +453,7 @@ class PlayerSession:
             self._stepped_at_eof = False
         elif not self._stepped_at_eof and self._loops.idle:
             self._stepped_at_eof = True
+            self._play_points.ended()
             self.load(self._index + 1)
 
     def close(self) -> None:

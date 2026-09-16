@@ -19,6 +19,7 @@ class SatelliteSlot:
     status_file: str | Path
     log_file: str | Path
     playlist_file: str | Path
+    play_points_file: str | Path
     rect: WindowRect
     hud_file: str | Path | None = None
 

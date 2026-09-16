@@ -133,6 +133,7 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
         title="Portrait AI Player",
         role="Portrait",
         playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
+        play_points_file=tmp_path / "portrait_play_points.json",
         hud_file=hud, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         log_file=log,
         x=0, y=0, width=width, height=height,

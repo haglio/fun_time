@@ -7,7 +7,10 @@ from pathlib import Path
 
 from app_support.file_channel import publish_whole
 
-FILENAME = "main_player_play_points.json"
+
+def play_points_filename(who: str) -> str:
+    return f"{who}_play_points.json"
+
 
 REMEMBERED = 5_000
 PLAYED_ON_MS = 2_000
@@ -44,6 +47,10 @@ class PlayPoints:
         self._at_ms = position_ms
         if played_on and self._clock() - self._written_at >= WRITE_EVERY_S:
             self._write_point()
+
+    def ended(self) -> None:
+        self._at_ms = 0.0
+        self.leave()
 
     def leave(self) -> None:
         """Write down exactly where the video being watched was left."""

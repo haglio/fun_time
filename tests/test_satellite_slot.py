@@ -17,6 +17,7 @@ def _slot(side: Player, tmp_path: Path) -> SatelliteSlot:
         cmd_file=tmp_path / f"{side.label}_cmd.txt",
         paused_file=tmp_path / f"{side.label}_paused.txt",
         status_file=tmp_path / f"{side.label}_status.txt",
+        play_points_file="points.json",
         log_file=tmp_path / f"{side.label}.log",
         playlist_file=tmp_path / f"{side.label}_playlist.tsv",
         rect=WindowRect(x=0, y=0, width=100, height=100),

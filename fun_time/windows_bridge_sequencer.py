@@ -16,6 +16,8 @@ from pathlib import Path
 from app_support import state_files
 from player_core.file_channel import append_command
 
+from main_player.play_points import play_points_filename
+
 from .config import LayoutConfig
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
@@ -389,6 +391,7 @@ def _launch_the_satellites(
         paused_file=m.commands.portrait_paused_file,
         status_file=m.commands.portrait_status_file,
         log_file=state_dir / "portrait_satellite.log",
+        play_points_file=state_dir / play_points_filename("portrait"),
         playlist_file=build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT),
         rect=plan.portrait,
         hud_file=m.commands.portrait_hud_file,
@@ -400,6 +403,7 @@ def _launch_the_satellites(
         paused_file=m.commands.landscape_paused_file,
         status_file=m.commands.landscape_status_file,
         log_file=state_dir / "landscape_satellite.log",
+        play_points_file=state_dir / play_points_filename("landscape"),
         playlist_file=build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE),
         rect=plan.landscape,
         hud_file=m.commands.landscape_hud_file,

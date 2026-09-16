@@ -39,7 +39,7 @@ CHECKOUT_DIR = Path(__file__).resolve().parents[2]
 # launches by module name, the hotkey script the orchestrator hands AHK, and the
 # content overlay's committed fallback, which ``fun_time.content`` loads at
 # import time.
-_COPIED_TREES = ("fun_time", "satellite")
+_COPIED_TREES = ("fun_time", "main_player", "satellite")
 _COPIED_FILES = ("windows_bridge_hotkeys.ahk", "content.example.json")
 
 

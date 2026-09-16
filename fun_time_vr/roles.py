@@ -286,7 +286,6 @@ class MainRole:
             self._driver.park(now=now)
 
     def _resume_once_the_file_is_open(self) -> None:
-        """Seek to where this video was left, held until mpv reports a duration."""
         if self._resume_to is None or self._player.duration_ms <= 0:
             return
         self.seek_to(self._resume_to)
@@ -301,6 +300,7 @@ class MainRole:
             self._stepped_at_eof = False
         elif not self._stepped_at_eof:
             self._stepped_at_eof = True
+            self._play_points.ended()
             self._load(self._index + 1)
 
     def seek_to(self, position_ms: float) -> None:
