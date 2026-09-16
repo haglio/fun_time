@@ -65,6 +65,7 @@ from .windows_bridge_startup import (
     launch_main_player,
     launch_origenerator,
     launch_ui_companions,
+    origenerator_interpreter,
     start_core_session,
 )
 
@@ -582,7 +583,7 @@ def _launch_the_hosted_origenerator(
             Path(player.hud_file).unlink(missing_ok=True)
         origenerator_pid = launch_origenerator(
             python_exe=(m.executables.origenerator_python_exe.strip()
-                        or m.executables.python_exe),
+                        or origenerator_interpreter(origenerator_dir)),
             origenerator_dir=origenerator_dir,
             layout_plan=plan,
             command_file=m.commands.origenerator_cmd_file,
