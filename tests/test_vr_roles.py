@@ -10,6 +10,7 @@ from player_core.playback_rate import MAX_RATE, MIN_RATE
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 from fun_time_vr.roles import TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
+from main_player.play_points import PlayPoints
 
 
 def _never_quits() -> None:
@@ -117,16 +118,18 @@ def role_parts(tmp_path):
     playlist.write_text(f"{one}\t{script}\n{two}\n{three}\n", encoding="utf-8")
 
     player, driver = FakePlayer(), FakeDriver()
+    points = PlayPoints(tmp_path / "play_points.json")
     role = MainRole(
         player=player,
         driver=driver,
         playlist_file=playlist,
         metadata_root=metadata,
         vr_dirs=(vr_dir,),
+        play_points=points,
     )
     return SimpleNamespace(
         role=role, player=player, driver=driver, playlist=playlist,
-        metadata=metadata, files=(one, two, three, script),
+        metadata=metadata, files=(one, two, three, script), points=points,
     )
 
 
@@ -762,3 +765,43 @@ class TestWhatTheHeadsetCallsTheVideo:
         role = self._role(tmp_path, {"video": {"type": "full_length"}})
 
         assert role.title == "Jane Doe - Alpha Study Part Two_apo8_iris2"
+
+
+HOUR_MS = 3_600_000.0
+
+
+def _watch(role, player, position_ms):
+    """Two ticks at *position_ms*: the jump onto it, then playing on from it."""
+    player.position_ms = position_ms
+    role.tick(now=1.0)
+    role.tick(now=1.1)
+
+
+class TestWhereAVideoWasLeft:
+    def test_a_video_left_in_the_middle_opens_there_again(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        player.duration_ms = HOUR_MS
+        _watch(role, player, 300_000)
+
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("PREV", on_quit=_never_quits)
+        role.tick(now=2.0)
+
+        assert player.seeks[-1] == 300_000
+
+    def test_a_video_is_only_resumed_once_its_file_is_open(self, role_parts):
+        role, player = role_parts.role, role_parts.player
+        player.duration_ms = HOUR_MS
+        _watch(role, player, 300_000)
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("PREV", on_quit=_never_quits)
+        player.duration_ms = 0.0
+        seeks = len(player.seeks)
+
+        role.tick(now=2.0)
+        assert len(player.seeks) == seeks
+
+        player.duration_ms = HOUR_MS
+        role.tick(now=2.1)
+
+        assert player.seeks[-1] == 300_000

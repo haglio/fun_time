@@ -5,9 +5,7 @@ output gating — everything the UI shell and the Fun Time command channel
 both drive.  The actual video/audio/timeline is an mpv-backed *player*
 (:class:`player_core.mpv_player.MpvPlayer`): mpv hardware-decodes, keeps A/V in sync,
 seeks precisely, and loops an A/B range natively, so the session just tells it
-what to do and reads its clock back.  Videos without a funscript play
-normally: the OSR2 rests at its parked position with no script to follow, and
-loop recording falls back to raw clip ranges without funscript snapping.
+what to do and reads its clock back.
 """
 from __future__ import annotations
 
@@ -18,6 +16,7 @@ from player_core.funscript import load as load_funscript
 from player_core.playback_rate import clamp_rate
 from player_core.playlist import PlaylistItem
 
+from .play_points import PlayPoints
 from .session_loops import SessionLoops
 
 logger = logging.getLogger(__name__)
@@ -35,8 +34,6 @@ _EOF_WRAP_START_MS = 250
 # a tick reliably lands inside it at 60 fps, small enough to still feel instant.
 _EOF_MARGIN_MS = 100
 
-# Volume bounds for the audio control, on mpv's ``volume`` scale: a percentage
-# of the source's own level, where 100 is untouched and 0 is silent.
 MIN_VOLUME = 0
 MAX_VOLUME = 100
 
@@ -50,6 +47,7 @@ class PlayerSession:
         tcode,
         start_paused: bool = False,
         version_index: dict[Path, list[PlaylistItem]] | None = None,
+        play_points: PlayPoints | None = None,
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
@@ -57,6 +55,7 @@ class PlayerSession:
         self._player = player
         self._tcode = tcode
         self._version_index = version_index or {}
+        self._play_points = play_points or PlayPoints(None)
         self._paused = start_paused
         # Locked is how the main player has always played: mpv repeats the one file
         # (``loop_file=inf``, the option the player is constructed with) and `[`/`]`
@@ -172,6 +171,7 @@ class PlayerSession:
         self._loops.record_up(int(self._player.position_ms))
 
     def restore_loop(self, in_ms: int, out_ms: int) -> None:
+        self._pending_seek_ms = None
         self._loops.restore(in_ms, out_ms)
 
     def loop_cancel(self) -> None:
@@ -293,8 +293,7 @@ class PlayerSession:
         current video's alternates; a no-op for singletons or when no index was
         supplied.  The swap happens *in place*, so the playlist keeps one entry
         per distinct video — prev/next still navigate the deduped set rather than
-        the version we cycled away from.  The new file starts from the
-        beginning; nothing of the old one is preserved.
+        the version we cycled away from.
         """
         versions = self._other_versions()
         if versions is None:
@@ -383,6 +382,7 @@ class PlayerSession:
         pos_ms = self._player.position_ms
         rewound = pos_ms + _REWIND_MS < self._last_pos_ms
         prev_pos_ms, self._last_pos_ms = self._last_pos_ms, pos_ms
+        self._play_points.observe(self.current_video, pos_ms, self._player.duration_ms)
 
         if self._advance_loop_state(pos_ms, prev_pos_ms, rewound):
             return
@@ -463,8 +463,7 @@ class PlayerSession:
         self._index = index % len(self._playlist)
         item = self._playlist[self._index]
         logger.info("Loading: %s", item.path.name)
-        # A seek still waiting on the outgoing file belonged to that file; the
-        # incoming one starts at the top unless the caller asks otherwise.
+        # A seek still waiting on the outgoing file belonged to that file.
         self._pending_seek_ms = None
         self._funscript = load_funscript(item.funscript) if item.funscript is not None else None
         self._loops.open(self._funscript)
@@ -472,3 +471,6 @@ class PlayerSession:
         self._player.set_paused(self._paused)
         self._take_the_device_over()
         self._last_pos_ms = 0.0
+        point_ms = self._play_points.point_for(vid_path)
+        if point_ms:
+            self.seek_to(point_ms)

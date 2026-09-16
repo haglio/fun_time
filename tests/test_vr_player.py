@@ -104,6 +104,7 @@ from fun_time_vr.pointer import (
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.scene import Placement, attached_below, surface_vertices
+from main_player.play_points import FILENAME as PLAY_POINTS_FILENAME
 
 
 def test_the_player_is_told_its_manifest_and_nothing_else():
@@ -170,7 +171,7 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 _UNIT_COLLABORATORS = (
     "MpvRenderPlayer", "RenderTarget", "FrameTexture", "MainRole", "SatelliteSession",
     "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
-    "VolumeHudPainter", "DriveGate",
+    "VolumeHudPainter", "DriveGate", "PlayPoints",
 )
 
 
@@ -216,6 +217,8 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         commands.main_player_status_file)
     assert faked_collaborators["MainRole"].call_args.kwargs["playlist_file"] == Path(
         commands.main_player_playlist_file)
+    assert faked_collaborators["PlayPoints"].call_args.args[0] == (
+        Path(commands.state_dir) / PLAY_POINTS_FILENAME)
     # The one that is not a path, and the one that had no field to land in at
     # all until this branch: without it `route_audio` never asks mpv for the
     # headset's sink, and the primary's sound stays on the room speakers.

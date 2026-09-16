@@ -6,6 +6,7 @@ from player_core.funscript import Funscript
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 from player_core.playlist import PlaylistItem
 
+from main_player.play_points import PlayPoints
 from main_player.session import (
     MAX_VOLUME,
     MIN_VOLUME,
@@ -97,7 +98,8 @@ _FS_JSON = (
 )
 
 
-def _make_session(tmp_path, *, scripted=True, start_paused=False, duration_ms=60_000.0, entries=1):
+def _make_session(tmp_path, *, scripted=True, start_paused=False, duration_ms=60_000.0, entries=1,
+                  play_points=None):
     playlist = []
     for i in range(entries):
         vid = tmp_path / f"v{i}.mp4"
@@ -111,6 +113,7 @@ def _make_session(tmp_path, *, scripted=True, start_paused=False, duration_ms=60
     tcode = FakeTCode()
     session = PlayerSession(
         playlist, player=player, tcode=tcode, start_paused=start_paused,
+        play_points=play_points,
     )
     return session, player, tcode
 
@@ -129,6 +132,13 @@ class TestPictures:
         player.showing_picture = True
 
         assert session.showing_picture is True
+
+
+def _watch_to(session, player, position_ms):
+    """Two ticks at *position_ms*: the jump onto it, then ordinary playback."""
+    player.position_ms = position_ms
+    session.advance()
+    session.advance()
 
 
 class TestFunscriptResting:
@@ -1077,3 +1087,66 @@ class TestTakingTheDeviceBack:
         session.step(1)
 
         assert tcode.resets == resets_before + 1
+
+
+HOUR_MS = 3_600_000.0
+
+
+def test_the_session_writes_down_where_a_video_was_left(tmp_path):
+    points = PlayPoints(tmp_path / "points.json")
+    session, player, _ = _make_session(tmp_path, duration_ms=HOUR_MS, play_points=points)
+
+    _watch_to(session, player, 300_000)
+
+    assert points.point_for(session.current_video) == 300_000
+
+
+def test_the_clock_left_over_from_the_last_video_is_not_written_down(tmp_path):
+    points = PlayPoints(tmp_path / "points.json")
+    session, player, _ = _make_session(tmp_path, entries=2, duration_ms=HOUR_MS,
+                                       play_points=points)
+    _watch_to(session, player, 300_000)
+
+    session.step(1)
+    player.position_ms = 300_000  # mpv still reporting the video just left
+    session.advance()
+
+    assert points.point_for(session.current_video) == 0
+
+
+def test_a_video_left_in_the_middle_opens_there_again(tmp_path):
+    points = PlayPoints(tmp_path / "points.json")
+    session, player, _ = _make_session(tmp_path, entries=2, duration_ms=HOUR_MS,
+                                       play_points=points)
+    _watch_to(session, player, 300_000)
+
+    session.step(1)
+    session.step(-1)
+
+    assert player.seeks[-1] == 300_000
+
+
+def test_a_video_is_only_resumed_once_its_file_is_open(tmp_path):
+    points = PlayPoints(tmp_path / "points.json")
+    for _tick in range(2):
+        points.observe(tmp_path / "v0.mp4", position_ms=300_000, duration_ms=HOUR_MS)
+    session, player, _ = _make_session(tmp_path, duration_ms=0.0, play_points=points)
+    assert player.seeks == []
+
+    player.duration_ms = HOUR_MS
+    session.advance()
+
+    assert player.seeks == [300_000]
+
+
+def test_a_loop_handed_back_beats_the_point_the_video_was_left_at(tmp_path):
+    points = PlayPoints(tmp_path / "points.json")
+    for _tick in range(2):
+        points.observe(tmp_path / "v0.mp4", position_ms=300_000, duration_ms=HOUR_MS)
+    session, player, _ = _make_session(tmp_path, duration_ms=0.0, play_points=points)
+
+    player.duration_ms = HOUR_MS
+    session.restore_loop(10_000, 20_000)
+    session.advance()
+
+    assert player.seeks[-1] == 10_000

@@ -44,6 +44,7 @@ from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
+from main_player.play_points import PlayPoints
 
 from .projection import next_projection, resolve_projection, save_projection
 
@@ -100,12 +101,15 @@ class MainRole:
         metadata_root: Path | None,
         vr_dirs: Sequence[Path],
         start_paused: bool = False,
+        play_points: PlayPoints | None = None,
     ) -> None:
         self._player = player
         self._driver = driver
         self._playlist_file = Path(playlist_file)
         self._metadata_root = metadata_root
         self._vr_dirs = tuple(vr_dirs)
+        self._play_points = play_points or PlayPoints(None)
+        self._resume_to: float | None = None
         self._entries = read_playlist(self._playlist_file)
         if not self._entries:
             raise ValueError(f"primary playlist is empty: {playlist_file}")
@@ -260,11 +264,17 @@ class MainRole:
         return True
 
     def tick(self, now: float) -> None:
-        """One turn of the pump: step off the end of an unlocked video, then
-        drive the OSR2 for this instant -- waypoints while scripted, parked
-        while unscripted, silent while paused or handed to the Robot Hand."""
+        """One turn of the pump: resume, step off the end of an unlocked video,
+        write down where this one is, then drive the OSR2 for this instant --
+        waypoints while scripted, parked while unscripted, silent while paused
+        or handed to the Robot Hand."""
+        self._resume_once_the_file_is_open()
         self._step_at_eof()
-        if self._paused or not self._tcode_enabled:
+        if self._paused:
+            return
+        self._play_points.observe(
+            self.current_video, self._player.position_ms, self._player.duration_ms)
+        if not self._tcode_enabled:
             return
         if not self._the_screen_has_resumed():
             return
@@ -274,6 +284,13 @@ class MainRole:
             )
         else:
             self._driver.park(now=now)
+
+    def _resume_once_the_file_is_open(self) -> None:
+        """Seek to where this video was left, held until mpv reports a duration."""
+        if self._resume_to is None or self._player.duration_ms <= 0:
+            return
+        self.seek_to(self._resume_to)
+        self._resume_to = None
 
     def _step_at_eof(self) -> None:
         """The end of the file, with nothing holding it: on to the next entry,
@@ -335,6 +352,7 @@ class MainRole:
         self._driver.reset()
         self._projection = resolve_projection(str(item.path), self._metadata_root, self._vr_dirs)
         self._title = video_title(_recorded_for(item.path, self._metadata_root), item.path)
+        self._resume_to = self._play_points.point_for(item.path) or None
 
     @staticmethod
     def _load_funscript(path: Path | None) -> Funscript | None:
