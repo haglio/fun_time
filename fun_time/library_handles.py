@@ -94,8 +94,8 @@ def _file_size(video: str) -> int:
 
 
 def _payload(video: str, metadata_root: Path | None) -> dict:
-    """Everything Evolver recorded about *video*, read once for all four answers
-    the browse takes off it rather than once per answer."""
+    """Everything Evolver recorded about *video*, read once for every answer the
+    browse takes off it."""
     sidecar = metadata_path_for(video, metadata_root)
     return {} if sidecar is None else load_metadata(sidecar)
 
@@ -286,8 +286,6 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     # first: the cuts came out of them, so they follow.  Ordering reads the band
     # key rather than the section name, which is only what the band is *called*.
     weight = Counter(folder for folder, _clip in keys.values())
-    # The name Evolver recorded for the family, read off the rendition the tile
-    # plays; every rendition of one video carries the same one.
     shown = {
         family: video_title(payloads[played[family][0]], played[family][0])
         for family in played

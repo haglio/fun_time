@@ -90,12 +90,9 @@ _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
 def recorded_group(payload: dict, video: str | Path) -> str:
-    """The version family Evolver recorded for *video*, split by its copy index.
-
-    The id anchors the family -- the only thing that can pair a hand-renamed
-    re-encode with its original -- and the number refines it, so "(2)" stays
-    with "(2)_topaz" while "(2)" and "(3)" come apart.  ``""`` for no record.
-    """
+    """The version family Evolver recorded for *video*, split by its copy index:
+    the id pairs a hand-renamed re-encode with its original, and the number
+    keeps "(2)" apart from "(3)".  ``""`` for no record."""
     version = payload.get("version")
     if not isinstance(version, dict):
         return ""
@@ -111,13 +108,7 @@ TITLE_FIELD = "title"
 
 def video_title(payload: dict, video: str | Path) -> str:
     """What to call *video*: the name Evolver recorded, else the pair recorded
-    for the clip, else the family it was grouped under, else its filename.
-
-    Evolver works the name out for the whole library at once -- a scene takes
-    the name of the clip cut out of it, which no reader could answer without
-    walking the library -- so the recorded name is the answer and the rest is
-    what to say about a video it has not reached yet.
-    """
+    for the clip, else the family it was grouped under, else its filename."""
     return (
         str(payload.get(TITLE_FIELD, "") or "").strip()
         or clip_title(payload)

@@ -140,8 +140,7 @@ class MainRole:
 
     @property
     def title(self) -> str:
-        """What the console panel calls the video on screen, off its own sidecar
-        -- all the headset has, this role building no library index."""
+        """What the console panel calls the video on screen."""
         return self._title
 
     @property
