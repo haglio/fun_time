@@ -694,6 +694,7 @@ def launch_main_player(
     drive_file: str | Path,
     dashboard_cmd_file: str | Path,
     log_file: str | Path,
+    state_dir: str | Path,
     main_player_x: int,
     main_player_y: int,
     main_player_width: int,
@@ -726,6 +727,8 @@ def launch_main_player(
         str(paused_file),
         "--status-file",
         str(status_file),
+        "--state-dir",
+        str(state_dir),
         # The main player's HUD is the console the dashboard used to be: it reads the panel we
         # publish, reads Genau's readout for the section under it, and posts a
         # press — on a button or on the volume control — back onto the same

@@ -1193,6 +1193,30 @@ def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
     assert "--start-clip" not in popen.call_args.args[0]
 
 
+def test_launch_main_player_is_told_the_state_dir_it_remembers_in(tmp_path: Path):
+    """Without it the player falls back beside its config, which is the primary
+    checkout's root: the mode it was last in and the point each video was left at
+    then land there as untracked files, dirtying main for everyone."""
+    class FakeProc:
+        def __init__(self, pid: int):
+            self.pid = pid
+
+    with patch("fun_time.windows_bridge_startup.subprocess.Popen", return_value=FakeProc(7)) as popen, patch(
+        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
+    ):
+        launch_main_player(
+            python_exe="python.exe", main_player_module="main_player", config_path="cfg.json",
+            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
+            status_file="status", console_file="console.json",
+            drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
+            main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
+        )
+
+    command = popen.call_args.args[0]
+    assert command[command.index("--state-dir") + 1] == str(tmp_path)
+
+
 def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
@@ -1206,7 +1230,7 @@ def test_launch_main_player_forwards_metadata_dir_when_given(tmp_path: Path):
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
             metadata_dir="C:/videos/metadata",
         )
@@ -1229,7 +1253,7 @@ def test_launch_main_player_omits_metadata_dir_when_absent(tmp_path: Path):
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
@@ -1251,7 +1275,7 @@ def test_launch_main_player_forwards_clips_dir_when_given(tmp_path: Path):
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
             clips_dir="C:/videos/genau/clips",
         )
@@ -1273,7 +1297,7 @@ def test_launch_main_player_omits_clips_dir_when_absent(tmp_path: Path):
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
@@ -1295,7 +1319,7 @@ def test_launch_main_player_hands_it_fun_times_icon(tmp_path: Path):
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
@@ -1367,7 +1391,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
             status_file="status", console_file="console.json",
             drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100,
         )
 
@@ -1418,7 +1442,7 @@ class TestGenauCheckout:
                     playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
                     status_file="status", console_file="console.json",
                     drive_file="drive.txt", dashboard_cmd_file="dash_cmd.txt",
-                    log_file=tmp_path / "main_player.log",
+                    log_file=tmp_path / "main_player.log", state_dir=tmp_path,
                     main_player_x=0, main_player_y=0, main_player_width=100, main_player_height=100, **overrides)
 
     @staticmethod
@@ -1503,6 +1527,7 @@ def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
             drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
             log_file=log_file,
+            state_dir=tmp_path,
             main_player_x=100, main_player_y=200, main_player_width=300, main_player_height=400,
         )
 
@@ -1532,7 +1557,7 @@ def test_launch_main_player_starts_process_and_returns_pid(tmp_path: Path):
             console_file="state/main_player_console.json",
             drive_file="state/genau_drive.txt",
             dashboard_cmd_file="state/dashboard_cmd.txt",
-            log_file=tmp_path / "main_player.log",
+            log_file=tmp_path / "main_player.log", state_dir=tmp_path,
             main_player_x=100,
             main_player_y=200,
             main_player_width=300,
@@ -1555,6 +1580,8 @@ def test_launch_main_player_starts_process_and_returns_pid(tmp_path: Path):
         "state/main_player_paused.txt",
         "--status-file",
         "state/main_player_status.txt",
+        "--state-dir",
+        str(tmp_path),
         "--console-file",
         "state/main_player_console.json",
         "--drive-file",
@@ -2022,7 +2049,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 console_file="console.json",
                 drive_file="drive.txt",
                 dashboard_cmd_file="dash.txt",
-                log_file=tmp_path / "main_player.log",
+                log_file=tmp_path / "main_player.log", state_dir=tmp_path,
                 main_player_x=0, main_player_y=0, main_player_width=1, main_player_height=1,
             )
         assert self._launched_exe(popen) == "FunTime-MainPlayer.exe"
