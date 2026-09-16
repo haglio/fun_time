@@ -71,7 +71,6 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
-from fun_time.library_handles import handles_by_shape
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.player_status import genau_status_path, read_genau_status, read_main_player_status
@@ -81,7 +80,6 @@ from fun_time.session_handoff import (
     headset_hold_stops_the_runtime,
     report_the_headset_held,
 )
-from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
 from satellite.hud_overlay import HudOverlay
@@ -140,13 +138,17 @@ from .layout import (
     write_layout,
 )
 from .library_panel import (
-    LIBRARY_WIDTH_PX,
-    LibraryBrowse,
-    LibraryShelf,
-    LibraryStills,
-    cached_or_extracted,
-    library_height,
-    paint_library,
+    DISMISSED,
+    LIBRARY_SIZE_PX,
+    PICKED,
+    LibraryHost,
+    ShownWhileAsked,
+    event_line,
+    hover_line,
+    open_line,
+    scroll_from_stick,
+    scroll_line,
+    waiting_panel,
 )
 from .matrices import (
     fov_to_projection_matrix,
@@ -159,6 +161,7 @@ from .notices import NoticeBoard
 from .perf import FramePerf
 from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
+    CONTROLLER_DEADZONE,
     DRAG,
     PRESS,
     RELEASE,
@@ -220,7 +223,8 @@ _WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_
 
 # GenauVR's rate and deadzone, but not its sign: our stick away lowers.
 TILT_RATE_DEG_S = 85.0
-CONTROLLER_DEADZONE = 0.1
+
+LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
 # The file-channel worker's cadence: the dispatch loop polls these same files
 # at ~20Hz, so 30Hz loses no responsiveness.
@@ -1206,62 +1210,95 @@ class _LibraryUnit:
     layout_key = LIBRARY
 
     def __init__(
-        self, *, placement: Placement, flag: Path, shelf, stills,
+        self, *, placement: Placement, flag: Path, host,
         main_player_cmd_file: Path, main_player_status_file: Path,
         dashboard_cmd_file: Path,
     ) -> None:
         self._flag = flag
-        self._shelf = shelf
-        self._stills = stills
-        self._browse = LibraryBrowse(
-            play=lambda video: append_command(
-                main_player_cmd_file, play_file(scripted_item(video))),
-            close=lambda: append_command(dashboard_cmd_file, BROWSE_LIBRARY_CLOSE),
-            playing=lambda: read_main_player_status(main_player_status_file).video,
-        )
+        self._host = host
+        self._main_player_cmd_file = main_player_cmd_file
+        self._main_player_status_file = main_player_status_file
+        self._dashboard_cmd_file = dashboard_cmd_file
+        self._shown = ShownWhileAsked()
         self._presses = _Presses(LIBRARY)
         self._lock = threading.Lock()
         self._image = None
-        self._key = None
         self._uploaded = None
+        self._token = 0
+        self._opened_at = 0.0
+        self._drawn = False
+        self._hovered: tuple[int, int] | None = None
+        self._scrolled = 0.0
         self.texture = FrameTexture()
         self.screen = _HangingScreen(placement)
 
     @property
     def showing(self) -> bool:
-        return self._browse.open
+        return self._shown.showing and self._drawn
+
+    @property
+    def takes_the_stick(self) -> bool:
+        return self.showing and self._presses.hover is not None
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
 
+    def scroll(self, notches: float) -> None:
+        with self._lock:
+            self._scrolled += notches
+
     def pump(self, stop: threading.Event, now: float) -> None:
-        if self._browse.handles is None and self._shelf.handles is not None:
-            self._browse.stocked(self._shelf.handles)
-        size = (LIBRARY_WIDTH_PX, library_height())
-        for event in self._presses.drain():
-            if event.kind == PRESS:
-                self._browse.press(*surface_pixel(event.u, event.v, size))
-        self._browse.showing(read_flag(self._flag, default=False))
-        if not self._browse.open:
+        for answer in self._host.answers():
+            said, _, video = answer.partition(" ")
+            if said == PICKED:
+                append_command(self._main_player_cmd_file, play_file(scripted_item(video)))
+            if said in (PICKED, DISMISSED):
+                self._shown.put_away()
+                append_command(self._dashboard_cmd_file, BROWSE_LIBRARY_CLOSE)
+        if self._shown.asked(read_flag(self._flag, default=False)):
+            self._token += 1
+            self._opened_at = now
+            self._drawn = False
+            playing = read_main_player_status(self._main_player_status_file).video
+            self._host.send(open_line(self._token, playing))
+        events = list(self._presses.drain())
+        if not self._shown.showing:
             return
-        self._stills.want(preview for tile in self._browse.tiles for preview in tile.previews)
-        arrived = self._stills.collect()
+        for event in events:
+            self._host.send(event_line(event))
+        self._send_the_pointer()
+        self._show_what_it_drew(now)
+
+    def _send_the_pointer(self) -> None:
         aim = self._presses.hover
-        hover = surface_pixel(*aim[1], size) if aim is not None else None
-        browse = self._browse
-        key = (browse.folder, browse.page, browse.lit, browse.handles is None, hover)
-        if key == self._key and not arrived:
+        at = surface_pixel(*aim[1], LIBRARY_SIZE_PX) if aim is not None else None
+        if at is not None and at != self._hovered:
+            self._host.send(hover_line(*at))
+        self._hovered = at
+        with self._lock:
+            notches = int(self._scrolled)
+            self._scrolled -= notches
+        if notches:
+            self._host.send(scroll_line(notches))
+
+    def _show_what_it_drew(self, now: float) -> None:
+        frame = self._host.frame(self._token)
+        if frame is not None:
+            width, height, pixels = frame
+            image = np.frombuffer(pixels, np.uint8).reshape(height, width, 4)
+        elif not self._drawn and now - self._opened_at >= LIBRARY_READING_SHOWN_AFTER_S:
+            image = waiting_panel()
+        else:
             return
-        image = paint_library(browse, self._stills, hover)
         with self._lock:
             self._image = image
-        self._key = key
+        self._drawn = True
 
     def render_latest_frame(self) -> None:
         _upload_and_rehang(self)
 
     def close(self) -> None:
-        self._stills.close()
+        self._host.close()
         self.texture.close()
         self.screen.close()
 
@@ -1438,7 +1475,7 @@ def main(argv: list[str] | None = None) -> int:
         _show_error_popup(vr_runtime.explain(ready))
         return 1
     with ahead_of_background_work():
-        return _run(manifest, vr)
+        return _run(manifest, vr, args.manifest)
 
 
 def _unit_name(unit: object) -> str:
@@ -1796,7 +1833,7 @@ def _cover_the_teardown(session, renderer: SceneRenderer, cover: _CoverUnit) -> 
     cover.settled()  # however that went, teardown has waited long enough
 
 
-def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
+def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     import glfw  # GL/XR stack loads only after the runtime probe
     import xr
 
@@ -1874,10 +1911,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     library = _LibraryUnit(
         placement=layout[LIBRARY],
         flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
-        shelf=LibraryShelf(lambda: handles_by_shape(
-            manifest.media.main_player_library_sources, manifest.media.vr_library_dirs,
-            _metadata_root(manifest))),
-        stills=LibraryStills(state_dir / THUMBNAIL_CACHE_DIRNAME, fetch=cached_or_extracted),
+        host=LibraryHost(manifest_path=manifest_path, state_dir=Path(state_dir)),
         main_player_cmd_file=Path(commands.main_player_cmd_file),
         main_player_status_file=Path(commands.main_player_status_file),
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
@@ -1973,9 +2007,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
                 session.sync_controller(display_time)
-                primary.role.nudge_tilt(
-                    tilt_from_stick(session.thumbstick_y, frame_dt)
-                )
+                if library.takes_the_stick:
+                    library.scroll(scroll_from_stick(session.thumbstick_y, frame_dt))
+                else:
+                    primary.role.nudge_tilt(tilt_from_stick(session.thumbstick_y, frame_dt))
                 scene_pitch_deg = primary.role.tilt_deg
                 scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
                     math.radians(scene_pitch_deg)

@@ -213,6 +213,7 @@ class Grab:
         )
 
 
+CONTROLLER_DEADZONE = 0.1
 PRESS_LEVEL = 0.55
 RELEASE_LEVEL = 0.35
 PRESS = "press"

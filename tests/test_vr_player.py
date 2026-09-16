@@ -46,7 +46,6 @@ from fun_time.dashboard_actions import (
     QUIT_BUTTON,
     REFERENCE_OPEN_FILENAME,
 )
-from fun_time.library_handles import LibraryHandle
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -82,7 +81,7 @@ from fun_time_vr.layout import (
     REFERENCE,
     read_layout,
 )
-from fun_time_vr.library_panel import LIBRARY_WIDTH_PX, LibraryStills, library_height, tile_rects
+from fun_time_vr.library_panel import LIBRARY_SIZE_PX
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
@@ -105,6 +104,7 @@ from fun_time_vr.player import (
     build_parser,
 )
 from fun_time_vr.pointer import (
+    DRAG,
     PRESS,
     RELEASE,
     SURFACE,
@@ -1209,7 +1209,7 @@ def test_the_headset_session_runs_ahead_of_background_work():
                     and [ast.unparse(item.context_expr) for item in n.items]
                     == ["ahead_of_background_work()"]]
 
-    assert ast.unparse(scheduled.body) == "return _run(manifest, vr)"
+    assert ast.unparse(scheduled.body) == "return _run(manifest, vr, args.manifest)"
 
 
 class TestTheMainSlotUnderThePointer:
@@ -1574,61 +1574,170 @@ class TestTheDashUnderThePointer:
         assert not (tmp_path / "dashboard_cmd.txt").exists()
 
 
-def _a_library(tmp_path, handles):
+class _FakeLibraryHost:
+    def __init__(self):
+        self.sent: list[str] = []
+        self.said: list[str] = []
+        self.frames: dict[int, tuple[int, int, bytes]] = {}
+        self.closed = False
+
+    def send(self, line):
+        self.sent.append(line)
+
+    def answers(self):
+        said, self.said = self.said, []
+        return said
+
+    def frame(self, token):
+        return self.frames.pop(token, None)
+
+    def close(self):
+        self.closed = True
+
+
+def _a_library(tmp_path, host):
     with patch("fun_time_vr.player.FrameTexture"):
         return _LibraryUnit(
             placement=DEFAULT_LAYOUT[LIBRARY],
             flag=tmp_path / LIBRARY_OPEN_FILENAME,
-            shelf=SimpleNamespace(handles=tuple(handles)),
-            stills=LibraryStills(tmp_path, fetch=lambda _preview, _cache_dir: None),
+            host=host,
             main_player_cmd_file=tmp_path / "main_player_cmd.txt",
             main_player_status_file=tmp_path / "main_player_status.txt",
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         )
 
 
-class TestTheLibraryUnderThePointer:
-    @staticmethod
-    def _uv_of(rect) -> tuple[float, float]:
-        return ((rect.x + rect.width // 2 + 0.5) / LIBRARY_WIDTH_PX,
-                1 - (rect.y + rect.height // 2 + 0.5) / library_height())
+def _a_frame(value: int = 7) -> tuple[int, int, bytes]:
+    width, height = LIBRARY_SIZE_PX
+    return width, height, bytes([value]) * (width * height * 4)
 
-    def test_a_press_on_a_video_plays_it_on_the_main_player_and_puts_the_browse_away(
-        self, tmp_path,
-    ):
-        video = "C:/videos/Scene One.mp4"
-        unit = _a_library(tmp_path, [LibraryHandle(title="Scene One", versions=(video,))])
+
+def _uv(x: int, y: int) -> tuple[float, float]:
+    width, height = LIBRARY_SIZE_PX
+    return (x + 0.5) / width, 1 - (y + 0.5) / height
+
+
+class TestTheLibraryUnderThePointer:
+    def test_opening_it_asks_the_browser_to_open_on_the_video_playing(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        (tmp_path / "main_player_status.txt").write_text(
+            "video=C:/videos/Scene One.mp4\n", encoding="utf-8")
         write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-        try:
-            unit.pump(threading.Event(), 0.0)
-            unit.point(Frame(events=[PressEvent(PRESS, LIBRARY, *self._uv_of(tile_rects()[0]))]))
-            unit.pump(threading.Event(), 0.0)
-        finally:
-            unit.close()
+
+        unit.pump(threading.Event(), 0.0)
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["open 1 C:/videos/Scene One.mp4"]
+
+    def test_a_press_on_it_reaches_the_browser_at_the_point_pressed(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        host.sent.clear()
+
+        unit.point(Frame(events=(PressEvent(PRESS, LIBRARY, *_uv(100, 200)),)))
+        unit.point(Frame(events=(PressEvent(DRAG, LIBRARY, *_uv(110, 260)),)))
+        unit.point(Frame(events=(PressEvent(RELEASE, LIBRARY),)))
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["press 100 200", "drag 110 260", "release"]
+
+    def test_a_video_picked_plays_on_the_main_player_and_puts_the_browse_away(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+
+        host.said.append("picked C:/videos/Scene One.mp4")
+        unit.pump(threading.Event(), 0.0)
 
         assert (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").strip() == (
-            f"PLAY_FILE {Path(video)}")
+            f"PLAY_FILE {Path('C:/videos/Scene One.mp4')}")
         assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
             BROWSE_LIBRARY_CLOSE)
+        assert not unit.showing
+
+    def test_its_own_close_puts_it_away_playing_nothing(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+
+        host.said.append("dismissed")
+        unit.pump(threading.Event(), 0.0)
+
+        assert not (tmp_path / "main_player_cmd.txt").exists()
+        assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
+            BROWSE_LIBRARY_CLOSE)
+        assert not unit.showing
 
     def test_the_browse_reaches_the_headset_only_while_it_is_up(self, tmp_path):
-        unit = _a_library(
-            tmp_path, [LibraryHandle(title="Scene One", versions=("C:/videos/Scene One.mp4",))])
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
         unit.texture = _FakePanelTexture()
-        try:
-            unit.pump(threading.Event(), 0.0)
-            with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-                unit.render_latest_frame()
-            assert not hasattr(unit.texture, "uploaded")
+        host.frames[1] = _a_frame()
+        unit.pump(threading.Event(), 0.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
+        assert not hasattr(unit.texture, "uploaded")
 
-            write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
-            unit.pump(threading.Event(), 0.0)
-            with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
-                unit.render_latest_frame()
-        finally:
-            unit.close()
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
 
-        assert unit.texture.uploaded.shape == (library_height(), LIBRARY_WIDTH_PX, 4)
+        assert unit.showing
+        assert unit.texture.uploaded.shape == (LIBRARY_SIZE_PX[1], LIBRARY_SIZE_PX[0], 4)
+        assert unit.texture.uploaded.max() == 7
+
+    def test_a_browse_just_opened_shows_nothing_left_from_the_last_until_it_draws(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+
+        unit.pump(threading.Event(), 0.0)
+        assert not unit.showing
+
+        unit.pump(threading.Event(), 1.0)
+        assert unit.showing
+
+    def test_the_stick_scrolls_it_while_the_pointer_is_on_it(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        host.frames[1] = _a_frame()
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
+        host.sent.clear()
+
+        assert unit.takes_the_stick
+        unit.scroll(90.0)
+        unit.scroll(90.0)
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["hover 300 400", "scroll 180"]
+
+    def test_the_stick_is_left_alone_while_the_pointer_is_elsewhere(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        host.frames[1] = _a_frame()
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        assert unit.showing
+
+        unit.point(Frame(hover=Hover(PRIMARY, SURFACE, 0.5, 0.5)))
+
+        assert not unit.takes_the_stick
+
+    def test_closing_the_session_ends_its_browser(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+
+        unit.close()
+
+        assert host.closed
 
 
 class TestWhatThePointerCanReach:
