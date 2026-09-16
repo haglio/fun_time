@@ -13,6 +13,7 @@ builds regenerate URLs from it).
 from __future__ import annotations
 
 import json
+import re
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -81,6 +82,38 @@ def clip_title(payload: dict) -> str:
         return ""
     parts = (str(clip.get(field, "") or "").strip() for field in ("performer", "source"))
     return " - ".join(part for part in parts if part)
+
+
+# A bare number in brackets at the end of a name is how a download names a
+# DIFFERENT video of a set; Evolver gives every such name one family id.
+_COPY_INDEX = re.compile(r"\(\d+\)")
+
+
+def recorded_group(payload: dict, video: str | Path) -> str:
+    """The version family Evolver recorded for *video*, split by its copy index.
+
+    The id anchors the family -- the only thing that can pair a hand-renamed
+    re-encode with its original -- and the number refines it, so "(2)" stays
+    with "(2)_topaz" while "(2)" and "(3)" come apart.  ``""`` for no record.
+    """
+    version = payload.get("version")
+    if not isinstance(version, dict):
+        return ""
+    group = version.get("group")
+    if not group:
+        return ""
+    found = _COPY_INDEX.findall(Path(video).stem)
+    return f"{group} {found[-1]}" if found else str(group)
+
+
+def video_title(payload: dict, video: str | Path) -> str:
+    """What to call *video* from its own sidecar alone: the pair recorded for the
+    clip, else the family it was grouped under, else its filename.
+
+    The record beats the filename even where the two read alike, a filename
+    having had to drop whatever punctuation Windows forbids in one.
+    """
+    return clip_title(payload) or recorded_group(payload, video) or Path(video).stem
 
 
 def carved_from(payload: dict) -> str:

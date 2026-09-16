@@ -981,7 +981,7 @@ class _PanelUnit:
         clip = genau.current_clip
         hud = panel_hud(
             genau.console_hud,
-            video_title=main.current_video.stem,
+            video_title=main.title,
             clip_title=clip.stem if clip is not None else "",
             loading=genau.loading,
             drive_gate=self._primary.drive_gate,

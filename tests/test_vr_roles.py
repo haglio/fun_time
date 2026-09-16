@@ -691,3 +691,38 @@ class TestReopen:
 
         assert role_parts.player.paused is True
         assert role_parts.role.paused is True
+
+
+class TestWhatTheHeadsetCallsTheVideo:
+    """The console panel's muted line names what is playing, and a download's
+    filename is the worst name the library has for it."""
+
+    def _role(self, tmp_path, payload: dict):
+        videos = tmp_path / "videos" / "videos" / "2D" / "non_AI"
+        metadata = tmp_path / "videos" / "metadata"
+        videos.mkdir(parents=True)
+        metadata.mkdir(parents=True)
+        video = videos / "Jane Doe - Alpha Study Part Two_apo8_iris2.mp4"
+        video.write_bytes(b"")
+        sidecar = (metadata / video.relative_to(tmp_path / "videos" / "videos")
+                   ).with_suffix(".json")
+        sidecar.parent.mkdir(parents=True, exist_ok=True)
+        sidecar.write_text(json.dumps(payload), encoding="utf-8")
+        playlist = tmp_path / "main_player_playlist.tsv"
+        playlist.write_text(f"{video}\n", encoding="utf-8")
+        return MainRole(player=FakePlayer(), driver=FakeDriver(), playlist_file=playlist,
+                        metadata_root=metadata, vr_dirs=())
+
+    def test_a_clip_is_named_by_the_pair_recorded_for_it(self, tmp_path):
+        role = self._role(tmp_path, {
+            "clip": {"performer": "Jane Doe", "source": "Alpha Study: Part Two"},
+        })
+
+        assert role.title == "Jane Doe - Alpha Study: Part Two"
+
+    def test_a_video_with_no_record_keeps_its_filename(self, tmp_path):
+        """The headset has no library index -- only the sidecar in front of it --
+        so a scene named by the clip cut from it is out of reach here."""
+        role = self._role(tmp_path, {"video": {"type": "full_length"}})
+
+        assert role.title == "Jane Doe - Alpha Study Part Two_apo8_iris2"

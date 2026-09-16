@@ -41,6 +41,8 @@ from player_core.playlist import item_from_line, read_playlist
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
+from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
+
 from .projection import next_projection, resolve_projection, save_projection
 
 logger = logging.getLogger(__name__)
@@ -80,6 +82,12 @@ UNIMPLEMENTED_MAIN_PLAYER_VERBS: dict[str, str] = {
 }
 
 
+def _recorded_for(video: Path, metadata_root: Path | None) -> dict:
+    """Everything Evolver recorded about *video*, ``{}`` where that is nothing."""
+    sidecar = metadata_path_for(video, metadata_root)
+    return {} if sidecar is None else load_metadata(sidecar)
+
+
 class MainRole:
     def __init__(
         self,
@@ -109,6 +117,7 @@ class MainRole:
         self._f_mode = False
         self._funscript: Funscript | None = None
         self._projection = ""
+        self._title = ""
         self._volume = 100
         self._muted = False
         # Until the host says the sound is live (player.route_audio), a
@@ -128,6 +137,12 @@ class MainRole:
     @property
     def current_video(self) -> Path:
         return self._entries[self._index].path
+
+    @property
+    def title(self) -> str:
+        """What the console panel calls the video on screen, off its own sidecar
+        -- all the headset has, this role building no library index."""
+        return self._title
 
     @property
     def projection(self) -> str:
@@ -317,6 +332,7 @@ class MainRole:
         self._funscript = self._load_funscript(item.funscript)
         self._driver.reset()
         self._projection = resolve_projection(str(item.path), self._metadata_root, self._vr_dirs)
+        self._title = video_title(_recorded_for(item.path, self._metadata_root), item.path)
 
     @staticmethod
     def _load_funscript(path: Path | None) -> Funscript | None:
