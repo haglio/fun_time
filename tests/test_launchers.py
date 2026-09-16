@@ -223,14 +223,21 @@ def test_a_held_log_costs_a_name_and_not_the_launch(name: str, tmp_path: Path):
 @contextlib.contextmanager
 def _held_by_a_stray_child(log: Path):
     """Hold *log* the way cmd's redirect does -- exclusively, from another
-    process -- for the length of the block."""
+    process -- for the length of the block.
+
+    Both ends of the hold are asserted, and the hold itself outlasts anything
+    asked under it by minutes.  On a machine carrying several suites at once,
+    starting the stray and asking a launcher each take seconds, and a wait that
+    merely gave up left the log free with the block still calling it held --
+    which reads as the launcher choosing the wrong name."""
     stray = subprocess.Popen(
-        f'cmd /c ping -n 30 127.0.0.1 > "{log}"',
+        f'cmd /c ping -n 300 127.0.0.1 > "{log}"',
         stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
     )
     try:
-        _wait_until(lambda: log.exists() and not _can_append(log))
+        _wait_until(lambda: log.exists() and not _can_append(log),
+                    what=f"the stray child to take {log.name}")
         yield
     finally:
         # The tree, not the one process: killing cmd alone leaves ping holding
@@ -239,8 +246,8 @@ def _held_by_a_stray_child(log: Path):
             ["taskkill", "/T", "/F", "/PID", str(stray.pid)],
             capture_output=True, check=False,
         )
-        stray.wait(timeout=10)
-        _wait_until(lambda: _can_append(log))
+        stray.wait(timeout=30)
+        _wait_until(lambda: _can_append(log), what=f"{log.name} to come free again")
 
 
 def _can_append(path: Path) -> bool:
@@ -251,10 +258,13 @@ def _can_append(path: Path) -> bool:
     return True
 
 
-def _wait_until(condition, timeout_s: float = 10.0) -> None:
+def _wait_until(condition, *, what: str, timeout_s: float = 60.0) -> None:
     deadline = time.monotonic() + timeout_s
-    while time.monotonic() < deadline and not condition():
+    while time.monotonic() < deadline:
+        if condition():
+            return
         time.sleep(0.05)
+    raise AssertionError(f"Waited {timeout_s:g}s for {what}, and it never happened")
 
 
 def _launch_log_chosen_by(name: str, state_dir: Path, stem: str) -> str:
