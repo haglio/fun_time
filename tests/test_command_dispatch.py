@@ -2748,10 +2748,11 @@ class TestOsr2ControlState:
         assert not config.genau_cmd_file.exists()
         assert not config.main_player_cmd_file.exists()
 
-    def test_driving_puts_back_the_motion_control_off_wrote_down(
-            self, tmp_path: Path):
-        """Letting go of the device flattens the motion, so the way back has to
-        restore it -- the same recording the two holds take and this spends."""
+    def test_control_off_writes_down_no_motion_to_put_back(self, tmp_path: Path):
+        """The two holds flatten the motion, so they record it first; letting go
+        moves no dial at all, so there is nothing for driving to restore -- and a
+        recording taken here would be replayed over dials the user has since
+        turned."""
         config = _make_config(tmp_path)
         _publish_drive(config, amplitude=50)
         off, _ops = dispatch_command("osr2_control_off", _make_state(), config)
@@ -2759,7 +2760,7 @@ class TestOsr2ControlState:
         after, _ops = dispatch_command("robot_hand_release", off, config)
 
         assert after.osr2_control == OSR2_DRIVING
-        assert "AMP 50" in config.genau_cmd_file.read_text(encoding="utf-8")
+        assert not config.genau_cmd_file.exists()
 
     def test_a_hold_pressed_from_control_off_still_stills_the_motion(self, tmp_path: Path):
         config = _make_config(tmp_path)

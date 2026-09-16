@@ -1489,10 +1489,10 @@ def _robot_hand_release(state: BridgeState, config: BridgeConfig,
     return replace(state, osr2_control=OSR2_DRIVING), []  # also the way off "off"
 
 
-def _osr2_control_off(state: BridgeState, config: BridgeConfig,
+def _osr2_control_off(state: BridgeState, _config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    _remember_the_motion(config)  # so the driving button can put it back
-    # The stilling itself is the device arbiter's, re-stated every tick.
+    # Nothing is written down: letting go moves no dial, so there is nothing to
+    # put back.  Pausing Genau is the device arbiter's, re-stated every tick.
     return replace(state, osr2_control=OSR2_CONTROL_OFF), []
 
 

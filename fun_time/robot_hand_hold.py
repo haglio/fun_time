@@ -29,13 +29,9 @@ def held(dials: MotionDials) -> bool:
     return dials.amplitude == 0
 
 
-STILL_COMMANDS = ("CRUISE_OFF", "AMP 0", "SPEED 0")  # cruise first: it rewrites
-
-
 def hold_commands(center: int) -> tuple[str, ...]:
-    """Still the motion and send it to *center* -- one end of the travel."""
-    cruise, amp, speed = STILL_COMMANDS
-    return (cruise, amp, f"CENTER {center}", speed)
+    """Still the motion at *center*; cruise off first, as it rewrites the dials."""
+    return ("CRUISE_OFF", "AMP 0", f"CENTER {center}", "SPEED 0")
 
 
 def release_commands(dials: MotionDials) -> tuple[str, ...]:
