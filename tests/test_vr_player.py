@@ -169,10 +169,14 @@ def test_a_session_that_names_no_audio_device_reads_back_as_none_named(tmp_path)
 # the state directory.  Faked wholesale: what is under test here is which
 # manifest field each path comes from, not what is done with it afterwards.
 _UNIT_COLLABORATORS = (
-    "MpvRenderPlayer", "RenderTarget", "FrameTexture", "MainRole", "SatelliteSession",
-    "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
+    "MpvRenderPlayer", "VideoThread", "RenderTarget", "FrameTexture", "MainRole",
+    "SatelliteSession", "StatusWriter", "HudOverlay", "FunscriptTCodeDriver", "UdpTCodeSink",
     "VolumeHudPainter", "DriveGate", "PlayPoints",
 )
+
+
+# The video thread is faked above, so no GL context is ever asked for.
+_NO_GL_CONTEXTS = None
 
 
 def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
@@ -208,7 +212,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, lambda _name: 0, placement=DEFAULT_LAYOUT[PRIMARY])
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, placement=DEFAULT_LAYOUT[PRIMARY])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.main_player_cmd_file)
@@ -238,7 +242,7 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     )
 
     unit = _SatelliteUnit(
-        side, manifest, lambda _name: 0, vr=vr, placement=DEFAULT_LAYOUT[side])
+        side, manifest, _NO_GL_CONTEXTS, vr=vr, placement=DEFAULT_LAYOUT[side])
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.side_file(side, "cmd"))
@@ -450,7 +454,7 @@ def test_a_satellite_hangs_where_the_layout_says(tmp_path, faked_collaborators):
         audio_device="", compositor_layers=False,
     )
 
-    unit = _SatelliteUnit("portrait", manifest, lambda _name: 0, vr=vr, placement=moved)
+    unit = _SatelliteUnit("portrait", manifest, _NO_GL_CONTEXTS, vr=vr, placement=moved)
 
     assert unit.screen.placement == moved
 
@@ -1005,22 +1009,20 @@ class TestWhenTheRoomIsUp:
 
         assert not _scene_is_up(**room)
 
-    def test_a_target_is_marked_painted_where_it_is_painted(self):
-        """The other half of that contract, pinned in the source because the
-        render call itself needs a GL context: the flag the gate reads is set
-        on the same branch that hands mpv the framebuffer, never beside the
-        ``ensure`` that only sizes it."""
+    def test_a_target_is_marked_painted_where_its_picture_lands(self):
+        """The other half of that contract, pinned in the source because the copy
+        itself needs a GL context: the flag the gate reads is set where a picture
+        is copied in, never beside the ``ensure`` that only sizes the texture."""
         import ast
         import inspect
 
-        from fun_time_vr.player import _VideoUnit
+        from fun_time_vr.video_thread import VideoThread
 
-        body = ast.parse(inspect.getsource(_VideoUnit.render_latest_frame).lstrip())
-        (branch,) = [n for n in ast.walk(body)
-                     if isinstance(n, ast.If) and "has_new_frame" in ast.unparse(n.test)]
-        painted = "self.target.painted = True"
-        assert painted in ast.unparse(branch)
-        assert painted not in ast.unparse(body).split("if")[0]
+        source = ast.unparse(ast.parse(inspect.getsource(VideoThread.show_newest).lstrip()))
+        before, copied, after = source.partition("glCopyImageSubData")
+        assert copied
+        assert "target.painted = True" in after
+        assert "target.painted = True" not in before
 
     def test_the_main_slot_counts_once_wherever_the_scene_is(self):
         """In genau mode the clip player has the scene and the video waits

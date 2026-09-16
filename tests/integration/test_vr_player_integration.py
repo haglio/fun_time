@@ -2,9 +2,10 @@
 
 Builds the real units (`_MainUnit`, two `_SatelliteUnit`s) from a manifest
 produced by the production `build_vr_manifest`, decodes real library media
-through real mpv render contexts into GL textures on a hidden GLFW context,
-runs the production file-channel worker beside the frame loop, and paces the
-loop at the headset's 90Hz.  Everything FunTimeVR does except OpenXR itself.
+through real mpv render contexts into GL textures — each player painting in a
+GL context of its own, as the headset session has it — runs the production
+file-channel worker beside the frame loop, and paces the loop at the headset's
+90Hz.  Everything FunTimeVR does except OpenXR itself.
 
 The frame-budget assertion is the regression guard this suite exists for:
 libmpv's render call blocks until the frame's own display time unless told
@@ -29,6 +30,7 @@ from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.player_status import read_main_player_status
 from fun_time.runtime_flow import apply_mode_switch
 from fun_time.satellite_control import read_satellite_status
+from fun_time_vr.gl_contexts import SharedContexts, hidden_gl_window
 from fun_time_vr.layout import (
     DEFAULT_LAYOUT,
     LANDSCAPE,
@@ -136,12 +138,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         Path(commands.side_file(side, "paused")).write_text("0", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
-    glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
-    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-    window = glfw.create_window(320, 200, "vr-pipeline-test", None, None)
-    assert window, "hidden GL window could not be created"
+    window = hidden_gl_window("vr-pipeline-test")
     glfw.make_context_current(window)
 
     from OpenGL import GL  # noqa: PLC0415
@@ -149,11 +146,11 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     from fun_time_vr.render import SceneRenderer, immersive_mode  # noqa: PLC0415
 
     renderer = SceneRenderer()
+    contexts = SharedContexts(window)
     layout = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address, placement=layout[PRIMARY])
+    main = vrp._MainUnit(manifest, vr, contexts, placement=layout[PRIMARY])
     satellites = [
-        vrp._SatelliteUnit(
-            side, manifest, glfw.get_proc_address, vr=vr, placement=layout[side])
+        vrp._SatelliteUnit(side, manifest, contexts, vr=vr, placement=layout[side])
         for side in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
@@ -250,7 +247,10 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                 f"against a {FRAME_BUDGET_MS:.1f}ms frame — nothing was measured"
             )
 
-        # The regression guard: three live decoders must not pace the loop.
+        # The regression guard: three live decoders must not pace the loop, and
+        # a loop kept fast by videos that stopped reaching it proves nothing.
+        for unit in units:
+            unit.layer_dirty = False
         run_frames(540, measure=True)
         frame_ms.sort()
         median = frame_ms[len(frame_ms) // 2]
@@ -258,6 +258,9 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             f"frame loop median {median:.1f}ms blows the {MEDIAN_BUDGET_MS:.1f}ms budget — "
             "an mpv render is pacing the loop again"
         )
+        stalled = [name for unit, name in zip(units, ("main", "portrait", "landscape"), strict=True)
+                   if not unit.layer_dirty]
+        assert not stalled, f"no new picture reached the scene from {stalled} in six seconds"
 
         # Commands travel the file channel through the worker thread.
         first_video = published_status(
@@ -269,14 +272,17 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             timeout=20, desc="NEXT to advance the main player",
         )
 
-        # Clip transitions must not stall the frame loop.  Cold-load the
-        # landscape satellite repeatedly — explicit navigation, the harsher
-        # path than prefetched rollover — while frames keep pace.  Before
-        # video_dims stopped querying mpv's core (which a file being opened
-        # holds locked), each transition blocked the render thread for
-        # hundreds of milliseconds and every screen in the scene hitched.
+        # Clip transitions must not stall the frame loop, and must reach the
+        # scene.  Cold-load the landscape satellite repeatedly — explicit
+        # navigation, the harsher path than prefetched rollover — while frames
+        # keep pace.  What a clip change costs is mpv's: a decoder's textures,
+        # its shaders and the CUDA interop its frames arrive through, 40 to
+        # 250ms of it, charged to whichever thread calls render.  On the loop
+        # that was the whole headset freezing at every clip change.
         transitions: list[list[float]] = []
+        landscape_status = Path(commands.landscape_status_file)
         for _ in range(4):
+            leaving = published_status(read_satellite_status, landscape_status).video
             append_command(Path(commands.landscape_cmd_file), "NEXT")
             transitions.append([])
             for _ in range(60):
@@ -287,6 +293,16 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
                 elapsed = time.perf_counter() - started
                 transitions[-1].append(elapsed * 1e3)
                 time.sleep(max(0.0, period - elapsed))
+            _wait(
+                lambda was=leaving: read_satellite_status(landscape_status).video
+                not in ("", was),
+                timeout=20, desc="the landscape satellite to move off its clip",
+            )
+            satellites[1].layer_dirty = False
+            _wait(
+                lambda: run_frames(9, measure=False) or satellites[1].layer_dirty,
+                timeout=20, desc="a picture of the clip the landscape satellite moved to",
+            )
         transition_ms = sorted(ms for one in transitions for ms in one)
         transition_median = transition_ms[len(transition_ms) // 2]
         assert transition_median < MEDIAN_BUDGET_MS, (
@@ -294,7 +310,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
             f"blows the {MEDIAN_BUDGET_MS:.1f}ms budget"
         )
         # The regression this guards stalled EVERY transition for hundreds of
-        # milliseconds (an mpv core query on the render thread), so what a
+        # milliseconds (mpv's own work, on the loop's thread), so what a
         # transition TYPICALLY costs is what says whether it is back.  Judged
         # on the worst frame instead, this rode the one statistic a machine's
         # own hiccup owns: a run whose four transitions cost 79, 91, 92 and
@@ -304,7 +320,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         assert stall < 150.0, (
             f"clip transitions stalled the frame loop {stall:.0f}ms apiece "
             f"(worst frames {[round(max(one)) for one in transitions]}) — "
-            "an mpv core query is back on the render thread"
+            "mpv is being waited on by the frame loop again"
         )
 
         # The paused flag freezes a satellite where it stands.
@@ -392,15 +408,10 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     Path(commands.main_player_paused_file).write_text("1", encoding="utf-8")
 
     assert glfw.init(), "glfw failed to initialize"
-    glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
-    glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
-    glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-    window = glfw.create_window(320, 200, "vr-play-test", None, None)
-    assert window, "hidden GL window could not be created"
+    window = hidden_gl_window("vr-play-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, glfw.get_proc_address,
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window),
                          placement=DEFAULT_LAYOUT[PRIMARY])
     stop = threading.Event()
     pump = threading.Thread(

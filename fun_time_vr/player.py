@@ -12,12 +12,11 @@ drive them without knowing the display changed.  The console hangs in the scene
 as a panel of its own (:mod:`fun_time_vr.console_panel`), and the controllers
 move and resize every screen in it (:mod:`fun_time_vr.pointer`).
 
-Two threads: ``_pump_channels`` owns every file channel at its own cadence,
-because file I/O under a sync client can stall for arbitrary milliseconds and
-none of it may ride the frame loop.  The render thread owns GL: it waits on the
-compositor, lets each mpv render its latest frame into that unit's texture when
-one is newly due (the videos' 24-30fps never paces the 90Hz loop), and hands
-the compositor its layers.
+``_pump_channels`` owns every file channel, since file I/O under a sync client
+can stall for arbitrary milliseconds; each video paints on a thread and GL
+context of its own (:mod:`fun_time_vr.video_thread`), since a clip change costs
+mpv whole frames.  The frame loop only copies each newest picture into the
+scene and hands the compositor its layers.
 
 With ``vr.compositor_layers=true``, flat screens are submitted as compositor
 quad layers instead of drawn in-scene; what that costs, and why it is off by
@@ -181,6 +180,7 @@ from .scene import (
 )
 from .scheduling import ahead_of_background_work
 from .toast import toast_bgra
+from .video_thread import VideoThread
 
 logger = logging.getLogger(__name__)
 
@@ -319,13 +319,13 @@ class _SlotControls:  # what the row shows and does, said by the player in the s
 
 
 class _VideoUnit:
-    """What every mpv-backed player shares: an offscreen mpv and a texture target."""
+    """What every mpv-backed player shares: a video thread and a texture target."""
 
-    def __init__(self, player, target_cap_px: int, placement: Placement) -> None:
-        self.player = player
+    def __init__(self, video: VideoThread, placement: Placement) -> None:
+        self.video = video
+        self.player = video.player
         self.target = RenderTarget()
         self.screen = _HangingScreen(placement)
-        self._target_cap_px = target_cap_px
         # Compositor-layer bookkeeping, render-thread-owned: whether the
         # target holds pixels its quad swapchain hasn't copied yet, and the
         # size the swapchain's content was copied at (None until the first
@@ -340,21 +340,13 @@ class _VideoUnit:
         self._readout_painter = PlayheadHudPainter()
 
     def render_latest_frame(self) -> None:
-        width, height = self.player.video_dims
-        if width and height:
-            scale = min(1.0, self._target_cap_px / max(width, height))
-            sized = (max(1, round(width * scale)), max(1, round(height * scale)))
-            if sized != (self.target.width, self.target.height):
-                self.target.ensure(*sized)
+        sized = (self.target.width, self.target.height)
+        if self.video.show_newest(self.target):
+            self.layer_dirty = True
+            if (self.target.width, self.target.height) != sized:
                 self.layer_rect = None
         if self.target.ready:
             self.screen.rehang(self.target.aspect)
-        if self.target.ready and self.player.has_new_frame:
-            # flip_y: mpv renders top-left-origin; the scene samples GL
-            # lower-left convention (verified against a top-half-white clip).
-            self.player.render(self.target.fbo, self.target.width, self.target.height, flip_y=True)
-            self.target.painted = True
-            self.layer_dirty = True
 
     def layer_placement(self, scene_yaw_deg: float = 0.0, scene_pitch_deg: float = 0.0):
         """Pose and size for this screen's compositor quad, at the aspect its
@@ -451,14 +443,18 @@ class _MainUnit(_VideoUnit):
     notice_screen = PRIMARY  # NOT `screen`, which every unit uses for its _HangingScreen
 
     def __init__(
-        self, manifest: LaunchManifest, vr: VrSettings, get_proc_address, *,
-        placement: Placement, notices=None,
+        self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
+        placement: Placement, notices=None, perf=None,
     ) -> None:
         # Muted at birth: the headset's sink cannot be trusted until the
         # compositor is presenting (see route_audio).
         super().__init__(
-            MpvRenderPlayer(get_proc_address, muted=True, loop_file=True),
-            PRIMARY_VIDEO_CAP_PX,
+            VideoThread(
+                contexts,
+                lambda: MpvRenderPlayer(
+                    contexts.get_proc_address, muted=True, loop_file=True),
+                PRIMARY_VIDEO_CAP_PX, name="primary-video", perf=perf,
+            ),
             placement,
         )
         commands = manifest.commands
@@ -597,22 +593,25 @@ class _MainUnit(_VideoUnit):
                 self._pointer.release()
 
     def close(self) -> None:
-        self.role.close()  # closes driver + player
+        self.video.close()  # frees mpv on the thread whose context it renders in
+        self.role.close()   # closes the driver; the player is already gone
         self._close_graphics()
 
 
 class _SatelliteUnit(_VideoUnit):
     def __init__(
-        self, side: str, manifest: LaunchManifest, get_proc_address, *,
-        vr: VrSettings, placement: Placement, notices=None,
+        self, side: str, manifest: LaunchManifest, contexts, *,
+        vr: VrSettings, placement: Placement, notices=None, perf=None,
     ) -> None:
         # Muted, and on the default sink until the headset is worn, for the reason
         # _MainUnit.route_audio waits: a sink not draining stops the video clock.
         super().__init__(
-            MpvRenderPlayer(
-                get_proc_address, muted=True, loop_file=False, prefetch=True,
+            VideoThread(
+                contexts,
+                lambda: MpvRenderPlayer(
+                    contexts.get_proc_address, muted=True, loop_file=False, prefetch=True),
+                SATELLITE_VIDEO_CAP_PX, name=f"{side}-video", perf=perf,
             ),
-            SATELLITE_VIDEO_CAP_PX,
             placement,
         )
         commands = manifest.commands
@@ -741,7 +740,8 @@ class _SatelliteUnit(_VideoUnit):
             self.overlay_toast(self._notices.toast(self.notice_screen))
 
     def close(self) -> None:
-        self.session.close()  # closes the player
+        self.video.close()  # frees mpv on the thread whose context it renders in
+        self.session.close()
         self.hud_texture.close()
         self.hud_screen.close()
         self._close_graphics()
@@ -1745,10 +1745,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
             return 1
 
     renderer = SceneRenderer()
-
-    def get_proc_address(name: str):
-        return glfw.get_proc_address(name)
-
+    contexts = session.shared_contexts()
+    perf = FramePerf(logger=logger)
     stop = threading.Event()
     commands = manifest.commands
     state_dir = Path(commands.dashboard_cmd_file).parent
@@ -1760,14 +1758,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     # One read of the event log per tick, pumped before anything that shows a
     # notice off it: the console's strip and every screen's own toast.
     notices = NoticeBoard(event_log_path(state_dir))
-    primary = _MainUnit(manifest, vr, get_proc_address, placement=layout[PRIMARY],
-                        notices=notices)
+    primary = _MainUnit(manifest, vr, contexts, placement=layout[PRIMARY],
+                        notices=notices, perf=perf)
     _present_the_cover(session, renderer, cover)
     genau = _GenauUnit(manifest, vr, stop, placement=layout[PRIMARY])
     _present_the_cover(session, renderer, cover)
     satellites = [
-        _SatelliteUnit(side, manifest, get_proc_address, vr=vr, placement=layout[side],
-                       notices=notices)
+        _SatelliteUnit(side, manifest, contexts, vr=vr, placement=layout[side],
+                       notices=notices, perf=perf)
         for side in (PORTRAIT, LANDSCAPE)
     ]
     _present_the_cover(session, renderer, cover)
@@ -1798,7 +1796,6 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     pointer = Pointer()
     pointing = _PointerDrawing()
     use_layers = vr.compositor_layers
-    perf = FramePerf(logger=logger)
     # The recentering yaw, with the role's tilt read in beside it each frame.
     scene_yaw = 0.0
     scene_rotation = np.eye(4, dtype=np.float32)
@@ -1940,7 +1937,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 cover.settled()
             glfw.poll_events()
             perf.note("wait", (t1 - t0) * 1e3)
-            perf.note("mpv", (t2 - t1) * 1e3)
+            perf.note("pictures", (t2 - t1) * 1e3)
             perf.note("layers", (t3 - t2) * 1e3)
             perf.note("eyes", (t4 - t3) * 1e3)
             perf.note("end", (t5 - t4) * 1e3)

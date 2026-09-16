@@ -5,7 +5,7 @@ import ctypes.wintypes
 
 import pytest
 
-from fun_time_vr.scheduling import ahead_of_background_work
+from fun_time_vr.scheduling import ahead_of_background_work, scheduled_as_a_game
 
 A_HANDLE = 0x1234
 A_PROCESS = 0x5678
@@ -156,3 +156,13 @@ def test_a_refused_registration_runs_the_block_anyway_and_says_why(caplog):
     assert not avrt.AvRevertMmThreadCharacteristics.calls
     (record,) = caplog.records
     assert str(ERROR_SERVICE_NOT_ACTIVE) in record.getMessage()
+
+
+def test_a_video_thread_runs_registered_as_a_game_thread_and_gives_it_back():
+    avrt = _FakeAvrt()
+
+    with scheduled_as_a_game(avrt=lambda: avrt):
+        (call,) = avrt.AvSetMmThreadCharacteristicsW.calls
+
+    assert call[0] == "Games"
+    assert avrt.AvRevertMmThreadCharacteristics.calls == [(A_HANDLE,)]

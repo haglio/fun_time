@@ -22,6 +22,7 @@ from OpenGL import GL
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
 
+from .gl_contexts import SharedContexts, hidden_gl_window
 from .pointer import LEFT, RIGHT, HandInput
 
 logger = logging.getLogger(__name__)
@@ -161,19 +162,19 @@ class VRSession:
     # Initialization
     # ------------------------------------------------------------------
 
+    def shared_contexts(self) -> SharedContexts:
+        return SharedContexts(self._window)
+
     def _init_glfw(self, app_name: str) -> None:
-        """The window owning the GL context the pipeline runs on, mpv's
-        included -- and nothing else: docs/entering-vr.md."""
+        """The window owning the GL context the scene is drawn in -- and nothing
+        else: docs/entering-vr.md."""
         if not glfw.init():
             raise RuntimeError("Failed to initialize GLFW")
-        glfw.window_hint(glfw.CONTEXT_VERSION_MAJOR, 4)
-        glfw.window_hint(glfw.CONTEXT_VERSION_MINOR, 5)
-        glfw.window_hint(glfw.OPENGL_PROFILE, glfw.OPENGL_CORE_PROFILE)
-        glfw.window_hint(glfw.VISIBLE, glfw.FALSE)
-        self._window = glfw.create_window(320, 200, app_name, None, None)
-        if not self._window:
+        try:
+            self._window = hidden_gl_window(app_name)
+        except RuntimeError:
             glfw.terminate()
-            raise RuntimeError("Failed to create GLFW window")
+            raise
         glfw.make_context_current(self._window)
         hwnd = glfw.get_win32_window(self._window)
         set_window_icon(hwnd, PROJECT_VR_ICON)

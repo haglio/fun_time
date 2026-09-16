@@ -178,7 +178,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 8118 since 2026-09-16, when the room stopped waiting out the hosted app's
 # boot: the wait, its timeout, its phase and every "a session that opens in
 # origenerator mode" branch went with it.
-MAX_PROSE_LINES = 8115
+# 8114 since 2026-09-16, measured on the merged tree: each headset video moved
+# to a thread of its own, and the paragraphs describing mpv rendering on the
+# frame loop went with it.
+MAX_PROSE_LINES = 8114
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

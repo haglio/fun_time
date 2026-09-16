@@ -63,6 +63,12 @@ def _first_on_the_graphics_card(gdi, process) -> Iterator[None]:
 
 
 @contextmanager
+def scheduled_as_a_game(*, avrt=_avrt, last_error=get_last_error) -> Iterator[None]:
+    with _scheduled_as_a_game(_declared_avrt(avrt()), last_error):
+        yield
+
+
+@contextmanager
 def _scheduled_as_a_game(avrt, last_error) -> Iterator[None]:
     task_index = ctypes.wintypes.DWORD(0)
     registration = avrt.AvSetMmThreadCharacteristicsW("Games", ctypes.byref(task_index))
@@ -81,5 +87,5 @@ def _scheduled_as_a_game(avrt, last_error) -> Iterator[None]:
 def ahead_of_background_work(*, avrt=_avrt, gdi32=_gdi32, this_process=_this_process,
                              last_error=get_last_error) -> Iterator[None]:
     with (_first_on_the_graphics_card(_declared_gdi32(gdi32()), this_process()),
-          _scheduled_as_a_game(_declared_avrt(avrt()), last_error)):
+          scheduled_as_a_game(avrt=avrt, last_error=last_error)):
         yield
