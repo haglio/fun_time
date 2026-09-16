@@ -28,12 +28,12 @@ PlaylistEntries = list[PlaylistItem]
 # session was simply *left* in, with no more reason to reset overnight than the
 # clip on screen has.
 #
-# Three of those have a live counterpart to re-assert, since none lives in a
+# Four of those have a live counterpart to re-assert, since none lives in a
 # file a new process reads: the level is seeded to both audio sinks at startup
-# (see fun_time.audio_volume.publish_audio_level), each lock is queued back to
-# its satellite (:func:`resume_satellite_locks`), and the main slot's mode is
-# what startup seeds its two players and their windows for (see
-# fun_time.windows_bridge_startup.seed_startup_states).  Carrying a flag whose
+# (fun_time.audio_volume.publish_audio_level), each lock is queued back to its
+# satellite (:func:`resume_satellite_locks`), startup seeds the main slot's
+# players for its mode (seed_startup_states), and the device arbiter carries out
+# the OSR2's control state every tick.  Carrying a flag whose
 # world is not put back with it is the same lie as dropping one that was true.
 #
 # These are dropped because nothing carries them into the new session: OmniPause's
@@ -44,7 +44,6 @@ NOT_RESUMED = frozenset({
     "omni_paused",
     "active_side",
     "genau_latest",
-    "osr2_control",
     # The satellite mode is simply not remembered: every room is BUILT in video
     # mode, the hosted Origenerator being still unbuilt when the room opens, and
     # a room that switched itself over once that app arrived would take what he

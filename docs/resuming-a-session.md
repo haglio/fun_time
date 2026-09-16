@@ -36,10 +36,11 @@ were just resumed: each player's own F-mode and each side's filter decide which
 clips are in them, Latest fixes their order, and a group loop *is* the group
 written out as the playlist, with the map anchored (and the seed row widened) on
 the clip it started from. The rest is what the session was simply *left* in —
-the sound level, each side's lock — and there is no more reason for those to
-reset overnight than for the clip on screen to.
+the sound level, each side's lock, whether the OSR2 was let go of or held at one
+end — and there is no more reason for those to reset overnight than for the clip
+on screen to.
 
-Three of them have a live counterpart to re-assert, since none lives in a file a
+Four of them have a live counterpart to re-assert, since none lives in a file a
 new process reads:
 
 - the sound level is seeded to both audio sinks at startup
@@ -47,7 +48,12 @@ new process reads:
 - each satellite lock is queued back on that satellite's command file
   (`resume_satellite_locks`),
 - the main slot's mode is what startup seeds the two main-slot players and their
-  windows for (`fun_time.windows_bridge_startup.seed_startup_states`).
+  windows for (`fun_time.windows_bridge_startup.seed_startup_states`),
+- the OSR2's control state is carried out by the device arbiter
+  (`fun_time.device_arbiter`) on the new session's first tick and every tick
+  after, exactly as it is after a press. Startup sends the device home first, so
+  a session left with control off comes back with the OSR2 at home rather than
+  wherever it stood when the last one ended.
 
 Carrying a flag whose world is not put back with it is the same lie as dropping
 one that was true.
