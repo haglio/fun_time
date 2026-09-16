@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from player_core.funscript import Funscript
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 from player_core.playlist import PlaylistItem
@@ -786,47 +787,55 @@ class TestReplacePlaylist:
         assert player.opened[-1] == other
 
 
+_SCENE_ONE = ("Jane Doe - scene one.mp4", "Jane Doe - scene one_topaz.mp4")
+
+
+def _videos(tmp_path, *names: str) -> list[Path]:
+    paths = [tmp_path / name for name in names]
+    for path in paths:
+        path.write_text("x")
+    return paths
+
+
+def _families(*families: list[Path]) -> dict[Path, list[PlaylistItem]]:
+    return {
+        video: [PlaylistItem(version) for version in family]
+        for family in families for video in family
+    }
+
+
+def _playing(playlist: list[Path], version_index, player=None) -> PlayerSession:
+    return PlayerSession(
+        [PlaylistItem(video) for video in playlist], player=player or FakePlayer(),
+        tcode=FakeTCode(), version_index=version_index,
+    )
+
+
 class TestCycleVersion:
     def test_it_says_whether_there_is_anything_to_cycle_to(self, tmp_path):
         """The console draws its version button dim where a press would do
         nothing, so this has to be the same question the swap itself asks."""
-        big = tmp_path / "Jane-1080p.mp4"
-        small = tmp_path / "Jane-540.mp4"
-        solo = tmp_path / "solo.mp4"
-        for path in (big, small, solo):
-            path.write_text("x")
-        versions = [PlaylistItem(big), PlaylistItem(small)]
+        big, small, solo = _videos(tmp_path, "Jane-1080p.mp4", "Jane-540.mp4", "solo.mp4")
 
-        paired = PlayerSession(
-            [PlaylistItem(big)], player=FakePlayer(), tcode=FakeTCode(),
-            version_index={big: versions, small: versions},
-        )
-        alone = PlayerSession(
-            [PlaylistItem(solo)], player=FakePlayer(), tcode=FakeTCode(),
-            version_index={solo: [PlaylistItem(solo)]},
-        )
+        paired = _playing([big], _families([big, small]))
+        alone = _playing([solo], _families([solo]))
         # A family the current video is mapped to without being in: Fun Time
         # writes the playlist from its own selection, so that happens.
-        stranger = PlayerSession(
-            [PlaylistItem(solo)], player=FakePlayer(), tcode=FakeTCode(),
-            version_index={solo: versions},
-        )
+        stranger = _playing([solo], {solo: [PlaylistItem(big), PlaylistItem(small)]})
 
         assert paired.has_other_versions is True
         assert alone.has_other_versions is False
         assert stranger.has_other_versions is False
 
     def test_singleton_group_is_noop(self, tmp_path):
-        vid = tmp_path / "solo.mp4"
-        vid.write_text("x")
+        (solo,) = _videos(tmp_path, "solo.mp4")
         player = FakePlayer()
-        session = PlayerSession(
-            [PlaylistItem(vid)], player=player, tcode=FakeTCode(),
-            version_index={vid: [PlaylistItem(vid)]},
-        )
+        session = _playing([solo], _families([solo]), player)
         before = list(player.opened)
+
         session.cycle_version()
-        assert player.opened == before
+
+        assert (player.opened, session.switching_versions) == (before, False)
 
     def test_no_version_index_is_noop(self, tmp_path):
         session, player, tcode = _make_session(tmp_path)
@@ -835,16 +844,8 @@ class TestCycleVersion:
         assert player.opened == before
 
     def test_cycles_to_next_version_by_index_order(self, tmp_path):
-        big = tmp_path / "Jane-1080p.mp4"
-        small = tmp_path / "Jane-540.mp4"
-        for p in (big, small):
-            p.write_text("x")
-        versions = [PlaylistItem(big), PlaylistItem(small)]
-        player = FakePlayer()
-        session = PlayerSession(
-            [PlaylistItem(big)], player=player, tcode=FakeTCode(),
-            version_index={big: versions, small: versions},
-        )
+        big, small = _videos(tmp_path, "Jane-1080p.mp4", "Jane-540.mp4")
+        session = _playing([big], _families([big, small]))
 
         session.cycle_version()
         assert session.current_video == small
@@ -861,17 +862,9 @@ class TestCycleVersion:
         The index orders versions largest-first, which is the order the library
         builds it in: the canonical file, then its smaller versions.
         """
-        original = tmp_path / "Jane Doe - scene one.mp4"
-        upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
-        small = tmp_path / "Jane Doe - scene one-540.mp4"
-        for path in (original, upscale, small):
-            path.write_text("x")
-        versions = [PlaylistItem(original), PlaylistItem(upscale), PlaylistItem(small)]
-        player = FakePlayer()
-        session = PlayerSession(
-            [PlaylistItem(original)], player=player, tcode=FakeTCode(),
-            version_index={video: versions for video, _fs in versions},
-        )
+        original, upscale, small = _videos(
+            tmp_path, *_SCENE_ONE, "Jane Doe - scene one-540.mp4")
+        session = _playing([original], _families([original, upscale, small]))
 
         walked = []
         for _ in range(4):
@@ -883,16 +876,9 @@ class TestCycleVersion:
     def test_each_step_opens_the_new_file_from_the_beginning(self, tmp_path):
         """Nothing of the old one is preserved -- the versions are the same
         content at different sizes, but mpv is opening a different file."""
-        original = tmp_path / "Jane Doe - scene one.mp4"
-        upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
-        for path in (original, upscale):
-            path.write_text("x")
-        versions = [PlaylistItem(original), PlaylistItem(upscale)]
+        original, upscale = _videos(tmp_path, *_SCENE_ONE)
         player = FakePlayer()
-        session = PlayerSession(
-            [PlaylistItem(original)], player=player, tcode=FakeTCode(),
-            version_index={video: versions for video, _fs in versions},
-        )
+        session = _playing([original], _families([original, upscale]), player)
         opened_before = len(player.opened)
 
         session.cycle_version()
@@ -903,37 +889,42 @@ class TestCycleVersion:
         """A playlist can carry a video the index was built without -- Fun Time
         writes one from its own selection -- and cycling it must not swap in
         somebody else's family."""
-        stranger = tmp_path / "Ann Bly - scene two.mp4"
-        original = tmp_path / "Jane Doe - scene one.mp4"
-        upscale = tmp_path / "Jane Doe - scene one_topaz.mp4"
-        for path in (stranger, original, upscale):
-            path.write_text("x")
-        versions = [PlaylistItem(original), PlaylistItem(upscale)]
-        player = FakePlayer()
-        session = PlayerSession(
-            [PlaylistItem(stranger)], player=player, tcode=FakeTCode(),
-            version_index={stranger: versions},
-        )
+        stranger, original, upscale = _videos(tmp_path, "Ann Bly - scene two.mp4", *_SCENE_ONE)
+        session = _playing([stranger], {stranger: [PlaylistItem(original), PlaylistItem(upscale)]})
 
         session.cycle_version()
 
         assert session.current_video == stranger
 
+    def test_the_default_is_the_version_the_playlist_gave_not_the_largest(self, tmp_path):
+        original, upscale, other = _videos(tmp_path, *_SCENE_ONE, "Ann Bly - scene two.mp4")
+        session = _playing([upscale, other], _families([original, upscale]))
+        on_default = [session.on_default_version]
+
+        session.cycle_version()
+        session.step(1)
+        session.step(-1)
+        on_default.append(session.on_default_version)
+
+        assert (session.current_video, on_default) == (original, [True, False])
+
+    @pytest.mark.parametrize("take_up", ["load_playlist", "replace_playlist"])
+    def test_a_new_playlist_starts_every_video_on_its_default(self, tmp_path, take_up):
+        original, upscale, other = _videos(tmp_path, *_SCENE_ONE, "Ann Bly - scene two.mp4")
+        session = _playing([original, other], _families([original, upscale]))
+        session.cycle_version()
+
+        getattr(session, take_up)([PlaylistItem(upscale), PlaylistItem(other)])
+        session.step(1)
+        session.step(-1)
+
+        assert (session.current_video, session.on_default_version) == (upscale, True)
+
     def test_replaces_in_place_so_navigation_skips_the_alternate(self, tmp_path):
         # Cycling a version must not add a playlist entry: [ still steps back to
         # the previous distinct video, not the version we cycled away from.
-        x = tmp_path / "x.mp4"
-        a1 = tmp_path / "Jane-1080p.mp4"
-        a2 = tmp_path / "Jane-540.mp4"
-        b = tmp_path / "b.mp4"
-        for p in (x, a1, a2, b):
-            p.write_text("x")
-        versions = [PlaylistItem(a1), PlaylistItem(a2)]
-        player = FakePlayer()
-        session = PlayerSession(
-            [PlaylistItem(x), PlaylistItem(a1), PlaylistItem(b)], player=player, tcode=FakeTCode(),
-            version_index={a1: versions, a2: versions},
-        )
+        x, a1, a2, b = _videos(tmp_path, "x.mp4", "Jane-1080p.mp4", "Jane-540.mp4", "b.mp4")
+        session = _playing([x, a1, b], _families([a1, a2]))
         session.step(1)
         assert session.current_video == a1
 

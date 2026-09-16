@@ -9,10 +9,13 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from player_core.playlist import PlaylistItem
 
 from main_player.library_source import FULL, MIXED, SHORTS
 from main_player.mode_memory import RememberedMode
 from main_player.modes import Modes, reload_playlist
+from main_player.session import PlayerSession
+from tests.test_main_player_session import FakePlayer, FakeTCode
 
 FIRST = Path("videos/Jane Doe - scene one.mp4")
 SECOND = Path("videos/Ann Bly - scene two.mp4")
@@ -46,6 +49,8 @@ class FakeSession:
     def __init__(self, current: Path = FIRST, *, has_other_versions: bool = False) -> None:
         self.current_video = current
         self.has_other_versions = has_other_versions
+        self.switching_versions = False
+        self.on_default_version = True
         self.index = 0
         self.playlist: list[tuple[Path, Path | None]] = [(FIRST, None), (SECOND, None)]
         self.loaded: list[list[tuple[Path, Path | None]]] = []
@@ -276,6 +281,50 @@ class TestWhatTheConsoleIsToldToDraw:
         modes.set_f_mode(True)
 
         assert modes.hud.f_mode is True
+
+
+class TestTheFileNamedBesideAVideoWithVersions:
+    DEFAULT = "Jane-Doe_720-q7Rk2w.mp4"
+    UPSCALE = "Jane-Doe_720-q7Rk2w_topaz.mp4"
+    TITLE = "Jane Doe - scene one"
+
+    def _switchable(self, tmp_path) -> tuple[Modes, PlayerSession]:
+        default, upscale, other = (
+            tmp_path / name for name in (self.DEFAULT, self.UPSCALE, "Ann-Bly_540-z3Jm8d.mp4"))
+        for path in (default, upscale, other):
+            path.write_text("x")
+        family = [PlaylistItem(default), PlaylistItem(upscale)]
+        session = PlayerSession(
+            [PlaylistItem(default), PlaylistItem(other)], player=FakePlayer(),
+            tcode=FakeTCode(), version_index={default: family, upscale: family})
+        return Modes(None, session, FakeJumps(title=self.TITLE), remembered=""), session
+
+    def test_from_the_first_version_switch_on_every_press_names_the_file(self, tmp_path):
+        modes, session = self._switchable(tmp_path)
+        said = [modes.hud.video]
+
+        for _ in range(2):
+            session.cycle_version()
+            said.append(modes.hud.video)
+
+        assert said == [
+            self.TITLE,
+            f"{self.TITLE} ({self.UPSCALE})",
+            f"{self.TITLE} ({self.DEFAULT})",
+        ]
+
+    def test_come_back_to_later_it_names_the_file_only_off_the_default_version(
+            self, tmp_path):
+        modes, session = self._switchable(tmp_path)
+        said = []
+
+        for _ in range(2):
+            session.cycle_version()
+            session.step(1)
+            session.step(-1)
+            said.append(modes.hud.video)
+
+        assert said == [f"{self.TITLE} ({self.UPSCALE})", self.TITLE]
 
 
 class TestWhatIsWrittenDownForTheNextSession:

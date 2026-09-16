@@ -52,7 +52,7 @@ class PlayerSession:
     ) -> None:
         if not playlist:
             raise ValueError("playlist must not be empty")
-        self._playlist = list(playlist)
+        self._take_up(playlist)
         self._player = player
         self._tcode = tcode
         self._version_index = version_index or {}
@@ -76,6 +76,7 @@ class PlayerSession:
         self._last_pos_ms = 0.0
         self._owed_seek = OwedSeek()
         self._stepped_at_eof = False
+        self._switching_versions = False
         self.load(0)
 
     @property
@@ -268,18 +269,21 @@ class PlayerSession:
 
     @property
     def has_other_versions(self) -> bool:
-        """Whether :meth:`cycle_version` would have anything to swap in.
-
-        Asked the same question the swap asks, so the console's button is dim
-        exactly when pressing it would do nothing.
-        """
         return self._other_versions() is not None
 
+    @property
+    def switching_versions(self) -> bool:
+        return self._switching_versions
+
+    @property
+    def on_default_version(self) -> bool:
+        versions = self._version_index.get(self.current_video)
+        if not versions:
+            return True
+        default = self._default_versions.get(versions[0].path, self.current_video)
+        return default == self.current_video
+
     def _other_versions(self) -> list | None:
-        """The current video's alternates, or None when there is nothing to
-        cycle: no index, a singleton family, or a family the current video is
-        mapped to without being in (Fun Time writes the playlist from its own
-        selection, so that happens)."""
         versions = self._version_index.get(self.current_video)
         if versions is None or len(versions) <= 1:
             return None
@@ -288,21 +292,15 @@ class PlayerSession:
         return versions
 
     def cycle_version(self) -> None:
-        """Swap the current entry for its next same-content version, cyclically.
-
-        Uses the version index (entries ordered largest-first) to find the
-        current video's alternates; a no-op for singletons or when no index was
-        supplied.  The swap happens *in place*, so the playlist keeps one entry
-        per distinct video — prev/next still navigate the deduped set rather than
-        the version we cycled away from.
-        """
         versions = self._other_versions()
         if versions is None:
             return
         videos = [version.path for version in versions]
+        self._default_versions.setdefault(videos[0], self.current_video)
         self._playlist[self._index] = versions[
             (videos.index(self.current_video) + 1) % len(versions)]
         self.load(self._index)
+        self._switching_versions = True
 
     def load_playlist(self, playlist: list[PlaylistItem]) -> None:
         """Swap in a new playlist AND jump to its first video.
@@ -313,7 +311,7 @@ class PlayerSession:
         """
         if not playlist:
             return
-        self._playlist = list(playlist)
+        self._take_up(playlist)
         self.load(0)
 
     def replace_playlist(self, playlist: list[PlaylistItem]) -> None:
@@ -328,13 +326,17 @@ class PlayerSession:
         if not playlist:
             return
         current = self.current_video
-        self._playlist = list(playlist)
+        self._take_up(playlist)
         for i, item in enumerate(self._playlist):
             if item.path == current:
                 self._index = i
                 return
         # Current video was filtered out — jump to the new list's first entry.
         self.load(0)
+
+    def _take_up(self, playlist: list[PlaylistItem]) -> None:
+        self._playlist = list(playlist)
+        self._default_versions: dict[Path, Path] = {}
 
     def seek_by(self, delta_ms: float) -> None:
         self.seek_to(self._player.position_ms + delta_ms)
@@ -457,6 +459,7 @@ class PlayerSession:
 
     def load(self, index: int) -> None:
         self._play_points.leave()
+        self._switching_versions = False
         self._index = index % len(self._playlist)
         item = self._playlist[self._index]
         logger.info("Loading: %s", item.path.name)
