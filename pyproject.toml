@@ -5,9 +5,9 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "fun-time"
 version = "0.1.0"
-# 3.12, not 3.10: branch_session.py:592 is a PEP 701 f-string (a `"` and a
-# backslash inside the replacement field), which will not parse before it.
-requires-python = ">=3.12"
+# The version every gate runs, and the one the family's machine runs: a floor
+# lower than what a run proves is a promise nothing backs.
+requires-python = ">=3.14"
 # The three family siblings -- player_core (the players' engine, which brings
 # python-mpv; its DLL lives in %LOCALAPPDATA%\haglio\libmpv), app_support and
 # shared_ui -- are listed first below, each at the tag this repo was built
