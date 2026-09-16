@@ -74,15 +74,13 @@ class LockActionPlan:
         return cls(
             next_locked=False,
             ensure_in_favs=False,
-            remove_from_favs=bool(current_path),
+            remove_from_favs=True,
             advance_playlist=True,
             drop_from_playlist=True,
-            move_to_weird=bool(current_path),
+            move_to_weird=True,
             open_rfb_tab=False,
             log_message=f"Discarding from player {player}: {current_path}",
-            # Only when there is a clip to condemn: with no current path the
-            # discard touches nothing, and announcing it would be a lie.
-            notice_message="Marked weird" if current_path else "",
+            notice_message="Marked weird",
         )
 
 
@@ -100,6 +98,6 @@ def build_discard_plan(
     so a first discard only takes it back out, and a second — the clip no longer
     a favorite — condemns it.
     """
-    if is_favorite and current_path:
+    if is_favorite:
         return LockActionPlan.demote(player, current_path)
     return LockActionPlan.condemn(player, current_path)

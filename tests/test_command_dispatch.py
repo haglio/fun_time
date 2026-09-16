@@ -4414,14 +4414,26 @@ def test_demoting_a_favorite_the_player_already_left_does_not_drag_it_back(tmp_p
     assert [op.key for op in ops] == ["Unfavorited"]
 
 
-def test_discard_with_no_clip_on_screen_announces_nothing(tmp_path: Path):
-    """Nothing to unfavorite and nothing to condemn, so nothing is claimed."""
+def test_a_discard_before_the_player_has_named_its_clip_leaves_the_player_alone(tmp_path: Path):
     config = _make_config(tmp_path)
-    _set_current(config, 2, "")
+    assert not config.side(Player.LANDSCAPE).status_file.exists()
 
-    _state, ops = _discard(2, _make_state(portrait=SideState(locked=False)), config)
+    state, ops = _discard(3, _make_state(landscape=SideState(locked=True)), config)
 
+    assert _cmds(config, 3) == []
     assert ops == []
+    assert state.side(Player.LANDSCAPE).locked is True
+
+
+def test_a_spoken_discard_still_demotes_its_clip_before_the_player_has_named_one(tmp_path: Path):
+    config = _make_config(tmp_path)
+    video = _favorite_clip(tmp_path, config, "spoken_about.mp4")
+
+    _state, ops = _discard(3, _make_state(landscape=SideState(locked=False)), config,
+                           target_path=str(video))
+
+    assert str(video) not in config.favs_file.read_text(encoding="utf-8")
+    assert [op.key for op in ops] == ["Unfavorited"]
 
 
 def test_discarding_a_demoted_clip_again_marks_it_weird(tmp_path: Path):

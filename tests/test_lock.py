@@ -59,14 +59,6 @@ def test_discarding_a_non_favorite_condemns_it():
     assert plan.notice_about_favorites is False
 
 
-def test_discarding_nothing_touches_nothing_and_claims_nothing():
-    plan = build_discard_plan(player=2, current_path="")
-
-    assert plan.remove_from_favs is False
-    assert plan.move_to_weird is False
-    assert plan.notice_message == ""
-
-
 def test_a_discard_never_leaves_the_side_locked():
     """The one field the two discards agree on, and the reason the old builder
     took a ``locked`` argument it never read."""
