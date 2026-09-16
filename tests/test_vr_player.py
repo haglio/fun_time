@@ -39,6 +39,7 @@ from player_core.volume import (
     chip_xy,
 )
 
+from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time.dashboard_actions import HELP_REFERENCE, QUIT_BUTTON, REFERENCE_OPEN_FILENAME
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -539,7 +540,10 @@ class TestThePanelUnderThePointer:
                 seek=seeks.append, scrub_duration_ms=1.0),
             role=SimpleNamespace(
                 console_hud=ConsoleHud(
-                    console=ConsoleModel(mode="video", broker=True, locked=False),
+                    console=ConsoleModel(
+                        mode="video", locked=False,
+                        rows=console_rows(MainSlot(mode="video", locked=False)),
+                        osr2_controls=osr2_controls(broker=True)),
                     drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
                                    position=1000, advance_interval=10,
                                    waveform=tuple([0.5] * 80), trace_seconds=12.0),

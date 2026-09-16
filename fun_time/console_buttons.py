@@ -15,6 +15,7 @@ from player_core.console import (
     OSR2_RETRACTED,
     ROW_LABEL_W,
     VALUE_W,
+    shape_label,
 )
 from player_core.hud_button import Button
 from player_core.hud_marks import BROKER_ICON, FMODE_ICON, MINIMIZE_ICON, shared_mark
@@ -26,14 +27,6 @@ from .mode_plan import main_player_displays
 # The main player's length modes.  MIXED has no button of its own: it is every
 # length there is, which the console says by lighting both.
 FULL, SHORTS, MIXED = "full", "shorts", "mixed"
-
-_SHAPE_LABELS = {"rounded_square": "Square"}
-
-
-def shape_label(shape: str) -> str:
-    if shape in _SHAPE_LABELS:
-        return _SHAPE_LABELS[shape]
-    return " ".join(word.capitalize() for word in shape.split("_"))
 
 
 @dataclass(frozen=True)

@@ -13,6 +13,7 @@ from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
 from player_core.hud_status import F_MODE_LABEL
 
+from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time_vr.console_panel import (
     NOTICE_STRIP_HEIGHT,
@@ -34,12 +35,19 @@ def _drive(**over) -> DriveHud:
     return DriveHud(**fields)
 
 
+def _published(mode: str, **fields) -> ConsoleModel:
+    """The panel Fun Time publishes for *mode*, its buttons declared, the broker up."""
+    return ConsoleModel(mode=mode, locked=False,
+                        rows=console_rows(MainSlot(mode=mode, locked=False)),
+                        osr2_controls=osr2_controls(broker=True), **fields)
+
+
 def _engine_console(mode: str) -> ConsoleHud:
     """What Genau's engine composes: the clip's name on top, the room and the
     drive under it."""
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
-        console=ConsoleModel(mode=mode, broker=True, locked=False),
+        console=_published(mode),
         drive=_drive(),
     )
 
@@ -126,20 +134,12 @@ class TestFModeOnTheStatusLine:
         assert F_MODE_LABEL not in _hud(_engine_console("video"), f_mode=False).status_line
 
     def test_it_is_the_main_players_flag_and_so_not_said_over_a_clip(self):
-        """In genau mode the slot belongs to Genau's own two filters, which ride
-        in the console the engine composed; the main player's playlist is not
-        what is on screen and its narrowing is not what the line describes."""
+        """In genau mode the main player's playlist is not what is on screen,
+        and its narrowing is not what the line describes."""
         hud = _hud(_engine_console("genau"), f_mode=True)
 
         assert hud.modes.f_mode is False
-
-    def test_genaus_own_filter_still_fills_the_slot_in_genau_mode(self):
-        engine = replace(
-            _engine_console("genau"),
-            console=replace(_engine_console("genau").console, favorites_filter=True),
-        )
-
-        assert F_MODE_LABEL in _hud(engine, f_mode=False).status_line
+        assert F_MODE_LABEL not in hud.status_line
 
 
 class TestWhoseReadoutItDraws:
@@ -326,7 +326,7 @@ def _live_console() -> ConsoleHud:
     """Video mode with the Robot Hand on the device, so the readout's bars take a press."""
     return ConsoleHud(
         modes=ModeHud(video="scene one"),
-        console=ConsoleModel(mode="video", broker=True, locked=False, osr2=OSR2_ROBOT_HAND),
+        console=_published("video", osr2=OSR2_ROBOT_HAND),
         drive=_drive(),
     )
 

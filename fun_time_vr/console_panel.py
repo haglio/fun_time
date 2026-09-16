@@ -117,8 +117,8 @@ def panel_hud(
     engine console (the broker has the room) the panel still names what plays.
 
     *f_mode* is the main player's own, folded in as the main player folds in its own: the
-    published console lights the F button, the line beside it is the drawing
-    player's, and in genau mode that slot is Genau's filters'.
+    published console lights the F button, and the line beside it is the drawing
+    player's, said only under a video.
     """
     hud = engine_hud if engine_hud is not None else ConsoleHud()
     if main_player_displays(hud.console.mode):
