@@ -257,17 +257,19 @@ def launch_crossing_cover(
     state_dir: str | Path, target: HandoffTarget, *, project_dirs: str,
 ) -> subprocess.Popen:
     """Raise the monitors' crossing cover and leave it standing."""
-    return _launch_transition_screen(raise_crossing_cover(state_dir, target))
+    return _launch_transition_screen(
+        raise_crossing_cover(state_dir, target), project_dirs=project_dirs,
+    )
 
 
-def launch_the_way_back_cover(state_dir: str | Path) -> subprocess.Popen:
+def launch_the_way_back_cover(state_dir: str | Path, *, project_dirs: str) -> subprocess.Popen:
     path = crossing_progress_path(state_dir)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(_CANCELED_LINE, encoding="utf-8")
-    return _launch_transition_screen(path)
+    return _launch_transition_screen(path, project_dirs=project_dirs)
 
 
-def _launch_transition_screen(progress_file: Path) -> subprocess.Popen:
+def _launch_transition_screen(progress_file: Path, *, project_dirs: str) -> subprocess.Popen:
     return subprocess.Popen([
         NAMER.named_exe(sys.executable, "TransitionScreen"),
         "-m", "fun_time.transition_screen", str(progress_file),

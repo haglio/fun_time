@@ -708,7 +708,9 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                           and what_the_flag_asks(state_dir / CANCEL_FILENAME) == CANCEL_WORD)
             if back_to_vr:
                 logger.info("Esc called the quit off; opening Fun Time VR again")
-                launch_the_way_back_cover(state_dir)
+                launch_the_way_back_cover(
+                    state_dir, project_dirs=manifest.runtime.genau_project_dirs,
+                )
                 request_handoff(state_dir, VR, cancelable=False)
             # Held, the player outlives this session with only its cover left.
             held = (crossing is not None or back_to_vr) and _leave_the_headset_covered(
