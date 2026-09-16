@@ -40,6 +40,7 @@ from fun_time.broker_control import PARK_CMD, write_broker_command
 from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.engine_preflight import engine_missing_abort
+from fun_time.engine_vendoring import ensure_engine_vendored
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -788,6 +789,7 @@ def main(argv: list[str] | None = None) -> int:
         logger.info("Config validation succeeded")
         return 0
 
+    ensure_engine_vendored(config)
     if engine_missing_abort(config, log=logger.error):
         signal_startup_resolved(config, VR_STARTUP_MARKER_NAME)
         return 1
