@@ -89,7 +89,8 @@ class TestThePhases:
     with no console to say so."""
 
     def _advanced_keys(self, pattern: str) -> set[str]:
-        source = Path("fun_time_vr/orchestrator.py").read_text(encoding="utf-8")
+        orchestrator = Path(__file__).resolve().parents[1] / "fun_time_vr" / "orchestrator.py"
+        source = orchestrator.read_text(encoding="utf-8")
         return set(re.findall(pattern, source))
 
     def test_every_startup_phase_the_orchestrator_reports_exists(self):
