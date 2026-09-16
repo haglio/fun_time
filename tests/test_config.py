@@ -141,13 +141,11 @@ class TestLoadConfig:
             cfg.osr2_serial_rx_file,
             cfg.broker_cmd_file,
             cfg.genau_mode_file,
-            cfg.genau_enabled_file,
         ] == [
             broker_state / "broker_heartbeat.txt",
             broker_state / "osr2_serial_rx.txt",
             broker_state / "broker_cmd.txt",
             broker_state / "genau_mode.txt",
-            broker_state / "genau_enabled.txt",
         ]
 
     def test_missing_random_favs_browser_section_defaults_disabled(self, cfg_factory):

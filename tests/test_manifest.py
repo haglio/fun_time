@@ -56,7 +56,7 @@ _EXPECTED_KEYS: dict[str, set[str]] = {
         "dashboard_module",
     },
     "commands": {
-        "genau_mode_file", "genau_enabled_file", "genau_cmd_file", "genau_paused_file",
+        "genau_mode_file", "genau_cmd_file", "genau_paused_file",
         "main_player_cmd_file", "main_player_paused_file", "main_player_status_file",
         "main_player_console_file", "main_player_playlist_file",
         "portrait_cmd_file", "portrait_paused_file", "portrait_status_file",

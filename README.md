@@ -478,15 +478,6 @@ Values:
 
 The audio companion and the Python dispatch loop both read this file as the authoritative source of whether Genau takeover is actually active.
 
-### `genau_enabled.txt`
-
-Whether the broker may hand the OSR2 to Genau at all, read by the broker every
-tick. Fun Time writes it once, at startup, and only ever to `1`: the device's
-own auto mode is always accepted and there is no switch for it. Origenerator
-turns it off while one of its own videos drives the device and back on
-afterwards, so that startup write is also what lifts a suppression it failed
-to lift after a crash.
-
 ### `genau_cmd.txt`
 
 Written by `fun_time/command_dispatch.py` when Genau or Robot Hand commands are dispatched.
