@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import fields
 from pathlib import Path
 
+from player_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
+
 from fun_time.players import Player
 from fun_time.session_resume import (
     NOT_RESUMED,
@@ -184,6 +186,16 @@ class TestResumeSharedState:
 
         assert (state.volume, state.muted) == (40, True)
         assert (state.side(Player.PORTRAIT).locked, state.side(Player.LANDSCAPE).locked) == (True, False)
+
+    def test_carries_what_the_osr2_was_left_in(self, tmp_path: Path):
+        """Let go of, or held at one end, it stays that way: the device arbiter
+        carries the state out on the new session's first tick, the same as it
+        does for a press."""
+        state_file = tmp_path / "shared_bridge_state.ini"
+        for control in (OSR2_CONTROL_OFF, OSR2_RETRACTED):
+            write_shared_state(state_file, BridgeState(osr2_control=control))
+
+            assert resume_shared_state(state_file, resumed=True).osr2_control == control
 
     def test_carries_the_mode_the_primary_slot_was_left_in(self, tmp_path: Path):
         """Which player owns the big display is as much a thing you set as the
