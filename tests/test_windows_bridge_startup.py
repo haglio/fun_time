@@ -379,6 +379,7 @@ def _seed_startup_states(tmp_path: Path, **overrides):
         audio_volume_file=tmp_path / "audio_volume.txt",
         genau_cmd_file=tmp_path / "genau_cmd.txt",
         main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+        genau_enabled_file=tmp_path / "genau_enabled.txt",
     )
     kwargs.update(overrides)
     return seed_startup_states(
@@ -399,6 +400,18 @@ def test_seed_startup_states_writes_all_three_pause_flags(tmp_path: Path):
     assert genau_file.read_text(encoding="utf-8") == "1"
     assert audio_file.read_text(encoding="utf-8") == "1"
     assert main_player_file.read_text(encoding="utf-8") == "1"
+
+
+def test_every_session_opens_letting_the_device_hand_itself_to_genau(tmp_path: Path):
+    """Fun Time accepts the OSR2's own auto mode, always: there is no switch for
+    it any more, so a suppression Origenerator failed to lift on a crash would
+    otherwise outlive every session with no way back."""
+    flag = tmp_path / "genau_enabled.txt"
+    flag.write_text("0", encoding="utf-8")
+
+    _seed_startup_states(tmp_path, genau_enabled_file=flag)
+
+    assert flag.read_text(encoding="utf-8") == "1"
 
 
 def test_seed_startup_states_puts_genaus_hud_up_for_a_fresh_session(tmp_path: Path):
@@ -560,6 +573,7 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         main_player_paused_file=tmp_path / "main_player_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
         main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        genau_enabled_file=state_dir / "genau_enabled.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
         portrait=SatelliteSlot(
@@ -629,6 +643,7 @@ def test_start_core_session_runs_broker_seed_playlists_and_core_launch(tmp_path:
         tmp_path / "audio_volume.txt",
         tmp_path / "genau_cmd.txt",
         main_player_cmd_file=state_dir / "main_player_cmd.txt",
+        genau_enabled_file=state_dir / "genau_enabled.txt",
         volume=MAX_VOLUME,
         muted=False,
         f_mode=False,

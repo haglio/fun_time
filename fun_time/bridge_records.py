@@ -11,7 +11,6 @@ from app_support import state_files
 from .config import RegenConfig
 from .event_log import NOTICE, SOURCE_SYSTEM
 from .loopback_server import LOOPBACK_PORT
-from .player_status import genau_enabled_path
 from .players import Player
 
 
@@ -114,11 +113,6 @@ class BridgeConfig:
     def broker_state(self) -> Path:
         """The directory the broker's files live in, defaulted to our own."""
         return self.broker_state_dir or self.state_dir
-
-    @property
-    def genau_enabled_file(self) -> Path:
-        """Our switch for whether the broker may hand the OSR2 to Genau."""
-        return genau_enabled_path(self.broker_state)
 
     @property
     def genau_drive_file(self) -> Path:

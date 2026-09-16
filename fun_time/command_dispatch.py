@@ -9,7 +9,6 @@ from dataclasses import replace
 from functools import partial
 from pathlib import Path
 
-from app_support.file_channel import write_flag
 from player_core.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_CONTROL_OFF,
@@ -50,7 +49,6 @@ from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
 from .player_status import (
     genau_status_path,
-    read_genau_enabled,
     read_genau_status,
     read_main_player_status,
 )
@@ -241,11 +239,6 @@ def _parse_numeric_command(command: str) -> str | None:
                 return None
             return f"{keyword} {value_str}"
     return None
-
-
-def _toggle_genau_enabled(path: Path) -> None:
-    """Flip the persisted allow/suppress flag; the broker syncs it each tick."""
-    write_flag(path, not read_genau_enabled(path))
 
 
 def _toggle_lock(
@@ -1561,14 +1554,6 @@ def _satellites_switch(command: str, state: BridgeState, config: BridgeConfig,
     return _dispatch_satellites_switch(command, state, config, [])
 
 
-def _genau_toggle_auto(state: BridgeState, config: BridgeConfig,
-                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """Flip whether Genau may take over while OSR2 is in auto mode.  The broker
-    reads this persisted flag each tick, so a plain file write is enough."""
-    _toggle_genau_enabled(config.genau_enabled_file)
-    return state, []
-
-
 def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
            state: BridgeState, config: BridgeConfig,
            _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
@@ -1669,7 +1654,6 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_satellites_switch, cmd)
                      for cmd in ("origenerator_activate", "satellites_video_activate", "satellites_toggle")})
     handlers["video_activate"] = _video_activate
-    handlers["genau_toggle_auto"] = _genau_toggle_auto
     handlers.update({cmd: partial(_speed, verb, verb, True)
                      for cmd, verb in _SPEED_BY_DRIVER.items()})
     handlers.update({f"main_player_{act}": partial(_speed, verb, _GENAU_RATE_ENDS.get(act), False)
