@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import queue
 from collections.abc import Callable, Iterable, Sequence
-from dataclasses import replace
 from pathlib import Path
 
 from app_support.threading_utils import start_daemon_thread
@@ -27,9 +26,8 @@ from shared_ui.spacing import (
 )
 
 from fun_time.dashboard_layout import Rect
-from fun_time.library_handles import LibraryHandle, build_library_handles, handle_for
+from fun_time.library_handles import LibraryHandle, handle_for
 from fun_time.library_tree import Folder, SubFolder, folder_at, folder_of
-from fun_time.modes import source_roots
 from fun_time.thumbnail_cache import cached_thumbnail, prewarm_thumbnails
 
 from .lettering import fit_text, load_font
@@ -180,29 +178,6 @@ class LibraryBrowse:
         self._close()
         self._put_away = True
         self.open = False
-
-
-_VR_FOLDER = "VR"
-_FLAT_FOLDER = "2D"
-
-
-def handles_by_shape(
-    sources: str, vr_sources: str, metadata_root: Path | None,
-) -> list[LibraryHandle]:
-    vr_roots = source_roots(vr_sources)
-    flat_sources = "|".join(str(root) for root in source_roots(sources) if root not in vr_roots)
-    shelves = [
-        (name, handles)
-        for name, spec in ((_VR_FOLDER, vr_sources), (_FLAT_FOLDER, flat_sources))
-        if (handles := build_library_handles(spec, metadata_root))
-    ]
-    if len(shelves) < 2:
-        return [handle for _name, handles in shelves for handle in handles]
-    return [
-        replace(handle, section="/".join(part for part in (name, handle.section) if part))
-        for name, handles in shelves
-        for handle in handles
-    ]
 
 
 class LibraryShelf:

@@ -865,6 +865,19 @@ def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path,
     assert browser_config.thumbnail_cache.parent == manifest.parent
 
 
+def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(
+    tmp_path: Path, cfg_factory,
+):
+    config = load_config(cfg_factory({}))
+    desktop = write_windows_bridge_manifest(config)
+    headset = tmp_path / "headset" / "windows_bridge_launch.ini"
+    headset.parent.mkdir()
+    headset.write_text("[media]\nvr_library_dirs = D:/vr_one|D:/vr_two\n", encoding="utf-8")
+
+    assert load_browser_config(desktop).vr_sources == ""
+    assert load_browser_config(headset).vr_sources == "D:/vr_one|D:/vr_two"
+
+
 def test_browsing_runs_the_browser_and_returns_what_it_picked(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")

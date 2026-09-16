@@ -46,7 +46,7 @@ from shared_ui.chrome import family_stylesheet
 from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, BLUE_LIGHT, TEXT_MUTED, TEXT_PRIMARY
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
 
-from .library_handles import LibraryHandle, build_library_handles, handle_for
+from .library_handles import LibraryHandle, handle_for, handles_by_shape
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
@@ -732,6 +732,7 @@ class BrowserConfig:
     """Where the browser reads the library, its families, and its stills from."""
 
     sources: str
+    vr_sources: str
     metadata_root: Path | None
     thumbnail_cache: Path
 
@@ -748,6 +749,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     metadata_root = parser.get("regen", "metadata_root", fallback="")
     return BrowserConfig(
         sources=parser.get("media", "main_player_library_sources", fallback=""),
+        vr_sources=parser.get("media", "vr_library_dirs", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
     )
@@ -792,7 +794,7 @@ def main(argv: list[str] | None = None) -> int:
     config = load_browser_config(args.manifest_path)
     result_file = Path(args.result_file)
     window = LibraryBrowserWindow(
-        build_library_handles(config.sources, config.metadata_root),
+        handles_by_shape(config.sources, config.vr_sources, config.metadata_root),
         thumbnail_cache=config.thumbnail_cache,
         on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
         on_close=app.quit,

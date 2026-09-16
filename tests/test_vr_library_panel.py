@@ -9,7 +9,7 @@ from app_support.threading_utils import wait_until
 from PIL import Image, ImageFont
 from shared_ui.palette import BG_PRIMARY, BG_SECONDARY, BLUE, hovered
 
-from fun_time.library_handles import LibraryHandle
+from fun_time.library_handles import LibraryHandle, handles_by_shape
 from fun_time.library_tree import SubFolder
 from fun_time.thumbnail_cache import thumbnail_path
 from fun_time_vr.library_panel import (
@@ -22,7 +22,6 @@ from fun_time_vr.library_panel import (
     LibraryShelf,
     LibraryStills,
     cached_or_extracted,
-    handles_by_shape,
     label_of,
     library_actions,
     library_height,

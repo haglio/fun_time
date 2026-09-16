@@ -4,7 +4,8 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fun_time.library_handles import build_library_handles
+from fun_time.library_handles import build_library_handles, handles_by_shape
+from fun_time.library_tree import folder_at
 
 
 def _library(tmp_path: Path) -> tuple[Path, Path]:
@@ -483,3 +484,53 @@ def test_a_tile_evolver_has_not_named_falls_back_to_the_family_then_the_file(tmp
     titles = sorted(handle.title for handle in build_library_handles(str(videos), metadata))
 
     assert titles == ["Ada-Roe-1", "Jane-Doe_540-hQ2vLm8t"]
+
+
+def _headset_library(tmp_path: Path, *, vr_videos: tuple[str, ...] = ("scene_one.mp4",)):
+    vr, flat = tmp_path / "vr", tmp_path / "flat"
+    vr.mkdir()
+    for name in vr_videos:
+        _video(vr, name)
+    for name in ("batch_one/scene_two.mp4", "batch_two/scene_three.mp4"):
+        _video(flat, name)
+    return vr, flat
+
+
+def _names_at(handles, *path: str) -> list[str]:
+    folder = folder_at(handles, path)
+    return [child.name for child in folder.children] + [handle.title for handle in folder.handles]
+
+
+def test_the_headsets_vr_videos_get_a_folder_beside_the_flat_ones(tmp_path: Path):
+    vr, flat = _headset_library(tmp_path)
+
+    handles = handles_by_shape(f"{vr}|{flat}", str(vr), None)
+
+    assert _names_at(handles) == ["VR", "2D"]
+
+
+def test_vr_videos_sitting_straight_in_their_folder_are_in_the_vr_folder(tmp_path: Path):
+    """Loose in their folder, they had no section, and a root that divides
+    shows its folders and never its loose videos."""
+    vr, flat = _headset_library(tmp_path)
+
+    handles = handles_by_shape(f"{vr}|{flat}", str(vr), None)
+
+    assert _names_at(handles, "VR") == ["scene_one"]
+
+
+def test_the_flat_videos_keep_their_own_folders_inside_theirs(tmp_path: Path):
+    vr, flat = _headset_library(tmp_path)
+
+    handles = handles_by_shape(f"{vr}|{flat}", str(vr), None)
+
+    assert _names_at(handles, "2D") == ["batch_one", "batch_two"]
+
+
+def test_a_library_of_one_kind_gets_no_extra_level(tmp_path: Path):
+    vr, flat = _headset_library(tmp_path, vr_videos=())
+
+    for vr_sources in (str(vr), ""):
+        handles = handles_by_shape(f"{vr}|{flat}", vr_sources, None)
+
+        assert _names_at(handles) == ["batch_one", "batch_two"]

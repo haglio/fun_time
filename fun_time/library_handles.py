@@ -16,7 +16,7 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from .media_metadata import (
@@ -28,7 +28,7 @@ from .media_metadata import (
     video_title,
     video_type_of,
 )
-from .modes import collect_video_files
+from .modes import collect_video_files, source_roots
 
 
 @dataclass(frozen=True)
@@ -301,4 +301,27 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
                 shown[family].casefold(), shown[family],
             ),
         )
+    ]
+
+
+_VR_FOLDER = "VR"
+_FLAT_FOLDER = "2D"
+
+
+def handles_by_shape(
+    sources: str, vr_sources: str, metadata_root: Path | None,
+) -> list[LibraryHandle]:
+    vr_roots = source_roots(vr_sources)
+    flat_sources = "|".join(str(root) for root in source_roots(sources) if root not in vr_roots)
+    shelves = [
+        (name, handles)
+        for name, spec in ((_VR_FOLDER, vr_sources), (_FLAT_FOLDER, flat_sources))
+        if (handles := build_library_handles(spec, metadata_root))
+    ]
+    if len(shelves) < 2:
+        return [handle for _name, handles in shelves for handle in handles]
+    return [
+        replace(handle, section="/".join(part for part in (name, handle.section) if part))
+        for name, handles in shelves
+        for handle in handles
     ]

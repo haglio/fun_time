@@ -71,6 +71,7 @@ from fun_time.dashboard_actions import (
 )
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
+from fun_time.library_handles import handles_by_shape
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
 from fun_time.player_status import genau_status_path, read_genau_status, read_main_player_status
@@ -144,7 +145,6 @@ from .library_panel import (
     LibraryShelf,
     LibraryStills,
     cached_or_extracted,
-    handles_by_shape,
     library_height,
     paint_library,
 )
