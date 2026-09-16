@@ -57,12 +57,9 @@ def build_omnipause_plan(action: str, *, omni_paused: bool, main_mode: str,
             # The main player owns the display in video mode, so leaving omnipause
             # resumes its playback there (in genau mode Genau owns the display).
             resume_main_player_playback=main_player_displays(main_mode),
-            # Only genau mode, where the hand always has the device.  In video mode
-            # the arbiter re-asserts the driver on its next tick, and resuming it
-            # here would race it onto a funscript's stretch.
-            # Never while the room has let go of the OSR2: resuming Genau
-            # there would put its motion back on the device, and the console's
-            # own switch is what decides that, not the way out of a pause.
+            # Only genau mode, where the hand always has the device: in video
+            # mode this would race the arbiter onto a funscript's stretch, and
+            # with the OSR2 let go of, the console's switch decides who drives.
             resume_genau_playback=(main_mode == MAIN_GENAU_MODE
                                    and osr2_control != OSR2_CONTROL_OFF),
             broker_command=RESUME_CMD,
