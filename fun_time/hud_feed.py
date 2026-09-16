@@ -193,9 +193,6 @@ class HudFeed:
         """What the device is doing: "off" when nothing is on the wire at all,
         "auto" while Genau has claimed it, "controlled" otherwise.
 
-        Read by the dashboard's snapshot and by the main player's console — one rule, so the
-        two cannot disagree about what has the OSR2.
-
         "Off" requires BOTH serial stamps stale.  The device only emits bytes in
         reply to traffic, so the RX stamp alone goes quiet during any stretch
         nothing new is sent — an OmniPause, a handoff buffer — and calling that
