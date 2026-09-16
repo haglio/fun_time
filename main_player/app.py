@@ -193,7 +193,7 @@ def _run(args) -> int:
 
     player = MpvPlayer(wid, muted=audio_muted(args))
     session = PlayerSession(
-        pairs,
+        items,
         player=player,
         tcode=FunscriptTCodeDriver(UdpTCodeSink(args.tcode_host, args.tcode_port)),
         start_paused=start_paused,
