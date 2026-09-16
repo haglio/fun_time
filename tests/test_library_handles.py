@@ -31,12 +31,16 @@ def _sidecar(
     *,
     carved_from: str = "",
     kind: str = "",
+    clip: dict | None = None,
 ) -> None:
     path = (metadata_root / video.relative_to(library_root)).with_suffix(".json")
     path.parent.mkdir(parents=True, exist_ok=True)
     payload: dict = {"version": {"group": group}}
     if carved_from:
         payload["clip"] = {"compilation": carved_from, "index": 1, "count": 4}
+    if clip is not None:
+        payload["clip"] = {"compilation": carved_from or "Vol1", "index": 1,
+                           "count": 4, **clip}
     if kind:
         payload["video"] = {"type": kind}
     path.write_text(json.dumps(payload), encoding="utf-8")
@@ -445,3 +449,59 @@ def test_an_excerpt_is_never_folded_into_the_scene_it_was_cut_from(tmp_path: Pat
         ("big_batch/whole", (str(whole),)),
         ("big_batch/cuts", (str(excerpt),)),
     ]
+
+
+def test_a_clip_is_titled_by_the_pair_recorded_for_it(tmp_path: Path):
+    """The tile says what the clip IS -- who is in it and which movie -- which
+    only the record carries: a Windows filename cannot hold the colon the movie
+    title had, so the name on disk lost it."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    carved = _video(videos, "big_batch/cuts/Jane Doe - Alpha Study Part Two.mp4")
+    _sidecar(metadata, carved, library_root, "Jane Doe - Alpha Study Part Two",
+             kind="excerpt",
+             clip={"performer": "Jane Doe", "source": "Alpha Study: Part Two"})
+
+    titles = [handle.title for handle in build_library_handles(str(videos), metadata)]
+
+    assert titles == ["Jane Doe - Alpha Study: Part Two"]
+
+
+def test_a_scene_is_titled_by_the_clip_evolver_matched_inside_it(tmp_path: Path):
+    """A download names a scene for its host and its id; the clip carved out of
+    it is the only thing in the library that knows the movie and who is in it,
+    and Evolver proved the pairing by finding the clip's frames in the scene."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    scene = _video(videos, "big_batch/0 unsorted/Jane-Doe_540-hQ2vLm8t.mp4", size=4096)
+    _sidecar(metadata, scene, library_root, "Jane-Doe_540-hQ2vLm8t", kind="full_length")
+    carved = _video(videos, "big_batch/cuts/Jane Doe - Alpha Study 3.mp4")
+    _sidecar(metadata, carved, library_root, "Jane Doe - Alpha Study 3", kind="excerpt",
+             clip={"performer": "Jane Doe", "source": "Alpha Study 3",
+                   "full_video": str(scene)})
+
+    titles = sorted(handle.title for handle in build_library_handles(str(videos), metadata))
+
+    assert titles == ["Jane Doe - Alpha Study 3", "Jane Doe - Alpha Study 3"]
+
+
+def test_a_scenes_name_reaches_the_rendition_the_match_was_not_made_against(tmp_path: Path):
+    """Evolver records the match against the one file it searched, and the
+    browse plays the largest rendition -- so a name held against a path would
+    miss the tile it is for."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    matched = _video(videos, "big_batch/0 unsorted/Jane-Doe_540-hQ2vLm8t.mp4", size=2048)
+    _sidecar(metadata, matched, library_root, "Jane-Doe_540-hQ2vLm8t", kind="full_length")
+    upscale = _video(videos, "big_batch/3 good to go/Jane-Doe_540-hQ2vLm8t_apo8.mp4",
+                     size=9999)
+    _sidecar(metadata, upscale, library_root, "Jane-Doe_540-hQ2vLm8t", kind="full_length")
+    carved = _video(videos, "big_batch/cuts/Jane Doe - Alpha Study 3.mp4")
+    _sidecar(metadata, carved, library_root, "Jane Doe - Alpha Study 3", kind="excerpt",
+             clip={"performer": "Jane Doe", "source": "Alpha Study 3",
+                   "full_video": str(matched)})
+
+    scene = next(h for h in build_library_handles(str(videos), metadata)
+                 if h.video == str(upscale))
+
+    assert scene.title == "Jane Doe - Alpha Study 3"

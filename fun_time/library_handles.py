@@ -22,6 +22,8 @@ from pathlib import Path
 
 from .media_metadata import (
     EXCERPT,
+    carved_from,
+    clip_title,
     load_metadata,
     metadata_path_for,
     normalize_path_key,
@@ -90,16 +92,13 @@ def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | 
 _COPY_INDEX = re.compile(r"\(\d+\)")
 
 
-def _recorded_group(video: str, metadata_root: Path | None) -> str | None:
+def _recorded_group(payload: dict, video: str) -> str | None:
     """The version family Evolver recorded for *video*, split by its copy index.
     The id anchors the family -- the only thing that can pair a hand-renamed
     re-encode with its original -- and the number refines it, so "(2)" stays
     with "(2)_topaz" while "(2)" and "(3)" come apart.
     """
-    sidecar = metadata_path_for(video, metadata_root)
-    if sidecar is None:
-        return None
-    version = load_metadata(sidecar).get("version")
+    version = payload.get("version")
     if not isinstance(version, dict):
         return None
     group = version.get("group")
@@ -116,15 +115,11 @@ def _file_size(video: str) -> int:
         return 0
 
 
-def _recorded_kind(video: str, metadata_root: Path | None) -> str:
-    """The kind Evolver recorded for *video*, or ``""`` when it recorded none.
-
-    One field — ``video.type`` — saying what a video is, for the whole library
-    at once.  This browse asks it one thing: whether the video is an excerpt,
-    carved out of a longer one rather than shot as one.
-    """
+def _payload(video: str, metadata_root: Path | None) -> dict:
+    """Everything Evolver recorded about *video*, read once for all four answers
+    the browse takes off it rather than once per answer."""
     sidecar = metadata_path_for(video, metadata_root)
-    return "" if sidecar is None else video_type_of(load_metadata(sidecar))
+    return {} if sidecar is None else load_metadata(sidecar)
 
 
 # What marks a section as holding excerpts rather than whole videos.  Structural
@@ -267,15 +262,21 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     A family that spans the excerpt line becomes two handles — see below.
     """
     videos = collect_video_files(sources)
+    payloads = {video: _payload(video, metadata_root) for video in videos}
     paths = {video: source_path(video, sources) for video in videos}
     # Where each source folder files the cuts Evolver HAS recorded, so the ones
     # it has not reached can be recognized by the company they keep — see
     # :func:`is_an_excerpt`.
-    kinds = {video: _recorded_kind(video, metadata_root) for video in videos}
+    kinds = {video: video_type_of(payloads[video]) for video in videos}
     cuts = cut_folders(
         [paths[video] for video in videos if kinds[video] == EXCERPT],
         [paths[video] for video in videos if kinds[video] != EXCERPT],
     )
+    groups = {
+        video: _recorded_group(payloads[video], video) or Path(video).stem
+        for video in videos
+    }
+    titles = _titles_by_family(payloads, groups)
 
     # Keyed by family AND by whether it is an excerpt: Evolver ties a cut to the
     # scene it came out of with the same version.group, but a cut is a *piece* of
@@ -285,9 +286,8 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     # inside a video it is not a version of.
     families: dict[tuple[str, bool], list[str]] = {}
     for video in videos:
-        title = _recorded_group(video, metadata_root) or Path(video).stem
         families.setdefault(
-            (title, is_an_excerpt(paths[video], kinds[video], cuts)), []
+            (groups[video], is_an_excerpt(paths[video], kinds[video], cuts)), []
         ).append(video)
 
     played = {
@@ -309,13 +309,33 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
     # first: the cuts came out of them, so they follow.  Ordering reads the band
     # key rather than the section name, which is only what the band is *called*.
     weight = Counter(folder for folder, _clip in keys.values())
+    shown = {family: titles.get(family[0], family[0]) for family in played}
     return [
-        LibraryHandle(title=family[0], versions=played[family], section=names[keys[family]])
+        LibraryHandle(
+            title=shown[family], versions=played[family], section=names[keys[family]]
+        )
         for family in sorted(
             played,
             key=lambda family: (
                 -weight[keys[family][0]], keys[family][0], keys[family][1],
-                family[0].casefold(), family[0],
+                shown[family].casefold(), shown[family],
             ),
         )
     ]
+
+
+def _titles_by_family(payloads: dict[str, dict], groups: dict[str, str]) -> dict[str, str]:
+    """What to call each version family a clip record speaks for -- its own, and
+    that of the scene Evolver found it inside.  Keyed by family rather than by
+    path, the match having been recorded against one rendition of several."""
+    by_path = {normalize_path_key(video): group for video, group in groups.items()}
+    titles: dict[str, str] = {}
+    for video, payload in payloads.items():
+        title = clip_title(payload)
+        if not title:
+            continue
+        titles[groups[video]] = title
+        scene = by_path.get(normalize_path_key(carved_from(payload)))
+        if scene is not None:
+            titles[scene] = title
+    return titles

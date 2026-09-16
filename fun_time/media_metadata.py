@@ -1,13 +1,14 @@
-"""Generation-metadata sidecar access for AI videos.
+"""Sidecar access for the library's videos, generated and filmed alike.
 
-Every AI video under the provider media root may have a JSON sidecar in a
-mirrored tree under the metadata root, recording the prompts and settings it
-was generated from (a ``video`` block, plus a ``source_image`` block when the
-video was animated from a generated image).  This module owns the mapping
-from a video file to its sidecar, the sidecar loading, and the one edit Fun
-Time makes to a sidecar (:func:`reject_action`); consumers layer their own
-interpretation on top (e.g. :mod:`fun_time.regen` builds regenerate URLs from
-it).
+Every library video may have a JSON sidecar in a mirrored tree under the
+metadata root: a generated one records what it was generated from (a ``video``
+block, plus a ``source_image`` block when it was animated from a generated
+image), a carved one records the compilation, movie and performer it came from,
+and every one of them carries the kind and the watch stamps Evolver writes.
+This module owns the mapping from a video file to its sidecar, the sidecar
+loading, and the one edit Fun Time makes to a sidecar (:func:`reject_action`);
+consumers layer their own interpretation on top (e.g. :mod:`fun_time.regen`
+builds regenerate URLs from it).
 """
 from __future__ import annotations
 
@@ -70,6 +71,25 @@ def video_type_of(payload: dict) -> str:
 
 
 WATCH_BLOCK = "watch"
+
+
+def clip_title(payload: dict) -> str:
+    """What *payload*'s clip record calls the scene -- "performer - movie", and
+    ``""`` for a video that is not a carved clip."""
+    clip = payload.get("clip")
+    if not isinstance(clip, dict):
+        return ""
+    parts = (str(clip.get(field, "") or "").strip() for field in ("performer", "source"))
+    return " - ".join(part for part in parts if part)
+
+
+def carved_from(payload: dict) -> str:
+    """The library scene Evolver's clip-match batch found *payload*'s clip
+    inside -- by its frames, not its name -- or ``""``."""
+    clip = payload.get("clip")
+    if not isinstance(clip, dict):
+        return ""
+    return str(clip.get("full_video", "") or "")
 
 
 def watch_weight_of(payload: dict) -> float:
