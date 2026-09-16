@@ -225,8 +225,7 @@ def could_be_cut_from(meta: dict, scene: Path) -> bool:
     """Whether *meta*'s clip might have been cut from *scene*, on the names alone.
 
     The performer is the one thing a library filename reliably carries, so this
-    is the widest net worth casting — the same net Evolver's clip-match batch
-    casts before narrowing it by looking at the pictures.
+    is the widest net worth casting.
     """
     performer = _performer_of(meta)
     return bool(performer) and performer <= _tokens(scene.stem)
