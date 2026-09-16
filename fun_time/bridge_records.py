@@ -72,6 +72,10 @@ class BridgeConfig:
     origenerator_enabled: bool = False
     origenerator_cmd_file: Path | None = None
     origenerator_paused_file: Path | None = None
+    # Where the hosted app publishes what it has on its two regions.  Read every
+    # tick until it appears: the file existing is how a session learns the app
+    # has finished booting, which is when origenerator mode opens up.
+    origenerator_status_file: Path | None = None
     # Where the broker keeps the rest of its channel.  Unset it falls back to
     # ``state_dir``, which is what the two are for every session that runs from
     # the primary checkout; a branch session moves ``state_dir`` into its worktree

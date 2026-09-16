@@ -94,6 +94,7 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
         lock_label=panel.lock_label,
         active=panel.active,
         satellites_mode=panel.satellites_mode,
+        origenerator_ready=panel.origenerator_ready,
         is_favorite=panel.is_favorite,
         rows=side_rows(panel.side, locked=panel.locked, f_mode=panel.f_mode,
                        latest=panel.latest, mode=panel.satellites_mode),

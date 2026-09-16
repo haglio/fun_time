@@ -397,6 +397,7 @@ def test_a_mode_this_app_still_has_is_read_back_unchanged(tmp_path: Path):
 _EXPECTED_STATE_KEYS = {
     "locked2": "0", "locked3": "0",
     "main_mode": "video", "satellites_mode": "video",
+    "origenerator_ready": "0",
     "main_f_mode": "0", "portrait_f_mode": "0", "landscape_f_mode": "0",
     "omni_paused": "0",
     "main_latest": "0", "portrait_latest": "0", "landscape_latest": "0",

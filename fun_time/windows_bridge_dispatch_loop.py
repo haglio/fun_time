@@ -35,7 +35,11 @@ from .hud_transport import HudPublisher
 from .library_browser import browse_library
 from .manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME, LaunchManifest
 from .modes import scripted_item
-from .player_status import is_broker_heartbeat_fresh, read_main_player_status
+from .player_status import (
+    is_broker_heartbeat_fresh,
+    origenerator_has_published,
+    read_main_player_status,
+)
 from .players import Player
 from .role_windows import WindowRoles
 from .satellite_speeds import SatelliteSpeeds
@@ -256,6 +260,9 @@ class DispatchLoopRunner:
                                     3: config.landscape_status_file},
             stats_file=watch_stats_path(config.state_dir),
         )
+        # Latched: the hosted app runs for the whole session, so this is a few
+        # reads at the start of one and nothing after.
+        self._origenerator_is_up = False
         # The Robot Hand and a funscript both feed the broker's one T-Code inlet,
         # so in video mode something has to hand the device between them.
         self.arbiter = DeviceArbiter(
@@ -269,10 +276,36 @@ class DispatchLoopRunner:
                 config.side(player).cmd_file for player in Player.SATELLITES),
         )
 
-    def _modes_this_session_hosts(self, state: BridgeState) -> BridgeState:
-        if self.config.origenerator_enabled or not origenerator_shows(state.satellites_mode):
+    def _the_satellite_modes_this_session_can_be_in(self, state: BridgeState) -> BridgeState:
+        """*state* with the satellite mode axis corrected to what is on offer,
+        and the hosted app's readiness read onto it.
+
+        Two ways the mode is not on offer: a session hosting no Origenerator,
+        and one whose app has not finished booting — which is every session for
+        its first half-minute, the room opening without waiting the app out.
+        """
+        state = replace(state, origenerator_ready=self._the_hosted_app_has_answered())
+        offered = self.config.origenerator_enabled and state.origenerator_ready
+        if offered or not origenerator_shows(state.satellites_mode):
             return state
         return replace(state, satellites_mode=VIDEO_MODE)
+
+    def _the_hosted_app_has_answered(self) -> bool:
+        """Whether the hosted Origenerator is up.
+
+        Its CONTENTS are not asked about, only that it has published: a session
+        in video mode wants nothing of the regions, and one entering the mode
+        sends OPEN_SHOWS, so an app answering at all can take the switch.
+        """
+        if self._origenerator_is_up:
+            return True
+        if not self.config.origenerator_enabled or self.config.origenerator_status_file is None:
+            return False
+        self._origenerator_is_up = origenerator_has_published(
+            self.config.origenerator_status_file)
+        if self._origenerator_is_up:
+            logger.info("Origenerator is up; its mode is open")
+        return self._origenerator_is_up
 
     def tick(self) -> None:
         """Run one iteration: poll dashboard, maybe sync genau."""
@@ -281,7 +314,13 @@ class DispatchLoopRunner:
         # Sync state from shared file — AHK hotkey dispatches update it directly.
         shared = read_shared_state(self.shared_state_file)
         if shared is not None:
-            self.state = self._modes_this_session_hosts(shared)
+            self.state = shared
+        # File or no file: this corrects a reading of the room, not the file.
+        self.state = self._the_satellite_modes_this_session_can_be_in(self.state)
+        if shared is not None and shared.origenerator_ready != self.state.origenerator_ready:
+            # Back to the file: nothing else writes it until a command is
+            # dispatched, which on a session nobody is touching may be never.
+            write_shared_state(self.shared_state_file, self.state)
 
         # Hand the OSR2 to the current video's funscript (or back to the Robot
         # Hand).  Runs before the command loop so a mode switch that also writes
@@ -941,4 +980,5 @@ def build_bridge_config_from_manifest(
         ),
         origenerator_cmd_file=Path(v) if (v := commands.origenerator_cmd_file.strip()) else None,
         origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
+        origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,
     )

@@ -24,10 +24,8 @@ import pytest
 
 from fun_time.event_log import event_log_path
 from fun_time.shared_state import (
-    BridgeState,
     read_shared_state,
     shared_state_path,
-    write_shared_state,
 )
 from fun_time.win32 import (
     find_window_for_process,
@@ -62,9 +60,9 @@ pytestmark = [
 # app's caption FIRST (the twin that once got cached as the app), then the
 # main window, parked (iconified) and topmost — and exits on QUIT.  It
 # publishes the status file too, from the same poll and only once booted, which
-# is what the real app's Fun Time bridge does and what the session's reveal now
-# waits on: a stub that stayed silent there would hold every launch here for
-# the full boot budget.
+# is what the real app's Fun Time bridge does and what a session reads to learn
+# the app is up: a stub that stayed silent there would leave origenerator mode
+# closed for the whole run.
 _STUB_MAIN = textwrap.dedent(
     """
     import argparse
@@ -287,19 +285,17 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     assert is_window_topmost(landscape)
 
 
-def test_a_session_that_opens_in_the_mode_leaves_its_shows_over_the_players():
-    """The one he kept reporting: a session that OPENS in origenerator mode
-    shows a picture on each region and then a black rectangle wearing the
-    satellite's own HUD — the blacked player, back on top of the show it is
-    supposed to be under.
+def test_entering_the_mode_on_a_real_session_leaves_its_shows_over_the_players():
+    """The one he kept reporting: the mode shows a picture on each region and
+    then a black rectangle wearing the satellite's own HUD — the blacked
+    player, back on top of the show it is supposed to be under.
 
-    A session of its own rather than the module's, because the fault is in the
-    startup path: the mode has to be the one the session RESUMES into (the
-    shared state seeded before launch), and the loading-screen path has to be
-    the one it takes, since that is where the reveal and the settle pass live.
-    Asked over ten seconds after the reveal rather than once: the burial
-    arrived a few seconds late every time he saw it, so a single look right
-    after startup is exactly the check that kept passing.
+    A session of its own rather than the module's, because what buries a show
+    is the settle pass and the bands a full launch lays down, so the mode has
+    to be entered on a session that took the loading-screen path with every
+    window real.  Asked over ten seconds rather than once: the burial arrived a
+    few seconds late every time he saw it, so a single look right after the
+    switch is exactly the check that kept passing.
     """
     temp_root = build_integration_temp_root()
     stub_root = _write_stub_checkout(temp_root / "origenerator_stub")
@@ -315,21 +311,16 @@ def test_a_session_that_opens_in_the_mode_leaves_its_shows_over_the_players():
         "FUN_TIME_FAKE_MONITORS": "0,0,1280,720;1280,0,720,1440",
     }
     try:
-        # Two launches, because a session only carries its satellites mode
-        # forward when it RESUMED the playlists — a first run builds fresh and
-        # opens on the defaults, whatever the state file says.  So the first
-        # launch is the one that leaves a session to come back to, and the
-        # second is the one under test.  Which is also how he hits it.
         session.start(wait_seconds=120.0, env_overrides=overlay_env)
-        session.stop()
         state_file = shared_state_path(session.config.paths.state_dir)
-        write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
-
-        session.start(wait_seconds=120.0, env_overrides=overlay_env)
-        assert read_shared_state(state_file).satellites_mode == "origenerator", (
-            "the session did not come back in origenerator mode, so this test "
-            "is not exercising the startup path at all"
-        )
+        # The room opens in video mode and the hosted app boots on out of
+        # sight, so the switch has to wait for it — pressed any earlier it is
+        # refused, which is the whole point of the button being dim until then.
+        _wait(lambda: read_shared_state(state_file).origenerator_ready,
+              timeout=90, desc="the hosted app to publish a status")
+        session.write_dashboard_command("origenerator_activate")
+        _wait(lambda: read_shared_state(state_file).satellites_mode == "origenerator",
+              timeout=30, desc="the session to enter origenerator mode")
         events = event_log_path(session.config.paths.state_dir)
         text = events.read_text(encoding="utf-8", errors="replace") if events.exists() else ""
         assert "Loading screen launched" in text, (

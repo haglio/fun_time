@@ -103,6 +103,7 @@ class HudFeed:
                 # mode pair at all, rather than a switch that can only dead-end.
                 satellites_mode=(state.satellites_mode
                                  if self.config.origenerator_enabled else ""),
+                origenerator_ready=state.origenerator_ready,
             )
         self.publisher.publish("portrait", portrait)
         self.publisher.publish("landscape", landscape)

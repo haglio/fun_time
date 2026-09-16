@@ -201,26 +201,28 @@ it is simply not something to pin any more.
 
 ## The hosted app is not booted twice
 
-Origenerator is the longest thing a desktop startup waits on: the curtain is
-held up to forty seconds for it to answer. A crossing used to pay that twice,
-because the desktop session closed it on the way out and the session coming
-back launched a new one — no faster the second time, it being a fresh boot.
+Origenerator is by far the slowest child of a desktop session: its window lands
+ten to thirty seconds after launch, against five to eight for everything else.
+The curtain no longer waits for it — every room opens in video mode and the
+dispatch loop opens that mode up once the app publishes a status — but a boot
+still costs a minute of a session with no Origenerator mode in it, and a
+crossing used to pay that twice, the desktop session closing it on the way out
+and the session coming back launching a new one.
 
 So a crossing keeps it. The teardown sends `CLOSE_SHOWS`, hides its window and
 records `(pid, created_at)` in `origenerator_kept.txt` instead of closing it,
-leaves it out of the kill sweep, and the arriving session adopts it: its window
-is restored under the cover with every other window, and only the boot is
-skipped. The shows have to be closed on the way out because they are windows of
-their own: hiding the main window alone left both of them up over the monitors
-for the whole stay in the headset. A session that comes back in origenerator
-mode opens them again, as it does at any startup.
+leaves it out of the kill sweep, and the arriving session adopts it: only the
+boot is skipped, and the mode is open from that session's first tick. The shows
+have to be closed on the way out because they are windows of their own: hiding
+the main window alone left both of them up over the monitors for the whole stay
+in the headset. Entering the mode opens them again, as it always does.
 Identity is the pair and never the pid alone, because Windows hands freed pids
 straight back out.
 
 Its status file is deliberately left alone on adoption — the app is already
-answering through it, and clearing it would buy back the forty seconds this
-saves. The paused flag and the command file are cleared as ever: a stale freeze
-or an unread verb from the last session would land on this one.
+answering through it, and clearing it would close the mode again for a boot
+this has skipped. The paused flag and the command file are cleared as ever: a
+stale freeze or an unread verb from the last session would land on this one.
 
 Whoever ends up with nothing to hand it to closes it: a VR session quitting
 rather than crossing back, and a relay whose crossing failed. A record whose

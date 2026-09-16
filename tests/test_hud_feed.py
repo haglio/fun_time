@@ -132,6 +132,25 @@ class TestHudPublishing:
         assert portrait["lock_label"] == "Origenerator mode"
         assert portrait["satellites_mode"] == "origenerator"
 
+    def test_a_hosted_app_still_booting_is_published_so_the_button_can_dim(
+        self, tmp_path,
+    ):
+        """The HUDs draw the mode pair, so they are where a mode that cannot be
+        entered yet has to show — dim, and posting nothing.  What they cannot
+        work out for themselves is whether the app is up: only the loop reads
+        its status file, so the answer rides out with the panel."""
+        feed = make_feed(tmp_path, config=make_config(
+            tmp_path, origenerator_enabled=True,
+            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
+        publish_satellite_status(tmp_path / "landscape_status.txt", "C:/v/l.mp4")
+
+        feed.publish(BridgeState())
+        assert panel(tmp_path, "portrait")["origenerator_ready"] is False
+
+        feed.publish(BridgeState(origenerator_ready=True))
+        assert panel(tmp_path, "portrait")["origenerator_ready"] is True
+
     def test_the_published_panel_says_when_that_sides_f_mode_is_on(self, tmp_path):
         """The flag lives on the bridge state and nowhere the player can see, so the
         publish is the only way F-mode reaches the screen a satellite is on — as the

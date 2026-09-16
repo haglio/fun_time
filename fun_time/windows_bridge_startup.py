@@ -50,7 +50,6 @@ from .rfb_tab_page import tabs_dir, write_tab_pages
 from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot, for_side
-from .satellites_mode import VIDEO_MODE
 from .session_resume import (
     playlist_fits_sources,
     playlist_opens_on,
@@ -359,22 +358,20 @@ def seed_startup_states(
 def reset_satellite_paused_states(
     portrait_paused_file: str | Path,
     landscape_paused_file: str | Path,
-    *,
-    satellites_mode: str = VIDEO_MODE,
 ) -> None:
-    """Seed both satellite paused flags for the mode the session opens in.
+    """Seed both satellite paused flags: playing, which is every session's answer.
 
     Unlike the genau/audio/main_player flags, the satellite paused files are outside
     ``seed_startup_states``' scope and nothing else clears them: a ``"1"`` left
     stranded by a prior session's OmniPause would freeze this session's
-    satellites at position 0.  Video mode writes ``"0"`` and a satellite comes up
-    playing; a session resumed into origenerator mode writes ``"1"``, the regions
-    being the hosted app's for the whole mode.
+    satellites at position 0.  Playing whatever mode the last session ended in,
+    because every room is BUILT in video mode -- the hosted app that would own
+    these regions is still booting -- and the switch into origenerator mode,
+    made once that app answers, is what pauses them.
     """
-    paused = "1" if satellites_mode == "origenerator" else "0"
     for path in (Path(portrait_paused_file), Path(landscape_paused_file)):
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(paused, encoding="utf-8")
+        path.write_text("0", encoding="utf-8")
 
 
 def start_core_session(
@@ -451,8 +448,7 @@ def start_core_session(
         mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files.
-    reset_satellite_paused_states(portrait.paused_file, landscape.paused_file,
-                                  satellites_mode=carried.satellites_mode)
+    reset_satellite_paused_states(portrait.paused_file, landscape.paused_file)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_all_playlists(

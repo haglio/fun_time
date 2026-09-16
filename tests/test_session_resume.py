@@ -502,12 +502,17 @@ class TestResumeMainVideo:
         assert playlist_opens_on(playlist, b) is True
 
 
-def test_resume_carries_the_satellites_mode(tmp_path):
-    """A session closed in origenerator mode comes back in it, the same way the
-    main slot's mode does."""
+def test_the_satellite_mode_is_not_something_a_session_comes_back_in(tmp_path):
+    """The one thing a resume deliberately drops rather than carries.
+
+    Every room is BUILT in video mode: the hosted Origenerator is still booting
+    when the room opens and nothing waits for it, so the mode cannot be entered
+    at that moment.  Coming back to it LATER was tried and is worse -- the two
+    sides would rearrange themselves under whatever he had started doing in
+    video mode -- so being in origenerator mode is simply not something Fun Time
+    remembers from one session to the next.
+    """
     state_file = tmp_path / "shared_state.ini"
     write_shared_state(state_file, BridgeState(satellites_mode="origenerator"))
 
-    state = resume_shared_state(state_file, resumed=True)
-
-    assert state.satellites_mode == "origenerator"
+    assert resume_shared_state(state_file, resumed=True).satellites_mode == "video"

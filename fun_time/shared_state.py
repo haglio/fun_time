@@ -78,6 +78,11 @@ class BridgeState:
     # "video" is the session as ever, "origenerator" puts the hosted
     # Origenerator over the RFB and its shows over the players.
     satellites_mode: str = STARTUP_SATELLITES_MODE
+    # Whether the hosted Origenerator is up.  Every room opens without waiting
+    # out its boot, so the mode above is closed for a session's first
+    # half-minute; the dispatch loop reads the app's status file and writes the
+    # answer here, for the HUDs drawing the mode pair and the switch that refuses.
+    origenerator_ready: bool = False
     # The main player's own F-mode and browse order; the satellites' are theirs.
     main_f_mode: bool = False
     omni_paused: bool = False

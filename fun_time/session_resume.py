@@ -45,6 +45,12 @@ NOT_RESUMED = frozenset({
     "active_side",
     "genau_latest",
     "osr2_control",
+    # The satellite mode is simply not remembered: every room is BUILT in video
+    # mode, the hosted Origenerator being still unbuilt when the room opens, and
+    # a room that switched itself over once that app arrived would take what he
+    # was doing in video mode out from under him (docs/resuming-a-session.md).
+    "satellites_mode",
+    "origenerator_ready",
 })
 
 # The same answer for a value one satellite carries (:class:`SideState`), since
