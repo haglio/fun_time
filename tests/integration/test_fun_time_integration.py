@@ -7,9 +7,12 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.config import SideFiles
 from fun_time.media_actions import remove_from_favs
+from fun_time.players import Player
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
-from fun_time.satellite_control import read_satellite_status
+from fun_time.runtime_flow import write_flag_file
+from fun_time.satellite_control import SatelliteStatus, read_satellite_status
 from fun_time.win32 import (
     find_window_by_title,
     is_window_minimized,
@@ -596,6 +599,25 @@ def test_fun_time_video_mode_comes_back_to_the_video_main_player_was_showing(sha
     s.wait_for_new_log("Dispatching command: main_nudge_next", timeout=10)
 
 
+def _held_still(session: FunTimeIntegrationSession, side: SideFiles) -> SatelliteStatus:
+    session.wait_until(
+        lambda: bool(read_satellite_status(side.status_file).video),
+        timeout=30,
+        description="the player to name the clip it opened on",
+    )
+    write_flag_file(side.paused_file, True)
+    session.wait_until(
+        lambda: read_satellite_status(side.status_file).paused,
+        timeout=12,
+        description="the player to hold its clip",
+    )
+    return published_status(read_satellite_status, side.status_file)
+
+
+def _showing(side: SideFiles) -> Path:
+    return Path(read_satellite_status(side.status_file).video or "x").resolve()
+
+
 def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     isolated_integration_session: FunTimeIntegrationSession,
 ):
@@ -603,38 +625,42 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     the clip on screen is a favorite and discard demotes it: the row leaves the
     list, the file stays in the library, and the clip stays in the rotation —
     W then A comes straight back to it."""
-    status_file = isolated_integration_session.config.paths.state_dir / "landscape_status.txt"
-    isolated_integration_session.write_dashboard_command("landscape_trash")
-    chunk = isolated_integration_session.wait_for_new_log("Removed from favorites on player 3:", timeout=12)
+    s = isolated_integration_session
+    landscape = s.config.side(Player.LANDSCAPE)
+    held = _held_still(s, landscape)
+
+    s.write_dashboard_command("landscape_trash")
+    chunk = s.wait_for_new_log("Removed from favorites on player 3:", timeout=12)
     match = re.search(r"Removed from favorites on player 3:\s*(.+)", chunk)
     assert match, "Expected the unfavorite log chunk to include the landscape path"
     demoted_path = Path(match.group(1).strip()).resolve()
+    assert demoted_path == Path(held.video).resolve()
 
-    isolated_integration_session.wait_until(
-        lambda: not isolated_integration_session.favs_contains(demoted_path),
+    s.wait_until(
+        lambda: not s.favs_contains(demoted_path),
         timeout=12,
         description="landscape sample to be removed from integration favs.csv",
     )
     assert demoted_path.exists(), "A demoted favorite must stay where it is"
-    assert not any(p.name == demoted_path.name for p in isolated_integration_session.weird_dir.iterdir())
+    assert not any(p.name == demoted_path.name for p in s.weird_dir.iterdir())
 
-    isolated_integration_session.wait_until(
-        lambda: any(
-            n.message == "Unfavorited" and n.source == "landscape"
-            for n in isolated_integration_session.notices()
-        ),
+    s.wait_until(
+        lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.notices()),
         timeout=12,
         description="an \"Unfavorited\" toast over the landscape player",
     )
 
-    isolated_integration_session.wait_until(
-        lambda: Path(read_satellite_status(status_file).video or "x").resolve() != demoted_path,
+    s.wait_until(
+        lambda: _showing(landscape) != demoted_path,
         timeout=12,
-        description="landscape satellite to advance off the demoted clip",
+        description="the landscape player to move on from the demoted clip",
     )
-    isolated_integration_session.write_dashboard_command("landscape_prev")
-    isolated_integration_session.wait_until(
-        lambda: Path(read_satellite_status(status_file).video or "x").resolve() == demoted_path,
+    assert read_satellite_status(landscape.status_file).playlist_length == held.playlist_length, (
+        "the demoted clip must stay in the landscape rotation"
+    )
+    s.write_dashboard_command("landscape_prev")
+    s.wait_until(
+        lambda: _showing(landscape) == demoted_path,
         timeout=12,
         description="landscape prev to land back on the demoted clip, still in the rotation",
     )
