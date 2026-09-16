@@ -19,7 +19,6 @@ from shared_ui.palette import (
     BG_TERTIARY,
     BLUE,
     BORDER_SUBTLE,
-    MAGENTA,
     TEXT_MUTED,
     TEXT_PRIMARY,
     WHITE,
@@ -33,6 +32,7 @@ from shared_ui.spacing import (
     BUTTON_SIZE_HUD,
 )
 
+from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_controls import bar_controls, mark_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.event_log import (
@@ -60,10 +60,16 @@ VERBOSITY_CHIP = "dash_verbosity"
 VERBOSITY_STOP = "dash_verbosity:"
 
 
+# Pillow loads a face by file, not by family: "b" is Segoe UI's bold, "z" its
+# bold italic -- the lean the app's name wears everywhere else it is written.
+_BODY_FACE = "segoeuib.ttf"
+_WORDMARK_FACE = "segoeuiz.ttf"
+
+
 @cache
-def _font(px: int) -> ImageFont.FreeTypeFont:
+def _font(px: int, face: str = _BODY_FACE) -> ImageFont.FreeTypeFont:
     try:
-        return ImageFont.truetype("segoeuib.ttf", px)
+        return ImageFont.truetype(face, px)
     except OSError:
         return ImageFont.load_default(px)
 
@@ -227,13 +233,13 @@ def paint_dash(state: DashState, records,
     panel = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
     draw = ImageDraw.Draw(panel)
     bar = compute_dashboard_bar_layout()
-    body, small = _font(_FONT_PX), _font(_SMALL_PX)
+    wordmark, small = _font(_FONT_PX, _WORDMARK_FACE), _font(_SMALL_PX)
 
     mark = _app_mark(bar.app_icon.height)
     if mark is not None:
         panel.alpha_composite(mark, (bar.app_icon.x, bar.app_icon.y))
     draw.text((bar.app_title.x, bar.app_title.y + 4), "Fun Time",
-              font=body, fill=(*MAGENTA, 255))
+              font=wordmark, fill=WORDMARK_MAGENTA)
     controls = bar_controls(
         bar, omni_paused=state.omni_paused, voice_active=state.voice_active,
         f_mode=state.f_mode, in_vr=True, reference_open=state.reference_open,

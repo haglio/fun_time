@@ -4,9 +4,11 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from shared_ui.palette import BG_BUTTON, BG_TERTIARY, BLUE
+from PIL import Image, ImageDraw
+from shared_ui.palette import BG_BUTTON, BG_PRIMARY, BG_TERTIARY, BLUE
 from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_SIZE_HUD
 
+from fun_time.cover_palette import WORDMARK_MAGENTA
 from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
@@ -25,6 +27,9 @@ from fun_time.event_log import (
     EventRecord,
 )
 from fun_time_vr.dash_panel import (
+    _BODY_FACE,
+    _FONT_PX,
+    _WORDMARK_FACE,
     DASH_WIDTH_PX,
     LOG_ROWS,
     VERBOSITY_CHIP,
@@ -32,6 +37,7 @@ from fun_time_vr.dash_panel import (
     DashPointer,
     DashState,
     _arrow_down,
+    _font,
     dash_actions,
     dash_height,
     dial_stops,
@@ -53,6 +59,15 @@ def _pointer(**state):
 def _middle(action: str, *, dial_open: bool = False) -> tuple[int, int]:
     rect = dash_actions(dial_open=dial_open)[action]
     return rect.x + rect.width // 2, rect.y + rect.height // 2
+
+
+def _app_name_mask(image) -> np.ndarray:
+    """Where the bar's "Fun Time" is inked, in the tone it is written in."""
+    wanted = np.asarray([int(WORDMARK_MAGENTA[i:i + 2], 16) for i in (1, 3, 5)])
+    title = compute_dashboard_bar_layout().app_title
+    band = np.asarray(image)[title.y:title.y + title.height,
+                             title.x:title.x + title.width, :3].astype(int)
+    return np.abs(band - wanted).sum(axis=2) < 60
 
 
 class TestItIsTheDesktopsBar:
@@ -82,6 +97,35 @@ class TestItIsTheDesktopsBar:
         inked = np.abs(region - np.asarray(MAGENTA)).sum(axis=2) < 60
 
         assert inked.sum() > icon.width * icon.height // 8
+
+    def test_the_apps_name_is_written_in_the_wordmark_tone(self):
+        """The red the desktop's bar and every cover write it in, and not the
+        tone of the mark standing beside it."""
+        from shared_ui.palette import MAGENTA
+
+        panel = paint_dash(DashState(), [])
+        title = compute_dashboard_bar_layout().app_title
+        band = np.asarray(panel)[title.y:title.y + title.height,
+                                 title.x:title.x + title.width, :3].astype(int)
+
+        assert _app_name_mask(panel).sum() > 0
+        assert not (np.abs(band - np.asarray(MAGENTA)).sum(axis=2) < 60).any()
+
+    def test_the_apps_name_leans_the_way_the_covers_write_it(self):
+        """Set in the same bold italic, so the headset's copy is that
+        lockup rather than an upright lookalike."""
+        title = compute_dashboard_bar_layout().app_title
+
+        def written_in(face):
+            image = Image.new("RGBA", (DASH_WIDTH_PX, dash_height()), (*BG_PRIMARY, 235))
+            ImageDraw.Draw(image).text((title.x, title.y + 4), "Fun Time",
+                                       font=_font(_FONT_PX, face), fill=WORDMARK_MAGENTA)
+            return _app_name_mask(image)
+
+        painted = _app_name_mask(paint_dash(DashState(), []))
+
+        assert np.array_equal(painted, written_in(_WORDMARK_FACE))
+        assert not np.array_equal(painted, written_in(_BODY_FACE))
 
     def test_a_window_wears_the_short_name_the_log_panel_gives_it(self):
         """"Sat" and "Land", not "portrait" and "landscape": the same row of
