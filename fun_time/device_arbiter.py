@@ -5,8 +5,10 @@ may drive at a time.  This is the arbiter that hands the device between them —
 edge-triggered on the main player's published status, and asserted rather than
 fired-and-forgotten, because a verb queued on a file channel can still die.
 
-Above it sits the console's own switch: control off is nobody driving, in either
-mode, and this is what keeps the funscript gated and the motion flat.
+Above it sits the console's own four-state switch: parked, retracted and
+control off are nobody driving, in either mode, and this is what carries them
+out -- the funscript gated, and Genau either stilled at an end of the travel or
+paused outright.
 """
 from __future__ import annotations
 
@@ -14,13 +16,18 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
+from player_core.console import (
+    OSR2_CONTROL_OFF,
+    OSR2_DRIVING,
+    OSR2_PARKED,
+    OSR2_RETRACTED,
+)
 from player_core.file_channel import append_command
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .mode_plan import main_player_displays
 from .player_status import read_main_player_status
-from .robot_hand_hold import STILL_COMMANDS
+from .robot_hand_hold import HOLD_CENTERS, hold_commands
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
 # without an edge, so a verb lost in transit converges instead of staying lost
@@ -29,6 +36,9 @@ REASSERT_S = 1.0
 
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
+
+# Which of the console's two holds each of the room's hold commands carries out.
+_HELD_BY = {OSR2_PARKED: "robot_hand_park", OSR2_RETRACTED: "robot_hand_retract"}
 
 
 class DeviceArbiter:
@@ -51,21 +61,23 @@ class DeviceArbiter:
         # or an unscripted video).  None means "no decision applied yet" — set
         # outside video mode so re-entry re-asserts the correct driver.
         self._funscript_driving: bool | None = None
-        self._asserted_at: float = 0.0
         self._main_player_status = None
         # When the park-touch hold releases the pending hand-to-script flip;
         # None outside one — see _holding_for_park_touch.
         self._park_touch_deadline: float | None = None
-        self._silenced = False  # both engines told to stop, and when
-        self._silenced_at = 0.0
+        # Which control state was last carried out to both engines; None while
+        # somebody is driving, when the timestamp below times the handoff instead.
+        self._asserted_control: str | None = None
+        self._asserted_at: float = 0.0
 
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING) -> None:
         """In video mode, route the OSR2 to the funscript or the Robot Hand,
         moment to moment.
 
-        *control* off gates the funscript and flattens the motion, in every
-        mode, and keeps them that way.
+        *control* off, parked or retracted is nobody driving: the funscript is
+        gated and Genau is held or paused, in every mode, and nothing below
+        runs because there is no device to hand over.
 
         The funscript drives while it is actively scripting (``has_funscript``
         and not ``funscript_resting``); the hand drives the unscripted stretches.
@@ -81,12 +93,12 @@ class DeviceArbiter:
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
-        if control == OSR2_CONTROL_OFF:
-            self._silence()
+        if control in (OSR2_CONTROL_OFF, *_HELD_BY):
+            self._carry_out(control)
             self._funscript_driving = None
             self._park_touch_deadline = None
             return
-        self._silenced = False
+        self._asserted_control = None
         if not main_player_displays(main_mode) or paused:
             self._funscript_driving = None
             self._park_touch_deadline = None
@@ -126,18 +138,29 @@ class DeviceArbiter:
             self._asserted_at = now
             self._park_touch_deadline = None
 
-    def _silence(self) -> None:
-        """The funscript gated and the motion flat where it stands.  Stilled
-        rather than paused (Genau's clips are the picture in genau mode), and
-        with no CENTER: this is the press that does not move the device."""
+    def _carry_out(self, control: str) -> None:
+        """Hold the device where *control* says, against both engines.
+
+        The funscript is gated either way -- a script driving through a park is
+        the device ignoring the hold.  A hold then stills Genau's motion at that
+        end of the travel and keeps it playing, since Genau's own stream is what
+        walks the device there and holds it; control off pauses Genau instead,
+        so nothing goes out at all and the device stays exactly where it is.
+
+        Asserted the way the handoff pair is, and for the same reason: a verb
+        queued on a file channel can still die.  Re-stated on the heartbeat, so a
+        dial nudged from a key or a spoken word is put back within the second
+        rather than quietly breaking the hold.
+        """
         now = self._clock()
-        if self._silenced and now - self._silenced_at < REASSERT_S:
+        if self._asserted_control == control and now - self._asserted_at < REASSERT_S:
             return
+        held = _HELD_BY.get(control)
+        genau = (*hold_commands(HOLD_CENTERS[held]), "RESUME") if held else ("PAUSE",)
         queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
-        queued += [append_command(self.genau_cmd_file, verb)
-                   for verb in STILL_COMMANDS]
+        queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
-            self._silenced, self._silenced_at = True, now
+            self._asserted_control, self._asserted_at = control, now
 
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.
