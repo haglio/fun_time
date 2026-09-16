@@ -14,7 +14,6 @@ stands alone as its own handle.
 """
 from __future__ import annotations
 
-import re
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -27,6 +26,7 @@ from .media_metadata import (
     load_metadata,
     metadata_path_for,
     normalize_path_key,
+    recorded_group,
     video_type_of,
 )
 from .modes import collect_video_files
@@ -85,27 +85,6 @@ def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | 
         ),
         None,
     )
-
-
-# A bare number in brackets at the end of a name is how a download names a
-# DIFFERENT video of a set; Evolver gives every such name one family id.
-_COPY_INDEX = re.compile(r"\(\d+\)")
-
-
-def _recorded_group(payload: dict, video: str) -> str | None:
-    """The version family Evolver recorded for *video*, split by its copy index.
-    The id anchors the family -- the only thing that can pair a hand-renamed
-    re-encode with its original -- and the number refines it, so "(2)" stays
-    with "(2)_topaz" while "(2)" and "(3)" come apart.
-    """
-    version = payload.get("version")
-    if not isinstance(version, dict):
-        return None
-    group = version.get("group")
-    if not group:
-        return None
-    found = _COPY_INDEX.findall(Path(video).stem)
-    return f"{group} {found[-1]}" if found else str(group)
 
 
 def _file_size(video: str) -> int:
@@ -273,7 +252,7 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
         [paths[video] for video in videos if kinds[video] != EXCERPT],
     )
     groups = {
-        video: _recorded_group(payloads[video], video) or Path(video).stem
+        video: recorded_group(payloads[video], video) or Path(video).stem
         for video in videos
     }
     titles = _titles_by_family(payloads, groups)
