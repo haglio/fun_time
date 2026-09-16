@@ -32,6 +32,7 @@ from player_core.player_verbs import (
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
+from .broker_control import PARK_CMD, write_broker_command
 from .content import load_web_providers
 from .event_log import (
     FAVORITE,
@@ -1490,9 +1491,11 @@ def _robot_hand_release(state: BridgeState, config: BridgeConfig,
     return replace(state, osr2_control=OSR2_DRIVING), []  # also the way off "off"
 
 
-def _osr2_control_off(state: BridgeState, _config: BridgeConfig,
+def _osr2_control_off(state: BridgeState, config: BridgeConfig,
                       _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    # Nothing written down: letting go moves no dial, so nothing to put back.
+    # No dials written down: letting go turns none, so none to put back.
+    if config.broker_cmd_file is not None:
+        write_broker_command(config.broker_cmd_file, PARK_CMD)
     return replace(state, osr2_control=OSR2_CONTROL_OFF), []
 
 

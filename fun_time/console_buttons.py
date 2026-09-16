@@ -323,9 +323,10 @@ def _control_row(slot: MainSlot) -> tuple[Button, ...]:
         Button("robot_hand_cycle_shape", WAVE_ICON, f"Waveform: {shape_label(slot.shape)}"),
         Button("quarter_button", QUARTER_ICON, "Offset the motion a ¼ cycle"),
         Button("osr2_control_off", CONTROL_OFF_ICON,
-               "Control off — the OSR2 is left exactly where it is and nothing "
-               "here moves it.  The device itself is untouched: this is the app "
-               "letting go of it, not the OSR2 switching off",
+               "Control off — the OSR2 settles home and is left there; nothing "
+               "here moves it again until you park, retract or drive it.  The "
+               "device itself stays on: this is the app letting go of it, not "
+               "the OSR2 switching off",
                warn=control == OSR2_CONTROL_OFF, group_break=True),
         Button("robot_hand_park", PARK_ICON,
                "Parked — the OSR2 held still, settled home",

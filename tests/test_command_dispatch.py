@@ -16,6 +16,7 @@ from player_core.console import (
 )
 
 from fun_time.bridge_records import BridgeConfig, WindowOp
+from fun_time.broker_control import PARK_CMD
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
@@ -2737,14 +2738,18 @@ class TestOsr2ControlState:
             assert after.osr2_control == state_name, command
             assert ops == []
 
-    def test_control_off_sends_nothing_itself(self, tmp_path: Path):
-        """The arbiter re-states the stilling every tick, so a verb fired here
-        would be undone by its very next assertion."""
+    def test_control_off_settles_the_osr2_home_and_says_nothing_else(self, tmp_path: Path):
+        """Home is where park holds it, and the same place OmniPause and startup
+        send it: letting go leaves the device somewhere known rather than
+        partway along its travel.  The broker is told once, by the press;
+        keeping it there is the arbiter's, which re-states its pair every tick --
+        a dial verb fired here would be undone by its very next assertion."""
         config = _make_config(tmp_path)
         _publish_drive(config, amplitude=50)
 
         dispatch_command("osr2_control_off", _make_state(), config)
 
+        assert config.broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
         assert not config.genau_cmd_file.exists()
         assert not config.main_player_cmd_file.exists()
 
