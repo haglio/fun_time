@@ -1434,6 +1434,26 @@ class TestClosingScreenLifecycle:
         (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
 
+    def test_the_way_back_cover_runs_those_checkouts_too(self, cfg_factory, tmp_path):
+        """Esc on the closing screen raises a cover of its own, and one that
+        cannot import the branch's siblings never comes up at all."""
+        from fun_time.overlay_progress import CANCEL_FILENAME
+
+        sibling = tmp_path / "sibling_checkout"
+        sibling.mkdir()
+        launches: dict[str, dict] = {}
+
+        def esc():
+            (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
+
+        _run_a_session(cfg_factory, tmp_path, events=[], asked_to_end=True, at_cover_up=esc,
+                       launches=launches,
+                       overrides={"paths": {"genau_project_dirs": [str(sibling)]}})
+
+        (way_back,) = [kwargs for command, kwargs in launches.items()
+                       if "transition_screen" in command]
+        assert way_back["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
+
 
 @pytest.mark.real_startup_waits
 class TestWaitForClosingScreen:
@@ -1484,11 +1504,12 @@ class TestWaitForClosingScreen:
         assert "anyway" in caplog.text
 
 
-def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None, before=None):
+def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None, before=None,
+                                      overrides=None):
     from fun_time.overlay_progress import CANCEL_FILENAME
     from fun_time.session_handoff import DESKTOP, raise_crossing_cover
 
-    cfg = load_config(cfg_factory())
+    cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
     )
@@ -1607,6 +1628,25 @@ class TestStartupCancellation:
         assert events.index("way back cover") < events.index("loading screen down")
         line = parse_progress(crossing_progress_path(state_dir).read_text(encoding="utf-8"))
         assert (line.message, line.hint, line.done) == (CANCELING, "", False)
+
+    def test_that_cover_runs_the_sibling_checkouts_the_session_names(
+        self, cfg_factory, tmp_path,
+    ):
+        sibling = tmp_path / "sibling_checkout"
+        sibling.mkdir()
+        launches: dict[str, dict] = {}
+
+        def launched(cmd, **kwargs):
+            launches[" ".join(map(str, cmd))] = kwargs
+            return MagicMock()
+
+        _cancel_a_launch_arriving_from_vr(
+            cfg_factory, tmp_path, word="cancel", popen=launched,
+            overrides={"paths": {"genau_project_dirs": [str(sibling)]}})
+
+        (way_back,) = [kwargs for command, kwargs in launches.items()
+                       if "transition_screen" in command]
+        assert way_back["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
 
     def test_the_quit_chord_on_a_launch_arriving_from_vr_lets_the_headset_go(
         self, cfg_factory, tmp_path,
@@ -2401,7 +2441,8 @@ class TestWhatEscCancelsAtTheLoadingScreen:
         with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
                    return_value=0):
-            return _open_the_cover(state_dir, show_overlays=True, cancelable=cancelable)
+            return _open_the_cover(state_dir, show_overlays=True, project_dirs="",
+                                   cancelable=cancelable)
 
     @classmethod
     def _opened_line(cls, state_dir, *, cancelable=True):

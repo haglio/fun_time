@@ -152,7 +152,7 @@ class TestTheCoverThatSpansTheCrossing:
     def test_the_way_back_goes_up_saying_it_is_canceling(self, tmp_path: Path):
         """Never, even for a poll, offering the Esc that already went."""
         with patch.object(session_handoff.subprocess, "Popen") as popen:
-            session_handoff.launch_the_way_back_cover(tmp_path)
+            session_handoff.launch_the_way_back_cover(tmp_path, project_dirs="")
 
         line = parse_progress(crossing_progress_path(tmp_path).read_text(encoding="utf-8"))
         assert (line.message, line.hint) == (CANCELING, "")

@@ -422,6 +422,7 @@ def _take_down_the_startup(
     cover: _Cover,
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
+    project_dirs: str,
     canceled: bool = False,
 ) -> int:
     """Tear down a startup that is not becoming a session, then exit.
@@ -440,7 +441,7 @@ def _take_down_the_startup(
     close_window(rfb_hwnd)
     if back_to is not None:
         logger.info("Going back to %s", back_to.app_name)
-        way_back = launch_the_way_back_cover(state_dir)
+        way_back = launch_the_way_back_cover(state_dir, project_dirs=project_dirs)
         _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
         request_handoff(state_dir, back_to, cancelable=False)
     # Only now that the windows under it are gone: drop the overlay.
@@ -1131,7 +1132,7 @@ def _run_until_the_hotkeys_exit(
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
             if esc_cancels and what_the_flag_asks(flag) == CANCEL_WORD:
                 logger.info("Esc called the quit off; opening Fun Time again")
-                way_back = launch_the_way_back_cover(state_dir)
+                way_back = launch_the_way_back_cover(state_dir, project_dirs=project_dirs)
                 _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
                 request_handoff(state_dir, DESKTOP, cancelable=False)
             elif crossing is None:  # the quit chord after an Esc that had parked it
@@ -1226,6 +1227,7 @@ def run_session(
         return _take_down_the_startup(
             "Startup cancelled by user", pids=cancelled.launched_pids,
             rfb_hwnd=cancelled.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            project_dirs=manifest.runtime.genau_project_dirs,
             canceled=True,
         )
 
@@ -1238,6 +1240,7 @@ def run_session(
         return _take_down_the_startup(
             "Startup cancelled by user", pids=launched,
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            project_dirs=manifest.runtime.genau_project_dirs,
             canceled=True,
         )
 
@@ -1282,6 +1285,7 @@ def run_session(
         _take_down_the_startup(
             "The session failed while opening", pids=launched,
             rfb_hwnd=result.rfb_hwnd, cover=cover, ahk_proc=ahk_proc, ahk_cmd_file=ahk_cmd_file,
+            project_dirs=manifest.runtime.genau_project_dirs,
         )
         raise
 

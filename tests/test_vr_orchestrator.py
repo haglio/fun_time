@@ -1596,6 +1596,27 @@ class TestOpeningAVrSession:
         assert taken is not None, "Esc let the quit go on"
         assert (taken.target, taken.cancelable) == (VR, False)
 
+    def test_that_cover_runs_the_sibling_checkouts_the_session_names(self, config):
+        """A cover that cannot import the branch's siblings never comes up,
+        and this one is all the headset has until the next session is."""
+        from dataclasses import replace
+        from unittest.mock import MagicMock
+
+        from fun_time_vr import orchestrator
+
+        sibling = config.paths.state_dir.parent / "sibling_checkout"
+        sibling.mkdir(parents=True, exist_ok=True)
+        named = replace(config, paths=replace(config.paths, genau_project_dirs=(sibling,)))
+        way_back = MagicMock()
+
+        _end_a_vr_session(
+            orchestrator, named, ended_by=_asked_then_esc(named),
+            _leave_the_headset_covered=MagicMock(return_value=True),
+            launch_the_way_back_cover=way_back,
+        )
+
+        assert way_back.call_args.kwargs["project_dirs"] == str(sibling)
+
     def test_on_the_way_back_into_vr_the_headset_stays_covered_and_the_runtime_up(
         self, config,
     ):
