@@ -11,10 +11,11 @@ satellite decodes to 2048px and the main player to 4096, so the desktop's own
 from __future__ import annotations
 
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from shared_ui.palette import BG_SECONDARY
 
 from .console_panel import level_color
+from .lettering import fit_text, load_font
 
 # The type as a fraction of the height, never under the desktop's own; the rest
 # of the shape is in multiples of it (the desktop's 16/8 padding, 1px border and
@@ -36,28 +37,11 @@ def font_px(height: int) -> int:  # the type size for a picture this tall
     return max(MIN_FONT_PX, round(height * FONT_FRACTION))
 
 
-def _font(size: int) -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype("segoeuib.ttf", size)
-    except OSError:
-        return ImageFont.load_default(size)
-
-
-def fit_toast(font, text: str, width: int) -> str:
-    """*text*, or as much of its head as draws inside *width* with an ellipsis."""
-    if font.getlength(text) <= width or not text:
-        return text
-    kept = text
-    while kept and font.getlength(kept + "…") > width:
-        kept = kept[:-1]
-    return kept + "…"
-
-
 def paint_toast(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
     """The banner, sized to what it says and to the picture it goes on."""
-    font = _font(size)
+    font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
-    text = fit_toast(font, message, max(1, max_width - 2 * pad_x))
+    text = fit_text(font, message, max(1, max_width - 2 * pad_x))
     ink = level_color(level)
     probe = ImageDraw.Draw(Image.new("RGBA", (1, 1)))
     x0, y0, x1, y1 = probe.textbbox((0, 0), text, font=font)

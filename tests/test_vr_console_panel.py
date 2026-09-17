@@ -6,7 +6,6 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
-from PIL import ImageFont
 from player_core.console import ConsoleModel
 from player_core.console_hud import OSR2_ROBOT_HAND, ConsoleHud, ConsolePainter, ModeHud
 from player_core.drive_layout import SPEED
@@ -18,7 +17,6 @@ from fun_time_vr.console_panel import (
     NOTICE_STRIP_HEIGHT,
     PANEL_WIDTH_PX,
     PanelPointer,
-    fit_notice,
     paint_notices,
     paint_panel,
     panel_hud,
@@ -305,21 +303,6 @@ class TestTheAnnouncementStrip:
         many = self._notices(*[f"command {index}" for index in range(KEPT + 2)])
 
         assert paint_notices(many, PANEL_WIDTH_PX).size == (PANEL_WIDTH_PX, NOTICE_STRIP_HEIGHT)
-
-    def test_a_long_report_is_cut_at_its_tail(self):
-        """A voice report carries the phrase that missed, which is the whole
-        reason to read it, so the head is what survives the cut."""
-        font = ImageFont.load_default(12)
-        cut = fit_notice(font, "unrecognized voice command: " + "word " * 40, 100)
-
-        assert cut.startswith("unrecognized")
-        assert cut.endswith("\u2026")
-        assert font.getlength(cut) <= 100
-
-    def test_a_line_that_fits_is_left_alone(self):
-        font = ImageFont.load_default(12)
-
-        assert fit_notice(font, "play", 500) == "play"
 
 
 class TestItKeepsItsSize:

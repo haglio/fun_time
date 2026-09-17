@@ -39,7 +39,13 @@ from player_core.volume import (
     chip_xy,
 )
 
-from fun_time.dashboard_actions import HELP_REFERENCE, QUIT_BUTTON, REFERENCE_OPEN_FILENAME
+from fun_time.dashboard_actions import (
+    BROWSE_LIBRARY_CLOSE,
+    HELP_REFERENCE,
+    LIBRARY_OPEN_FILENAME,
+    QUIT_BUTTON,
+    REFERENCE_OPEN_FILENAME,
+)
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
     LaunchManifest,
@@ -68,12 +74,14 @@ from fun_time_vr.layout import (
     DASH,
     DEFAULT_LAYOUT,
     LANDSCAPE,
+    LIBRARY,
     PANEL,
     PORTRAIT,
     PRIMARY,
     REFERENCE,
     read_layout,
 )
+from fun_time_vr.library_panel import LIBRARY_SIZE_PX
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
@@ -83,6 +91,7 @@ from fun_time_vr.player import (
     _GenauUnit,
     _HangingScreen,
     _LayoutKeeper,
+    _LibraryUnit,
     _main_slot_screen,
     _MainUnit,
     _PanelUnit,
@@ -95,6 +104,7 @@ from fun_time_vr.player import (
     build_parser,
 )
 from fun_time_vr.pointer import (
+    DRAG,
     PRESS,
     RELEASE,
     SURFACE,
@@ -1085,6 +1095,51 @@ def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
     assert "dash" in ast.unparse(units.value)
 
 
+def test_the_library_is_painted_pointed_at_and_drawn_like_the_reference():
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    assigned = {ast.unparse(node.targets[0]): ast.unparse(node.value)
+                for node in ast.walk(tree) if isinstance(node, ast.Assign)}
+
+    assert "library" in assigned["units"]
+    assert "library" in assigned["popups"]
+
+
+def test_everything_the_room_closes_when_it_ends_has_a_close():
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    built = {node.targets[0].id: node.value for node in ast.walk(tree)
+             if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
+    (closing,) = [node for node in ast.walk(tree)
+                  if isinstance(node, ast.For) and "unit.close()" in ast.unparse(node.body)]
+
+    def made_by(expr):
+        if isinstance(expr, ast.Name):
+            yield from made_by(built[expr.id])
+        elif isinstance(expr, ast.Starred):
+            yield from made_by(expr.value)
+        elif isinstance(expr, (ast.List, ast.Tuple)):
+            for element in expr.elts:
+                yield from made_by(element)
+        elif isinstance(expr, ast.ListComp):
+            yield from made_by(expr.elt)
+        elif isinstance(expr, ast.Call):
+            yield getattr(player, ast.unparse(expr.func))
+
+    closed = list(made_by(closing.iter))
+
+    assert player.NoticeBoard in closed
+    assert [kind.__name__ for kind in closed if not callable(getattr(kind, "close", None))] == []
+
+
 def test_the_reveal_waits_for_the_cover_to_have_been_seen():
     """The room being drawable is not the same as anyone having had the headset
     on while it was covered."""
@@ -1154,7 +1209,7 @@ def test_the_headset_session_runs_ahead_of_background_work():
                     and [ast.unparse(item.context_expr) for item in n.items]
                     == ["ahead_of_background_work()"]]
 
-    assert ast.unparse(scheduled.body) == "return _run(manifest, vr)"
+    assert ast.unparse(scheduled.body) == "return _run(manifest, vr, args.manifest)"
 
 
 class TestTheMainSlotUnderThePointer:
@@ -1232,10 +1287,11 @@ class TestTheMainSlotUnderThePointer:
         dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
         reference = SimpleNamespace(showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
-                                    screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]))
+                                    screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
+                                    layout_key=REFERENCE)
 
         screens = _pointable_screens(
-            *self._units(), [satellite], panel, dash, reference)
+            *self._units(), [satellite], panel, dash, [reference])
 
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
@@ -1413,7 +1469,7 @@ class TestEveryHangingScreenIsDrawn:
         reference = _hanging("reference")
         reference.showing = showing
         _draw_eyes(
-            session, renderer, primary, genau, [], panel, dash, reference,
+            session, renderer, primary, genau, [], panel, dash, [reference],
             SimpleNamespace(draw=lambda *_a: None), self._views(), None,
             np.eye(4, dtype=np.float64), in_scene={PRIMARY, PORTRAIT, LANDSCAPE},
         )
@@ -1518,6 +1574,172 @@ class TestTheDashUnderThePointer:
         assert not (tmp_path / "dashboard_cmd.txt").exists()
 
 
+class _FakeLibraryHost:
+    def __init__(self):
+        self.sent: list[str] = []
+        self.said: list[str] = []
+        self.frames: dict[int, tuple[int, int, bytes]] = {}
+        self.closed = False
+
+    def send(self, line):
+        self.sent.append(line)
+
+    def answers(self):
+        said, self.said = self.said, []
+        return said
+
+    def frame(self, token):
+        return self.frames.pop(token, None)
+
+    def close(self):
+        self.closed = True
+
+
+def _a_library(tmp_path, host):
+    with patch("fun_time_vr.player.FrameTexture"):
+        return _LibraryUnit(
+            placement=DEFAULT_LAYOUT[LIBRARY],
+            flag=tmp_path / LIBRARY_OPEN_FILENAME,
+            host=host,
+            main_player_cmd_file=tmp_path / "main_player_cmd.txt",
+            main_player_status_file=tmp_path / "main_player_status.txt",
+            dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+        )
+
+
+def _a_frame(value: int = 7) -> tuple[int, int, bytes]:
+    width, height = LIBRARY_SIZE_PX
+    return width, height, bytes([value]) * (width * height * 4)
+
+
+def _uv(x: int, y: int) -> tuple[float, float]:
+    width, height = LIBRARY_SIZE_PX
+    return (x + 0.5) / width, 1 - (y + 0.5) / height
+
+
+class TestTheLibraryUnderThePointer:
+    def test_opening_it_asks_the_browser_to_open_on_the_video_playing(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        (tmp_path / "main_player_status.txt").write_text(
+            "video=C:/videos/Scene One.mp4\n", encoding="utf-8")
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+
+        unit.pump(threading.Event(), 0.0)
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["open 1 C:/videos/Scene One.mp4"]
+
+    def test_a_press_on_it_reaches_the_browser_at_the_point_pressed(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        host.sent.clear()
+
+        unit.point(Frame(events=(PressEvent(PRESS, LIBRARY, *_uv(100, 200)),)))
+        unit.point(Frame(events=(PressEvent(DRAG, LIBRARY, *_uv(110, 260)),)))
+        unit.point(Frame(events=(PressEvent(RELEASE, LIBRARY),)))
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["press 100 200", "drag 110 260", "release"]
+
+    def test_a_video_picked_plays_on_the_main_player_and_puts_the_browse_away(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+
+        host.said.append("picked C:/videos/Scene One.mp4")
+        unit.pump(threading.Event(), 0.0)
+
+        assert (tmp_path / "main_player_cmd.txt").read_text(encoding="utf-8").strip() == (
+            f"PLAY_FILE {Path('C:/videos/Scene One.mp4')}")
+        assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
+            BROWSE_LIBRARY_CLOSE)
+        assert not unit.showing
+
+    def test_its_own_close_puts_it_away_playing_nothing(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+
+        host.said.append("dismissed")
+        unit.pump(threading.Event(), 0.0)
+
+        assert not (tmp_path / "main_player_cmd.txt").exists()
+        assert (tmp_path / "dashboard_cmd.txt").read_text(encoding="utf-8").strip() == (
+            BROWSE_LIBRARY_CLOSE)
+        assert not unit.showing
+
+    def test_the_browse_reaches_the_headset_only_while_it_is_up(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        unit.texture = _FakePanelTexture()
+        host.frames[1] = _a_frame()
+        unit.pump(threading.Event(), 0.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
+        assert not hasattr(unit.texture, "uploaded")
+
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            unit.render_latest_frame()
+
+        assert unit.showing
+        assert unit.texture.uploaded.shape == (LIBRARY_SIZE_PX[1], LIBRARY_SIZE_PX[0], 4)
+        assert unit.texture.uploaded.max() == 7
+
+    def test_a_browse_just_opened_shows_nothing_left_from_the_last_until_it_draws(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+
+        unit.pump(threading.Event(), 0.0)
+        assert not unit.showing
+
+        unit.pump(threading.Event(), 1.0)
+        assert unit.showing
+
+    def test_the_stick_scrolls_it_while_the_pointer_is_on_it(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        host.frames[1] = _a_frame()
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
+        host.sent.clear()
+
+        assert unit.takes_the_stick
+        unit.scroll(90.0)
+        unit.scroll(90.0)
+        unit.pump(threading.Event(), 0.0)
+
+        assert host.sent == ["hover 300 400", "scroll 180"]
+
+    def test_the_stick_is_left_alone_while_the_pointer_is_elsewhere(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        host.frames[1] = _a_frame()
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        assert unit.showing
+
+        unit.point(Frame(hover=Hover(PRIMARY, SURFACE, 0.5, 0.5)))
+
+        assert not unit.takes_the_stick
+
+    def test_closing_the_session_ends_its_browser(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+
+        unit.close()
+
+        assert host.closed
+
+
 class TestWhatThePointerCanReach:
     def _screens(self, tmp_path, *, reference_showing=False, wrapped=False):
         panel = _a_panel()
@@ -1530,9 +1752,10 @@ class TestWhatThePointerCanReach:
             showing=reference_showing,
             texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
+            layout_key=REFERENCE,
         )
         return {s.name: s for s in _pointable_screens(
-            primary, genau, [], panel, dash, reference)}
+            primary, genau, [], panel, dash, [reference])}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)

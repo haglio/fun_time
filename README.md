@@ -267,7 +267,7 @@ same video sits in three of them at different trims and upscales
 video got through the pipeline before you can find it, which is the librarian's
 business and not the viewer's.
 
-So `\` opens Fun Time's own browser instead of a file dialog. It shows one tile
+So `N` opens Fun Time's own browser instead of a file dialog. It shows one tile
 per **video** rather than per file — every rendition of one video collapsed into
 a single *handle* — with a still off each, named after the video, and no stage
 folders anywhere. Arrow keys move the selection, typing jumps to a title,
@@ -287,24 +287,47 @@ with the bridge blocked by a process that had nothing left to do. And it
 belongs to the session — quitting Fun Time closes a browse still on screen,
 since the dispatch loop that launched it holds it until it ends.
 
+In the headset the browser is the desktop's own. Nothing in the headset can see
+a window on the monitors, so a VR session runs the same browser with no window
+at all and hangs what it draws in front of you as a panel. `N`, "browse" and
+the console's browse button open it, and the same again puts it away. It is the
+window described below, header, letters and tiles alike, with three differences
+a pointer needs: one trigger press opens a tile, the stick scrolls whichever
+list the pointer is over, and a close button sits at the end of the header,
+since no title bar is drawn around it. A headset session has two kinds of
+video, so the browse opens on two folders: `VR`, the headset's own library
+(`vr.library_dirs`), and `2D`, the folders the desktop walks; a session with
+videos of only one kind opens straight on that kind's folders. A video picked
+plays on the main player and puts the browse away. It opens on the folder of
+the video that is playing, with that video chosen, and no hotkey is suspended
+while it is up. The browser starts, and reads the library, when the headset's
+player does, so a browse opened in the first moments of a session says it is
+still reading.
+
 The grid is one you **walk**. It opens on the library's own folders — one tile
 per folder under a `main_player_library_dirs` source, showing four of its videos laid out
 two by two (drawn at random, so a folder is never the same picture twice) and a
 count — and opening one shows what is in it: either the folders it was split
 into, or its videos. A tile at the head of every folder goes back up, and so
-does Backspace.
+does Backspace. The folder you are in is named across the top of the window,
+after **Library** and every folder above it, each of which is a link back to
+that folder.
 
-Down the left is the same folder listed a second way: **its names, A to Z**,
-each letter's group under a heading of that letter. The grid is in the library's
-own ranking, which is the order to look *through* a folder in and no help when
-the title is already in mind — an alphabetical walk across a wrapped grid of
-stills is not one. So the sidebar carries no pictures, only names: clicking one
-moves the grid's selection to it and scrolls it into view, and Enter or a
-double-click there opens it exactly as the tile would. Sub-folders are listed
-the same way at the levels that show them; the way back is not, since it is not
-something the folder holds. Names that start with a digit or a bracket file
-under `#`. The grid keeps the focus, so the arrows and the type-ahead still
-drive the tiles, and Backspace goes back up from either half.
+Down the left is the same folder listed a second way: **its letters, A to Z**,
+every one of them always, after `#` for names that start with a digit or a
+bracket. The grid is in the library's own ranking, which is the order to look
+*through* a folder in and no help when the title is already in mind — an
+alphabetical walk across a wrapped grid of stills is not one. A letter with
+names under it carries ▸; clicking it moves the grid to its first name, opens
+its names beneath it with ▾, and closes whichever letter was open before, and
+clicking an open letter closes it again. A letter with nothing under it is
+grayed out and does nothing. A browse opens with the letter of the video playing
+already open. Clicking a name moves the grid's selection to it and scrolls it
+into view, and Enter or a double-click there opens it exactly as the tile would.
+Sub-folders are listed the same way at the levels that show them; the way back
+is not, since it is not something the folder holds. The grid keeps the focus, so
+the arrows and the type-ahead still drive the tiles, and Backspace goes back up
+from either half.
 
 The pipeline stages are never steps. Opening the last folder lays out **every**
 video under it at once, however many processing folders they are spread across

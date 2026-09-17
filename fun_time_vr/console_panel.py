@@ -5,7 +5,7 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw
 from player_core.console import tooltip_at
 from player_core.console_hud import (
     ConsoleHud,
@@ -19,6 +19,7 @@ from shared_ui.palette import AMBER, BG_PRIMARY, GREEN, RED, TEXT_MUTED, TEXT_PR
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.mode_plan import main_player_displays
 
+from .lettering import fit_text, load_font
 from .notices import KEPT, Notice
 from .pointer import surface_pixel
 
@@ -53,30 +54,13 @@ def level_color(level: int) -> tuple[int, int, int]:
     return TEXT_MUTED
 
 
-def _notice_font() -> ImageFont.FreeTypeFont:
-    try:
-        return ImageFont.truetype("segoeuib.ttf", _NOTICE_FONT_PX)
-    except OSError:
-        return ImageFont.load_default(_NOTICE_FONT_PX)
-
-
-def fit_notice(font, text: str, width: int) -> str:
-    """*text* if it draws inside *width*, else its head with an ellipsis."""
-    if font.getlength(text) <= width or not text:
-        return text
-    kept = text
-    while kept and font.getlength(kept + "…") > width:
-        kept = kept[:-1]
-    return kept + "…"
-
-
 def paint_notices(notices: Sequence[Notice], width: int) -> Image.Image:
     """The strip above the console, newest lowest -- always NOTICE_STRIP_HEIGHT
     tall and transparent where there is nothing to say."""
     strip = Image.new("RGBA", (width, NOTICE_STRIP_HEIGHT), (0, 0, 0, 0))
     if not notices:
         return strip
-    font = _notice_font()
+    font = load_font(_NOTICE_FONT_PX)
     draw = ImageDraw.Draw(strip)
     inner = width - 2 * _NOTICE_PAD
     rows = list(notices)[-KEPT:]
@@ -87,7 +71,7 @@ def paint_notices(notices: Sequence[Notice], width: int) -> Image.Image:
             (0, y, width - 1, y + _NOTICE_ROW_H - 1), radius=4, fill=(*BG_PRIMARY, 224),
         )
         draw.text(
-            (_NOTICE_PAD, y + 1), fit_notice(font, one.message, inner),
+            (_NOTICE_PAD, y + 1), fit_text(font, one.message, inner),
             font=font, fill=(*level_color(one.level), 255),
         )
     return strip

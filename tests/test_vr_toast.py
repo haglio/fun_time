@@ -4,12 +4,10 @@ from __future__ import annotations
 import logging
 
 import numpy as np
-from PIL import ImageFont
 
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time_vr.toast import (
     MIN_FONT_PX,
-    fit_toast,
     font_px,
     paint_toast,
     toast_bgra,
@@ -43,20 +41,6 @@ class TestTheBanner:
         wide = _banner("word " * 60, max_width=400)
 
         assert wide.width <= 400
-
-    def test_a_line_that_fits_is_left_alone(self):
-        font = ImageFont.load_default(19)
-
-        assert fit_toast(font, "skip", 500) == "skip"
-
-    def test_a_line_that_does_not_is_cut_at_its_tail(self):
-        """A notice leads with what it is about, so the head survives the cut."""
-        font = ImageFont.load_default(19)
-        cut = fit_toast(font, "unrecognized voice command: " + "word " * 40, 220)
-
-        assert cut.startswith("unrecognized")
-        assert cut.endswith("…")
-        assert font.getlength(cut) <= 220
 
 
 class TestItIsSizedToThePictureItGoesOn:

@@ -10,11 +10,13 @@ from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
+from app_support.file_channel import read_flag
 from app_support.threading_utils import wait_until
 from player_core.file_channel import publish_whole
 
 from fun_time import load_config
 from fun_time.bridge_records import BridgeConfig, WindowOp
+from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -1866,6 +1868,56 @@ class TestBrowseLibrary:
             wait_until(lambda: mock_handle.call_count >= 1, timeout=10.0)
 
         mock_handle.assert_called_once()
+
+
+class TestBrowsingFromTheHeadset:
+    def _runner(self, tmp_path):
+        return make_runner(
+            tmp_path, config=make_config(tmp_path, vr_main_player=True),
+            main_player_pid=0, portrait_pid=0, landscape_pid=0, dashboard_pid=0,
+        )
+
+    def _press(self, runner, *commands):
+        with patch("fun_time.role_windows.find_window_by_pid", return_value=0), \
+             patch("fun_time.role_windows.find_window_by_title", return_value=0), \
+             patch("fun_time.role_windows.set_always_on_top"), \
+             patch("fun_time.windows_bridge_dispatch_loop.browse_library",
+                   return_value=None) as desktop:
+            for command in commands:
+                runner._handle_command(command)
+            for thread in threading.enumerate():
+                if thread.name == "library-browser":
+                    thread.join(timeout=10.0)
+        return desktop
+
+    def test_a_headset_browse_opens_the_panel_the_player_hangs(self, tmp_path):
+        runner = self._runner(tmp_path)
+
+        self._press(runner, "browse_library")
+
+        assert read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=False)
+
+    def test_a_headset_browse_launches_no_desktop_window_and_takes_no_keys(self, tmp_path):
+        runner = self._runner(tmp_path)
+
+        desktop = self._press(runner, "browse_library")
+
+        desktop.assert_not_called()
+        assert not runner.ahk_cmd_file.exists()
+
+    def test_a_second_browse_puts_the_panel_away(self, tmp_path):
+        runner = self._runner(tmp_path)
+
+        self._press(runner, "browse_library", "browse_library")
+
+        assert not read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=True)
+
+    def test_the_panels_own_close_puts_it_away_and_never_opens_it(self, tmp_path):
+        runner = self._runner(tmp_path)
+
+        self._press(runner, "browse_library", "browse_library_close", "browse_library_close")
+
+        assert not read_flag(tmp_path / LIBRARY_OPEN_FILENAME, default=True)
 
 
 # ---------------------------------------------------------------------------

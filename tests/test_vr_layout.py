@@ -12,6 +12,7 @@ from fun_time_vr.layout import (
     DEFAULT_LAYOUT,
     ELEVATION_LIMIT_DEG,
     LANDSCAPE,
+    LIBRARY,
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
     PANEL,
@@ -60,7 +61,8 @@ class TestTheDefaults:
     def test_only_the_screens_a_controller_places_are_in_here(self):
         """The console is one of them now: a video that wraps the viewer leaves
         no picture to dock it under, so a handle of its own places it there."""
-        assert set(DEFAULT_LAYOUT) == {PRIMARY, PORTRAIT, LANDSCAPE, PANEL, DASH, REFERENCE}
+        assert set(DEFAULT_LAYOUT) == {
+            PRIMARY, PORTRAIT, LANDSCAPE, PANEL, DASH, REFERENCE, LIBRARY}
 
 
 class TestTheRememberedLayout:
