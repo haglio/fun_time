@@ -35,6 +35,7 @@ from fun_time.win32 import (
     move_window,
     restore_window,
     set_always_on_top,
+    window_answers,
     window_exists,
     window_rect,
     windows_obscuring,
@@ -221,6 +222,70 @@ class TestAWindowThatHasStoppedAnswering:
 
         assert order == [1, 2, 3]
         assert time.monotonic() - started < 5
+
+    def test_a_call_that_outlasted_the_wait_still_lands_when_the_window_answers(
+            self, monkeypatch):
+        """Giving up on the wait does not take the call back.  It waits in that
+        window's queue and is carried out when the thread takes messages again —
+        by then AFTER everything placed meanwhile, which is how Genau came up
+        over the hosted app's shows.  So a caller that needs a placement to land
+        in order asks ``window_answers`` before it sends one."""
+        monkeypatch.setattr(win32, "STALLED_WINDOW_TIMEOUT_S", 0.05)
+        monkeypatch.setattr(win32, "_owned_by_this_process", lambda _hwnd: False)
+        answering = threading.Event()
+        landed = threading.Event()
+
+        def block(*_args):
+            answering.wait(10)
+            landed.set()
+
+        with patch("fun_time.win32._user32") as mock:
+            mock.SetWindowPos.side_effect = block
+            set_always_on_top(111, True)
+            assert not landed.is_set()  # the caller has given up on it
+            answering.set()  # the window starts taking messages again
+            assert landed.wait(5), "the call the caller gave up on never happened"
+
+
+class TestWhetherAWindowIsTakingMessages:
+    """What ``set_always_on_top`` cannot tell a caller until it is too late."""
+
+    def test_a_thread_that_answers_says_so(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.SendMessageTimeoutW.return_value = 1
+            assert window_answers(4242) is True
+
+    def test_a_thread_that_does_not_answer_in_time_says_so(self):
+        with patch("fun_time.win32._user32") as mock:
+            mock.SendMessageTimeoutW.return_value = 0
+            assert window_answers(4242) is False
+
+    def test_it_asks_with_the_message_that_does_nothing(self):
+        """WM_NULL, because the answer is the whole point: any message that did
+        something would be a change made to a window this only meant to ask
+        about."""
+        with patch("fun_time.win32._user32") as mock:
+            window_answers(4242, timeout_ms=50)
+
+        hwnd, message, *_rest = mock.SendMessageTimeoutW.call_args.args
+        assert (hwnd, message) == (4242, win32.WM_NULL)
+
+    def test_a_thread_busy_for_seconds_is_still_given_the_whole_timeout(self):
+        """Genau's thread can stay busy past the five seconds after which Windows
+        stops waiting on a window, and a caller that waits by counting asks needs
+        each ask to take its full time -- the flag that gives up on such a window
+        would answer those at once."""
+        with patch("fun_time.win32._user32") as mock:
+            window_answers(4242, timeout_ms=50)
+
+        *_head, flags, timeout, _out = mock.SendMessageTimeoutW.call_args.args
+        assert (flags, timeout) == (win32.SMTO_NORMAL, 50)
+
+    def test_a_window_that_was_never_resolved_is_not_asked(self):
+        with patch("fun_time.win32._user32") as mock:
+            assert window_answers(0) is False
+
+        mock.SendMessageTimeoutW.assert_not_called()
 
 
 class TestActivateWindow:
