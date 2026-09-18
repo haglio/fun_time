@@ -36,8 +36,11 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
 }
 
 
-def default_player_layout() -> dict[str, Placement]:
-    return {name: DEFAULT_LAYOUT[name] for name in (PRIMARY, LANDSCAPE, PORTRAIT)}
+PLAYERS = (PRIMARY, LANDSCAPE, PORTRAIT)
+
+
+def vr_reset_layout() -> dict[str, Placement]:
+    return {name: DEFAULT_LAYOUT[name] for name in (*PLAYERS, DASH, PANEL)}
 
 
 AZIMUTH_LIMIT_DEG = 150.0

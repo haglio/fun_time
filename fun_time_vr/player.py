@@ -126,12 +126,13 @@ from .layout import (
     LANDSCAPE,
     LAYOUT_FILENAME,
     PANEL,
+    PLAYERS,
     PORTRAIT,
     PRIMARY,
     REFERENCE,
-    default_player_layout,
     read_layout,
     rearranged,
+    vr_reset_layout,
     write_layout,
 )
 from .matrices import (
@@ -1101,6 +1102,10 @@ class _DashUnit:
         else:
             self._floating = placement
 
+    def put_back(self, layout: dict[str, Placement]) -> None:
+        self._floating = layout[DASH]
+        self._wrapped = layout[PANEL]
+
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
 
@@ -1911,8 +1916,10 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     )
                 reset = {}
                 if primary.role.layout_reset.take():
-                    reset = default_player_layout()
-                    logger.info("Put the players back in their default spots and sizes")
+                    reset = vr_reset_layout()
+                    pointer.let_go()
+                    logger.info(
+                        "Put the players and the dashboard back in their default spots and sizes")
                 session.sync_controller(display_time)
                 scene_rotation = _scene_rotation(scene_yaw, primary.role.tilt_deg)
                 main = _main_slot_screen(primary, genau)
@@ -1930,14 +1937,21 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 scene_pitch_deg = primary.role.tilt_deg
                 scene_rotation = _scene_rotation(scene_yaw, scene_pitch_deg)
                 players = {name: frame.moved.get(name, hanging[name][0].placement)
-                           for name in (PRIMARY, PORTRAIT, LANDSCAPE)}
+                           for name in PLAYERS}
                 moved = frame.moved | rearranged(
                     players, grow=thumb.grow, nearer_by=thumb.nearer)
-                for name, placement in (moved | reset).items():
+                for name, placement in moved.items():
                     for screen in hanging[name]:
                         screen.placement = placement
                     keeper.place(  # the dashboard says which of its two spots moved
                         dash.layout_key if name == DASH else name, placement)
+                if reset:
+                    for name in PLAYERS:
+                        for screen in hanging[name]:
+                            screen.placement = reset[name]
+                    dash.put_back(reset)
+                    for name, placement in reset.items():
+                        keeper.place(name, placement)
                 if frame.settled or thumb.settled or reset:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own

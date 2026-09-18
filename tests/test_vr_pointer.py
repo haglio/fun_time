@@ -477,6 +477,17 @@ class TestThePointerOverTheScene:
         assert released.settled
         assert released.moved["landscape"].azimuth_deg == pytest.approx(43.0, abs=1e-4)
 
+    def test_a_drag_let_go_of_moves_nothing_while_the_trigger_stays_down(self):
+        pointer = Pointer()
+        du, dv = handle_extent(_LANDSCAPE.placement, _LANDSCAPE.aspect)
+        self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 0.5, 1 + dv / 2), right_trigger=1.0))
+
+        pointer.let_go()
+        still_held = self._frame(pointer, _hands(right=_aim_turned(_LANDSCAPE, 5.0, 1 + dv / 2),
+                                                 right_trigger=1.0))
+
+        assert still_held.moved == {}
+
     def test_a_squeeze_on_a_corner_grows_the_screen_off_the_opposite_one(self):
         """The screen's own aspect has to reach the grab for this to land: it is
         what turns the pointer's reach into a width, and the anchor into a place."""

@@ -20,11 +20,11 @@ from fun_time_vr.layout import (
     REFERENCE,
     clamp_placement,
     clamp_width,
-    default_player_layout,
     grown,
     nearer,
     read_layout,
     rearranged,
+    vr_reset_layout,
     write_layout,
 )
 from fun_time_vr.scene import PRIMARY_WIDTH_DEG, RADIUS, Placement, surface_vertices
@@ -228,9 +228,11 @@ class TestWhereTheControllersLeaveThePlayers:
 
 
 class TestTheVrReset:
-    def test_it_puts_back_the_three_players_and_leaves_the_panels_where_they_are(self):
-        assert default_player_layout() == {
+    def test_it_puts_back_the_players_and_both_of_the_dashboards_spots_but_not_the_reference(self):
+        assert vr_reset_layout() == {
             PRIMARY: DEFAULT_LAYOUT[PRIMARY],
             LANDSCAPE: DEFAULT_LAYOUT[LANDSCAPE],
             PORTRAIT: DEFAULT_LAYOUT[PORTRAIT],
+            DASH: DEFAULT_LAYOUT[DASH],
+            PANEL: DEFAULT_LAYOUT[PANEL],
         }
