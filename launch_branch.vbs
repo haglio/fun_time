@@ -81,8 +81,14 @@ Else
   readyFile = fso.BuildPath(stateDir, "launcher.ready")
   exitedFlag = fso.BuildPath(stateDir, "launcher.exited")
 End If
+' branch_session leaves this when a launch fails on a worktree older than
+' the Fun Time he runs -- the usual reason a launcher that worked once
+' stops working, and a failure that is nothing he did. Cleared first so a
+' previous launch's note cannot explain this one.
+outOfDateNote = fso.BuildPath(stateDir, "branch_out_of_date.txt")
 If fso.FileExists(readyFile) Then fso.DeleteFile readyFile
 If fso.FileExists(exitedFlag) Then fso.DeleteFile exitedFlag
+If fso.FileExists(outOfDateNote) Then fso.DeleteFile outOfDateNote
 
 ' Run from the primary: this launcher and the config it writes are main's code,
 ' and only the session underneath it is the branch's (branch_session starts the
@@ -111,11 +117,17 @@ Do
 Loop
 
 If Not started Then
-  msg = appName & " failed to start on " & branchLabel & "." & vbCrLf & vbCrLf & _
-        "See the full log at:" & vbCrLf & launchLog
-  tail = LastLinesOf(launchLog, 15)
-  If Len(tail) > 0 Then msg = msg & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
-  MsgBox msg, vbCritical, appName
+  outOfDate = LastLinesOf(outOfDateNote, 20)
+  If Len(outOfDate) > 0 Then
+    MsgBox outOfDate & vbCrLf & "The full log is at:" & vbCrLf & launchLog, _
+           vbExclamation, appName
+  Else
+    msg = appName & " failed to start on " & branchLabel & "." & vbCrLf & vbCrLf & _
+          "See the full log at:" & vbCrLf & launchLog
+    tail = LastLinesOf(launchLog, 15)
+    If Len(tail) > 0 Then msg = msg & vbCrLf & vbCrLf & "Last lines of the log:" & vbCrLf & tail
+    MsgBox msg, vbCritical, appName
+  End If
 End If
 
 ' The first of <name>.log, <name>-2.log ... that opens for writing, and a banner

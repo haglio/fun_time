@@ -18,6 +18,8 @@ from pathlib import Path
 
 import pytest
 
+from fun_time.branch_session import OUT_OF_DATE_NOTE_NAME
+
 PROJECT_DIR = Path(__file__).resolve().parent.parent
 
 
@@ -149,6 +151,21 @@ def test_branch_launcher_says_so_when_the_worktree_has_been_deleted():
 
     assert "fso.FolderExists(worktree)" in text
     assert "already in Fun Time" in text
+
+
+def test_branch_launcher_says_when_the_branchs_copy_is_behind_the_apps():
+    """A launcher made from a copy that has since gone out of date dies inside
+    python, on whatever main changed under it — a config key its loader has
+    never heard of, a moved module — and the dialog he gets is a traceback about
+    something he did not do.  branch_session leaves a note saying which branch
+    and how far out of date; the launcher shows that instead of the log tail,
+    and clears a previous launch's note first so a stale one cannot explain a
+    failure it had nothing to do with."""
+    text = _text("launch_branch.vbs")
+
+    assert f'outOfDateNote = fso.BuildPath(stateDir, "{OUT_OF_DATE_NOTE_NAME}")' in text
+    assert "If fso.FileExists(outOfDateNote) Then fso.DeleteFile outOfDateNote" in text
+    assert "If Len(outOfDate) > 0 Then" in text
 
 
 def test_windows_launcher_runs_the_orchestrator_under_a_name_that_says_fun_time():
