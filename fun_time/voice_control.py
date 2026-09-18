@@ -83,7 +83,7 @@ def _source_for_heard_text(text: str) -> str:
 # and adds nothing — "play" resumes, "quit" quits, "relief omnipause"
 # retracts, and that last one has to reach a room that is ALREADY paused, because
 # a paused session can still have the device on the user.  Nothing else a paused
-# room says reaches the dispatch loop.  Widening this set is the owner's call --
+# room says reaches the dispatch loop.  This set is settled and never widened --
 # see CLAUDE.md, "Standing rules", and the test that pins the whole frozenset.
 SUSPEND_EXEMPT_COMMANDS: frozenset[str] = frozenset({"play", "quit", "relief_omnipause"})
 
@@ -419,7 +419,6 @@ class VoiceController:
         if self._muted.is_set():
             return False
         if self._suspended.is_set() and command not in SUSPEND_EXEMPT_COMMANDS:
-            logger.debug("Voice suspended by omnipause: ignored %s", command)
             return False
         return append_command(self.cmd_file, format_spoken_command(command, spoken_at=spoken_at))
 
@@ -434,11 +433,7 @@ class VoiceController:
 
         Every finalized utterance leaves one log line naming its outcome and the
         level the microphone delivered, so a command that misses says where it
-        died instead of leaving the same silence as an unplugged microphone.  On
-        screen it stays quieter: a white confirmation over the player a
-        dispatched command addresses, a yellow report over the player a refused or
-        unmatched phrase named -- the confirmation only when the command really
-        dispatched, the reports only while the room is being listened to.
+        died instead of leaving the same silence as an unplugged microphone.
         """
         heard_at = time.monotonic() - spoken_at
         if interp.command:
@@ -452,12 +447,13 @@ class VoiceController:
                 logger.info("Voice command: %s (spoken %.2fs before recognition, peak %d)",
                             interp.command, heard_at, peak)
             dispatched = self._write_command(interp.command, spoken_at=spoken_at)
+            phrase = friendly_voice(interp.phrase or interp.command)
+            source = _source_for_command(interp.command, self.active_side())
             if dispatched and interp.command not in SELF_REPORTING_COMMANDS:
-                notice(
-                    logger,
-                    friendly_voice(interp.phrase or interp.command),
-                    source=_source_for_command(interp.command, self.active_side()),
-                )
+                notice(logger, phrase, source=source)
+            elif not dispatched and not self._muted.is_set() and self._suspended.is_set():
+                notice(logger, f"ignored during OmniPause: {phrase}", source=source,
+                       level=logging.WARNING)
         elif interp.refused_phrase:
             self._keep_miss(audio)
             logger.info("Voice: heard %r but its confidence was under %.2f "

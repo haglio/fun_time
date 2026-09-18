@@ -183,7 +183,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # frame loop went with it.
 # 8076 since 2026-09-18, when the library browser sidebar became letters that
 # open onto their names, and its docstrings shrank to what that leaves true.
-MAX_PROSE_LINES = 8076
+# 8072 since 2026-09-18, when a spoken command OmniPause drops began saying so
+# on screen, and the docstring listing what voice flashes gave way to the tests.
+MAX_PROSE_LINES = 8072
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

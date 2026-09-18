@@ -425,6 +425,31 @@ class TestHandleRecognition:
 
         assert seen == ["genau"]
 
+    def test_a_command_heard_while_omnipaused_says_it_was_ignored(self, tmp_path, monkeypatch):
+        import logging
+
+        vc = self._controller(tmp_path)
+        vc.suspend()
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+
+        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+
+        assert not (tmp_path / "cmd.txt").exists()
+        assert seen == [("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
+
+    def test_a_muted_room_stays_silent_while_omnipaused_too(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        vc.suspend()
+        vc.mute()
+        seen = []
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
+
+        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+
+        assert seen == []
+
     def test_a_muted_command_neither_dispatches_nor_confirms(self, tmp_path, monkeypatch):
         vc = self._controller(tmp_path)
         vc.mute()
