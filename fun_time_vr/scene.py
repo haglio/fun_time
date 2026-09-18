@@ -43,6 +43,10 @@ def half_width(width_deg: float, radius: float = RADIUS) -> float:
     return radius * math.tan(math.radians(width_deg) / 2.0)
 
 
+def turn_deg(from_deg: float, to_deg: float) -> float:
+    return (to_deg - from_deg + 180.0) % 360.0 - 180.0
+
+
 def _quat_multiply(
     a: tuple[float, float, float, float], b: tuple[float, float, float, float]
 ) -> tuple[float, float, float, float]:

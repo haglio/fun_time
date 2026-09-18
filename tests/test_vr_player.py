@@ -77,6 +77,7 @@ from fun_time_vr.layout import (
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
     VrSettings,
+    _ControllerPosts,
     _CoverUnit,
     _DashUnit,
     _draw_eyes,
@@ -490,6 +491,29 @@ class TestTheLayoutKeeper:
         keeper.close()
 
         assert read_layout(path)[PORTRAIT] == moved
+
+
+class TestWhatTheControllersPost:
+    def test_a_press_the_render_thread_hands_over_is_posted_on_the_worker(self, tmp_path):
+        command_file = tmp_path / "dashboard_cmd.txt"
+        posts = _ControllerPosts(command_file)
+
+        posts.post(("main_nudge_next", "main_scene_prev"))
+        assert not command_file.exists()
+
+        posts.pump(threading.Event(), 0.0)
+
+        assert command_file.read_text(encoding="utf-8").split() == [
+            "main_nudge_next", "main_scene_prev"]
+
+    def test_a_press_made_as_the_session_ends_is_still_posted(self, tmp_path):
+        command_file = tmp_path / "dashboard_cmd.txt"
+        posts = _ControllerPosts(command_file)
+
+        posts.post(("main_scene_next",))
+        posts.close()
+
+        assert command_file.read_text(encoding="utf-8").split() == ["main_scene_next"]
 
 
 _WRAPPED_ROW_H = lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT)
@@ -1129,6 +1153,25 @@ def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
     )
 
 
+def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
+    (made,) = [call for call in calls if ast.unparse(call.func) == "Pointer"]
+    (posted,) = [call for call in calls if ast.unparse(call.func) == "posts.post"]
+    (pumped,) = [node for node in ast.walk(tree)
+                 if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "pumped"]
+
+    assert [ast.unparse(keyword) for keyword in made.keywords] == [
+        "on_its_controls=on_its_controls"]
+    assert ast.unparse(posted) == "posts.post(thumb.commands)"
+    assert "posts" in ast.unparse(pumped.value)
+
+
 def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
     """A frame submitted while the runtime cannot locate the views, or while the
     headset is on the desk, showed nobody anything."""
@@ -1190,6 +1233,9 @@ class TestTheMainSlotUnderThePointer:
         assert screen.placement == DEFAULT_LAYOUT[PRIMARY]
         assert screen.aspect == 16 / 9
 
+    def test_a_flat_main_player_is_a_picture_a_squeeze_clicks_or_carries(self):
+        assert _main_slot_screen(*self._units()).picture
+
     def test_genaus_clip_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
         """It hangs in the same slot, at its own shape — so the handles stay
         under the hand through a switch into video mode and back."""
@@ -1221,27 +1267,33 @@ class TestTheMainSlotUnderThePointer:
         player: there is nothing there for the ray to find."""
         assert _main_slot_screen(*self._units(**state)) is None
 
-    def test_the_main_slot_is_listed_under_the_screens_that_overlap_it(self):
-        """It is drawn first and it is the biggest, so a satellite tucked over its
-        edge — and the console under them all — has to win the ray.  The console
-        is pressed, never dragged: it rides on the main player now."""
+    def _the_room_around_the_slot(self) -> list:
         satellite = SimpleNamespace(
             side=LANDSCAPE, target=SimpleNamespace(ready=True, aspect=16 / 9),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[LANDSCAPE]), hud_ready=False,
         )
-        panel = _a_panel()
-
         dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
                                screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
         reference = SimpleNamespace(showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
                                     screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]))
+        return _pointable_screens(
+            _main_slot_screen(*self._units()), [satellite], _a_panel(), dash, reference)
 
-        screens = _pointable_screens(
-            *self._units(), [satellite], panel, dash, reference)
+    def test_the_main_slot_is_listed_under_the_screens_that_overlap_it(self):
+        """It is drawn first and it is the biggest, so a satellite tucked over its
+        edge — and the console under them all — has to win the ray.  The console
+        is pressed, never dragged: it rides on the main player now."""
+        screens = self._the_room_around_the_slot()
 
         assert [screen.name for screen in screens] == [PRIMARY, LANDSCAPE, PANEL]
         console = screens[-1]
         assert (console.pressable, console.movable, console.resizable) == (True, False, False)
+
+    def test_a_satellite_is_a_picture_and_the_console_is_not(self):
+        screens = {screen.name: screen for screen in self._the_room_around_the_slot()}
+
+        assert screens[LANDSCAPE].picture
+        assert not screens[PANEL].picture
 
 
 class TestWhichSlotAsksForARow:
@@ -1569,7 +1621,7 @@ class TestWhatThePointerCanReach:
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[REFERENCE]),
         )
         return {s.name: s for s in _pointable_screens(
-            primary, genau, [], panel, dash, reference)}
+            _main_slot_screen(primary, genau), [], panel, dash, reference)}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)

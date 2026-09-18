@@ -26,11 +26,14 @@ from fun_time_vr.furniture import (
     chip_state,
     control_size,
     furniture_at,
+    on_its_controls,
     paint_row,
     scrubber_state,
     with_furniture,
 )
 from fun_time_vr.layout import MIN_WIDTH_DEG
+from fun_time_vr.pointer import Screen
+from fun_time_vr.scene import Placement
 
 
 class TestScrubberState:
@@ -68,6 +71,16 @@ class TestChipState:
         assert chip_state(1920, 1080, VolumeHud(volume=80, muted=False)) != base
         assert chip_state(1920, 1080, VolumeHud(volume=70, muted=True)) != base
         assert chip_state(1280, 720, VolumeHud(volume=70, muted=False)) != base
+
+
+class TestWhereAPicturesOwnControlsAre:
+    def test_its_scrubber_row_is_a_control_and_the_picture_above_it_is_not(self):
+        screen = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
+                        pressable=True, picture=True)
+        _width, height = control_size(screen.placement.width_deg, screen.aspect)
+
+        assert on_its_controls(screen, 0.3, TIMELINE_HEIGHT / 2 / height)
+        assert not on_its_controls(screen, 0.3, 0.5)
 
 
 class TestHowBigTheControlsAre:

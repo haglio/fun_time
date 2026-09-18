@@ -31,11 +31,14 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # minimize buttons live on the HUDs (player_core / the main player's console); the speed
 # pair is Genau's console's own ± marks beside its drive readout; the enhanced
 # filter is the switch the console draws over a hosted Origenerator's shows,
-# which the room hears as "enhanced only" rather than under this id.
+# which the room hears as "enhanced only" rather than under this id.  The two
+# scene jumps are the VR controllers' B and A with the trigger held.
 HUD_ONLY_COMMAND_IDS = (
     "genau_filter_enhanced",
     "landscape_minimize",
     "main_minimize",
+    "main_scene_next",
+    "main_scene_prev",
     "portrait_minimize",
     "robot_hand_speed_down",
     "robot_hand_speed_up",

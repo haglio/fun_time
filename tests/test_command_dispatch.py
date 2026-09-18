@@ -562,6 +562,8 @@ def test_locking_the_primary_makes_it_the_side_a_bare_command_reaches(tmp_path: 
     ("tilt_up", "TILT_UP"),
     ("tilt_down", "TILT_DOWN"),
     ("tilt_reset", "TILT_RESET"),
+    ("main_scene_prev", "PREV_SCENE"),
+    ("main_scene_next", "NEXT_SCENE"),
 ])
 def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path):
     """A projection, a heading and a tilt are things only the VR player has."""
@@ -575,7 +577,8 @@ def test_a_vr_only_verb_reaches_the_vr_main_player(command, verb, tmp_path: Path
 
 @pytest.mark.parametrize(
     "command",
-    ["projection_cycle", "recenter_view", "tilt_up", "tilt_down", "tilt_reset"],
+    ["projection_cycle", "recenter_view", "tilt_up", "tilt_down", "tilt_reset",
+     "main_scene_prev", "main_scene_next"],
 )
 @pytest.mark.parametrize("main_mode", ["video", "genau"])
 def test_a_vr_only_verb_is_not_sent_in_a_desktop_session(command, main_mode, tmp_path: Path):

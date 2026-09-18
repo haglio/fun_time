@@ -113,6 +113,7 @@ from .furniture import (
     FurniturePointer,
     chip_state,
     control_size,
+    on_its_controls,
     paint_row,
     scaled,
     scrubber_state,
@@ -129,6 +130,7 @@ from .layout import (
     PRIMARY,
     REFERENCE,
     read_layout,
+    rearranged,
     write_layout,
 )
 from .matrices import (
@@ -156,6 +158,7 @@ from .pointer import (
     held_controllers,
     laser_vertices,
     surface_pixel,
+    wrap_carried,
 )
 from .reference_panel import (
     REFERENCE_WIDTH_PX,
@@ -181,6 +184,7 @@ from .scene import (
     surface_vertices,
 )
 from .scheduling import ahead_of_background_work
+from .thumbs import Thumbs
 from .toast import toast_bgra
 from .video_thread import VideoThread
 
@@ -201,10 +205,6 @@ SATELLITE_VIDEO_CAP_PX = 2048
 
 PANEL_DOCK_FALLBACK_ASPECT = 16 / 9  # the primary's shape until it decodes one
 _WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
-
-# GenauVR's rate and deadzone, but not its sign: our stick away lowers.
-TILT_RATE_DEG_S = 85.0
-CONTROLLER_DEADZONE = 0.1
 
 # The file-channel worker's cadence: the dispatch loop polls these same files
 # at ~20Hz, so 30Hz loses no responsiveness.
@@ -1295,6 +1295,27 @@ class _LayoutKeeper:
         self._write(settled_only=False)
 
 
+class _ControllerPosts:
+    def __init__(self, command_file: Path) -> None:
+        self._command_file = command_file
+        self._queue: queue.SimpleQueue[str] = queue.SimpleQueue()
+
+    def post(self, commands: Sequence[str]) -> None:
+        for command in commands:
+            self._queue.put(command)
+
+    def pump(self, stop: threading.Event | None, now: float) -> None:
+        while True:
+            try:
+                command = self._queue.get_nowait()
+            except queue.Empty:
+                return
+            append_command(self._command_file, command)
+
+    def close(self) -> None:
+        self.pump(None, 0.0)
+
+
 class _PointerDrawing:
     def __init__(self) -> None:
         self._laser = ScreenMesh()
@@ -1432,10 +1453,8 @@ def _pump_channels(units: list, stop: threading.Event, perf: FramePerf) -> None:
         stop.wait(max(0.0, period - (time.monotonic() - started)))
 
 
-def tilt_from_stick(axis: float, elapsed_s: float) -> float:
-    if abs(axis) <= CONTROLLER_DEADZONE:
-        return 0.0
-    return -axis * elapsed_s * TILT_RATE_DEG_S  # inverted: stick away lowers
+def _scene_rotation(scene_yaw: float, tilt_deg: float) -> np.ndarray:
+    return yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(math.radians(tilt_deg))
 
 
 def _update_quad_layer(
@@ -1537,7 +1556,7 @@ def _main_slot_screen(primary: _MainUnit, genau: _GenauUnit) -> Screen | None:
     if immersive_mode(projection) is not None:
         return Screen(PRIMARY, screen.placement, aspect, pressable=True, immersive=True)
     return Screen(PRIMARY, screen.placement, aspect, movable=True, resizable=True,
-                  pressable=True)
+                  pressable=True, picture=True)
 
 
 def _wrapped_slot(primary: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUnit | None:
@@ -1550,16 +1569,15 @@ def _wrapped_slot(primary: _MainUnit, genau: _GenauUnit) -> _MainUnit | _GenauUn
 
 
 def _pointable_screens(
-    primary: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
+    main: Screen | None, satellites: Sequence[_SatelliteUnit],
     panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit,
 ) -> list[Screen]:
-    main = _main_slot_screen(primary, genau)
     screens = [main] if main is not None else []  # first, so the rest win the overlap
     for unit in satellites:
         if not unit.target.ready:
             continue
         screens.append(Screen(unit.side, unit.screen.placement, unit.target.aspect,
-                              movable=True, resizable=True, pressable=True))
+                              movable=True, resizable=True, pressable=True, picture=True))
         if unit.hud_ready:
             screens.append(Screen(hud_screen_name(unit.side), unit.hud_screen.placement,
                                   unit.hud_texture.aspect, pressable=True))
@@ -1802,12 +1820,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
+    posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
     units = [primary, genau, *satellites, dash, panel, reference, cover]  # dash first:
-    pumped = [notices, *units, keeper]  # the console hangs off where it ended up
+    pumped = [notices, *units, keeper, posts]  # the console hangs off where it ended up
     hanging = {unit.side: (unit.screen,) for unit in satellites} | {
         PRIMARY: (primary.screen, genau.screen), DASH: (dash,),
         REFERENCE: (reference.screen,)}
-    pointer = Pointer()
+    pointer = Pointer(on_its_controls=on_its_controls)
+    thumbs = Thumbs()
     pointing = _PointerDrawing()
     use_layers = vr.compositor_layers
     # The recentering yaw, with the role's tilt read in beside it each frame.
@@ -1889,27 +1909,34 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
                 session.sync_controller(display_time)
-                primary.role.nudge_tilt(
-                    tilt_from_stick(session.thumbstick_y, frame_dt)
-                )
-                scene_pitch_deg = primary.role.tilt_deg
-                scene_rotation = yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(
-                    math.radians(scene_pitch_deg)
-                )
-                screens = _pointable_screens(
-                    primary, genau, satellites, panel, dash, reference)
+                scene_rotation = _scene_rotation(scene_yaw, primary.role.tilt_deg)
+                main = _main_slot_screen(primary, genau)
+                screens = _pointable_screens(main, satellites, panel, dash, reference)
                 head = head_position([
                     (view.pose.position.x, view.pose.position.y, view.pose.position.z)
                     for view in views
                 ])
                 frame = pointer.frame(
                     session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
-                for name, placement in frame.moved.items():
+                thumb = thumbs.frame(session.hands, pointer, elapsed_s=frame_dt)
+                posts.post(thumb.commands)
+                wrapped = main is not None and main.immersive
+                if wrapped:
+                    scene_yaw, lift_deg = wrap_carried(scene_yaw, frame.carried)
+                    primary.role.nudge_tilt(lift_deg)
+                scene_pitch_deg = primary.role.tilt_deg
+                scene_rotation = _scene_rotation(scene_yaw, scene_pitch_deg)
+                players = {name: frame.moved.get(name, hanging[name][0].placement)
+                           for name in (PRIMARY, PORTRAIT, LANDSCAPE)}
+                moved = frame.moved | rearranged(
+                    players, flat_main=main is not None and not wrapped,
+                    carried_deg=frame.carried, grow=thumb.grow, nearer_by=thumb.nearer)
+                for name, placement in moved.items():
                     for screen in hanging[name]:
                         screen.placement = placement
                     keeper.place(  # the dashboard says which of its two spots moved
                         dash.layout_key if name == DASH else name, placement)
-                if frame.settled:
+                if frame.settled or thumb.settled:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else primary),  # the slot's own
                              *satellites, panel, dash, reference):

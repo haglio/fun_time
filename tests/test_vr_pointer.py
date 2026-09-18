@@ -13,7 +13,7 @@ from fun_time_vr.layout import (
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
 )
-from fun_time_vr.matrices import yaw_rotation_matrix
+from fun_time_vr.matrices import pitch_rotation_matrix, yaw_rotation_matrix
 from fun_time_vr.pointer import (
     CURSOR_DEG,
     DRAG,
@@ -45,6 +45,7 @@ from fun_time_vr.pointer import (
     laser_vertices,
     scene_ray,
     screen_uv,
+    wrap_carried,
 )
 from fun_time_vr.scene import RADIUS, Placement, scene_placement_quaternion, surface_vertices
 
@@ -418,6 +419,8 @@ def _hands(right=None, left=None, *, right_trigger=0.0, left_trigger=0.0):
 
 _LANDSCAPE = Screen("landscape", Placement(38.0, 10.0, 28.0), aspect=16 / 9,
                     movable=True, resizable=True)
+_PORTRAIT = Screen("portrait", Placement(-38.0, 10.0, 28.0), aspect=9 / 16,
+                   movable=True, resizable=True, pressable=True, picture=True)
 _PANEL = Screen("panel", Placement(0.0, 32.0, 24.0), aspect=1.3, pressable=True)
 _WRAPPED = Screen("primary", Placement(0.0, 0.0, 72.0), aspect=16 / 9,
                   pressable=True, immersive=True)
@@ -513,25 +516,41 @@ class TestThePointerOverTheScene:
         assert not released.settled
         assert self._frame(pointer, _hands(right=_aim_at_uv(_PANEL, 0.5, 0.75))).events == ()
 
-    def test_a_squeeze_on_a_satellites_picture_does_nothing(self):
+    def test_a_squeeze_on_a_players_picture_that_moves_carries_the_main_player_instead(self):
+        landscape = replace(_LANDSCAPE, pressable=True, picture=True)
         pointer = Pointer()
+        start, end = (_seen_at(landscape.placement, landscape.aspect, u, 0.5) for u in (0.5, 0.7))
 
-        pressed = self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 0.5, 0.5), right_trigger=1.0))
-        dragged = self._frame(pointer, _hands(right=_aim_at_uv(_LANDSCAPE, 0.7, 0.5), right_trigger=1.0))
+        pressed = self._frame(pointer, _hands(right=_aim_at_uv(landscape, 0.5, 0.5),
+                                              right_trigger=1.0), screens=[landscape])
+        dragged = self._frame(pointer, _hands(right=_aim_at_uv(landscape, 0.7, 0.5),
+                                              right_trigger=1.0), screens=[landscape])
+        let_go = self._frame(pointer, _hands(right=_aim_at_uv(landscape, 0.7, 0.5)),
+                             screens=[landscape])
 
         assert pressed.hover.handle == SURFACE
-        assert pressed.events == dragged.events == ()
+        assert dragged.carried == pytest.approx(
+            (end.azimuth_deg - start.azimuth_deg,
+             math.degrees(math.atan2(end.y, RADIUS)) - math.degrees(math.atan2(start.y, RADIUS))),
+            abs=1e-5)
         assert pressed.moved == dragged.moved == {}
+        assert pressed.events == dragged.events == let_go.events == ()
+        assert let_go.settled
 
-    def test_a_squeeze_where_a_wrapped_picture_is_all_there_is_presses_it(self):
+    def test_a_click_where_a_wrapped_picture_is_all_there_is_presses_it_when_let_go(self):
         """A VR180 or 360 main player is round the viewer rather than hanging in
         the scene, so it has no rectangle to aim at — it is what a squeeze lands
         on wherever no hanging screen is, reported at its middle since there is
         no point on it to give."""
-        frame = self._frame(Pointer(), _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
-                            screens=[_WRAPPED, _PANEL])
+        pointer = Pointer()
+        held = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
+                           screens=[_WRAPPED, _PANEL])
+        let_go = self._frame(pointer, _hands(right=_aim_at(140.0, -0.6)),
+                             screens=[_WRAPPED, _PANEL])
 
-        assert frame.events == (PressEvent(PRESS, "primary", 0.5, 0.5),)
+        assert held.events == ()
+        assert let_go.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
+                                 PressEvent(RELEASE, "primary"))
 
     def test_a_screen_hanging_in_front_of_the_wrap_still_takes_its_own_presses(self):
         frame = self._frame(Pointer(), _hands(right=_aim_at_uv(_PANEL, 0.25, 0.75),
@@ -553,8 +572,83 @@ class TestThePointerOverTheScene:
         released = self._frame(pointer, away, screens=scene)
 
         assert resting.hover is None and held.hover is None
-        assert resting.events == released.events == ()
-        assert held.events == (PressEvent(PRESS, "primary", 0.5, 0.5),)
+        assert resting.events == held.events == ()
+        assert released.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
+                                   PressEvent(RELEASE, "primary"))
+
+    def test_a_click_on_a_players_picture_presses_it_when_let_go(self):
+        portrait = _PORTRAIT
+        pointer = Pointer()
+        scene = [portrait, _PANEL]
+
+        held = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6), right_trigger=1.0),
+                           screens=scene)
+        still = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6), right_trigger=1.0),
+                            screens=scene)
+        let_go = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6)), screens=scene)
+
+        assert held.events == still.events == ()
+        assert still.hover.screen == "portrait"
+        press, release = let_go.events
+        assert (press.kind, press.screen) == (PRESS, "portrait")
+        assert (press.u, press.v) == pytest.approx((0.4, 0.6), abs=1e-6)
+        assert release == PressEvent(RELEASE, "portrait")
+
+    def test_a_squeeze_on_a_pictures_own_controls_works_them_rather_than_carrying(self):
+        portrait = _PORTRAIT
+        pointer = Pointer(on_its_controls=lambda _screen, _u, v: v < 0.1)
+        scene = [portrait, _PANEL]
+
+        pressed = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.3, 0.05),
+                                              right_trigger=1.0), screens=scene)
+        dragged = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.8, 0.05),
+                                              right_trigger=1.0), screens=scene)
+
+        assert pressed.events[0].kind == PRESS
+        assert dragged.events[0].kind == DRAG
+        assert dragged.carried == (0.0, 0.0)
+
+    def test_a_squeeze_spent_on_something_else_never_clicks_when_let_go(self):
+        portrait = _PORTRAIT
+        pointer = Pointer()
+        scene = [portrait, _PANEL]
+
+        self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6), right_trigger=1.0),
+                    screens=scene)
+        squeezing = pointer.squeezing
+        pointer.spend_the_squeeze()
+        let_go = self._frame(pointer, _hands(right=_aim_at_uv(portrait, 0.4, 0.6)), screens=scene)
+
+        assert squeezing and not pointer.squeezing
+        assert let_go.events == ()
+
+    def test_a_squeeze_over_the_wrap_that_carries_it_never_presses_it(self):
+        pointer = Pointer()
+        scene = [_WRAPPED, _PANEL]
+
+        self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0), screens=scene)
+        self._frame(pointer, _hands(right=_aim_at(150.0, -0.6), right_trigger=1.0), screens=scene)
+        let_go = self._frame(pointer, _hands(right=_aim_at(150.0, -0.6)), screens=scene)
+
+        assert let_go.events == ()
+
+    def test_letting_go_blind_still_ends_a_squeeze_the_way_it_began(self):
+        pointer = Pointer()
+        scene = [_WRAPPED, _PANEL]
+
+        self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0), screens=scene)
+        self._frame(pointer, _hands(right_trigger=1.0), screens=scene)
+        clicked_blind = self._frame(pointer, _hands(), screens=scene)
+
+        self._frame(pointer, _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0), screens=scene)
+        self._frame(pointer, _hands(right=_aim_at(150.0, -0.6), right_trigger=1.0), screens=scene)
+        self._frame(pointer, _hands(right_trigger=1.0), screens=scene)
+        carried_blind = self._frame(pointer, _hands(), screens=scene)
+
+        assert clicked_blind.events == (PressEvent(PRESS, "primary", 0.5, 0.5),
+                                        PressEvent(RELEASE, "primary"))
+        assert carried_blind.settled
+        assert carried_blind.events == ()
 
     def test_a_wrap_that_is_not_pressable_takes_nothing(self):
         frame = self._frame(Pointer(), _hands(right=_aim_at(140.0, -0.6), right_trigger=1.0),
@@ -588,6 +682,41 @@ class TestThePointerOverTheScene:
         frame = self._frame(Pointer(), _hands(left=_aim_at_uv(_PANEL, 0.5, 0.5)))
 
         assert frame.hover.screen == "panel"
+
+    def test_a_squeeze_on_nothing_carries_the_main_player_as_far_as_the_hand_turns(self):
+        pointer = Pointer()
+        self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
+
+        turned = self._frame(pointer, _hands(
+            right=_aim_at(-90.0, RADIUS * math.tan(math.radians(5.0))), right_trigger=1.0))
+
+        assert turned.carried == pytest.approx((10.0, 5.0), abs=1e-6)
+
+    def test_a_hand_that_barely_moves_while_squeezing_carries_nothing(self):
+        pointer = Pointer()
+        self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
+
+        wobbled = self._frame(pointer, _hands(right=_aim_at(-99.0, 0.0), right_trigger=1.0))
+
+        assert wobbled.carried == (0.0, 0.0)
+
+    def test_a_carry_reports_each_frame_only_what_the_hand_turned_since_the_last(self):
+        pointer = Pointer()
+        self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
+        self._frame(pointer, _hands(right=_aim_at(-90.0, 0.0), right_trigger=1.0))
+
+        further = self._frame(pointer, _hands(right=_aim_at(-87.0, 0.0), right_trigger=1.0))
+
+        assert further.carried == pytest.approx((3.0, 0.0), abs=1e-6)
+
+    def test_letting_go_of_a_carry_settles_where_the_main_player_was_left(self):
+        pointer = Pointer()
+        self._frame(pointer, _hands(right=_aim_at(-100.0, 0.0), right_trigger=1.0))
+        self._frame(pointer, _hands(right=_aim_at(-90.0, 0.0), right_trigger=1.0))
+
+        let_go = self._frame(pointer, _hands(right=_aim_at(-90.0, 0.0)))
+
+        assert let_go.settled
 
     def test_a_grab_holds_through_the_ray_leaving_the_cylinder_and_the_hand_losing_tracking(self):
         pointer = Pointer()
@@ -679,3 +808,15 @@ class TestWhatIsDrawnForThePointer:
 
     def test_a_screen_that_cannot_be_resized_shows_no_corners(self):
         assert RESIZE not in handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=False)
+
+
+class TestAWrapCarriedByTheHand:
+    def test_what_was_under_the_laser_stays_under_it(self):
+        before = scene_ray(_aim_at(0.0, 0.0), head=(0.0, 0.0, 0.0), scene_rotation=_NO_TURN)
+
+        yaw, tilt_deg = wrap_carried(0.0, (10.0, 5.0))
+        turned = yaw_rotation_matrix(yaw) @ pitch_rotation_matrix(math.radians(tilt_deg))
+        after = scene_ray(_aim_at(10.0, RADIUS * math.tan(math.radians(5.0))),
+                          head=(0.0, 0.0, 0.0), scene_rotation=turned)
+
+        assert after.direction == pytest.approx(before.direction, abs=1e-6)
