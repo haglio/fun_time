@@ -29,7 +29,7 @@ Core files:
 
 Runtime state:
 
-- `state/genau_mode.txt`
+- `state/broker_mode.txt`
 - `state/genau_paused.txt`
 - `state/genau_cmd.txt`
 - `state/main_player_cmd.txt`
@@ -112,7 +112,7 @@ Monitor naming under `layout` now uses:
 
 Serial / mode control:
 
-- the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/genau_mode.txt`.
+- the real OSR2 is on `COM4`; the **broker** — the separate `../broker` project — is the only process that talks to it. It forwards UDP T-Code to the OSR2 unconditionally and suppresses serial input while UDP flows, watches the OSR2 for free-mode transitions, and publishes mode/timing state over localhost and `state/broker_mode.txt`.
 - **the main player** — this repo's `main_player` package — never opens `COM4`. It drives the OSR2 itself by sending funscript-derived T-Code to the broker over UDP (the same port Genau uses), reads commands from `state/main_player_cmd.txt`, and publishes playback status to `state/main_player_status.txt`.
 - **Genau** — the separate `../genau` project — never opens `COM4` either. It follows the broker-fed state, is the display in Genau mode and the see-through HUD layer over the main player in video mode, and reads clip and Robot Hand commands from `state/genau_cmd.txt`.
 
@@ -479,7 +479,7 @@ If an item is later discarded, it is removed from `favs.csv`.
 
 ## Runtime files in `state/`
 
-### `genau_mode.txt`
+### `broker_mode.txt`
 
 Written by the broker (the `../broker` project).
 
@@ -680,7 +680,7 @@ Check:
 
 - broker is running
 - OSR2 is actually entering auto/free mode
-- `state/genau_mode.txt` changes to `1`
+- `state/broker_mode.txt` changes to `1`
 - the broker's log (in `../broker`) for serial parsing / mode transitions
 - Genau's log (in `../genau`) for UI/runtime errors
 
@@ -692,7 +692,7 @@ The broker is the `../broker` project — check its logs and config there. Also 
 
 Check:
 
-- `state/genau_mode.txt` is `1`
+- `state/broker_mode.txt` is `1`
 - `state/genau_cmd.txt` is being written
 - clip files exist in the configured Genau clips folder (`paths.clips_dir`)
 - `state/windows_bridge.log` shows the hotkey write

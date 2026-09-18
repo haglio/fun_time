@@ -213,7 +213,7 @@ def test_the_broker_keeps_its_own_corner_of_state_in_the_primary(checkouts):
             branch.broker_heartbeat_file,
             branch.osr2_serial_rx_file,
             branch.broker_cmd_file,
-            branch.genau_mode_file,
+            branch.broker_mode_file,
         )
     ] == [live.paths.state_dir] * 4
 

@@ -1007,7 +1007,7 @@ def build_bridge_config_from_manifest(
         python_exe=manifest.executables.python_exe,
         portrait_sources=manifest.media.portrait_dirs,
         landscape_sources=manifest.media.landscape_dirs,
-        genau_mode_file=Path(commands.genau_mode_file),
+        broker_mode_file=Path(commands.broker_mode_file),
         genau_cmd_file=Path(commands.genau_cmd_file),
         genau_paused_file=Path(commands.genau_paused_file),
         audio_paused_file=Path(commands.audio_paused_file),
