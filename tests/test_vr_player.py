@@ -73,6 +73,7 @@ from fun_time_vr.layout import (
     PRIMARY,
     REFERENCE,
     read_layout,
+    vr_reset_layout,
 )
 from fun_time_vr.notices import NoticeBoard
 from fun_time_vr.player import (
@@ -1727,6 +1728,17 @@ class TestWhereTheDashboardHangs:
 
         assert dash._floating == DEFAULT_LAYOUT[DASH]
         assert dash.layout_key == PANEL
+
+    def test_a_vr_reset_puts_both_of_its_spots_back_wherever_it_was_dragged(self, tmp_path):
+        dash = self._placed(tmp_path)
+        dash.placement = Placement(azimuth_deg=110.0, elevation_deg=5.0, width_deg=40.0)
+
+        dash.put_back(vr_reset_layout())
+        with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
+            dash.render_latest_frame()
+
+        assert dash.screen.placement == DEFAULT_LAYOUT[DASH]
+        assert (dash._floating, dash._wrapped) == (DEFAULT_LAYOUT[DASH], DEFAULT_LAYOUT[PANEL])
 
 
 class TestWhereItHangsToStart:

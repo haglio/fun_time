@@ -396,6 +396,9 @@ class Pointer:
         if self._squeeze is not None:
             self._squeeze.click = None
 
+    def let_go(self) -> None:
+        self._grab = None
+
     def frame(
         self, hands: Mapping[str, HandInput], *, head: Vec3, scene_rotation: np.ndarray,
         screens: Sequence[Screen],
