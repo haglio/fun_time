@@ -18,7 +18,6 @@ from fun_time_vr.layout import (
     PORTRAIT,
     PRIMARY,
     REFERENCE,
-    carried,
     clamp_placement,
     clamp_width,
     grown,
@@ -148,14 +147,7 @@ class TestTheLimits:
         assert clamp_width(PRIMARY_WIDTH_DEG * 1.5) == PRIMARY_WIDTH_DEG * 1.5
 
 
-class TestWhatTheControllersDoToTheMainPlayer:
-    def test_carrying_it_turns_and_lifts_it_by_the_hands_degrees(self):
-        assert carried(Placement(10.0, 5.0, 72.0), 12.5, -3.0) == Placement(22.5, 2.0, 72.0)
-
-    def test_a_carry_stops_at_the_edges_of_the_scene(self):
-        assert carried(Placement(140.0, 70.0, 72.0), 30.0, 20.0) == Placement(
-            AZIMUTH_LIMIT_DEG, ELEVATION_LIMIT_DEG, 72.0)
-
+class TestGrowingTheMainPlayer:
     def test_growing_it_widens_it_about_its_own_middle(self):
         assert grown(Placement(10.0, 5.0, 72.0), 1.5) == Placement(10.0, 5.0, 108.0)
 
@@ -220,20 +212,15 @@ class TestWhereTheControllersLeaveThePlayers:
         PORTRAIT: Placement(38.0, 10.0, 28.0),
     }
 
-    def test_a_flat_main_player_is_carried_and_grown_and_the_satellites_stay(self):
-        moved = rearranged(self._PLAYERS, flat_main=True, carried_deg=(5.0, -2.0),
-                           grow=1.5, nearer_by=1.0)
+    def test_the_stick_alone_grows_the_main_player_and_the_satellites_stay(self):
+        moved = rearranged(self._PLAYERS, grow=1.5, nearer_by=1.0)
 
-        assert moved == {PRIMARY: Placement(5.0, -2.0, 108.0)}
+        assert moved == {PRIMARY: Placement(0.0, 0.0, 108.0)}
 
     def test_the_stick_with_the_trigger_held_brings_all_three_nearer(self):
-        moved = rearranged(self._PLAYERS, flat_main=True, carried_deg=(0.0, 0.0),
-                           grow=1.0, nearer_by=1.5)
+        moved = rearranged(self._PLAYERS, grow=1.0, nearer_by=1.5)
 
         assert moved == nearer(self._PLAYERS, 1.5, about=self._PLAYERS[PRIMARY])
 
-    def test_a_main_player_wrapped_round_the_viewer_is_neither_carried_nor_grown(self):
-        moved = rearranged(self._PLAYERS, flat_main=False, carried_deg=(5.0, -2.0),
-                           grow=1.5, nearer_by=1.0)
-
-        assert moved == {}
+    def test_a_still_stick_leaves_every_player_where_it_was(self):
+        assert rearranged(self._PLAYERS, grow=1.0, nearer_by=1.0) == {}

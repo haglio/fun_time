@@ -152,13 +152,13 @@ from .pointer import (
     Pointer,
     PressEvent,
     Screen,
+    carried_heading,
     cursor_vertices,
     handle_vertices,
     head_position,
     held_controllers,
     laser_vertices,
     surface_pixel,
-    wrap_carried,
 )
 from .reference_panel import (
     REFERENCE_WIDTH_PX,
@@ -1920,17 +1920,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
                 thumb = thumbs.frame(session.hands, pointer, elapsed_s=frame_dt)
                 posts.post(thumb.commands)
-                wrapped = main is not None and main.immersive
-                if wrapped:
-                    scene_yaw, lift_deg = wrap_carried(scene_yaw, frame.carried)
-                    primary.role.nudge_tilt(lift_deg)
+                scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
+                primary.role.nudge_tilt(lift_deg)
                 scene_pitch_deg = primary.role.tilt_deg
                 scene_rotation = _scene_rotation(scene_yaw, scene_pitch_deg)
                 players = {name: frame.moved.get(name, hanging[name][0].placement)
                            for name in (PRIMARY, PORTRAIT, LANDSCAPE)}
                 moved = frame.moved | rearranged(
-                    players, flat_main=main is not None and not wrapped,
-                    carried_deg=frame.carried, grow=thumb.grow, nearer_by=thumb.nearer)
+                    players, grow=thumb.grow, nearer_by=thumb.nearer)
                 for name, placement in moved.items():
                     for screen in hanging[name]:
                         screen.placement = placement
