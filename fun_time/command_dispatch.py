@@ -1386,10 +1386,6 @@ def _forward_to_main_player_on_screen(verb: str, state: BridgeState, config: Bri
 
 def _forward_to_the_vr_main_player(verb: str, state: BridgeState, config: BridgeConfig,
                                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """A projection to walk and a heading to re-zero onto are things only the
-    VR main player has, so a desktop session does not send these at all.  A
-    mode is the wrong question: the main player has no projection in any of them, and the
-    main_player file quartet is the main player's channel, whoever that player is."""
     if config.vr_main_player:
         append_command(config.main_player_cmd_file, verb)
     return state, []

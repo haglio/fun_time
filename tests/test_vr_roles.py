@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import json
+import logging
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
 from player_core.playback_rate import MAX_RATE, MIN_RATE
 
+from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
 from fun_time_vr.roles import TILT_LIMIT_DEG, TILT_STEP_DEG, MainRole
@@ -681,6 +683,74 @@ class TestWhetherItIsTheDisplay:
         role.apply_command("DISPLAY_ON", on_quit=_never_quits)
 
         assert role.displayed is True
+
+
+class TestScenes:
+    def _on_a_video_with_scenes_at(self, role_parts, *starts_s):
+        sidecar = role_parts.metadata / "2D" / "non_AI" / "scene two.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(
+            json.dumps({"scenes": [{"start": start} for start in starts_s]}), encoding="utf-8")
+        role_parts.role.apply_command("NEXT", on_quit=_never_quits)
+        return role_parts.role, role_parts.player
+
+    @staticmethod
+    def _told(caplog) -> list[tuple[int, str]]:
+        return [(record.levelno, record.source) for record in caplog.records
+                if hasattr(record, "source")]
+
+    def test_next_scene_seeks_to_where_the_next_one_begins(self, role_parts):
+        role, player = self._on_a_video_with_scenes_at(role_parts, 0, 120, 300)
+        player.position_ms = 45_000.0
+
+        assert role.apply_command("NEXT_SCENE", on_quit=_never_quits) is True
+        assert player.seeks[-1] == 120_000.0
+
+    def test_next_scene_from_where_a_jump_just_landed_goes_on_to_the_one_after(self, role_parts):
+        role, player = self._on_a_video_with_scenes_at(role_parts, 0, 120, 300)
+        player.position_ms = 119_960.0
+
+        role.apply_command("NEXT_SCENE", on_quit=_never_quits)
+
+        assert player.seeks[-1] == 300_000.0
+
+    def test_previous_scene_goes_back_to_where_this_one_began(self, role_parts):
+        role, player = self._on_a_video_with_scenes_at(role_parts, 0, 120, 300)
+        player.position_ms = 200_000.0
+
+        assert role.apply_command("PREV_SCENE", on_quit=_never_quits) is True
+        assert player.seeks[-1] == 120_000.0
+
+    def test_previous_scene_in_the_first_moments_of_one_goes_to_the_one_before(self, role_parts):
+        role, player = self._on_a_video_with_scenes_at(role_parts, 0, 120, 300)
+        player.position_ms = 121_000.0
+
+        role.apply_command("PREV_SCENE", on_quit=_never_quits)
+
+        assert player.seeks[-1] == 0.0
+
+    def test_a_video_with_no_scenes_marked_says_so_on_its_picture(self, role_parts, caplog):
+        role, player = role_parts.role, role_parts.player
+        player.position_ms = 45_000.0
+
+        with caplog.at_level(logging.DEBUG, logger="fun_time_vr.roles"):
+            role.apply_command("NEXT_SCENE", on_quit=_never_quits)
+            role.apply_command("PREV_SCENE", on_quit=_never_quits)
+
+        assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
+        assert player.seeks == []
+
+    def test_no_scene_left_to_go_to_is_said_on_its_picture_too(self, role_parts, caplog):
+        role, player = self._on_a_video_with_scenes_at(role_parts, 0, 120, 300)
+
+        with caplog.at_level(logging.DEBUG, logger="fun_time_vr.roles"):
+            player.position_ms = 400_000.0
+            role.apply_command("NEXT_SCENE", on_quit=_never_quits)
+            player.position_ms = 1_000.0
+            role.apply_command("PREV_SCENE", on_quit=_never_quits)
+
+        assert self._told(caplog) == [(NOTICE, SOURCE_MAIN)] * 2
+        assert player.seeks == []
 
 
 class TestSeekTo:
