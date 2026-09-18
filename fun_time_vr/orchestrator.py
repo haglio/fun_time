@@ -341,9 +341,7 @@ def stock_the_playlists(
 # nothing answers at once (player._CoverUnit.settled).
 CLOSING_COVER_READY_TIMEOUT_S = 5.0
 
-# What the player needs to break its loop and close every channel; past it the
-# hold is refused and the player closed, as before.
-HEADSET_HOLD_ACK_TIMEOUT_S = 15.0
+HEADSET_HOLD_ACK_TIMEOUT_S = 15.0  # to break its loop and let go of every channel
 
 
 class _Cover:
@@ -701,6 +699,8 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         with _closing_cover(
             state_dir, player, enabled=player.poll() is None, esc_cancels=esc_cancels,
         ) as shutdown:
+            if crossing is not None:
+                hold_the_headset(state_dir, stop_runtime=not runtime_was_up)
             if voice_controller is not None:
                 voice_controller.stop()
             if voice_thread is not None:
@@ -718,9 +718,9 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                     state_dir, project_dirs=manifest.runtime.genau_project_dirs,
                 )
                 request_handoff(state_dir, VR, cancelable=False)
-            # Held, the player outlives this session with only its cover left.
-            held = (crossing is not None or back_to_vr) and _leave_the_headset_covered(
-                state_dir, stop_runtime=not runtime_was_up and not back_to_vr,
+                hold_the_headset(state_dir, stop_runtime=False)
+            held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
+                state_dir, player,
             )
             if not held:
                 kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
@@ -733,14 +733,17 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     return exit_code
 
 
-def _leave_the_headset_covered(state_dir: Path, *, stop_runtime: bool) -> bool:
-    """Ask the player to hold its cover and let go of every channel."""
-    hold_the_headset(state_dir, stop_runtime=stop_runtime)
+def _wait_for_the_headset_hold(state_dir: Path, player: subprocess.Popen) -> bool:
+    """Whether the player took the hold; one that has exited never will."""
     deadline = time.monotonic() + HEADSET_HOLD_ACK_TIMEOUT_S
     while time.monotonic() < deadline:
         if headset_is_held(state_dir):
             logger.info("The VR player is holding the headset covered")
             return True
+        if player.poll() is not None:
+            release_the_headset(state_dir)
+            logger.warning("The VR player exited without taking the headset hold")
+            return False
         time.sleep(0.1)
     release_the_headset(state_dir)
     logger.warning("The VR player did not take the headset hold; closing it")

@@ -139,12 +139,20 @@ than a delay:
 
 1. The VR teardown writes `vr_headset_hold.flag`, carrying whether this session
    started the VR runtime -- the orchestrator is the only thing that knows, and
-   it is about to exit.
+   it is about to exit. It writes it FIRST, before stopping its own voice and
+   dispatch controls and killing the audio companion, so the player spends
+   those seconds letting go instead of waiting them out and starting after.
 2. The player breaks its frame loop, stops both worker threads and closes every
    unit but the cover. Only then does it answer with `vr_headset_held.flag`.
-3. The orchestrator waits for that answer before letting go. Without it, it
-   closes the player exactly as it always did -- a hold that cannot be taken is
-   never worth a session that will not start.
+   That close is guarded one unit at a time, the way the pump beside it is: a
+   raise in any of them ended the teardown where it stood, and the answer never
+   came at all.
+3. The orchestrator waits for that answer once its own teardown is done. Without
+   it, it closes the player exactly as it always did -- a hold that cannot be
+   taken is never worth a session that will not start. A player that has already
+   exited ends the wait then and there rather than at the deadline: nobody is
+   left to write the answer, and every second of that wait is the desktop room
+   not coming back.
 4. The player keeps presenting the cover, which reads "Returning to Fun Time..."
    and is exempt from the staleness rule the others obey: nothing is writing its
    progress file, because the session that would have is gone.

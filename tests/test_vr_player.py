@@ -389,6 +389,14 @@ def test_no_furniture_lands_before_the_target_holds_pixels():
     assert player.overlays == []
 
 
+# Every class that goes on the file-channel worker's list, which the frame
+# loop's `finally` then closes one by one: `pumped` in `player._run`.
+_EVERYTHING_THE_WORKER_IS_HANDED = [
+    NoticeBoard, _MainUnit, _GenauUnit, _SatelliteUnit, _DashUnit, _PanelUnit,
+    _ReferenceUnit, _CoverUnit, _LayoutKeeper, _ControllerPosts,
+]
+
+
 class TestWhatEveryVideoUnitOwes:
     """The worker calls ``pump(stop, now)`` on everything in its list, and the
     list is annotated ``list[_VideoUnit]`` — which promised a ``player`` it
@@ -418,6 +426,18 @@ class TestWhatEveryVideoUnitOwes:
         assert unit_class.close is not _VideoUnit.close
         assert list(inspect.signature(unit_class.pump).parameters) == [
             "self", "stop", "now"]
+
+    @pytest.mark.parametrize("pumped_class", _EVERYTHING_THE_WORKER_IS_HANDED)
+    def test_everything_the_worker_is_handed_answers_both_calls(self, pumped_class):
+        """The list is not all video units -- the notice board and the layout
+        keeper ride on it too -- so nothing about being a `_VideoUnit` covers
+        it.  The board answered pump and not close, and since it is FIRST on
+        the list the teardown died on its very first entry: every session, for
+        as long as the board has been on it, and every crossing paid the
+        orchestrator's whole wait for a hold that could no longer be reported.
+        """
+        assert callable(getattr(pumped_class, "pump", None))
+        assert callable(getattr(pumped_class, "close", None))
 
 
 # --- The screens the controllers can move ---------------------------------

@@ -726,30 +726,58 @@ class TestHandingTheHeadsetOver:
     orchestrator does not let go until the player says it has
     (docs/entering-vr.md)."""
 
+    class _Alive:
+        def poll(self):
+            return None
+
+    class _Dead:
+        def poll(self):
+            return 1
+
     def test_a_player_that_takes_the_hold_is_left_running(self, tmp_path: Path):
         from unittest.mock import patch
 
-        from fun_time.session_handoff import headset_hold_stops_the_runtime
-        from fun_time_vr.orchestrator import _leave_the_headset_covered
+        from fun_time_vr.orchestrator import _wait_for_the_headset_hold
 
         with patch("fun_time_vr.orchestrator.headset_is_held", return_value=True):
-            assert _leave_the_headset_covered(tmp_path, stop_runtime=True) is True
-
-        assert headset_hold_stops_the_runtime(tmp_path) is True
+            assert _wait_for_the_headset_hold(tmp_path, self._Alive()) is True
 
     def test_a_player_that_never_answers_is_closed_as_before(self, tmp_path: Path):
         """A hold that cannot be taken is never worth a session that will not
         start, so the flag goes back off and the caller kills the player."""
         from unittest.mock import patch
 
-        from fun_time.session_handoff import headset_hold_asked
+        from fun_time.session_handoff import headset_hold_asked, hold_the_headset
         from fun_time_vr import orchestrator
 
+        hold_the_headset(tmp_path, stop_runtime=False)
+
         with patch.object(orchestrator, "HEADSET_HOLD_ACK_TIMEOUT_S", 0.0):
-            assert orchestrator._leave_the_headset_covered(
-                tmp_path, stop_runtime=False) is False
+            assert orchestrator._wait_for_the_headset_hold(
+                tmp_path, self._Alive()) is False
 
         assert headset_hold_asked(tmp_path) is False
+
+    def test_a_player_that_has_already_gone_is_not_waited_out(self, tmp_path: Path, caplog):
+        """It answered nothing because it was not there to answer: the wait ran
+        its whole fifteen seconds anyway, on every crossing, and those seconds
+        were the room not coming back."""
+        import logging
+        import time
+
+        from fun_time.session_handoff import headset_hold_asked, hold_the_headset
+        from fun_time_vr import orchestrator
+
+        hold_the_headset(tmp_path, stop_runtime=False)
+        started = time.monotonic()
+
+        with caplog.at_level(logging.WARNING, logger="fun_time_vr.orchestrator"):
+            answered = orchestrator._wait_for_the_headset_hold(tmp_path, self._Dead())
+
+        assert answered is False
+        assert time.monotonic() - started < 1.0
+        assert "exited without taking the headset hold" in caplog.text
+        assert headset_hold_asked(tmp_path) is False, "the next launch must not read it"
 
 
 def test_a_session_puts_back_down_the_vr_runtime_it_brought_up(monkeypatch):
@@ -1480,7 +1508,9 @@ def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     return patch.multiple(orchestrator, **stand_ins)
 
 
-def _end_a_vr_session(orchestrator, config, *, ended_by, **overrides) -> list[str]:
+def _end_a_vr_session(
+    orchestrator, config, *, ended_by, runtime_was_running=True, **overrides,
+) -> list[str]:
     """Run a VR session to its end, every child faked; what its closing cover
     was told Esc cancels comes back."""
     from unittest.mock import MagicMock, patch
@@ -1507,10 +1537,22 @@ def _end_a_vr_session(orchestrator, config, *, ended_by, **overrides) -> list[st
     )
     stand_ins.update(overrides)
     with _launch_stand_ins(orchestrator, [], **stand_ins), \
-         patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+         patch.object(orchestrator.vr_runtime, "runtime_was_running",
+                      return_value=runtime_was_running), \
          patch("fun_time_vr.orchestrator.subprocess.Popen"):
         orchestrator.run_vr_bridge(config, SessionEnvironment())
     return offered
+
+
+def _asked_to_cross(config):
+    """The crossing to the desktop asked for, the way "exit VR" asks for it."""
+    from fun_time.session_handoff import DESKTOP, request_handoff
+
+    def ended(*_args, **_kwargs):
+        request_handoff(config.paths.state_dir, DESKTOP)
+        return "asked"
+
+    return ended
 
 
 def _asked_then_esc(config):
@@ -1565,7 +1607,7 @@ class TestOpeningAVrSession:
 
         offered = _end_a_vr_session(
             orchestrator, config, ended_by=asked_to_cross,
-            _leave_the_headset_covered=MagicMock(return_value=True),
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
         )
 
         assert offered == ["Press Esc to cancel exiting VR"]
@@ -1584,7 +1626,7 @@ class TestOpeningAVrSession:
 
         stopped = MagicMock()
         _end_a_vr_session(orchestrator, config, ended_by=asked_to_cross,
-                          _leave_the_headset_covered=MagicMock(return_value=True),
+                          _wait_for_the_headset_hold=MagicMock(return_value=True),
                           stop_hotkey_script=stopped)
 
         stopped.assert_not_called()
@@ -1597,7 +1639,7 @@ class TestOpeningAVrSession:
 
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_then_esc(config),
-            _leave_the_headset_covered=MagicMock(return_value=True),
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
         )
 
         taken = take_handoff_request(config.paths.state_dir)
@@ -1619,7 +1661,7 @@ class TestOpeningAVrSession:
 
         _end_a_vr_session(
             orchestrator, named, ended_by=_asked_then_esc(named),
-            _leave_the_headset_covered=MagicMock(return_value=True),
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
             launch_the_way_back_cover=way_back,
         )
 
@@ -1634,11 +1676,12 @@ class TestOpeningAVrSession:
 
         from fun_time_vr import orchestrator
 
-        hold = MagicMock(return_value=True)
+        asked = MagicMock()
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
-                          _leave_the_headset_covered=hold)
+                          hold_the_headset=asked,
+                          _wait_for_the_headset_hold=MagicMock(return_value=True))
 
-        hold.assert_called_once_with(config.paths.state_dir, stop_runtime=False)
+        asked.assert_called_once_with(config.paths.state_dir, stop_runtime=False)
 
     def test_a_refused_hold_on_the_way_back_into_vr_leaves_the_runtime_running(
         self, config,
@@ -1650,7 +1693,7 @@ class TestOpeningAVrSession:
 
         released: list = []
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
-                          _leave_the_headset_covered=MagicMock(return_value=False),
+                          _wait_for_the_headset_hold=MagicMock(return_value=False),
                           _release_vr_runtime=released.append)
 
         assert released == []
@@ -1665,11 +1708,52 @@ class TestOpeningAVrSession:
         from fun_time_vr import orchestrator
 
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
-                          _leave_the_headset_covered=MagicMock(return_value=True))
+                          _wait_for_the_headset_hold=MagicMock(return_value=True))
 
         line = parse_progress(
             crossing_progress_path(config.paths.state_dir).read_text(encoding="utf-8"))
         assert (line.message, line.hint) == (CANCELING, "")
+
+    def test_the_player_is_asked_to_hold_before_the_controls_come_down(self, config):
+        """Letting go is the player's longest act -- two worker threads joined
+        and four videos closed -- and the session has its own controls and its
+        companion to bring down.  Asked first, the two run side by side; asked
+        after, the crossing paid for them one at a time."""
+        from unittest.mock import MagicMock
+
+        from fun_time.session_handoff import headset_hold_asked
+        from fun_time_vr import orchestrator
+
+        controls = MagicMock()
+        asked_by_then: list[bool] = []
+        controls.stop.side_effect = lambda: asked_by_then.append(
+            headset_hold_asked(config.paths.state_dir))
+
+        _end_a_vr_session(
+            orchestrator, config, ended_by=_asked_to_cross(config),
+            start_voice_control=MagicMock(return_value=(controls, None)),
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
+        )
+
+        assert asked_by_then == [True]
+
+    def test_a_crossing_hands_the_player_the_runtime_this_session_started(self, config):
+        """Nobody else knows it started one: the orchestrator is about to exit,
+        and the player outlives it holding the cover, so the runtime's fate
+        rides on the ask."""
+        from unittest.mock import MagicMock
+
+        from fun_time_vr import orchestrator
+
+        asked = MagicMock()
+        _end_a_vr_session(
+            orchestrator, config, ended_by=_asked_to_cross(config),
+            runtime_was_running=False,
+            hold_the_headset=asked,
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
+        )
+
+        asked.assert_called_once_with(config.paths.state_dir, stop_runtime=True)
 
     def test_on_the_way_back_into_vr_the_hosted_app_stays_parked(self, config):
         """Fun Time left it for its own return, which can still come later."""
@@ -1679,7 +1763,7 @@ class TestOpeningAVrSession:
 
         closed: list = []
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
-                          _leave_the_headset_covered=MagicMock(return_value=True),
+                          _wait_for_the_headset_hold=MagicMock(return_value=True),
                           let_go_of_a_kept_origenerator=(
                               lambda state_dir, _cmd_file: closed.append(state_dir)))
 
