@@ -120,10 +120,6 @@ class BridgeConfig:
         return self.state_dir / state_files.GENAU_DRIVE
 
     @property
-    def robot_hand_hold_file(self) -> Path:
-        return self.state_dir / "robot_hand_hold.txt"  # what a park/retract took away
-
-    @property
     def osr2_serial_rx_file(self) -> Path:
         """When the OSR2 last spoke, as the broker last stamped it."""
         return self.broker_state / state_files.OSR2_SERIAL_RX

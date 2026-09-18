@@ -25,7 +25,6 @@ from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from .mode_plan import main_player_displays
 from .player_status import read_main_player_status
-from .robot_hand_hold import HOLD_CENTERS, hold_commands
 
 # How often the standing pair (SET_TCODE_ENABLED + PAUSE/RESUME) is re-queued
 # without an edge, so a verb lost in transit converges instead of staying lost
@@ -35,7 +34,7 @@ REASSERT_S = 1.0
 TCODE_OFF = "SET_TCODE_ENABLED 0"
 TCODE_ON = "SET_TCODE_ENABLED 1"
 
-_HELD_BY = {OSR2_PARKED: "robot_hand_park", OSR2_RETRACTED: "robot_hand_retract"}
+_HELD = (OSR2_PARKED, OSR2_RETRACTED)
 
 
 class DeviceArbiter:
@@ -65,6 +64,9 @@ class DeviceArbiter:
         # The control state last carried out, None while somebody is driving.
         self._asserted_control: str | None = None
         self._asserted_at: float = 0.0
+        # Whether a hold left Genau's output switched off, so a driver taking the
+        # device back knows to switch it on again.
+        self._muted = False
 
     def sync(self, main_mode: str, *, paused: bool,
              control: str = OSR2_DRIVING) -> None:
@@ -88,12 +90,13 @@ class DeviceArbiter:
         floor-touch made the moment depend on the live motion, and the trace —
         which had to draw that moment before it happened — could only guess it.
         """
-        if control in (OSR2_CONTROL_OFF, *_HELD_BY):
+        if control in (OSR2_CONTROL_OFF, *_HELD):
             self._carry_out(control)
             self._funscript_driving = None
             self._park_touch_deadline = None
             return
         self._asserted_control = None
+        self._hand_the_output_back()
         if not main_player_displays(main_mode) or paused:
             self._funscript_driving = None
             self._park_touch_deadline = None
@@ -139,12 +142,18 @@ class DeviceArbiter:
         now = self._clock()
         if self._asserted_control == control and now - self._asserted_at < REASSERT_S:
             return
-        held = _HELD_BY.get(control)
-        genau = (*hold_commands(HOLD_CENTERS[held]), "RESUME") if held else ("PAUSE",)
+        genau = ("RESUME", TCODE_OFF) if control in _HELD else ("PAUSE",)
         queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
             self._asserted_control, self._asserted_at = control, now
+            self._muted = self._muted or control in _HELD
+
+    def _hand_the_output_back(self) -> None:
+        """Switch Genau's output on again the moment somebody is driving, in
+        whatever mode the hold was let go in."""
+        if self._muted and append_command(self.genau_cmd_file, TCODE_ON):
+            self._muted = False
 
     def _holding_for_park_touch(self, now: float, status) -> bool:
         """Whether the hand-to-script flip is still waiting for a touch-down.

@@ -115,7 +115,7 @@ def build_voice_commands(
         "relief omni pause": "relief_omnipause",
         "stop": "relief_omnipause",
         # Stopping the device alone, at either end of its axis, back off that
-        # hold (see fun_time.robot_hand_hold), and letting go of it outright.
+        # hold, and letting go of the device outright.
         "park": "robot_hand_park",
         "park it": "robot_hand_park",
         "retract": "robot_hand_retract",
