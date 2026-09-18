@@ -337,9 +337,18 @@ class TestInterpretRecognition:
         assert related.command == VOICE_COMMANDS["amp up"]
         assert related.rank == 1
 
+    def test_a_lock_is_rescued_like_any_other_nudge(self):
+        """Two of his "landscape lock" tries came back "landscape one" with
+        "landscape lock" right under it (2026-09-13); a wrong lock only holds
+        the video that is showing, so it is not worth a repeat."""
+        interp = interpret_recognition(
+            _ranked("landscape one", "landscape lock"), "", threshold=0.7, peak=SPOKEN)
+        assert interp.command == VOICE_COMMANDS["landscape lock"]
+        assert interp.rank == 1
+
     def test_a_rescue_never_lands_on_a_command_that_holds_or_ends_the_room(self):
         for first, rescue in (
-            ("portrait", "portrait lock"),
+            ("it", "park it"),
             ("relief go", "relief omni pause"),
             ("main", "main reset"),
         ):
