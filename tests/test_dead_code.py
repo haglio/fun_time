@@ -119,6 +119,8 @@ def test_no_module_reaches_into_another_ones_privates():
 # -- raised the ratio and failed the build, pointing the author at prose they
 # had never touched. What the gate is for is prose that outgrows what it
 # explains, and that is what this counts.
+# 8058 since 2026-09-18, when the VR main player learned its scenes and the
+# forwarder that carries them stopped restating the test that pins it.
 # 8123 since 2026-09-16, measured on the merged tree: every player began
 # remembering where each video was left, and the memory arrived as constants and
 # tests rather than paragraphs -- paying its own way out of the session's
@@ -185,7 +187,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # open onto their names, and its docstrings shrank to what that leaves true.
 # 8072 since 2026-09-18, when a spoken command OmniPause drops began saying so
 # on screen, and the docstring listing what voice flashes gave way to the tests.
-MAX_PROSE_LINES = 8072
+MAX_PROSE_LINES = 8058
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

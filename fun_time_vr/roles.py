@@ -43,28 +43,35 @@ from player_core.playlist import item_from_line, read_playlist
 from player_core.status import PlayerStatus
 from player_core.status import status_fields as player_status_fields
 
+from fun_time.event_log import SOURCE_MAIN, notice
 from fun_time.media_metadata import load_metadata, metadata_path_for, video_title
 from main_player.play_points import PlayPoints
 from main_player.seeking import OwedSeek, seek_if_taken
 
 from .projection import next_projection, resolve_projection, save_projection
+from .video_scenes import scene_starts_ms
 
 logger = logging.getLogger(__name__)
 
 # The desktop main player's own seek step (main_player.controls), so the primary seeks alike in and out of the headset.
 SEEK_STEP_MS = 10_000
 
+SCENE_JUST_BEGUN_MS = 3_000
+SCENE_JUMP_LANDS_WITHIN_MS = 500
+
 TILT_STEP_DEG = 5.0
 TILT_LIMIT_DEG = 90.0
 
 # The headset's own verbs: a projection to walk, a heading to re-zero onto, a
-# tilt.  Spelled here, beside the registry that answers them, the way a
-# player's own verbs are everywhere in this family.
+# tilt, a scene to jump to.  Spelled here, beside the registry that answers them,
+# the way a player's own verbs are everywhere in this family.
 CYCLE_PROJECTION = "CYCLE_PROJECTION"
 RECENTER = "RECENTER"
 TILT_UP = "TILT_UP"
 TILT_DOWN = "TILT_DOWN"
 TILT_RESET = "TILT_RESET"
+NEXT_SCENE = "NEXT_SCENE"
+PREV_SCENE = "PREV_SCENE"
 
 #: The only place a control may be left dead in VR: the parity suite holds every
 #: key and every phrase to this list or to a role that answers it.
@@ -125,6 +132,7 @@ class MainRole:
         self._funscript: Funscript | None = None
         self._projection = ""
         self._title = ""
+        self._scene_starts: tuple[float, ...] = ()
         self._volume = 100
         self._muted = False
         # Until the host says the sound is live (player.route_audio), a
@@ -351,6 +359,31 @@ class MainRole:
         self._projection = resolve_projection(str(item.path), self._metadata_root, self._vr_dirs)
         self._title = video_title(_recorded_for(item.path, self._metadata_root), item.path)
         self._resume.owe(self._play_points.point_for(item.path) or None)
+        self._scene_starts = self._read_scene_starts(item.path)
+
+    def _read_scene_starts(self, video: Path) -> tuple[float, ...]:
+        sidecar = metadata_path_for(video, self._metadata_root)
+        return scene_starts_ms(load_metadata(sidecar)) if sidecar is not None else ()
+
+    def next_scene(self) -> None:
+        position = self._player.position_ms
+        later = [start for start in self._scene_starts
+                 if start > position + SCENE_JUMP_LANDS_WITHIN_MS]
+        self._seek_to_scene(later[0] if later else None, "No next scene")
+
+    def previous_scene(self) -> None:
+        position = self._player.position_ms
+        earlier = [start for start in self._scene_starts
+                   if start < position - SCENE_JUST_BEGUN_MS]
+        self._seek_to_scene(earlier[-1] if earlier else None, "No previous scene")
+
+    def _seek_to_scene(self, start: float | None, none_there: str) -> None:
+        if start is not None:
+            self._player.seek_ms(start)
+        elif self._scene_starts:
+            notice(logger, none_there, source=SOURCE_MAIN)
+        else:
+            notice(logger, "No scenes are marked in this video yet", source=SOURCE_MAIN)
 
     @staticmethod
     def _load_funscript(path: Path | None) -> Funscript | None:
@@ -523,6 +556,11 @@ CONTROLS: tuple[Control, ...] = (
     ),
     Control(name="projection", verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),)),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(MainRole.request_recenter)),)),
+    Control(
+        name="scene",
+        verbs=(Verb(NEXT_SCENE, _moves(MainRole.next_scene)),
+               Verb(PREV_SCENE, _moves(MainRole.previous_scene))),
+    ),
     Control(
         name="tilt",
         verbs=(Verb(TILT_UP, _moves(lambda role: role.nudge_tilt(TILT_STEP_DEG))),
