@@ -562,8 +562,13 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
 
         _wait(offer.exists, timeout=10, desc="the handed-back app to offer itself again")
         assert open_app.poll() is None, "the session closed the app it was meant to hand back"
-        assert not is_window_minimized(hwnd)
-        assert not is_window_topmost(hwnd)
+        # Waited for, not read once: the app offers itself again as it comes
+        # back, and the window manager takes it out of the band and out of the
+        # taskbar in its own time after that.
+        _wait(lambda: not is_window_minimized(hwnd), timeout=10,
+              desc="the handed-back window to stand open again")
+        _wait(lambda: not is_window_topmost(hwnd), timeout=10,
+              desc="the handed-back window to leave the topmost band")
     finally:
         session.stop()
         kill_process_tree(open_app.pid)
