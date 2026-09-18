@@ -337,6 +337,7 @@ class MainRole:
             "funscript_resting": "1" if self._funscript_resting() else "0",
             "state": "normal",
             "handoff_touch_ms": "" if handoff_touch_ms is None else str(int(handoff_touch_ms)),
+            "speed": str(self._speed),
         }
 
     def close(self) -> None:

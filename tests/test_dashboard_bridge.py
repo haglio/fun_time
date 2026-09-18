@@ -12,14 +12,15 @@ def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
     """A section nobody reads is republished on every sync tick, forever.
 
     The dashboard in its own process is the only reader of this file in the
-    family, and it asks for exactly four things -- whether the room is
+    family, and it asks for exactly five things -- whether the room is
     omnipaused, whether voice is listening, whether every player is in F-mode,
-    and whether this session is the headset's.
+    whether every player is already at its defaults, and whether this session
+    is the headset's.
     """
     parser = configparser.ConfigParser()
     parser.read_string(build_dashboard_snapshot_text())
 
-    assert set(parser.sections()) == {"omnipause", "voice", "fmode", "session"}
+    assert set(parser.sections()) == {"omnipause", "voice", "fmode", "reset", "session"}
 
 
 def test_build_dashboard_snapshot_text_matches_bridge_contract():
@@ -32,6 +33,8 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
         "active=1\n"
         "[fmode]\n"
         "active=0\n"
+        "[reset]\n"
+        "nothing=0\n"
         "[session]\n"
         "vr=0\n"
     )
@@ -47,6 +50,11 @@ def test_build_dashboard_snapshot_text_includes_voice_state():
     text = build_dashboard_snapshot_text(voice_active=False)
 
     assert "[voice]\nactive=0\n" in text
+
+
+def test_the_snapshot_says_when_every_player_has_nothing_to_reset():
+    assert "[reset]\nnothing=1\n" in build_dashboard_snapshot_text(nothing_to_reset=True)
+    assert "[reset]\nnothing=0\n" in build_dashboard_snapshot_text()
 
 
 def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_path: Path):

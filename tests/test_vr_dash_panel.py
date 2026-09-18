@@ -5,7 +5,7 @@ import logging
 
 import numpy as np
 from PIL import Image, ImageDraw
-from shared_ui.palette import BG_BUTTON, BG_PRIMARY, BG_TERTIARY, BLUE
+from shared_ui.palette import BG_BUTTON, BG_PRIMARY, BG_TERTIARY, BLUE, TEXT_MUTED
 from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_SIZE_HUD
 
 from fun_time.cover_palette import WORDMARK_MAGENTA
@@ -13,6 +13,7 @@ from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
+    RESET_ALL,
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_layout import compute_dashboard_bar_layout
@@ -202,6 +203,25 @@ class TestWhatAPressDoes:
 
         assert posted == [QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE]
 
+    def test_reset_all_is_drawn_where_the_desktop_puts_it_and_posts_its_command(self):
+        pointer, posted = _pointer()
+        rect = compute_dashboard_bar_layout().reset_all_button
+        painted = np.asarray(paint_dash(DashState(), []))
+
+        pointer.press(*_middle(RESET_ALL))
+
+        assert dash_actions()[RESET_ALL] == rect
+        assert posted == [RESET_ALL]
+        assert not np.all(painted[rect.y + rect.height // 2, rect.x:rect.x + rect.width, :3]
+                          == painted[rect.y + rect.height // 2, rect.x - 1, :3])
+
+    def test_reset_all_takes_no_press_when_every_player_is_at_its_defaults(self):
+        pointer, posted = _pointer(nothing_to_reset=True)
+
+        pointer.press(*_middle(RESET_ALL))
+
+        assert posted == []
+
     def test_the_dial_opens_a_list_rather_than_cycling(self):
         """The desktop's is a dropdown; picking a level out of a list is the
         same gesture here, not a chip you press until it comes round."""
@@ -282,6 +302,14 @@ class TestWhatAPressDoes:
         assert pointer.state.omni_paused is True
         assert pointer.state.voice_active is False
         assert pointer.state.sources == filtered
+
+    def test_the_session_says_when_every_player_is_already_at_its_defaults(self):
+        pointer, posted = _pointer()
+
+        pointer.session_state(omni_paused=False, voice_active=True, nothing_to_reset=True)
+        pointer.press(*_middle(RESET_ALL))
+
+        assert posted == []
 
 
 class TestTheDial:
@@ -422,6 +450,25 @@ class TestWhatItDraws:
         held = np.asarray(paint_dash(DashState(omni_paused=True), []))
 
         assert not np.array_equal(running, held)
+
+    def test_reset_all_is_drawn_faded_when_every_player_is_at_its_defaults(self):
+        rect = dash_actions()[RESET_ALL]
+
+        def brightest(state: DashState) -> int:
+            painted = np.asarray(paint_dash(state, []))
+            return painted[rect.y:rect.y + rect.height, rect.x:rect.x + rect.width, :3].max()
+
+        assert brightest(DashState(nothing_to_reset=True)) <= max(TEXT_MUTED)
+        assert brightest(DashState()) > max(TEXT_MUTED)
+
+    def test_a_reset_with_nothing_to_put_back_does_not_light_under_the_ray(self):
+        """A control that takes no press does not answer the ray either."""
+        rect = dash_actions()[RESET_ALL]
+        idle = DashState(nothing_to_reset=True)
+        aimed = paint_dash(idle, [], hover=(rect.x + rect.width // 2,
+                                            rect.y + rect.height // 2))
+
+        assert np.array_equal(np.asarray(aimed), np.asarray(paint_dash(idle, [])))
 
     def test_the_microphone_lights_while_voice_is_live(self):
         live = np.asarray(paint_dash(DashState(voice_active=True), []))

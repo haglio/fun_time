@@ -33,7 +33,7 @@ from shared_ui.spacing import (
 )
 
 from fun_time.cover_palette import WORDMARK_MAGENTA
-from fun_time.dashboard_controls import bar_controls, mark_side
+from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import PAD, Rect, compute_dashboard_bar_layout
 from fun_time.event_log import (
     LEVEL_NAMES,
@@ -82,12 +82,27 @@ class DashState:  # what the bar shows, and what the log is filtered to
     # the desktop's.
     f_mode: bool = False
     reference_open: bool = False
+    # Whether every player is already at its defaults, which leaves Reset All
+    # with nothing to do -- drawn faded, and it takes no press.
+    nothing_to_reset: bool = False
     verbosity: int = LEVELS_BY_NAME["NOTICE"]
     sources: frozenset[str] = frozenset(SOURCES)
     dial_open: bool = False
 
     def accepts(self, record: EventRecord) -> bool:  # the log panel's own rule
         return record.level >= self.verbosity and record.source in self.sources
+
+    def controls(self) -> tuple[BarControl, ...]:
+        return bar_controls(
+            compute_dashboard_bar_layout(), omni_paused=self.omni_paused,
+            voice_active=self.voice_active, f_mode=self.f_mode, in_vr=True,
+            reference_open=self.reference_open,
+            nothing_to_reset=self.nothing_to_reset,
+        )
+
+    def dims(self, action: str) -> bool:
+        return any(control.action == action and control.dim
+                   for control in self.controls())
 
 
 def verbosity_name(verbosity: int) -> str:
@@ -240,13 +255,9 @@ def paint_dash(state: DashState, records,
         panel.alpha_composite(mark, (bar.app_icon.x, bar.app_icon.y))
     draw.text((bar.app_title.x, bar.app_title.y + 4), "Fun Time",
               font=wordmark, fill=WORDMARK_MAGENTA)
-    controls = bar_controls(
-        bar, omni_paused=state.omni_paused, voice_active=state.voice_active,
-        f_mode=state.f_mode, in_vr=True, reference_open=state.reference_open,
-    )
-    for control in controls:
+    for control in state.controls():
         rect = control.rect
-        _button(draw, rect, control.lit or BG_BUTTON, hover)
+        _button(draw, rect, control.lit or BG_BUTTON, None if control.dim else hover)
         size = mark_side(rect)
         panel.alpha_composite(
             glyph_image(control.mark, size, control.ink),
@@ -278,9 +289,10 @@ class DashPointer:
 
     def press(self, px: int, py: int) -> str | None:  # the action, or None
         for action, rect in dash_actions(dial_open=self.state.dial_open).items():
-            if not (rect.x <= px < rect.x + rect.width
-                    and rect.y <= py < rect.y + rect.height):
+            if not _on(rect, (px, py)):
                 continue
+            if self.state.dims(action):
+                break
             self._act(action)
             return action
         # Anywhere else closes an open list, as clicking off a dropdown does.
@@ -305,7 +317,9 @@ class DashPointer:
             self._post(action)
 
     def session_state(self, *, omni_paused: bool, voice_active: bool,
-                      f_mode: bool = False, reference_open: bool = False) -> None:
+                      f_mode: bool = False, reference_open: bool = False,
+                      nothing_to_reset: bool = False) -> None:
         """The session's half; the filters stay this panel's."""
         self.state = replace(self.state, omni_paused=omni_paused, voice_active=voice_active,
-                             f_mode=f_mode, reference_open=reference_open)
+                             f_mode=f_mode, reference_open=reference_open,
+                             nothing_to_reset=nothing_to_reset)

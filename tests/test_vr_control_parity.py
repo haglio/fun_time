@@ -23,13 +23,15 @@ from pathlib import Path
 
 import pytest
 from player_core.genau_controls import VERBS as GENAU_VERBS
+from player_core.playlist import read_playlist
 
 from fun_time.bridge_records import BridgeConfig, Op
 from fun_time.command_dispatch import dispatch_command
 from fun_time.command_reference import build_reference_sections
-from fun_time.mode_plan import MAIN_MODES
+from fun_time.mode_plan import MAIN_MODES, MAIN_VIDEO_MODE
+from fun_time.modes import PLAYLIST_PORTRAIT, build_playlist_file_path
 from fun_time.satellites_mode import VIDEO_MODE as SATELLITE_VIDEO_MODE
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, SideState
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time_vr import roles
 from fun_time_vr.roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
@@ -246,6 +248,17 @@ class TestTheMainPlayer:
         for verb, reason in UNIMPLEMENTED_MAIN_PLAYER_VERBS.items():
             assert reason.strip(), f"{verb} is excepted with no reason"
 
+    def test_a_reset_unlocks_it_and_puts_its_speed_back_to_normal(self, tmp_path):
+        config = _vr_config(tmp_path)
+        role = _main_role(tmp_path)
+        role.apply_command("SPEED_DOWN", on_quit=lambda: None)
+
+        dispatch_command("main_reset", BridgeState(main_mode=MAIN_VIDEO_MODE), config)
+        for line in config.main_player_cmd_file.read_text(encoding="utf-8").splitlines():
+            role.apply_command(line, on_quit=lambda: None)
+
+        assert (role.locked, role.speed) == (False, 1.0)
+
 
 def _a_whole_line(verb: str) -> str:
     """*verb* with an argument where the spelling needs one.
@@ -287,6 +300,28 @@ class TestTheSatellites:
                 if not handled:
                     dead[verb] = where
         assert not dead, f"the hosted satellite session answers none of these: {dead}"
+
+    def test_a_reset_unlocks_it_and_starts_a_fresh_browse_from_the_top(self, tmp_path):
+        config = _vr_config(tmp_path)
+        clips = [tmp_path / "portrait" / f"{name}.mp4" for name in ("alpha", "beta", "gamma")]
+        for clip in clips:
+            clip.write_bytes(b"")
+        session = SatelliteSession(list(clips), player=FakeSatellitePlayer())
+        session.set_locked(True)
+        playlist = build_playlist_file_path(config.state_dir, PLAYLIST_PORTRAIT)
+
+        dispatch_command(
+            "portrait_reset", BridgeState(portrait=SideState(locked=True, latest=True)), config)
+        controls = SatelliteControls(
+            session,
+            reload_playlist=lambda: session.replace_playlist(
+                [item.path for item in read_playlist(playlist)]),
+        )
+        for line in config.portrait_cmd_file.read_text(encoding="utf-8").splitlines():
+            apply_satellite_command(line, controls)
+
+        assert not session.is_locked
+        assert session.current_video == read_playlist(playlist)[0].path
 
 
 def _a_satellite_line(verb: str, clip: Path) -> str:

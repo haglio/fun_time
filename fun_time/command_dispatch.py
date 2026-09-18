@@ -48,7 +48,7 @@ from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
-from .player_status import read_main_player_status
+from .player_status import MainPlayerStatus, read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
@@ -180,6 +180,8 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
     return "genau"
 
 
+_DEFAULT_LENGTH_MODE = "mixed"
+
 _MAIN_PLAYER_CMD_MAP = {
     "main_player_record_down": "RECORD_DOWN",
     "main_player_record_up": "RECORD_UP",
@@ -189,7 +191,7 @@ _MAIN_PLAYER_CMD_MAP = {
     "main_player_toggle_length": "TOGGLE_LENGTH_MODE",
     "main_player_length_shorts": "SET_LENGTH_MODE shorts",
     "main_player_length_full": "SET_LENGTH_MODE full",
-    "main_player_length_mixed": "SET_LENGTH_MODE mixed",
+    "main_player_length_mixed": f"SET_LENGTH_MODE {_DEFAULT_LENGTH_MODE}",
     "main_player_length_none": "SET_LENGTH_MODE none",
     "main_player_compilation": "PLAY_COMPILATION",
     "main_player_end_compilation": "END_COMPILATION",
@@ -362,12 +364,6 @@ _RESET_SIDES: dict[str, tuple[Player, ...]] = {
     "landscape_reset": (Player.LANDSCAPE,),
 }
 
-# The main player's own reset — the same word, meaning for it what it means for a
-# satellite: drop whatever is narrowing the playlist.  What narrows the main player is its
-# length mode (and any compilation it is inside, which leaving the length mode
-# leaves too) and its F-mode.  It is a command of ours rather than a bare forward
-# to the main player because half of it is ours: the F-mode flag is the orchestrator's, set
-# from three places of which the main player is only one.
 MAIN_RESET = "main_reset"
 
 # "no loop" ends a group loop but, unlike reset, keeps the satellite's filter.
@@ -526,6 +522,13 @@ _MAIN_LOCK_COMMANDS = {
     "main_lock_on": LOCK_ON,
     "main_lock_off": LOCK_OFF,
 }
+
+_MAIN_PLAYER_RESET_VERBS = (
+    _MAIN_PLAYER_CMD_MAP["main_player_length_mixed"],
+    _MAIN_PLAYER_CMD_MAP["main_player_loop_cancel"],
+    _MAIN_LOCK_COMMANDS["main_lock_off"],
+    _percent_rate("main_player_speed_100", "main_player_speed_"),
+)
 
 # What makes the main player the one a later bare command reaches: navigating it,
 # locking it, or naming its F-mode.  The satellites' own keys select a side the
@@ -988,39 +991,40 @@ def _dispatch_main_projection(
         level=logging.WARNING if not (plays_vr or plays_flat) else NOTICE)]
 
 
+def main_player_at_defaults(
+    state: BridgeState, config: BridgeConfig, status: MainPlayerStatus
+) -> bool:
+    if state.main_f_mode or state.main_latest or main_video_shapes(state, config).narrows:
+        return False
+    if not main_player_displays(state.main_mode):
+        return True
+    return (not status.locked and status.state == "normal" and status.speed == 1.0
+            and status.length_mode in ("", _DEFAULT_LENGTH_MODE) and not status.compilation)
+
+
 def _dispatch_main_reset(
     state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
-    """Put the main player back to its defaults — the satellites' reset, over here.
-
-    Two things narrow what the main player plays, and both go: F-mode, whose playlist is
-    rebuilt wide again, and the length mode, back to mixed — which leaves any
-    compilation with it, since a compilation is a playing set the length mode was
-    feeding.  The length verb is the main player's, so it is only sent while the main player owns the main
-    slot; the F-mode flag is ours and is cleared whoever is showing, exactly as
-    "main f mode off" clears it.
-
-    The headset's shape filter goes with them, being one more thing narrowing
-    what the main player may reach.
-
-    The playlist is only rebuilt when something was actually narrowing it.  A
-    reset has never reshuffled the main player — "shuffle main" is the command
-    that does — so a reset pressed with nothing narrowed must not throw away the
-    browse either.
-    """
-    narrowed = state.main_f_mode or main_video_shapes(state, config).narrows
-    if narrowed:
-        state = replace(state, main_f_mode=False, main_plays_vr=True, main_plays_flat=True)
+    """Put the main player back to its defaults, as a satellite's reset does."""
+    if main_player_at_defaults(
+            state, config, read_main_player_status(config.main_player_status_file)):
+        logger.info("Reset main player: already at its defaults")
+        return state, []
+    if state.main_f_mode or state.main_latest or main_video_shapes(state, config).narrows:
+        state = replace(
+            state, main_f_mode=False, main_latest=False, main_plays_vr=True, main_plays_flat=True)
         apply_main_fmode(
-            enabled=False,
+            enabled=state.main_f_mode,
             main_sources=config.main_sources,
             recent=state.main_latest,
             state_dir=config.state_dir,
             main_player_cmd_file=config.main_player_cmd_file,
+            start_at_top=True,
             shapes=main_video_shapes(state, config),
         )
     if main_player_displays(state.main_mode):
-        append_command(config.main_player_cmd_file, _MAIN_PLAYER_CMD_MAP["main_player_length_mixed"])
+        for verb in _MAIN_PLAYER_RESET_VERBS:
+            append_command(config.main_player_cmd_file, verb)
     logger.info("Reset main player")
     return state, [WindowOp(op="notice", key="Reset", source=SOURCE_MAIN)]
 
@@ -1056,6 +1060,16 @@ def _dispatch_reorder(
     return state, [WindowOp(op="notice", key=label, source=satellite_source(player))]
 
 
+def satellite_at_defaults(side: SideState) -> bool:
+    return replace(side, nav_anchor="") == SideState()
+
+
+def room_at_defaults(state: BridgeState, config: BridgeConfig, status: MainPlayerStatus) -> bool:
+    return (main_player_at_defaults(state, config, status)
+            and not hosting_origenerator(state, config)
+            and all(satellite_at_defaults(state.side(player)) for player in Player.SATELLITES))
+
+
 def _dispatch_reset(
     players: tuple[Player, ...], state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -1085,7 +1099,7 @@ def _dispatch_reset(
         # reset clears cannot be one this test forgets.  (The nav anchor is
         # already gone: every side command that is not itself a nav step clears
         # it on the way in, so no reset has ever seen one set.)
-        if state.side(player) == SideState():
+        if satellite_at_defaults(state.side(player)):
             logger.info("Reset %s: already at its defaults", satellite_source(player))
             continue
         state = cancel_lock(player, state, config)

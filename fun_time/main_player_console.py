@@ -60,6 +60,7 @@ def console_model(
     genau_latest: bool = False,
     plays_vr: bool | None = None,
     plays_flat: bool | None = None,
+    nothing_to_reset: bool = False,
 ) -> ConsoleModel:
     """The console panel as the main player parses it: the room around the
     drive readout, and the buttons declared from it.  The lock and the browse
@@ -85,6 +86,7 @@ def console_model(
         has_other_versions=main_player.has_other_versions,
         jump_to=main_player.jump_to,
         osr2_control=osr2_control,
+        nothing_to_reset=nothing_to_reset,
     )
     return ConsoleModel(
         mode=mode,

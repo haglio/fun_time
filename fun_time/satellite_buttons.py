@@ -54,7 +54,8 @@ CONTROL_FACES = {
 
 def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
               latest: bool | None = None, mode: str = "",
-              origenerator_ready: bool = True) -> tuple[tuple[Button, ...], ...]:
+              origenerator_ready: bool = True,
+              nothing_to_reset: bool = False) -> tuple[tuple[Button, ...], ...]:
     names = [name for group in CONTROL_GROUPS for name in group]
     if latest is None:
         names = [name for name in names if name not in _ORDER_CONTROLS]
@@ -65,6 +66,7 @@ def side_rows(side: str, *, locked: bool = False, f_mode: bool = False,
     lit = {"lock": locked, "fmode": f_mode, "latest": bool(latest), "shuffle": latest is False}
     rows.append(tuple(
         _control(side, name, lit=lit.get(name, False),
+                 dim=name == "reset" and nothing_to_reset,
                  group_break=index > 0 and _GROUP_OF[name] != _GROUP_OF[names[index - 1]])
         for index, name in enumerate(names)
     ))
@@ -86,7 +88,8 @@ def _mode_button(action: str, label: str, *, lit: bool, dim: bool) -> Button:
                   width=FIT_THE_WORD, lit=lit, dim=dim)
 
 
-def _control(side: str, name: str, *, lit: bool = False, group_break: bool) -> Button:
+def _control(side: str, name: str, *, lit: bool = False, dim: bool = False,
+             group_break: bool) -> Button:
     return Button(f"{side}_{name}", CONTROL_FACES[name], CONTROL_TOOLTIPS[name],
-                  lit=lit, favorite=name in ("lock", "fmode"), danger=name == "trash",
-                  group_break=group_break)
+                  lit=lit, dim=dim, favorite=name in ("lock", "fmode"),
+                  danger=name == "trash", group_break=group_break)

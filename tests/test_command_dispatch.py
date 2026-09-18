@@ -3901,49 +3901,57 @@ def test_a_session_with_one_shape_of_video_ignores_the_filter(tmp_path, monkeypa
     assert calls == [] and ops == []
 
 
-def test_main_reset_puts_both_shapes_back(tmp_path, monkeypatch):
+def test_main_reset_puts_back_the_defaults_the_main_player_holds_itself(tmp_path):
+    config = _make_config(tmp_path)
+
+    dispatch_command("main_reset", _make_state(), config)
+
+    assert config.main_player_cmd_file.read_text(encoding="utf-8").splitlines() == [
+        "SET_LENGTH_MODE mixed", "LOOP_CANCEL", "LOCK_OFF", "SET_SPEED 1"]
+
+
+def test_main_reset_does_nothing_to_a_main_player_already_at_every_default(tmp_path):
+    config = _make_config(tmp_path)
+    config.main_player_status_file.parent.mkdir(parents=True, exist_ok=True)
+    config.main_player_status_file.write_text(
+        "video=C:/v/scene one.mp4\nlocked=0\nstate=normal\nspeed=1.0\n"
+        "length_mode=mixed\ncompilation=\n",
+        encoding="utf-8",
+    )
+
+    _state, ops = dispatch_command("main_reset", _make_state(), config)
+
+    assert ops == []
+    assert not config.main_player_cmd_file.exists()
+
+
+@pytest.mark.parametrize("off_default", [
+    {"main_f_mode": True}, {"main_latest": True}, {"main_plays_flat": False},
+])
+def test_main_reset_rebuilds_an_off_default_browse_as_a_fresh_shuffle_from_the_top(
+        tmp_path, monkeypatch, off_default):
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
 
     state, _ops = dispatch_command(
-        "main_reset", _make_state(main_plays_flat=False), _vr_config(tmp_path))
+        "main_reset", _make_state(**off_default), _vr_config(tmp_path))
 
-    assert (state.main_plays_vr, state.main_plays_flat) == (True, True)
-    assert calls[-1]["shapes"].plays_flat is True
+    assert (state.main_f_mode, state.main_latest,
+            state.main_plays_vr, state.main_plays_flat) == (False, False, True, True)
+    assert [(call["enabled"], call["recent"], call.get("start_at_top"),
+             call["shapes"].plays_vr, call["shapes"].plays_flat)
+            for call in calls] == [(False, False, True, True, True)]
 
 
-def test_main_reset_drops_the_length_mode_and_f_mode_together(tmp_path, monkeypatch):
-    """"reset" means for the main player what it means for a satellite: drop
-    everything narrowing what it plays.  Two things do — the length mode, which
-    The main player holds, and F-mode, which we hold — so a reset that sent only the length
-    verb left the player still narrowed to the scripted videos."""
+def test_main_reset_does_not_reshuffle_a_player_already_at_its_defaults(tmp_path, monkeypatch):
     calls: list[dict] = []
     monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
                         lambda **kwargs: calls.append(kwargs))
-    config = _make_config(tmp_path)
 
-    state, ops = dispatch_command("main_reset", _make_state(main_f_mode=True), config)
-
-    assert state.main_f_mode is False
-    assert calls[-1]["enabled"] is False
-    assert "SET_LENGTH_MODE mixed" in config.main_player_cmd_file.read_text(encoding="utf-8")
-    assert ops[0].op == "notice"
-
-
-def test_main_reset_does_not_reshuffle_a_player_that_was_not_narrowed(tmp_path, monkeypatch):
-    """The playlist is only rebuilt when F-mode was actually on.  "shuffle main" is
-    the command that reorders; a reset pressed with nothing narrowed must not throw
-    away the browse you are in on the way to changing nothing."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
-    config = _make_config(tmp_path)
-
-    dispatch_command("main_reset", _make_state(main_f_mode=False), config)
+    dispatch_command("main_reset", _make_state(), _vr_config(tmp_path))
 
     assert calls == []
-    assert "SET_LENGTH_MODE mixed" in config.main_player_cmd_file.read_text(encoding="utf-8")
 
 
 def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does_not_offer(
@@ -3958,21 +3966,22 @@ def test_main_reset_leaves_the_browse_alone_over_a_shape_filter_the_session_does
     assert calls == []
 
 
-def test_main_reset_keeps_the_length_verb_off_a_slot_main_player_does_not_own(tmp_path, monkeypatch):
-    """The length mode is the main player's, so the verb only goes while the main player owns the main slot
-    — the same guard every other the main player verb has.  The F-mode flag is ours and goes
-    whoever is showing, exactly as "main f mode off" does."""
-    calls: list[dict] = []
-    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode",
-                        lambda **kwargs: calls.append(kwargs))
+def test_main_reset_leaves_what_the_main_player_holds_alone_while_genau_owns_the_slot(
+        tmp_path, monkeypatch):
+    monkeypatch.setattr("fun_time.command_dispatch.apply_main_fmode", lambda **kwargs: None)
     config = _make_config(tmp_path)
 
     state, _ops = dispatch_command(
         "main_reset", _make_state(main_mode="genau", main_f_mode=True), config)
 
     assert state.main_f_mode is False
-    assert not config.main_player_cmd_file.exists() or "SET_LENGTH_MODE" not in (
-        config.main_player_cmd_file.read_text(encoding="utf-8"))
+    assert not config.main_player_cmd_file.exists()
+
+
+def test_main_reset_flashes_reset_over_the_main_player(tmp_path):
+    _state, ops = dispatch_command("main_reset", _make_state(), _make_config(tmp_path))
+
+    assert ops == [WindowOp(op="notice", key="Reset", source="main")]
 
 
 def test_main_reset_makes_the_main_player_the_one_a_bare_word_reaches(tmp_path, monkeypatch):

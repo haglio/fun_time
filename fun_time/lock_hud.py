@@ -104,6 +104,9 @@ class HudPanel:
     # Whether the hosted app that mode is made of is up yet: false for a
     # session's first half-minute, over which that button is drawn dim.
     origenerator_ready: bool = True
+    # Whether this side is already at every default, which leaves its reset
+    # nothing to put back -- the button is drawn faded and takes no press.
+    nothing_to_reset: bool = False
 
 
 def _others(items: list[str], current: str) -> list[str]:
@@ -298,6 +301,7 @@ class SideInputs:
     # satellite has its own button for it, so the two can differ.
     f_mode: bool = False
     is_favorite: bool = False
+    nothing_to_reset: bool = False
 
 
 def build_hud_panel(
@@ -434,6 +438,7 @@ def build_hud_panel(
         playing=playing,
         satellites_mode=satellites_mode,
         origenerator_ready=origenerator_ready,
+        nothing_to_reset=inputs.nothing_to_reset,
     )
 
 

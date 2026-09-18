@@ -94,6 +94,12 @@ def f_mode_button(published: dict) -> dict:
                 if button["action"].endswith("_fmode"))
 
 
+def reset_button(published: dict) -> dict:
+    """The reset button a published panel declares, as written."""
+    return next(button for row in published["rows"] for button in row
+                if button["action"].endswith("reset"))
+
+
 def broker_is_up(published: dict) -> bool:
     """What the published console's OSR2-line control says of the broker: lit
     while the service runs, red (``warn``) while it is down."""
@@ -242,6 +248,32 @@ class TestHudPublishing:
         assert landscape["lock_label"] == "Unlocked · Shuffle"
         assert not f_mode_button(landscape).get("lit")
 
+    def test_a_side_at_every_default_draws_its_reset_faded(self, tmp_path):
+        """Pressing it would change nothing, so the button says as much rather
+        than offering an act that does nothing."""
+        feed = make_feed(tmp_path)
+        for side in ("portrait", "landscape"):
+            publish_satellite_status(tmp_path / f"{side}_status.txt", f"C:/v/{side}.mp4")
+
+        feed.publish(replace(BridgeState(), portrait=SideState(locked=True)))
+
+        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
+        assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
+
+    def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
+        """That reset belongs to the show, whose state this room cannot see, so
+        it stays pressable however settled the player underneath it is."""
+        feed = make_feed(tmp_path, config=hosting_config(tmp_path))
+        hosted = HudModel(side="portrait", lock_label="Unlocked \u00b7 Shuffle",
+                          rows=((Button("portrait_reset", "R", "Reset the show"),),))
+        (tmp_path / "origenerator_portrait_hud.json").write_text(
+            hud_text(hosted), encoding="utf-8")
+        publish_satellite_status(tmp_path / "portrait_status.txt", "C:/v/p.mp4")
+
+        feed.publish(BridgeState(satellites_mode="origenerator"))
+
+        assert not reset_button(panel(tmp_path, "portrait")).get("dim")
+
     def test_the_published_panel_says_which_side_has_the_floor(self, tmp_path):
         """The active side is a slot number in the state and a side *name* on the
         panel, so exactly one satellite can claim it — and neither does while the
@@ -356,6 +388,20 @@ class TestHudPublishing:
         genau.write_text("locked=0\n", encoding="utf-8")
         assert published("video") is True
         assert published("genau") is False
+
+    def test_the_consoles_reset_is_faded_while_there_is_nothing_to_put_back(self, tmp_path):
+        feed, state = make_feed(tmp_path), BridgeState()
+        status = feed.config.main_player_status_file
+
+        status.write_text("video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n",
+                          encoding="utf-8")
+        feed.publish(state)
+        assert reset_button(console(tmp_path))["dim"] is True
+
+        status.write_text("video=C:/v/n.mp4\nlocked=1\nspeed=1.0\nlength_mode=mixed\n",
+                          encoding="utf-8")
+        feed.publish(state)
+        assert not reset_button(console(tmp_path)).get("dim")
 
     def test_each_sides_panel_says_whether_its_own_clip_is_a_favorite(self, tmp_path):
         """The dashboard's panel used to say this by turning green; the HUD marks

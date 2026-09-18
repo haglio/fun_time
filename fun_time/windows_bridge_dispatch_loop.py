@@ -21,7 +21,12 @@ from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import PARK_CMD, write_broker_command
 from .child_log import no_child_log
 from .clipper_save import save_clip_session
-from .command_dispatch import dispatch_command, hosting_origenerator, routes_to_origenerator
+from .command_dispatch import (
+    dispatch_command,
+    hosting_origenerator,
+    room_at_defaults,
+    routes_to_origenerator,
+)
 from .dashboard_actions import (
     HELP_REFERENCE,
     HELP_REFERENCE_COMMANDS,
@@ -164,17 +169,18 @@ def resolve_active_side_command(command: str, active_side: int) -> str:
     return prefix + action
 
 
-def expand_both_command(command: str) -> list[str]:
-    """Expand a ``both_*`` command into its Portrait + Landscape pair.
+_PLAYER_GROUPS = {
+    "both_": ("portrait_", "landscape_"),
+    "all_": ("main_", "portrait_", "landscape_"),
+}
 
-    Saying "both next" enqueues ``both_next``; there is no combined handler —
-    a both-command is just sugar for driving each satellite in turn (Portrait
-    first) through the exact same per-command handling as "portrait next" /
-    "landscape next".  Any other command passes through unchanged.
-    """
-    if command.startswith("both_"):
-        suffix = command[len("both_"):]
-        return [f"portrait_{suffix}", f"landscape_{suffix}"]
+
+def expand_group_command(command: str) -> list[str]:
+    """A ``both_``/``all_`` command as the per-player commands it stands for,
+    each then handled exactly as if said alone; anything else as itself."""
+    for group, players in _PLAYER_GROUPS.items():
+        if command.startswith(group):
+            return [player + command[len(group):] for player in players]
     return [command]
 
 
@@ -349,7 +355,7 @@ class DispatchLoopRunner:
             for line in poll_dashboard_commands(self.dashboard_cmd_file):
                 raw_command, spoken_at = parse_command_line(line)
                 resolved = resolve_active_side_command(raw_command, self.state.active_side)
-                for command in expand_both_command(resolved):
+                for command in expand_group_command(resolved):
                     self._handle_command(command, spoken_at)
         finally:
             self._batching_rfb = False
@@ -632,6 +638,9 @@ class DispatchLoopRunner:
                 f_mode=(self.state.main_f_mode
                         and all(self.state.side(p).f_mode for p in Player.SATELLITES)),
                 in_vr=self.config.vr_main_player,
+                nothing_to_reset=room_at_defaults(
+                    self.state, self.config,
+                    read_main_player_status(self.config.main_player_status_file)),
             )
         except OSError as exc:
             now = time.monotonic()
