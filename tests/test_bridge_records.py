@@ -23,7 +23,7 @@ def _make_config(tmp_path: Path) -> BridgeConfig:
         main_sources=str(tmp_path / "primary"),
         portrait_sources=str(tmp_path / "portrait"),
         landscape_sources=str(tmp_path / "landscape"),
-        genau_mode_file=state_dir / "genau_mode.txt",
+        broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
         audio_paused_file=state_dir / "audio_paused.txt",

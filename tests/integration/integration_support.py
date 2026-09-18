@@ -198,8 +198,8 @@ class FunTimeIntegrationSession:
         return self.config.paths.state_dir / "dashboard_cmd.txt"
 
     @property
-    def genau_mode_file(self) -> Path:
-        return self.config.genau_mode_file
+    def broker_mode_file(self) -> Path:
+        return self.config.broker_mode_file
 
     @property
     def favs_file(self) -> Path:

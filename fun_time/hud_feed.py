@@ -208,4 +208,4 @@ class HudFeed:
         tx_fresh = is_osr2_device_on(self.config.osr2_serial_tx_file)
         if not (rx_fresh or tx_fresh):
             return "off"
-        return "auto" if read_flag_file(self.config.genau_mode_file, False) else "controlled"
+        return "auto" if read_flag_file(self.config.broker_mode_file, False) else "controlled"

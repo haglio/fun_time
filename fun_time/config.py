@@ -176,9 +176,9 @@ class ProjectConfig:
     # --- The broker's channel.  Every one of these is a file ../broker opens by
     # its own config, so they follow the broker's state dir rather than ours.
     @property
-    def genau_mode_file(self) -> Path:
+    def broker_mode_file(self) -> Path:
         """The broker's "Genau has the OSR2" flag — written by it, read by us."""
-        return self.paths.broker_state_dir / state_files.GENAU_MODE
+        return self.paths.broker_state_dir / state_files.BROKER_MODE
 
     @property
     def broker_cmd_file(self) -> Path:

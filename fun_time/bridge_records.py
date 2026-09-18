@@ -34,7 +34,7 @@ class BridgeConfig:
     main_sources: str
     portrait_sources: str
     landscape_sources: str
-    genau_mode_file: Path
+    broker_mode_file: Path
     genau_cmd_file: Path
     genau_paused_file: Path
     audio_paused_file: Path
