@@ -175,18 +175,18 @@ class TestControllerBindings:
                 assert hands == {LEFT, RIGHT}, f"{profile} binds {action} for {hands}"
             assert all(path.endswith("/aim/pose") for path in bindings[AIM])
 
-    def test_b_skips_forward_and_a_skips_back_on_every_controller_that_has_them(self):
+    def test_a_skips_forward_and_b_skips_back_on_every_controller_that_has_them(self):
         touch = CONTROLLER_BINDINGS["/interaction_profiles/oculus/touch_controller"]
         index = CONTROLLER_BINDINGS["/interaction_profiles/valve/index_controller"]
 
         assert set(touch[FORWARD]) == {
-            "/user/hand/right/input/b/click", "/user/hand/left/input/y/click"}
-        assert set(touch[BACK]) == {
             "/user/hand/right/input/a/click", "/user/hand/left/input/x/click"}
+        assert set(touch[BACK]) == {
+            "/user/hand/right/input/b/click", "/user/hand/left/input/y/click"}
         assert set(index[FORWARD]) == {
-            "/user/hand/right/input/b/click", "/user/hand/left/input/b/click"}
-        assert set(index[BACK]) == {
             "/user/hand/right/input/a/click", "/user/hand/left/input/a/click"}
+        assert set(index[BACK]) == {
+            "/user/hand/right/input/b/click", "/user/hand/left/input/b/click"}
 
     def test_every_action_a_controller_binds_is_one_the_session_creates(self):
         bound = {name for bindings in CONTROLLER_BINDINGS.values() for name in bindings}
