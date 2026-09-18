@@ -676,19 +676,6 @@ def create_hidden_topmost_window() -> int:
         WS_POPUP, 0, 0, 0, 0, None, None, None, None) or 0)
 
 
-def insert_below(hwnd: int, other_hwnd: int) -> None:
-    """Put one directly under *other_hwnd*, or leave the band alone given 0.
-
-    Showing a window puts it at the TOP of its band, so one revealed while
-    another topmost window must keep the screen is placed in the same call.
-    """
-    _user32.SetWindowPos(
-        hwnd, ctypes.c_void_p(other_hwnd), 0, 0, 0, 0,
-        SWP_NOSIZE | SWP_NOMOVE | SWP_FRAMECHANGED
-        | (SWP_NOACTIVATE if other_hwnd else SWP_NOZORDER),
-    )
-
-
 def is_window_minimized(hwnd: int) -> bool:
     """True if the window is currently minimized (iconic)."""
     return bool(_user32.IsIconic(hwnd))

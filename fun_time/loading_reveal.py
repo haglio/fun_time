@@ -1,9 +1,8 @@
 """The panel's wait under the loading cover, and how it comes out of it.
 
-The panel is topmost, so one that simply came up would flash above the cover.
-It is realized without being shown and reveals itself UNDER the cover
-(:func:`win32.insert_below`) at startup's last phase, not when the cover goes a
-second or more later.  No Qt: it arrives as something with a ``show``.
+Realized without being shown, and revealed at startup's last phase rather than
+when the cover goes a second or more later.  No Qt: it arrives as something
+with a ``show``.
 """
 from __future__ import annotations
 
@@ -15,7 +14,7 @@ from fun_time.overlay_progress import startup_still_building
 from fun_time.win32 import (
     find_window_by_title,
     hide_own_window,
-    insert_below,
+    set_always_on_top,
     show_own_window,
 )
 
@@ -66,10 +65,26 @@ class LoadingReveal:
             return
         self.deferred = False
         self._routing_suppressed = False
-        # Resolved BEFORE anything is shown: the panel is placed under the
-        # cover by the same call that reveals it, and needs its handle in hand.
+        assert self._window is not None
         cover = find_window_by_title(LOADING_SCREEN_TITLE, exact=True)
+        if cover:
+            self._reveal_beneath(cover)
+        else:
+            self._reveal_where_it_sits()
+
+    def _reveal_beneath(self, cover: int) -> None:
+        """Out of the topmost band before the panel is visible, back into it
+        directly under the cover once it is.
+
+        Between the two it is beneath the cover by Windows' own rule — a window
+        that is not topmost cannot be above one that is — rather than by
+        winning a race with whatever would otherwise have to put it back.
+        """
+        set_always_on_top(self._hwnd, False)
+        self._reveal_where_it_sits()
+        set_always_on_top(self._hwnd, True, under=cover)
+
+    def _reveal_where_it_sits(self) -> None:
         assert self._window is not None
         self._window.show()
         show_own_window(self._hwnd)
-        insert_below(self._hwnd, cover)

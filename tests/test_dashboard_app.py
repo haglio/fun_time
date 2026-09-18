@@ -593,9 +593,11 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
         window.close()
 
 
-def test_dashboard_leaves_the_z_order_alone_when_there_is_no_cover(cfg_path: Path):
+def test_dashboard_leaves_the_band_alone_when_there_is_no_cover(cfg_path: Path):
     """No cover to find is not a reason to move the panel around: it is shown
-    where it already sits, exactly as it was before there was a cover to duck."""
+    where it already sits, exactly as it was before there was a cover to duck.
+    The band drop exists only to duck one, and a panel dropped out of the band
+    with nothing to duck would be shown under every player instead."""
     import ctypes
     from unittest.mock import MagicMock
 
@@ -618,37 +620,54 @@ def test_dashboard_leaves_the_z_order_alone_when_there_is_no_cover(cfg_path: Pat
         ):
             window._reveal.maybe_reveal()
 
-        placed = [c for c in set_window_pos.call_args_list
-                  if c.args[0] == window._dash_hwnd]
-        assert placed
-        SWP_NOZORDER = 0x0004
-        assert placed[-1].args[6] & SWP_NOZORDER
+        assert not [c for c in set_window_pos.call_args_list
+                    if c.args[0] == window._dash_hwnd]
     finally:
         window.close()
 
 
-def test_the_cover_is_found_before_the_window_is_shown(dashboard_app_config):
-    """The panel is placed under the cover by the same call that reveals it, so
-    the cover's handle has to be in hand before anything is shown — a reveal
-    that resolved it afterwards would have nothing to place against."""
-    from unittest.mock import MagicMock
+def test_the_panel_leaves_the_topmost_band_before_it_becomes_visible(dashboard_app_config):
+    """Showing a topmost window puts it at the TOP of the band — over the cover —
+    and it stays there until something puts it back, which is a SetWindowPos
+    away in a process the machine may not run for tens of milliseconds.  That
+    gap was the panel drawn through the scrim for 68ms in one loaded run.
 
+    So the reveal drops it out of the band first.  A window that is not topmost
+    cannot be above one that is, whatever the machine does next, so the panel is
+    under the cover from the instant it is visible; the promotion that follows
+    names the cover and lands directly beneath it.  The cover is resolved before
+    any of it, while nothing has moved."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config)
     try:
         order: list[str] = []
+        topmost = [True]
+
+        def _band(hwnd, on_top, *, under=0):
+            topmost[0] = on_top
+            order.append(f"band={on_top} under={under}")
+
+        def _seen(step):
+            order.append(f"{step} topmost={topmost[0]}")
+
         with (
             patch("fun_time.loading_reveal.startup_still_building", return_value=False),
             patch("fun_time.loading_reveal.find_window_by_title",
                   side_effect=lambda *_a, **_k: (order.append("find"), 4242)[1]),
-            patch("fun_time.loading_reveal.insert_below",
-                  side_effect=lambda *_a: order.append("place")),
-            patch("fun_time.loading_reveal.show_own_window", MagicMock()),
-            patch.object(window, "show", side_effect=lambda: order.append("show")),
+            patch("fun_time.loading_reveal.set_always_on_top", side_effect=_band),
+            patch("fun_time.loading_reveal.show_own_window",
+                  side_effect=lambda *_a: _seen("show_own")),
+            patch.object(window, "show", side_effect=lambda: _seen("show")),
         ):
             window._reveal.maybe_reveal()
 
-        assert order == ["find", "show", "place"]
+        assert order == [
+            "find",
+            "band=False under=0",
+            "show topmost=False",
+            "show_own topmost=False",
+            "band=True under=4242",
+        ]
     finally:
         window.close()
 
@@ -693,7 +712,7 @@ def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
             patch("fun_time.loading_reveal.startup_still_building", return_value=False),
             patch("fun_time.loading_reveal.find_window_by_title", return_value=0),
             patch("fun_time.loading_reveal.show_own_window", MagicMock()),
-            patch("fun_time.loading_reveal.insert_below", MagicMock()),
+            patch("fun_time.loading_reveal.set_always_on_top", MagicMock()),
             patch.object(window, "show"),
         ):
             window._reveal.maybe_reveal()

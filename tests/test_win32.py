@@ -137,6 +137,17 @@ class TestSetAlwaysOnTop:
 
         assert mock.SetWindowPos.call_args[0][1] == HWND_NOTOPMOST
 
+    def test_a_band_change_moves_and_resizes_nothing(self):
+        """Only the z-order: the panel's reveal runs this over a window already
+        sized and placed, and the players' bands over windows on their rects."""
+        with patch("fun_time.win32._user32") as mock:
+            set_always_on_top(111, True, under=99)
+
+        flags = mock.SetWindowPos.call_args[0][6]
+        assert flags & win32.SWP_NOSIZE
+        assert flags & win32.SWP_NOMOVE
+        assert flags & win32.SWP_NOACTIVATE
+
 
 class TestAWindowThatHasStoppedAnswering:
     """SetWindowPos and ShowWindow SEND messages to the thread owning the window
@@ -1016,29 +1027,6 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert mock.ShowWindow.call_args_list == [
             call(4242, win32.SW_HIDE), call(4242, win32.SW_SHOW)]
 
-    def test_inserting_below_another_window_names_it_as_a_pointer(self):
-        """A bare int is marshalled as a 32-bit c_int, which truncates a 64-bit
-        handle — the window would land somewhere else in the band, or nowhere."""
-        with patch("fun_time.win32._user32") as mock:
-            win32.insert_below(4242, 99)
-
-        hwnd, insert_after, _x, _y, _cx, _cy, flags = mock.SetWindowPos.call_args.args
-        assert hwnd == 4242
-        assert isinstance(insert_after, ctypes.c_void_p)
-        assert insert_after.value == 99
-        assert flags & win32.SWP_NOACTIVATE
-        assert not flags & win32.SWP_NOZORDER
-
-    def test_inserting_below_nothing_leaves_the_z_order_alone(self):
-        """With no window to sit under there is nothing to place against, so
-        the call keeps its other work and asks for no move in the band."""
-        with patch("fun_time.win32._user32") as mock:
-            win32.insert_below(4242, 0)
-
-        flags = mock.SetWindowPos.call_args.args[6]
-        assert flags & win32.SWP_NOZORDER
-        assert not flags & win32.SWP_NOACTIVATE
-
     def test_the_hidden_topmost_window_is_topmost_never_shown_and_never_focused(self):
         with patch("fun_time.win32._user32") as mock:
             mock.CreateWindowExW.return_value = 4242
@@ -1048,12 +1036,3 @@ class TestTheWindowChromeThisProcessGivesItsOwn:
         assert ex_style & win32.WS_EX_TOPMOST
         assert ex_style & win32.WS_EX_NOACTIVATE
         assert not style & 0x10000000  # WS_VISIBLE
-
-    def test_an_insert_moves_and_resizes_nothing(self):
-        with patch("fun_time.win32._user32") as mock:
-            win32.insert_below(4242, 99)
-
-        flags = mock.SetWindowPos.call_args.args[6]
-        assert flags & win32.SWP_NOSIZE
-        assert flags & win32.SWP_NOMOVE
-        assert flags & win32.SWP_FRAMECHANGED
