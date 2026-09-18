@@ -1,6 +1,6 @@
 {
-  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). filter_acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary. web_providers maps a library-folder marker to the gallery-URL template ({id} = the id parsed from a filename) used when recording a favorite's web link.",
-  "filter_acts": {
+  "_comment": "Placeholder content overlay. Real copy lives in content.local.json (git-ignored). acts maps a canonical query (matched against a video's metadata) to the spoken forms the recognizer listens for; a spoken form may differ from its query when the query word is out of the speech model's vocabulary. Evolver's overlay lists the same acts under its own acts key, as the phrases that record each one's video.action; a query here is matched against that recorded action, so the two must agree. web_providers maps a library-folder marker to the gallery-URL template ({id} = the id parsed from a filename) used when recording a favorite's web link.",
+  "acts": {
     "alpha": [
       "alpha"
     ],

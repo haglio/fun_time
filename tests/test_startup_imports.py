@@ -2,7 +2,7 @@
 
 Several startup modules do real work at *import* time: ``voice_commands`` builds
 its phrase table from ``load_content()["clip_jump_phrases"]`` and ``filter_vocab``
-from ``load_content()["filter_acts"]``, both at module level.  A missing overlay
+from ``load_content()["acts"]``, both at module level.  A missing overlay
 key therefore raises ``KeyError`` the instant orchestrator startup imports the
 module — before any window opens — and nothing else in the unit suite imports
 that graph in a fresh interpreter, so a bad overlay (or any broken top-level
@@ -37,7 +37,7 @@ _STARTUP_MODULES = (
 
 # Overlay keys read at import time by the launch graph; each must be present in
 # the committed example or the graph refuses to import.
-_IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "filter_acts")
+_IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "acts")
 
 
 def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:

@@ -29,16 +29,16 @@ class TestLoadContent:
         # voice_commands' ``load_content()["clip_jump_phrases"]`` raise KeyError
         # at import.  A phrase list sensibly falls back to the example.
         local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"filter_acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")
         result = load_content(local, EXAMPLE_CONTENT)
         assert result["clip_jump_phrases"] == _example()["clip_jump_phrases"]
 
-    def test_missing_filter_acts_is_backfilled_from_the_example(self, tmp_path: Path):
-        # filter_vocab reads ``data["filter_acts"]`` directly at import too.
+    def test_missing_acts_are_backfilled_from_the_example(self, tmp_path: Path):
+        # filter_vocab reads ``data["acts"]`` directly at import too.
         local = tmp_path / "content.local.json"
         local.write_text(json.dumps({"clip_jump_phrases": ["skip ahead"]}), encoding="utf-8")
         result = load_content(local, EXAMPLE_CONTENT)
-        assert result["filter_acts"] == _example()["filter_acts"]
+        assert result["acts"] == _example()["acts"]
 
     def test_a_present_key_is_not_overwritten_by_the_example(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
@@ -55,7 +55,7 @@ class TestLoadContent:
         # stand-in URLs — those would be written verbatim into favorites.
         assert _example()["web_providers"], "example is expected to define providers"
         local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"filter_acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")
         result = load_content(local, EXAMPLE_CONTENT)
         assert result["web_providers"] == []
 
@@ -67,7 +67,7 @@ class TestLoadWebProviders:
 
     def test_overlay_omitting_web_providers_yields_none(self, tmp_path: Path):
         local = tmp_path / "content.local.json"
-        local.write_text(json.dumps({"filter_acts": {"zeta": ["zeta"]}}), encoding="utf-8")
+        local.write_text(json.dumps({"acts": {"zeta": ["zeta"]}}), encoding="utf-8")
         assert load_web_providers(local, EXAMPLE_CONTENT) == ()
 
 
@@ -90,5 +90,5 @@ def test_importing_the_vocabulary_reads_no_overlay():
 
     assert result.stdout.strip() == "0", (
         "importing these parsed the content overlay; have them call "
-        "load_content()/load_filter_acts()/load_web_providers() instead"
+        "load_content()/load_acts()/load_web_providers() instead"
     )
