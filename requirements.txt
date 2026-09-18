@@ -3,7 +3,7 @@
 # Runtime (pyproject [project.dependencies])
 app-support @ git+https://github.com/haglio/app_support@v0.1.140
 shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.123
-player-core @ git+https://github.com/haglio/player_core@v0.1.261
+player-core @ git+https://github.com/haglio/player_core@v0.1.264
 numpy
 opencv-python
 pillow
