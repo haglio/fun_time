@@ -31,26 +31,33 @@ def _canonical(name: str) -> str:
     return name.strip().lower().replace("_", "-")
 
 
-def _pyproject_dependencies() -> set[str]:
+def _pyproject_specs() -> set[str]:
     project = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))["project"]
     specs: set[str] = set(project.get("dependencies", []))
     for group in project.get("optional-dependencies", {}).values():
         specs.update(group)
+    return specs
+
+
+def _requirements_specs() -> set[str]:
+    lines = (raw.split("#", 1)[0].strip()
+             for raw in REQUIREMENTS.read_text(encoding="utf-8").splitlines())
+    return {line for line in lines if line}
+
+
+def _names(specs: set[str]) -> set[str]:
     return {_canonical(_dist_name(spec)) for spec in specs}
 
 
-def _requirements_dependencies() -> set[str]:
-    names: set[str] = set()
-    for raw_line in REQUIREMENTS.read_text(encoding="utf-8").splitlines():
-        line = raw_line.split("#", 1)[0].strip()
-        if line:
-            names.add(_canonical(_dist_name(line)))
-    return names
+def _tags(specs: set[str]) -> dict[str, str]:
+    """Each git-pinned dependency against the ref it names."""
+    return {_canonical(_dist_name(spec)): spec.rsplit("@", 1)[-1].strip()
+            for spec in specs if "git+" in spec}
 
 
 def test_requirements_matches_pyproject():
-    pyproject = _pyproject_dependencies()
-    requirements = _requirements_dependencies()
+    pyproject = _names(_pyproject_specs())
+    requirements = _names(_requirements_specs())
 
     missing = pyproject - requirements
     extra = requirements - pyproject
@@ -59,3 +66,12 @@ def test_requirements_matches_pyproject():
         f"  declared in pyproject.toml but missing from requirements.txt: {sorted(missing)}\n"
         f"  in requirements.txt but not declared in pyproject.toml: {sorted(extra)}"
     )
+
+
+def test_requirements_names_the_same_sibling_tags():
+    """Names alone cannot see a stale pin, and all three drifted under that:
+    ``requirements.txt`` named app_support v0.1.140, shared_ui v0.1.123 and
+    player_core v0.1.264 while pyproject had moved on by thirteen, four and one
+    tag, so ``pip install -r requirements.txt`` built against three versions of
+    the family that nothing here was tested on."""
+    assert _tags(_requirements_specs()) == _tags(_pyproject_specs())
