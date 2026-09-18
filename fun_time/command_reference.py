@@ -198,6 +198,12 @@ _SECTIONS: tuple[_Section, ...] = (
                 ("F",),
                 ("fmode_toggle", "fmode_on", "fmode_off"),
             ),
+            _Row(
+                "Reset All — every player back to its defaults at once, as "
+                "each player's own reset does",
+                (),
+                ("all_reset",),
+            ),
             # The main player's sound, in whichever mode owns it — the main player's
             # video in video mode, Genau's clip audio in genau.  Its volume steps
             # sit with the main player's other playback controls.
@@ -364,8 +370,9 @@ _SECTIONS: tuple[_Section, ...] = (
                  "main_player_length_mixed", "main_player_length_none"),
             ),
             _Row(
-                "Reset the main player — back to the mixed library (leaving any "
-                "compilation) with F-Mode off",
+                "Reset the main player — back to every default: every length and "
+                "shape (leaving any compilation), no lock, no loop, no F-Mode, "
+                "normal speed, shuffled from the top",
                 (),
                 ("main_reset",),
             ),

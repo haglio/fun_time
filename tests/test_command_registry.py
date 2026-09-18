@@ -23,7 +23,7 @@ from fun_time.command_reference import build_reference_sections
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
     _MAIN_EQUIVALENTS,
-    expand_both_command,
+    expand_group_command,
     resolve_active_side_command,
 )
 from tests.test_command_id_snapshot import (
@@ -127,7 +127,7 @@ def _voice_resolutions() -> tuple[frozenset[str], frozenset[str]]:
     residues: set[str] = set()
     for value in set(VOICE_COMMANDS.values()):
         for side in (1, 2, 3):
-            for command in expand_both_command(resolve_active_side_command(value, side)):
+            for command in expand_group_command(resolve_active_side_command(value, side)):
                 (residues if command.startswith("active_") else targets).add(command)
     return frozenset(targets), frozenset(residues)
 
@@ -274,8 +274,9 @@ def test_the_reference_and_the_handlers_agree():
         | _loop_branch_ids()
         | _families()
         | _NAV_IDS
-        # The reference documents the side-agnostic and both forms as such.
-        | frozenset(c for c in reference if c.startswith(("active_", "both_")))
+        # The reference documents the side-agnostic and group forms as such.
+        | frozenset(c for c in reference
+                    if c.startswith(("active_", *windows_bridge_dispatch_loop._PLAYER_GROUPS)))
     )
     ghosts = reference - real
     assert not ghosts, f"reference rows naming unhandled commands: {sorted(ghosts)}"

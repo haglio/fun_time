@@ -39,7 +39,7 @@ from fun_time.windows_bridge_dispatch_loop import (
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
     detect_sleep_gap,
-    expand_both_command,
+    expand_group_command,
     poll_dashboard_commands,
     resolve_active_side_command,
 )
@@ -394,7 +394,7 @@ class TestResolveActiveSideCommand:
         # they resolve and expand without any special-casing.
         assert resolve_active_side_command("active_action_loop", 3) == "landscape_action_loop"
         assert resolve_active_side_command("active_lock_action", 2) == "portrait_lock_action"
-        assert expand_both_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
+        assert expand_group_command("both_seed_loop") == ["portrait_seed_loop", "landscape_seed_loop"]
 
     def test_rewrites_to_portrait_when_active_side_is_portrait(self):
         assert resolve_active_side_command("active_lock_on", 2) == "portrait_lock_on"
@@ -2226,6 +2226,39 @@ class TestIdempotentVoiceCommands:
         ), pytest.raises(TypeError):
             runner._update_dashboard()
 
+    def test_the_snapshot_says_whether_every_player_has_nothing_to_reset(self, tmp_path):
+        from dataclasses import replace
+
+        from fun_time.dashboard_runtime import load_dashboard_snapshot
+        from fun_time.shared_state import SideState
+
+        runner = make_runner(tmp_path, dashboard_enabled=True)
+        runner.config.main_player_status_file.write_text(
+            "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
+
+        runner._update_dashboard()
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is True
+
+        runner.state = replace(runner.state, portrait=SideState(locked=True))
+        runner._update_dashboard()
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
+
+    def test_a_room_hosting_origenerator_never_says_it_has_nothing_to_reset(self, tmp_path):
+        from dataclasses import replace
+
+        from fun_time.dashboard_runtime import load_dashboard_snapshot
+
+        runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(
+            tmp_path, origenerator_enabled=True,
+            origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
+        runner.config.main_player_status_file.write_text(
+            "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
+        runner.state = replace(runner.state, satellites_mode="origenerator")
+
+        runner._update_dashboard()
+
+        assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
+
     # -- the window-op vocabulary --
 
     def test_an_unknown_op_is_an_error_not_an_ahk_verb(self, tmp_path, caplog):
@@ -2501,26 +2534,31 @@ class TestTheSatellitesTakeTheMainPlayersRate:
             assert sent == ["SET_SPEED 0.5"], side
 
 
-class TestExpandBothCommand:
-    """A "both" command is sugar for its Portrait + Landscape pair."""
+class TestExpandGroupCommand:
+    """A group word is sugar for the players it names, driven one at a time."""
 
     def test_passes_through_non_both_commands(self):
-        assert expand_both_command("portrait_next") == ["portrait_next"]
-        assert expand_both_command("quit") == ["quit"]
+        assert expand_group_command("portrait_next") == ["portrait_next"]
+        assert expand_group_command("quit") == ["quit"]
 
     def test_expands_to_portrait_then_landscape(self):
-        assert expand_both_command("both_next") == ["portrait_next", "landscape_next"]
-        assert expand_both_command("both_prev") == ["portrait_prev", "landscape_prev"]
-        assert expand_both_command("both_trash") == ["portrait_trash", "landscape_trash"]
+        assert expand_group_command("both_next") == ["portrait_next", "landscape_next"]
+        assert expand_group_command("both_prev") == ["portrait_prev", "landscape_prev"]
+        assert expand_group_command("both_trash") == ["portrait_trash", "landscape_trash"]
 
     def test_expands_multiword_suffixes(self):
-        assert expand_both_command("both_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
-        assert expand_both_command("both_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
-        assert expand_both_command("both_cycle_action") == [
+        assert expand_group_command("both_lock_on") == ["portrait_lock_on", "landscape_lock_on"]
+        assert expand_group_command("both_lock_off") == ["portrait_lock_off", "landscape_lock_off"]
+        assert expand_group_command("both_cycle_action") == [
             "portrait_cycle_action", "landscape_cycle_action",
         ]
-        assert expand_both_command("both_cycle_seed") == [
+        assert expand_group_command("both_cycle_seed") == [
             "portrait_cycle_seed", "landscape_cycle_seed",
+        ]
+
+    def test_reset_all_reaches_the_main_player_and_both_satellites(self):
+        assert expand_group_command("all_reset") == [
+            "main_reset", "portrait_reset", "landscape_reset",
         ]
 
 

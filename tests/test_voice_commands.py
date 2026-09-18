@@ -548,6 +548,11 @@ def test_reset_joins_the_order_agnostic_satellite_grid():
         assert VOICE_COMMANDS[f"reset {side}"] == f"{side}_reset"
 
 
+def test_reset_all_reaches_every_player_in_either_order():
+    for phrase in ("reset all", "all reset"):
+        assert VOICE_COMMANDS[phrase] == "all_reset"
+
+
 def test_wrong_action_joins_the_order_agnostic_satellite_grid():
     """"Wrong action" says the clip on screen is labeled as doing the wrong
     thing.  It is about one clip, like "weird", so it is sided like one: bare it

@@ -61,6 +61,9 @@ class MainSlot:
     favorites_filter: bool | None = None
     enhanced_filter: bool | None = None
     osr2_control: str = OSR2_DRIVING
+    # Whether the player is already at every default, which leaves its reset
+    # nothing to put back -- the button is drawn faded and takes no press.
+    nothing_to_reset: bool = False
 
 
 # The glyphs this console types, as against the family's marks it names below.
@@ -254,7 +257,9 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                    "F-Mode — play only the videos that have a funscript",
                    lit=slot.f_mode, favorite=True),
             Button("main_reset", RESET_ICON,
-                   "Reset — the whole library back, with F-Mode off", group_break=True),
+                   "Reset — no filter, no lock, no loop, no F-Mode, normal speed, "
+                   "shuffled from the top",
+                   dim=slot.nothing_to_reset, group_break=True),
             *_browse_order_buttons(slot, remembered=remembered),
             *_projection_buttons(slot, remembered=remembered),
             *_length_buttons(slot, remembered=remembered),

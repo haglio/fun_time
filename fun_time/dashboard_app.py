@@ -35,6 +35,7 @@ from fun_time.dashboard_actions import (
     OMNIPAUSE_TOGGLE,
     OMNIRESTORE,
     QUIT_BUTTON,
+    RESET_ALL,
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
@@ -202,6 +203,8 @@ _ACTION_TOOLTIPS: dict[str, str] = {
     HELP_REFERENCE: REFERENCE_WINDOW_TITLE,
     VOICE_TOGGLE: "Voice",
     FMODE_TOGGLE: "F-Mode on every player",
+    RESET_ALL: ("Reset every player — no filter, no lock, no loop, no F-Mode, "
+                "normal speed, shuffled from the top"),
     ENTER_VR: "Enter VR — end this session and open FunTimeVR",
     EXIT_VR: "Exit VR — end this session and open Fun Time on the desktop",
 }
@@ -217,7 +220,7 @@ def build_dashboard_scene(
     pressed_actions: frozenset[str] = frozenset(),
     reference_open: bool = False,
 ) -> DashboardScene:
-    """The control bar: the app's mark, the session's four, then the two that
+    """The control bar: the app's mark, the session's four, then the three that
     reach past it.  Nothing here stands for one player."""
     omni_paused = snapshot is not None and snapshot.omni_paused
     controls = bar_controls(
@@ -227,6 +230,7 @@ def build_dashboard_scene(
         f_mode=snapshot is not None and snapshot.f_mode,
         in_vr=snapshot is not None and snapshot.in_vr,
         reference_open=reference_open,
+        nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
     )
 
     def _rect(control: BarControl) -> DashboardRectItem:
@@ -265,17 +269,16 @@ def build_dashboard_scene(
     tooltips = dict(_ACTION_TOOLTIPS)
     if omni_paused:
         tooltips[OMNIPAUSE_TOGGLE] = OMNIPAUSE_RESUME_TOOLTIP
-    actions = tuple((control.action, control.rect) for control in controls)
     return DashboardScene(
         width=width,
         height=layout.height,
         rects=rects,
         texts=texts,
         images=images,
-        actions=actions,
-        hover_texts=tuple(
-            (rect, tooltips[action_id]) for action_id, rect in actions
-        ),
+        actions=tuple((control.action, control.rect)
+                      for control in controls if not control.dim),
+        hover_texts=tuple((control.rect, tooltips[control.action])
+                          for control in controls),
     )
 
 

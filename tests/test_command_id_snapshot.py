@@ -81,6 +81,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "active_speed_up",
     "active_trash",
     "active_wrong_action",
+    "all_reset",
     "audio_mute",
     "audio_unmute",
     "audio_volume_down",

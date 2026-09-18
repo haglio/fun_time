@@ -12,8 +12,10 @@ OMNIRESTORE = "omnirestore"
 OMNIPAUSE_TOGGLE = "omnipause_toggle"
 VOICE_TOGGLE = "voice_toggle"
 HELP_REFERENCE = "help_reference"
-# The room's F-mode — every player at once — and the way across to the headset.
+# The room's F-mode and its reset — every player at once — and the way across
+# to the headset.
 FMODE_TOGGLE = "fmode_toggle"
+RESET_ALL = "all_reset"
 ENTER_VR = "enter_vr"
 EXIT_VR = "exit_vr"
 VR_RESET = "vr_reset"

@@ -174,6 +174,7 @@ class TestHowTheSevenPartsAreJoinedUp:
 
         assert len(built) == 1, "two gates: one of them is never filled"
         assert _said(_call(run, "_status_writer").args[1]) == "drive_gate"
+        assert _said(_call(run, "_status_writer").args[2]) == "modes"
         assert _said(_call(run, "ConsolePanel").keywords[1].value) == "drive_gate"
 
     def test_the_painting_is_told_where_the_pointer_is(self):

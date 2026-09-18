@@ -18,6 +18,7 @@ from fun_time.dashboard_actions import (
     HELP_REFERENCE,
     OMNIPAUSE_TOGGLE,
     QUIT_BUTTON,
+    RESET_ALL,
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_app import (
@@ -91,26 +92,56 @@ def _fill(scene, rect):
 
 def test_the_bar_carries_only_what_belongs_to_no_player():
     """Quit, pause everything, the reference popup, and the microphone — then the
-    room's own F-mode and the way across to the headset, each in a group of its
-    own.  Anything about ONE player, the broker and that player's own F-mode
+    room's own F-mode and Reset All, and the way across to the headset.  Anything
+    about ONE player, the broker and that player's own F-mode and reset
     included, is on that player's HUD."""
     scene = _scene()
 
     assert [action for action, _rect in scene.actions] == [
         QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
-        FMODE_TOGGLE, ENTER_VR,
+        FMODE_TOGGLE, RESET_ALL, ENTER_VR,
     ]
 
 
-def test_the_two_room_controls_each_stand_in_a_group_of_their_own():
-    """The four before them are the session's own chrome; F-mode reaches into all
-    three players and Enter VR ends the session altogether, so neither reads as a
-    fifth or sixth of the four."""
+def test_the_every_player_pair_and_the_crossing_each_stand_in_a_group_of_their_own():
+    """The four before them are the session's own chrome; F-mode and Reset All
+    reach into all three players and Enter VR ends the session altogether, so
+    none of them reads as one more of the four."""
     layout = compute_dashboard_bar_layout()
 
     assert layout.fmode_button.x - (layout.voice_panel.x + layout.voice_panel.width) == GROUP_GAP
     assert (layout.vr_button.x
-            - (layout.fmode_button.x + layout.fmode_button.width)) == GROUP_GAP
+            - (layout.reset_all_button.x + layout.reset_all_button.width)) == GROUP_GAP
+
+
+def test_reset_all_stands_beside_f_mode_in_its_group():
+    from fun_time.dashboard_layout import GAP
+
+    layout = compute_dashboard_bar_layout()
+
+    assert layout.reset_all_button.x - (layout.fmode_button.x + layout.fmode_button.width) == GAP
+
+
+def test_the_bars_reset_all_resets_every_player():
+    from fun_time.windows_bridge_dispatch_loop import expand_group_command
+
+    layout = compute_dashboard_bar_layout()
+    scene = _scene()
+
+    assert (RESET_ALL, layout.reset_all_button) in scene.actions
+    assert expand_group_command(RESET_ALL) == ["main_reset", "portrait_reset", "landscape_reset"]
+    assert any(item.rect == layout.reset_all_button for item in scene.images)
+    assert dict((rect, text) for rect, text in scene.hover_texts)[
+        layout.reset_all_button].startswith("Reset")
+
+
+def test_reset_all_takes_no_press_but_still_names_itself_when_every_player_is_at_its_defaults():
+    layout = compute_dashboard_bar_layout()
+    idle = _scene(_snapshot(nothing_to_reset=True))
+
+    assert all(rect != layout.reset_all_button for _action, rect in idle.actions)
+    assert (RESET_ALL, layout.reset_all_button) in _scene(_snapshot()).actions
+    assert dict(idle.hover_texts)[layout.reset_all_button].startswith("Reset")
 
 
 def test_the_bar_is_only_as_wide_as_its_own_buttons():

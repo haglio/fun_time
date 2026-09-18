@@ -14,6 +14,7 @@ from player_core.drive_readout import read_drive
 from player_core.satellite_hud import HudModel, hud_text, parse_hud
 
 from .bridge_records import BridgeConfig
+from .command_dispatch import main_player_at_defaults, satellite_at_defaults
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SideInputs, build_panels
 from .main_player_console import console_model
@@ -84,6 +85,7 @@ class HudFeed:
                 latest=values.latest,
                 f_mode=values.f_mode,
                 is_favorite=is_favorite_path(current, favs),
+                nothing_to_reset=satellite_at_defaults(values),
             )
 
         if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):
@@ -132,6 +134,7 @@ class HudFeed:
             main_player=main_player,
             genau=read_genau_status(genau_status_path(self.config.state_dir)),
             genau_pace_s=self._genau_pace_s(),
+            nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
         )))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:

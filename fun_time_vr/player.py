@@ -1121,6 +1121,7 @@ class _DashUnit:
             voice_active=snapshot is None or snapshot.voice_active,
             f_mode=snapshot is not None and snapshot.f_mode,
             reference_open=read_flag(self._reference_flag, default=False),
+            nothing_to_reset=snapshot is not None and snapshot.nothing_to_reset,
         )
         records = self._notices.records
         aim = self._presses.hover

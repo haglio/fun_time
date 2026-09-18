@@ -180,8 +180,8 @@ def build_voice_commands(
         "flat and vr": "main_projection_both",
         "vr and flat": "main_projection_both",
         # The unfiltered library the main player opens in, and so the way back out of either
-        # half.  "main reset" contains this and goes further, dropping F-mode too (see
-        # the main-player grid below); this is the narrow gesture of the pair.
+        # half.  "main reset" contains this and puts back every other default too
+        # (see the main-player grid below); this is the narrow gesture of the pair.
         "mixed": "main_player_length_mixed",
         # Clip navigation (Larkin-style clips carved from compilations); "full
         # video" is the reliable phrase, "full vid" a fallback.
@@ -397,6 +397,7 @@ def build_voice_commands(
             _sided = _fmode_all if _side == "all" else f"{_side}_{_fmode_act}"
             commands[f"{_side} {_fmode_word}"] = _sided
             commands[f"{_fmode_word} {_side}"] = _sided
+    commands["reset all"] = commands["all reset"] = "all_reset"
 
     # Mode-named navigation: a mode's name + next/previous (either order) navigates
     # that mode's player.  Video drives the main slot's video; Genau steps its own

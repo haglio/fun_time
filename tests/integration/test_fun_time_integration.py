@@ -9,6 +9,7 @@ import pytest
 
 from fun_time.config import SideFiles
 from fun_time.media_actions import remove_from_favs
+from fun_time.player_status import read_main_player_status
 from fun_time.players import Player
 from fun_time.role_windows import MAIN_BLANK_SETTLE_S
 from fun_time.runtime_flow import write_flag_file
@@ -712,6 +713,35 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
         ),
         timeout=12,
         description='a "Marked weird" toast over the portrait player',
+    )
+
+
+def test_fun_time_reset_all_leaves_every_player_unlocked(
+    isolated_integration_session: FunTimeIntegrationSession,
+):
+    session = isolated_integration_session
+    state_dir = session.config.paths.state_dir
+    main_player_status = session.config.main_player_status_file
+    satellite_statuses = [state_dir / f"{side}_status.txt" for side in ("portrait", "landscape")]
+    for side in ("portrait", "landscape"):
+        session.write_dashboard_command(f"{side}_lock_on")
+        session.wait_for_new_log(f"Locked {side} satellite", timeout=12)
+    session.wait_until(
+        lambda: read_main_player_status(main_player_status).locked and all(
+            read_satellite_status(path).locked for path in satellite_statuses),
+        timeout=12,
+        description="all three players to report themselves locked",
+    )
+
+    session.write_dashboard_command("all_reset")
+
+    session.wait_until(
+        lambda: main_player_status.exists()
+        and not read_main_player_status(main_player_status).locked and all(
+            read_satellite_status(path).video and not read_satellite_status(path).locked
+            for path in satellite_statuses),
+        timeout=12,
+        description="Reset All to leave all three players unlocked",
     )
 
 

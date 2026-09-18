@@ -62,6 +62,13 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
     assert snapshot.voice_active is True
 
 
+def test_load_dashboard_snapshot_reads_whether_every_player_has_nothing_to_reset(tmp_path: Path):
+    snapshot_file = tmp_path / "dashboard_state.ini"
+    write_dashboard_snapshot(snapshot_file, nothing_to_reset=True)
+
+    assert load_dashboard_snapshot(snapshot_file).nothing_to_reset is True
+
+
 def test_osr2_device_on_when_rx_recent(tmp_path: Path):
     rx_file = tmp_path / "osr2_serial_rx.txt"
     rx_file.write_text("100.0", encoding="utf-8")
@@ -309,6 +316,20 @@ def test_a_loop_state_without_bounds_is_no_loop(tmp_path: Path):
     status_file.write_text("video=C:\\clip.mp4\nstate=looping\n", encoding="utf-8")
 
     assert read_main_player_status(status_file).loop_bounds is None
+
+
+def test_read_main_player_status_parses_what_a_reset_puts_back(tmp_path: Path):
+    status_file = tmp_path / "main_player_status.txt"
+    status_file.write_text(
+        "video=C:\\clip.mp4\nspeed=1.25\nlength_mode=shorts\ncompilation=Example Studio Volume One\n",
+        encoding="utf-8",
+    )
+
+    status = read_main_player_status(status_file)
+
+    assert (status.speed, status.length_mode, status.compilation) == (
+        1.25, "shorts", "Example Studio Volume One")
+    assert read_main_player_status(tmp_path / "missing.txt").speed == 1.0
 
 
 def test_funscript_driving_is_scripted_and_not_resting():

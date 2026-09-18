@@ -92,6 +92,7 @@ class DashboardBarLayout:
     help_button: Rect
     voice_panel: Rect
     fmode_button: Rect
+    reset_all_button: Rect
     # The way across to the other session — Enter VR out here, Exit VR in
     # there.  One button either way, since you can only be in one of them.
     vr_button: Rect
@@ -104,8 +105,8 @@ class DashboardBarLayout:
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
     """The control bar, laid out left to right at its natural size: the app's
-    name and mark, the session's own four in one run, then two in groups of
-    their own — the room's F-mode, and the crossing to the other session.
+    name and mark, the session's own four in one run, the pair that reaches
+    every player (F-mode and Reset All), then the crossing to the other session.
     """
     height = PAD * 2 + BUTTON
     mid = lambda size: PAD + (BUTTON - size) // 2  # vertical centering
@@ -123,6 +124,8 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
 
     x += GROUP_GAP - GAP
     fmode_button = Rect(x, PAD, BUTTON, BUTTON)
+    x += BUTTON + GAP
+    reset_all_button = Rect(x, PAD, BUTTON, BUTTON)
     x += BUTTON + GROUP_GAP
     vr_button = Rect(x, PAD, BUTTON, BUTTON)
     x += BUTTON + GAP
@@ -137,6 +140,7 @@ def compute_dashboard_bar_layout() -> DashboardBarLayout:
         help_button=buttons[2],
         voice_panel=buttons[3],
         fmode_button=fmode_button,
+        reset_all_button=reset_all_button,
         vr_button=vr_button,
         vr_reset_button=vr_reset_button,
     )
