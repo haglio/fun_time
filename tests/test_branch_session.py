@@ -565,6 +565,18 @@ def test_a_shortcut_is_refused_before_the_launcher_has_landed(repo_with_worktree
         )
 
 
+def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(primary_with_launcher):
+    _git(primary_with_launcher.primary, "commit", "--allow-empty", "-m",
+         "Work that landed after the branch was cut", when="2026-04-01T12:00:00")
+
+    with pytest.raises(branch_session.OutOfDateWorktree, match=r"missing 1 commit\b"):
+        branch_session.write_launch_shortcut(
+            primary_with_launcher.newer, primary=primary_with_launcher.primary
+        )
+
+    assert not (primary_with_launcher.primary / "Verify example-newer.lnk").exists()
+
+
 def _live_state(checkouts) -> Path:
     """The live session's state dir, with something of each kind in it."""
     state = checkouts.primary / "state"
@@ -818,3 +830,56 @@ def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Pat
     assert "fun_time.orchestrator" not in recorded.command
     assert recorded.cwd == str(tmp_path.resolve())
 
+
+def _sessions_exit_with(monkeypatch, returncode: int) -> None:
+    real_run = subprocess.run
+
+    def run(command, cwd=None, check=False, **kwargs):
+        if command[0] == "git":
+            return real_run(command, cwd=cwd, check=check, **kwargs)
+        return SimpleNamespace(returncode=returncode)
+
+    monkeypatch.setattr(branch_session, "build_branch_config",
+                        lambda worktree, **_: worktree / "state" / "cfg.json")
+    monkeypatch.setattr(branch_session.subprocess, "run", run)
+
+
+def _land_work_on_the_primary(checkouts) -> None:
+    _git(checkouts.primary, "commit", "--allow-empty", "-m",
+         "Work that landed after the branch was cut", when="2026-04-01T12:00:00")
+
+
+def _note_left_in(worktree: Path) -> Path:
+    return worktree / "state" / branch_session.OUT_OF_DATE_NOTE_NAME
+
+
+def test_a_launch_that_fails_on_a_worktree_missing_work_says_why_in_plain_words(
+        repo_with_worktrees, monkeypatch):
+    _land_work_on_the_primary(repo_with_worktrees)
+    (repo_with_worktrees.newer / "state").mkdir()
+    _sessions_exit_with(monkeypatch, 1)
+
+    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    note = _note_left_in(repo_with_worktrees.newer).read_text(encoding="utf-8")
+    assert "example/newer" in note
+    assert "1 change older than" in note
+
+
+def test_a_launch_that_fails_on_an_up_to_date_worktree_leaves_no_note(
+        repo_with_worktrees, monkeypatch):
+    (repo_with_worktrees.newer / "state").mkdir()
+    _sessions_exit_with(monkeypatch, 1)
+
+    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert not _note_left_in(repo_with_worktrees.newer).exists()
+
+def test_a_session_that_ends_normally_leaves_no_note(repo_with_worktrees, monkeypatch):
+    _land_work_on_the_primary(repo_with_worktrees)
+    (repo_with_worktrees.newer / "state").mkdir()
+    _sessions_exit_with(monkeypatch, 0)
+
+    branch_session.launch(repo_with_worktrees.newer, primary=repo_with_worktrees.primary)
+
+    assert not _note_left_in(repo_with_worktrees.newer).exists()

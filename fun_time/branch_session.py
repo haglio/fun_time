@@ -53,6 +53,8 @@ from .shortcuts import read_shortcuts, write_shortcut
 # holds the machine's real library paths and must never be committable.
 BRANCH_CONFIG_NAME = "fun_time_branch_config.json"
 
+OUT_OF_DATE_NOTE_NAME = "branch_out_of_date.txt"
+
 # The shared launcher every generated shortcut points at, in the primary.
 LAUNCHER_NAME = "launch_branch.vbs"
 
@@ -417,7 +419,8 @@ def build_branch_config(
 ORCHESTRATOR_MODULES = {False: "fun_time.orchestrator", True: "fun_time_vr.orchestrator"}
 
 
-def launch(worktree: Path, *, vr: bool = False, **kwargs) -> int:
+def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
+           **kwargs) -> int:
     """Build the branch config and run a session on it out of *worktree*.
 
     The orchestrator starts on *this* interpreter — the primary checkout's venv,
@@ -432,10 +435,30 @@ def launch(worktree: Path, *, vr: bool = False, **kwargs) -> int:
     log and its exited sentinel both describe the whole run.
     """
     worktree = worktree.resolve()
-    config_path = build_branch_config(worktree, **kwargs)
+    config_path = build_branch_config(worktree, primary=primary, **kwargs)
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
-    return subprocess.run(command, cwd=str(worktree), check=False).returncode
+    returncode = subprocess.run(command, cwd=str(worktree), check=False).returncode
+    if returncode:
+        _leave_out_of_date_note(worktree, primary or primary_checkout())
+    return returncode
+
+
+def _leave_out_of_date_note(worktree: Path, primary: Path) -> None:
+    missing = commits_missing(worktree, primary)
+    if not missing:
+        return
+    label = branch_label(worktree, current_branch(worktree))
+    (worktree / STATE_DIRNAME / OUT_OF_DATE_NOTE_NAME).write_text(
+        f"Fun Time couldn't start on {label}.\n\n"
+        f"That branch's copy of Fun Time is {missing} "
+        f"change{'' if missing == 1 else 's'} older than the one you normally run, "
+        "which "
+        "is the usual reason a launcher that worked once stops working.\n\n"
+        f"Ask the session working on {label} to bring its branch up to date and make "
+        "you a new launcher.\n",
+        encoding="utf-8",
+    )
 
 
 def sibling_checkouts_line(
@@ -475,6 +498,10 @@ def sibling_checkouts_line(
     return f"{genau_line}\n{origenerator_line}"
 
 
+def branch_label(worktree: Path, branch: str) -> str:
+    return worktree.name if branch == DETACHED else branch
+
+
 def current_branch(worktree: Path) -> str:
     """The branch *worktree* has checked out, or :data:`DETACHED`."""
     name = _git(["rev-parse", "--abbrev-ref", "HEAD"], worktree).strip()
@@ -489,8 +516,7 @@ def shortcut_name(worktree: Path, branch: str, *, vr: bool = False) -> str:
     other characters Windows reserves become dashes, a worktree on no branch at
     all falls back to its directory, and a *vr* one says so.
     """
-    name = worktree.name if branch == DETACHED else branch
-    stem = re.sub(RESERVED_IN_FILENAMES, "-", name).strip()
+    stem = re.sub(RESERVED_IN_FILENAMES, "-", branch_label(worktree, branch)).strip()
     return f"{SHORTCUT_PREFIX}{stem}{SHORTCUT_VR_INFIX if vr else ''}{SHORTCUT_SUFFIX}"
 
 
@@ -523,6 +549,20 @@ def prune_stale_shortcuts(primary: Path) -> list[Path]:
     return removed
 
 
+def commits_missing(worktree: Path, primary: Path) -> int:
+    primary_head = _git(["rev-parse", "HEAD"], primary).strip()
+    return int(_git(["rev-list", "--count", f"HEAD..{primary_head}"], worktree).strip())
+
+
+class OutOfDateWorktree(RuntimeError):
+    def __init__(self, worktree: Path, missing: int):
+        super().__init__(
+            f"{worktree} is missing {missing} commit{'' if missing == 1 else 's'} the primary "
+            "checkout has, so its launcher can break before it is clicked. Rebase it onto "
+            "origin/main first."
+        )
+
+
 def write_launch_shortcut(
     worktree: Path, *, primary: Path | None = None, vr: bool = False
 ) -> Path:
@@ -541,6 +581,9 @@ def write_launch_shortcut(
             f"{launcher} is missing — the primary checkout has to be on a main that "
             "carries the branch launcher before a shortcut to it can run."
         )
+    missing = commits_missing(worktree, primary)
+    if missing:
+        raise OutOfDateWorktree(worktree, missing)
     branch = current_branch(worktree)
     destination = primary / shortcut_name(worktree, branch, vr=vr)
     arguments = [str(launcher), str(worktree), branch]
