@@ -1172,6 +1172,24 @@ def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
     assert "posts" in ast.unparse(pumped.value)
 
 
+def test_a_carry_turns_the_room_whatever_the_main_player_is_showing():
+    """It used to turn the scene only while a video wrapped the viewer, and move
+    the main player's own placement otherwise; every carry turns the room now."""
+    import ast
+    import inspect
+
+    from fun_time_vr import player
+
+    tree = ast.parse(inspect.getsource(player._run))
+    carries = [node for node in ast.walk(tree)
+               if isinstance(node, ast.Call) and ast.unparse(node.func) == "carried_heading"]
+    conditions = [ast.unparse(node.test) for node in ast.walk(tree) if isinstance(node, ast.If)
+                  for inner in ast.walk(node) if inner in carries]
+
+    assert len(carries) == 1
+    assert not [test for test in conditions if "immersive" in test or "wrapped" in test]
+
+
 def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
     """A frame submitted while the runtime cannot locate the views, or while the
     headset is on the desk, showed nobody anything."""

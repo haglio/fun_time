@@ -67,7 +67,7 @@ def _apart_deg(one: np.ndarray, other: np.ndarray) -> float:
     return math.degrees(math.acos(max(-1.0, min(1.0, float(np.dot(one, other))))))
 
 
-def wrap_carried(scene_yaw: float, carried: tuple[float, float]) -> tuple[float, float]:
+def carried_heading(scene_yaw: float, carried: tuple[float, float]) -> tuple[float, float]:
     azimuth_deg, elevation_deg = carried
     return scene_yaw - math.radians(azimuth_deg), elevation_deg
 

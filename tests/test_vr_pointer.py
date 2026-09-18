@@ -35,6 +35,7 @@ from fun_time_vr.pointer import (
     Screen,
     SurfacePoint,
     TriggerEdge,
+    carried_heading,
     cursor_vertices,
     cylinder_hit,
     handle_at,
@@ -45,7 +46,6 @@ from fun_time_vr.pointer import (
     laser_vertices,
     scene_ray,
     screen_uv,
-    wrap_carried,
 )
 from fun_time_vr.scene import RADIUS, Placement, scene_placement_quaternion, surface_vertices
 
@@ -810,11 +810,11 @@ class TestWhatIsDrawnForThePointer:
         assert RESIZE not in handle_vertices(_A_SCREEN, aspect=16 / 9, resizable=False)
 
 
-class TestAWrapCarriedByTheHand:
+class TestACarryByTheHand:
     def test_what_was_under_the_laser_stays_under_it(self):
         before = scene_ray(_aim_at(0.0, 0.0), head=(0.0, 0.0, 0.0), scene_rotation=_NO_TURN)
 
-        yaw, tilt_deg = wrap_carried(0.0, (10.0, 5.0))
+        yaw, tilt_deg = carried_heading(0.0, (10.0, 5.0))
         turned = yaw_rotation_matrix(yaw) @ pitch_rotation_matrix(math.radians(tilt_deg))
         after = scene_ray(_aim_at(10.0, RADIUS * math.tan(math.radians(5.0))),
                           head=(0.0, 0.0, 0.0), scene_rotation=turned)

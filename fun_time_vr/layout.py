@@ -59,11 +59,6 @@ def clamp_placement(placement: Placement) -> Placement:
     )
 
 
-def carried(placement: Placement, azimuth_deg: float, elevation_deg: float) -> Placement:
-    return clamp_placement(replace(placement, azimuth_deg=placement.azimuth_deg + azimuth_deg,
-                                   elevation_deg=placement.elevation_deg + elevation_deg))
-
-
 def grown(placement: Placement, factor: float) -> Placement:
     return replace(placement, width_deg=clamp_width(placement.width_deg * factor))
 
@@ -107,12 +102,11 @@ def nearer(placements: Mapping[str, Placement], factor: float, *,
     }
 
 
-def rearranged(placements: Mapping[str, Placement], *, flat_main: bool,
-               carried_deg: tuple[float, float], grow: float,
+def rearranged(placements: Mapping[str, Placement], *, grow: float,
                nearer_by: float) -> dict[str, Placement]:
     moved = dict(placements)
-    if flat_main:
-        moved[PRIMARY] = grown(carried(moved[PRIMARY], *carried_deg), grow)
+    if grow != 1.0:
+        moved[PRIMARY] = grown(moved[PRIMARY], grow)
     if nearer_by != 1.0:
         moved = nearer(moved, nearer_by, about=moved[PRIMARY])
     return {name: placement for name, placement in moved.items()

@@ -308,7 +308,7 @@ _SECTIONS: tuple[_Section, ...] = (
             ),
             _Row(
                 "Tilt the VR screens up / down and level them again — squeezing "
-                "a trigger and moving the controller tilts a VR video too (FunTimeVR)",
+                "a trigger and moving the controller turns and tilts them too (FunTimeVR)",
                 ("PgUp", "PgDn", "Shift+Z"),
                 ("tilt_up", "tilt_down", "tilt_reset"),
             ),
