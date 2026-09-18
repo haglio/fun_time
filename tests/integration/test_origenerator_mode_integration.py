@@ -347,8 +347,24 @@ def _own_clips(session, player: Player) -> list[Path]:
     return []
 
 
+def _wait_for_the_shows(session, *, timeout: float = 20) -> None:
+    """Wait for the hosted app to have put its picture on both players."""
+    for player in _PLAYERS:
+        _wait(lambda player=player: _shows_the_stub(session, player),
+              timeout=timeout,
+              desc=f"the {player.label} player to show the hosted app's picture")
+
+
 def _leave_the_mode(session) -> None:
-    """Press the way back, and wait for both players to be handed theirs."""
+    """Press the way back once the app has both players, and wait for them home.
+
+    The wait below cannot tell a player handed its list back from one the app
+    never took, so the press has to come after the app has answered the
+    OPEN_SHOWS the way in sent it: pressed before that, the app writes its
+    lists onto the players after this test has ended, and the next one reads a
+    playlist holding the app's picture (tests/test_origenerator_mode_way_back.py).
+    """
+    _wait_for_the_shows(session)
     session.write_dashboard_command("satellites_video_activate")
     for player in _PLAYERS:
         _wait(lambda player=player: _own_clips(session, player)
@@ -406,9 +422,7 @@ def test_the_players_play_the_hosted_apps_shows_and_come_back_to_their_own(hoste
     assert all(own_lists.values()), "the players had no lists of their own to begin with"
 
     _enter_the_mode(session)
-    for player in _PLAYERS:
-        _wait(lambda player=player: _shows_the_stub(session, player),
-              timeout=20, desc=f"the {player.label} player to show the hosted app's picture")
+    _wait_for_the_shows(session)
 
     _leave_the_mode(session)
     for player in _PLAYERS:
@@ -484,10 +498,8 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
             "the reveal and the settle pass live"
         )
 
+        _wait_for_the_shows(session, timeout=30)
         for player in _PLAYERS:
-            _wait(lambda player=player: _shows_the_stub(session, player),
-                  timeout=30,
-                  desc=f"the {player.label} player to show the hosted app's picture")
             hud_file = session.config.side(player).hud_file
             worn = _wait(
                 lambda hud_file=hud_file, player=player: _panel_of(hud_file, player),
