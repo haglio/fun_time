@@ -177,3 +177,17 @@ class TestWhatItDrops:
 
         assert board.lines == ()
         assert board.toast(PRIMARY) is None
+
+
+class TestWhatTheChannelWorkerAsksOfIt:
+    """The player hands the board to the same worker it hands its players, and
+    its teardown closes everything on that list.  The board answered ``pump``
+    and not ``close``, so the worker's list raised on its first entry and the
+    session died there — before it could tell the orchestrator it was holding
+    the headset covered, which cost every crossing the full fifteen-second
+    wait for an answer that could not come."""
+
+    def test_the_board_can_be_closed_as_well_as_pumped(self, tmp_path):
+        board = NoticeBoard(_log(tmp_path))
+
+        board.close()

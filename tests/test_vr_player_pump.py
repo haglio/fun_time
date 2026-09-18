@@ -1,4 +1,4 @@
-"""The file-channel worker surviving one unit's fault.
+"""The file-channel worker, and its teardown, surviving one unit's fault.
 
 Every unit was pumped inside one unguarded ``for``, so a single raise ended the
 worker thread and every file channel with it: no command drained, no paused flag
@@ -10,6 +10,10 @@ an OSR2 that "crashed at some point" and left no trace looks like.
 These pin the guard: the loop survives, the other units still pump, the fault is
 logged with its traceback the first time and counted after, and a unit that comes
 right closes its run out.
+
+The teardown's close of the same list was unguarded for the same reason, and the
+board it starts with answered no close at all -- so every session ended on that
+first entry, before it could report the headset hold the crossing waits on.
 """
 from __future__ import annotations
 
@@ -19,7 +23,7 @@ import threading
 import pytest
 
 from fun_time_vr.perf import FramePerf
-from fun_time_vr.player import _pump_channels
+from fun_time_vr.player import _close_channels, _pump_channels
 
 
 class _Recorder(logging.Handler):
@@ -47,15 +51,22 @@ def recorded_player_log():
 class _Unit:
     """One pumped unit, standing in for a video/panel/keeper unit."""
 
-    def __init__(self, raises=None) -> None:
+    def __init__(self, raises=None, close_raises=None) -> None:
         self.turns = 0
+        self.closed = 0
         self._raises = raises
+        self._close_raises = close_raises
 
     def pump(self, _stop, _now) -> None:
         self.turns += 1
         fault = self._raises(self.turns) if self._raises else None
         if fault is not None:
             raise fault
+
+    def close(self) -> None:
+        self.closed += 1
+        if self._close_raises is not None:
+            raise self._close_raises
 
 
 class _Stopper:
@@ -140,3 +151,39 @@ class TestOneUnitsFaultIsNotTheOthers:
         traced = [r for r in recorded_player_log.records if r.exc_info is not None]
         assert len(traced) == 1
         assert traced[0].getMessage() == "_Side[portrait].pump failed"
+
+
+class TestTheTeardownClosesTheWholeList:
+    """What the frame loop's `finally` does with the same list, and why one
+    unit's fault must not end it: everything after it stays open, and the acts
+    that follow -- reporting the headset hold above all -- never happen."""
+
+    def test_a_unit_that_cannot_close_does_not_keep_the_others_open(
+        self, recorded_player_log,
+    ):
+        broken = _Unit(close_raises=RuntimeError("mpv is already gone"))
+        healthy = _Unit()
+
+        _close_channels([broken, healthy])
+
+        assert healthy.closed == 1, "the unit after the broken one was still closed"
+        traced = [r for r in recorded_player_log.records if r.exc_info is not None]
+        assert len(traced) == 1
+
+    def test_the_one_the_hold_still_needs_is_left_open(self):
+        """A crossing leaves the cover drawing in the headset while the desktop
+        comes back, so it is the one thing the teardown must not close."""
+        cover = _Unit()
+        other = _Unit()
+
+        _close_channels([other, cover], keep=cover)
+
+        assert cover.closed == 0
+        assert other.closed == 1
+
+    def test_everything_is_closed_when_nothing_is_kept(self):
+        units = [_Unit(), _Unit(), _Unit()]
+
+        _close_channels(units)
+
+        assert [unit.closed for unit in units] == [1, 1, 1]

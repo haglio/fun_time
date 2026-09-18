@@ -1465,6 +1465,18 @@ def _scene_rotation(scene_yaw: float, tilt_deg: float) -> np.ndarray:
     return yaw_rotation_matrix(scene_yaw) @ pitch_rotation_matrix(math.radians(tilt_deg))
 
 
+def _close_channels(units: list, *, keep=None) -> None:
+    """Close everything the worker was pumping, all but *keep* — guarded per
+    unit as :func:`_pump_channels` is, since what follows it waits on it."""
+    for unit in units:
+        if unit is keep:
+            continue
+        try:
+            unit.close()
+        except Exception:  # noqa: BLE001 - the whole point is that none escapes
+            logger.warning("%s.close failed", type(unit).__name__, exc_info=True)
+
+
 def _update_quad_layer(
     session, renderer: SceneRenderer, index: int, unit: _VideoUnit,
     scene_yaw_deg: float, scene_pitch_deg: float,
@@ -2016,9 +2028,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         genau_thread.join(timeout=2.0)
         held = headset_hold_asked(state_dir)
         stop_runtime = held and headset_hold_stops_the_runtime(state_dir)  # while it is there
-        for unit in pumped:
-            if not (held and unit is cover):  # it is all the hold has left to show
-                unit.close()
+        _close_channels(pumped, keep=cover if held else None)
         if held:
             _hold_the_headset(session, renderer, cover, state_dir)
             cover.close()
