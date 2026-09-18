@@ -27,7 +27,7 @@ Acts = Mapping[str, tuple[str, ...]]
 
 
 @functools.cache
-def load_filter_acts(
+def load_acts(
     local_path: Path = LOCAL_CONTENT,
     example_path: Path = EXAMPLE_CONTENT,
 ) -> dict[str, tuple[str, ...]]:
@@ -38,7 +38,7 @@ def load_filter_acts(
     absent (a fresh or public checkout).
     """
     data = load_content(local_path, example_path)
-    return {query: tuple(forms) for query, forms in data["filter_acts"].items()}
+    return {query: tuple(forms) for query, forms in data["acts"].items()}
 
 # Spoken scope word -> command scope token.  "" means no orientation was said,
 # so the filter applies to both players.
@@ -80,7 +80,7 @@ def decode_filter_command(command: str) -> tuple[str, str] | None:
 
 def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
     """Spoken phrase -> dispatch command for every filter trigger."""
-    acts = load_filter_acts() if acts is None else acts
+    acts = load_acts() if acts is None else acts
     out: dict[str, str] = {}
     for query, forms in acts.items():
         for scope_word, scope in _SCOPES.items():
@@ -93,7 +93,7 @@ def filter_voice_commands(acts: Acts | None = None) -> dict[str, str]:
 def set_commands_for_scope(scope: str, acts: Acts | None = None) -> tuple[str, ...]:
     """Every set (non-clear) command for *scope* — for the command reference."""
     return tuple(set_command(scope, query)
-                 for query in (load_filter_acts() if acts is None else acts))
+                 for query in (load_acts() if acts is None else acts))
 
 
 def display_forms(acts: Acts | None = None) -> tuple[str, ...]:
@@ -110,4 +110,4 @@ def display_forms(acts: Acts | None = None) -> tuple[str, ...]:
     The spoken forms have no such reader: the grammar is built from
     :func:`filter_voice_commands`, so nothing outside this module needs them.
     """
-    return tuple(load_filter_acts() if acts is None else acts)
+    return tuple(load_acts() if acts is None else acts)
