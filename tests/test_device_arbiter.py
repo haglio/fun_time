@@ -18,7 +18,6 @@ from player_core.console import (
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import REASSERT_S, DeviceArbiter
-from fun_time.robot_hand_hold import HOLD_CENTERS, hold_commands
 from tests.role_window_fakes import FakeClock
 
 
@@ -54,8 +53,8 @@ def main_player(driver: DeviceArbiter) -> str:
     return driver.main_player_cmd_file.read_text(encoding="utf-8").strip()
 
 
-def _park_verbs() -> list[str]:
-    return [*hold_commands(HOLD_CENTERS["robot_hand_park"]), "RESUME"]
+# What a hold says to Genau: play on, with nothing of it reaching the device.
+_HELD_VERBS = ["RESUME", "SET_TCODE_ENABLED 0"]
 
 
 class TestNobodyDriving:
@@ -65,10 +64,10 @@ class TestNobodyDriving:
     would be undone by the arbiter's very next assertion.
     """
 
-    def test_a_hold_gates_the_funscript_and_stills_genau_at_that_end(self, tmp_path):
+    def test_a_hold_gates_the_funscript_and_switches_genaus_output_off(self, tmp_path):
         """A script driving through a park is the device ignoring the hold.  The
-        stilled motion is what walks the device to that end and keeps it there,
-        so Genau plays on with no travel left."""
+        broker walks the device to that end; Genau plays on with its output off,
+        so the console can still draw the motion the hand would be making."""
         for mode in ("video", "genau"):
             driver = make_driver(tmp_path / f"park-{mode}")
             driver.main_player_cmd_file.parent.mkdir(parents=True, exist_ok=True)
@@ -77,15 +76,17 @@ class TestNobodyDriving:
             driver.sync(mode, paused=False, control=OSR2_PARKED)
 
             assert main_player(driver) == "SET_TCODE_ENABLED 0", mode
-            assert genau(driver).splitlines() == _park_verbs(), mode
+            assert genau(driver).splitlines() == ["RESUME", "SET_TCODE_ENABLED 0"], mode
 
-    def test_retract_holds_the_far_end_instead(self, tmp_path):
+    def test_either_hold_says_the_same_thing_here(self, tmp_path):
+        """Which end the device is held at is the broker's, written when the
+        button is pressed; both holds leave the same two engines saying nothing."""
         driver = make_driver(tmp_path)
         publish_main_player(driver)
 
         driver.sync("video", paused=False, control=OSR2_RETRACTED)
 
-        assert f"CENTER {HOLD_CENTERS['robot_hand_retract']}" in genau(driver)
+        assert genau(driver).splitlines() == _HELD_VERBS
 
     def test_control_off_pauses_genau_rather_than_holding_it_somewhere(self, tmp_path):
         """The press itself settles the device home through the broker; all this
@@ -100,47 +101,33 @@ class TestNobodyDriving:
         assert genau(driver).splitlines() == ["PAUSE"]
 
     def test_the_hold_is_re_stated_on_the_heartbeat_and_not_every_tick(self, tmp_path):
-        """Re-stated, so a dial nudged from a key or a spoken word is put back
-        within the second rather than quietly breaking the hold."""
+        """Re-stated, so an output switched on from a key or a spoken word goes
+        off again within the second rather than quietly breaking the hold."""
         clock = FakeClock()
         driver = make_driver(tmp_path, clock=clock)
         publish_main_player(driver)
 
         driver.sync("video", paused=False, control=OSR2_PARKED)
         driver.sync("video", paused=False, control=OSR2_PARKED)
-        assert genau(driver).splitlines() == _park_verbs()
+        assert genau(driver).splitlines() == _HELD_VERBS
 
         clock.advance(REASSERT_S)
         driver.sync("video", paused=False, control=OSR2_PARKED)
-        assert genau(driver).splitlines() == _park_verbs() * 2
+        assert genau(driver).splitlines() == _HELD_VERBS * 2
 
-    def test_moving_between_two_of_them_is_said_at_once(self, tmp_path):
-        """Parked to retracted leaves nobody driving either way, so a heartbeat
-        that waited would leave the device at the wrong end for a second."""
+    def test_control_coming_back_switches_the_output_on_again(self, tmp_path):
+        """Said once, and in whatever mode the hold was let go in: genau mode has
+        no handoff to re-assert, and a motion nobody switched back on is silent."""
         clock = FakeClock()
         driver = make_driver(tmp_path, clock=clock)
         publish_main_player(driver)
         driver.sync("video", paused=False, control=OSR2_PARKED)
-
-        driver.sync("video", paused=False, control=OSR2_RETRACTED)
-
-        assert genau(driver).splitlines()[-1] == "RESUME"
-        assert f"CENTER {HOLD_CENTERS['robot_hand_retract']}" in genau(driver)
-
-    def test_control_coming_back_stops_the_assertion(self, tmp_path):
-        """What puts the motion back is the press itself -- the driving button
-        replays what it wrote down -- so all this has to do is stop asserting."""
-        clock = FakeClock()
-        driver = make_driver(tmp_path, clock=clock)
-        publish_main_player(driver)
-        driver.sync("video", paused=False, control=OSR2_PARKED)
-        before = genau(driver)
 
         clock.advance(REASSERT_S)
         driver.sync("genau", paused=False, control=OSR2_DRIVING)
         driver.sync("genau", paused=False, control=OSR2_DRIVING)
 
-        assert genau(driver) == before
+        assert genau(driver).splitlines() == [*_HELD_VERBS, "SET_TCODE_ENABLED 1"]
 
     def test_the_handoff_re_asserts_when_control_comes_back(self, tmp_path):
         """Nobody had the device through the silence, so re-entry must say who

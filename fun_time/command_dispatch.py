@@ -13,8 +13,9 @@ from player_core.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
+    OSR2_PARKED,
+    OSR2_RETRACTED,
 )
-from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
 from player_core.player_verbs import (
@@ -31,7 +32,7 @@ from player_core.player_verbs import (
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
-from .broker_control import PARK_CMD, write_broker_command
+from .broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD, write_broker_command
 from .content import load_web_providers
 from .event_log import (
     FAVORITE,
@@ -47,23 +48,10 @@ from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
-from .player_status import (
-    genau_status_path,
-    read_genau_status,
-    read_main_player_status,
-)
+from .player_status import read_main_player_status
 from .players import Player
 from .random_favs_browser import FavEntry, target_for_fav
 from .rfb_tab_page import tabs_dir, write_lock_tab_page
-from .robot_hand_hold import (
-    HOLD_CENTERS,
-    MotionDials,
-    dials_text,
-    held,
-    hold_commands,
-    parse_dials,
-    release_commands,
-)
 from .runtime_flow import (
     FMODE_PLAYERS,
     SatelliteFilterFlowResult,
@@ -180,17 +168,14 @@ def _speed_target(state: BridgeState, config: BridgeConfig, *, by_driver: bool) 
     while the unqualified nudge follows the OSR2: the main player's funscript while it is
     driving, else the Robot Hand.  The hand is paused for the whole of a
     scripted stretch, so a nudge sent there then reaches an engine that cannot
-    move — and a hand held still (parked or retracted) has no motion to speed
-    up either, so under a hold the nudge reaches the video as well.
+    move — and a device nobody is driving, held at either end or let go, has no
+    motion to speed up either, so the nudge reaches the video then as well.
     """
     if not main_player_displays(state.main_mode):
         return "genau"
-    if not by_driver:
+    if not by_driver or state.osr2_control != OSR2_DRIVING:
         return "main_player"
     if read_main_player_status(config.main_player_status_file).funscript_driving:
-        return "main_player"
-    dials = _read_motion_dials(config)
-    if dials is not None and held(dials):
         return "main_player"
     return "genau"
 
@@ -1427,54 +1412,24 @@ def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-def _read_motion_dials(config: BridgeConfig) -> MotionDials | None:
-    drive = read_drive(config.genau_drive_file)  # whole, or None: never partial
-    if drive is None:
-        return None
-    return MotionDials(
-        cruise=read_genau_status(genau_status_path(config.state_dir)).cruise_active,
-        speed=drive.speed,
-        amplitude=drive.amplitude,
-        center=drive.center,
-    )
+_BROKER_BY_HOLD = {OSR2_PARKED: PARK_CMD, OSR2_RETRACTED: RETRACT_CMD}
 
 
-def _read_held_dials(config: BridgeConfig) -> MotionDials | None:
-    try:
-        return parse_dials(config.robot_hand_hold_file.read_text(encoding="utf-8"))
-    except OSError:
-        return None
-
-
-_OSR2_CONTROL_BY_COMMAND = {verb: state for state, verb in OSR2_CONTROL_BUTTONS.items()}
-
-
-def _remember_the_motion(config: BridgeConfig) -> None:
-    if _read_held_dials(config) is not None:
-        return
-    dials = _read_motion_dials(config)
-    if dials is not None:
-        config.robot_hand_hold_file.parent.mkdir(parents=True, exist_ok=True)
-        config.robot_hand_hold_file.write_text(dials_text(dials), encoding="utf-8")
-
-
-def _robot_hand_hold(command: str, state: BridgeState, config: BridgeConfig,
+def _robot_hand_hold(control: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """park / retract: record the motion (only if nothing is), then still it."""
-    _remember_the_motion(config)
-    for verb in hold_commands(HOLD_CENTERS[command]):
-        append_command(config.genau_cmd_file, verb)
-    return replace(state, osr2_control=_OSR2_CONTROL_BY_COMMAND[command]), []
+    """park / retract: the broker takes the device to that end and keeps it there,
+    while the arbiter has both engines play on with nothing of them heard."""
+    if config.broker_cmd_file is not None:
+        write_broker_command(config.broker_cmd_file, _BROKER_BY_HOLD[control])
+    return replace(state, osr2_control=control), []
 
 
 def _robot_hand_release(state: BridgeState, config: BridgeConfig,
                    _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
-    """unpark / unretract / OSR2 resume: replay the recording and spend it."""
-    dials = _read_held_dials(config)
-    if dials is not None:
-        for verb in release_commands(dials):
-            append_command(config.genau_cmd_file, verb)
-        config.robot_hand_hold_file.unlink(missing_ok=True)
+    """unpark / unretract / OSR2 resume: call the broker's hold off, and the
+    arbiter hands the device back to whoever should have it."""
+    if config.broker_cmd_file is not None:
+        write_broker_command(config.broker_cmd_file, RESUME_CMD)
     return replace(state, osr2_control=OSR2_DRIVING), []  # also the way off "off"
 
 
@@ -1660,7 +1615,8 @@ def _build_handlers() -> dict[str, Handler]:
                      for act, verb in _PLAYBACK_RATE_ACTS.items()})
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
-    handlers.update({cmd: partial(_robot_hand_hold, cmd) for cmd in HOLD_CENTERS})
+    handlers.update({OSR2_CONTROL_BUTTONS[control]: partial(_robot_hand_hold, control)
+                     for control in _BROKER_BY_HOLD})
     handlers[OSR2_CONTROL_BUTTONS[OSR2_DRIVING]] = _robot_hand_release
     handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
     handlers["clipper_save"] = _save_clip

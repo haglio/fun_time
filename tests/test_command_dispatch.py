@@ -17,7 +17,7 @@ from player_core.console import (
 )
 
 from fun_time.bridge_records import BridgeConfig, WindowOp
-from fun_time.broker_control import PARK_CMD
+from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
@@ -2348,13 +2348,13 @@ def test_the_bare_nudge_routes_to_genau_in_video_mode_while_genau_drives(tmp_pat
     assert not config.main_player_cmd_file.exists()
 
 
-def test_the_bare_nudge_reaches_the_video_while_the_hand_is_held(tmp_path: Path):
-    """A parked or retracted hand has no motion to speed up, so the nudge that
+def test_the_bare_nudge_reaches_the_video_while_the_osr2_is_held(tmp_path: Path):
+    """A device held at either end follows neither engine, so the nudge that
     follows the OSR2's driver reaches the video instead."""
     config = _make_config(tmp_path)
-    _publish_drive(config, amplitude=0)
 
-    dispatch_command("speed_up", _make_state(main_mode="video"), config)
+    dispatch_command("speed_up",
+                     _make_state(main_mode="video", osr2_control=OSR2_PARKED), config)
 
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "SPEED_UP\n"
     assert not config.genau_cmd_file.exists()
@@ -2692,7 +2692,6 @@ class TestOsr2ControlState:
 
     def test_each_button_leaves_the_session_in_the_state_it_names(self, tmp_path: Path):
         config = _make_config(tmp_path)
-        _publish_drive(config, amplitude=50)
 
         for state_name, command in OSR2_CONTROL_BUTTONS.items():
             after, ops = dispatch_command(command, _make_state(), config)
@@ -2715,30 +2714,32 @@ class TestOsr2ControlState:
         assert not config.genau_cmd_file.exists()
         assert not config.main_player_cmd_file.exists()
 
-    def test_control_off_writes_down_no_motion_to_put_back(self, tmp_path: Path):
-        """The two holds flatten the motion, so they record it first; letting go
-        moves no dial at all, so there is nothing for driving to restore -- and a
-        recording taken here would be replayed over dials the user has since
-        turned."""
-        config = _make_config(tmp_path)
-        _publish_drive(config, amplitude=50)
-        off, _ops = dispatch_command("osr2_control_off", _make_state(), config)
+    def test_a_hold_sends_the_device_to_the_end_it_names(self, tmp_path: Path):
+        """The broker walks it there and swallows the script feed on the way;
+        keeping both engines from being heard is the arbiter's, re-stated every
+        tick, so a verb fired here would be undone by its next assertion."""
+        for command, sent in (("robot_hand_park", PARK_CMD),
+                              ("robot_hand_retract", RETRACT_CMD)):
+            config = _make_config(tmp_path / command)
 
-        after, _ops = dispatch_command("robot_hand_release", off, config)
+            after, ops = dispatch_command(command, _make_state(), config)
+
+            assert config.broker_cmd_file.read_text(encoding="utf-8") == sent, command
+            assert not config.genau_cmd_file.exists(), command
+            assert ops == []
+
+    def test_driving_again_calls_the_brokers_hold_off(self, tmp_path: Path):
+        """A release inside the hold's settle delay has to cancel the write as
+        well as the mute, or the device is sent to the end just after it was
+        handed back."""
+        config = _make_config(tmp_path)
+        parked, _ops = dispatch_command("robot_hand_park", _make_state(), config)
+
+        after, _ops = dispatch_command("robot_hand_release", parked, config)
 
         assert after.osr2_control == OSR2_DRIVING
+        assert config.broker_cmd_file.read_text(encoding="utf-8") == RESUME_CMD
         assert not config.genau_cmd_file.exists()
-
-    def test_a_hold_pressed_from_control_off_still_stills_the_motion(self, tmp_path: Path):
-        config = _make_config(tmp_path)
-        _publish_drive(config, amplitude=50)
-        off, _ops = dispatch_command("osr2_control_off", _make_state(), config)
-
-        after, _ops = dispatch_command("robot_hand_park", off, config)
-
-        assert after.osr2_control == OSR2_PARKED
-        assert config.genau_cmd_file.read_text(encoding="utf-8").splitlines() == [
-            "CRUISE_OFF", "AMP 0", "CENTER 0", "SPEED 0"]
 
 
 def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
