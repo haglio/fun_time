@@ -214,8 +214,8 @@ z::QueueCommand("recenter_view")
 
 ; FunTimeVR: tilt the whole arrangement up and down, for watching from a
 ; recliner or flat on your back; Shift+Z stands it upright again beside Z's
-; recenter.  The headset's right thumbstick does the same thing continuously —
-; these are for the desk.  Desktop main player ignores all three.
+; recenter.  Squeezing a controller's trigger and moving it tilts a VR video the
+; same way — these are for the desk.  Desktop main player ignores all three.
 PgUp::QueueCommand("tilt_up")
 PgDn::QueueCommand("tilt_down")
 +z::QueueCommand("tilt_reset")

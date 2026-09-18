@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import fields
+from collections.abc import Mapping
+from dataclasses import fields, replace
 from pathlib import Path
 
-from .scene import PRIMARY_PLACEMENT, Placement
+from .scene import PRIMARY_PLACEMENT, Placement, turn_deg
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,66 @@ def clamp_placement(placement: Placement) -> Placement:
         elevation_deg=clamp_elevation(placement.elevation_deg),
         width_deg=clamp_width(placement.width_deg),
     )
+
+
+def carried(placement: Placement, azimuth_deg: float, elevation_deg: float) -> Placement:
+    return clamp_placement(replace(placement, azimuth_deg=placement.azimuth_deg + azimuth_deg,
+                                   elevation_deg=placement.elevation_deg + elevation_deg))
+
+
+def grown(placement: Placement, factor: float) -> Placement:
+    return replace(placement, width_deg=clamp_width(placement.width_deg * factor))
+
+
+def _held_to_the_edge(factor: float, center_deg: float, offset_deg: float,
+                      limit_deg: float) -> float:
+    if not offset_deg:
+        return factor
+    edge = limit_deg if offset_deg > 0 else -limit_deg
+    return min(factor, (edge - center_deg) / offset_deg)
+
+
+def _held_within_the_scene(factor: float, placements: Mapping[str, Placement],
+                           about: Placement) -> float:
+    if factor < 1.0:
+        return max([factor, *(MIN_WIDTH_DEG / placement.width_deg
+                              for placement in placements.values())])
+    for placement in placements.values():
+        factor = _held_to_the_edge(
+            factor, about.azimuth_deg, turn_deg(about.azimuth_deg, placement.azimuth_deg),
+            AZIMUTH_LIMIT_DEG)
+        factor = _held_to_the_edge(
+            factor, about.elevation_deg, placement.elevation_deg - about.elevation_deg,
+            ELEVATION_LIMIT_DEG)
+        factor = min(factor, MAX_WIDTH_DEG / placement.width_deg)
+    return factor
+
+
+def nearer(placements: Mapping[str, Placement], factor: float, *,
+           about: Placement) -> dict[str, Placement]:
+    factor = _held_within_the_scene(factor, placements, about)
+    return {
+        name: Placement(
+            azimuth_deg=about.azimuth_deg + factor * turn_deg(
+                about.azimuth_deg, placement.azimuth_deg),
+            elevation_deg=about.elevation_deg + factor * (
+                placement.elevation_deg - about.elevation_deg),
+            width_deg=placement.width_deg * factor,
+        )
+        for name, placement in placements.items()
+    }
+
+
+def rearranged(placements: Mapping[str, Placement], *, flat_main: bool,
+               carried_deg: tuple[float, float], grow: float,
+               nearer_by: float) -> dict[str, Placement]:
+    moved = dict(placements)
+    if flat_main:
+        moved[PRIMARY] = grown(carried(moved[PRIMARY], *carried_deg), grow)
+    if nearer_by != 1.0:
+        moved = nearer(moved, nearer_by, about=moved[PRIMARY])
+    return {name: placement for name, placement in moved.items()
+            if placement != placements[name]}
 
 
 def read_layout(path: Path) -> dict[str, Placement]:

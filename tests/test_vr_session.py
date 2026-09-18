@@ -7,9 +7,23 @@ both decide whether anything reaches the headset at all.
 """
 from __future__ import annotations
 
+from types import SimpleNamespace
+
 import xr
 
-from fun_time_vr.vr_session import VRSession, views_are_renderable, views_are_tracked
+from fun_time_vr.pointer import LEFT, RIGHT, HandInput
+from fun_time_vr.vr_session import (
+    _ACTION_TYPES,
+    AIM,
+    BACK,
+    CONTROLLER_BINDINGS,
+    FORWARD,
+    STICK,
+    TRIGGER,
+    VRSession,
+    views_are_renderable,
+    views_are_tracked,
+)
 
 
 def test_a_fully_tracked_view_is_renderable():
@@ -122,3 +136,65 @@ def test_a_session_that_comes_back_is_ready_again(monkeypatch):
     session.poll_events()
 
     assert session.session_ready is True
+
+
+def test_each_hand_reads_its_stick_and_both_skip_buttons(monkeypatch):
+    session = VRSession.__new__(VRSession)
+    session._session = object()
+    session._actions = {name: name for name in (AIM, TRIGGER, STICK, FORWARD, BACK)}
+    readings = {TRIGGER: 0.2, STICK: -0.7, FORWARD: True, BACK: False}
+
+    def state(_session, get_info):
+        return SimpleNamespace(is_active=True, current_state=readings[get_info.action])
+
+    monkeypatch.setattr(xr, "ActionStateGetInfo",
+                        lambda action, subaction_path: SimpleNamespace(action=action))
+    monkeypatch.setattr(xr, "get_action_state_pose",
+                        lambda *_args: SimpleNamespace(is_active=False))
+    monkeypatch.setattr(xr, "get_action_state_float", state)
+    monkeypatch.setattr(xr, "get_action_state_boolean", state)
+
+    assert session._hand_input(RIGHT, object(), 0) == HandInput(
+        trigger=0.2, stick=-0.7, forward=True, back=False)
+
+
+class TestControllerBindings:
+    def test_every_profile_with_a_stick_reads_it_on_either_hands_y_axis(self):
+        sticks = [bindings[STICK] for bindings in CONTROLLER_BINDINGS.values()
+                  if STICK in bindings]
+        assert sticks, "no controller has a stick to read"
+        for paths in sticks:
+            assert {path.split("/")[3] for path in paths} == {LEFT, RIGHT}
+            assert all(path.endswith("/y") for path in paths)
+
+    def test_every_profile_points_and_squeezes_with_either_hand(self):
+        for profile, bindings in CONTROLLER_BINDINGS.items():
+            assert profile.startswith("/interaction_profiles/")
+            for action in (AIM, TRIGGER):
+                hands = {path.split("/")[3] for path in bindings[action]}
+                assert hands == {LEFT, RIGHT}, f"{profile} binds {action} for {hands}"
+            assert all(path.endswith("/aim/pose") for path in bindings[AIM])
+
+    def test_b_skips_forward_and_a_skips_back_on_every_controller_that_has_them(self):
+        touch = CONTROLLER_BINDINGS["/interaction_profiles/oculus/touch_controller"]
+        index = CONTROLLER_BINDINGS["/interaction_profiles/valve/index_controller"]
+
+        assert set(touch[FORWARD]) == {
+            "/user/hand/right/input/b/click", "/user/hand/left/input/y/click"}
+        assert set(touch[BACK]) == {
+            "/user/hand/right/input/a/click", "/user/hand/left/input/x/click"}
+        assert set(index[FORWARD]) == {
+            "/user/hand/right/input/b/click", "/user/hand/left/input/b/click"}
+        assert set(index[BACK]) == {
+            "/user/hand/right/input/a/click", "/user/hand/left/input/a/click"}
+
+    def test_every_action_a_controller_binds_is_one_the_session_creates(self):
+        bound = {name for bindings in CONTROLLER_BINDINGS.values() for name in bindings}
+
+        assert bound <= set(_ACTION_TYPES)
+
+    def test_the_suite_covers_the_headsets_this_family_meets(self):
+        profiles = set(CONTROLLER_BINDINGS)
+        assert any("oculus" in p for p in profiles)
+        assert any("valve/index" in p for p in profiles)
+        assert any("htc/vive" in p for p in profiles)

@@ -18,7 +18,7 @@ from player_core.volume import VolumeHud, chip_local, chip_xy, hit_part, volume_
 from satellite.pointer import time_at
 
 from .console_panel import DEG_PER_PX
-from .pointer import surface_pixel
+from .pointer import Screen, surface_pixel
 
 SCRUBBER = "scrubber"
 READOUT = "readout"
@@ -86,6 +86,11 @@ def furniture_at(u: float, v: float, *, size: tuple[int, int]) -> str | None:
     if on_readout(px, py, win_w=size[0], win_h=size[1], timeline_h=TIMELINE_HEIGHT):
         return READOUT
     return SCRUBBER if py >= size[1] - TIMELINE_HEIGHT else None
+
+
+def on_its_controls(screen: Screen, u: float, v: float) -> bool:
+    size = control_size(screen.placement.width_deg, screen.aspect)
+    return furniture_at(u, v, size=size) is not None
 
 
 def scrub_at(u: float, v: float, *, size: tuple[int, int], duration_ms: float) -> float:

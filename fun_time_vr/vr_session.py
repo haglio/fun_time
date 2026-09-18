@@ -12,7 +12,6 @@ from __future__ import annotations
 
 import ctypes
 import logging
-from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import glfw
@@ -56,9 +55,11 @@ class QuadLayer:
 # so destruction waits this many frame_end calls.
 _RETIRE_AFTER_FRAMES = 3
 
-TILT = "tilt_screens"
+STICK = "thumbstick"
 AIM = "aim"
 TRIGGER = "trigger"
+FORWARD = "skip_forward"
+BACK = "skip_back"
 
 _HAND_PATHS = {LEFT: "/user/hand/left", RIGHT: "/user/hand/right"}
 
@@ -67,19 +68,28 @@ def _either_hand(input_path: str) -> tuple[str, ...]:
     return tuple(f"{hand}/input/{input_path}" for hand in _HAND_PATHS.values())
 
 
+def _by_hand(right_input: str, left_input: str) -> tuple[str, ...]:
+    return (f"{_HAND_PATHS[RIGHT]}/input/{right_input}",
+            f"{_HAND_PATHS[LEFT]}/input/{left_input}")
+
+
 CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "/interaction_profiles/oculus/touch_controller": {
-        TILT: _either_hand("thumbstick/y"),
+        STICK: _either_hand("thumbstick/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
+        FORWARD: _by_hand("b/click", "y/click"),
+        BACK: _by_hand("a/click", "x/click"),
     },
     "/interaction_profiles/valve/index_controller": {
-        TILT: _either_hand("thumbstick/y"),
+        STICK: _either_hand("thumbstick/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
+        FORWARD: _either_hand("b/click"),
+        BACK: _either_hand("a/click"),
     },
     "/interaction_profiles/htc/vive_controller": {
-        TILT: _either_hand("trackpad/y"),
+        STICK: _either_hand("trackpad/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
     },
@@ -90,18 +100,14 @@ CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 _ACTION_TYPES = {
-    TILT: xr.ActionType.FLOAT_INPUT,
+    STICK: xr.ActionType.FLOAT_INPUT,
     AIM: xr.ActionType.POSE_INPUT,
     TRIGGER: xr.ActionType.FLOAT_INPUT,
+    FORWARD: xr.ActionType.BOOLEAN_INPUT,
+    BACK: xr.ActionType.BOOLEAN_INPUT,
 }
 _LOCATED = xr.SpaceLocationFlags.ORIENTATION_VALID_BIT | xr.SpaceLocationFlags.POSITION_VALID_BIT
 _NO_HANDS = {LEFT: HandInput(), RIGHT: HandInput()}
-
-
-def strongest(axes: Iterable[float]) -> float:
-    """The hand actually pushing: the bigger deflection of the two, sign kept.
-    The runtime's own rule left the left stick answering in a single direction."""
-    return max(axes, key=abs, default=0.0)
 
 
 def views_are_renderable(view_state_flags: int) -> bool:
@@ -136,7 +142,6 @@ class VRSession:
         self._hand_paths: dict[str, xr.Path] = {}
         self._aim_spaces: dict[str, xr.Space] = {}
         self._actions_attached = False
-        self.thumbstick_y: float = 0.0
         self.hands: dict[str, HandInput] = _NO_HANDS
         self._views_located = True
 
@@ -274,14 +279,14 @@ class VRSession:
                 xr.SessionActionSetsAttachInfo(action_sets=[self._action_set]),
             )
             self._actions_attached = True
-            logger.info("Controllers bound: either hand tilts, points and squeezes")
+            logger.info("Controllers bound: either hand points, squeezes, sizes and skips")
         except Exception:
             logger.warning(
-                "No controller input: the verbs still tilt the scene", exc_info=True
+                "No controller input: the keys and voice still work", exc_info=True
             )
 
     def sync_controller(self, display_time: int) -> None:
-        """This frame's tilt axis and each hand's aim and trigger, at rest when absent."""
+        """Each hand's aim, trigger, stick and skip buttons, at rest when absent."""
         if not self._actions_attached:
             return
         try:
@@ -293,22 +298,26 @@ class VRSession:
                     ],
                 ),
             )
-            self.thumbstick_y = strongest(
-                self._tilt_axis(path) for path in self._hand_paths.values())
             self.hands = {
                 hand: self._hand_input(hand, path, display_time)
                 for hand, path in self._hand_paths.items()
             }
         except xr.ResultException:
-            self.thumbstick_y = 0.0  # a sleeping controller is not a dead frame loop
-            self.hands = _NO_HANDS
+            self.hands = _NO_HANDS  # a sleeping controller is not a dead frame loop
 
-    def _tilt_axis(self, path: xr.Path) -> float:
-        tilt = xr.get_action_state_float(
+    def _float(self, name: str, path: xr.Path) -> float:
+        state = xr.get_action_state_float(
             self._session,
-            xr.ActionStateGetInfo(action=self._actions[TILT], subaction_path=path),
+            xr.ActionStateGetInfo(action=self._actions[name], subaction_path=path),
         )
-        return tilt.current_state if tilt.is_active else 0.0
+        return state.current_state if state.is_active else 0.0
+
+    def _pressed(self, name: str, path: xr.Path) -> bool:
+        state = xr.get_action_state_boolean(
+            self._session,
+            xr.ActionStateGetInfo(action=self._actions[name], subaction_path=path),
+        )
+        return bool(state.is_active and state.current_state)
 
     def _hand_input(self, hand: str, path: xr.Path, display_time: int) -> HandInput:
         aim = None
@@ -324,11 +333,10 @@ class VRSession:
                     (position.x, position.y, position.z),
                     (orientation.x, orientation.y, orientation.z, orientation.w),
                 )
-        trigger = xr.get_action_state_float(
-            self._session,
-            xr.ActionStateGetInfo(action=self._actions[TRIGGER], subaction_path=path),
+        return HandInput(
+            aim=aim, trigger=self._float(TRIGGER, path), stick=self._float(STICK, path),
+            forward=self._pressed(FORWARD, path), back=self._pressed(BACK, path),
         )
-        return HandInput(aim=aim, trigger=trigger.current_state if trigger.is_active else 0.0)
 
     def _make_local_space(self):
         return xr.create_reference_space(

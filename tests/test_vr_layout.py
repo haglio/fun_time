@@ -18,9 +18,13 @@ from fun_time_vr.layout import (
     PORTRAIT,
     PRIMARY,
     REFERENCE,
+    carried,
     clamp_placement,
     clamp_width,
+    grown,
+    nearer,
     read_layout,
+    rearranged,
     write_layout,
 )
 from fun_time_vr.scene import PRIMARY_WIDTH_DEG, RADIUS, Placement, surface_vertices
@@ -142,3 +146,94 @@ class TestTheLimits:
         assert math.hypot(widest[0, 0], widest[0, 2]) == pytest.approx(2 * RADIUS)
         assert clamp_width(4000.0) == MAX_WIDTH_DEG
         assert clamp_width(PRIMARY_WIDTH_DEG * 1.5) == PRIMARY_WIDTH_DEG * 1.5
+
+
+class TestWhatTheControllersDoToTheMainPlayer:
+    def test_carrying_it_turns_and_lifts_it_by_the_hands_degrees(self):
+        assert carried(Placement(10.0, 5.0, 72.0), 12.5, -3.0) == Placement(22.5, 2.0, 72.0)
+
+    def test_a_carry_stops_at_the_edges_of_the_scene(self):
+        assert carried(Placement(140.0, 70.0, 72.0), 30.0, 20.0) == Placement(
+            AZIMUTH_LIMIT_DEG, ELEVATION_LIMIT_DEG, 72.0)
+
+    def test_growing_it_widens_it_about_its_own_middle(self):
+        assert grown(Placement(10.0, 5.0, 72.0), 1.5) == Placement(10.0, 5.0, 108.0)
+
+    def test_a_grow_stops_at_the_smallest_screen_and_at_the_widest(self):
+        assert grown(Placement(0.0, 0.0, 20.0), 0.1).width_deg == MIN_WIDTH_DEG
+        assert grown(Placement(0.0, 0.0, 100.0), 2.0).width_deg == MAX_WIDTH_DEG
+
+
+class TestBringingThePlayersNearer:
+    def test_nearer_spreads_and_widens_all_three_about_the_main_player(self):
+        main = Placement(10.0, 0.0, 72.0)
+        players = {PRIMARY: main, LANDSCAPE: Placement(-28.0, 10.0, 28.0),
+                   PORTRAIT: Placement(48.0, 10.0, 28.0)}
+
+        assert nearer(players, 1.5, about=main) == {
+            PRIMARY: Placement(10.0, 0.0, 108.0),
+            LANDSCAPE: Placement(-47.0, 15.0, 42.0),
+            PORTRAIT: Placement(67.0, 15.0, 42.0),
+        }
+
+    def test_the_players_stop_together_when_one_would_pass_the_edge_of_the_scene(self):
+        main = Placement(0.0, 0.0, 72.0)
+        players = {PRIMARY: main, PORTRAIT: Placement(100.0, 0.0, 28.0)}
+
+        moved = nearer(players, 2.0, about=main)
+
+        assert moved[PORTRAIT].azimuth_deg == pytest.approx(AZIMUTH_LIMIT_DEG)
+        assert moved[PRIMARY].width_deg == pytest.approx(72.0 * 1.5)
+
+    def test_the_players_stop_together_when_one_would_pass_the_top_of_the_scene(self):
+        main = Placement(0.0, 0.0, 72.0)
+        players = {PRIMARY: main, PORTRAIT: Placement(20.0, 50.0, 28.0)}
+
+        moved = nearer(players, 2.0, about=main)
+
+        assert moved[PORTRAIT].elevation_deg == pytest.approx(ELEVATION_LIMIT_DEG)
+        assert moved[PRIMARY].width_deg == pytest.approx(72.0 * 1.5)
+
+    def test_the_players_stop_together_when_one_would_grow_past_the_widest(self):
+        main = Placement(0.0, 0.0, 100.0)
+        players = {PRIMARY: main, PORTRAIT: Placement(10.0, 0.0, 28.0)}
+
+        moved = nearer(players, 2.0, about=main)
+
+        assert moved[PRIMARY].width_deg == pytest.approx(MAX_WIDTH_DEG)
+        assert moved[PORTRAIT].width_deg == pytest.approx(28.0 * 1.2)
+
+    def test_further_off_they_stop_together_when_one_would_shrink_past_the_smallest(self):
+        main = Placement(0.0, 0.0, 72.0)
+        players = {PRIMARY: main, PORTRAIT: Placement(30.0, 0.0, 20.0)}
+
+        moved = nearer(players, 0.25, about=main)
+
+        assert moved[PORTRAIT] == Placement(15.0, 0.0, MIN_WIDTH_DEG)
+        assert moved[PRIMARY].width_deg == pytest.approx(36.0)
+
+
+class TestWhereTheControllersLeaveThePlayers:
+    _PLAYERS = {
+        PRIMARY: Placement(0.0, 0.0, 72.0),
+        LANDSCAPE: Placement(-38.0, 10.0, 28.0),
+        PORTRAIT: Placement(38.0, 10.0, 28.0),
+    }
+
+    def test_a_flat_main_player_is_carried_and_grown_and_the_satellites_stay(self):
+        moved = rearranged(self._PLAYERS, flat_main=True, carried_deg=(5.0, -2.0),
+                           grow=1.5, nearer_by=1.0)
+
+        assert moved == {PRIMARY: Placement(5.0, -2.0, 108.0)}
+
+    def test_the_stick_with_the_trigger_held_brings_all_three_nearer(self):
+        moved = rearranged(self._PLAYERS, flat_main=True, carried_deg=(0.0, 0.0),
+                           grow=1.0, nearer_by=1.5)
+
+        assert moved == nearer(self._PLAYERS, 1.5, about=self._PLAYERS[PRIMARY])
+
+    def test_a_main_player_wrapped_round_the_viewer_is_neither_carried_nor_grown(self):
+        moved = rearranged(self._PLAYERS, flat_main=False, carried_deg=(5.0, -2.0),
+                           grow=1.5, nearer_by=1.0)
+
+        assert moved == {}
