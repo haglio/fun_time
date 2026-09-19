@@ -12,6 +12,7 @@ from fun_time_vr.layout import (
     DEFAULT_LAYOUT,
     ELEVATION_LIMIT_DEG,
     LANDSCAPE,
+    LIBRARY,
     MAIN,
     MAX_WIDTH_DEG,
     MIN_WIDTH_DEG,
@@ -64,7 +65,7 @@ class TestTheDefaults:
         """The console is one of them now: a video that wraps the viewer leaves
         no picture to dock it under, so a handle of its own places it there.  The
         reference is not: it hangs from the dashboard, wherever that was put."""
-        assert set(DEFAULT_LAYOUT) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH}
+        assert set(DEFAULT_LAYOUT) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH, LIBRARY}
 
 
 class TestTheRememberedLayout:
@@ -228,11 +229,12 @@ class TestWhereTheControllersLeaveThePlayers:
 
 
 class TestTheVrReset:
-    def test_it_puts_back_the_players_and_both_of_the_dashboards_spots_but_not_the_reference(self):
+    def test_it_puts_back_the_players_the_dashboards_two_spots_and_the_browse(self):
         assert vr_reset_layout() == {
             MAIN: DEFAULT_LAYOUT[MAIN],
             LANDSCAPE: DEFAULT_LAYOUT[LANDSCAPE],
             PORTRAIT: DEFAULT_LAYOUT[PORTRAIT],
             DASH: DEFAULT_LAYOUT[DASH],
             PANEL: DEFAULT_LAYOUT[PANEL],
+            LIBRARY: DEFAULT_LAYOUT[LIBRARY],
         }

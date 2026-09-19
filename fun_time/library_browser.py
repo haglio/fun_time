@@ -39,14 +39,26 @@ from PyQt6.QtWidgets import (
     QLabel,
     QListWidget,
     QListWidgetItem,
+    QToolButton,
     QVBoxLayout,
     QWidget,
 )
 from shared_ui.chrome import family_stylesheet
-from shared_ui.colors import BG_PRIMARY, BG_SECONDARY, BLUE, BLUE_LIGHT, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.colors import (
+    BG_BUTTON,
+    BG_PRIMARY,
+    BG_SECONDARY,
+    BLUE,
+    BLUE_LIGHT,
+    TEXT_MUTED,
+    TEXT_PRIMARY,
+    hovered,
+)
 from shared_ui.fonts import FONT_UI, SIZE_BODY, SIZE_HEADING, make_font
+from shared_ui.icons import glyph_icon
+from shared_ui.spacing import BUTTON_ICON, BUTTON_RADIUS, BUTTON_SIZE, MARGIN_STANDARD
 
-from .library_handles import LibraryHandle, build_library_handles, handle_for
+from .library_handles import LibraryHandle, handle_for, handles_by_shape
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
@@ -443,6 +455,8 @@ class LibraryBrowserWindow(QWidget):
         on_pick: Callable[[str], None],
         on_close: Callable[[], None] | None = None,
         playing: str | None = None,
+        activate_on_click: bool = False,
+        on_dismiss: Callable[[], None] | None = None,
     ) -> None:
         super().__init__(None)
         # A Tool window, which on Windows means no taskbar button: a browse is
@@ -459,11 +473,20 @@ class LibraryBrowserWindow(QWidget):
         self.grid = LibraryGrid(
             thumbnail_cache=thumbnail_cache, go_up=self.go_up, on_activate=self._activate,
         )
+        if activate_on_click:
+            self.grid.itemClicked.connect(lambda item: self._activate(self.grid.row(item)))
         self.index = FolderIndex(
             go_up=self.go_up, on_reveal=self.grid.reveal, on_activate=self._activate,
         )
         self.header = folder_header()
         self.header.linkActivated.connect(self._open_depth)
+        self.dismiss_button = None
+        if on_dismiss is not None:
+            self.dismiss_button = dismiss_button(lambda: self._dismiss(on_dismiss))
+            inside = QHBoxLayout(self.header)
+            inside.setContentsMargins(0, 0, MARGIN_STANDARD, 0)
+            inside.addStretch(1)
+            inside.addWidget(self.dismiss_button)
         halves = QHBoxLayout()
         halves.setContentsMargins(0, 0, 0, 0)
         halves.setSpacing(0)
@@ -506,6 +529,10 @@ class LibraryBrowserWindow(QWidget):
         self.header.setText(breadcrumbs(folder.path))
         self.grid.show_folder(folder)
         self.index.show_rows(self.grid.rows)
+
+    def _dismiss(self, on_dismiss: Callable[[], None]) -> None:
+        self.close()
+        on_dismiss()
 
     def _open_depth(self, depth: str) -> None:
         self.open_folder(self._path[: int(depth)])
@@ -609,6 +636,22 @@ def folder_header() -> QLabel:
         " padding: 8px 12px; }"
     )
     return header
+
+
+def dismiss_button(on_click: Callable[[], None]) -> QToolButton:
+    button = QToolButton()
+    button.setIcon(glyph_icon("cross", color=TEXT_PRIMARY, size=BUTTON_ICON))
+    button.setIconSize(QSize(BUTTON_ICON, BUTTON_ICON))
+    button.setFixedSize(BUTTON_SIZE, BUTTON_SIZE)
+    button.setToolTip("Close")
+    button.setFocusPolicy(Qt.FocusPolicy.NoFocus)
+    button.setStyleSheet(
+        f"QToolButton {{ border: none; border-radius: {BUTTON_RADIUS}px;"
+        f" background: {BG_BUTTON.name()}; }}"
+        f" QToolButton:hover {{ background: {hovered(BG_BUTTON).name()}; }}"
+    )
+    button.clicked.connect(on_click)
+    return button
 
 
 def fitted_icon(still: str | Path) -> QIcon:
@@ -732,6 +775,7 @@ class BrowserConfig:
     """Where the browser reads the library, its families, and its stills from."""
 
     sources: str
+    vr_sources: str
     metadata_root: Path | None
     thumbnail_cache: Path
 
@@ -748,6 +792,7 @@ def load_browser_config(manifest_path: str | Path) -> BrowserConfig:
     metadata_root = parser.get("regen", "metadata_root", fallback="")
     return BrowserConfig(
         sources=parser.get("media", "main_player_library_sources", fallback=""),
+        vr_sources=parser.get("media", "vr_library_dirs", fallback=""),
         metadata_root=Path(metadata_root) if metadata_root else None,
         thumbnail_cache=Path(manifest_path).parent / THUMBNAIL_CACHE_DIRNAME,
     )
@@ -792,7 +837,7 @@ def main(argv: list[str] | None = None) -> int:
     config = load_browser_config(args.manifest_path)
     result_file = Path(args.result_file)
     window = LibraryBrowserWindow(
-        build_library_handles(config.sources, config.metadata_root),
+        handles_by_shape(config.sources, config.vr_sources, config.metadata_root),
         thumbnail_cache=config.thumbnail_cache,
         on_pick=lambda video: result_file.write_text(video, encoding="utf-8"),
         on_close=app.quit,

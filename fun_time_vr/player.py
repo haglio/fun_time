@@ -35,7 +35,7 @@ import math
 import queue
 import threading
 import time
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
@@ -47,6 +47,7 @@ from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
 from player_core.file_channel import append_command, consume_command_file, read_paused_state
 from player_core.genau_notifier import GenauNotifier
+from player_core.player_verbs import play_file
 from player_core.playhead import (
     PlayheadHud,
     PlayheadHudPainter,
@@ -63,11 +64,16 @@ from player_core.tcode_driver import FunscriptTCodeDriver
 from player_core.timeline import TIMELINE_HEIGHT, progress_bar_bgra
 from player_core.volume import VolumeHud, VolumeHudPainter, chip_xy
 
-from fun_time.dashboard_actions import REFERENCE_OPEN_FILENAME
+from fun_time.dashboard_actions import (
+    BROWSE_LIBRARY_CLOSE,
+    LIBRARY_OPEN_FILENAME,
+    REFERENCE_OPEN_FILENAME,
+)
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.manifest import LaunchManifest
-from fun_time.player_status import genau_status_path, read_genau_status
+from fun_time.modes import scripted_item
+from fun_time.player_status import genau_status_path, read_genau_status, read_main_player_status
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import (
     headset_hold_asked,
@@ -125,6 +131,7 @@ from .layout import (
     DASH,
     LANDSCAPE,
     LAYOUT_FILENAME,
+    LIBRARY,
     MAIN,
     PANEL,
     PLAYERS,
@@ -135,6 +142,19 @@ from .layout import (
     rearranged,
     vr_reset_layout,
     write_layout,
+)
+from .library_panel import (
+    DISMISSED,
+    LIBRARY_SIZE_PX,
+    PICKED,
+    LibraryHost,
+    ShownWhileAsked,
+    event_line,
+    hover_line,
+    open_line,
+    scroll_from_stick,
+    scroll_line,
+    waiting_panel,
 )
 from .matrices import (
     fov_to_projection_matrix,
@@ -152,6 +172,7 @@ from .pointer import (
     RELEASE,
     SURFACE,
     Frame,
+    HandInput,
     Pointer,
     PressEvent,
     Screen,
@@ -189,7 +210,7 @@ from .scene import (
 )
 from .scheduling import ahead_of_background_work
 from .stacking import Pane, Stacking
-from .thumbs import Thumbs
+from .thumbs import Thumbs, strongest
 from .toast import toast_bgra
 from .video_thread import VideoThread
 
@@ -210,6 +231,8 @@ SATELLITE_VIDEO_CAP_PX = 2048
 
 PANEL_DOCK_FALLBACK_ASPECT = 16 / 9  # the main player's shape until it decodes one
 _WRAPPED_ROW_SIZE = (PANEL_WIDTH_PX, lower_edge_height(PANEL_WIDTH_PX, timeline_h=TIMELINE_HEIGHT))
+
+LIBRARY_READING_SHOWN_AFTER_S = 0.3
 
 # The file-channel worker's cadence: the dispatch loop polls these same files
 # at ~20Hz, so 30Hz loses no responsiveness.
@@ -1190,6 +1213,102 @@ class _ReferenceUnit:
         self.screen.close()
 
 
+class _LibraryUnit:
+    def __init__(
+        self, *, placement: Placement, flag: Path, host,
+        main_player_cmd_file: Path, main_player_status_file: Path,
+        dashboard_cmd_file: Path,
+    ) -> None:
+        self._flag = flag
+        self._host = host
+        self._main_player_cmd_file = main_player_cmd_file
+        self._main_player_status_file = main_player_status_file
+        self._dashboard_cmd_file = dashboard_cmd_file
+        self._shown = ShownWhileAsked()
+        self._presses = _Presses(LIBRARY)
+        self._lock = threading.Lock()
+        self._image = None
+        self._uploaded = None
+        self._token = 0
+        self._opened_at = 0.0
+        self._drawn = False
+        self._hovered: tuple[int, int] | None = None
+        self._scrolled = 0.0
+        self.texture = FrameTexture()
+        self.screen = _HangingScreen(placement)
+
+    @property
+    def showing(self) -> bool:
+        return self._shown.showing and self._drawn
+
+    @property
+    def takes_the_stick(self) -> bool:
+        return self.showing and self._presses.hover is not None
+
+    def point(self, frame: Frame) -> None:
+        self._presses.point(frame)
+
+    def scroll(self, notches: float) -> None:
+        with self._lock:
+            self._scrolled += notches
+
+    def pump(self, stop: threading.Event, now: float) -> None:
+        for answer in self._host.answers():
+            said, _, video = answer.partition(" ")
+            if said == PICKED:
+                append_command(self._main_player_cmd_file, play_file(scripted_item(video)))
+            if said in (PICKED, DISMISSED):
+                self._shown.put_away()
+                append_command(self._dashboard_cmd_file, BROWSE_LIBRARY_CLOSE)
+        if self._shown.asked(read_flag(self._flag, default=False)):
+            self._token += 1
+            self._opened_at = now
+            self._drawn = False
+            playing = read_main_player_status(self._main_player_status_file).video
+            self._host.send(open_line(self._token, playing))
+        events = list(self._presses.drain())
+        if not self._shown.showing:
+            return
+        for event in events:
+            self._host.send(event_line(event))
+        self._send_the_pointer()
+        self._show_what_it_drew(now)
+
+    def _send_the_pointer(self) -> None:
+        aim = self._presses.hover
+        at = surface_pixel(*aim[1], LIBRARY_SIZE_PX) if aim is not None else None
+        if at is not None and at != self._hovered:
+            self._host.send(hover_line(*at))
+        self._hovered = at
+        with self._lock:
+            notches = int(self._scrolled)
+            self._scrolled -= notches
+        if notches:
+            self._host.send(scroll_line(notches))
+
+    def _show_what_it_drew(self, now: float) -> None:
+        frame = self._host.frame(self._token)
+        if frame is not None:
+            width, height, pixels = frame
+            image = np.frombuffer(pixels, np.uint8).reshape(height, width, 4)
+        elif not self._drawn and now - self._opened_at >= LIBRARY_READING_SHOWN_AFTER_S:
+            image = waiting_panel()
+        else:
+            return
+        with self._lock:
+            self._image = image
+        self._drawn = True
+
+    def render_latest_frame(self) -> None:
+        if _upload(self):
+            self.screen.rehang(self.texture.aspect)
+
+    def close(self) -> None:
+        self._host.close()
+        self.texture.close()
+        self.screen.close()
+
+
 class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
@@ -1394,7 +1513,7 @@ def main(argv: list[str] | None = None) -> int:
         _show_error_popup(vr_runtime.explain(ready))
         return 1
     with ahead_of_background_work():
-        return _run(manifest, vr)
+        return _run(manifest, vr, args.manifest)
 
 
 def _unit_name(unit: object) -> str:
@@ -1619,19 +1738,36 @@ def _panes(
     return panes
 
 
+def _library_screens(library: _LibraryUnit) -> list[Screen]:
+    if not (library.showing and library.texture.ready):  # nothing to point at while it is down
+        return []
+    return [Screen(LIBRARY, library.screen.placement, library.texture.aspect,
+                   movable=True, pressable=True)]
+
+
+def _hands_for_the_players(
+    library: _LibraryUnit, hands: Mapping[str, HandInput], *, elapsed_s: float,
+) -> Mapping[str, HandInput]:
+    if not library.takes_the_stick:
+        return hands
+    library.scroll(scroll_from_stick(strongest(hand.stick for hand in hands.values()), elapsed_s))
+    return {name: replace(hand, stick=0.0) for name, hand in hands.items()}
+
+
 def _slot_picture(main_unit: _MainUnit, genau: _GenauUnit):
     return (genau.screen, genau.texture) if genau.role.showing else (main_unit.screen, main_unit.target)
 
 
 def _flat_draws(
     main_unit: _MainUnit, genau: _GenauUnit, satellites: Sequence[_SatelliteUnit],
-    panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit, *,
+    panel: _PanelUnit, dash: _DashUnit, reference: _ReferenceUnit, library: _LibraryUnit, *,
     screens: Sequence[Screen], as_quads: set[str],
 ) -> list[tuple[ScreenMesh, int, bool]]:
     pictures = {MAIN: (*_slot_picture(main_unit, genau), False),
                 PANEL: (panel.screen, panel.texture, True),
                 DASH: (dash.screen, dash.texture, True),
-                REFERENCE: (reference.screen, reference.texture, True)}
+                REFERENCE: (reference.screen, reference.texture, True),
+                LIBRARY: (library.screen, library.texture, True)}
     for unit in satellites:
         pictures[unit.player_name] = (unit.screen, unit.target, False)
         pictures[hud_screen_name(unit.player_name)] = (unit.hud_screen, unit.hud_texture, True)
@@ -1650,6 +1786,7 @@ def _draw_eyes(
     panel: _PanelUnit,
     dash: _DashUnit,
     reference: _ReferenceUnit,
+    library: _LibraryUnit,
     pointing: _PointerDrawing,
     views,
     scene_rotation: np.ndarray,
@@ -1661,7 +1798,7 @@ def _draw_eyes(
     *screens* back to front, less those the compositor took as quads, then the
     pointer's chrome over all of it.  *scene_rotation* is where they all sit."""
     wrap = _wrapped_slot(main_unit, genau)
-    flat = _flat_draws(main_unit, genau, satellites, panel, dash, reference,
+    flat = _flat_draws(main_unit, genau, satellites, panel, dash, reference, library,
                        screens=screens, as_quads=as_quads)
     for eye_index, view in enumerate(views):
         session.bind_eye_framebuffer(eye_index)
@@ -1768,7 +1905,7 @@ def _cover_the_teardown(session, renderer: SceneRenderer, cover: _CoverUnit) -> 
     cover.settled()  # however that went, teardown has waited long enough
 
 
-def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
+def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     import glfw  # GL/XR stack loads only after the runtime probe
     import xr
 
@@ -1844,14 +1981,23 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
         notices=notices,
     )
     reference = _ReferenceUnit(dash, panel, flag=reference_flag)
+    library = _LibraryUnit(
+        placement=layout[LIBRARY],
+        flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
+        host=LibraryHost(manifest_path=manifest_path, state_dir=Path(state_dir)),
+        main_player_cmd_file=Path(commands.main_player_cmd_file),
+        main_player_status_file=Path(commands.main_player_status_file),
+        dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+    )
     keeper = _LayoutKeeper(layout_path, layout)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
-    units = [main_unit, genau, *satellites, dash, panel, reference, cover]  # dash first:
+    units = [main_unit, genau, *satellites, dash, panel, reference, library, cover]  # dash first:
     pumped = [notices, *units, keeper, posts]  # the console hangs off where it ended up
     hanging = {unit.player_name: (unit.screen,) for unit in satellites} | {
-        MAIN: (main_unit.screen, genau.screen), DASH: (dash,)}
+        MAIN: (main_unit.screen, genau.screen), DASH: (dash,),
+        LIBRARY: (library.screen,)}
     pointer = Pointer(on_its_controls=on_its_controls)
     thumbs = Thumbs()
     stacking = Stacking()
@@ -1944,7 +2090,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 session.sync_controller(display_time)
                 scene_rotation = _scene_rotation(scene_yaw, main_unit.role.tilt_deg)
                 screens = stacking.arrange(_panes(
-                    main_unit, genau, satellites, panel, dash, reference))
+                    main_unit, genau, satellites, panel, dash, reference,
+                )) + _library_screens(library)
                 head = head_position([
                     (view.pose.position.x, view.pose.position.y, view.pose.position.z)
                     for view in views
@@ -1953,7 +2100,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     session.hands, head=head, scene_rotation=scene_rotation, screens=screens)
                 if frame.taken is not None:
                     stacking.take(frame.taken)
-                thumb = thumbs.frame(session.hands, pointer, elapsed_s=frame_dt)
+                thumb = thumbs.frame(_hands_for_the_players(
+                    library, session.hands, elapsed_s=frame_dt), pointer, elapsed_s=frame_dt)
                 posts.post(thumb.commands)
                 scene_yaw, lift_deg = carried_heading(scene_yaw, frame.carried)
                 main_unit.role.nudge_tilt(lift_deg)
@@ -1969,7 +2117,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                     keeper.place(  # the dashboard says which of its two spots moved
                         dash.layout_key if name == DASH else name, placement)
                 if reset:
-                    for name in PLAYERS:
+                    for name in (*PLAYERS, LIBRARY):
                         for screen in hanging[name]:
                             screen.placement = reset[name]
                     dash.put_back(reset)
@@ -1978,7 +2126,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 if frame.settled or thumb.settled or reset:
                     keeper.settle()
                 for unit in ((genau if genau.role.showing else main_unit),  # the slot's own
-                             *satellites, panel, dash, reference):
+                             *satellites, panel, dash, reference, library):
                     unit.point(frame)
                 pointing.update(frame, screens, held_controllers(
                     session.hands, head=head, scene_rotation=scene_rotation))
@@ -2001,6 +2149,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings) -> int:
                 t3 = time.perf_counter()
                 _draw_eyes(
                     session, renderer, main_unit, genau, satellites, panel, dash, reference,
+                    library,
                     pointing, views, scene_rotation,
                     screens=screens, as_quads=as_quads,
                 )

@@ -865,6 +865,19 @@ def test_the_browser_reads_its_library_from_the_session_manifest(tmp_path: Path,
     assert browser_config.thumbnail_cache.parent == manifest.parent
 
 
+def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(
+    tmp_path: Path, cfg_factory,
+):
+    config = load_config(cfg_factory({}))
+    desktop = write_windows_bridge_manifest(config)
+    headset = tmp_path / "headset" / "windows_bridge_launch.ini"
+    headset.parent.mkdir()
+    headset.write_text("[media]\nvr_library_dirs = D:/vr_one|D:/vr_two\n", encoding="utf-8")
+
+    assert load_browser_config(desktop).vr_sources == ""
+    assert load_browser_config(headset).vr_sources == "D:/vr_one|D:/vr_two"
+
+
 def test_browsing_runs_the_browser_and_returns_what_it_picked(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
@@ -965,6 +978,44 @@ def test_picking_a_video_ends_the_browse_as_well_as_reporting_it(browser, tmp_pa
 
     assert picked == ["C:/videos/alpha.mp4"]
     assert ended == ["over"]
+
+
+def test_a_browse_driven_by_one_press_at_a_time_opens_what_is_pressed(browser, tmp_path: Path):
+    handles = [_handle("alpha scene", section="main"), _handle("beta scene", section="other")]
+    headset = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None,
+                      activate_on_click=True)
+    desktop = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    for window in (headset, desktop):
+        window.show()
+
+        _click(window.grid, window.grid.rows.index(next(
+            row for row in window.grid.rows if isinstance(row, SubFolder) and row.name == "other")))
+
+    assert _header_words(headset) == f"{TOP_LEVEL_NAME} / other"
+    assert _header_words(desktop) == TOP_LEVEL_NAME
+
+
+def test_a_browse_with_no_window_frame_closes_from_its_header(browser, tmp_path: Path):
+    """In the headset nothing draws a title bar, so its close is in the header."""
+    handles = [_handle("alpha scene", section="main")]
+    dismissed: list[bool] = []
+    headset = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None,
+                      on_dismiss=lambda: dismissed.append(True))
+    desktop = browser(handles, thumbnail_cache=tmp_path, on_pick=lambda _v: None)
+    headset.show()
+    desktop.show()
+
+    assert desktop.dismiss_button is None
+    button = headset.dismiss_button
+    point = QPointF(button.rect().center())
+    for kind in (QEvent.Type.MouseButtonPress, QEvent.Type.MouseButtonRelease):
+        QApplication.sendEvent(button, QMouseEvent(
+            kind, point, Qt.MouseButton.LeftButton,
+            Qt.MouseButton.LeftButton, Qt.KeyboardModifier.NoModifier,
+        ))
+
+    assert dismissed == [True]
+    assert not headset.isVisible()
 
 
 def test_a_still_is_scaled_to_fit_its_tile_and_never_stretched(browser, tmp_path: Path):
