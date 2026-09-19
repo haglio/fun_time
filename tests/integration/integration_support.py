@@ -13,6 +13,8 @@ import threading
 import time
 from pathlib import Path
 
+from player_core.file_channel import append_command
+
 from fun_time.branch_session import _apply_genau_checkout_override
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
@@ -348,8 +350,8 @@ class FunTimeIntegrationSession:
         self._reap_leftover_runtime_processes()
 
     def write_dashboard_command(self, action: str) -> None:
-        self.dashboard_cmd_file.parent.mkdir(parents=True, exist_ok=True)
-        self.dashboard_cmd_file.write_text(action, encoding="utf-8")
+        """Press a Dash button the way `dashboard_app` presses it."""
+        append_command(self.dashboard_cmd_file, action)
 
     def favs_contains(self, path: Path) -> bool:
         if not self.favs_file.exists():

@@ -587,3 +587,37 @@ def test_a_record_that_stays_empty_comes_back_once_its_wait_is_spent():
 
     assert empty == MainPlayerStatus()
     assert clock[0] >= 1.0
+
+
+class TestPostingADashboardCommand:
+    """The harness presses the Dash's buttons, so it has to press them the way
+    the Dash does.  It replaced the command file outright instead, which cost a
+    run two ways: a press landing inside the bridge's ~20x/s drain was refused
+    by Windows and the refusal went straight up into the test that asked, and a
+    press landing on one still queued wiped it.  `dashboard_app` has used
+    `append_command` -- which retries the refusal and queues rather than
+    replaces -- all along.
+    """
+
+    def test_a_press_joins_one_still_queued_rather_than_wiping_it(self, session):
+        session.write_dashboard_command("main_video_activate")
+        session.write_dashboard_command("genau_activate")
+
+        queued = session.dashboard_cmd_file.read_text(encoding="utf-8").split()
+        assert queued == ["main_video_activate", "genau_activate"]
+
+    def test_a_press_refused_mid_drain_is_pressed_again(self, session, monkeypatch):
+        """Windows refuses the open outright while the bridge rewrites the file."""
+        refusals = iter([PermissionError(13, "Permission denied")])
+        real_open = Path.open
+
+        def opening(self, *args, **kwargs):
+            for refusal in refusals:
+                raise refusal
+            return real_open(self, *args, **kwargs)
+
+        monkeypatch.setattr(Path, "open", opening)
+        session.write_dashboard_command("main_video_activate")
+
+        assert session.dashboard_cmd_file.read_text(encoding="utf-8").split() == [
+            "main_video_activate"]
