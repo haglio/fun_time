@@ -58,9 +58,9 @@ OUT_OF_DATE_NOTE_NAME = "branch_out_of_date.txt"
 # The shared launcher every generated shortcut points at, in the primary.
 LAUNCHER_NAME = "launch_branch.vbs"
 
-# Each generated launcher is "Verify <branch>.lnk", written beside launch.vbs in
-# the primary checkout — the folder he already keeps open.  ``*.lnk`` is
-# git-ignored, which is what makes a checkout a safe place to leave them.
+# Each generated launcher is "Verify <branch>.lnk", written in the worktree it
+# runs.  ``*.lnk`` is git-ignored, which is what makes a checkout a safe place
+# to leave one.
 SHORTCUT_PREFIX = "Verify "
 SHORTCUT_SUFFIX = ".lnk"
 
@@ -520,12 +520,12 @@ def shortcut_name(worktree: Path, branch: str, *, vr: bool = False) -> str:
     return f"{SHORTCUT_PREFIX}{stem}{SHORTCUT_VR_INFIX if vr else ''}{SHORTCUT_SUFFIX}"
 
 
-def _generated_shortcuts(primary: Path) -> dict[Path, Path]:
-    """The launchers this module wrote, mapped to the worktree each one runs.
-    The folder is full of his own files, so a name proves nothing: ownership is
-    the arguments naming the branch launcher."""
+def _generated_shortcuts(folder: Path) -> dict[Path, Path]:
+    """The launchers this module wrote in *folder*, mapped to the worktree each
+    one runs.  A folder can be full of his own files, so a name proves nothing:
+    ownership is the arguments naming the branch launcher."""
     owned: dict[Path, Path] = {}
-    found = read_shortcuts(primary, pattern=f"{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}")
+    found = read_shortcuts(folder, pattern=f"{SHORTCUT_PREFIX}*{SHORTCUT_SUFFIX}")
     for path, shortcut in found.items():
         tokens = [token.strip('"')
                   for token in shlex.split(shortcut.arguments or "", posix=False)]
@@ -535,11 +535,13 @@ def _generated_shortcuts(primary: Path) -> dict[Path, Path]:
 
 
 def prune_stale_shortcuts(primary: Path) -> list[Path]:
-    """Delete the generated launchers whose worktree is gone; return which.
+    """Delete the launchers left in *primary* whose worktree is gone; return which.
 
-    A shortcut pointing at a removed worktree is a file that can only fail.  Run
-    whenever a new one is written, so what sits there is roughly what is in
-    flight rather than everything ever verified.
+    Nothing writes there any more -- a launcher lives in the worktree it runs,
+    and goes when that goes -- but the ones written before that still sit in his
+    Fun Time folder, and a worktree going is the only thing that can say one is
+    finished with.  Run whenever a new launcher is written, until the folder is
+    empty of them.
     """
     removed: list[Path] = []
     for path, worktree in sorted(_generated_shortcuts(primary).items()):
@@ -566,12 +568,18 @@ class OutOfDateWorktree(RuntimeError):
 def write_launch_shortcut(
     worktree: Path, *, primary: Path | None = None, vr: bool = False
 ) -> Path:
-    """Put a double-clickable launcher for *worktree* in the primary checkout.
+    """Put a launcher for *worktree* in *worktree*, and return where.
 
-    This is how a branch reaches him: an agent makes one, names the file, and he
-    double-clicks it in the folder he already keeps open.  Nothing to choose —
-    the branch is baked in.  It points at ``launch_branch.vbs`` in the primary
-    rather than carrying the launch, so one made weeks ago still runs today's.
+    This is how a branch reaches him: an agent makes one and hands him the
+    one-click link to it.  Nothing to choose — the branch is baked in — and it
+    points at ``launch_branch.vbs`` in the primary rather than carrying the
+    launch, so one made weeks ago still runs today's.
+
+    It lives in the worktree because he never goes looking for the file, and
+    because every launcher in one shared folder is a launcher in every other
+    agent's tidiness check: each of them found launchers that were not theirs to
+    speak for, and told him about them.  Here it belongs to one branch, is
+    invisible to every other, and goes when that branch's worktree goes.
     """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
@@ -585,7 +593,7 @@ def write_launch_shortcut(
     if missing:
         raise OutOfDateWorktree(worktree, missing)
     branch = current_branch(worktree)
-    destination = primary / shortcut_name(worktree, branch, vr=vr)
+    destination = worktree / shortcut_name(worktree, branch, vr=vr)
     arguments = [str(launcher), str(worktree), branch]
     if vr:
         arguments.append(VR_LAUNCH_FLAG)
@@ -604,25 +612,26 @@ def write_launch_shortcut(
 
 
 def remove_launch_shortcut(worktree: Path, *, primary: Path | None = None) -> list[Path]:
-    """Take *worktree*'s launcher back out of the primary checkout.
+    """Take *worktree*'s launcher back out; return the ones removed.
 
     An agent's last step once its work has landed: the branch is in Fun Time by
-    then, so a shortcut still offering to run it separately can only confuse.
-    The stale sweep would catch it only when some other agent happens to write
-    one, which may be days away.
+    then, so a launcher still offering to run it separately can only confuse.
 
-    Matched by the worktree the shortcut runs rather than by its name, so a
-    branch renamed since makes no difference and both flavours go.  Run it
+    His Fun Time folder is looked in as well as the worktree, because an agent
+    that made its launcher under the old placement still has to take that one
+    out.  Matched by the worktree the shortcut runs rather than by its name, so
+    a branch renamed since makes no difference and both flavours go.  Run it
     before removing the worktree: from a gone directory there is no package
     left to run it with.
     """
     primary = (primary or primary_checkout()).resolve()
     worktree = worktree.resolve()
     removed: list[Path] = []
-    for path, target in _generated_shortcuts(primary).items():
-        if target == worktree:
-            path.unlink()
-            removed.append(path)
+    for folder in (worktree, primary):
+        for path, target in _generated_shortcuts(folder).items():
+            if target == worktree:
+                path.unlink()
+                removed.append(path)
     prune_stale_shortcuts(primary)
     return removed
 
@@ -635,16 +644,16 @@ def build_parser() -> argparse.ArgumentParser:
         nargs="?",
         const=".",
         metavar="WORKTREE",
-        help="Write the double-clickable launcher for WORKTREE (default: this checkout) "
-             "into the primary, print its path, and exit.",
+        help="Write WORKTREE's launcher (default: this checkout's) into WORKTREE, "
+             "print its path, and exit.",
     )
     ap.add_argument(
         "--remove-shortcut",
         nargs="?",
         const=".",
         metavar="WORKTREE",
-        help="Take WORKTREE's launcher (default: this checkout's) back out of the primary "
-             "once its work has landed, and exit.",
+        help="Take WORKTREE's launcher (default: this checkout's) back out once its "
+             "work has landed, and exit.",
     )
     ap.add_argument(
         "--vr",

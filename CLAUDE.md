@@ -145,8 +145,11 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   used to be a change he could not see, run or judge; that is why the rule here
   was once "land it unverified rather than park it". It no longer is. With your
   suites green, run `python -m fun_time.branch_session --shortcut` from your
-  worktree: it leaves a `Verify <branch>.lnk` in the primary checkout and prints
-  the path. **Never hand him a launcher that opens the branch in VR**, and never
+  worktree: it leaves a `Verify <branch>.lnk` in that worktree and prints the
+  path. It goes there rather than in his Fun Time folder so that it is invisible
+  to every other agent's end-of-work sweep — in one shared folder each of them
+  found launchers that were not theirs and reported them to him (2026-09-18).
+  **Never hand him a launcher that opens the branch in VR**, and never
   run `--shortcut --vr` (`~/.claude/hooks/block-vr-verify-shortcut.py` refuses
   it): he checks VR work by opening Fun Time as usual and entering VR from it,
   and a launcher straight into VR puts a layer between the branch and what he
