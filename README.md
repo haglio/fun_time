@@ -128,6 +128,8 @@ The brief **notices** — "Clip saved", "No other seeds", "Next seed", "Similar 
 
 Every recognized voice command flashes a **white confirmation** — the phrase it matched — over the player it addresses, so you can see what was heard. While OmniPause is on, a command that is heard but ignored — anything but resume, quit and retracting the OSR2 — flashes **"ignored during OmniPause: ‹the phrase›"** in yellow instead, so a paused room says why it did nothing. A command that hits a dead end ("No other seeds", "No action metadata") flashes **yellow** instead. And when the recognizer clearly hears speech that matches no command, it flashes **"unrecognized voice command: ‹what it heard›"** in yellow — over the player the phrase named, if it named one ("landscape ‹something garbled›" reports on landscape, not the main player) — a second, unrestricted recognizer runs alongside the grammar one purely to transcribe that, so an out-of-grammar phrase surfaces as text instead of vanishing.
 
+Two listeners hear every command (the family's shared listener, `../voice_core`). The first proposes what was said from the whole phrase list; the second has to read the same command in the same audio before anything happens, which takes about half a second and is what keeps a cough or ordinary talk from firing a command — on recordings of ordinary talk it took false commands from about 9 in 100 utterances to under 1. **"stop"** alone acts on the first listener's word, because relief must not wait. A command the second listener did not agree to flashes **"not sure enough of: ‹the phrase›"** in yellow and does nothing. `"confirm_commands": false` under `voice_control` in the config lets every command act on the first listener's word; the second is then only asked about what the first could not settle.
+
 ## Requirements
 
 ### Windows apps
@@ -137,7 +139,7 @@ Every recognized voice command flashes a **white confirmation** — the phrase i
 ### Python / tools
 
 - Python (currently launched via Miniconda `pythonw.exe`)
-- Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), vosk + sounddevice (voice control), and Pillow / numpy / opencv-python.
+- Python dependencies are declared in `pyproject.toml` — notably PyQt6 (dashboard), pygame-ce (audio companion), voice_core (the family's listener, which brings vosk + sounddevice; the `voice` extra adds faster-whisper for the second listener), and Pillow / numpy / opencv-python.
 - Genau runs out of the `../genau` project's venv (`paths.genau_python_exe`), launched as `python -m genau`; the main player runs out of this project's venv like the satellites, launched as `python -m main_player`, and reads its library folders and device port from the `main_player` section of the genau config file (`paths.genau_config_path`).
 
 Install the declared dependencies into the project venv before first use.

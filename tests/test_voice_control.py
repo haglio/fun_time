@@ -1,404 +1,74 @@
-"""Unit tests for the voice control module."""
+"""What Fun Time does with what the family's listener (voice_core) hears.
+
+Hearing itself -- the grammar, the ranked readings, the repairs, the silence
+floor, the microphone, the kept clips -- is voice_core's and is tested there.
+"""
 from __future__ import annotations
 
-import json
 import logging
-import wave
-from datetime import UTC, datetime
 from pathlib import Path
-from types import SimpleNamespace
 
 import pytest
+from voice_core.commands import Recognition
+from voice_core.listening import Heard
 
 from fun_time import voice_control
-from fun_time.voice_commands import parse_command_line
-from fun_time.voice_control import (
-    AUDIO_STALL_S,
-    SILENT_UTTERANCE_PEAK,
-    VOICE_COMMANDS,
-    AudioStall,
-    Recognition,
-    Utterance,
-    VoiceController,
-    build_grammar,
-    has_partial_text,
-    interpret_recognition,
-    save_miss_audio,
-)
+from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
+from fun_time.voice_control import VoiceController, command_rules
 
 SPOKEN = 2000  # a peak that is unmistakably speech
 
 
-def _scored(text: str, conf: float) -> str:
-    """A Vosk result JSON for *text* with every word scored *conf*."""
-    words = [{"conf": conf, "word": w, "start": 0.0, "end": 0.1} for w in text.split()]
-    return json.dumps({"text": text, "result": words})
-
-
-def _ranked(*texts: str) -> str:
-    """A Vosk result JSON in the shape ``SetMaxAlternatives`` switches it to.
-
-    Best reading first, each scored as a whole and with no per-word confidences
-    — which is what vosk actually reports in that mode, and why the phrase list
-    rather than a word score decides which reading is a command.
-    """
-    return json.dumps({
-        "alternatives": [
-            {"text": t, "confidence": 100.0 - i,
-             "result": [{"word": w, "start": 0.0, "end": 0.1} for w in t.split()]}
-            for i, t in enumerate(texts)
-        ],
-    })
-
-
-class TestUtterance:
-    def test_onset_is_the_first_block_that_produced_a_partial(self):
-        """Vosk finalizes a phrase only after the speaker stops, so the arrival
-        of the phrase says nothing about when it began.  The first audio block
-        that turns Vosk's partial hypothesis non-empty does."""
-        utterance = Utterance()
-        utterance.note_block(b"a", block_started_at=1.0, has_partial=False)
-        utterance.note_block(b"b", block_started_at=1.5, has_partial=True)
-        utterance.note_block(b"c", block_started_at=2.0, has_partial=True)
-        assert utterance.take(final_block=b"d", fallback=2.5)[0] == 1.5
-
-    def test_a_partial_that_evaporates_does_not_back_date_the_next_utterance(self):
-        """Vosk withdraws a hypothesis it can no longer support; the run of
-        partials restarts, so the false start is not mistaken for the onset."""
-        utterance = Utterance()
-        utterance.note_block(b"a", block_started_at=1.0, has_partial=True)   # false start
-        utterance.note_block(b"b", block_started_at=1.5, has_partial=False)  # withdrawn
-        utterance.note_block(b"c", block_started_at=2.0, has_partial=True)   # real speech
-        assert utterance.take(final_block=b"d", fallback=2.5)[0] == 2.0
-
-    def test_take_falls_back_and_resets_for_the_next_utterance(self):
-        """A phrase recognized from the block that carried it left no partial."""
-        utterance = Utterance()
-        utterance.note_block(b"a", block_started_at=1.0, has_partial=True)
-        assert utterance.take(final_block=b"b", fallback=2.5)[0] == 1.0
-        assert utterance.take(final_block=b"c", fallback=9.0)[0] == 9.0
-
-    def test_take_returns_the_last_seconds_of_audio_ending_with_the_final_block(self):
-        """Vosk holds no partial for the first blocks of a short word, and none
-        at all for a word it finalizes from the block that carried it, so a clip
-        that began at the first partial held silence after the word.  The clip is
-        the last KEPT_BLOCKS blocks whatever the partials said."""
-        utterance = Utterance(kept_blocks=3)
-        utterance.note_block(b"aa", block_started_at=1.0, has_partial=False)
-        utterance.note_block(b"bb", block_started_at=1.5, has_partial=False)
-        utterance.note_block(b"cc", block_started_at=2.0, has_partial=False)
-        utterance.note_block(b"dd", block_started_at=2.5, has_partial=True)
-        assert utterance.take(final_block=b"ee", fallback=3.0) == (2.5, b"ccddee")
-        assert utterance.take(final_block=b"ff", fallback=9.0) == (9.0, b"ff")
-
-
-class TestAudioStall:
-    def test_a_steady_stream_says_nothing(self, caplog):
-        import logging
-
-        stall = AudioStall(device=3, now=0.0)
-        with caplog.at_level(logging.DEBUG, logger="fun_time.voice_control"):
-            stall.note_silence(now=AUDIO_STALL_S - 1)
-            stall.note_block(now=AUDIO_STALL_S - 0.5)
-
-        assert caplog.records == []
-
-    def test_a_stall_warns_once_and_its_end_is_plain_news(self, caplog):
-        """Yellow while nothing spoken can be heard; white when the audio comes
-        back, because a microphone that recovered is no warning."""
-        import logging
-
-        from fun_time.event_log import NOTICE
-
-        stall = AudioStall(device=3, now=0.0)
-        with caplog.at_level(logging.DEBUG, logger="fun_time.voice_control"):
-            stall.note_silence(now=AUDIO_STALL_S)
-            stall.note_silence(now=AUDIO_STALL_S + 5)
-            stall.note_block(now=AUDIO_STALL_S + 6)
-
-        assert [r.levelno for r in caplog.records] == [logging.WARNING, NOTICE]
-
-
-class TestHasPartialText:
-    def test_true_when_vosk_holds_words(self):
-        assert has_partial_text(json.dumps({"partial": "lock portrait"}))
-
-    def test_false_for_an_empty_or_absent_partial(self):
-        assert not has_partial_text(json.dumps({"partial": "  "}))
-        assert not has_partial_text(json.dumps({}))
-
-
-class _FakeRecognizer:
-    """Records whether the run loop asked vosk for per-word confidences.
-
-    ``grammar`` is None for the free (unrestricted) recognizer the loop builds
-    alongside the grammar one.
-    """
-
-    def __init__(self, model, sample_rate, grammar=None) -> None:
-        self.grammar = grammar
-        self.words_enabled = False
-        self.alternatives = 0
-
-    def SetWords(self, enable: bool) -> None:  # noqa: N802 — vosk's API
-        self.words_enabled = enable
-
-    def SetMaxAlternatives(self, count: int) -> None:  # noqa: N802 — vosk's API
-        self.alternatives = count
-
-    def AcceptWaveform(self, data: bytes) -> bool:  # noqa: N802 — vosk's API
-        return False
-
-
-class _NullStream:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc) -> bool:
-        return False
-
-
-@pytest.fixture
-def fake_vosk(monkeypatch):
-    """Stand in for vosk + sounddevice; yields the recognizers ``run`` builds."""
-    built: list[_FakeRecognizer] = []
-
-    def make_recognizer(model, sample_rate, grammar=None):
-        rec = _FakeRecognizer(model, sample_rate, grammar)
-        built.append(rec)
-        return rec
-
-    monkeypatch.setattr(voice_control, "VOICE_AVAILABLE", True)
-    monkeypatch.setattr(
-        voice_control,
-        "vosk",
-        SimpleNamespace(Model=lambda **kwargs: object(), KaldiRecognizer=make_recognizer),
-    )
-    monkeypatch.setattr(
-        voice_control,
-        "sd",
-        SimpleNamespace(RawInputStream=lambda **kwargs: _NullStream()),
-    )
-    return built
-
-
-class TestBuildGrammar:
-    def test_returns_json_list_of_phrases_plus_unk(self):
-        grammar = build_grammar()
-        phrases = json.loads(grammar)
-        assert isinstance(phrases, list)
-        assert "[unk]" in phrases
-        for phrase in VOICE_COMMANDS:
-            assert phrase in phrases
-        assert len(phrases) == len(VOICE_COMMANDS) + 1
-
-    def test_phrases_are_sorted(self):
-        grammar = build_grammar()
-        phrases = json.loads(grammar)
-        phrase_keys = [p for p in phrases if p != "[unk]"]
-        assert phrase_keys == sorted(phrase_keys)
-
-
-class TestInterpretRecognition:
-    def test_a_confident_grammar_match_is_the_command(self):
-        interp = interpret_recognition(
-            _scored("landscape next", 0.95), _scored("landscape next", 0.9), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition(
-            command="landscape_next", phrase="landscape next", heard="landscape next")
-
-    def test_a_ranked_reading_that_is_a_command_is_the_command(self):
-        """Alternatives mode carries no per-word scores, so the phrase list is
-        what decides: vosk's own ranking picks the order, the grammar's phrases
-        pick the winner."""
-        interp = interpret_recognition(_ranked("landscape next"), "", threshold=0.7, peak=SPOKEN)
-        assert interp == Recognition(
-            command="landscape_next", phrase="landscape next", heard="landscape next")
-
-    def test_a_near_miss_is_repaired_from_the_recognizer_own_alternatives(self):
-        """Vosk's grammar restricts the vocabulary, not the phrases: it decodes
-        "portrait net" because "net" is a word ("widen net") even though the
-        sequence is no command.  The right phrase is sitting in the alternatives
-        directly under it, and taking it is the difference between the command
-        landing and the utterance vanishing without a trace."""
-        interp = interpret_recognition(
-            _ranked("portrait net", "portrait next"), "", threshold=0.7, peak=SPOKEN)
-        assert interp.command == "portrait_next"
-        assert interp.phrase == "portrait next"
-        assert interp.rank == 1
-        assert interp.heard == "portrait net"
-
-    def test_the_recognizer_first_choice_beats_a_lower_ranked_command(self):
-        interp = interpret_recognition(
-            _ranked("portrait next", "portrait lock"), "", threshold=0.7, peak=SPOKEN)
-        assert interp.command == "portrait_next"
-        assert interp.rank == 0
-
-    def test_ending_the_session_is_never_a_repair(self):
-        """A repair promotes a reading vosk ranked below another.  That is a fine
-        trade for a satellite nudge and a bad one for quitting the room, so
-        "quit" has to be the recognizer's own first choice."""
-        interp = interpret_recognition(_ranked("net", "quit"), "", threshold=0.7, peak=SPOKEN)
-        assert interp.command is None
-        assert interp.unrecognized_text == "net"
-
-        top = interpret_recognition(_ranked("quit"), "", threshold=0.7, peak=SPOKEN)
-        assert top.command == "quit"
-
-    def test_an_off_phrase_reading_is_reported_rather_than_swallowed(self):
-        """No alternative is a command, so nothing dispatches — but the speaker
-        is told what the recognizer made of them, in the app's own words.  This
-        used to be silence: no command, no report, no log line."""
-        interp = interpret_recognition(_ranked("portrait net", "net portrait"), "", threshold=0.7, peak=SPOKEN)
-        assert interp.command is None
-        assert interp.unrecognized_text == "portrait net"
-
-    def test_the_grammar_reading_outranks_the_free_caption(self):
-        """The grammar heard something in its own vocabulary; that is a better
-        thing to show the speaker than the free model's guess at the same
-        audio, because it names the word the command actually missed on."""
-        interp = interpret_recognition(
-            _ranked("portrait net"), _scored("what's next", 0.9), threshold=0.7, peak=SPOKEN)
-        assert interp.unrecognized_text == "portrait net"
-
-    def test_an_unscored_grammar_match_below_the_bar_is_refused_out_loud(self):
-        """A scored reading under the bar is refused — and says so, rather than
-        falling through to a silence indistinguishable from a dead microphone."""
-        interp = interpret_recognition(_scored("skip", 0.3), "", threshold=0.7, peak=SPOKEN)
-        assert interp.command is None
-        assert interp.refused_phrase == "skip"
-
-    def test_a_match_scored_exactly_at_the_threshold_fires(self):
-        """The bar is inclusive — ``conf >= threshold`` — and the equality
-        case is the one the comparison exists to decide: a user who sets
-        ``confidence_threshold`` is drawing the line their commands must
-        reach, not clear."""
-        interp = interpret_recognition(
-            _scored("landscape next", 0.7), _scored("landscape next", 0.7), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition(
-            command="landscape_next", phrase="landscape next", heard="landscape next")
-
-    def test_a_caption_scored_exactly_at_the_threshold_surfaces(self):
-        # Two words; the three-word case, where the mean used to land a hair
-        # under the bar in float, is pinned by the two tests below.
-        interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("skip it", 0.7), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition(unrecognized_text="skip it")
-
-    def test_a_three_word_command_at_the_threshold_fires(self):
-        """Three words each scoring exactly the threshold: their float mean
-        is a hair under it, so a command spoken at the bar was refused
-        wherever the word count was not a power of two (bug 86).  The gate
-        compares the sum against the bar times the count, which is exact."""
-        interp = interpret_recognition(
-            _scored("main video mode", 0.7), _scored("main video mode", 0.7), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition(
-            command="main_video_activate", phrase="main video mode", heard="main video mode")
-
-    def test_a_three_word_caption_at_the_threshold_surfaces(self):
-        interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("skip it now", 0.7), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition(unrecognized_text="skip it now")
-
-    def test_a_grammar_match_below_threshold_is_refused_by_name(self):
-        """The speaker hears which phrase was turned down, not the free model's
-        transcription of the same audio: "skip" under the bar is a different
-        thing to be told than "skip it"."""
-        interp = interpret_recognition(
-            _scored("skip", 0.3), _scored("skip it", 0.9), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp.command is None
-        assert interp.refused_phrase == "skip"
-
-    def test_quiet_free_text_is_treated_as_noise_and_dropped(self):
-        """"Definitely saying something" is a confidence bar — quiet-room noise
-        the free model latches onto must not caption a phantom command."""
-        interp = interpret_recognition(
-            json.dumps({"text": "[unk]"}), _scored("mumble", 0.3), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition()
-
-    def test_nothing_heard_is_nothing(self):
-        interp = interpret_recognition(
-            json.dumps({"text": ""}), json.dumps({"text": ""}), threshold=0.7, peak=SPOKEN,
-        )
-        assert interp == Recognition()
-
-    def test_a_rescue_must_share_a_word_with_the_recognizer_first_choice(self):
-        unrelated = interpret_recognition(_ranked("half", "help"), "", threshold=0.7, peak=SPOKEN)
-        assert unrelated.command is None
-        assert unrelated.unrecognized_text == "half"
-
-        related = interpret_recognition(_ranked("up", "amp up"), "", threshold=0.7, peak=SPOKEN)
-        assert related.command == VOICE_COMMANDS["amp up"]
-        assert related.rank == 1
-
-    def test_a_lock_is_rescued_like_any_other_nudge(self):
-        """Two of his "landscape lock" tries came back "landscape one" with
-        "landscape lock" right under it (2026-09-13); a wrong lock only holds
-        the video that is showing, so it is not worth a repeat."""
-        interp = interpret_recognition(
-            _ranked("landscape one", "landscape lock"), "", threshold=0.7, peak=SPOKEN)
-        assert interp.command == VOICE_COMMANDS["landscape lock"]
-        assert interp.rank == 1
-
-    def test_a_rescue_never_lands_on_a_command_that_holds_or_ends_the_room(self):
-        for first, rescue in (
-            ("it", "park it"),
-            ("relief go", "relief omni pause"),
-            ("main", "main reset"),
-        ):
-            interp = interpret_recognition(_ranked(first, rescue), "", threshold=0.7, peak=SPOKEN)
-            assert interp.command is None, rescue
-            assert interp.unrecognized_text == first
-            first_choice = interpret_recognition(_ranked(rescue), "", threshold=0.7, peak=SPOKEN)
-            assert first_choice.command == VOICE_COMMANDS[rescue]
-
-    def test_a_miss_carries_what_the_unrestricted_recognizer_heard(self):
-        under_the_bar = interpret_recognition(
-            _ranked("both"), _scored("pause", 0.3), threshold=0.7, peak=SPOKEN)
-        assert under_the_bar.unrecognized_text == "both"
-        assert under_the_bar.free_text == "pause"
-
-        refused = interpret_recognition(
-            _scored("skip", 0.3), _scored("skip it", 0.3), threshold=0.7, peak=SPOKEN)
-        assert refused.refused_phrase == "skip"
-        assert refused.free_text == "skip it"
-
-        nothing_free = interpret_recognition(
-            _ranked("both"), json.dumps({"text": "[unk]"}), threshold=0.7, peak=SPOKEN)
-        assert nothing_free.free_text is None
-
-    def test_a_reading_from_silence_is_ignored_not_rescued(self):
-        interp = interpret_recognition(_ranked("half", "help"), "", threshold=0.7, peak=9)
-        assert interp == Recognition(silent_reading="half")
-
-    def test_a_quiet_but_spoken_reading_still_fires(self):
-        interp = interpret_recognition(
-            _ranked("skip"), "", threshold=0.7, peak=SILENT_UTTERANCE_PEAK)
-        assert interp.command == VOICE_COMMANDS["skip"]
-
-
-class TestSaveMissAudio:
-    def test_writes_a_wav_and_keeps_only_the_newest(self, tmp_path):
-        clips = tmp_path / "voice_misses"
-        pcm = bytes([1, 0]) * 16
-        paths = [
-            save_miss_audio(clips, pcm, sample_rate=16000, keep=2,
-                            now=datetime(2026, 9, 13, 1, 2, 3, i, tzinfo=UTC))
-            for i in range(3)
-        ]
-        assert sorted(clips.iterdir()) == paths[1:]
-        with wave.open(str(paths[-1]), "rb") as clip:
-            assert (clip.getnchannels(), clip.getsampwidth(), clip.getframerate(),
-                    clip.getnframes()) == (1, 2, 16000, 16)
-
-
-class TestHandleRecognition:
+def _heard(recognition: Recognition) -> Heard:
+    return Heard(recognition, spoken_at=1.0, peak=SPOKEN, audio=b"", candidates={})
+
+
+class TestCommandRules:
+    def test_every_spoken_phrase_is_one_the_listener_is_told_to_hear(self):
+        from fun_time.filter_vocab import filter_voice_commands
+
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+
+        assert rules.phrases == frozenset(VOICE_COMMANDS)
+        assert set(filter_voice_commands()) <= rules.phrases
+
+    def test_a_repair_never_lands_on_a_command_that_holds_or_ends_the_room(self):
+        """A repair promotes a reading ranked under another: a fine trade for a
+        satellite nudge, a bad one for quitting the room or moving the device."""
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+
+        ruled_out = {phrase for phrase in rules.phrases if rules.never_rescued(phrase)}
+
+        assert {"quit", "park it", "park", "retract", "relief omni pause", "stop",
+                "main reset", "portrait reset"} <= ruled_out
+        assert not {"landscape lock", "pause", "next", "amp up"} & ruled_out
+
+    def test_the_configured_bar_is_the_one_a_scored_reading_has_to_reach(self):
+        assert command_rules(confidence_threshold=0.6, confirm_commands=True
+                             ).confidence_threshold == 0.6  # noqa: PLR2004
+
+    def test_with_commands_confirmed_only_relief_acts_on_the_first_listeners_word_alone(self):
+        """The sensation emergency must not wait half a second for a second
+        opinion; everything else can."""
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+
+        assert {phrase for phrase in rules.phrases if rules.stands_alone(phrase)} == {
+            phrase for phrase, command in VOICE_COMMANDS.items() if command == "relief_omnipause"}
+
+    def test_with_commands_unconfirmed_every_phrase_acts_on_the_first_listeners_word(self):
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=False)
+
+        assert all(rules.stands_alone(phrase) for phrase in rules.phrases)
+
+    def test_the_second_listener_is_shown_a_sound_alike_phrase_as_it_is_written(self):
+        rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
+
+        assert rules.written("go now mode") == "genau mode"
+        assert rules.written("o s r two off") == "OSR2 off"
+        assert rules.written("landscape next") is None
+
+
+class TestHandleHeard:
     def _controller(self, tmp_path: Path) -> VoiceController:
         return VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
 
@@ -408,7 +78,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
         assert (tmp_path / "cmd.txt").read_text(encoding="utf-8") == "landscape_next @1.000\n"
         assert seen == [("landscape next", "landscape", 25)]
@@ -421,20 +91,18 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(msg))
 
-        vc._handle_recognition(Recognition(command="genau_activate", phrase="go now"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="go now")))
 
         assert seen == ["genau"]
 
     def test_a_command_heard_while_omnipaused_says_it_was_ignored(self, tmp_path, monkeypatch):
-        import logging
-
         vc = self._controller(tmp_path)
         vc.suspend()
         seen = []
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == [("ignored during OmniPause: landscape next", "landscape", logging.WARNING)]
@@ -446,7 +114,7 @@ class TestHandleRecognition:
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
         assert seen == []
 
@@ -456,7 +124,7 @@ class TestHandleRecognition:
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-        vc._handle_recognition(Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
         assert not (tmp_path / "cmd.txt").exists()
         assert seen == []
@@ -465,20 +133,19 @@ class TestHandleRecognition:
         (Recognition(unrecognized_text="full length please"),
          "unrecognized voice command: full length please"),
         (Recognition(refused_phrase="skip"), "not sure enough of: skip"),
+        (Recognition(unconfirmed_phrase="go now"), "not sure enough of: genau"),
     ])
     def test_speech_it_could_not_act_on_is_reported_as_a_warning(
         self, tmp_path, monkeypatch, recognition, report,
     ):
         """Nothing failed: the room was heard, just not well enough to act on,
         so the report reads yellow and red is kept for errors."""
-        import logging
-
         vc = self._controller(tmp_path)
         seen = []
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
 
-        vc._handle_recognition(recognition, spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(recognition))
 
         assert seen == [(report, "system", logging.WARNING)]
 
@@ -499,7 +166,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append((msg, source)))
 
-        vc._handle_recognition(Recognition(unrecognized_text=heard), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(unrecognized_text=heard)))
 
         assert seen == [(f"unrecognized voice command: {heard}", source)]
 
@@ -513,8 +180,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
-        vc._handle_recognition(
-            Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="next")))
 
         assert seen == ["portrait"]
 
@@ -526,8 +192,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
-        vc._handle_recognition(
-            Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="next")))
 
         assert seen == ["main"]
 
@@ -539,8 +204,7 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
-        vc._handle_recognition(
-            Recognition(command="landscape_next", phrase="landscape next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="landscape next")))
 
         assert seen == ["landscape"]
 
@@ -552,42 +216,9 @@ class TestHandleRecognition:
         monkeypatch.setattr(voice_control, "notice",
                             lambda _log, msg, *, source, level=25: seen.append(source))
 
-        vc._handle_recognition(
-            Recognition(command="active_next", phrase="next"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(phrase="next")))
 
         assert seen == ["system"]
-
-    def test_a_miss_is_logged_beside_the_unrestricted_reading(self, tmp_path, monkeypatch, caplog):
-        vc = self._controller(tmp_path)
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
-        caplog.set_level(logging.INFO, logger="fun_time.voice_control")
-        vc._handle_recognition(
-            Recognition(unrecognized_text="both", free_text="pause"), spoken_at=1.0, peak=SPOKEN)
-        vc._handle_recognition(
-            Recognition(refused_phrase="skip", free_text="skip it"), spoken_at=1.0, peak=SPOKEN)
-        assert "Unrecognized speech: both (unrestricted reading 'pause', peak 2000)" in caplog.text
-        assert "unrestricted reading 'skip it'" in caplog.text
-
-    def test_a_miss_keeps_its_audio_beside_the_state_while_the_room_is_listened_to(
-        self, tmp_path, monkeypatch,
-    ):
-        vc = self._controller(tmp_path)
-        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: None)
-        clips = tmp_path / "voice_misses"
-        pcm = bytes([1, 0]) * 8
-        vc._handle_recognition(
-            Recognition(command="landscape_next", phrase="landscape next"),
-            spoken_at=1.0, peak=SPOKEN, audio=pcm)
-        assert not clips.exists()
-
-        vc._handle_recognition(
-            Recognition(unrecognized_text="both"), spoken_at=1.0, peak=SPOKEN, audio=pcm)
-        assert len(list(clips.glob("*.wav"))) == 1
-
-        vc.mute()
-        vc._handle_recognition(
-            Recognition(refused_phrase="skip"), spoken_at=1.0, peak=SPOKEN, audio=pcm)
-        assert len(list(clips.glob("*.wav"))) == 1
 
     def test_a_player_word_inside_a_longer_word_does_not_claim_the_report(self):
         """The player has to be *named* — matched whole, not as a fragment."""
@@ -599,12 +230,93 @@ class TestHandleRecognition:
         seen = []
         monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-        vc._handle_recognition(Recognition(unrecognized_text="full length please"), spoken_at=1.0, peak=SPOKEN)
+        vc.handle_heard(_heard(Recognition(unrecognized_text="full length please")))
 
         assert seen == []
 
+    def test_a_reading_out_of_silence_or_an_empty_utterance_says_nothing(self, tmp_path, monkeypatch):
+        vc = self._controller(tmp_path)
+        seen = []
+        monkeypatch.setattr(voice_control, "notice", lambda *a, **k: seen.append(a))
 
-class TestVoiceController:
+        vc.handle_heard(_heard(Recognition(silent_reading="half")))
+        vc.handle_heard(_heard(Recognition()))
+
+        assert seen == []
+        assert not (tmp_path / "cmd.txt").exists()
+
+
+class TestTheListenerItRuns:
+    def test_misses_are_kept_beside_the_state_only_while_the_room_is_listened_to(self, tmp_path):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+        assert vc.listener_settings.miss_dir == tmp_path / "voice_misses"
+        assert vc.listener_events.keeps_misses() is True
+        vc.mute()
+        assert vc.listener_events.keeps_misses() is False
+        vc.unmute()
+        vc.suspend()
+        assert vc.listener_events.keeps_misses() is False
+
+    def test_it_listens_on_the_configured_model_microphone_and_rate(self, tmp_path):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="a-model",
+                             device_name="Desk Cam", sample_rate=8000)
+
+        settings = vc.listener_settings
+
+        assert (settings.model_name, settings.device_name, settings.sample_rate) == (
+            "a-model", "Desk Cam", 8000)
+        assert settings.caption_misses is True
+
+    def test_what_the_listener_hears_is_handled_here(self, tmp_path):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+
+        assert vc.listener_events.heard == vc.handle_heard
+
+    def test_audio_coming_back_after_a_stall_is_plain_news(self, tmp_path, monkeypatch):
+        """Yellow while nothing spoken can be heard (the listener's own warning);
+        white when the audio comes back, because a microphone that recovered is
+        no warning."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append((msg, source, level)))
+
+        vc.listener_events.recovered()
+
+        assert seen == [("Voice control: audio from the microphone resumed", "system", 25)]
+
+    def test_a_listener_that_dies_is_logged_and_does_not_take_the_thread_down(
+            self, tmp_path, monkeypatch, caplog):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        monkeypatch.setattr(vc._listener, "run", lambda: (_ for _ in ()).throw(OSError("no mic")))
+
+        with caplog.at_level(logging.ERROR, logger="fun_time.voice_control"):
+            vc.run()
+
+        assert "Voice control thread crashed" in caplog.text
+
+    def test_stopping_stops_the_listener(self, tmp_path, monkeypatch):
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        stopped = []
+        monkeypatch.setattr(vc._listener, "stop", lambda: stopped.append(True))
+
+        vc.stop()
+
+        assert stopped == [True]
+
+    def test_the_second_listener_is_handed_to_the_first_whichever_way_commands_are_settled(self, tmp_path):
+        reader = object()
+        confirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
+                                    confirm_commands=True, second_listener=lambda: reader)
+        unconfirmed = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused",
+                                      confirm_commands=False, second_listener=lambda: reader)
+
+        assert confirmed.engines.second_opinion is reader
+        assert unconfirmed.engines.second_opinion is reader
+
+
+class TestWriteCommand:
     def test_write_command_stamps_the_utterance_start(self, tmp_path: Path):
         """Every spoken command carries when the user began saying it."""
         cmd_file = tmp_path / "cmd.txt"
@@ -619,58 +331,6 @@ class TestVoiceController:
         vc._write_command("pause", spoken_at=2.0)
         lines = cmd_file.read_text(encoding="utf-8").strip().splitlines()
         assert lines == ["landscape_next @1.000", "pause @2.000"]
-
-    def test_stop_sets_event(self, tmp_path: Path):
-        cmd_file = tmp_path / "cmd.txt"
-        vc = VoiceController(cmd_file=cmd_file, model_path="unused")
-        assert not vc._stop.is_set()
-        vc.stop()
-        assert vc._stop.is_set()
-
-    def test_resolve_device_returns_none_when_unpinned(self, tmp_path, monkeypatch):
-        """With no device_name, sounddevice uses the system default (index None)
-        and no lookup is attempted."""
-        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused")
-        monkeypatch.setattr(
-            voice_control, "resolve_input_device",
-            lambda name: pytest.fail("must not look up a device when unpinned"),
-        )
-        assert vc._resolve_device() is None
-
-    def test_resolve_device_looks_up_the_pinned_name(self, tmp_path, monkeypatch):
-        """A configured mic name is resolved to its live sounddevice index."""
-        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
-        seen: list = []
-
-        def fake_resolve(name):
-            seen.append(name)
-            return (2, "Microphone (Brio 101)")
-
-        monkeypatch.setattr(voice_control, "resolve_input_device", fake_resolve)
-        assert vc._resolve_device() == 2
-        assert seen == ["Brio"]
-
-    def test_resolve_device_falls_back_to_none_when_name_matches_nothing(self, tmp_path, monkeypatch):
-        """The pinned mic is absent → None, letting sounddevice use the default."""
-        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
-        monkeypatch.setattr(voice_control, "resolve_input_device", lambda name: (None, None))
-        assert vc._resolve_device() is None
-
-    def test_resolve_device_survives_a_lookup_error(self, tmp_path, monkeypatch, caplog):
-        """A sounddevice failure during lookup must not kill the voice thread.  The
-        default microphone still hears the room, so it is a warning, not an error."""
-        import logging
-
-        vc = VoiceController(cmd_file=tmp_path / "c.txt", model_path="unused", device_name="Brio")
-
-        def boom(name):
-            raise OSError("PortAudio exploded")
-
-        monkeypatch.setattr(voice_control, "resolve_input_device", boom)
-        with caplog.at_level(logging.DEBUG, logger="fun_time.voice_control"):
-            assert vc._resolve_device() is None
-
-        assert [r.levelno for r in caplog.records] == [logging.WARNING]
 
     def test_mute_prevents_write_command(self, tmp_path: Path):
         cmd_file = tmp_path / "cmd.txt"
@@ -754,43 +414,3 @@ class TestVoiceController:
         vc.mute()
         vc._write_command("play", spoken_at=1.0)
         assert not cmd_file.exists()
-
-    def test_run_asks_both_recognizers_for_word_confidences(self, tmp_path: Path, fake_vosk):
-        """In grammar mode vosk only reports per-word confidences when SetWords
-        is enabled.  Without it every recognition arrives unscored and the
-        confidence gate waves it through, so ambient room noise fires real
-        commands — the reference popup opening itself during omnipause.  Both the
-        grammar recognizer and the free caption recognizer need scores."""
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
-        vc.stop()  # exit the listen loop as soon as the recognizers are built
-        vc.run()
-
-        # One grammar recognizer (built with the phrase grammar) and one free
-        # recognizer (no grammar) for the unrecognized-speech caption.
-        assert len(fake_vosk) == 2
-        assert all(r.words_enabled for r in fake_vosk)
-        assert [r.grammar is None for r in fake_vosk] == [False, True]
-
-    def test_run_asks_the_grammar_recognizer_for_its_ranked_readings(self, tmp_path, fake_vosk):
-        """Vosk's grammar bounds the vocabulary, not the phrases, so its best
-        reading is regularly a word sequence that is no command.  Only the ranked
-        alternatives carry the command that was actually said; without them those
-        utterances reach nothing at all."""
-        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
-        vc.stop()
-        vc.run()
-
-        grammar_rec, free_rec = fake_vosk
-        assert grammar_rec.alternatives == voice_control.GRAMMAR_ALTERNATIVES
-        # The free recognizer only ever captions; ranking it would buy nothing.
-        assert free_rec.alternatives == 0
-
-
-def test_filter_phrases_reach_the_recognizer_grammar():
-    from fun_time.filter_vocab import filter_voice_commands
-
-    grammar = build_grammar()
-    for phrase in filter_voice_commands():
-        assert phrase in grammar
-
-

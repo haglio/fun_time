@@ -330,6 +330,13 @@ class TestVoiceControlConfig:
         with pytest.raises(TypeError):
             load_config(path)
 
+    def test_commands_wait_for_the_second_listener_unless_the_config_says_otherwise(
+            self, cfg_factory):
+        assert load_config(cfg_factory({"voice_control": {"enabled": True}})
+                           ).voice_control.confirm_commands is True
+        assert load_config(cfg_factory({"voice_control": {"confirm_commands": False}})
+                           ).voice_control.confirm_commands is False
+
 
 # ---------------------------------------------------------------------------
 # loopback_port

@@ -2167,7 +2167,7 @@ class TestVoiceControlIntegration:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
+             patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
 
             run_session(
@@ -2200,7 +2200,7 @@ class TestVoiceControlIntegration:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", False), \
+             patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value="No module named vosk"), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class, \
              caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_orchestrator"):
 
@@ -2237,7 +2237,7 @@ class TestVoiceControlIntegration:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()), \
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
-             patch("fun_time.windows_bridge_orchestrator.VOICE_AVAILABLE", True), \
+             patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
 
             run_session(
@@ -2329,6 +2329,35 @@ class TestOpenEventLog:
             package_logger.setLevel(original[2])
             orch_logger.setLevel(original[3])
             orch_logger.propagate = original[4]
+
+
+    def test_what_the_familys_listener_says_is_this_sessions_record_too(self, tmp_path):
+        """voice_core says how each utterance ended under its own name, not
+        fun_time's, so neither the panel nor the bridge log would carry it."""
+        import logging
+
+        from fun_time.event_log import event_log_path, read_events
+        from fun_time.windows_bridge_orchestrator import add_dispatch_file_handler
+
+        listener_logger = logging.getLogger("voice_core")
+        package_logger = logging.getLogger("fun_time")
+        original = (list(package_logger.handlers), list(listener_logger.handlers),
+                    package_logger.level, listener_logger.level)
+        try:
+            listener_logger.setLevel(logging.NOTSET)
+            open_event_log(tmp_path)
+            logging.getLogger("voice_core.listener").info("Voice command: 'next'")
+            add_dispatch_file_handler(tmp_path / "bridge.log")
+            logging.getLogger("voice_core.listener").info("Voice command: 'skip'")
+
+            records, _offset = read_events(event_log_path(tmp_path))
+            assert [r.message for r in records] == ["Voice command: 'next'", "Voice command: 'skip'"]
+            assert "Voice command: 'skip'" in (tmp_path / "bridge.log").read_text(encoding="utf-8")
+        finally:
+            package_logger.handlers[:] = original[0]
+            listener_logger.handlers[:] = original[1]
+            package_logger.setLevel(original[2])
+            listener_logger.setLevel(original[3])
 
 
 class TestOrigeneratorGracefulClose:
@@ -2596,7 +2625,7 @@ class TestStartingVoice:
     ):
         config_path = cfg_factory({"voice_control": {"enabled": True}})
 
-        with patch.object(windows_bridge_orchestrator, "VOICE_AVAILABLE", True), \
+        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "VoiceController",
                           side_effect=OSError("no microphone")):
             voice = windows_bridge_orchestrator.start_voice_control(
@@ -2605,3 +2634,18 @@ class TestStartingVoice:
             )
 
         assert voice == (None, None)
+
+    def test_the_configs_word_on_confirming_commands_reaches_the_controller(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True, "confirm_commands": False}})
+
+        with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
+             patch.object(windows_bridge_orchestrator, "VoiceController") as controller, \
+             patch.object(windows_bridge_orchestrator.threading, "Thread"):
+            windows_bridge_orchestrator.start_voice_control(
+                str(config_path), dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
+                dispatch_runner=MagicMock(),
+            )
+
+        assert controller.call_args.kwargs["confirm_commands"] is False
