@@ -423,18 +423,23 @@ pytestmark_shortcut = pytest.mark.skipif(
 
 
 @pytestmark_shortcut
-def test_the_agent_leaves_a_shortcut_named_for_its_branch(primary_with_launcher):
-    """This is the whole interface he sees: a file in the folder he keeps open,
-    named after the branch the agent told him about.  Nothing to pick and no
-    command line — the worktree is baked into the shortcut."""
+def test_the_shortcut_lands_in_the_branchs_own_folder(primary_with_launcher):
+    """He reaches it through the one-click link an agent hands him, so where the
+    file sits is nobody's business but that branch's — and putting it there is
+    what keeps it out of everyone else's way.  In his Fun Time folder it showed
+    up in every other agent's tidiness check, and each of them told him about
+    launchers that were not theirs to speak for."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
 
-    assert written == primary_with_launcher.primary / "Verify example-newer.lnk"
-    assert branch_session._generated_shortcuts(primary_with_launcher.primary) == {
+    assert written == primary_with_launcher.newer / "Verify example-newer.lnk"
+    assert branch_session._generated_shortcuts(primary_with_launcher.newer) == {
         written: primary_with_launcher.newer.resolve()
     }
+    assert branch_session._generated_shortcuts(primary_with_launcher.primary) == {}, (
+        "his Fun Time folder gains nothing"
+    )
 
 
 @pytestmark_shortcut
@@ -446,7 +451,7 @@ def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
 
-    found = _shortcut_at(primary_with_launcher.primary, written)
+    found = _shortcut_at(primary_with_launcher.newer, written)
 
     assert Path(found.target).name.lower() == "wscript.exe"
     assert branch_session.LAUNCHER_NAME in found.arguments
@@ -456,21 +461,21 @@ def test_a_shortcut_runs_the_launcher_that_is_current_when_it_is_clicked(primary
 
 @pytestmark_shortcut
 def test_a_vr_shortcut_names_itself_and_asks_the_launcher_for_the_headset(primary_with_launcher):
-    """The one file he double-clicks to see a VR branch: same launcher, same
-    worktree, one more argument — and the V so it reads as FunTimeVR in the
-    folder rather than as another Fun Time."""
+    """The one file that opens a VR branch: same launcher, same worktree, one
+    more argument — and the V so it reads as FunTimeVR rather than as another
+    Fun Time."""
     written = branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary, vr=True
     )
 
-    assert written == primary_with_launcher.primary / "Verify example-newer in VR.lnk"
-    found = _shortcut_at(primary_with_launcher.primary, written)
+    assert written == primary_with_launcher.newer / "Verify example-newer in VR.lnk"
+    found = _shortcut_at(primary_with_launcher.newer, written)
     assert Path(found.target).name.lower() == "wscript.exe"
     assert branch_session.LAUNCHER_NAME in found.arguments
     assert branch_session.VR_LAUNCH_FLAG in found.arguments
     # Still discoverable as this module's, and still mapped to its worktree, so
-    # the sweep and the removal reach it exactly as they reach the desktop one.
-    assert branch_session._generated_shortcuts(primary_with_launcher.primary) == {
+    # the removal reaches it exactly as it reaches the desktop one.
+    assert branch_session._generated_shortcuts(primary_with_launcher.newer) == {
         written: primary_with_launcher.newer.resolve()
     }
 
@@ -494,20 +499,25 @@ def test_both_flavours_of_one_branch_come_back_out_together(primary_with_launche
 
 
 @pytestmark_shortcut
-def test_a_shortcut_for_a_deleted_worktree_is_cleared_away(primary_with_launcher):
-    """Worktrees go when their branch lands, and this repo carries dozens of
-    them — without a sweep his folder fills with files that can only fail."""
-    stale = branch_session.write_launch_shortcut(
+def test_one_the_old_placement_left_in_his_folder_is_swept_when_its_branch_goes(
+    primary_with_launcher,
+):
+    """Every shortcut used to be written into his Fun Time folder, and the ones
+    already sitting there outlive the change: a branch folder going is the only
+    thing that can say they are finished with."""
+    written = branch_session.write_launch_shortcut(
         primary_with_launcher.older, primary=primary_with_launcher.primary
     )
+    legacy = primary_with_launcher.primary / written.name
+    shutil.move(written, legacy)
     shutil.rmtree(primary_with_launcher.older)
 
     branch_session.write_launch_shortcut(
         primary_with_launcher.newer, primary=primary_with_launcher.primary
     )
 
-    assert not stale.exists()
-    assert (primary_with_launcher.primary / "Verify example-newer.lnk").is_file()
+    assert not legacy.exists()
+    assert (primary_with_launcher.newer / "Verify example-newer.lnk").is_file()
 
 
 @pytestmark_shortcut
@@ -756,6 +766,26 @@ def test_removing_a_shortcut_leaves_every_other_branch_alone(primary_with_launch
 
     assert not mine.exists()
     assert someone_elses.is_file()
+
+
+@pytestmark_shortcut
+def test_one_the_old_placement_left_in_his_folder_still_comes_out_on_landing(
+    primary_with_launcher,
+):
+    """An agent that made its shortcut before the move still has to take that
+    one out, or landing leaves exactly the file this change was to be rid of."""
+    written = branch_session.write_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+    legacy = primary_with_launcher.primary / written.name
+    shutil.move(written, legacy)
+
+    removed = branch_session.remove_launch_shortcut(
+        primary_with_launcher.newer, primary=primary_with_launcher.primary
+    )
+
+    assert removed == [legacy]
+    assert not legacy.exists()
 
 
 @pytestmark_shortcut
