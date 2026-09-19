@@ -19,6 +19,7 @@ LANDSCAPE = "landscape"
 PANEL = "panel"
 DASH = "dash"
 REFERENCE = "reference"
+LIBRARY = "library"
 LAYOUT_FILENAME = "vr_layout.json"
 
 # Sides as on the desktop: landscape left of the main player, portrait right.  Tuned on
@@ -31,6 +32,8 @@ DEFAULT_LAYOUT: dict[str, Placement] = {
     # The dashboard with the console under it, the video having wrapped the viewer:
     PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
     DASH: Placement(azimuth_deg=0.0, elevation_deg=33.1, width_deg=40.0),
+    # A browse to read and press: dead ahead and wide, over the picture while it is up.
+    LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0),
 }
 
 
@@ -38,7 +41,7 @@ PLAYERS = (MAIN, LANDSCAPE, PORTRAIT)
 
 
 def vr_reset_layout() -> dict[str, Placement]:
-    return {name: DEFAULT_LAYOUT[name] for name in (*PLAYERS, DASH, PANEL)}
+    return {name: DEFAULT_LAYOUT[name] for name in (*PLAYERS, DASH, PANEL, LIBRARY)}
 
 
 AZIMUTH_LIMIT_DEG = 150.0

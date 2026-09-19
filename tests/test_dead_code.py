@@ -195,7 +195,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 8041 since 2026-09-18, measured on the merged tree: the VR screens stopped
 # being drawn in one fixed order and the docstrings reciting that order went,
 # and the hotkey reference gave up its own spot to hang from the dashboard.
-MAX_PROSE_LINES = 8041
+# 7937 since 2026-09-19, when the headset's own library browser gave way to the
+# desktop's: a panel, a painter and their tests went, and what is left is the
+# process that runs the desktop window with no window.
+MAX_PROSE_LINES = 7937
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
