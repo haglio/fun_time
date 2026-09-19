@@ -64,6 +64,10 @@ REFUSED_EXIT_CODE = 4
 
 REPEAT_CHANGED = "--repeat-changed"
 REPEAT_RUNS = 10
+# What a repeat may spend on runs. A branch that renames a file changes every
+# test in it, and ten runs of each would outlast the day; past this the gate
+# stops starting runs and names what it left, which a killed run cannot.
+REPEAT_BUDGET_MINUTES = 45
 
 
 def build_run_argv(extra_args: list[str]) -> list[str]:
@@ -75,6 +79,7 @@ def build_run_argv(extra_args: list[str]) -> list[str]:
         base = extra_args[1] if len(extra_args) > 1 else "origin/main"
         return [sys._base_executable, "-m", "app_support.flake_gate",
                 "--base", base, "--only", INTEGRATION_DIR, "--runs", str(REPEAT_RUNS),
+                "--budget-minutes", str(REPEAT_BUDGET_MINUTES),
                 "--python", sys.executable]
     return [
         sys._base_executable, "-m", "pytest", INTEGRATION_DIR,
@@ -455,6 +460,12 @@ def run_on_hidden_desktop(extra_args: list[str]) -> int:
         return _run_the_suite(extra_args, venv_python)
 
 
+def _ceiling_for(extra_args: list[str]) -> int:
+    if _is_a_repeat(extra_args):
+        return REPEAT_BUDGET_MINUTES * 60 + RUN_CEILING_S
+    return RUN_CEILING_S
+
+
 def _run_the_suite(extra_args: list[str], venv_python: str | Path) -> int:
     hdesk = _user32.CreateDesktopW(HIDDEN_DESKTOP_NAME, None, None, 0, GENERIC_ALL, None)
     if not hdesk:
@@ -468,8 +479,7 @@ def _run_the_suite(extra_args: list[str], venv_python: str | Path) -> int:
             pi = _launch_on_desktop(cmdline, HIDDEN_DESKTOP_NAME, str(_repo_root()), job,
                                     environment=_venv_environment(venv_python))
             try:
-                runs = REPEAT_RUNS if _is_a_repeat(extra_args) else 1
-                return _wait_for_the_run(pi.hProcess, RUN_CEILING_S * runs)
+                return _wait_for_the_run(pi.hProcess, _ceiling_for(extra_args))
             finally:
                 _close_process_handles(pi)
         finally:

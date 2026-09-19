@@ -52,7 +52,7 @@ def test_a_repeat_run_hands_the_integration_dir_to_the_flake_gate():
 
     assert argv[1:] == ["-m", "app_support.flake_gate", "--base", "origin/main",
                         "--only", "tests/integration/", "--runs", "10",
-                        "--python", sys.executable]
+                        "--budget-minutes", "45", "--python", sys.executable]
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
@@ -91,6 +91,12 @@ def test_the_flake_gate_runs_from_an_install_of_its_own_made_before_the_queue(tm
                       "lock", sys.executable, "unlock"]
 
 
+def test_a_repeat_run_is_capped_so_what_it_cannot_reach_comes_back_named():
+    argv = build_run_argv(["--repeat-changed"])
+
+    assert argv[argv.index("--budget-minutes") + 1] == str(hidden_desktop.REPEAT_BUDGET_MINUTES)
+
+
 def test_a_repeat_run_compares_with_origin_main_unless_told_otherwise():
     argv = build_run_argv(["--repeat-changed"])
 
@@ -98,7 +104,7 @@ def test_a_repeat_run_compares_with_origin_main_unless_told_otherwise():
 
 
 @pytest.mark.skipif(sys.platform != "win32", reason="Win32 desktops and jobs")
-def test_a_repeat_run_is_given_ten_runs_worth_of_time_before_it_counts_as_wedged():
+def test_a_repeat_counts_as_wedged_only_past_its_budget_and_a_suite_more():
     waited = []
 
     def wait(process, ceiling_s):
@@ -113,7 +119,8 @@ def test_a_repeat_run_is_given_ten_runs_worth_of_time_before_it_counts_as_wedged
         hidden_desktop._run_the_suite(["--repeat-changed", "origin/main"], sys.executable)
         hidden_desktop._run_the_suite([], sys.executable)
 
-    assert waited == [10 * hidden_desktop.RUN_CEILING_S, hidden_desktop.RUN_CEILING_S]
+    assert waited == [hidden_desktop.REPEAT_BUDGET_MINUTES * 60 + hidden_desktop.RUN_CEILING_S,
+                      hidden_desktop.RUN_CEILING_S]
 
 
 def test_the_queue_is_waited_out_before_pytest_is_started():
