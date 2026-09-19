@@ -178,6 +178,13 @@ def _kill_leftover_hosted_apps(window_pids) -> None:
 
 
 
+# How long a session is given to close itself after the quit verb.  A teardown
+# ends six players, the hotkey script and any app the session took over, and on
+# a machine carrying several agents' runs -- this one's ordinary state -- the
+# gap between one session closing and the next opening has run 20 to 30 seconds.
+QUIT_BUDGET_S = 60.0
+
+
 class FunTimeIntegrationSession:
     def __init__(self, config_path: Path):
         self.config = load_config(config_path)
@@ -235,7 +242,7 @@ class FunTimeIntegrationSession:
         """Read the children the orchestrator recorded — PID and creation time."""
         return read_recorded_children(self.config.paths.state_dir)
 
-    def quit_gracefully(self, timeout: float = 15.0) -> int:
+    def quit_gracefully(self, timeout: float = QUIT_BUDGET_S) -> int:
         """Simulate the Ctrl+Alt+Q quit path by telling the AHK process to exit.
 
         In a live session ``exit`` marks the session's end and exits, and
@@ -266,7 +273,7 @@ class FunTimeIntegrationSession:
             except subprocess.TimeoutExpired:
                 if time.monotonic() >= deadline:
                     raise AssertionError(
-                        f"Orchestrator did not exit within {timeout}s after AHK was told to quit"
+                        f"Orchestrator did not exit within {timeout:g}s after it was told to quit"
                         f"\n{self._log_tail()}"
                     )
         if hasattr(self, "_stderr_fh") and self._stderr_fh:

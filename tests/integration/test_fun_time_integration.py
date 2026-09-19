@@ -793,7 +793,7 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         )
         left_on = first.read_main_player_status().video
         assert left_on != opened_with[0], "the session must close off the top of its playlist"
-        first.quit_gracefully(timeout=15.0)
+        first.quit_gracefully()
     finally:
         first.stop()
 
@@ -831,7 +831,7 @@ def test_fun_time_quit_cleans_up_processes():
         live_pids = {name: pid for name, pid in child_pids.items() if pid and is_process_alive(pid)}
         assert live_pids, "Expected at least some child processes to be running after startup"
 
-        session.quit_gracefully(timeout=15.0)
+        session.quit_gracefully()
 
         assert session._proc.poll() is not None, "Orchestrator should have exited"
 
