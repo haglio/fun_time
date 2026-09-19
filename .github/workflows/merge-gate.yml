@@ -19,7 +19,11 @@ jobs:
     with:
       siblings: ""
       python-version: "3.14"
-      timeout-minutes: 15
+      # The install and one pass of the suite take about six minutes; the rest is
+      # the ten repeats of what a pull request changed, which for a rename that
+      # reaches 1,464 tests is about another fifteen. The queue itself gives up
+      # on a check at 60.
+      timeout-minutes: 35
       qt-platform: offscreen
       sdl-video: dummy
       sdl-audio: dummy
