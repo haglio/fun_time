@@ -571,7 +571,7 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
         _wait(lambda: is_window_topmost(hwnd),
               timeout=10, desc="the taken-over window to join the topmost band")
 
-        session.quit_gracefully(timeout=15.0)
+        session.quit_gracefully()
 
         _wait(offer.exists, timeout=10, desc="the handed-back app to offer itself again")
         assert open_app.poll() is None, "the session closed the app it was meant to hand back"
