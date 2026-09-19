@@ -104,6 +104,7 @@ class VoiceControlConfig:
     device_name: str | None = None
     sample_rate: int = 16000
     confidence_threshold: float = 0.7
+    confirm_commands: bool = True
 
 
 @dataclass(frozen=True)
@@ -383,6 +384,7 @@ def _load_voice_control_config(voice_raw: dict[str, Any] | None) -> VoiceControl
         device_name=str(values["device_name"]) if values.get("device_name") is not None else None,
         sample_rate=int(values.get("sample_rate", 16000)),
         confidence_threshold=float(values.get("confidence_threshold", 0.7)),
+        confirm_commands=bool(values.get("confirm_commands", True)),
     )
 
 

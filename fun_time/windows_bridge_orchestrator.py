@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.file_channel import append_command
+from voice_core.listener import why_unavailable
 
 from .append_only import append_line
 from .checkout_overrides import genau_project_kwargs
@@ -78,7 +79,7 @@ from .shortcuts import Shortcut, resolve_shortcut
 from .standalone_origenerator import RELEASE
 from .state_file_names import take_up_the_retired_state_file_names
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, prewarm_thumbnails
-from .voice_control import VOICE_AVAILABLE, VoiceController, voice_import_error
+from .voice_control import VoiceController
 from .win32 import (
     close_window,
     find_window_by_pid,
@@ -484,6 +485,12 @@ class _AppendOnWriteHandler(logging.Handler):
             pass
 
 
+# What the family's listener says of each utterance -- how it ended, how loud it
+# was, a microphone gone quiet -- is this session's record too, though it is said
+# under the library's name rather than fun_time's.
+_THE_LISTENERS_LOGGERS = ("voice_core",)
+
+
 def add_dispatch_file_handler(log_path: Path) -> None:
     """Add a file handler to bridge-related loggers.
 
@@ -496,7 +503,7 @@ def add_dispatch_file_handler(log_path: Path) -> None:
     handler = _AppendOnWriteHandler(log_path)
     for name in ("fun_time.command_dispatch",
                   "fun_time.windows_bridge_dispatch_loop", "fun_time.voice_control",
-                  "fun_time.windows_bridge_orchestrator"):
+                  "fun_time.windows_bridge_orchestrator", *_THE_LISTENERS_LOGGERS):
         lg = logging.getLogger(name)
         lg.setLevel(logging.DEBUG)
         lg.addHandler(handler)
@@ -519,12 +526,13 @@ def open_event_log(state_dir: Path) -> None:
     """
     handler = EventLogHandler(start_event_log(state_dir))
     handler.setLevel(logging.DEBUG)
-    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS):
+    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *_THE_LISTENERS_LOGGERS):
         target = logging.getLogger(name)
         for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
             target.removeHandler(existing)
         target.addHandler(handler)
-    logging.getLogger("fun_time").setLevel(logging.DEBUG)
+    for name in ("fun_time", *_THE_LISTENERS_LOGGERS):
+        logging.getLogger(name).setLevel(logging.DEBUG)
 
 
 # What the finishing pass may spend, all of it under the cover.  The cover comes
@@ -904,20 +912,22 @@ def start_voice_control(
     voice_thread: threading.Thread | None = None
     try:
         cfg = load_config(config_path)
+        unavailable = why_unavailable()
         voice_diag = (
-            f"VOICE_AVAILABLE={VOICE_AVAILABLE}, "
+            f"available={not unavailable}, "
             f"enabled={cfg.voice_control.enabled}, "
             f"model={cfg.voice_control.model_path}, "
             f"device_name={cfg.voice_control.device_name}"
         )
         logger.info("Voice control check: %s", voice_diag)
-        if VOICE_AVAILABLE and cfg.voice_control.enabled:
+        if not unavailable and cfg.voice_control.enabled:
             voice_controller = VoiceController(
                 cmd_file=dashboard_cmd_file,
                 model_path=cfg.voice_control.model_path,
                 confidence_threshold=cfg.voice_control.confidence_threshold,
                 device_name=cfg.voice_control.device_name,
                 sample_rate=cfg.voice_control.sample_rate,
+                confirm_commands=cfg.voice_control.confirm_commands,
             )
             dispatch_runner.voice_controller = voice_controller
             voice_controller.active_player = lambda: dispatch_runner.state.active_player
@@ -925,7 +935,7 @@ def start_voice_control(
             voice_thread.start()
             logger.info("Voice control thread launched")
         elif cfg.voice_control.enabled:
-            logger.error("Voice control enabled but import failed: %s", voice_import_error())
+            logger.error("Voice control enabled but import failed: %s", unavailable)
         else:
             logger.info("Voice control disabled in config")
     except Exception:

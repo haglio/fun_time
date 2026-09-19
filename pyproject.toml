@@ -23,9 +23,12 @@ requires-python = ">=3.14"
 # other half had not landed turned all of them red at once. Moving to a newer
 # one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
-    "app-support @ git+https://github.com/haglio/app_support@v0.1.155",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.273",
-    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.128",
+    "app-support @ git+https://github.com/haglio/app_support@v0.1.156",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.274",
+    "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.129",
+    # The family's listener: it brings vosk and sounddevice, and hears for this
+    # app, Evolver's backfill tool and Origenerator alike.
+    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.14",
     "numpy>=2.4,<3",
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",
@@ -49,9 +52,10 @@ dev = [
     "ruff==0.16.6",
     "vulture>=2.16,<3",
 ]
+# The second listener a spoken command waits for (voice_core's whisper reader).
+# Without it the first listener's word stands, as it did before there was a second.
 voice = [
-    "vosk>=0.3,<0.4",
-    "sounddevice>=0.5,<0.6",
+    "faster-whisper>=1,<2",
 ]
 # The windows bridge reads .lnk files through win32com, and this was installed
 # by a bare `pip install pywin32` line in the merge gate and declared nowhere --
@@ -66,7 +70,7 @@ windows = [
 # can go in [project.dependencies]; tests/test_dependency_completeness.py holds
 # this list against the tree, counting what a declared sibling needs in turn.
 [tool.haglio]
-siblings = ["app_support", "player_core", "shared_ui"]
+siblings = ["app_support", "player_core", "shared_ui", "voice_core"]
 
 # What Fun Time's three launchers start: launch.vbs, the file the pinned shortcut
 # runs; launch_vr.vbs, FunTimeVR's; and launch_branch.vbs, which a

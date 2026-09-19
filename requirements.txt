@@ -1,9 +1,10 @@
 # Mirrors pyproject.toml — keep both in sync (tests/test_requirements_in_sync.py).
 
 # Runtime (pyproject [project.dependencies])
-app-support @ git+https://github.com/haglio/app_support@v0.1.155
-shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.128
-player-core @ git+https://github.com/haglio/player_core@v0.1.273
+app-support @ git+https://github.com/haglio/app_support@v0.1.156
+shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.129
+player-core @ git+https://github.com/haglio/player_core@v0.1.274
+voice-core @ git+https://github.com/haglio/voice_core@v0.1.14
 numpy
 opencv-python
 pillow
@@ -18,8 +19,7 @@ glfw
 pywin32 ; sys_platform == 'win32'
 
 # Voice control (pyproject [project.optional-dependencies].voice)
-vosk
-sounddevice
+faster-whisper
 
 # Dev / tests (pyproject [project.optional-dependencies].dev)
 hypothesis
