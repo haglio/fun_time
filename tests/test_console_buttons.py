@@ -20,7 +20,7 @@ from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, share
 from player_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.icon_geometry import glyph_names
 
-from fun_time.console_buttons import MainSlot, console_rows, osr2_controls, shape_label
+from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from tests.symbol_face import typed_in_the_symbol_face
 
 _MINUS, _PLUS = "−", "+"
@@ -92,18 +92,6 @@ class TestOsr2ControlStates:
                 for rect, nxt in itertools.pairwise(edges)]
 
         assert gaps == [GAP, GAP, GAP]
-
-
-class TestShapeLabel:
-    """The control that cycles the waveform names it on hover."""
-
-    def test_names_the_waveform_instead_of_leaving_it_to_the_curve(self):
-        assert shape_label("sine") == "Sine"
-        assert shape_label("rounded_square") == "Square"
-        assert shape_label("sawtooth") == "Sawtooth"
-
-    def test_an_unknown_shape_is_titled_rather_than_dropped(self):
-        assert shape_label("half_moon") == "Half Moon"
 
 
 class TestOsr2Controls:
@@ -454,6 +442,22 @@ class TestPaceRows:
         rect = next(r for r, b in placed if b.host_value == "playback_speed")
 
         assert hit_test(placed, rect[0] + 1, rect[1] + 1) == ""
+
+    def test_the_rate_pair_says_what_a_satellites_rate_pair_says(self):
+        """The satellites draw their own pair, in the players' words; one
+        control reads the same on every player."""
+        from player_core.satellite_hud import HudModel
+        from player_core.satellite_hud_paint import HudRenderer
+
+        rendered = HudRenderer("landscape").render(
+            HudModel(player="landscape", playback_speed=1.0))
+        satellite = [button.tooltip for _rect, button in rendered.targets.buttons
+                     if button.command.startswith("landscape_speed_")]
+        console = [button.tooltip
+                   for row in console_rows(MainSlot(main_mode=MainMode.VIDEO))
+                   for button in row if button.command.startswith("main_player_speed_")]
+
+        assert satellite == console != []
 
 
 class TestDriveControls:

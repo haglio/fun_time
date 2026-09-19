@@ -15,6 +15,7 @@ from player_core.console import (
     OSR2_RETRACTED,
     ROW_LABEL_W,
     VALUE_W,
+    shape_label,
 )
 from player_core.hud_button import Button
 from player_core.hud_marks import BROKER_ICON, FMODE_ICON, MINIMIZE_ICON, shared_mark
@@ -23,14 +24,6 @@ from player_core.modes import LengthMode, LoopState, MainMode
 from shared_ui.spacing import BUTTON_WORD_W
 
 from .mode_plan import main_player_displays
-
-_SHAPE_LABELS = {"rounded_square": "Square"}
-
-
-def shape_label(shape: str) -> str:
-    if shape in _SHAPE_LABELS:
-        return _SHAPE_LABELS[shape]
-    return " ".join(word.capitalize() for word in shape.split("_"))
 
 
 @dataclass(frozen=True)
