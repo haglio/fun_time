@@ -161,10 +161,12 @@ This repo is public at `github.com/haglio/fun_time` with a merge-queue ruleset o
   correct two agents in a row for it (2026-07-29). **Never hand him a branch to
   choose or a command to run** — picking is your job, not his. Double-clicking it runs a real session on
   your worktree's code (his real library, his real monitors, uncommitted edits
-  included), replacing the live session rather than joining it, so he quits with
-  Ctrl+Alt+Q and launches Fun Time normally afterwards;
+  included), replacing the live session rather than joining it;
   `fun_time/branch_session.py` says what it isolates and what it shares on
-  purpose. Then on his word: PR → queue → `git -C <primary> pull --ff-only origin
+  purpose. **Say nothing about what he does once he is finished with it** —
+  quitting it leaves nothing running and nothing to put back, so "then launch
+  Fun Time the usual way" only made him stop and ask what that step was for
+  (2026-09-18). Then on his word: PR → queue → `git -C <primary> pull --ff-only origin
   main` → `python -m fun_time.branch_session --remove-shortcut` from your
   worktree, **before** you tell him it is done (the worktree itself is his to
   retire, not yours — see the global law, which also forbids mentioning it).
