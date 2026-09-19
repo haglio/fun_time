@@ -444,10 +444,15 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
     landscape = wait_for_window_by_title("Landscape AI Player", timeout_s=10, exact=True)
     assert portrait and landscape
 
+    # Every band read here is waited for rather than taken once: a player
+    # reloading its own list after a mode switch takes no messages for a
+    # moment, and a SetWindowPos that timed out on it is not dropped -- it
+    # lands when that player pumps again.
     set_always_on_top(portrait, False)
     set_always_on_top(landscape, False)
-    assert not is_window_topmost(portrait)
-    assert not is_window_topmost(landscape)
+    for player, hwnd in (("portrait", portrait), ("landscape", landscape)):
+        _wait(lambda hwnd=hwnd: not is_window_topmost(hwnd), timeout=10,
+              desc=f"the {player} player to leave the topmost band")
 
     _fix_post_loading_windows(StartupResult(
         main_player_pid=pids["main_player_pid"],
@@ -459,8 +464,9 @@ def test_the_post_overlay_pass_rebands_satellites_recorded_under_shim_pids(hoste
         main_mode=MainMode.VIDEO,
     ))
 
-    assert is_window_topmost(portrait)
-    assert is_window_topmost(landscape)
+    for player, hwnd in (("portrait", portrait), ("landscape", landscape)):
+        _wait(lambda hwnd=hwnd: is_window_topmost(hwnd), timeout=10,
+              desc=f"the {player} player to be put back in the topmost band")
 
 
 def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
