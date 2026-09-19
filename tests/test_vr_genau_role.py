@@ -292,14 +292,22 @@ class TestWhatItPublishes:
         assert hud.drive is not None
 
     def test_the_console_file_fun_time_publishes_is_read(self, tmp_path):
+        from player_core.console import ConsoleModel, console_text
+
+        from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
+
+        published = ConsoleModel(main_mode=MainMode.GENAU,
+                                 rows=console_rows(MainSlot(main_mode=MainMode.GENAU)),
+                                 osr2_controls=osr2_controls(broker=True))
         console = tmp_path / "main_player_console.json"
-        console.write_text('{"main_mode": "genau", "broker": true}', encoding="utf-8")
+        console.write_text(console_text(published), encoding="utf-8")
         genau = Genau(tmp_path, console_file=console)
 
         genau.role.refresh()
 
-        assert genau.role.console_hud.console.main_mode is MainMode.GENAU
-        assert genau.role.console_hud.console.broker is True
+        read = genau.role.console_hud.console
+        assert read.main_mode is MainMode.GENAU
+        assert (read.rows, read.osr2_controls) == (published.rows, published.osr2_controls)
 
     def test_the_published_sound_level_is_kept_for_the_chip(self, tmp_path):
         genau = Genau(tmp_path)
