@@ -32,7 +32,10 @@ _EMPTY_WHEN_ABSENT: dict[str, Any] = {"web_providers": []}
 
 
 def _read_json(path: Path) -> dict[str, Any]:
-    return json.loads(path.read_text(encoding="utf-8"))
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as unparsable:
+        raise ValueError(f"{path}: {unparsable}") from unparsable
 
 
 @functools.cache
