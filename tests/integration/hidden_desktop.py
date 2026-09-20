@@ -325,6 +325,21 @@ def _close_process_handles(pi: _PROCESS_INFORMATION) -> None:
     _kernel32.CloseHandle(pi.hThread)
 
 
+def _child_environment(environment: Mapping[str, str] | None) -> dict[str, str]:
+    """The environment a hidden-desktop child runs in — always muted.
+
+    The hidden desktop hides a player's window, not its sound: a session started
+    here would otherwise be heard over whatever the user is doing, with no window
+    to trace it to or stop it from.  Forcing the mute switch at the launch itself
+    makes off-screen mean silent whatever the caller passed — a hand-rolled repro
+    that borrowed this launcher without it played the real library aloud
+    (2026-09-19).  ``None`` inherits this process's environment, then mutes that.
+    """
+    resolved = dict(os.environ if environment is None else environment)
+    resolved["FUN_TIME_MUTE_AUDIO"] = "1"
+    return resolved
+
+
 def _environment_block(environment: Mapping[str, str] | None) -> ctypes.Array | None:
     if environment is None:
         return None
@@ -353,7 +368,7 @@ def _launch_on_desktop(cmdline: str, desktop: str | None, cwd: str, job: int,
     pi = _PROCESS_INFORMATION()
     ok = _kernel32.CreateProcessW(None, ctypes.create_unicode_buffer(cmdline), None, None,
                                   True, CREATE_SUSPENDED | CREATE_UNICODE_ENVIRONMENT,
-                                  _environment_block(environment), cwd,
+                                  _environment_block(_child_environment(environment)), cwd,
                                   ctypes.byref(si), ctypes.byref(pi))
     if not ok:
         raise ctypes.WinError(ctypes.get_last_error())

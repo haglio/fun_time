@@ -26,6 +26,7 @@ from fun_time.win32_loader import load_dll
 from fun_time.win32_process import is_process_alive
 from tests.integration import hidden_desktop
 from tests.integration.hidden_desktop import (
+    _child_environment,
     _close_process_handles,
     _launch_on_desktop,
     _repo_root,
@@ -34,6 +35,43 @@ from tests.integration.hidden_desktop import (
     create_run_job,
     main,
 )
+
+
+def test_a_hidden_desktop_launch_is_muted_however_the_caller_leaves_the_environment():
+    """Off-screen hides a player's window, not its sound, and a repro that
+    borrowed this launcher without the mute played the real library aloud
+    (2026-09-19).  So the launcher forces the switch on: passed nothing, passed
+    an empty environment, or even handed the switch turned off."""
+    assert _child_environment(None)["FUN_TIME_MUTE_AUDIO"] == "1"
+    assert _child_environment({})["FUN_TIME_MUTE_AUDIO"] == "1"
+    assert _child_environment({"FUN_TIME_MUTE_AUDIO": "0"})["FUN_TIME_MUTE_AUDIO"] == "1"
+
+
+def test_a_hidden_desktop_launch_keeps_the_environment_it_was_handed():
+    child = _child_environment({"PATH": "x", "FUN_TIME_RUN_INTEGRATION": "1"})
+    assert child["PATH"] == "x"
+    assert child["FUN_TIME_RUN_INTEGRATION"] == "1"
+
+
+@pytest.mark.skipif(sys.platform != "win32", reason="Win32 process creation")
+def test_a_launched_child_sees_the_mute_switch_though_the_caller_set_no_environment(tmp_path):
+    """End to end: a child started through the launcher with no environment named
+    still finds the mute switch set, so nothing off-screen can be heard."""
+    report = tmp_path / "mute.txt"
+    probe = (f"import os, pathlib; pathlib.Path({str(report)!r})"
+             ".write_text(os.environ.get('FUN_TIME_MUTE_AUDIO', 'unset'))")
+    job = create_run_job()
+    cmdline = subprocess.list2cmdline([sys.executable, "-c", probe])
+    pi = _launch_on_desktop(cmdline, None, str(tmp_path), job)
+    try:
+        deadline = time.time() + 20
+        while time.time() < deadline and not report.exists():
+            time.sleep(0.05)
+    finally:
+        _close_process_handles(pi)
+        close_run_job(job)
+
+    assert report.read_text() == "1"
 
 
 def test_argv_runs_pytest_on_the_integration_dir():
