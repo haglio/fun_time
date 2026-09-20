@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 from urllib.request import url2pathname
 
 from player_core.modes import MainMode
+from player_core.playlist import PlaylistItem, write_playlist
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
@@ -720,6 +721,30 @@ def test_start_core_session_resumes_last_session_rather_than_reshuffling(tmp_pat
     # Which clips you get is the whole difference between the two paths, so the
     # session says which one it took.
     assert "Resumed last session's playlists" in caplog.text
+
+
+def test_a_session_that_ended_hosting_resumes_its_own_clips_not_the_hosted_apps(
+        tmp_path: Path):
+    """Every room is BUILT in video mode, so a room whose last session ended with
+    the hosted app holding the players must not open playing that app's pictures
+    — which it did, held on a still nothing would page.  The session's own list
+    was waiting beside each of them the whole time."""
+    kwargs = _start_core_session_kwargs(tmp_path)
+    state_dir = kwargs["state_dir"]
+    left_on = _seed_resumable_session(kwargs)
+    a_picture = tmp_path / "a picture.png"
+    for name in ("portrait", "landscape"):
+        playlist = state_dir / f"{name}_playlist.tsv"
+        playlist.rename(state_dir / f"{name}_playlist.kept.tsv")
+        write_playlist(playlist, [PlaylistItem(a_picture)])
+
+    _run_start_core_session(kwargs)
+
+    for name in ("portrait", "landscape"):
+        first, second = left_on[name]
+        assert (state_dir / f"{name}_playlist.tsv").read_text(
+            encoding="utf-8").splitlines() == [second, first]
+        assert not (state_dir / f"{name}_playlist.kept.tsv").exists()
 
 
 def _run_start_core_session(kwargs: dict) -> str:
