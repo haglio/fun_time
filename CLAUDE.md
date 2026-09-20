@@ -68,7 +68,10 @@ If you cannot complete these steps, stop and say so. Do not submit a speculative
 
 ## Repo-specific gotchas
 
-- Broker startup flows through the broker checkout's `launch_broker_tray.vbs`.
+- Broker startup flows through the broker checkout's `launch_broker_tray.vbs`,
+  and `broker_contract.json` beside it is where that repo says what its
+  processes are called and which directory its sources are in
+  (`fun_time/broker_contract.py`). Nothing here spells any of it.
 - Random Favs Browser tab opening is sensitive to window focus — preserve explicit Chrome window targeting.
 - The test environment is the project `.venv`, not system Python or Conda.
 

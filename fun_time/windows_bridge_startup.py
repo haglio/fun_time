@@ -18,6 +18,7 @@ from player_core.file_channel import append_command
 from player_core.modes import MainMode
 from player_core.player_verbs import SET_F_MODE
 
+from . import broker_contract
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .checkout_overrides import genau_project_kwargs
@@ -33,10 +34,6 @@ from .modes import (
     build_playlist_file_path,
 )
 from .orchestrator_broker import (
-    BROKER_IMAGE_PATTERN,
-    BROKER_LAUNCHER_PATTERN,
-    BROKER_PROCESS_PATTERN,
-    BROKER_TRAY_PATTERN,
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
@@ -64,6 +61,7 @@ from .session_resume import (
 )
 from .shared_state import shared_state_path
 from .win32_taskbar import APP_USER_MODEL_ID
+from .window_roles import GENAU_TITLE, GENAU_VIDEO_TITLE
 
 logger = logging.getLogger(__name__)
 
@@ -99,19 +97,23 @@ def _write_result_file(result_file: str | Path, values: dict[str, int | str]) ->
         parser.write(fp)
 
 
-def stop_broker_processes() -> None:
+def stop_broker_processes(broker_tray_launcher: Path | str | None) -> None:
     """Kill every broker and broker-tray process on the machine.
 
-    Matched by command line, so there is nothing for a working directory to
-    scope: the sweep reaches the same processes wherever it runs from.
+    What to match is the broker's own to say (:mod:`fun_time.broker_contract`);
+    one that says nothing is left alone rather than swept for blindly.  Matched
+    by command line, so there is nothing for a working directory to scope.
     """
+    contract = broker_contract.read(broker_tray_launcher)
+    if contract is None:
+        return
     ps_command = (
         "$targets = Get-CimInstance Win32_Process | Where-Object { "
-        "(($_.Name -match '" + BROKER_IMAGE_PATTERN + "') -and $_.CommandLine -match '"
-        + BROKER_PROCESS_PATTERN + "|" + BROKER_TRAY_PATTERN
+        "(($_.Name -match '" + contract.image_pattern + "') -and $_.CommandLine -match '"
+        + contract.command_line_pattern
         + "') -or "
         "(($_.Name -match '^wscript\\.exe$') -and $_.CommandLine -match '"
-        + BROKER_LAUNCHER_PATTERN
+        + contract.launcher_pattern
         + "') "
         "}; "
         "$targets | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }"
@@ -188,35 +190,36 @@ def launch_broker_tray(broker_tray_launcher: Path | None) -> None:
 
 
 def broker_source_mtime(broker_tray_launcher: Path | None) -> float | None:
-    """When osr2_broker's own sources were last written, or None if unreadable.
+    """When the broker's own sources were last written, or None if unreadable.
 
-    The launcher sits in the broker's repo root, so its package is the sibling
-    directory.  Only that package counts: the config, logs and state files beside
-    it change constantly without changing what the process runs, and the shared
-    siblings it imports (``app_support``, ``shared_ui``) belong to four apps, so
-    neither should be able to order a restart here.
+    Which directory those are is the broker's to say.  Only that package
+    counts: the config, logs and state beside it change without changing what
+    the process runs, and the siblings it imports belong to four apps.
     """
-    if broker_tray_launcher is None:
+    contract = broker_contract.read(broker_tray_launcher)
+    if contract is None:
         return None
-    package = broker_tray_launcher.parent / "osr2_broker"
+    package = broker_tray_launcher.parent / contract.package_dir
     try:
         return max((source.stat().st_mtime for source in package.rglob("*.py")), default=None)
     except OSError:
         return None
 
 
-def broker_process_started_at() -> float | None:
+def broker_process_started_at(broker_tray_launcher: Path | str | None) -> float | None:
     """When the running broker started, in Unix seconds — None if none is up.
 
-    Matched by image name and command line the way :func:`stop_broker_processes`
-    sweeps: the broker names its own processes, and one that could not be named
-    runs under the bare interpreter.  The oldest is the one reported, because
-    that is the one at risk of being stale.
+    Matched off the same published contract :func:`stop_broker_processes`
+    sweeps by, minus the tray -- a live tray is not a live broker.  The oldest
+    is the one reported, because that is the one at risk of being stale.
     """
+    contract = broker_contract.read(broker_tray_launcher)
+    if contract is None:
+        return None
     ps_command = (
         "Get-CimInstance Win32_Process | Where-Object { "
-        "($_.Name -match '" + BROKER_IMAGE_PATTERN + "') -and $_.CommandLine -match '"
-        + BROKER_PROCESS_PATTERN
+        "($_.Name -match '" + contract.image_pattern + "') -and $_.CommandLine -match '"
+        + contract.broker_command_line_pattern
         + "' } | ForEach-Object { "
         "[int64]($_.CreationDate.ToUniversalTime() - [datetime]'1970-01-01').TotalSeconds "
         "} | Sort-Object | Select-Object -First 1"
@@ -258,13 +261,13 @@ def ensure_broker(
     """
     source_mtime = broker_source_mtime(broker_tray_launcher)
     if source_mtime is not None:
-        started_at = broker_process_started_at()
+        started_at = broker_process_started_at(broker_tray_launcher)
         if started_at is not None and source_mtime > started_at:
             logger.info(
                 "Broker started %.0fs before its own code was last written; restarting it",
                 source_mtime - started_at,
             )
-            stop_broker_processes()
+            stop_broker_processes(broker_tray_launcher)
             launch_broker_tray(broker_tray_launcher)
             return
     if broker_heartbeat_file is not None and is_broker_heartbeat_fresh(Path(broker_heartbeat_file)):
@@ -524,6 +527,7 @@ def launch_genau(
     paused_file: str | Path | None = None,
     console_file: str | Path | None = None,
     drive_file: str | Path | None = None,
+    status_file: str | Path | None = None,
     dashboard_cmd_file: str | Path | None = None,
     start_clip: str = "",
     project_dirs: str | None = None,
@@ -553,6 +557,11 @@ def launch_genau(
     ]
     cmd.extend(["--icon", str(PROJECT_ICON)])
     cmd.extend(TASKBAR_IDENTITY_ARGS)
+    # Both captions, because this session finds that window by them and matches
+    # them exactly.  Named here for the same reason each satellite's is: the
+    # window is one of this session's, and a caption it chose alone was a
+    # lookup that worked by luck.
+    cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_VIDEO_TITLE])
     if command_file is not None:
         cmd.extend(["--command-file", str(command_file)])
     if paused_file is not None:
@@ -567,6 +576,12 @@ def launch_genau(
     # config wrote it into the Genau repo, where the main player was never looking.
     if drive_file is not None:
         cmd.extend(["--drive-file", str(drive_file)])
+    # Where it publishes what the hand is doing, for the dashboard to draw.
+    # Named by us, like the drive readout above: left to Genau it followed
+    # whichever directory the command file happened to be in, and the two sides
+    # agreed only because this session puts both in the same one today.
+    if status_file is not None:
+        cmd.extend(["--status-file", str(status_file)])
     if dashboard_cmd_file is not None:
         cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
     # Genau rescans its clips folder every launch and opens at the top of it, so
@@ -594,6 +609,12 @@ class HandedPlayer:
     hud_file: str | Path
 
 
+def _rect_args(prefix: str, rect) -> list[str]:
+    return [word
+            for field in ("x", "y", "width", "height")
+            for word in (f"--{prefix}{field}", str(getattr(rect, field)))]
+
+
 def origenerator_session_args(
     *,
     layout_plan,
@@ -604,11 +625,13 @@ def origenerator_session_args(
     players: Mapping[str, HandedPlayer],
 ) -> list[str]:
     rfb = layout_plan.random_favs_browser
-    args = [
-        "--fun-time",
-        "--x", str(rfb.x), "--y", str(rfb.y),
-        "--width", str(rfb.width), "--height", str(rfb.height),
-    ]
+    args = ["--fun-time", *_rect_args("", rfb)]
+    # The two satellite regions, for the shows the hosted app opens itself when
+    # a session hands it no player for a side.  Sent because its contract asks
+    # for them: unsent they fell to a rect of zeroes, which is a window nobody
+    # can see rather than a launch that says something is missing.
+    args.extend(_rect_args("portrait-", layout_plan.portrait))
+    args.extend(_rect_args("landscape-", layout_plan.landscape))
     for side, player in players.items():
         args.extend([
             f"--{side}-playlist", str(player.playlist_file),

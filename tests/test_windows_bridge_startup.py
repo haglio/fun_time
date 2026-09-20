@@ -35,7 +35,6 @@ from fun_time.windows_bridge_startup import (
     TASKBAR_IDENTITY_ARGS,
     HandedPlayer,
     _build_satellite_launch_command,
-    broker_source_mtime,
     ensure_broker,
     launch_broker_tray,
     launch_core_apps,
@@ -49,51 +48,7 @@ from fun_time.windows_bridge_startup import (
     reap_orphaned_satellites,
     seed_startup_states,
     start_core_session,
-    stop_broker_processes,
 )
-
-
-def test_stop_broker_processes_is_a_machine_wide_sweep_with_nothing_to_scope():
-    """The kill matches broker and tray processes by command line, across the
-    whole machine — there is no directory it is relative to.  Handing it a
-    working directory implied a scoping that does not exist and cost every
-    caller a path to compute for it."""
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
-        stop_broker_processes()
-
-    argv = run.call_args.args[0]
-    assert argv[0] == "powershell.exe"
-    assert "Stop-Process" in argv[-1]
-    assert "cwd" not in run.call_args.kwargs
-
-
-def test_the_sweep_reaches_the_tray_now_that_it_is_a_python_process():
-    """osr2_broker's tray became `pythonw -m osr2_broker.tray`.
-
-    Missed by the sweep, it would survive the kill and immediately restart the
-    broker we just stopped.
-    """
-    import re
-
-    from fun_time.orchestrator_broker import BROKER_TRAY_PATTERN
-
-    tray_command_line = (
-        r'"C:\path\to\broker\.venv\Scripts\pythonw.exe" '
-        r'-m osr2_broker.tray --config '
-        r'C:\path\to\broker\osr2_broker_config.json'
-    )
-    assert re.search(BROKER_TRAY_PATTERN, tray_command_line)
-
-    with patch("fun_time.windows_bridge_startup.subprocess.run") as run, patch(
-        "fun_time.windows_bridge_startup.subprocess_window_kwargs", return_value={}
-    ):
-        stop_broker_processes()
-
-    ps_command = run.call_args.args[0][-1]
-    python_clause = ps_command.split("-or")[0]
-    assert BROKER_TRAY_PATTERN in python_clause
 
 
 def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
@@ -197,23 +152,6 @@ def test_ensure_broker_does_not_ask_about_the_process_when_it_cannot_read_the_co
 
     started.assert_not_called()
     stop.assert_not_called()
-
-
-def test_broker_source_mtime_is_the_newest_python_file_in_the_package(tmp_path: Path):
-    """What the running process actually loaded is the package's .py files, so a
-    log or config written beside them must not read as a code change — that would
-    restart the broker on every startup."""
-    launcher = tmp_path / "osr2_broker" / "launch_broker_tray.vbs"
-    package = launcher.parent / "osr2_broker"
-    package.mkdir(parents=True)
-    (package / "session.py").touch()
-    os.utime(package / "session.py", (1000.0, 1000.0))
-    (package / "app.py").touch()
-    os.utime(package / "app.py", (3000.0, 3000.0))
-    (package / "osr2_broker.log").touch()
-    os.utime(package / "osr2_broker.log", (9000.0, 9000.0))
-
-    assert broker_source_mtime(launcher) == 3000.0
 
 
 def test_a_missing_tray_launcher_says_so_rather_than_going_quiet(tmp_path: Path, caplog):

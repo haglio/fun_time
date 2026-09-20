@@ -12,9 +12,8 @@ from app_support.process_identity import ProcessNamer
 
 from fun_time.project_paths import PROJECT_ICON
 
-# The one namer this repo's own children are launched through.  The broker gets
-# its own (``orchestrator_broker.BROKER_IMAGE_PATTERN``) because it is a
-# separate application this one starts, not one of this app's processes.
+# The one namer this repo's own children are launched through.  The broker is
+# named by itself, and found by what it publishes (``broker_contract``).
 NAMER = ProcessNamer("Fun Time", icon=PROJECT_ICON)
 
 
