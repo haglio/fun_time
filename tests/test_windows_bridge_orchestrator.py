@@ -155,6 +155,100 @@ class TestFixPostLoadingWindows:
 
         promote.assert_called_once_with(222, True, under=0)  # only the buried one, once
 
+    def test_a_buried_main_player_is_re_promoted_too(self):
+        """The main player is decoding its first frame at the reveal, so its
+        promotion times out through the stalled-window guard exactly as a
+        satellite's does — and a timed-out SetWindowPos lands when that window
+        next pumps, which is the second after the cover lifts.  He watched the
+        main player climb over the room there, so it is walked and re-promoted
+        with the other two rather than only logged."""
+        result = _fake_startup_result()
+        titles = {"Main Player": 333}
+        chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
+                               rect=(0, 0, 2560, 1410))
+        main_player = StackedWindow(hwnd=333, title="Main Player",
+                                    topmost=True, rect=(0, 0, 2560, 1410))
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder",
+            side_effect=[[chrome, main_player], [main_player, chrome]],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ):
+            _fix_post_loading_windows(result)
+
+        promote.assert_called_once_with(333, True, under=0)
+
+    def test_genau_over_the_main_player_is_not_a_burial(self):
+        """Genau's window sits over the main player's by design in every mode —
+        the transparent layer over its video in video mode, the display itself
+        in genau mode.  Re-promoting the player out from under it would undo
+        the layering the session just built."""
+        result = _fake_startup_result()
+        titles = {"Main Player": 333, "Genau": 444}
+        genau = StackedWindow(hwnd=444, title="Genau", topmost=True,
+                              rect=(0, 0, 2560, 1410))
+        main_player = StackedWindow(hwnd=333, title="Main Player",
+                                    topmost=True, rect=(0, 0, 2560, 1410))
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder",
+            return_value=[genau, main_player],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ):
+            _fix_post_loading_windows(result)
+
+        promote.assert_not_called()
+
+    def test_a_parked_main_player_is_left_where_genau_mode_put_it(self):
+        """In genau mode the display is Genau's and the player is parked, so a
+        window over the parked player is not a burial to undo — promoting it
+        would hand the slot back to the player that is not playing."""
+        result = replace(_fake_startup_result(), main_mode=MainMode.GENAU)
+        titles = {"Main Player": 333}
+        chrome = StackedWindow(hwnd=9, title="jazz - Chrome", topmost=False,
+                               rect=(0, 0, 2560, 1410))
+        main_player = StackedWindow(hwnd=333, title="Main Player",
+                                    topmost=True, rect=(0, 0, 2560, 1410))
+
+        with patch(
+            "fun_time.windows_bridge_orchestrator.apply_startup_window_state"
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.find_window_by_pid", return_value=0
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
+            side_effect=lambda title, **kwargs: titles.get(title, 0),
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.iter_zorder",
+            return_value=[chrome, main_player],
+        ), patch(
+            "fun_time.windows_bridge_orchestrator.set_always_on_top"
+        ) as promote, sleeps_in(windows_bridge_orchestrator), patch(
+            "fun_time.windows_bridge_orchestrator._log_window_obstruction"
+        ):
+            _fix_post_loading_windows(result)
+
+        promote.assert_not_called()
+
     def test_a_player_still_buried_under_the_curtain_is_re_promoted_under_it(self):
         result = _fake_startup_result()
         titles = {"Portrait AI Player": 111, "Landscape AI Player": 222}

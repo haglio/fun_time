@@ -208,7 +208,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # learned their clips' other renditions: the satellite session's list, discard
 # and versions said in names and tests what three paragraphs had said, and the
 # note over the map's keyboard steps stopped counting four of them.
-MAX_PROSE_LINES = 7916
+# 7914 since 2026-09-19, measured on the merged tree, when the main player
+# joined the settle walk: which players it watches, and what each may sit
+# under, is a helper's name and three tests rather than a paragraph.
+MAX_PROSE_LINES = 7914
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
