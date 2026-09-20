@@ -69,6 +69,7 @@ from .satellite_groups import (
     cancel_lock,
     clear_side_grouping,
     cycle_variant,
+    cycle_version,
     group_loop,
     is_single_video_loop,
     loop_cycle,
@@ -189,6 +190,7 @@ _MAIN_PLAYER_CMD_MAP = {
     "main_player_record_tap": "RECORD_TAP",
     "main_player_loop_cancel": "LOOP_CANCEL",
     "main_player_cycle_version": "CYCLE_VERSION",
+    "main_player_cycle_version_back": "CYCLE_VERSION_BACK",
     "main_player_toggle_length": "TOGGLE_LENGTH_MODE",
     "main_player_length_shorts": "SET_LENGTH_MODE shorts",
     "main_player_length_full": "SET_LENGTH_MODE full",
@@ -338,6 +340,13 @@ _CYCLE_COMMANDS = {
     "portrait_cycle_seed": (Player.PORTRAIT, "seed"),
     "landscape_cycle_action": (Player.LANDSCAPE, "action"),
     "landscape_cycle_seed": (Player.LANDSCAPE, "seed"),
+}
+
+_VERSION_COMMANDS: dict[str, tuple[Player, int]] = {
+    "portrait_cycle_version": (Player.PORTRAIT, 1),
+    "portrait_cycle_version_back": (Player.PORTRAIT, -1),
+    "landscape_cycle_version": (Player.LANDSCAPE, 1),
+    "landscape_cycle_version_back": (Player.LANDSCAPE, -1),
 }
 
 # "more seeds" — see :func:`satellite_groups.more_seeds`.
@@ -490,8 +499,7 @@ def _dispatch_lock_video(
     return _toggle_lock(player, state, config, target_path=path)
 
 
-# The four steps of "<side>_nav_<dir>" — see :func:`satellite_groups.navigate_hud`.
-_NAV_DIRECTIONS = ("left", "right", "up", "down")
+_NAV_DIRECTIONS = ("up", "down")
 
 
 def _parse_nav(command: str) -> tuple[int, str] | None:
@@ -1568,6 +1576,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["landscape_trash"] = partial(_discard, Player.LANDSCAPE)
     handlers.update({cmd: partial(cycle_variant, player, kind)
                      for cmd, (player, kind) in _CYCLE_COMMANDS.items()})
+    handlers.update({cmd: partial(cycle_version, player, delta)
+                     for cmd, (player, delta) in _VERSION_COMMANDS.items()})
     handlers.update({cmd: partial(more_seeds, player)
                      for cmd, player in _MORE_SEEDS_SIDES.items()})
     handlers.update({cmd: partial(wrong_action, player)

@@ -39,8 +39,8 @@ class SpySession:
     def set_locked(self, locked: bool) -> None:
         self.calls.append(("set_locked", locked))
 
-    def cycle_version(self) -> None:
-        self.calls.append(("cycle_version",))
+    def cycle_version(self, step: int = 1) -> None:
+        self.calls.append(("cycle_version", step))
 
     def play_file(self, item) -> None:
         self.calls.append(("play_file", item.path, item.funscript))
@@ -371,7 +371,14 @@ class TestApplyCommand:
 
         apply_command("CYCLE_VERSION", MainPlayerControls(session))
 
-        assert session.calls == [("cycle_version",)]
+        assert session.calls == [("cycle_version", 1)]
+
+    def test_cycle_version_back(self):
+        session = SpySession()
+
+        apply_command("CYCLE_VERSION_BACK", MainPlayerControls(session))
+
+        assert session.calls == [("cycle_version", -1)]
 
     def test_set_tcode_enabled_zero_disables(self):
         session = SpySession()
@@ -546,7 +553,8 @@ ACCEPTED_COMMANDS = [
     "SET_VOLUME 40", "SET_VOLUME 40 1",
     "RECORD_DOWN", "RECORD_UP", "RECORD_TAP", "LOOP_CANCEL", "SET_LOOP 1000 2000",
     "TOGGLE_LOCK", "LOCK_ON", "LOCK_OFF",
-    "CYCLE_VERSION", "PLAY_FILE C:/example/library/videos/gamma reel.mp4",
+    "CYCLE_VERSION", "CYCLE_VERSION_BACK",
+    "PLAY_FILE C:/example/library/videos/gamma reel.mp4",
     "RELOAD_PLAYLIST", "TOGGLE_LENGTH_MODE", "SET_LENGTH_MODE shorts",
     "PLAY_COMPILATION", "PLAY_FULL_VID", "PLAY_CLIP_JUMP",
     "JUMP_TO_FUNSCRIPT", "NEXT_FUNSCRIPTED", "END_COMPILATION",

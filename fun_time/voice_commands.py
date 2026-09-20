@@ -289,6 +289,11 @@ def build_voice_commands(
             commands[f"{_side} {_act_word}"] = _sided
             commands[f"{_act_word} {_side}"] = _sided
 
+    # Sided only: the bare word is the main player's own version axis above.
+    for _side in ("portrait", "landscape", "both"):
+        commands[f"{_side} version"] = f"{_side}_cycle_version"
+        commands[f"version {_side}"] = f"{_side}_cycle_version"
+
     # Group commands act on the current clip's GROUP rather than on the playlist,
     # and join the same order-agnostic grid.  "action loop" cycles the subject's
     # other acts; "seed loop" the same act under its other seeds; both are repeat-all

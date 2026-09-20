@@ -44,3 +44,9 @@ def original_rendition(video_path: str | Path, media_root: str | Path | None) ->
     # The upscale tree nests orientation/source; the sorted tree nests the other way.
     original = Path(media_root) / _ORIGINAL_ROOT / source / orientation / (stem + video.suffix)
     return str(original) if original.is_file() else ""
+
+
+def renditions(video_path: str | Path, media_root: str | Path | None) -> list[str]:
+    """*video_path* and its other renditions, it first; ``[]`` for the only one."""
+    original = original_rendition(video_path, media_root)
+    return [str(video_path), original] if original else []

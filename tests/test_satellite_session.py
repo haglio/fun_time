@@ -202,6 +202,104 @@ class TestDiscard:
         assert player.opened == opened_before
 
 
+class TestVersions:
+    """Another rendition of the clip on screen, put up in the clip's own place:
+    the list, and everything Fun Time knows the clip by, stay as they are."""
+
+    @staticmethod
+    def _other_version(tmp_path, session):
+        other = tmp_path / f"{session.current_video.stem}_sorted.mp4"
+        other.write_text("fake")
+        return other
+
+    def test_a_step_plays_the_other_version_in_the_clips_own_place(self, tmp_path):
+        session, player = _make_session(tmp_path, entries=2)
+        clip = session.current_video
+        other = self._other_version(tmp_path, session)
+
+        session.step_version([clip, other], 1)
+
+        assert player.opened[-1] == other
+        assert (session.current_video, session.showing) == (clip, other)
+        assert session.playlist == [clip, tmp_path / "v1.mp4"]
+
+    def test_a_step_back_from_the_clips_own_file_wraps_to_the_last_version(self, tmp_path):
+        session, player = _make_session(tmp_path)
+        clip = session.current_video
+        other = self._other_version(tmp_path, session)
+
+        session.step_version([clip, other], -1)
+
+        assert session.showing == other
+
+    def test_the_hud_names_the_clip_and_the_file_from_the_first_step(self, tmp_path):
+        session, _player = _make_session(tmp_path)
+        clip = session.current_video
+        other = self._other_version(tmp_path, session)
+        named = [session.name_on_screen]
+
+        for _ in range(2):
+            session.step_version([clip, other], 1)
+            named.append(session.name_on_screen)
+
+        assert named == ["v0", f"v0 ({other.name})", f"v0 ({clip.name})"]
+
+    def test_a_clip_come_back_to_names_its_file_only_off_its_own(self, tmp_path):
+        session, _player = _make_session(tmp_path, entries=2)
+        clip = session.current_video
+        other = self._other_version(tmp_path, session)
+        named = []
+
+        for _ in range(2):
+            session.step_version([clip, other], 1)
+            session.step(1)
+            session.step(-1)
+            named.append(session.name_on_screen)
+
+        assert named == [f"v0 ({other.name})", "v0"]
+
+    def test_a_rebuilt_playlist_leaves_every_clip_but_the_one_playing_on_its_own_file(
+            self, tmp_path):
+        session, _player = _make_session(tmp_path, entries=2)
+        first, second = session.playlist
+        other_first = tmp_path / "v0_sorted.mp4"
+        other_second = tmp_path / "v1_sorted.mp4"
+        for path in (other_first, other_second):
+            path.write_text("fake")
+        session.step_version([first, other_first], 1)
+        session.step(1)
+        session.step_version([second, other_second], 1)
+
+        session.replace_playlist([first, second])
+
+        assert session.showing == other_second
+        session.step(1)
+        assert session.showing == first
+
+    def test_a_discarded_clip_takes_its_version_with_it(self, tmp_path):
+        session, _player = _make_session(tmp_path, entries=2)
+        clip = session.current_video
+        other = self._other_version(tmp_path, session)
+        session.step_version([clip, other], 1)
+
+        session.discard()
+        session.play_file(clip)
+
+        assert session.showing == clip
+
+    def test_a_family_the_file_on_screen_is_not_in_is_left_alone(self, tmp_path):
+        """The step carries the versions of the clip Fun Time last saw playing,
+        which an auto-advancing satellite may have moved on from."""
+        session, player = _make_session(tmp_path, entries=2)
+        opened = len(player.opened)
+        stale = tmp_path / "somebody else.mp4"
+
+        session.step_version([stale, tmp_path / "somebody else_sorted.mp4"], 1)
+
+        assert len(player.opened) == opened
+        assert session.showing == session.current_video
+
+
 class TestPlayFile:
     def test_play_file_jumps_to_a_playlist_item(self, tmp_path):
         session, player = _make_session(tmp_path, entries=3)  # on v0

@@ -83,6 +83,7 @@ UNIMPLEMENTED_MAIN_PLAYER_VERBS: dict[str, str] = {
     "LOOP_CANCEL": "there is no A/B loop here to cancel",
     "SET_LOOP": "there is no A/B loop here to restore",
     "CYCLE_VERSION": "version cycling needs the main player's same-content index",
+    "CYCLE_VERSION_BACK": "version cycling needs the main player's same-content index",
     "TOGGLE_LENGTH_MODE": "the length modes need the main player's duration cache",
     "SET_LENGTH_MODE": "the length modes need the main player's duration cache",
     "PLAY_COMPILATION": "a compilation is built from the length modes above",

@@ -23,11 +23,12 @@ def _names(buttons: tuple[Button, ...]) -> list[str]:
 
 def test_the_band_is_the_players_own_controls_in_the_consoles_order():
     """The browse pair, then the three about the clip on screen and the library it
-    came from, then the reset, then the browse order, then minimize — widening
-    from the clip on screen out to the whole side and ending with the one that
-    acts on the window rather than on anything in it."""
+    came from, then the reset, then the browse order, then another rendition of
+    the clip, as the console ends its own browse controls on it, then minimize —
+    ending with the one that acts on the window rather than on anything in it."""
     assert _names(_band(latest=False)) == [
-        "prev", "next", "lock", "trash", "fmode", "reset", "shuffle", "latest", "minimize"]
+        "prev", "next", "lock", "trash", "fmode", "reset", "shuffle", "latest",
+        "cycle_version", "minimize"]
 
 
 def test_every_button_posts_that_players_own_verb():
@@ -46,7 +47,7 @@ def test_the_band_breaks_into_the_groups_the_console_breaks_into():
     starts = [button.command.removeprefix("portrait_")
               for button in _band(latest=False) if button.group_break]
 
-    assert starts == ["lock", "reset", "shuffle", "minimize"]
+    assert starts == ["lock", "reset", "shuffle", "cycle_version", "minimize"]
 
 
 def test_the_states_light_and_nothing_else_does():
@@ -59,7 +60,8 @@ def test_the_states_light_and_nothing_else_does():
     assert lit["lock"].lit and lit["lock"].favorite
     assert lit["fmode"].lit and lit["fmode"].favorite
     assert lit["latest"].lit and not lit["shuffle"].lit
-    assert not any(lit[name].lit for name in ("prev", "next", "trash", "reset", "minimize"))
+    assert not any(lit[name].lit for name in (
+        "prev", "next", "trash", "reset", "cycle_version", "minimize"))
     shuffled = dict(zip(_names(_band(latest=False)), _band(latest=False)))
     assert shuffled["shuffle"].lit and not shuffled["latest"].lit
 
@@ -127,7 +129,8 @@ def test_the_faces_are_the_familys_marks_where_it_has_them():
 def test_the_gaps_fall_between_groups_and_nowhere_else():
     for previous, button in pairwise(_band(latest=False)):
         assert button.group_break == (
-            previous.command.removeprefix("portrait_") in ("next", "fmode", "reset", "latest"))
+            previous.command.removeprefix("portrait_")
+            in ("next", "fmode", "reset", "latest", "cycle_version"))
 
 
 def test_the_typed_faces_are_in_the_painters_symbol_face():
@@ -136,3 +139,14 @@ def test_the_typed_faces_are_in_the_painters_symbol_face():
     assert typed
     for face in typed:
         assert typed_in_the_symbol_face(face), ascii(face)
+
+
+def test_the_versions_button_is_dim_where_the_clip_has_only_itself():
+    """The console's own versions mark, and dim where there is nothing to step
+    to — the way the main player's is, with the hover saying so."""
+    alone = {b.command: b for b in _band()}["portrait_cycle_version"]
+    paired = {b.command: b for b in _band(has_other_versions=True)}["portrait_cycle_version"]
+
+    assert alone.dim and "none for this one" in alone.tooltip
+    assert not paired.dim and "none" not in paired.tooltip
+    assert shared_mark_name(CONTROL_FACES["cycle_version"]) == "versions"

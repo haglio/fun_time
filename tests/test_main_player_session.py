@@ -874,6 +874,18 @@ class TestCycleVersion:
 
         assert walked == [upscale, small, original, upscale]
 
+    def test_a_step_back_walks_the_family_the_other_way(self, tmp_path):
+        original, upscale, small = _videos(
+            tmp_path, *_SCENE_ONE, "Jane Doe - scene one-540.mp4")
+        session = _playing([original], _families([original, upscale, small]))
+
+        walked = []
+        for _ in range(4):
+            session.cycle_version(-1)
+            walked.append(session.current_video)
+
+        assert walked == [small, upscale, original, small]
+
     def test_each_step_opens_the_new_file_from_the_beginning(self, tmp_path):
         """Nothing of the old one is preserved -- the versions are the same
         content at different sizes, but mpv is opening a different file."""

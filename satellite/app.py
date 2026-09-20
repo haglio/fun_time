@@ -183,7 +183,7 @@ def _run(args, playlist: list[Path]) -> int:
             # The clip on screen is the session's, not the published panel's — the
             # playlist walks on by itself between publishes — so the HUD is told what
             # is decoding, the same way the main player names its file from its own session.
-            hud.tick(video=session.current_video.stem, playback_speed=session.speed)
+            hud.tick(video=session.name_on_screen, playback_speed=session.speed)
 
         if session.showing_picture:
             player.remove_overlay(_OV_SCRUBBER)

@@ -15,6 +15,7 @@ CONTROL_GROUPS = (
     ("lock", "trash", "fmode"),
     ("reset",),
     ("shuffle", "latest"),
+    ("cycle_version",),
     ("minimize",),
 )
 _GROUP_OF = {name: index for index, group in enumerate(CONTROL_GROUPS) for name in group}
@@ -34,6 +35,7 @@ CONTROL_TOOLTIPS = {
     "reset": "Reset — no filter, no lock, no loop, no F-Mode, shuffled from the top",
     "shuffle": f"{SHUFFLE_LABEL} — reshuffle this player's browse",
     "latest": f"{LATEST_LABEL} — reload this player's browse newest-first",
+    "cycle_version": "Another version of this clip — the upscale or the original it was made from",
     "minimize": "Minimize this player — bring it back from the taskbar",
 }
 MODE_TOOLTIPS = {
@@ -50,14 +52,17 @@ CONTROL_FACES = {
     "trash": shared_mark("trash"), "reset": shared_mark("reset"),
     "shuffle": shared_mark("shuffle"), "latest": shared_mark("latest"),
     "fmode": FMODE_ICON, "minimize": MINIMIZE_ICON,
+    "cycle_version": shared_mark("versions"),
 }
+_NO_OTHER_VERSION = " (none for this one)"
 
 
 def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = False,
                 latest: bool | None = None,
                 satellites_mode: SatellitesMode | None = None,
                 origenerator_ready: bool = True,
-                nothing_to_reset: bool = False) -> tuple[tuple[Button, ...], ...]:
+                nothing_to_reset: bool = False,
+                has_other_versions: bool = False) -> tuple[tuple[Button, ...], ...]:
     names = [name for group in CONTROL_GROUPS for name in group]
     if latest is None:
         names = [name for name in names if name not in _ORDER_CONTROLS]
@@ -67,9 +72,9 @@ def player_rows(player: str, *, locked: bool = False, favorites_filter: bool = F
         rows.append(mode_row(player, satellites_mode=satellites_mode,
                              origenerator_ready=origenerator_ready))
     lit = {"lock": locked, "fmode": favorites_filter, "latest": bool(latest), "shuffle": latest is False}
+    dim = {"reset": nothing_to_reset, "cycle_version": not has_other_versions}
     rows.append(tuple(
-        _control(player, name, lit=lit.get(name, False),
-                 dim=name == "reset" and nothing_to_reset,
+        _control(player, name, lit=lit.get(name, False), dim=dim.get(name, False),
                  group_break=index > 0 and _GROUP_OF[name] != _GROUP_OF[names[index - 1]])
         for index, name in enumerate(names)
     ))
@@ -94,6 +99,9 @@ def _mode_button(command: str, label: str, *, lit: bool, dim: bool) -> Button:
 
 def _control(player: str, name: str, *, lit: bool = False, dim: bool = False,
              group_break: bool) -> Button:
-    return Button(f"{player}_{name}", CONTROL_FACES[name], CONTROL_TOOLTIPS[name],
+    tooltip = CONTROL_TOOLTIPS[name]
+    if dim and name == "cycle_version":
+        tooltip += _NO_OTHER_VERSION
+    return Button(f"{player}_{name}", CONTROL_FACES[name], tooltip,
                   lit=lit, dim=dim, favorite=name in ("lock", "fmode"),
                   danger=name == "trash", group_break=group_break)

@@ -291,14 +291,14 @@ class PlayerSession:
             return None
         return versions
 
-    def cycle_version(self) -> None:
+    def cycle_version(self, step: int = 1) -> None:
         versions = self._other_versions()
         if versions is None:
             return
         videos = [version.path for version in versions]
         self._default_versions.setdefault(videos[0], self.current_video)
         self._playlist[self._index] = versions[
-            (videos.index(self.current_video) + 1) % len(versions)]
+            (videos.index(self.current_video) + step) % len(versions)]
         self.load(self._index)
         self._switching_versions = True
 

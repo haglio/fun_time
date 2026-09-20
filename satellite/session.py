@@ -49,6 +49,8 @@ class SatelliteSession:
         self._index = 0
         self._play_points = play_points or PlayPoints(None)
         self._resume = OwedSeek()
+        self._versions: dict[Path, Path] = {}
+        self._switching_versions = False
         self.load(0)
 
     @property
@@ -64,12 +66,33 @@ class SatelliteSession:
         return self._playlist[self._index]
 
     @property
-    def playlist(self) -> list[Path]:
-        """A copy of the current playlist, so callers cannot mutate it in place.
+    def showing(self) -> Path:
+        """The file on screen: the clip's own, unless a version was stepped to."""
+        return self._versions.get(self.current_video, self.current_video)
 
-        A test seam, kept deliberately: nothing in the app reads it, and the order
-        of the whole list is what the discard, jump and reload tests are about.
-        """
+    def step_version(self, versions: list[Path], delta: int) -> None:
+        showing = self.showing
+        if len(versions) < 2 or showing not in versions:
+            return
+        target = versions[(versions.index(showing) + delta) % len(versions)]
+        clip = self.current_video
+        if target == clip:
+            self._versions.pop(clip, None)
+        else:
+            self._versions[clip] = target
+        self.load(self._index)
+        self._switching_versions = True
+
+    @property
+    def name_on_screen(self) -> str:
+        name = self.current_video.stem
+        if not self._switching_versions and self.showing == self.current_video:
+            return name
+        return f"{name} ({self.showing.name})"
+
+    @property
+    def playlist(self) -> list[Path]:
+        """A copy of the list — a test seam, and nothing in the app reads it."""
         return list(self._playlist)
 
     @property
@@ -151,17 +174,10 @@ class SatelliteSession:
             self._resume.owe(self._play_points.point_for(self.current_video) or None)
 
     def discard(self) -> None:
-        """Drop the current clip from the playlist and play the next one — the
-        satellite's "trash" gesture.
-
-        The next clip shifts into the current index, so re-loading that index
-        lands on it; discarding the last entry wraps to the first.  A satellite
-        must always have something to play, so the final remaining clip cannot be
-        discarded — that is a no-op, never an empty playlist.
-        """
+        """Drop the clip on screen from the list and play the next — "trash"."""
         if len(self._playlist) <= 1:
             return
-        del self._playlist[self._index]
+        self._versions.pop(self._playlist.pop(self._index), None)
         self.load(self._index)
 
     def play_file(self, video: Path) -> None:
@@ -191,23 +207,28 @@ class SatelliteSession:
         if not playlist:
             raise ValueError("playlist must not be empty")
         current = self.current_video
+        chosen = self._versions.get(current)
         self._playlist = list(playlist)
+        self._versions = {} if chosen is None else {current: chosen}
         for i, path in enumerate(self._playlist):
             if path == current:
                 self._index = i
                 self._stage_next()
                 return
+        self._versions = {}
         self.load(0)
 
     def load(self, index: int) -> None:
         self._play_points.leave()
+        self._switching_versions = False
         self._index = index % len(self._playlist)
-        video = self._playlist[self._index]
+        clip = self._playlist[self._index]
+        video = self._versions.get(clip, clip)
         logger.info("Loading: %s", video.name)
         self._player.load(video)
         self._player.set_paused(self._paused)
         self._stage_next()
-        self._resume.owe(self._play_points.point_for(video) or None)
+        self._resume.owe(self._play_points.point_for(clip) or None)
 
     def _stage_next(self) -> None:
         """Hand mpv the upcoming clip so prefetch can open it before it is needed.
@@ -218,7 +239,7 @@ class SatelliteSession:
         if self._locked:
             return
         nxt = self._playlist[(self._index + 1) % len(self._playlist)]
-        self._player.stage_next(nxt)
+        self._player.stage_next(self._versions.get(nxt, nxt))
 
     def close(self) -> None:
         """Tear down the underlying player, whatever thread is still driving it."""

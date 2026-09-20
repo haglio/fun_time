@@ -610,6 +610,73 @@ def test_main_player_cycle_version_writes_main_player_cmd(tmp_path: Path):
     assert config.main_player_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION\n"
 
 
+def test_main_player_cycle_version_back_writes_the_other_way(tmp_path: Path):
+    config = _make_config(tmp_path)
+    state = _make_state(main_mode="video")
+
+    dispatch_command("main_player_cycle_version_back", state, config)
+
+    assert config.main_player_cmd_file.read_text(encoding="utf-8") == "CYCLE_VERSION_BACK\n"
+
+
+def _upscaled_with_an_original(tmp_path: Path) -> tuple[Path, Path, Path]:
+    """A clip as the library files it: the upscale that plays, under a media
+    root, with the sorted original it was made from."""
+    media_root = tmp_path / "videos" / "2D" / "AI"
+    upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
+               / "provider" / "clip_topaz.mp4")
+    original = media_root / "1_sorted" / "provider" / "portrait" / "clip.mp4"
+    for path in (upscale, original):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text("x", encoding="utf-8")
+    return media_root, upscale, original
+
+
+def test_a_side_version_step_sends_the_clips_renditions_to_that_player(tmp_path: Path):
+    media_root, upscale, original = _upscaled_with_an_original(tmp_path)
+    config = _make_config(tmp_path)
+    config.regen_media_root = media_root
+    _set_current(config, Player.PORTRAIT, str(upscale))
+
+    dispatch_command("portrait_cycle_version", _make_state(), config)
+    dispatch_command("portrait_cycle_version_back", _make_state(), config)
+
+    assert _cmds(config, Player.PORTRAIT) == [
+        f"NEXT_VERSION {upscale}|{original}",
+        f"PREV_VERSION {upscale}|{original}",
+    ]
+
+
+def test_a_spoken_version_step_goes_back_to_the_clip_the_speaker_saw(tmp_path: Path):
+    """A satellite can advance while a phrase is being recognized, so the step
+    names the clip that was on screen when it began: the player is brought back
+    to it first, and the versions carried are that clip's."""
+    media_root, upscale, original = _upscaled_with_an_original(tmp_path)
+    config = _make_config(tmp_path)
+    config.regen_media_root = media_root
+    _set_current(config, Player.PORTRAIT, str(tmp_path / "moved on.mp4"))
+
+    dispatch_command("portrait_cycle_version", _make_state(), config, target_path=str(upscale))
+
+    assert _cmds(config, Player.PORTRAIT) == [
+        f"PLAY_FILE {upscale}",
+        f"NEXT_VERSION {upscale}|{original}",
+    ]
+
+
+def test_a_side_version_step_says_so_when_the_clip_has_only_itself(tmp_path: Path):
+    media_root, upscale, original = _upscaled_with_an_original(tmp_path)
+    original.unlink()
+    config = _make_config(tmp_path)
+    config.regen_media_root = media_root
+    _set_current(config, Player.PORTRAIT, str(upscale))
+
+    _state, ops = dispatch_command("portrait_cycle_version", _make_state(), config)
+
+    assert _cmds(config, Player.PORTRAIT) == []
+    assert [op.key for op in ops] == ["No other version"]
+
+
 def test_main_player_toggle_length_writes_toggle_command(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(main_mode=MainMode.VIDEO)
@@ -1245,61 +1312,52 @@ def _nav_config(tmp_path: Path) -> tuple[BridgeConfig, dict[str, str]]:
     })
 
 
-def test_nav_right_switches_to_the_first_seed_and_freezes_the_anchor(tmp_path: Path):
-    """Shift+Right from the corner selects the first seed, switches the satellite
-    to it (like a thumbnail click) and freezes the map on the start clip."""
+def test_nav_down_switches_to_the_first_action_and_freezes_the_anchor(tmp_path: Path):
+    """Shift+Down from the corner selects the first of the subject's other acts,
+    switches the satellite to it (like a thumbnail click) and freezes the map on
+    the start clip."""
     config, paths = _nav_config(tmp_path)
     state = _make_state()
 
     _set_current(config, 2, paths["subject_a"])
-    new_state, ops = dispatch_command("portrait_nav_right", state, config)
+    new_state, ops = dispatch_command("portrait_nav_down", state, config)
 
-    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
     assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]
     assert new_state.active_player == 2
     assert [op.source for op in ops if op.op == "notice"] == ["portrait"]
 
 
-def test_nav_down_switches_to_the_first_action(tmp_path: Path):
-    config, paths = _nav_config(tmp_path)
-    state = _make_state()
-
-    _set_current(config, 2, paths["subject_a"])
-    dispatch_command("portrait_nav_down", state, config)
-
-    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
-
-
-def test_nav_continues_across_the_seed_row_from_the_frozen_anchor(tmp_path: Path):
-    """A second Shift+Right, with the anchor still frozen on subject_a and the
-    satellite now on seed subject_b, steps to the next seed — traversal the frozen
+def test_nav_continues_down_the_column_from_the_frozen_anchor(tmp_path: Path):
+    """A second Shift+Down, with the anchor still frozen on subject_a and the
+    satellite now on its Beta act, steps to the next act — traversal the frozen
     anchor makes possible even though a plain switch would re-home the map."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
-        "subject_b": _cycle_meta("222", "Alpha"),
-        "subject_c": _cycle_meta("333", "Alpha"),
+        "subject_a_beta": _cycle_meta("111", "Beta Massage"),
+        "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
     })
     state = _make_state(portrait=SatelliteState(nav_anchor=paths["subject_a"]))
 
-    _set_current(config, 2, paths["subject_b"])
-    new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_a_beta"])
+    new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
-    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_c']}"]
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
     assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the anchor held
 
 
-def test_nav_past_the_last_seed_wraps_round_to_the_anchor(tmp_path: Path):
-    """The seed row is a ring the anchor heads, so Shift+Right off its last seed
+def test_nav_past_the_last_action_wraps_round_to_the_anchor(tmp_path: Path):
+    """The column is a ring the anchor heads, so Shift+Down off its last act
     comes back round to the anchor instead of stopping — hold the key and you
-    tour the row."""
+    tour the column."""
     config, paths = _make_grouped_config(tmp_path, {
         "subject_a": _cycle_meta("111", "Alpha"),
-        "subject_b": _cycle_meta("222", "Alpha"),
+        "subject_a_zeta": _cycle_meta("111", "Zeta Massage"),
     })
     state = _make_state(portrait=SatelliteState(nav_anchor=paths["subject_a"]))
 
-    _set_current(config, 2, paths["subject_b"])  # the row's only seed — its last
-    new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+    _set_current(config, 2, paths["subject_a_zeta"])  # the column's only act — its last
+    new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
     assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a']}"]
     assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # the ring kept its head
@@ -1371,9 +1429,9 @@ def test_nav_re_anchors_after_the_satellite_drifts_off_the_map(tmp_path: Path):
     state = _make_state(portrait=SatelliteState(nav_anchor="C:/vids/portrait/gone.mp4"))
 
     _set_current(config, 2, paths["subject_a"])
-    new_state, _ops = dispatch_command("portrait_nav_right", state, config)
+    new_state, _ops = dispatch_command("portrait_nav_down", state, config)
 
-    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_b']}"]
+    assert _cmds(config, 2) == [f"PLAY_FILE {paths['subject_a_zeta']}"]
     assert new_state.satellite(Player.PORTRAIT).nav_anchor == paths["subject_a"]  # re-anchored on the live clip
 
 
@@ -1414,12 +1472,12 @@ def test_a_main_player_command_leaves_both_satellite_anchors_alone(
 
 
 def test_landscape_nav_sets_the_active_player(tmp_path: Path):
-    """A landscape nav key (Shift+WASD) makes landscape the active player, so a
+    """A landscape nav key (Shift+W / Shift+S) makes landscape the active player, so a
     later bare command ("lock", "next") resolves to it."""
     config = _make_config(tmp_path)
     state = _make_state()
 
-    new_state, _ops = dispatch_command("landscape_nav_right", state, config)
+    new_state, _ops = dispatch_command("landscape_nav_down", state, config)
 
     assert new_state.active_player == 3
 
@@ -4132,11 +4190,9 @@ class TestOrigeneratorTransport:
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         presses = ("portrait_prev", "portrait_trash", "portrait_lock", "portrait_reset",
-                   "portrait_fmode", "portrait_enhanced", "portrait_shuffle",
-                   "portrait_seed_loop", "portrait_more_seeds",
-                   "portrait_play_video|C:/fixtures/one.png",
-                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop",
-                   "landscape_latest")
+                   "portrait_fmode", "portrait_enhanced", "portrait_seed_loop",
+                   "portrait_more_seeds", "portrait_play_video|C:/fixtures/one.png",
+                   "landscape_lock_video|C:/fixtures/two.png", "landscape_no_loop")
         for command in presses:
             state, _ = dispatch_command(command, state, config)
         assert _origenerator_cmds(config) == list(presses)
