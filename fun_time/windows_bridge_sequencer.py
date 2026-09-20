@@ -37,7 +37,7 @@ from .satellite_slot import SatelliteSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import KeptOrigenerator, forget_the_kept_origenerator, kept_origenerator
 from .shortcuts import resolve_shortcut
-from .standalone_origenerator import take_it_over, the_open_origenerator
+from .standalone_origenerator import claim_the_osr2, take_it_over, the_open_origenerator
 from .win32 import (
     ANSWER_TIMEOUT_MS,
     disable_window_transitions,
@@ -583,6 +583,7 @@ def _launch_the_hosted_origenerator(
     origenerator_dir = m.runtime.origenerator_dir.strip()
     if not origenerator_dir:
         return 0
+    claim_the_osr2(origenerator_dir)
     kept = _adopt_a_kept_origenerator(m)
     if kept is not None:
         return launched.hosts_an_app_already_open(kept.pid, taken_over=kept.taken_over)
