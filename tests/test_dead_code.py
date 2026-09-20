@@ -211,7 +211,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7914 since 2026-09-19, measured on the merged tree, when the main player
 # joined the settle walk: which players it watches, and what each may sit
 # under, is a helper's name and three tests rather than a paragraph.
-MAX_PROSE_LINES = 7914
+# 7912 since 2026-09-20, when the control bar learned its own width: which
+# rectangles it places, and that the width counts them all, is a property's name
+# and two tests rather than a paragraph over the field it used to name.
+MAX_PROSE_LINES = 7912
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.
