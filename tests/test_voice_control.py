@@ -286,6 +286,59 @@ class TestTheListenerItRuns:
 
         assert seen == [("Voice control: audio from the microphone resumed", "system", 25)]
 
+    def test_the_first_words_of_an_utterance_say_the_room_is_working_on_them(
+            self, tmp_path, monkeypatch):
+        """Understanding a phrase can take seconds -- 6.88 of them, for one
+        "enter vr" -- and a room that shows nothing in that time gets told twice.
+        So the moment the recognizer has words forming, it says so."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(msg))
+
+        vc.listener_events.partial("enter")
+
+        assert seen == [voice_control.WORKING_ON_IT]
+
+    def test_it_says_so_once_per_utterance_however_the_words_grow(self, tmp_path, monkeypatch):
+        """The recognizer revises its reading word by word; one line per revision
+        would bury the log under a single sentence."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(msg))
+
+        for forming in ("enter", "enter v", "enter vr"):
+            vc.listener_events.partial(forming)
+
+        assert seen == [voice_control.WORKING_ON_IT]
+
+    def test_the_next_utterance_is_said_to_be_worked_on_again(self, tmp_path, monkeypatch):
+        """An utterance settling clears the reading, and that is what re-arms it."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(msg))
+
+        for forming in ("enter", "enter vr", "", "exit"):
+            vc.listener_events.partial(forming)
+
+        assert seen == [voice_control.WORKING_ON_IT] * 2
+
+    @pytest.mark.parametrize("quieted", ["mute", "suspend"])
+    def test_a_room_not_being_listened_to_is_told_nothing(self, tmp_path, monkeypatch, quieted):
+        """Muted, or held by omnipause, what is said is thrown away -- so saying
+        it is being worked on would be a promise about nothing."""
+        vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")
+        getattr(vc, quieted)()
+        seen = []
+        monkeypatch.setattr(voice_control, "notice",
+                            lambda _log, msg, *, source, level=25: seen.append(msg))
+
+        vc.listener_events.partial("enter")
+
+        assert seen == []
+
     def test_a_listener_that_dies_is_logged_and_does_not_take_the_thread_down(
             self, tmp_path, monkeypatch, caplog):
         vc = VoiceController(cmd_file=tmp_path / "cmd.txt", model_path="unused")

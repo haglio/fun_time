@@ -32,6 +32,8 @@ from fun_time.voice_commands import (
 
 logger = logging.getLogger(__name__)
 
+WORKING_ON_IT = "Figuring out what you said..."
+
 
 def _source_for_command(command: str, active_player: int | None = None) -> str:
     """The event-log source a recognized command's confirmation flashes on.
@@ -140,6 +142,7 @@ class VoiceController:
         self.cmd_file = Path(cmd_file)
         self._muted = threading.Event()
         self._suspended = threading.Event()
+        self._words_forming = False
         # Which player a bare command reaches, asked of the dispatch loop as it
         # is spoken -- the two run in one process.
         self.active_player: Callable[[], int | None] = lambda: None
@@ -152,6 +155,7 @@ class VoiceController:
         )
         self.listener_events = ListenerEvents(
             heard=self.handle_heard,
+            partial=self._say_it_is_being_worked_on,
             recovered=self._announce_the_microphone_is_back,
             keeps_misses=self._is_listening,
         )
@@ -238,6 +242,11 @@ class VoiceController:
         if self._is_listening():
             notice(logger, message, source=_source_for_heard_text(heard_text),
                    level=logging.WARNING)
+
+    def _say_it_is_being_worked_on(self, forming: str) -> None:
+        if forming and not self._words_forming and self._is_listening():
+            notice(logger, WORKING_ON_IT, source=SOURCE_SYSTEM)
+        self._words_forming = bool(forming)
 
     def _announce_the_microphone_is_back(self) -> None:
         notice(logger, "Voice control: audio from the microphone resumed", source=SOURCE_SYSTEM)
