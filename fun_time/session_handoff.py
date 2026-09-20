@@ -14,7 +14,7 @@ from typing import NamedTuple
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 from app_support.threading_utils import start_daemon_thread
-from app_support.win32 import is_mutex_held, mutex_name
+from app_support.win32 import mutex_name
 
 from fun_time.checkout_overrides import genau_project_kwargs
 from fun_time.child_log import no_child_log, open_child_log
@@ -30,7 +30,11 @@ from fun_time.overlay_progress import (
     what_the_flag_asks,
 )
 from fun_time.process_identity import NAMER
-from fun_time.single_instance import MUTEX_ORCHESTRATOR
+from fun_time.single_instance import (
+    MUTEX_ORCHESTRATOR,
+    claim_the_session,
+    let_the_session_go,
+)
 
 # No genau_project_dirs override here: the dispatch loop imports THIS, and the
 # session started below applies its own.  Named, not __name__: `-m` runs this.
@@ -315,12 +319,18 @@ def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget 
     return target
 
 
+def a_session_is_playing(mutex: str) -> bool:
+    claimed = claim_the_session(mutex)
+    let_the_session_go(claimed)
+    return claimed is None
+
+
 def wait_for_the_session_to_let_go(
     mutex: str, *, timeout_s: float = RELEASE_TIMEOUT_S, poll_s: float = _POLL_S,
 ) -> bool:
-    """Block until nobody holds *mutex*; False when the wait ran out."""
+    """Block until no session holds *mutex*; False when the wait ran out."""
     deadline = time.monotonic() + timeout_s
-    while is_mutex_held(mutex):
+    while a_session_is_playing(mutex):
         if time.monotonic() >= deadline:
             return False
         time.sleep(poll_s)

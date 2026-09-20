@@ -3,14 +3,93 @@ it shows.  The mutex itself is app_support.win32's, and tested there."""
 from __future__ import annotations
 
 import ast
+import ctypes
+import threading
 from pathlib import Path
 from unittest.mock import patch
+from uuid import uuid4
 
 from shared_ui.alert import Level
 
 from fun_time import single_instance
 from fun_time.project_paths import PROJECT_ICON
-from fun_time.single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
+from fun_time.single_instance import (
+    MUTEX_ORCHESTRATOR,
+    claim_the_session,
+    let_the_session_go,
+    show_already_running_message,
+)
+
+
+class TestClaimingTheSession:
+    """What tells a second launch that a session is already playing."""
+
+    def _a_name(self) -> str:
+        return f"Local\\FunTimeTest.{uuid4().hex}"
+
+    def test_a_name_nobody_holds_is_claimed(self):
+        claimed = claim_the_session(self._a_name())
+
+        assert claimed
+        let_the_session_go(claimed)
+
+    def test_a_name_a_live_session_holds_is_refused(self):
+        """Asked from a thread of its own, because ownership is a thread's: the
+        second launch is another process, and this is the nearest a test gets."""
+        name = self._a_name()
+        first = claim_the_session(name)
+
+        assert _claimed_elsewhere(name) is None
+
+        let_the_session_go(first)
+
+    def test_the_name_is_free_again_once_that_session_lets_go(self):
+        name = self._a_name()
+        let_the_session_go(claim_the_session(name))
+
+        second = claim_the_session(name)
+
+        assert second
+        let_the_session_go(second)
+
+    def test_a_name_left_behind_by_a_session_nothing_is_playing_from_is_claimed(self):
+        """Windows keeps a mutex alive while any handle to it is open, and a
+        session whose process it has not finished reaping still holds one -- so
+        a launch that refused on the name alone refused for as long as the
+        machine was up, with no Fun Time running at all.  Ownership is what says
+        a session is live, and this name is owned by nobody."""
+        name = self._a_name()
+        left_behind = _left_behind(name)
+
+        claimed = claim_the_session(name)
+
+        assert claimed
+        let_the_session_go(claimed)
+        _close(left_behind)
+
+
+def _claimed_elsewhere(name: str) -> int | None:
+    """What a claim from another thread answers -- a mutex is re-entrant for the
+    thread that owns it, so one from this thread would say yes to itself."""
+    answer: list[int | None] = []
+    thread = threading.Thread(target=lambda: answer.append(claim_the_session(name)))
+    thread.start()
+    thread.join()
+    let_the_session_go(answer[0])
+    return answer[0]
+
+
+def _left_behind(name: str) -> int:
+    """A handle to *name* that owns nothing, as a session that died leaves."""
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CreateMutexW.restype = ctypes.c_void_p
+    return kernel32.CreateMutexW(None, False, name)
+
+
+def _close(handle: int) -> None:
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    kernel32.CloseHandle.argtypes = [ctypes.c_void_p]
+    kernel32.CloseHandle(ctypes.c_void_p(handle))
 
 
 def test_the_mutex_name_is_the_one_every_running_session_was_started_under():
