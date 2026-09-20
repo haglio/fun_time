@@ -20,6 +20,7 @@ from player_core.file_channel import read_paused_state
 from .audio_companion_runtime import AudioCompanionRuntime
 from .audio_volume import MAX_VOLUME, read_volume
 from .config import load_config
+from .win32_desktop import on_hidden_desktop
 
 SUPPORTED_EXTS = [".mp3", ".wav", ".ogg", ".flac", ".m4a"]
 
@@ -61,8 +62,9 @@ def init_mixer(wanted: str | None) -> str | None:
 
 
 def force_muted() -> bool:
-    """Whether this run must stay silent whatever the bridge publishes."""
-    return os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+    """Silent whatever the bridge publishes: by the ``FUN_TIME_MUTE_AUDIO`` contract
+    or being off-screen, so a hidden-desktop run cannot be heard either way."""
+    return os.environ.get("FUN_TIME_MUTE_AUDIO") == "1" or on_hidden_desktop()
 
 
 def find_audio(audio_folder: Path, stem: str) -> Path | None:
