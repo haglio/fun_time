@@ -23,9 +23,9 @@ from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
 
 from .gl_contexts import SharedContexts, hidden_gl_window
 from .pointer import LEFT, RIGHT, HandInput
+from .retiring import RetiredSwapchain, advance_retirements
 
 logger = logging.getLogger(__name__)
-
 
 
 @dataclass
@@ -50,10 +50,6 @@ class QuadLayer:
     orientation: tuple[float, float, float, float]
     size: tuple[float, float]
 
-
-# A retired quad swapchain may still be referenced by the frames in flight,
-# so destruction waits this many frame_end calls.
-_RETIRE_AFTER_FRAMES = 3
 
 STICK = "thumbstick"
 AIM = "aim"
@@ -133,7 +129,7 @@ class VRSession:
         self._session_begun = False
         self.swapchains: list[SwapchainInfo] = []
         self.quad_swapchains: dict[int, SwapchainInfo] = {}
-        self._retiring: list[list] = []  # [frames_left, xr.Swapchain]
+        self._retiring: list[RetiredSwapchain] = []
         self._period_logged = False
         self.view_config_views: list[xr.ViewConfigurationView] = []
         self._fbo = 0
@@ -394,7 +390,7 @@ class VRSession:
         if existing is not None and (existing.width, existing.height) == (width, height):
             return
         if existing is not None:
-            self._retiring.append([_RETIRE_AFTER_FRAMES, existing.handle])
+            self._retiring.append(RetiredSwapchain(existing.handle))
         self.quad_swapchains[index] = self._make_swapchain(width, height)
         logger.info("Quad swapchain %d: %dx%d", index, width, height)
 
@@ -618,11 +614,9 @@ class VRSession:
                 layers=layers,
             ),
         )
-        for entry in self._retiring:
-            entry[0] -= 1
-        for entry in [entry for entry in self._retiring if entry[0] <= 0]:
-            self._retiring.remove(entry)
-            xr.destroy_swapchain(entry[1])
+        self._retiring, done_waiting = advance_retirements(self._retiring)
+        for handle in done_waiting:
+            xr.destroy_swapchain(handle)
 
     # ------------------------------------------------------------------
     # Cleanup
@@ -640,8 +634,8 @@ class VRSession:
                 xr.destroy_swapchain(info.handle)
             for info in self.quad_swapchains.values():
                 xr.destroy_swapchain(info.handle)
-            for _frames_left, handle in self._retiring:
-                xr.destroy_swapchain(handle)
+            for retired in self._retiring:
+                xr.destroy_swapchain(retired.handle)
             for space in self._aim_spaces.values():
                 xr.destroy_space(space)
             if self._space is not None:
