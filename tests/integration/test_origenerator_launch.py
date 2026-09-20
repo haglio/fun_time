@@ -31,6 +31,7 @@ import pytest
 
 from fun_time.config import load_config
 from fun_time.window_layout import WindowLayoutPlan, WindowRect
+from fun_time.window_roles import ORIGENERATOR_TITLE
 from fun_time.windows_bridge_startup import (
     HandedPlayer,
     origenerator_interpreter,
@@ -202,3 +203,46 @@ def test_the_command_under_test_is_the_one_production_builds(tmp_path):
     assert command[command.index("--landscape-hud-file") + 1] == str(
         tmp_path / "origenerator_landscape_hud.json")
     assert origenerator_launch_kwargs(origenerator_dir=checkout)["cwd"] == str(checkout)
+
+
+def _the_contract_it_publishes(checkout: Path) -> dict:
+    """What the hosted app says its launch takes and its window is called.
+
+    Read from the checkout this session would actually start, which is the
+    only place the two sides can be compared: neither repo installs the other,
+    so nothing in either one's own gate can see both.
+    """
+    import json
+
+    published = Path(checkout) / "origenerator_contract.json"
+    if not published.exists():
+        pytest.skip(f"the hosted app publishes no contract at {published}")
+    return json.loads(published.read_text(encoding="utf-8"))
+
+
+def test_this_session_sends_exactly_the_flags_the_hosted_app_declares(tmp_path):
+    """The drift that used to go unseen, in both directions: a flag renamed
+    over there killed the launch in argparse, and one this session stopped
+    sending fell through to a default of nothing at all."""
+    checkout, python_exe = _hosted_checkout_and_python()
+    published = _the_contract_it_publishes(checkout)
+    command = origenerator_launch_command(
+        python_exe=python_exe, layout_plan=_PLAN,
+        command_file=tmp_path / "c.txt", paused_file=tmp_path / "p.txt",
+        status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
+        players=_players(tmp_path),
+    )
+    declared = [*published["required_flags"],
+                *(flag for side in published["player_flags"]
+                  for flag in published["player_flags"][side])]
+
+    assert [word for word in command if word.startswith("--")] == declared
+    assert command[1:3] == ["-m", published["module"]]
+
+
+def test_the_caption_this_session_resolves_it_by_is_the_one_it_wears():
+    """Resolved by caption as well as by pid, because a standalone one of his
+    owns a window with the same name."""
+    checkout, _python_exe = _hosted_checkout_and_python()
+
+    assert _the_contract_it_publishes(checkout)["window_title"] == ORIGENERATOR_TITLE

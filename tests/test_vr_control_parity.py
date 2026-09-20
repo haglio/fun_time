@@ -111,6 +111,7 @@ def _vr_config(tmp_path: Path) -> BridgeConfig:
         broker_mode_file=state_dir / "broker_mode.txt",
         genau_cmd_file=state_dir / "genau_cmd.txt",
         genau_paused_file=state_dir / "genau_paused.txt",
+        genau_status_file=state_dir / "genau_status.txt",
         audio_paused_file=state_dir / "audio_paused.txt",
         audio_volume_file=state_dir / "audio_volume.txt",
         main_player_cmd_file=state_dir / "main_player_cmd.txt",

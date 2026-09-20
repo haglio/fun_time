@@ -73,7 +73,7 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import NOTICE, SOURCE_MAIN, EventLogHandler, event_log_path, notice
 from fun_time.manifest import LaunchManifest
 from fun_time.modes import scripted_item
-from fun_time.player_status import genau_status_path, read_genau_status, read_main_player_status
+from fun_time.player_status import read_genau_status, read_main_player_status
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.session_handoff import (
     headset_hold_asked,
@@ -806,7 +806,7 @@ class _GenauUnit:
             ),
             stop_event=stop,
             # Genau's own resume: the clip it was left showing, off its last status.
-            start_clip=read_genau_status(genau_status_path(genau_state)).clip or None,
+            start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
         )
         self.texture = FrameTexture()
         self.screen = _HangingScreen(placement)

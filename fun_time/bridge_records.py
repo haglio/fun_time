@@ -37,6 +37,7 @@ class BridgeConfig:
     broker_mode_file: Path
     genau_cmd_file: Path
     genau_paused_file: Path
+    genau_status_file: Path
     audio_paused_file: Path
     audio_volume_file: Path
     main_player_cmd_file: Path

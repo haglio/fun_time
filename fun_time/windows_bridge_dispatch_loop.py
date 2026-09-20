@@ -1013,6 +1013,7 @@ def build_bridge_config_from_manifest(
         broker_mode_file=Path(commands.broker_mode_file),
         genau_cmd_file=Path(commands.genau_cmd_file),
         genau_paused_file=Path(commands.genau_paused_file),
+        genau_status_file=Path(commands.genau_status_file),
         audio_paused_file=Path(commands.audio_paused_file),
         audio_volume_file=Path(commands.audio_volume_file),
         main_player_cmd_file=Path(commands.main_player_cmd_file),

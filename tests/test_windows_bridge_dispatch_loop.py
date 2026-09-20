@@ -101,6 +101,7 @@ def make_config(tmp_path, **overrides) -> BridgeConfig:
         broker_mode_file=tmp_path / "rh_mode.txt",
         genau_cmd_file=tmp_path / "rh_cmd.txt",
         genau_paused_file=tmp_path / "rh_paused.txt",
+        genau_status_file=tmp_path / "genau_status.txt",
         audio_paused_file=tmp_path / "audio_paused.txt",
         audio_volume_file=tmp_path / "audio_volume.txt",
         main_player_cmd_file=tmp_path / "main_player_cmd.txt",
