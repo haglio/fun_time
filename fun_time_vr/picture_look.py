@@ -9,7 +9,6 @@ from app_support.threading_utils import start_daemon_thread
 
 from .picture_shape import FISHEYE_CIRCLE, FULL_FRAME, shape_of
 
-LOOK_HEIGHT_PX = 128
 # The library's fisheye recordings open on up to half a minute of black, which
 # says nothing; three minutes of looks outlasts that with room to spare.
 BETWEEN_LOOKS_S = 2.0
@@ -18,9 +17,16 @@ _LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
 
 
 class PictureLook:
-    def __init__(self, player, *, start_thread=start_daemon_thread,
+    """What a VR video's own picture shows, read while it plays.
+
+    The frame comes from the thread that paints it (:mod:`fun_time_vr.video_thread`):
+    asking mpv for a screenshot instead is "No render context set" from anywhere
+    but that thread, and the ask wedged the player (2026-09-20).
+    """
+
+    def __init__(self, video, *, start_thread=start_daemon_thread,
                  sleep: Callable[[float], None] = time.sleep) -> None:
-        self._player = player
+        self._video = video
         self._start_thread = start_thread
         self._sleep = sleep
         self._latest_look: object = None
@@ -34,6 +40,7 @@ class PictureLook:
 
     def _look(self, look: object, video: Path, on_shape: Callable[[Path, str], None]) -> None:
         seen: Counter[str] = Counter()
+        self._video.ask_for_a_still()
         for _ in range(LOOKS):
             self._sleep(BETWEEN_LOOKS_S)
             shape = self._shape_on_screen()
@@ -47,10 +54,8 @@ class PictureLook:
                 return
 
     def _shape_on_screen(self) -> str | None:
-        if self._player.duration_ms <= 0:
+        if self._video.duration_ms <= 0:
             return None
-        try:
-            frame = self._player.screenshot_bgra(LOOK_HEIGHT_PX)
-        except SystemError:
-            return None
+        frame = self._video.take_a_still()
+        self._video.ask_for_a_still()  # for the look after this one
         return None if frame is None else shape_of(frame[..., :3].max(axis=2))

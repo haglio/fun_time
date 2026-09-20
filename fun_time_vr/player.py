@@ -556,10 +556,10 @@ class _MainUnit(_VideoUnit):
                 Path(commands.state_dir) / play_points_filename("main_player")),
         )
         self._genau_role = genau_role  # the other player the main slot can be showing
-        # A VR video nobody has chosen a projection for gets its picture read, on
-        # a thread of its own: a fisheye circle found there opens it as a fisheye
-        # rather than pinching its nadir as a 180 equirect.
-        self.role.look_with(PictureLook(self.player))
+        # A VR video nobody has chosen a projection for gets its picture read off
+        # the thread that paints it: a fisheye circle found there opens it as a
+        # fisheye rather than drawing its lower edge into a point as a 180 does.
+        self.role.look_with(PictureLook(self.video))
         # The panel's forecasts of Genau's publish, and the touch each status carries.
         self.drive_gate = DriveGate(self.role)
         self._audio_device = vr.audio_device.strip()
@@ -608,7 +608,7 @@ class _MainUnit(_VideoUnit):
 
     @property
     def wraps_the_viewer(self) -> bool:
-        return immersive_mode(self.role.projection_of(self.target.video)) is not None
+        return immersive_wrap(self.role.projection_of(self.target.video)) is not None
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
@@ -963,7 +963,7 @@ class _GenauUnit:
 
     @property
     def wraps_the_viewer(self) -> bool:
-        return immersive_mode(self.role.projection) is not None
+        return immersive_wrap(self.role.projection) is not None
 
     def render_latest_frame(self) -> None:
         frame = self.role.take_frame()

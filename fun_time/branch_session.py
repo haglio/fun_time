@@ -6,23 +6,20 @@ project's CLAUDE.md says how an agent hands one over (``--shortcut``, then
 ``--remove-shortcut`` once it lands); this is what such a session IS.
 
 **It replaces the live one; it never runs beside it.**  Nearly everything a
-session touches is one-per-machine with no per-directory version — the
-``#SingleInstance Force`` hotkey shell, the three UDP endpoints and the loopback
-port, the microphone, the broker holding the OSR2's serial port, the monitors.
-The integration suite escapes all of that on a hidden desktop with those
-endpoints stripped; a session being watched on the real screen cannot.  So
-rather than isolate them, two sessions are made impossible: the generated config
-carries the live session's ``instance_id``, so both take the *same*
-single-instance mutex and whichever starts second is refused.
+session touches is one-per-machine -- the ``#SingleInstance Force`` hotkey shell,
+the three UDP endpoints and the loopback port, the microphone, the broker holding
+the OSR2's serial port, the monitors.  The integration suite escapes that on a
+hidden desktop with those endpoints stripped; a session watched on the real
+screen cannot.  So two sessions are made impossible instead: the generated config
+carries the live session's ``instance_id``, so both take the *same* mutex and
+whichever starts second is refused.
 
-What a branch session does get of its own is ``state/`` — command files,
-playlists, logs, thumbnails, resume point — so a half-finished branch cannot
-corrupt what the live session reads back.  Everything else is deliberately the
-real thing, because a verification run on fixtures verifies fixtures.  The
-broker's files are the exception inside that exception: they live in ``state/``
-but belong to ``../broker``, which opens them from one directory named in its
-own config and never learns a session moved, so they stay pinned to the
-primary's (``paths.broker_state_dir``).
+What a branch session gets of its own is ``state/`` -- command files, playlists,
+logs, thumbnails, resume point -- so a half-finished branch cannot corrupt what
+the live session reads back.  Everything else is deliberately the real thing,
+because a verification run on fixtures verifies fixtures.  The broker's files are
+the exception inside that: they live in ``state/`` but belong to ``../broker``,
+which never learns a session moved, so they stay pinned to the primary's.
 """
 from __future__ import annotations
 
