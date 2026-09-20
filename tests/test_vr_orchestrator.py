@@ -519,7 +519,7 @@ class TestTheCheckRun:
 
         assert orchestrator.logger.name == "fun_time_vr.orchestrator"
 
-        tree = ast.parse(inspect.getsource(orchestrator.main))
+        tree = ast.parse(inspect.getsource(orchestrator.set_up_logging))
         call = next(
             node for node in ast.walk(tree)
             if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)

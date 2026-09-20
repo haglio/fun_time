@@ -21,6 +21,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 import pygame
+from app_support.logging_utils import install_exception_logging
 from app_support.win32 import set_app_user_model_id
 from player_core.file_channel import consume_command_file, read_paused_state
 from player_core.mpv_player import MpvPlayer
@@ -72,8 +73,15 @@ def _load_icon_surface():
         return None
 
 
-def main(argv: list[str] | None = None) -> int:
+def set_up_logging() -> logging.Logger:
+    """This process's own log, and its own crash in it."""
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    install_exception_logging(logger)
+    return logger
+
+
+def main(argv: list[str] | None = None) -> int:
+    set_up_logging()
     args = build_parser().parse_args(argv)
     playlist = resolve_playlist(args)
     if not playlist:

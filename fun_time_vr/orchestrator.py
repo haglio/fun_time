@@ -472,8 +472,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     open_event_log(state_dir)
     manifest = LaunchManifest.read(manifest_path)
     # The dispatch loop and voice controller log under fun_time.*, which
-    # configure_logging wired up for fun_time_vr.orchestrator alone; without this
-    # they reach only the event log open_event_log has just truncated.
+    # set_up_logging wired for fun_time_vr.orchestrator alone.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
     bridge_config = build_bridge_config_from_manifest(manifest, vr_main_player=True)
     commands = manifest.commands
@@ -779,12 +778,17 @@ def _release_vr_runtime(was_up: bool) -> None:
     vr_runtime.stop_runtime()
 
 
+def set_up_logging(config) -> logging.Logger:
+    configure_logging(logger.name, config.log_file("vr_orchestrator"), console=True)
+    install_exception_logging(logger)
+    return logger
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
-    configure_logging(logger.name, config.log_file("vr_orchestrator"), console=True)
-    install_exception_logging(logger)
+    set_up_logging(config)
 
     # Mirrors fun_time.orchestrator.main.
     from app_support.win32 import mutex_name
