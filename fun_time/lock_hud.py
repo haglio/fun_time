@@ -293,6 +293,145 @@ class SatelliteInputs:
     has_other_versions: bool = False
 
 
+@dataclass(frozen=True)
+class _MapHold:
+    """Which clip the map hangs on, and what is holding it there."""
+
+    anchor: str
+    active_loop: str = ""
+    held: bool = False
+    nav_cell: Cell | None = None
+
+    @property
+    def nav_frozen(self) -> bool:
+        return self.nav_cell is not None
+
+
+@dataclass(frozen=True)
+class _Map:
+    """The cells drawn around one panel's anchor, and which of them is on screen."""
+
+    seed: list[str]
+    action: list[str]
+    current_action: str
+    action_labels: tuple[str, ...]
+    playing: str
+    seed_count: int
+    action_count: int
+
+    @classmethod
+    def unmapped(cls, anchor: str) -> _Map:
+        """No clip on screen, or no index to place one in: the panel draws no map,
+        and the counts read zero rather than the one clip an axis always has."""
+        return cls([], [], "", (), anchor, 0, 0)
+
+
+def _looping_group(
+    index: GroupIndex, inputs: SatelliteInputs, widened_pool: list[str], pool_keys: set[str]
+) -> list[str]:
+    """The set a running loop is playing — its map is the loop."""
+    if inputs.loop_axis == "action":
+        return action_group_items(index, inputs.current)
+    if normalize_path_key(inputs.current) in pool_keys:
+        return widened_pool
+    return seed_family_items(index, inputs.current)
+
+
+def _resolve_anchor(
+    index: GroupIndex, inputs: SatelliteInputs, widened_pool: list[str], pool_keys: set[str]
+) -> _MapHold:
+    """A loop wins over a map that was already held, which wins over keyboard
+    navigation; each falls back to the clip on screen once its own reason has run
+    out — a loop of one clip, a held map the browse walked off, a nav anchor whose
+    walk landed off the map."""
+    if inputs.loop_axis in ("seed", "action"):
+        group = _looping_group(index, inputs, widened_pool, pool_keys)
+        if len(group) >= 2:
+            return _MapHold(_map_anchor_in(group, inputs.map_anchor), inputs.loop_axis, held=True)
+    elif inputs.map_anchor and _axis_holding(index, inputs.map_anchor, inputs.current, widened_pool):
+        return _MapHold(inputs.map_anchor, held=True)
+    elif inputs.nav_anchor and normalize_path_key(inputs.nav_anchor) != normalize_path_key(inputs.current):
+        nav_seed, nav_action = hud_map_cells(index, inputs.nav_anchor)
+        cell = locate_cell(inputs.current, inputs.nav_anchor, nav_seed, nav_action)
+        if cell is not None:
+            return _MapHold(inputs.nav_anchor, nav_cell=cell)
+    return _MapHold(inputs.current)
+
+
+def _axis_shown(
+    index: GroupIndex, hold: _MapHold, inputs: SatelliteInputs, widened_pool: list[str]
+) -> str:
+    """Which axis of a held or frozen map the live clip sits on: the cell the map
+    lights, and — when it is the seed row — whose acts the column shows."""
+    if hold.held:
+        return hold.active_loop or _axis_holding(index, hold.anchor, inputs.current, widened_pool)
+    return hold.nav_cell[0] if hold.nav_cell is not None else ""
+
+
+def _row_is_widened(
+    inputs: SatelliteInputs, widened_pool: list[str], pool_keys: set[str], *, held: bool
+) -> bool:
+    """Is the seed row the widened pool?
+
+    While the map is held, that is settled by the clip on screen being somewhere
+    in the pool the row already drew — so the row keeps its width across a loop's
+    advances and across the loop ending.  Off any hold, the widen applies only
+    while its own clip is on screen, so a plain auto-advance drops it.
+    """
+    if not widened_pool:
+        return False
+    if held:
+        return normalize_path_key(inputs.current) in pool_keys
+    return normalize_path_key(inputs.current) == normalize_path_key(inputs.widen_clip)
+
+
+def _seed_row(index: GroupIndex, hold: _MapHold, widened_pool: list[str], *, widen: bool) -> list[str]:
+    """The clips out along the row.  Navigation walks the exact family (never
+    widened), so a nav-frozen map matches what the keys can reach."""
+    if widen and not hold.nav_frozen:
+        return _others(widened_pool, hold.anchor)
+    return _others(seed_family_items(index, hold.anchor), hold.anchor)
+
+
+def _action_column(index: GroupIndex, hold: _MapHold, current: str, axis: str) -> list[str]:
+    """The clips down the column, which belong to the cell the seed row lights:
+    an action group is keyed by seed, so the seed a held map is playing has other
+    acts of its own to step down into.  A running action loop is the exception —
+    it cycles the whole group, twins of one act included, so one clip per distinct
+    act would collapse a two-clip loop to a single row."""
+    if hold.active_loop == "action":
+        return _others(action_group_items(index, hold.anchor), hold.anchor)
+    return _distinct_action_siblings(index, current if axis == "seed" else hold.anchor)
+
+
+def _map_around(
+    index: GroupIndex, hold: _MapHold, inputs: SatelliteInputs,
+    widened_pool: list[str], pool_keys: set[str],
+) -> _Map:
+    """The whole L drawn around *hold*'s anchor, and the cell lit inside it."""
+    axis = _axis_shown(index, hold, inputs, widened_pool)
+    widen = _row_is_widened(inputs, widened_pool, pool_keys, held=hold.held)
+    seed = _seed_row(index, hold, widened_pool, widen=widen)
+    action = _action_column(index, hold, inputs.current, axis)
+    if hold.held:
+        playing = _playing_item(index, hold.anchor, inputs.current, action, axis)
+    elif hold.nav_frozen:
+        playing = inputs.current  # the live clip is exactly the cell to light
+    else:
+        playing = hold.anchor
+    return _Map(
+        seed=seed,
+        action=action,
+        current_action=index.action_by_path.get(normalize_path_key(hold.anchor), ""),
+        action_labels=tuple(
+            index.action_by_path.get(normalize_path_key(item), "") for item in action
+        ),
+        playing=playing,
+        seed_count=len(seed) + 1,
+        action_count=len(action) + 1,
+    )
+
+
 def build_hud_panel(
     inputs: SatelliteInputs,
     *,
@@ -303,10 +442,6 @@ def build_hud_panel(
 ) -> HudPanel:
     """One side's HUD panel, from everything that side is (:class:`SatelliteInputs`).
 
-    The action column collapses to one clip per distinct other act, and belongs
-    to the cell the seed row lights: the corner normally, the seed actually
-    playing while a held or frozen map is out along the row.  An action group is
-    seed-scoped, so those are that very seed's other acts.
     ``inputs.widen_clip`` names the clip the seed row was widened around ("more
     seeds"); while it is in force the row grows past the exact parameter set to
     the clips nearest that one's scene.
@@ -317,114 +452,37 @@ def build_hud_panel(
     ``playing`` marks the cell on screen.  It holds on after the loop is
     switched off for as long as the clip on screen is still one of the map's
     cells, so ending a loop takes away the loop's chrome and nothing else.
-    ``inputs.loop_axis`` names only whether a loop is actually *running*.
-
+    ``inputs.loop_axis`` names only whether a loop is actually *running*, and
     ``inputs.nav_anchor`` hangs the map the same way for keyboard navigation.
-    A loop wins over it.
     """
-    have_siblings = bool(inputs.current) and index is not None
-    # The widened pool, ranked once around *inputs.widen_clip* and reused: ranking it again
-    # from another item would score a different set and shuffle the row underneath
-    # a map that is supposed to be holding still.
-    widened_pool = widened_seed_items(index, inputs.widen_clip) if have_siblings and inputs.widen_clip else []
-    pool_keys = {normalize_path_key(item) for item in widened_pool}
-    anchor = inputs.current
-    active_loop = ""
-    map_held = False
-    nav_frozen = False
-    nav_cell: Cell | None = None
-    if have_siblings and inputs.loop_axis in ("seed", "action"):
-        if inputs.loop_axis == "action":
-            group = action_group_items(index, inputs.current)
-        elif normalize_path_key(inputs.current) in pool_keys:
-            group = widened_pool
-        else:
-            group = seed_family_items(index, inputs.current)
-        if len(group) >= 2:
-            anchor = _map_anchor_in(group, inputs.map_anchor)
-            active_loop = inputs.loop_axis
-            map_held = True
-    elif have_siblings and inputs.map_anchor and _axis_holding(index, inputs.map_anchor, inputs.current, widened_pool):
-        anchor = inputs.map_anchor
-        map_held = True
-    elif have_siblings and inputs.nav_anchor and normalize_path_key(inputs.nav_anchor) != normalize_path_key(inputs.current):
-        nav_seed, nav_action = hud_map_cells(index, inputs.nav_anchor)
-        nav_cell = locate_cell(inputs.current, inputs.nav_anchor, nav_seed, nav_action)
-        if nav_cell is not None:
-            anchor = inputs.nav_anchor
-            nav_frozen = True
-    # Which axis of a held or frozen map the live clip sits on: the cell the map
-    # lights, and — when it is the seed row — whose acts the column shows.
-    if map_held:
-        on_axis = active_loop or _axis_holding(index, anchor, inputs.current, widened_pool)
-    elif nav_frozen and nav_cell is not None:
-        on_axis = nav_cell[0]
+    if index is None or not inputs.current:
+        hold, drawn = _MapHold(inputs.current), _Map.unmapped(inputs.current)
     else:
-        on_axis = ""
-    # Is the row the widened pool?  While the map is held, that is settled by the
-    # clip on screen being somewhere in the pool the row already drew — so the row
-    # keeps its width across a loop's advances and across the loop ending.  Off any
-    # hold, the widen applies only while its own clip is on screen, so a plain
-    # auto-advance drops it.  Navigation walks the exact family (never widened), so
-    # a nav-frozen map matches what the keys can reach.
-    widen = bool(widened_pool) and (
-        normalize_path_key(inputs.current) in pool_keys if map_held
-        else normalize_path_key(inputs.current) == normalize_path_key(inputs.widen_clip)
-    )
-    if not have_siblings:
-        seed = []
-    elif widen and not nav_frozen:
-        seed = _others(widened_pool, anchor)
-    else:
-        seed = _others(seed_family_items(index, anchor), anchor)
-    # The action column belongs to the cell the seed row lights.  An action group
-    # is keyed by seed, so each seed out along the row has other acts of its own —
-    # and while a held map plays a non-corner seed, those are the acts you would
-    # step down into.  Hanging the corner's acts there offered only the corner
-    # seed's other acts, however far along the row playback had got.
-    column_clip = inputs.current if on_axis == "seed" else anchor
-    if not have_siblings:
-        action = []
-    elif active_loop == "action":
-        # A running action loop cycles the subject's whole group — twins of one act
-        # included — so the column has to be that group: the map of a loop is the
-        # loop, which is how the seed row already reads.  One clip per distinct act
-        # is the *browse* map's answer, and leaving it here collapsed a two-clip loop
-        # of a single act to one row, with the corner staying lit while the loop
-        # played a clip that was never drawn.
-        action = _others(action_group_items(index, anchor), anchor)
-    else:
-        action = _distinct_action_siblings(index, column_clip)
-    current_action = ""
-    action_labels: tuple[str, ...] = ()
-    playing = anchor
-    if have_siblings:
-        current_action = index.action_by_path.get(normalize_path_key(anchor), "")
-        action_labels = tuple(
-            index.action_by_path.get(normalize_path_key(item), "") for item in action
-        )
-        if map_held:
-            playing = _playing_item(index, anchor, inputs.current, action, on_axis)
-        elif nav_frozen:
-            playing = inputs.current  # the live clip is exactly the cell to light
+        # The widened pool, ranked once around *inputs.widen_clip* and reused: ranking it again
+        # from another item would score a different set and shuffle the row underneath
+        # a map that is supposed to be holding still.
+        widened_pool = widened_seed_items(index, inputs.widen_clip) if inputs.widen_clip else []
+        pool_keys = {normalize_path_key(item) for item in widened_pool}
+        hold = _resolve_anchor(index, inputs, widened_pool, pool_keys)
+        drawn = _map_around(index, hold, inputs, widened_pool, pool_keys)
     return HudPanel(
         player=inputs.player,
         locked=inputs.locked,
-        lock_label=_status_label(inputs.locked, active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
+        lock_label=_status_label(inputs.locked, hold.active_loop, inputs.latest, inputs.filter_query, inputs.favorites_filter),
         is_favorite=inputs.is_favorite,
         favorites_filter=inputs.favorites_filter,
         latest=inputs.latest,
-        current=anchor,
-        seed_siblings=seed,
-        action_siblings=action,
-        current_action=current_action,
-        action_labels=action_labels,
-        seed_count=len(seed) + 1 if have_siblings else 0,
-        action_count=len(action) + 1 if have_siblings else 0,
+        current=hold.anchor,
+        seed_siblings=drawn.seed,
+        action_siblings=drawn.action,
+        current_action=drawn.current_action,
+        action_labels=drawn.action_labels,
+        seed_count=drawn.seed_count,
+        action_count=drawn.action_count,
         filter_query=inputs.filter_query,
         active=active,
-        active_loop=active_loop,
-        playing=playing,
+        active_loop=hold.active_loop,
+        playing=drawn.playing,
         satellites_mode=satellites_mode,
         origenerator_ready=origenerator_ready,
         nothing_to_reset=inputs.nothing_to_reset,
