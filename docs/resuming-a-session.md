@@ -73,6 +73,18 @@ satellite HUDs draw that button dim. An Origenerator that was already open when
 the session began — one he opened himself and the session took over, or one a
 crossing kept — has no boot left to wait out, so its mode is open from the start.
 
+Dropping the mode means putting back what the mode took. While the hosted app
+has a satellite, that player's playlist file holds the app's pictures and the
+session's own list waits beside it (`fun_time.player_handover`). A session quit
+there, or killed there, never brings the player home — so `resume_playlists`
+takes every kept list back before it reads anything, and a room built in video
+mode opens on video lists, at the clip each side was showing when it left.
+Without that, the session after a quit in origenerator mode opened in video mode
+on two locked pictures, each with a one-square map and nothing to step to
+(2026-09-19). The kept lists are taken back even when the resume goes on to find
+nothing to resume: one that outlived the rebuild would be dealt over it the next
+time that player came home.
+
 ## The things that have to be re-sent
 
 A satellite's lock is repeat-one in mpv's own `loop_file`, and the main player's

@@ -17,6 +17,7 @@ from player_core.playlist import PlaylistItem, read_playlist, write_playlist
 
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto, source_roots
+from .player_handover import take_back_the_list
 from .players import Player
 from .runtime_flow import SET_LOOP_CMD
 from .shared_state import (
@@ -140,6 +141,8 @@ def resume_playlists(resumptions: Sequence[tuple[Path, str]]) -> bool:
     is not — a first run, a wiped state dir — and the caller builds fresh
     instead.  All or nothing (docs/resuming-a-session.md).
     """
+    for playlist_file, _ in resumptions:
+        take_back_the_list(playlist_file)
     rotated: list[tuple[Path, PlaylistEntries]] = []
     for playlist_file, last_video in resumptions:
         entries = _surviving_entries(playlist_file)
