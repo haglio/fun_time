@@ -686,7 +686,7 @@ def test_the_toasts_start_held_exactly_when_the_panel_starts_hidden(
     from fun_time.event_log import NOTICE
 
     with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
-         patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
+         patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
         assert window._reveal.routing_suppressed is building
@@ -710,7 +710,7 @@ def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
     from fun_time.event_log import NOTICE
 
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
-         patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
+         patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
         with (
@@ -1385,7 +1385,7 @@ def test_the_player_rects_come_from_the_layout_startup_positions_with(
     the rect from the same two functions rather than from two descriptions."""
     from fun_time.window_layout import compute_main_media_rect, compute_window_layout
 
-    with patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
+    with patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
         rects = window._notices.player_rects
@@ -1413,7 +1413,7 @@ def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
         failure, dashboard_app_config):
     """A headless run has no monitors to enumerate; the panel still comes up,
     it just has nowhere to put a toast."""
-    with patch("fun_time.notice_feed.enumerate_monitors", side_effect=failure):
+    with patch("fun_time.window_layout.enumerate_monitors", side_effect=failure):
         window = build_dashboard_window(dashboard_app_config)
     try:
         assert window._notices.player_rects is None
@@ -1426,7 +1426,7 @@ def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
 def _notice_window(dashboard_app_config, *, held: bool):
     """A window whose notice feed is wired to a fake overlay."""
     with patch("fun_time.loading_reveal.startup_still_building", return_value=held), \
-         patch("fun_time.notice_feed.enumerate_monitors", return_value=_monitors()):
+         patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     window._notices.overlay = _FakeOverlay()
     return window

@@ -41,6 +41,7 @@ from fun_time.child_log import no_child_log, open_child_log
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.engine_preflight import engine_missing_abort
 from fun_time.engine_vendoring import ensure_engine_vendored
+from fun_time.hosted_origenerator import bring_up_the_hosted_app
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -119,6 +120,7 @@ from fun_time.windows_bridge_orchestrator import (
     kill_recorded_child,
     let_go_of_a_kept_origenerator,
     open_event_log,
+    see_the_hosted_app_out,
     silence_the_players,
     start_hud_priming,
     start_voice_control,
@@ -201,8 +203,6 @@ def build_vr_manifest(config, *, dashboard_enabled: bool = True) -> dict[str, di
     # browse can be narrowed to one shape or the other.
     manifest["media"]["vr_library_dirs"] = "|".join(
         str(path) for path in config.vr.library_dirs)
-    manifest["runtime"]["origenerator_dir"] = ""  # nothing here hosts one, so no such mode
-    manifest["executables"]["origenerator_python_exe"] = ""  # nor a python to run it with
     manifest["vr"] = {
         "player_module": VR_PLAYER_MODULE,
         "library_dirs": "|".join(str(path) for path in config.vr.library_dirs),
@@ -398,6 +398,7 @@ def _cancel_vr_startup(
     *,
     state_dir: Path,
     origenerator_cmd_file: Path,
+    taken_over: bool,
     children: dict[str, ChildProcess],
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
@@ -408,6 +409,11 @@ def _cancel_vr_startup(
     logger.info("Startup cancelled by user; tearing down %d launched child(ren)", len(children))
     back_to = (cover.turns_back_to  # read before cover.clear() takes the flag
                if what_the_flag_asks(cover.cancel_file) == CANCEL_WORD else None)
+    # Before the sweep, which would kill one of his the session had borrowed.
+    if (app := children.get("origenerator_pid")) is not None and see_the_hosted_app_out(
+            state_dir, app, origenerator_cmd_file,
+            keep=back_to is not None, taken_over=taken_over):
+        children.pop("origenerator_pid")
     _take_down_the_launch(
         state_dir=state_dir, children=children, ahk_proc=ahk_proc,
         ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
@@ -418,7 +424,8 @@ def _cancel_vr_startup(
     else:
         logger.info("Canceled; closing")
         drop_crossing_cover(state_dir)  # nothing is coming to do it for us
-        # nor to adopt what Fun Time parked
+        # A launch cancelled before it reached the app never adopted what Fun
+        # Time parked, and nothing is coming that will.
         let_go_of_a_kept_origenerator(state_dir, origenerator_cmd_file)
     return 0  # a clean, user-initiated exit, as the desktop's cancel is
 
@@ -479,6 +486,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
     cover = _Cover(state_dir, cancelable=cancelable)
     progress = cover.progress
     children: dict[str, ChildProcess] = {}
+    hosted_taken_over = False
     # Nothing of ours has touched the VR runtime yet, so there is nothing to put
     # back if the paths below bail before the player is launched.
     runtime_was_up = True
@@ -562,6 +570,14 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         # The companion first, as on the desktop, so it is listening when Genau's
         # role says which clip is up; on the headset's output, like every sound here.
         progress.advance("companions")
+        # First of them, as on the desktop: the slowest boot, waited on by nothing.
+        hosted = bring_up_the_hosted_app(
+            manifest, project_dirs=manifest.runtime.genau_project_dirs)
+        if hosted is not None:
+            hosted_taken_over = hosted.taken_over
+            children["origenerator_pid"] = ChildProcess(
+                pid=hosted.pid, created_at=get_process_creation_time(hosted.pid) or 0,
+            )
         audio = launch_audio_companion(
             python_exe=manifest.executables.python_exe,
             audio_module=manifest.modules.audio_module,
@@ -616,6 +632,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             state_dir=state_dir, children=children, ahk_proc=ahk_proc,
             ahk_cmd_file=ahk_cmd_file, cover=cover, runtime_was_up=runtime_was_up,
             origenerator_cmd_file=Path(manifest.commands.origenerator_cmd_file),
+            taken_over=hosted_taken_over,
         )
 
     try:
@@ -719,13 +736,18 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
                 )
                 request_handoff(state_dir, VR, cancelable=False)
                 hold_the_headset(state_dir, stop_runtime=False)
+            # Before the player, which goes last of all.
+            hosted_app = children.get("origenerator_pid")
+            if hosted_app is not None and not see_the_hosted_app_out(
+                    state_dir, hosted_app, Path(commands.origenerator_cmd_file),
+                    keep=crossing is not None or back_to_vr,
+                    taken_over=hosted_taken_over):
+                kill_recorded_child(hosted_app)
             held = (crossing is not None or back_to_vr) and _wait_for_the_headset_hold(
                 state_dir, player,
             )
             if not held:
                 kill_recorded_child(children["vr_player_pid"])  # last: it wears the cover
-            if crossing is None and not back_to_vr:  # nothing will come to adopt it
-                let_go_of_a_kept_origenerator(state_dir, Path(commands.origenerator_cmd_file))
             if crossing is None:  # else it hears Esc until the relay has read the flag
                 stop_hotkey_script(ahk_proc, ahk_cmd_file)
         if not held and not back_to_vr:

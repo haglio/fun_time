@@ -154,15 +154,17 @@ class TestVrManifest:
         assert Path(manifest["commands"]["main_player_cmd_file"]).name == "main_player_cmd.txt"
 
 
-class TestNoOrigeneratorInVr:
-    """A VR session hosts no Origenerator, and its manifest has to say so.
+class TestOrigeneratorInVr:
+    """A headset session hosts the Origenerator its config names, as a desktop
+    session does.
 
-    ``run_vr_bridge`` launches the audio companion and the VR player and
-    nothing else, so the checkout the desktop manifest names is a mode with no
-    app to run it.  Left in, the satellites' HUDs drew the Origenerator/Video
-    pair and a session resumed out of a desktop session's origenerator mode
-    opened in it, both sides labeled "Origenerator mode" over players the
-    hosted app was never started to cover.
+    The mode's shows were windows of their own once, laid over the satellites,
+    and a VR session has no windows: it declared the mode off, and a session
+    resumed out of a desktop session's origenerator mode was pulled back to
+    video.  The shows are the satellite PLAYERS' own playlists now
+    (``fun_time.player_handover``) and the headset's satellites are players, so
+    the only thing left on the monitors is the app's own window -- which boots
+    parked and, in a headset session, is never restored.
     """
 
     @pytest.fixture
@@ -186,20 +188,55 @@ class TestNoOrigeneratorInVr:
         assert desktop["runtime"]["origenerator_dir"] == str(tmp_path / "origenerator")
         assert desktop["executables"]["origenerator_python_exe"]
 
-    def test_the_vr_manifest_names_none(self, hosted):
+    def test_the_vr_manifest_names_the_same_checkout(self, hosted, tmp_path):
         manifest = build_vr_manifest(hosted)
 
-        assert manifest["runtime"]["origenerator_dir"] == ""
-        assert manifest["executables"]["origenerator_python_exe"] == ""
+        assert manifest["runtime"]["origenerator_dir"] == str(tmp_path / "origenerator")
+        assert manifest["executables"]["origenerator_python_exe"]
 
-    def test_the_session_reads_back_as_hosting_none(self, hosted, tmp_path):
-        """The join the rest hangs off: ``origenerator_enabled`` is what keeps
-        the mode pair off both HUDs, pulls a resumed origenerator mode back to
-        video, and answers the switch with a notice instead of a dead end."""
+    def test_the_session_reads_back_as_hosting_one(self, hosted, tmp_path):
+        """The join the rest hangs off: ``origenerator_enabled`` is what puts the
+        mode pair on both HUDs, lets a resumed origenerator mode stand, and
+        answers the switch with the mode instead of a notice."""
         from fun_time.manifest import LaunchManifest, write_manifest_data
         from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 
         path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
+        bridge = build_bridge_config_from_manifest(
+            LaunchManifest.read(path), vr_main_player=True)
+
+        assert bridge.origenerator_enabled is True
+
+    def test_the_session_brings_the_app_up_before_the_player(self):
+        """Its boot is the slowest thing a session waits on and nothing waits on
+        it, so it goes first here as it does on the desktop; the room opens in
+        video mode and the mode opens once the app has answered."""
+        calls = _call_lines_in_run_vr_bridge()
+
+        assert calls["bring_up_the_hosted_app"] < calls["launch_vr_player"]
+
+    def test_the_app_runs_the_checkouts_this_session_names(self):
+        """It imports player_core too, so a branch of it reaches the app the way
+        it reaches every other child."""
+        import ast
+        import inspect
+
+        from fun_time_vr import orchestrator
+
+        tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
+        (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
+                   and ast.unparse(n.func) == "bring_up_the_hosted_app"]
+        given = {kw.arg: ast.unparse(kw.value) for kw in call.keywords}
+
+        assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
+
+    def test_a_session_with_no_checkout_named_still_hosts_none(self, config, tmp_path):
+        """The mode is offered off the checkout alone, in the headset as on the
+        monitors: a config naming none is a session without the mode."""
+        from fun_time.manifest import LaunchManifest, write_manifest_data
+        from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
+
+        path = write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
             LaunchManifest.read(path), vr_main_player=True)
 
@@ -1069,7 +1106,8 @@ class TestTheHeadsetsCover:
 
 
 class TestCancellingALaunch:
-    def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False, crossing=True):
+    def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False,
+                crossing=True, taken_over=False):
         from fun_time.session_end import SESSION_END_MARKER
         from fun_time.session_handoff import raise_crossing_cover
         from fun_time_vr import orchestrator
@@ -1095,7 +1133,7 @@ class TestCancellingALaunch:
             state_dir=tmp_path, children=children, ahk_proc=None,
             ahk_cmd_file=tmp_path / "ahk_cmd.txt",
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt",
-            cover=cover, runtime_was_up=True,
+            taken_over=taken_over, cover=cover, runtime_was_up=True,
         )
         return code, order, cover
 
@@ -1760,15 +1798,19 @@ class TestOpeningAVrSession:
         """Fun Time left it for its own return, which can still come later."""
         from unittest.mock import MagicMock
 
+        from fun_time.hosted_origenerator import HostedApp
         from fun_time_vr import orchestrator
 
-        closed: list = []
-        _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
-                          _wait_for_the_headset_hold=MagicMock(return_value=True),
-                          let_go_of_a_kept_origenerator=(
-                              lambda state_dir, _cmd_file: closed.append(state_dir)))
+        parked: list = []
+        _end_a_vr_session(
+            orchestrator, config, ended_by=_asked_then_esc(config),
+            _wait_for_the_headset_hold=MagicMock(return_value=True),
+            bring_up_the_hosted_app=MagicMock(
+                return_value=HostedApp(6060, already_open=True, taken_over=False)),
+            see_the_hosted_app_out=MagicMock(
+                side_effect=lambda *a, **kw: parked.append(kw["keep"]) or True))
 
-        assert closed == []
+        assert parked == [True], "the app was not left for the session coming back"
 
     def test_voice_starts_the_way_a_desktop_session_starts_it(self, config):
         from unittest.mock import MagicMock, patch

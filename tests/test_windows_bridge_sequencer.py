@@ -35,6 +35,7 @@ from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
+    screen_layout,
 )
 from fun_time.windows_bridge_sequencer import (
     GENAU_ANSWER_TIMEOUT_S,
@@ -55,6 +56,12 @@ FAKE_MONITORS = [
     MonitorInfo(x=0, y=0, width=2560, height=1392),
     MonitorInfo(x=2560, y=0, width=1440, height=3440),
 ]
+
+
+def fake_screen_layout(layout_config):
+    """The plan FAKE_MONITORS give, through the same function a session calls."""
+    with patch("fun_time.window_layout.enumerate_monitors", return_value=FAKE_MONITORS):
+        return screen_layout(layout_config)
 
 CORE_PIDS = {"portrait_pid": 30, "landscape_pid": 40}
 UI_PIDS = {"dashboard_pid": 50, "audio_pid": 70}
@@ -131,6 +138,12 @@ def _run_revealing_sequence(manifest_path, tmp_path, mode: str) -> None:
         )
 
 
+SEQUENCER = "fun_time.windows_bridge_sequencer"
+
+#: Collaborators the sequencer reaches through another module, patched there.
+_STUB_MODULES = {"launch_origenerator": "fun_time.hosted_origenerator"}
+
+
 @contextlib.contextmanager
 def _sequencer_stubs(**overrides):
     """The startup sequence's collaborators, stubbed at their boundary, once.
@@ -148,7 +161,7 @@ def _sequencer_stubs(**overrides):
         "launch_genau": dict(return_value=GENAU_PID),
         "launch_main_player": dict(side_effect=_fake_main_player),
         "launch_ui_companions": dict(side_effect=_fake_ui),
-        "enumerate_monitors": dict(return_value=FAKE_MONITORS),
+        "screen_layout": dict(side_effect=fake_screen_layout),
         "wait_for_window_by_title": dict(return_value=99999),
         "window_answers": dict(return_value=True),
         "move_window": {},
@@ -161,7 +174,7 @@ def _sequencer_stubs(**overrides):
         mocks = SimpleNamespace()
         for name, kwargs in spec.items():
             setattr(mocks, name, stack.enter_context(
-                patch(f"fun_time.windows_bridge_sequencer.{name}", **kwargs)))
+                patch(f"{_STUB_MODULES.get(name, SEQUENCER)}.{name}", **kwargs)))
         stack.enter_context(patch(
             "fun_time.windows_bridge_sequencer.time",
             SimpleNamespace(monotonic=lambda: 0.0, sleep=lambda _s: None)))
@@ -666,11 +679,11 @@ class TestTheOrderInsideTheStartupPhases:
         def note(name, then=None):
             def recorder(*args, **kwargs):
                 order.append(name)
-                return then(**kwargs) if then is not None else 0
+                return then(*args, **kwargs) if then is not None else 0
             return recorder
 
         stubs = dict(
-            enumerate_monitors=dict(side_effect=note("layout", lambda **k: FAKE_MONITORS)),
+            screen_layout=dict(side_effect=note("layout", fake_screen_layout)),
             start_core_session=dict(side_effect=note("core", _fake_core)),
             launch_genau=dict(side_effect=note("genau", lambda **k: GENAU_PID)),
             launch_main_player=dict(side_effect=note("main_player", _fake_main_player)),
@@ -1856,68 +1869,3 @@ class TestWaitingForThePlayersToDraw:
 
         with pytest.raises(StartupCancelled):
             _wait_for_players_drawing((tmp_path / "s.txt",), progress, timeout_s=1.0)
-
-
-class TestAdoptingAKeptOrigenerator:
-    """A crossing leaves the hosted app running; this is the half that picks it
-    up rather than paying for a second boot (docs/entering-vr.md)."""
-
-    def _manifest(self, tmp_path):
-        from unittest.mock import MagicMock
-
-        m = MagicMock()
-        m.commands.origenerator_status_file = str(tmp_path / "origenerator_status.txt")
-        m.commands.origenerator_paused_file = str(tmp_path / "origenerator_paused.txt")
-        m.commands.origenerator_cmd_file = str(tmp_path / "origenerator_cmd.txt")
-        return m
-
-    def test_a_live_record_is_adopted_and_spent(self, tmp_path: Path):
-        from unittest.mock import patch
-
-        from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
-        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
-
-        keep_the_origenerator(tmp_path, pid=6060, created_at=44)
-        with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
-                   return_value=44):
-            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)).pid == 6060
-
-        assert kept_origenerator(tmp_path) is None, "the record outlived its one use"
-
-    def test_a_recycled_pid_is_never_adopted(self, tmp_path: Path):
-        """Windows hands freed pids straight back out, so the creation time is
-        what says the process is still the one that was parked."""
-        from unittest.mock import patch
-
-        from fun_time.session_handoff import keep_the_origenerator
-        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
-
-        keep_the_origenerator(tmp_path, pid=6060, created_at=44)
-        with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
-                   return_value=45):
-            assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
-
-    def test_an_ordinary_startup_adopts_nothing(self, tmp_path: Path):
-        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
-
-        assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
-
-    def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
-        """The app rewrites its status file only when a region changes, so one
-        cleared here would stay empty while nothing did."""
-        from unittest.mock import patch
-
-        from fun_time.session_handoff import keep_the_origenerator
-        from fun_time.windows_bridge_sequencer import _adopt_a_kept_origenerator
-
-        status = tmp_path / "origenerator_status.txt"
-        status.write_text("ready\n", encoding="utf-8")
-        (tmp_path / "origenerator_cmd.txt").write_text("OPEN_SHOWS\n", encoding="utf-8")
-        keep_the_origenerator(tmp_path, pid=6060, created_at=44)
-
-        with patch("fun_time.windows_bridge_sequencer.get_process_creation_time",
-                   return_value=44):
-            _adopt_a_kept_origenerator(self._manifest(tmp_path))
-
-        assert status.read_text(encoding="utf-8") == "ready\n"
-        assert (tmp_path / "origenerator_cmd.txt").read_text(encoding="utf-8") == ""

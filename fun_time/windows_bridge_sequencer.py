@@ -19,11 +19,10 @@ from player_core.modes import MainMode
 
 from main_player.play_points import play_points_filename
 
-from .config import LayoutConfig
+from .hosted_origenerator import bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
 from .mode_plan import MAIN_GENAU_MODE, STARTUP_MAIN_MODE, main_player_displays
 from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_path
-from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .player_status import (
     read_genau_status,
@@ -34,9 +33,7 @@ from .runtime_flow import write_flag_file
 from .satellite_control import read_satellite_status
 from .satellite_slot import SatelliteSlot
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
-from .session_handoff import KeptOrigenerator, forget_the_kept_origenerator, kept_origenerator
 from .shortcuts import resolve_shortcut
-from .standalone_origenerator import claim_the_osr2, take_it_over, the_open_origenerator
 from .win32 import (
     ANSWER_TIMEOUT_MS,
     disable_window_transitions,
@@ -47,13 +44,12 @@ from .win32 import (
     wait_for_window_by_title,
     window_answers,
 )
-from .win32_process import get_process_creation_time
 from .window_layout import (
-    MonitorRect,
+    ScreenLayout,
     WindowLayoutPlan,
     WindowRect,
     compute_main_media_rect,
-    compute_window_layout,
+    screen_layout,
 )
 from .window_roles import GENAU_TITLE, MANAGED_ROLES, role_topmost
 from .windows_bridge_random_favs_browser import (
@@ -63,13 +59,9 @@ from .windows_bridge_random_favs_browser import (
 from .windows_bridge_startup import (
     SATELLITE_LANDSCAPE_TITLE,
     SATELLITE_PORTRAIT_TITLE,
-    HandedPlayer,
     launch_genau,
     launch_main_player,
-    launch_origenerator,
     launch_ui_companions,
-    origenerator_interpreter,
-    origenerator_session_args,
     start_core_session,
 )
 
@@ -317,20 +309,6 @@ def run_startup_sequence(
         raise
 
 
-@dataclass(frozen=True)
-class _Layout:
-    """Where every window goes, computed before anything is launched.
-
-    mpv sizes its output to the geometry it was launched with and will NOT
-    rescale when a later Win32 move resizes the window, so each satellite has to
-    be started straight into its real rect — which means the whole plan has to
-    exist before the first child does.
-    """
-
-    plan: WindowLayoutPlan
-    config: LayoutConfig
-    secondary_monitor: MonitorRect
-
 
 @dataclass(frozen=True)
 class _CoreSession:
@@ -349,23 +327,15 @@ class _CoreSession:
     main_player_status_file: Path
 
 
-def _plan_the_layout(m: LaunchManifest) -> _Layout:
-    """Every window's rect, from the monitors and the manifest's layout section."""
-    layout_cfg = m.layout
-    monitors = enumerate_monitors()
-    primary_rect, secondary_rect = get_logical_monitor_rects(
-        monitors, primary_index=layout_cfg.primary_monitor,
-        secondary_index=layout_cfg.secondary_monitor,
-    )
-    return _Layout(
-        plan=compute_window_layout(
-            primary_monitor=primary_rect,
-            secondary_monitor=secondary_rect,
-            layout_config=layout_cfg,
-        ),
-        config=layout_cfg,
-        secondary_monitor=secondary_rect,
-    )
+def _plan_the_layout(m: LaunchManifest) -> ScreenLayout:
+    """Every window's rect, from the monitors and the manifest's layout section.
+
+    mpv sizes its output to the geometry it was launched with and will NOT
+    rescale when a later Win32 move resizes the window, so each satellite has to
+    be started straight into its real rect — which means the whole plan has to
+    exist before the first child does.
+    """
+    return screen_layout(m.layout)
 
 
 def _launch_the_satellites(
@@ -454,7 +424,7 @@ def _launch_the_satellites(
 def _launch_the_main_slot_players(
     m: LaunchManifest,
     *,
-    layout: _Layout,
+    layout: ScreenLayout,
     state_dir: Path,
     project_dirs: str,
     launched: _LaunchedChildren,
@@ -539,32 +509,6 @@ def _launch_the_main_slot_players(
     return genau_pid, main_player_pid, main_player_status_file
 
 
-def _adopt_a_kept_origenerator(m: LaunchManifest) -> KeptOrigenerator | None:
-    """A hosted app the session before this one left running, or None.  Only its
-    boot is skipped, and its status file is left alone (docs/entering-vr.md)."""
-    state_dir = Path(m.commands.origenerator_status_file).parent
-    kept = kept_origenerator(state_dir)
-    forget_the_kept_origenerator(state_dir)
-    if kept is None or get_process_creation_time(kept.pid) != kept.created_at:
-        return None  # gone since, or that pid is somebody else's now
-    write_flag_file(m.commands.origenerator_paused_file, False)
-    Path(m.commands.origenerator_cmd_file).write_text("", encoding="utf-8")
-    logger.info("Adopted the hosted Origenerator left running (pid %d)", kept.pid)
-    return kept
-
-
-def _the_players_it_is_handed(m: LaunchManifest) -> dict[str, HandedPlayer]:
-    return {
-        player.label: HandedPlayer(
-            playlist_file=m.commands.player_file(player.label, "playlist"),
-            cmd_file=m.commands.player_file(player.label, "cmd"),
-            status_file=m.commands.player_file(player.label, "status"),
-            hud_file=m.commands.player_file(player.label, "origenerator_hud"),
-        )
-        for player in Player.SATELLITES
-    }
-
-
 def _launch_the_hosted_origenerator(
     m: LaunchManifest,
     *,
@@ -572,68 +516,20 @@ def _launch_the_hosted_origenerator(
     project_dirs: str,
     launched: _LaunchedChildren,
 ) -> int:
-    """The hosted app, when the config names a checkout, or 0 for a session with
-    none.
-
-    Launched FIRST because it is far and away the slowest child — ten to thirty
-    seconds against five to eight for the rest of the room — and NOTHING waits
-    for it: the room opens in video mode, and that mode opens once the app has
-    booted, or at once for an app that was already open.
-    """
-    origenerator_dir = m.runtime.origenerator_dir.strip()
-    if not origenerator_dir:
+    """The hosted app, first of the children and waited on by none, or 0 for a
+    session the config names no checkout for."""
+    app = bring_up_the_hosted_app(m, plan=plan, project_dirs=project_dirs)
+    if app is None:
         return 0
-    claim_the_osr2(origenerator_dir)
-    kept = _adopt_a_kept_origenerator(m)
-    if kept is not None:
-        return launched.hosts_an_app_already_open(kept.pid, taken_over=kept.taken_over)
-    # A "1" a prior OmniPause stranded opens every show frozen while the
-    # room runs, and an unread verb lands on this session: the app reads
-    # both on its first tick, and a room never opens paused.
-    write_flag_file(m.commands.origenerator_paused_file, False)
-    origenerator_cmd_file = Path(m.commands.origenerator_cmd_file)
-    origenerator_cmd_file.parent.mkdir(parents=True, exist_ok=True)
-    origenerator_cmd_file.write_text("", encoding="utf-8")
-    # And the status file: last session's would open the mode before this app
-    # has drawn anything.
-    Path(m.commands.origenerator_status_file).unlink(missing_ok=True)
-    players = _the_players_it_is_handed(m)
-    for player in players.values():
-        # Last session's panels, which would put a show that is not
-        # running on a side the moment the mode is entered.
-        Path(player.hud_file).unlink(missing_ok=True)
-    contract = dict(
-        layout_plan=plan,
-        command_file=m.commands.origenerator_cmd_file,
-        paused_file=m.commands.origenerator_paused_file,
-        status_file=m.commands.origenerator_status_file,
-        dashboard_cmd_file=m.commands.dashboard_cmd_file,
-        players=players,
-    )
-    origenerator_pid = the_open_origenerator(origenerator_dir)
-    if origenerator_pid:
-        take_it_over(origenerator_dir, pid=origenerator_pid,
-                     args=origenerator_session_args(**contract))
-        logger.info("Took over the Origenerator already open from %s (pid %d)",
-                    origenerator_dir, origenerator_pid)
-        return launched.hosts_an_app_already_open(origenerator_pid, taken_over=True)
-    origenerator_pid = launch_origenerator(
-        python_exe=(m.executables.origenerator_python_exe.strip()
-                    or origenerator_interpreter(origenerator_dir)),
-        origenerator_dir=origenerator_dir,
-        # It imports player_core too (the shows' HUD is the players'
-        # shared one), so a named checkout reaches it like everyone else.
-        project_dirs=project_dirs,
-        **contract,
-    )
-    logger.info("Origenerator launched from %s (pid %d)", origenerator_dir, origenerator_pid)
-    return launched.hosts_an_app_it_launched(origenerator_pid)
+    if app.already_open:
+        return launched.hosts_an_app_already_open(app.pid, taken_over=app.taken_over)
+    return launched.hosts_an_app_it_launched(app.pid)
 
 
 def _launch_core_media(
     m: LaunchManifest,
     *,
-    layout: _Layout,
+    layout: ScreenLayout,
     state_dir: Path,
     launched: _LaunchedChildren,
 ) -> _CoreSession:

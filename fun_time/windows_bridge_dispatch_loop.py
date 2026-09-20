@@ -987,8 +987,6 @@ def build_bridge_config_from_manifest(
     *vr_main_player* says the session hosts its main player inside the VR
     scene rather than launching the main player.  The manifest cannot answer it — both
     sessions build from the same one — so the orchestrator that knows says so.
-    It answers for Origenerator too: the hosted app rides in the Random Favs
-    Browser's Chrome window, which a VR session never launches.
     """
     commands = manifest.commands
     return BridgeConfig(
@@ -1029,9 +1027,7 @@ def build_bridge_config_from_manifest(
         regen_metadata_root=Path(v) if (v := manifest.regen.metadata_root.strip()) else None,
         regen_generate_video_url=manifest.regen.generate_video_url,
         regen_generate_image_url=manifest.regen.generate_image_url,
-        origenerator_enabled=(
-            not vr_main_player and bool(manifest.runtime.origenerator_dir.strip())
-        ),
+        origenerator_enabled=bool(manifest.runtime.origenerator_dir.strip()),
         origenerator_cmd_file=Path(v) if (v := commands.origenerator_cmd_file.strip()) else None,
         origenerator_paused_file=Path(v) if (v := commands.origenerator_paused_file.strip()) else None,
         origenerator_status_file=Path(v) if (v := commands.origenerator_status_file.strip()) else None,

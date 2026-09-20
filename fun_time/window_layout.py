@@ -4,6 +4,7 @@ from dataclasses import dataclass
 
 from fun_time.config import LayoutConfig
 from fun_time.dashboard_layout import Rect, dashboard_window_height
+from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 
 
 def clamp01(value: float) -> float:
@@ -21,6 +22,31 @@ class WindowLayoutPlan:
     landscape: WindowRect
     dashboard: WindowRect
     random_favs_browser: WindowRect
+
+
+@dataclass(frozen=True)
+class ScreenLayout:
+    plan: WindowLayoutPlan
+    config: LayoutConfig
+    secondary_monitor: MonitorRect
+
+
+def screen_layout(layout_config: LayoutConfig) -> ScreenLayout:
+    """The plan for the monitors this machine has right now."""
+    primary_rect, secondary_rect = get_logical_monitor_rects(
+        enumerate_monitors(),
+        primary_index=layout_config.primary_monitor,
+        secondary_index=layout_config.secondary_monitor,
+    )
+    return ScreenLayout(
+        plan=compute_window_layout(
+            primary_monitor=primary_rect,
+            secondary_monitor=secondary_rect,
+            layout_config=layout_config,
+        ),
+        config=layout_config,
+        secondary_monitor=secondary_rect,
+    )
 
 
 def compute_window_layout(
