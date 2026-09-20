@@ -364,6 +364,15 @@ class TestProjectionCycling:
         role.apply_command("PREV", on_quit=_never_quits)
         assert role.projection == FISHEYE_190_SBS
 
+    def test_cycling_back_steps_the_other_way_and_persists_too(self, role_parts):
+        role, metadata = role_parts.role, role_parts.metadata
+
+        role.apply_command("CYCLE_PROJECTION_BACK", on_quit=_never_quits)
+
+        assert role.projection == FLAT
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8"))["vr"]["projection"] == "flat"
+
 
 class TestRecenter:
     def test_recenter_is_carried_until_the_host_takes_it(self, role_parts):

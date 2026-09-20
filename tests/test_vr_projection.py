@@ -13,6 +13,7 @@ from fun_time_vr.projection import (
     PROJECTIONS,
     default_projection,
     next_projection,
+    previous_projection,
     resolve_projection,
     save_projection,
     saved_projection,
@@ -88,6 +89,10 @@ class TestCycle:
 
     def test_unknown_value_restarts_the_cycle(self):
         assert next_projection("no_such_projection") == PROJECTIONS[0]
+
+    def test_stepping_back_walks_the_same_ring_the_other_way(self):
+        for projection in PROJECTIONS:
+            assert previous_projection(next_projection(projection)) == projection
 
 
 class TestSidecarPersistence:

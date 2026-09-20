@@ -293,7 +293,8 @@ DRAG = "drag"
 class HandInput:
     aim: AimPose | None = None
     trigger: float = 0.0
-    stick: float = 0.0
+    stick_x: float = 0.0
+    stick_y: float = 0.0
     forward: bool = False
     back: bool = False
 

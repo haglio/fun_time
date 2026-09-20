@@ -41,7 +41,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[1]
 # Commands posted straight off a player's own surface, as literal strings in
 # player_core (the satellite HUDs and the main console) — the reachability the
 # in-repo surfaces cannot show.  HUD_ONLY_COMMAND_IDS is the subset the
-# reference does not list either; these three it does.
+# reference does not list either; the rest it does.
 _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "genau_clip_seconds_down",
     "genau_clip_seconds_up",
@@ -51,6 +51,8 @@ _CONSOLE_POSTED = frozenset(HUD_ONLY_COMMAND_IDS) | {
     "main_projection_none",
     "main_player_length_none",
     "main_player_record_tap",
+    # A VR controller's stick pushed left; pushed right it posts the P key's own id.
+    "projection_cycle_back",
 }
 
 # The nav ids are parsed, not exact keys, so the handler map does not list

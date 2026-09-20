@@ -51,7 +51,8 @@ class QuadLayer:
     size: tuple[float, float]
 
 
-STICK = "thumbstick"
+STICK_X = "thumbstick_x"
+STICK_Y = "thumbstick_y"
 AIM = "aim"
 TRIGGER = "trigger"
 FORWARD = "skip_forward"
@@ -71,21 +72,24 @@ def _by_hand(right_input: str, left_input: str) -> tuple[str, ...]:
 
 CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
     "/interaction_profiles/oculus/touch_controller": {
-        STICK: _either_hand("thumbstick/y"),
+        STICK_X: _either_hand("thumbstick/x"),
+        STICK_Y: _either_hand("thumbstick/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
         FORWARD: _by_hand("a/click", "x/click"),
         BACK: _by_hand("b/click", "y/click"),
     },
     "/interaction_profiles/valve/index_controller": {
-        STICK: _either_hand("thumbstick/y"),
+        STICK_X: _either_hand("thumbstick/x"),
+        STICK_Y: _either_hand("thumbstick/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
         FORWARD: _either_hand("a/click"),
         BACK: _either_hand("b/click"),
     },
     "/interaction_profiles/htc/vive_controller": {
-        STICK: _either_hand("trackpad/y"),
+        STICK_X: _either_hand("trackpad/x"),
+        STICK_Y: _either_hand("trackpad/y"),
         AIM: _either_hand("aim/pose"),
         TRIGGER: _either_hand("trigger/value"),
     },
@@ -96,7 +100,8 @@ CONTROLLER_BINDINGS: dict[str, dict[str, tuple[str, ...]]] = {
 }
 
 _ACTION_TYPES = {
-    STICK: xr.ActionType.FLOAT_INPUT,
+    STICK_X: xr.ActionType.FLOAT_INPUT,
+    STICK_Y: xr.ActionType.FLOAT_INPUT,
     AIM: xr.ActionType.POSE_INPUT,
     TRIGGER: xr.ActionType.FLOAT_INPUT,
     FORWARD: xr.ActionType.BOOLEAN_INPUT,
@@ -329,7 +334,8 @@ class VRSession:
                     (orientation.x, orientation.y, orientation.z, orientation.w),
                 )
         return HandInput(
-            aim=aim, trigger=self._float(TRIGGER, path), stick=self._float(STICK, path),
+            aim=aim, trigger=self._float(TRIGGER, path),
+            stick_x=self._float(STICK_X, path), stick_y=self._float(STICK_Y, path),
             forward=self._pressed(FORWARD, path), back=self._pressed(BACK, path),
         )
 
