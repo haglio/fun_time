@@ -16,11 +16,12 @@ import subprocess
 import sys
 import threading
 import time
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.file_channel import append_command
+from player_core.modes import MainMode
 from voice_core.listener import why_unavailable
 
 from .append_only import append_line
@@ -35,6 +36,7 @@ from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
 from .lock_hud import prime_group_indexes
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
+from .mode_plan import main_player_displays
 from .modes import collect_video_files
 from .overlay_progress import (
     CANCEL_CLOSING_FUN_TIME,
@@ -642,35 +644,48 @@ def _fix_post_loading_windows(result: StartupResult, *,
         beneath=overlay_hwnd,
     )
     logger.info("Post-loading window state corrected")
-    _settle_the_players(portrait_hwnd, landscape_hwnd, overlay_hwnd=overlay_hwnd)
+    _settle_the_players(
+        _players_to_settle(
+            portrait_hwnd=portrait_hwnd, landscape_hwnd=landscape_hwnd,
+            main_player_hwnd=main_player_hwnd, genau_hwnd=genau_hwnd,
+            mode=result.main_mode,
+        ),
+        overlay_hwnd=overlay_hwnd,
+    )
     _log_window_obstruction("Main Player", main_player_hwnd, expected_over=genau_hwnd)
     _log_window_obstruction("Portrait satellite", portrait_hwnd, ignore=overlay_hwnd)
     _log_window_obstruction("Landscape satellite", landscape_hwnd, ignore=overlay_hwnd)
     return role_hwnds
 
 
-def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
+def _players_to_settle(*, portrait_hwnd: int, landscape_hwnd: int, main_player_hwnd: int,
+                       genau_hwnd: int, mode: MainMode) -> list[tuple[str, int, int]]:
+    """Which players the settle walk watches, and the one window each may sit under."""
+    players = [("portrait", portrait_hwnd, 0), ("landscape", landscape_hwnd, 0)]
+    if main_player_displays(mode):
+        players.append(("main", main_player_hwnd, genau_hwnd))
+    return players
+
+
+def _settle_the_players(players: Sequence[tuple[str, int, int]], *,
                         overlay_hwnd: int = 0, passes: int = SETTLE_PASSES,
                         wait_s: float = SETTLE_WAIT_S) -> None:
-    """Re-promote each satellite player until it is genuinely frontmost over its
-    own rect.
+    """Re-promote each player until it is genuinely frontmost over its own rect.
 
     The banding above can silently miss one: SetWindowPos waits on the target's
-    own thread, and the satellites are at their busiest exactly now (first clips
+    own thread, and every player is at its busiest exactly now (first frames
     decoding), so a promotion can time out through the stalled-window guard and
-    leave the player under whatever the user had on that monitor — a maximized
-    Chrome sat over the landscape player until the next full re-band.  So walk
-    the real z-order and re-promote whoever is still buried.
-
-    The loading overlay covers everything on purpose, so it is not a burial,
-    and a re-promotion made while it is up goes under it.
+    land only when that thread next pumps — a maximized Chrome sat over the
+    landscape player until the next full re-band, and the main player climbed
+    over the room a second after the cover lifted.  So walk the real z-order and
+    re-promote whoever is still buried.  The loading overlay covers everything
+    on purpose, so it is not a burial, and a re-promotion under it goes under it.
     """
-    players = (("portrait", portrait_hwnd), ("landscape", landscape_hwnd))
     for _ in range(passes):
         stack = iter_zorder()
         buried = [
-            (name, hwnd) for name, hwnd in players
-            if hwnd and _covering(hwnd, stack, ignore=overlay_hwnd)
+            (name, hwnd) for name, hwnd, allowed_above in players
+            if hwnd and _covering(hwnd, stack, ignore=(overlay_hwnd, allowed_above))
         ]
         if not buried:
             break
@@ -680,9 +695,9 @@ def _settle_the_players(portrait_hwnd: int, landscape_hwnd: int, *,
         time.sleep(wait_s)
 
 
-def _covering(hwnd: int, stack, *, ignore: int = 0) -> list:
-    """What is over *hwnd*, minus the one window allowed to be."""
-    return [w for w in windows_obscuring(hwnd, stack) if w.hwnd != ignore]
+def _covering(hwnd: int, stack, *, ignore: tuple[int, ...] = ()) -> list:
+    """What is over *hwnd*, minus the windows allowed to be."""
+    return [w for w in windows_obscuring(hwnd, stack) if w.hwnd not in ignore]
 
 
 def _main_browse_stills(bridge_config) -> list[str]:
@@ -873,8 +888,16 @@ def _reveal_the_room(
     # the z-order, so the bands are asserted once more over the finished
     # room — cheap, since every window is already resolved and in place.
     apply_topmost_bands(role_hwnds, result.main_mode)
-    _settle_the_players(role_hwnds.get("portrait", 0), role_hwnds.get("landscape", 0),
-                        passes=3, wait_s=0.4)
+    _settle_the_players(
+        _players_to_settle(
+            portrait_hwnd=role_hwnds.get("portrait", 0),
+            landscape_hwnd=role_hwnds.get("landscape", 0),
+            main_player_hwnd=role_hwnds.get("main_player", 0),
+            genau_hwnd=role_hwnds.get("genau", 0),
+            mode=result.main_mode,
+        ),
+        passes=3, wait_s=0.4,
+    )
 
 
 def _serve_loopback(port: int, dispatch_runner: DispatchLoopRunner) -> ThreadingHTTPServer | None:
