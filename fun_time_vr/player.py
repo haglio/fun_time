@@ -562,11 +562,7 @@ class _MainUnit(_VideoUnit):
             logger.info(
                 "Audio device %r -> %s", self._audio_device, picked or "no match; default"
             )
-        # Hand the level back to the role, so whatever the session set while
-        # the headset warmed up (a SET_VOLUME, a mute) is what comes on.
-        self.role.audio_live = True
-        self.player.set_volume(self.role.volume)
-        self.player.set_muted(self.role.muted)
+        self.role.sound_goes_live()
 
     def pump(self, stop: threading.Event, now: float) -> None:
         self.role.set_paused(read_paused_state(self.paused_file, logger=logger))

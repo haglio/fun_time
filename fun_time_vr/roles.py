@@ -151,9 +151,9 @@ class MainRole:
         self._scene_starts: tuple[float, ...] = ()
         self._volume = 100
         self._muted = False
-        # Until the host says the sound is live (player.route_audio), a
-        # SET_VOLUME records the level without unmuting.
-        self.audio_live = False
+        # Until the host says the sound is live, a SET_VOLUME records the level
+        # without unmuting (see :meth:`sound_goes_live`).
+        self._audio_live = False
         self.recenter = HostRequest()
         self.layout_reset = HostRequest()
         self._tilt_deg = 0.0  # state, not a request; both inputs write here
@@ -429,6 +429,13 @@ class MainRole:
         self._player.set_pace(seconds)
         return True
 
+    def sound_goes_live(self) -> None:
+        """The headset is presenting this player: whatever a SET_VOLUME recorded
+        while it warmed up comes on now."""
+        self._audio_live = True
+        self._player.set_volume(self._volume)
+        self._player.set_muted(self._muted)
+
     def set_volume_from(self, value: str) -> bool:
         """``SET_VOLUME <0-100> [muted]``; False on a level it cannot read."""
         parts = value.split()
@@ -439,7 +446,7 @@ class MainRole:
         self._volume = level
         self._muted = len(parts) > 1 and parts[1].strip() == "1"
         self._player.set_volume(level)
-        if self.audio_live:
+        if self._audio_live:
             self._player.set_muted(self._muted)
         return True
 
