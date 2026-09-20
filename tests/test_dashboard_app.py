@@ -154,6 +154,10 @@ def test_the_bar_is_only_as_wide_as_its_own_buttons():
 
 
 def test_the_log_filters_follow_the_bar_a_group_gap_on(dashboard_app_config):
+    """Past the LAST control the bar carries -- the VR reset, which only a
+    session in the headset draws, out past the crossing.  Measured to the
+    crossing instead, the bar was too narrow for its own widest state: the reset
+    was cut off at the bar's edge and the filters crowded up against it."""
     from PyQt6.QtCore import QPoint
 
     window = build_dashboard_window(
@@ -168,8 +172,9 @@ def test_the_log_filters_follow_the_bar_a_group_gap_on(dashboard_app_config):
         def left(widget) -> int:
             return widget.mapTo(window, QPoint(0, 0)).x()
 
-        crossing_right = left(window._widget) + layout.vr_button.x + layout.vr_button.width
-        assert left(window._log_widget._verbosity) - crossing_right == GROUP_GAP
+        last = layout.vr_reset_button
+        bar_right = left(window._widget) + last.x + last.width
+        assert left(window._log_widget._verbosity) - bar_right == GROUP_GAP
     finally:
         window.close()
 

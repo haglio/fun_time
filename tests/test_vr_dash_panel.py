@@ -176,7 +176,8 @@ class TestItIsOneRow:
         bar = compute_dashboard_bar_layout()
         actions = dash_actions()
         buttons = [actions[action] for action in (
-            QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE, FMODE_TOGGLE, EXIT_VR)]
+            QUIT_BUTTON, OMNIPAUSE_TOGGLE, HELP_REFERENCE, VOICE_TOGGLE,
+            FMODE_TOGGLE, RESET_ALL, EXIT_VR, VR_RESET)]
         dial = actions[VERBOSITY_CHIP]
         chips = [actions[source] for source in SOURCES]
         row = (*buttons, dial, *chips)
@@ -191,6 +192,17 @@ class TestItIsOneRow:
         for source, chip in zip(SOURCES, chips, strict=True):
             label = int(load_font(_SMALL_PX).getlength(SOURCE_LABELS[source]))
             assert chip.width == label + 2 * BUTTON_PAD_H_TIGHT, source
+
+    def test_nothing_on_the_row_is_drawn_over_anything_else(self):
+        """The dial was measured from the crossing rather than from the last
+        control on the bar, so in VR -- the one place the VR reset is drawn --
+        it was painted over that button's right half."""
+        placed = list(dash_actions().items())
+
+        for index, (name, first) in enumerate(placed):
+            for other, second in placed[index + 1:]:
+                assert (first.x + first.width <= second.x
+                        or second.x + second.width <= first.x), f"{name} over {other}"
 
 
 class TestWhatAPressDoes:

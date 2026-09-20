@@ -6,6 +6,7 @@ import pytest
 from fun_time.dashboard_layout import (
     BUTTON,
     GAP,
+    GROUP_GAP,
     PAD,
     Rect,
     client_rect_filling_frame,
@@ -14,20 +15,12 @@ from fun_time.dashboard_layout import (
 )
 
 
-def _rects(layout) -> list[Rect]:
-    return [
-        layout.app_icon, layout.app_title,
-        layout.quit_button, layout.omnipause_button, layout.help_button,
-        layout.voice_panel,
-    ]
-
-
 def test_the_bar_reads_left_to_right_in_the_order_it_is_written():
     """The app's mark, then the controls — grouped by what they are rather than
     by which player they used to stand for."""
     layout = compute_dashboard_bar_layout()
 
-    xs = [rect.x for rect in _rects(layout)]
+    xs = [rect.x for rect in layout.every_rect]
     assert xs == sorted(xs)
     assert layout.app_icon.x == PAD
 
@@ -39,12 +32,23 @@ def test_the_vr_reset_stands_beside_the_crossing_it_belongs_with():
     assert layout.vr_reset_button.x == layout.vr_button.x + layout.vr_button.width + GAP
 
 
+def test_the_bar_is_wide_enough_for_the_control_only_a_headset_session_draws():
+    """The VR reset is the bar's last button and shows only in the headset, so a
+    width measured to the crossing beside it fitted the desktop and not VR: the
+    reset was cut in half at the bar's edge, and whatever follows the bar on the
+    row -- the log's verbosity dropdown -- was drawn over what was left of it."""
+    layout = compute_dashboard_bar_layout()
+    last = layout.vr_reset_button
+
+    assert layout.width == last.x + last.width + GROUP_GAP
+    assert all(layout.width >= rect.x + rect.width + GROUP_GAP for rect in layout.every_rect)
+
+
 def test_nothing_in_the_bar_overlaps_anything_else():
     layout = compute_dashboard_bar_layout()
-    rects = _rects(layout)
 
-    for index, first in enumerate(rects):
-        for second in rects[index + 1:]:
+    for index, first in enumerate(layout.every_rect):
+        for second in layout.every_rect[index + 1:]:
             assert (first.x + first.width <= second.x
                     or second.x + second.width <= first.x)
 
@@ -63,7 +67,7 @@ def test_the_microphone_is_one_of_the_buttons_not_a_light_beside_them():
 def test_everything_sits_on_one_line_inside_the_bars_height():
     layout = compute_dashboard_bar_layout()
 
-    for rect in _rects(layout):
+    for rect in layout.every_rect:
         assert rect.y >= 0
         assert rect.y + rect.height <= layout.height
 

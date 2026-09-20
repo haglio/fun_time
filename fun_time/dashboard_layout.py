@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 
 from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_SIZE_HUD
 
@@ -78,11 +78,7 @@ LOG_HEIGHT = 160
 
 @dataclass(frozen=True)
 class DashboardBarLayout:
-    """Where each control sits in the bar, and how tall the bar is.
-
-    Only the height is fixed: the bar spans whatever width the window has, and
-    the log fills everything below it.
-    """
+    """Where each control sits in the bar, and how big the bar is."""
 
     height: int
     app_icon: Rect
@@ -99,8 +95,14 @@ class DashboardBarLayout:
     vr_reset_button: Rect
 
     @property
+    def every_rect(self) -> tuple[Rect, ...]:
+        # Read off the fields, so a control declared above is one the width counts.
+        placed = (getattr(self, field.name) for field in fields(self))
+        return tuple(rect for rect in placed if isinstance(rect, Rect))
+
+    @property
     def width(self) -> int:
-        return self.vr_button.x + self.vr_button.width + GROUP_GAP
+        return max(rect.x + rect.width for rect in self.every_rect) + GROUP_GAP
 
 
 def compute_dashboard_bar_layout() -> DashboardBarLayout:
