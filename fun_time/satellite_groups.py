@@ -104,7 +104,7 @@ def _satellite_group_index(player: Player, config: BridgeConfig, current: str) -
 
 def _next_action_sibling(index: GroupIndex, current: str) -> str | None:
     """The action-group item after *current*, cycling in sorted order."""
-    group_key = index.action_key_by_path.get(normalize_path_key(current))
+    group_key = index.entry(current).action_key
     if group_key is None:
         return None
     items = [m for m in index.action_items[group_key] if Path(m).exists()]
@@ -124,16 +124,15 @@ def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
     exactly which sisters exist, and widening the net is a separate, HUD-only
     action ("more seeds"), not a cycle.
     """
-    current_key = normalize_path_key(current)
-    current_action = index.action_by_path.get(current_key, "")
-    entry = index.seed_key_by_path.get(current_key)
-    if entry is None:
+    current_entry = index.entry(current)
+    current_action = current_entry.action
+    if current_entry.seed_key is None:
         return None
-    family, current_seed = entry
+    family, current_seed = current_entry.seed_key
     found: list[tuple[str, str]] = []
     for path in (m for m in index.seed_items.get(family, []) if Path(m).exists()):
-        key = normalize_path_key(path)
-        candidate = index.seed_key_by_path.get(key)
+        sibling = index.entry(path)
+        candidate = sibling.seed_key
         # Same action only. An image-to-video seed family is keyed on the source
         # image alone, so it spans actions; but the seed axis is "the same act,
         # another subject", so a sister seed doing a different act belongs on the
@@ -142,7 +141,7 @@ def _next_seed_sibling(index: GroupIndex, current: str) -> str | None:
         if (
             candidate
             and candidate[0] == family
-            and index.action_by_path.get(key, "") == current_action
+            and sibling.action == current_action
             and candidate[1] != current_seed
         ):
             found.append((candidate[1], path))

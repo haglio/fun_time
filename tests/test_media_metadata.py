@@ -18,7 +18,6 @@ from fun_time.media_metadata import (
     load_metadata,
     matches_query,
     metadata_path_for,
-    normalize_path_key,
     path_matches_query,
     reject_action,
     seed_family_items,
@@ -235,18 +234,43 @@ def test_build_group_index_groups_by_action_and_seed_and_skips_sidecarless(tmp_p
 
     index = build_group_index(paths.values(), metadata_root)
 
-    subject1_key = index.action_key_by_path[normalize_path_key(paths["subject1_zeta"])]
+    subject1_key = index.entry(paths["subject1_zeta"]).action_key
     assert sorted(index.action_items[subject1_key]) == sorted(
         [paths["subject1_zeta"], paths["subject1_alpha"]]
     )
-    family, seed = index.seed_key_by_path[normalize_path_key(paths["subject1_alpha"])]
+    family, seed = index.entry(paths["subject1_alpha"]).seed_key
     assert set(index.seed_items[family]) == {
         paths["subject1_zeta"], paths["subject1_alpha"], paths["subject2_alpha"]
     }
-    assert seed != index.seed_key_by_path[normalize_path_key(paths["subject2_alpha"])][1]
-    assert normalize_path_key(paths["no_metadata"]) not in index.action_key_by_path
+    assert seed != index.entry(paths["subject2_alpha"]).seed_key[1]
+    assert index.entry(paths["no_metadata"]).action_key is None
     assert index.contains(paths["no_metadata"])
     assert not index.contains(str(tmp_path / "media" / "new_arrival.mp4"))
+
+
+def test_the_index_holds_one_record_per_clip(tmp_path: Path):
+    """Seven facts about one clip used to be seven dicts keyed by the same path,
+    so every reader normalized the path again and probed several of them to
+    answer one question about one clip — and an eighth fact meant an eighth
+    dict, an eighth default and an eighth constructor line."""
+    media_root, metadata_root, paths = _library(tmp_path, {
+        "subject": {**_i2v_meta(action="Alpha", video_seed="1"), "watch": {"weight": 4.0}},
+        "no_metadata": None,
+    })
+
+    index = build_group_index(paths.values(), metadata_root)
+
+    entry = index.entry(paths["subject"])
+    assert entry.path == paths["subject"]
+    assert entry.action == "Alpha"
+    assert entry.weight == 4.0
+    assert entry.from_image
+    assert entry.action_key is not None and entry.seed_key is not None
+    bare = index.entry(paths["no_metadata"])
+    assert (bare.path, bare.action, bare.weight, bare.from_image) == (
+        paths["no_metadata"], "", 1.0, False
+    )
+    assert index.entry("C:/never/indexed.mp4").path == ""
 
 
 def test_build_group_index_carries_each_clips_watch_weight(tmp_path: Path):
@@ -283,10 +307,10 @@ def test_build_group_index_reads_each_clips_scene_tags(tmp_path: Path):
 
     index = build_group_index(paths.values(), metadata_root)
 
-    assert index.scene_tags_by_path[normalize_path_key(paths["subject"])] == frozenset(
+    assert index.entry(paths["subject"]).scene_tags == frozenset(
         {"two cute dolls", "rainbow bedroom"}   # SOURCE_IMAGE's positive_prompt, split on commas
     )
-    assert normalize_path_key(paths["no_metadata"]) not in index.scene_tags_by_path
+    assert index.entry(paths["no_metadata"]).scene_tags == frozenset()
 
 
 # --- cached_group_index ---
@@ -473,7 +497,7 @@ def test_action_group_items_are_the_subjects_other_actions(tmp_path: Path):
     items = action_group_items(index, paths["clip"])
 
     assert sorted(items) == sorted([paths["clip"], paths["twirl"]])
-    assert index.action_by_path[normalize_path_key(paths["clip"])] == "Alpha"
+    assert index.act_of(paths["clip"]) == "Alpha"
 
 
 def test_seed_family_items_are_the_same_act_under_other_seeds(tmp_path: Path):

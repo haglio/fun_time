@@ -201,12 +201,12 @@ def _collapse_axis(
     """
     if by_seed_family:
         def seed_family_of(path: str) -> str | None:
-            entry = index.seed_key_by_path.get(normalize_path_key(path))
-            return entry[0] if entry is not None else None
+            seed_key = index.entry(path).seed_key
+            return seed_key[0] if seed_key is not None else None
 
         return seed_family_of, lambda family: index.seed_items[family]
     return (
-        lambda path: index.action_key_by_path.get(normalize_path_key(path)),
+        lambda path: index.entry(path).action_key,
         lambda key: index.action_items[key],
     )
 
