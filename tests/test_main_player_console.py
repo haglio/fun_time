@@ -11,7 +11,7 @@ from player_core.console import (
 from player_core.hud_button import Button
 from player_core.modes import LengthMode, LoopState, MainMode, Osr2State
 
-from fun_time.main_player_console import console_model, osr2_state
+from fun_time.main_player_console import MainSlotInputs, console_model, osr2_state
 from fun_time.player_status import GenauStatus, MainPlayerStatus
 
 
@@ -19,7 +19,7 @@ def _payload(**overrides) -> ConsoleModel:
     base = dict(main_mode=MainMode.VIDEO, active=False, osr2_mode="controlled", broker=False,
                 main_player=MainPlayerStatus(), genau=GenauStatus())
     base.update(overrides)
-    return console_model(**base)
+    return console_model(MainSlotInputs(**base))
 
 
 def _button(model: ConsoleModel, action: str) -> Button:
