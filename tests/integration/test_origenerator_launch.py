@@ -232,11 +232,13 @@ def test_this_session_sends_exactly_the_flags_the_hosted_app_declares(tmp_path):
         status_file=tmp_path / "s.txt", dashboard_cmd_file=tmp_path / "d.txt",
         players=_players(tmp_path),
     )
-    declared = [*published["required_flags"],
-                *(flag for side in published["player_flags"]
-                  for flag in published["player_flags"][side])]
+    declared = {*published["required_flags"],
+                *(flag for group in ("region_flags", "player_flags")
+                  for side in published[group] for flag in published[group][side])}
+    written = [word for word in command if word.startswith("--")]
 
-    assert [word for word in command if word.startswith("--")] == declared
+    assert set(written) == declared
+    assert len(written) == len(declared), "a flag written twice"
     assert command[1:3] == ["-m", published["module"]]
 
 
