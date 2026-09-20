@@ -11,12 +11,10 @@ from fun_time_vr.projection import (
     FLAT,
     MKX200_SBS,
     PROJECTIONS,
+    ProjectionMemory,
     default_projection,
     next_projection,
     previous_projection,
-    resolve_projection,
-    save_projection,
-    saved_projection,
 )
 
 
@@ -100,7 +98,7 @@ class TestSidecarPersistence:
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
 
-        assert save_projection(str(video), metadata, FISHEYE_190_SBS) is True
+        assert ProjectionMemory(metadata).save(str(video), FISHEYE_190_SBS) is True
 
         sidecar = metadata / "VR" / "finished" / "scene one.json"
         assert json.loads(sidecar.read_text(encoding="utf-8")) == {
@@ -117,7 +115,7 @@ class TestSidecarPersistence:
             encoding="utf-8",
         )
 
-        save_projection(str(video), metadata, EQUIRECT_180_SBS)
+        ProjectionMemory(metadata).save(str(video), EQUIRECT_180_SBS)
 
         payload = json.loads(sidecar.read_text(encoding="utf-8"))
         assert payload["video"] == {"action": "alpha"}
@@ -128,14 +126,15 @@ class TestSidecarPersistence:
         _, metadata = library
         outsider = tmp_path / "elsewhere" / "scene.mp4"
 
-        assert save_projection(str(outsider), metadata, FLAT) is False
+        assert ProjectionMemory(metadata).save(str(outsider), FLAT) is False
 
     def test_saved_projection_reads_back(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
-        save_projection(str(video), metadata, MKX200_SBS)
+        memory = ProjectionMemory(metadata)
+        memory.save(str(video), MKX200_SBS)
 
-        assert saved_projection(str(video), metadata) == MKX200_SBS
+        assert memory.saved(str(video)) == MKX200_SBS
 
     def test_saved_projection_ignores_a_value_no_longer_in_the_cycle(self, library):
         videos, metadata = library
@@ -144,31 +143,47 @@ class TestSidecarPersistence:
         sidecar.parent.mkdir(parents=True)
         sidecar.write_text(json.dumps({"vr": {"projection": "retired_mode"}}), encoding="utf-8")
 
-        assert saved_projection(str(video), metadata) is None
+        assert ProjectionMemory(metadata).saved(str(video)) is None
 
     def test_saved_projection_none_without_a_sidecar(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
 
-        assert saved_projection(str(video), metadata) is None
+        assert ProjectionMemory(metadata).saved(str(video)) is None
+
+    def test_a_choice_for_a_video_in_a_vr_folder_on_another_drive_is_remembered(self, tmp_path):
+        """Where every one of his VR videos is: the folder exists only on the
+        cloud drive, so none of them is beside the metadata root, and a choice
+        made for one was dropped with a line in the log."""
+        metadata = tmp_path / "local" / "videos" / "metadata"
+        metadata.mkdir(parents=True)
+        vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
+        video = vr_dir / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (vr_dir,))
+
+        assert memory.save(str(video), MKX200_SBS) is True
+
+        assert (metadata / "VR" / "finished" / "scene one.json").is_file()
+        assert memory.resolve(str(video)) == MKX200_SBS
 
 
 class TestResolve:
     def test_saved_choice_beats_the_default(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
-        save_projection(str(video), metadata, FLAT)
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+        memory.save(str(video), FLAT)
 
-        assert resolve_projection(str(video), metadata, [videos / "VR"]) == FLAT
+        assert memory.resolve(str(video)) == FLAT
 
     def test_falls_back_to_the_default_when_nothing_is_saved(self, library):
         videos, metadata = library
         video = videos / "VR" / "finished" / "scene one.mp4"
 
-        assert resolve_projection(str(video), metadata, [videos / "VR"]) == EQUIRECT_180_SBS
+        assert ProjectionMemory(metadata, (videos / "VR",)).resolve(str(video)) == EQUIRECT_180_SBS
 
     def test_no_metadata_root_still_yields_a_default(self, library):
         videos, _ = library
         video = videos / "VR" / "finished" / "scene one.mp4"
 
-        assert resolve_projection(str(video), None, [videos / "VR"]) == EQUIRECT_180_SBS
+        assert ProjectionMemory(None, (videos / "VR",)).resolve(str(video)) == EQUIRECT_180_SBS

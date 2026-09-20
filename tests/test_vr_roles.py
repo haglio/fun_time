@@ -364,6 +364,25 @@ class TestProjectionCycling:
         role.apply_command("PREV", on_quit=_never_quits)
         assert role.projection == FISHEYE_190_SBS
 
+    def test_a_choice_holds_for_a_vr_folder_kept_away_from_the_rest_of_the_library(self, tmp_path):
+        metadata = tmp_path / "local" / "videos" / "metadata"
+        vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
+        vr_dir.mkdir(parents=True)
+        one, two = vr_dir / "scene one.mp4", vr_dir / "scene two.mp4"
+        playlist = tmp_path / "main_player_playlist.tsv"
+        playlist.write_text(f"{one}\n{two}\n", encoding="utf-8")
+        role = MainRole(
+            player=FakePlayer(), driver=FakeDriver(), playlist_file=playlist,
+            metadata_root=metadata, vr_dirs=(vr_dir,),
+            play_points=PlayPoints(tmp_path / "play_points.json"),
+        )
+
+        role.apply_command("CYCLE_PROJECTION", on_quit=_never_quits)
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("PREV", on_quit=_never_quits)
+
+        assert role.projection == FISHEYE_190_SBS
+
     def test_cycling_back_steps_the_other_way_and_persists_too(self, role_parts):
         role, metadata = role_parts.role, role_parts.metadata
 
@@ -1218,6 +1237,29 @@ class TestWhatTheHeadsetCallsTheVideo:
         role = self._role(tmp_path, {"video": {"type": "full_length"}})
 
         assert role.title == "Jane Doe - Alpha Study Part Two_apo8_iris2"
+
+    def test_a_video_in_a_vr_folder_kept_away_from_the_library_has_one_record_for_everything(
+            self, tmp_path):
+        """Its name and its scenes are read from the record its projection is kept in."""
+        metadata = tmp_path / "local" / "videos" / "metadata"
+        vr_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
+        vr_dir.mkdir(parents=True)
+        video = vr_dir / "scene one.mp4"
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        sidecar.parent.mkdir(parents=True)
+        sidecar.write_text(json.dumps({
+            "title": "Jane Doe - Alpha Study", "scenes": [{"start": 90}],
+        }), encoding="utf-8")
+        playlist = tmp_path / "main_player_playlist.tsv"
+        playlist.write_text(f"{video}\n", encoding="utf-8")
+        player = FakePlayer()
+        role = MainRole(player=player, driver=FakeDriver(), playlist_file=playlist,
+                        metadata_root=metadata, vr_dirs=(vr_dir,))
+
+        role.next_scene()
+
+        assert role.title == "Jane Doe - Alpha Study"
+        assert player.seeks == [90_000.0]
 
 
 HOUR_MS = 3_600_000.0
