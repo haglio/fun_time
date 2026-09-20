@@ -139,9 +139,9 @@ class TestOneUnitsFaultIsNotTheOthers:
         """The two satellites are one class: one coming right must not close out
         the other's run, nor absorb its fault as a repeat."""
         class _Side(_Unit):
-            def __init__(self, player_name, raises=None):
+            def __init__(self, screen_name, raises=None):
                 super().__init__(raises)
-                self.player_name = player_name
+                self.screen_name = screen_name
 
         broken = _Side("portrait", raises=lambda _turn: OSError("gone"))
         healthy = _Side("landscape")

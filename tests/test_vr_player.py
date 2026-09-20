@@ -59,6 +59,7 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
+from fun_time_vr import room
 from fun_time_vr.console_panel import (
     NOTICE_STRIP_HEIGHT,
     PANEL_WIDTH_DEG,
@@ -96,12 +97,9 @@ from fun_time_vr.player import (
     _hands_for_the_players,
     _HangingScreen,
     _LayoutKeeper,
-    _library_screens,
     _LibraryUnit,
-    _main_slot_screen,
     _MainUnit,
     _PanelUnit,
-    _panes,
     _PointerDrawing,
     _ReferenceUnit,
     _SatelliteUnit,
@@ -125,6 +123,7 @@ from fun_time_vr.pointer import (
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
+from fun_time_vr.render import immersive_mode
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import RADIUS, Placement, attached_below, surface_vertices
 from fun_time_vr.stacking import Stacking
@@ -236,7 +235,8 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, placement=DEFAULT_LAYOUT[MAIN])
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, placement=DEFAULT_LAYOUT[MAIN],
+                     genau_role=SimpleNamespace(showing=False))
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.main_player_cmd_file)
@@ -581,7 +581,8 @@ class TestThePanelUnderThePointer:
     def _unit(self, tmp_path, *, wrapped=False, showing=False):
         projection = EQUIRECT_180_SBS if wrapped else FLAT
         seeks: list[float] = []
-        main_unit = SimpleNamespace(
+        main_unit = _like(_MainUnit, SimpleNamespace(
+            owns_the_slot=not showing,
             role=SimpleNamespace(
                 current_video=Path("feature.mp4"), title="Jane Doe - Alpha Study",
                 position_ms=1_000.0, duration_ms=600_000.0,
@@ -597,8 +598,10 @@ class TestThePanelUnderThePointer:
                 playhead=video_playhead(1_000.0, 600_000.0, 30.0),
                 hud=VolumeHud(volume=70, muted=False),
                 seek=seeks.append, scrub_duration_ms=600_000.0),
-        )
-        genau = SimpleNamespace(
+        ))
+        genau = _like(_GenauUnit, SimpleNamespace(
+            owns_the_slot=showing,
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
             texture=SimpleNamespace(ready=True, aspect=4 / 3),
             # Genau's bar counts frames, and its seek takes the fraction read out.
             controls=_SlotControls(
@@ -618,7 +621,7 @@ class TestThePanelUnderThePointer:
                 current_clip=None, loading=None, showing=showing, volume=100, muted=False,
                 projection=projection, playhead=(5, 20), seek=seeks.append,
             ),
-        )
+        ))
         command_file = tmp_path / "dashboard_cmd.txt"
         event_log = tmp_path / "event_log.jsonl"
         notices = NoticeBoard(event_log)
@@ -648,10 +651,10 @@ class TestThePanelUnderThePointer:
         """A point in the ROW's own pixels, as a point on the panel."""
         return self._uv(unit, x, unit._image.size[1] - _WRAPPED_ROW_H + y)
 
-    def _press(self, room, uv):
-        room.unit.point(Frame(events=(
+    def _press(self, console, uv):
+        console.unit.point(Frame(events=(
             PressEvent(PRESS, PANEL, *uv), PressEvent(RELEASE, PANEL))))
-        room.unit.pump(threading.Event(), 0.0)
+        console.unit.pump(threading.Event(), 0.0)
 
     def test_a_notice_the_session_raised_reaches_the_panel(self, tmp_path):
         """A VR session launches no dashboard, so this strip is the whole of what
@@ -1073,12 +1076,12 @@ class TestWhenTheRoomIsUp:
         dimensions, a frame or more before it presents anything -- so the room
         read as up almost as soon as the loop began, the cover came off in a
         blink nobody saw, and the OSR2 was released onto black."""
-        room = _room()
-        room["main_unit"] = SimpleNamespace(target=SimpleNamespace(
+        scene = _room()
+        scene["main_unit"] = SimpleNamespace(target=SimpleNamespace(
             ready=True, has_picture=False,
         ))
 
-        assert not _scene_is_up(**room)
+        assert not _scene_is_up(**scene)
 
     def test_a_target_is_marked_painted_where_its_picture_lands(self):
         """The other half of that contract, pinned in the source because the copy
@@ -1099,10 +1102,10 @@ class TestWhenTheRoomIsUp:
         """In genau mode the clip player has the scene and the video waits
         paused under it, so asking the video for a picture would hold the
         cover over a room that is finished."""
-        room = _room(genau_showing=True)
-        room["main_unit"] = SimpleNamespace(target=_picture(False))
+        scene = _room(genau_showing=True)
+        scene["main_unit"] = SimpleNamespace(target=_picture(False))
 
-        assert _scene_is_up(**room)
+        assert _scene_is_up(**scene)
 
 
 def test_the_cover_goes_up_before_the_players_are_built():
@@ -1125,9 +1128,11 @@ def test_the_cover_goes_up_before_the_players_are_built():
     assert calls["_raise_the_cover"] < calls["_PanelUnit"]
 
 
-def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
-    """Out of `units` it is never painted or uploaded, and a room with no
-    dashboard in it is a room with no buttons."""
+@pytest.mark.parametrize("screen", ["dash", "library"])
+def test_every_screen_is_registered_in_the_room(screen):
+    """Out of the room a screen is never painted, pumped, pointed at, drawn or
+    closed.  The dash was pumped, pointed at and placed in the layout and left
+    out of the eye pass, so it existed everywhere except in front of him."""
     import ast
     import inspect
 
@@ -1137,27 +1142,7 @@ def test_the_dashboard_is_rendered_and_pumped_like_every_other_unit():
     (units,) = [node for node in ast.walk(tree)
                 if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "units"]
 
-    assert "dash" in ast.unparse(units.value)
-
-
-def test_the_library_is_pumped_pointed_at_and_drawn_like_the_reference():
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
-    tree = ast.parse(inspect.getsource(player._run))
-    assigned = {ast.unparse(node.targets[0]): ast.unparse(node.value)
-                for node in ast.walk(tree) if isinstance(node, ast.Assign)}
-    (pointed,) = [node for node in ast.walk(tree)
-                  if isinstance(node, ast.For) and "unit.point(frame)" in ast.unparse(node.body)]
-    (drawn,) = [node for node in ast.walk(tree)
-                if isinstance(node, ast.Call) and ast.unparse(node.func) == "_draw_eyes"]
-
-    assert "library" in assigned["units"]
-    assert "_library_screens(library)" in assigned["screens"]
-    assert "library" in ast.unparse(pointed.iter)
-    assert "library" in [ast.unparse(arg) for arg in drawn.args]
+    assert screen in ast.unparse(units.value)
 
 
 def test_everything_the_room_closes_when_it_ends_has_a_close():
@@ -1317,6 +1302,13 @@ def test_a_squeeze_brings_forward_what_the_ray_and_the_eyes_both_see():
     assert "stacking.take(frame.taken)" in {ast.unparse(call) for call in calls}
 
 
+def _like(kind, stand_in):
+    """Answer the room's questions the way *kind* does, off a stand-in."""
+    stand_in.hangings = lambda: kind.hangings(stand_in)
+    stand_in.hangs_by = lambda: kind.hangs_by(stand_in)
+    return stand_in
+
+
 class TestTheMainSlotUnderThePointer:
     """The main player moves and zooms by the same handles the satellites do, so
     it is one of the screens the pointer is handed — but only while what fills
@@ -1327,34 +1319,51 @@ class TestTheMainSlotUnderThePointer:
             picture=True, displayed=True, projection=FLAT,
             showing=False, clip=True, clip_projection=FLAT,
         ) | overrides
-        main_unit = SimpleNamespace(
+        main_unit = _like(_MainUnit, SimpleNamespace(
             target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9),
             role=SimpleNamespace(
                 displayed=settings["displayed"], projection=settings["projection"]),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
-        )
-        genau = SimpleNamespace(
+            owns_the_slot=not settings["showing"],
+        ))
+        genau = _like(_GenauUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
             role=SimpleNamespace(
                 showing=settings["showing"], projection=settings["clip_projection"]),
             screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
-        )
+            owns_the_slot=settings["showing"],
+        ))
         return main_unit, genau
 
+    def _slot(self, **overrides):
+        hangings = room.what_hangs(self._units(**overrides))
+        return hangings[0].screen if hangings else None
+
+    def test_the_main_player_has_the_slot_while_genau_stands_aside(self):
+        assert _MainUnit.owns_the_slot.fget(
+            SimpleNamespace(_genau_role=SimpleNamespace(showing=False)))
+        assert not _MainUnit.owns_the_slot.fget(
+            SimpleNamespace(_genau_role=SimpleNamespace(showing=True)))
+
+    def test_genau_has_the_slot_exactly_while_it_is_showing(self):
+        assert _GenauUnit.owns_the_slot.fget(SimpleNamespace(role=SimpleNamespace(showing=True)))
+        assert not _GenauUnit.owns_the_slot.fget(
+            SimpleNamespace(role=SimpleNamespace(showing=False)))
+
     def test_the_primary_offers_both_handles(self):
-        screen = _main_slot_screen(*self._units())
+        screen = self._slot()
 
         assert (screen.name, screen.movable, screen.resizable) == (MAIN, True, True)
         assert screen.placement == DEFAULT_LAYOUT[MAIN]
         assert screen.aspect == 16 / 9
 
     def test_a_flat_main_player_is_a_picture_a_squeeze_clicks_or_carries(self):
-        assert _main_slot_screen(*self._units()).picture
+        assert self._slot().picture
 
     def test_genaus_clip_is_what_the_pointer_finds_there_while_it_has_the_scene(self):
         """It hangs in the same slot, at its own shape — so the handles stay
         under the hand through a switch into video mode and back."""
-        screen = _main_slot_screen(*self._units(showing=True))
+        screen = self._slot(showing=True)
 
         assert screen.name == MAIN
         assert screen.aspect == 4 / 3
@@ -1367,10 +1376,16 @@ class TestTheMainSlotUnderThePointer:
         """It is round the viewer rather than hanging in the slot, so there is
         nothing to grab — but it is still what a squeeze out there lands on, so
         it stays in the scene as the screen with no rectangle."""
-        screen = _main_slot_screen(*self._units(**state))
+        screen = self._slot(**state)
 
         assert (screen.movable, screen.resizable) == (False, False)
         assert (screen.pressable, screen.immersive) == (True, True)
+
+    def test_a_wrapped_video_goes_round_the_viewer_rather_than_on_a_quad(self):
+        (wrap,) = room.what_hangs(self._units(projection=EQUIRECT_180_SBS))
+
+        assert wrap.mesh is None
+        assert wrap.wrap == immersive_mode(EQUIRECT_180_SBS)
 
     @pytest.mark.parametrize("state", [
         {"picture": False},
@@ -1380,15 +1395,27 @@ class TestTheMainSlotUnderThePointer:
     def test_a_slot_with_no_picture_in_it_is_not_in_the_scene_at_all(self, state):
         """Still waiting for its first frame, or standing aside for the other
         player: there is nothing there for the ray to find."""
-        assert _main_slot_screen(*self._units(**state)) is None
+        assert self._slot(**state) is None
+
+    def test_a_drag_on_the_slot_moves_both_players_screens(self):
+        """They share it, so a drag while one is showing must not leave the
+        other hanging where the slot used to be."""
+        main_unit, genau = self._units()
+
+        room.where_they_hang([main_unit, genau])[MAIN].put(_UNDER_THE_DASH)
+
+        assert main_unit.screen.placement == _UNDER_THE_DASH
+        assert genau.screen.placement == _UNDER_THE_DASH
 
     def _the_room_around_the_slot(self) -> list:
-        dash = SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
-                               screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
-        reference = SimpleNamespace(showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
-                                    screen=SimpleNamespace(placement=_UNDER_THE_DASH))
-        return Stacking().arrange(_panes(
-            *self._units(), [_a_satellite(LANDSCAPE)], _a_panel(), dash, reference))
+        dash = _like(_DashUnit, SimpleNamespace(
+            texture=SimpleNamespace(ready=False, aspect=2.5),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH])))
+        reference = _like(_ReferenceUnit, SimpleNamespace(
+            showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
+            screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
+        return room.arranged(Stacking(), room.what_hangs(
+            [*self._units(), _a_satellite(LANDSCAPE), _a_panel(), dash, reference]))
 
     def test_the_main_slot_is_listed_under_the_screens_that_overlap_it(self):
         """It is drawn first and it is the biggest, so a satellite tucked over its
@@ -1408,9 +1435,9 @@ class TestTheMainSlotUnderThePointer:
 
 
 class TestWhichSlotAsksForARow:
-    """_main_slot_screen's mirror.  A video on a screen paints its own row into
-    its own frame; a video that wraps the viewer has nowhere to paint one, and
-    the console carries what it says instead."""
+    """The main slot's mirror.  A video on a screen paints its own row into its
+    own frame; a video that wraps the viewer has nowhere to paint one, and the
+    console carries what it says instead."""
 
     @pytest.mark.parametrize("state", [
         {"projection": EQUIRECT_180_SBS},
@@ -1566,25 +1593,28 @@ class TestEveryHangingScreenIsDrawn:
         renderer = _FakeRenderer()
         session = SimpleNamespace(
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
-        main_unit = SimpleNamespace(
+        main_unit = _like(_MainUnit, SimpleNamespace(
             target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9),
             screen=SimpleNamespace(ready=True, mesh=MAIN, placement=DEFAULT_LAYOUT[MAIN]),
             role=SimpleNamespace(displayed=True, projection=projection or FLAT),
-        )
-        genau = SimpleNamespace(
+            owns_the_slot=True,
+        ))
+        genau = _like(_GenauUnit, SimpleNamespace(
             role=SimpleNamespace(showing=False, projection=FLAT),
             texture=SimpleNamespace(ready=False, texture=object(), aspect=4 / 3),
             screen=SimpleNamespace(ready=False, mesh="genau", placement=DEFAULT_LAYOUT[MAIN]),
-        )
-        panel, dash = _hanging(PANEL, 1.2), _hanging(DASH, 2.5)
-        reference = _hanging(REFERENCE, 1.7)
+            owns_the_slot=False,
+        ))
+        panel = _like(_PanelUnit, _hanging(PANEL, 1.2))
+        dash = _like(_DashUnit, _hanging(DASH, 2.5))
+        reference = _like(_ReferenceUnit, _hanging(REFERENCE, 1.7))
         reference.showing = showing
-        library = _hanging(LIBRARY, 16 / 9)
+        library = _like(_LibraryUnit, _hanging(LIBRARY, 16 / 9))
         library.showing = browsing
-        screens = (stacking or Stacking()).arrange(
-            _panes(main_unit, genau, [], panel, dash, reference)) + _library_screens(library)
+        hangings = room.what_hangs([main_unit, genau, panel, dash, reference, library])
+        screens = room.arranged(stacking or Stacking(), hangings)
         _draw_eyes(
-            session, renderer, main_unit, genau, [], panel, dash, reference, library,
+            session, renderer, hangings,
             SimpleNamespace(draw=lambda *_a: None), self._views(), np.eye(4, dtype=np.float64),
             screens=screens, as_quads=set(),
         )
@@ -1678,25 +1708,27 @@ class TestWhatThePointerDraws:
 
 def _a_panel(*, ready=True):
     """The console as the pointer reads it: pressed, never dragged."""
-    return SimpleNamespace(
+    return _like(_PanelUnit, SimpleNamespace(
         texture=SimpleNamespace(ready=ready, aspect=1.2),
         screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PANEL]),
-    )
+    ))
 
 
 def _slot(*, wrapped=False):
     """The two players sharing the main slot, as the dashboard reads them."""
     projection = EQUIRECT_180_SBS if wrapped else FLAT
-    main_unit = SimpleNamespace(
+    main_unit = _like(_MainUnit, SimpleNamespace(
         target=SimpleNamespace(ready=True, aspect=16 / 9),
         role=SimpleNamespace(displayed=True, projection=projection),
         screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
-    )
-    genau = SimpleNamespace(
+        owns_the_slot=True,
+    ))
+    genau = _like(_GenauUnit, SimpleNamespace(
         texture=SimpleNamespace(ready=True, aspect=4 / 3),
         role=SimpleNamespace(showing=False, projection=projection),
         screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
-    )
+        owns_the_slot=False,
+    ))
     return main_unit, genau
 
 
@@ -1959,13 +1991,13 @@ class TestWhatThePointerCanReach:
         main_unit, genau = _slot(wrapped=wrapped)
         main_unit.target = SimpleNamespace(ready=False, aspect=16 / 9)
         genau.texture = SimpleNamespace(ready=False, aspect=4 / 3)
-        reference = SimpleNamespace(
+        reference = _like(_ReferenceUnit, SimpleNamespace(
             showing=reference_showing,
             texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH),
-        )
-        return {s.name: s for s in Stacking().arrange(_panes(
-            main_unit, genau, [], panel, dash, reference))}
+        ))
+        return {s.name: s for s in room.arranged(Stacking(), room.what_hangs(
+            [main_unit, genau, panel, dash, reference]))}
 
     def test_the_dash_is_one_of_them(self, tmp_path):
         assert DASH in self._screens(tmp_path)
@@ -2003,30 +2035,33 @@ class TestWhatThePointerCanReach:
 
 def _a_satellite(player: str, *, hud: bool = False):
     placement = DEFAULT_LAYOUT[player]
-    return SimpleNamespace(
-        player_name=player, target=SimpleNamespace(ready=True, aspect=16 / 9),
+    return _like(_SatelliteUnit, SimpleNamespace(
+        screen_name=player, target=SimpleNamespace(ready=True, aspect=16 / 9),
         screen=SimpleNamespace(placement=placement), hud_ready=hud,
         hud_screen=SimpleNamespace(placement=attached_below(
             placement, aspect=16 / 9, width_deg=20.0, hanging_aspect=6.0)),
         hud_texture=SimpleNamespace(aspect=6.0),
-    )
+    ))
 
 
 class TestWhatComesForwardTogether:
     def _arranged(self, stacking, satellites, *, panel=None, dash=None, reference_up=False,
                   wrapped=False):
-        dash = dash or SimpleNamespace(texture=SimpleNamespace(ready=False, aspect=2.5),
-                                       screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
-        reference = SimpleNamespace(
+        dash = dash or _like(_DashUnit, SimpleNamespace(
+            texture=SimpleNamespace(ready=False, aspect=2.5),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH])))
+        reference = _like(_ReferenceUnit, SimpleNamespace(
             showing=reference_up, texture=SimpleNamespace(ready=True, aspect=1.7),
-            screen=SimpleNamespace(placement=_UNDER_THE_DASH))
-        return [screen.name for screen in stacking.arrange(_panes(
-            *_slot(wrapped=wrapped), satellites, panel or _a_panel(ready=False), dash, reference))]
+            screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
+        return [screen.name for screen in room.arranged(stacking, room.what_hangs(
+            [*_slot(wrapped=wrapped), *satellites,
+             panel or _a_panel(ready=False), dash, reference]))]
 
     def test_the_reference_comes_forward_as_part_of_the_dashboard(self):
         stacking = Stacking()
-        dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=2.5),
-                               screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]))
+        dash = _like(_DashUnit, SimpleNamespace(
+            texture=SimpleNamespace(ready=True, aspect=2.5),
+            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH])))
         stacking.take(MAIN)
         stacking.take(REFERENCE)
 

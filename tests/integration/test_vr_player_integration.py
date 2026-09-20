@@ -20,6 +20,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -148,7 +149,8 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
     layout = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, contexts, placement=layout[MAIN])
+    main = vrp._MainUnit(manifest, vr, contexts, placement=layout[MAIN],
+                         genau_role=SimpleNamespace(showing=False))
     satellites = [
         vrp._SatelliteUnit(side, manifest, contexts, vr=vr, placement=layout[side])
         for side in (PORTRAIT, LANDSCAPE)
@@ -412,7 +414,8 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     glfw.make_context_current(window)
 
     main = vrp._MainUnit(manifest, vr, SharedContexts(window),
-                         placement=DEFAULT_LAYOUT[MAIN])
+                         placement=DEFAULT_LAYOUT[MAIN],
+                         genau_role=SimpleNamespace(showing=False))
     stop = threading.Event()
     pump = threading.Thread(
         target=vrp._pump_channels, args=([main], stop, vrp.FramePerf(logger=vrp.logger)),
