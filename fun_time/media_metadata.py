@@ -353,17 +353,13 @@ class GroupIndex:
     """Grouping of a video library by generation identity: one
     :class:`ClipEntry` per clip keyed by :func:`normalize_path_key`, plus the two
     inverted indexes answering "who else is in this group" (sorted lists of the
-    original path strings).  ``entries`` holds every input path, sidecar or not,
-    so a caller can tell "no metadata" from "not indexed yet" when judging a
-    cached index stale — and so the widen can range over the whole library.
-    """
+    original path strings)."""
 
     entries: dict[str, ClipEntry]
     action_items: dict[str, list[str]]
     seed_items: dict[str, list[str]]
 
     def entry(self, path: str) -> ClipEntry:
-        """What is known about *path*, or a blank record when it is not indexed."""
         return self.entries.get(normalize_path_key(path)) or _UNKNOWN_CLIP
 
     def contains(self, path: str) -> bool:
@@ -548,25 +544,37 @@ def build_group_index(
     return GroupIndex(entries=entries, action_items=action_items, seed_items=seed_items)
 
 
-# Sidecar scans cost ~1000 file reads per library, so indexes are cached per
-# library key and rebuilt only when a probe path is missing — which is exactly
-# what happens when a new arrival starts playing.
-_INDEX_CACHE: dict[str, GroupIndex] = {}
+class GroupIndexCache:
+    """Indexes held per library key, so a ~1000-file scan happens once: one is
+    rebuilt only when a probe path is missing from it, which is what happens when
+    a new arrival starts playing.  The session runs on :data:`SESSION_INDEXES`;
+    anything wanting its own — over another library, or to drop without touching
+    the session's — makes one of these."""
+
+    def __init__(self) -> None:
+        self._indexes: dict[str, GroupIndex] = {}
+
+    def index_for(
+        self,
+        cache_key: str,
+        *,
+        paths_supplier,
+        metadata_root: str | Path | None,
+        must_contain: str | None = None,
+    ) -> GroupIndex:
+        index = self._indexes.get(cache_key)
+        if index is None or (must_contain is not None and not index.contains(must_contain)):
+            index = build_group_index(paths_supplier(), metadata_root)
+            self._indexes[cache_key] = index
+        return index
+
+    def clear(self) -> None:
+        self._indexes.clear()
 
 
-def cached_group_index(
-    cache_key: str,
-    *,
-    paths_supplier,
-    metadata_root: str | Path | None,
-    must_contain: str | None = None,
-) -> GroupIndex:
-    index = _INDEX_CACHE.get(cache_key)
-    if index is None or (must_contain is not None and not index.contains(must_contain)):
-        index = build_group_index(paths_supplier(), metadata_root)
-        _INDEX_CACHE[cache_key] = index
-    return index
+# The one every satellite and HUD in a session shares: its keys are that
+# session's library roots, a handful of them.
+SESSION_INDEXES = GroupIndexCache()
 
-
-def reset_group_index_cache() -> None:
-    _INDEX_CACHE.clear()
+cached_group_index = SESSION_INDEXES.index_for
+reset_group_index_cache = SESSION_INDEXES.clear

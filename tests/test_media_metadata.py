@@ -9,6 +9,7 @@ import pytest
 from app_support.json_store import locked_update
 
 from fun_time.media_metadata import (
+    GroupIndexCache,
     action_group_items,
     action_group_key,
     action_label,
@@ -343,6 +344,31 @@ def test_cached_group_index_rescans_only_when_probe_path_is_unknown(tmp_path: Pa
         must_contain=new_arrival,
     )
     assert len(scans) == 2
+
+
+def test_a_second_cache_holds_its_own_indexes(tmp_path: Path):
+    """The session's cache was a module dict nothing could hold a second of, so
+    anything wanting an index over a different library — a test, a variant
+    session — could only reach in and clear the one everybody shares."""
+    media_root, metadata_root, paths = _library(tmp_path, {
+        "known": _i2v_meta(action="Alpha", video_seed="1"),
+    })
+    mine, yours = GroupIndexCache(), GroupIndexCache()
+
+    ours = [
+        cache.index_for(
+            "portrait", paths_supplier=lambda: list(paths.values()),
+            metadata_root=metadata_root,
+        )
+        for cache in (mine, yours)
+    ]
+
+    assert ours[0] is not ours[1]
+    assert ours[0] is mine.index_for(
+        "portrait", paths_supplier=list, metadata_root=metadata_root)
+    mine.clear()
+    assert ours[1] is yours.index_for(
+        "portrait", paths_supplier=list, metadata_root=metadata_root)
 
 
 # --- attribute filtering: haystack + query matching ------------------------
