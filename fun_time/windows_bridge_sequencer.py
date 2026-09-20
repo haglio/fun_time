@@ -26,7 +26,6 @@ from .modes import PLAYLIST_LANDSCAPE, PLAYLIST_PORTRAIT, build_playlist_file_pa
 from .monitors import enumerate_monitors, get_logical_monitor_rects
 from .overlay_progress import NullProgress, ProgressReporter, StartupCancelled
 from .player_status import (
-    genau_status_path,
     read_genau_status,
     read_main_player_status,
 )
@@ -56,7 +55,7 @@ from .window_layout import (
     compute_main_media_rect,
     compute_window_layout,
 )
-from .window_roles import MANAGED_ROLES, role_topmost
+from .window_roles import GENAU_TITLE, MANAGED_ROLES, role_topmost
 from .windows_bridge_random_favs_browser import (
     CHROME_WINDOW_CLASS,
     launch_random_favs_browser,
@@ -485,7 +484,7 @@ def _launch_the_main_slot_players(
     # the top of it, so the clip the last session was left showing survives only
     # in the status file it published — read here, before this session's Genau
     # starts writing over it.
-    genau_clip = read_genau_status(genau_status_path(genau_state)).clip
+    genau_clip = read_genau_status(Path(m.commands.genau_status_file)).clip
     # project_dirs: which checkout of ../genau these two are run out of.  Empty
     # in an ordinary session — they resolve through their venv's editable
     # install, which is the primary — and a worktree of that repo while a branch
@@ -503,6 +502,7 @@ def _launch_the_main_slot_players(
         paused_file=m.commands.genau_paused_file,
         console_file=m.commands.main_player_console_file,
         drive_file=genau_drive_file,
+        status_file=m.commands.genau_status_file,
         dashboard_cmd_file=m.commands.dashboard_cmd_file,
         start_clip=genau_clip,
         project_dirs=project_dirs,
@@ -930,7 +930,11 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 def _resolve_genau_window(progress: ProgressReporter) -> int:
     """Genau's window, once its thread takes messages: it waits out its first
     clip's decode before its loop starts, and a placement sent sooner lands late."""
-    hwnd = wait_for_window_by_title("Genau", timeout_s=WINDOW_RESOLVE_TIMEOUT_S)
+    # Exactly, and only the plain caption: the other one is what this window
+    # wears while its HUD is over the main player's video, and that HUD is off
+    # until a mode switch, which is after this.
+    hwnd = wait_for_window_by_title(
+        GENAU_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True)
     if not hwnd:
         return 0
     for _ in range(int(GENAU_ANSWER_TIMEOUT_S * 1000 / ANSWER_TIMEOUT_MS)):

@@ -28,6 +28,7 @@ from .win32 import (
 )
 from .window_roles import (
     FIXED_TOPMOST_ROLES,
+    GENAU_TITLES,
     MANAGED_ROLES,
     ORIGENERATOR_ROLE,
     ORIGENERATOR_TITLE,
@@ -115,7 +116,12 @@ class WindowRoles:
         if hwnd:
             return hwnd
         if role == "genau":
-            hwnd = find_window_by_title("Genau")
+            # Either caption, each matched exactly: this window renames itself
+            # when its HUD goes over the main player's video, and a substring
+            # match reached both only because the plain name sits inside the
+            # other one.
+            hwnd = next((found for title in GENAU_TITLES
+                         if (found := find_window_by_title(title, exact=True))), 0)
         # The three SDL players are looked up by pid AND by caption: the pid on
         # record is the venv pythonw launcher's, not the interpreter that owns
         # the window, so on a cold cache by-pid alone finds nothing and every
