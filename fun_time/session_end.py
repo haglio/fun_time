@@ -17,6 +17,11 @@ def session_end_marker_path(state_dir: str | Path) -> Path:
     return Path(state_dir) / SESSION_END_MARKER
 
 
+def session_end_asked(state_dir: str | Path) -> bool:
+    """Whether this session has already been asked to end."""
+    return session_end_marker_path(state_dir).exists()
+
+
 def mark_session_end(state_dir: str | Path, reason: str) -> None:
     path = session_end_marker_path(state_dir)
     try:
