@@ -123,12 +123,11 @@ def _distinct_action_siblings(index: GroupIndex, current: str) -> list[str]:
     The action axis steps between distinct acts, so same-act twins collapse to a
     single entry and the current clip's own act is left out — it is the corner.
     """
-    current_key = normalize_path_key(current)
-    current_action = index.action_by_path.get(current_key, "")
+    current_action = index.act_of(current)
     reps: list[str] = []
     seen: set[str] = set()
     for item in action_group_items(index, current):
-        action = index.action_by_path.get(normalize_path_key(item), "")
+        action = index.act_of(item)
         if not action or action == current_action or action in seen:
             continue
         seen.add(action)
@@ -222,11 +221,11 @@ def _playing_item(
         return current
     if any(key(item) == key(current) for item in action):
         return current
-    current_action = index.action_by_path.get(key(current), "")
-    if current_action == index.action_by_path.get(key(anchor), ""):
+    current_action = index.act_of(current)
+    if current_action == index.act_of(anchor):
         return anchor
     for item in action:
-        if index.action_by_path.get(key(item), "") == current_action:
+        if index.act_of(item) == current_action:
             return item
     return anchor
 
@@ -422,10 +421,8 @@ def _map_around(
     return _Map(
         seed=seed,
         action=action,
-        current_action=index.action_by_path.get(normalize_path_key(hold.anchor), ""),
-        action_labels=tuple(
-            index.action_by_path.get(normalize_path_key(item), "") for item in action
-        ),
+        current_action=index.act_of(hold.anchor),
+        action_labels=tuple(index.act_of(item) for item in action),
         playing=playing,
         seed_count=len(seed) + 1,
         action_count=len(action) + 1,

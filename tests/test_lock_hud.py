@@ -15,6 +15,7 @@ from fun_time.lock_hud import (
     prime_group_indexes,
 )
 from fun_time.media_metadata import (
+    ClipEntry,
     GroupIndex,
     metadata_path_for,
 )
@@ -28,21 +29,27 @@ A2 = "C:/vids/action2.mp4"
 S1 = "C:/vids/seed1.mp4"
 
 
+def _entries(*clips: ClipEntry) -> dict[str, ClipEntry]:
+    """The index's clip records, keyed the way production keys them."""
+    return {K(clip.path): clip for clip in clips}
+
+
 def _index(*, current: str, action_sibs=(), seed_sibs=()) -> GroupIndex:
     action_all = sorted([current, *action_sibs])
     seed_all = sorted([current, *seed_sibs])
     # An action group varies the act; a seed family repeats the current clip's
     # act under other seeds — seed_family_items narrows on exactly that.
-    action_by_path = {K(current): "Alpha"}
-    action_by_path.update({K(p): f"Act{i}" for i, p in enumerate(action_sibs)})
-    action_by_path.update({K(p): "Alpha" for p in seed_sibs})
+    acts = {current: "Alpha", **{p: f"Act{i}" for i, p in enumerate(action_sibs)},
+            **dict.fromkeys(seed_sibs, "Alpha")}
+    seeds = {p: ("S", str(i)) for i, p in enumerate(seed_all)}
     return GroupIndex(
-        action_key_by_path={K(p): "A" for p in action_all},
+        entries=_entries(
+            *(ClipEntry(p, action=acts[p], action_key="A" if p in action_all else None,
+                      seed_key=seeds.get(p))
+              for p in (current, *action_sibs, *seed_sibs)),
+        ),
         action_items={"A": action_all},
-        action_by_path=action_by_path,
-        seed_key_by_path={K(p): ("S", str(i)) for i, p in enumerate(seed_all)},
         seed_items={"S": seed_all},
-        path_by_key={K(p): p for p in (current, *action_sibs, *seed_sibs)},
     )
 
 
@@ -166,13 +173,14 @@ def _two_seed_index() -> GroupIndex:
     Alpha) with its Beta sibling AY, and seed sibling N (act Alpha) with its Zeta
     sibling NX.  Action groups are seed-scoped, so A's column and N's differ."""
     return GroupIndex(
-        action_key_by_path={K(A): "GA", K(AY): "GA", K(N): "GN", K(NX): "GN"},
+        entries=_entries(
+            ClipEntry(A, action="Alpha", action_key="GA", seed_key=("F", "1")),
+            ClipEntry(AY, action="Beta", action_key="GA", seed_key=("F", "1")),
+            ClipEntry(N, action="Alpha", action_key="GN", seed_key=("F", "2")),
+            ClipEntry(NX, action="Zeta", action_key="GN", seed_key=("F", "2")),
+        ),
         action_items={"GA": sorted([A, AY]), "GN": sorted([N, NX])},
-        action_by_path={K(A): "Alpha", K(AY): "Beta", K(N): "Alpha", K(NX): "Zeta"},
-        seed_key_by_path={K(A): ("F", "1"), K(AY): ("F", "1"),
-                          K(N): ("F", "2"), K(NX): ("F", "2")},
         seed_items={"F": sorted([A, AY, N, NX])},
-        path_by_key={K(p): p for p in (A, AY, N, NX)},
     )
 
 
@@ -270,11 +278,9 @@ def _twin_index(current: str, twin: str) -> GroupIndex:
     axis's distinct-acts view collapses into a single entry."""
     items = sorted([current, twin])
     return GroupIndex(
-        action_key_by_path={K(p): "A" for p in items},
+        entries=_entries(*(ClipEntry(p, action="Alpha", action_key="A") for p in items)),
         action_items={"A": items},
-        action_by_path={K(p): "Alpha" for p in items},
-        seed_key_by_path={}, seed_items={},
-        path_by_key={K(p): p for p in items},
+        seed_items={},
     )
 
 
@@ -354,16 +360,14 @@ def test_ending_a_widened_loop_keeps_the_row_wide():
     freeze exists to prevent."""
     near = "C:/vids/near.mp4"  # not in CUR's exact family, but near its scene
     index = GroupIndex(
-        action_key_by_path={K(CUR): "g1", K(near): "g2"},
+        entries=_entries(
+            ClipEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
+                      scene_tags=frozenset({"a", "b", "c"})),
+            ClipEntry(near, action="Alpha", action_key="g2",
+                      scene_tags=frozenset({"a", "b", "d"})),
+        ),
         action_items={"g1": [CUR], "g2": [near]},
-        action_by_path={K(CUR): "Alpha", K(near): "Alpha"},
-        seed_key_by_path={K(CUR): ("S", "0")},
         seed_items={"S": [CUR]},
-        path_by_key={K(p): p for p in (CUR, near)},
-        scene_tags_by_path={
-            K(CUR): frozenset({"a", "b", "c"}),
-            K(near): frozenset({"a", "b", "d"}),
-        },
     )
 
     # The loop was widened around CUR and had advanced onto the near-match when it
@@ -522,18 +526,17 @@ def test_widen_grows_the_seed_row_with_the_nearest_clips():
     the nearest-scened clips of this act, without the current clip changing."""
     other = "C:/vids/other.mp4"
     index = GroupIndex(
-        action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
+        entries=_entries(
+            ClipEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0"),
+                      scene_tags=frozenset({"a", "b", "c"})),
+            ClipEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1"),
+                      scene_tags=frozenset({"a", "b", "c"})),
+            # `other` is not in the family but shares most of the scene's tags.
+            ClipEntry(other, action="Alpha", action_key="g2",
+                      scene_tags=frozenset({"a", "b", "d"})),
+        ),
         action_items={"g1": sorted([CUR, S1]), "g2": [other]},
-        action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
-        seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
         seed_items={"S": sorted([CUR, S1])},
-        path_by_key={K(p): p for p in (CUR, S1, other)},
-        # `other` is not in the family but shares most of the scene's tags.
-        scene_tags_by_path={
-            K(CUR): frozenset({"a", "b", "c"}),
-            K(S1): frozenset({"a", "b", "c"}),
-            K(other): frozenset({"a", "b", "d"}),
-        },
     )
 
     narrow = _panel("portrait", locked=False, current=CUR, index=index)
@@ -549,12 +552,13 @@ def test_widen_off_a_loop_resets_once_its_anchor_clip_leaves_the_screen():
     a plain auto-advance to another clip drops it (the same-clip reset)."""
     other = "C:/vids/other.mp4"
     index = GroupIndex(
-        action_key_by_path={K(CUR): "g1", K(S1): "g1", K(other): "g2"},
+        entries=_entries(
+            ClipEntry(CUR, action="Alpha", action_key="g1", seed_key=("S", "0")),
+            ClipEntry(S1, action="Alpha", action_key="g1", seed_key=("S", "1")),
+            ClipEntry(other, action="Alpha", action_key="g2"),
+        ),
         action_items={"g1": sorted([CUR, S1]), "g2": [other]},
-        action_by_path={K(CUR): "Alpha", K(S1): "Alpha", K(other): "Alpha"},
-        seed_key_by_path={K(CUR): ("S", "0"), K(S1): ("S", "1")},
         seed_items={"S": sorted([CUR, S1])},
-        path_by_key={K(p): p for p in (CUR, S1, other)},
     )
 
     # Widened around CUR, but the live clip is now `other` and no loop is running.
@@ -571,14 +575,15 @@ def test_a_widened_seed_loop_stays_wide_and_frozen_across_the_widened_pool():
     # x, x2 share the exact family F1; y and z are their own renders F2, F3; all four
     # are the same scene, so y and z rank into the pool widened around x.
     x, x2, y, z = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4", "C:/v/z.mp4"
+    seeds = {x: ("F1", "0"), x2: ("F1", "1"), y: ("F2", "0"), z: ("F3", "0")}
     index = GroupIndex(
-        action_key_by_path={K(p): "scene" for p in (x, x2, y, z)},
+        entries=_entries(
+            *(ClipEntry(p, action="Alpha", action_key="scene", seed_key=seeds[p],
+                        scene_tags=frozenset({"a", "b", "c"}))
+              for p in (x, x2, y, z)),
+        ),
         action_items={"scene": sorted([x, x2, y, z])},
-        action_by_path={K(p): "Alpha" for p in (x, x2, y, z)},
-        seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0"), K(z): ("F3", "0")},
         seed_items={"F1": sorted([x, x2]), "F2": [y], "F3": [z]},
-        path_by_key={K(p): p for p in (x, x2, y, z)},
-        scene_tags_by_path={K(p): frozenset({"a", "b", "c"}) for p in (x, x2, y, z)},
     )
 
     # The loop was widened around x; the satellite has auto-advanced to y, a near-match
@@ -597,14 +602,15 @@ def test_a_non_widened_seed_loop_ignores_a_cleared_widen_anchor():
     """With no widen anchor, a seed loop stays on the exact family even when the
     live clip has near-matches outside it — the widen is opt-in."""
     x, x2, y = "C:/v/x.mp4", "C:/v/x2.mp4", "C:/v/y.mp4"
+    seeds = {x: ("F1", "0"), x2: ("F1", "1"), y: ("F2", "0")}
     index = GroupIndex(
-        action_key_by_path={K(p): "scene" for p in (x, x2, y)},
+        entries=_entries(
+            *(ClipEntry(p, action="Alpha", action_key="scene", seed_key=seeds[p],
+                        scene_tags=frozenset({"a", "b", "c"}))
+              for p in (x, x2, y)),
+        ),
         action_items={"scene": sorted([x, x2, y])},
-        action_by_path={K(p): "Alpha" for p in (x, x2, y)},
-        seed_key_by_path={K(x): ("F1", "0"), K(x2): ("F1", "1"), K(y): ("F2", "0")},
         seed_items={"F1": sorted([x, x2]), "F2": [y]},
-        path_by_key={K(p): p for p in (x, x2, y)},
-        scene_tags_by_path={K(p): frozenset({"a", "b", "c"}) for p in (x, x2, y)},
     )
 
     panel = _panel(
@@ -826,7 +832,7 @@ def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     # Served from the primed cache: a lazy build here (empty supplier) would be
     # empty, so a non-empty index proves prime populated it from the real tree.
     index = cached_group_index(sources, paths_supplier=list, metadata_root=metadata_root, must_contain=None)
-    assert index.path_by_key
+    assert index.entries
 
 
 def test_build_panels_indexes_each_side_and_carries_the_lock(tmp_path: Path):

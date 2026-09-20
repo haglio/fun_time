@@ -28,7 +28,6 @@ from fun_time.command_dispatch import (
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.loopback_server import omnipause_url
 from fun_time.media_actions import ensure_in_favs
-from fun_time.media_metadata import normalize_path_key
 from fun_time.modes import write_playlist_file
 from fun_time.players import Player
 from fun_time.satellite_groups import cancel_lock
@@ -2255,7 +2254,7 @@ def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: 
     from fun_time.satellite_groups import _satellite_group_index
 
     index = _satellite_group_index(2, config, paths["subject_zeta"])
-    assert normalize_path_key(paths["subject_zeta"]) not in index.action_by_path
+    assert index.act_of(paths["subject_zeta"]) == ""
 
 
 # --- latest / shuffle ---

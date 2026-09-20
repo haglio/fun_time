@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Iterable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.json_store import locked_update
@@ -335,38 +335,57 @@ def _tag_overlap(one: frozenset[str], other: frozenset[str]) -> float:
 
 
 @dataclass(frozen=True)
-class GroupIndex:
-    """Grouping of a video library by generation identity.
+class ClipEntry:
+    """Everything the index knows about one clip.  A clip with no sidecar still
+    gets one: the defaults ARE "nothing is recorded about it"."""
 
-    Paths are keyed by :func:`normalize_path_key`; item lists hold the
-    original path strings, sorted.  ``path_by_key`` remembers every input path
-    (sidecar or not) so callers can tell "no metadata" apart from "not indexed
-    yet" when deciding whether a cached index is stale — and so the widen can
-    range over the whole library, not just the grouped part of it.
+    path: str
+    action: str = ""
+    action_key: str | None = None
+    seed_key: tuple[str, str] | None = None
+    scene_tags: frozenset[str] = frozenset()
+    from_image: bool = False
+    weight: float = 1.0
+
+
+@dataclass(frozen=True)
+class GroupIndex:
+    """Grouping of a video library by generation identity: one
+    :class:`ClipEntry` per clip keyed by :func:`normalize_path_key`, plus the two
+    inverted indexes answering "who else is in this group" (sorted lists of the
+    original path strings).  ``entries`` holds every input path, sidecar or not,
+    so a caller can tell "no metadata" from "not indexed yet" when judging a
+    cached index stale — and so the widen can range over the whole library.
     """
 
-    action_key_by_path: dict[str, str]
+    entries: dict[str, ClipEntry]
     action_items: dict[str, list[str]]
-    action_by_path: dict[str, str]
-    seed_key_by_path: dict[str, tuple[str, str]]
     seed_items: dict[str, list[str]]
-    path_by_key: dict[str, str]
-    scene_tags_by_path: dict[str, frozenset[str]] = field(default_factory=dict)
-    # Which clips were animated from a generated image rather than from text
-    # alone.  The two look nothing alike, so the widen ranks its own kind first.
-    image_to_video_by_path: dict[str, bool] = field(default_factory=dict)
-    weight_by_path: dict[str, float] = field(default_factory=dict)
+
+    def entry(self, path: str) -> ClipEntry:
+        """What is known about *path*, or a blank record when it is not indexed."""
+        return self.entries.get(normalize_path_key(path)) or _UNKNOWN_CLIP
 
     def contains(self, path: str) -> bool:
-        return normalize_path_key(path) in self.path_by_key
+        return normalize_path_key(path) in self.entries
 
     def weight_of(self, path: str) -> float:
-        return self.weight_by_path.get(normalize_path_key(path), 1.0)
+        return self.entry(path).weight
+
+    def act_of(self, path: str) -> str:
+        return self.entry(path).action
+
+    def indexed_path(self, key: str, fallback: str = "") -> str:
+        entry = self.entries.get(key)
+        return entry.path if entry is not None else fallback
+
+
+_UNKNOWN_CLIP = ClipEntry(path="")
 
 
 def action_group_items(index: GroupIndex, path: str) -> list[str]:
     """Every clip of *path*'s subject — the same subject(s)+scene, each action."""
-    key = index.action_key_by_path.get(normalize_path_key(path))
+    key = index.entry(path).action_key
     if key is None:
         return []
     return list(index.action_items[key])
@@ -383,7 +402,7 @@ def indexed_act(index: GroupIndex, path: str) -> str:
     "POV …") before they were consolidated; this is what keeps the next one from
     mattering.
     """
-    return _norm_text(index.action_by_path.get(normalize_path_key(path), ""))
+    return _norm_text(index.act_of(path))
 
 
 def seed_family_items(index: GroupIndex, path: str) -> list[str]:
@@ -393,10 +412,10 @@ def seed_family_items(index: GroupIndex, path: str) -> list[str]:
     is keyed on the source image alone, so its items are narrowed here to the
     current clip's action — "the same act, another subject".
     """
-    entry = index.seed_key_by_path.get(normalize_path_key(path))
-    if entry is None:
+    seed_key = index.entry(path).seed_key
+    if seed_key is None:
         return []
-    family, _seed = entry
+    family, _seed = seed_key
     action = indexed_act(index, path)
     return [
         item
@@ -444,25 +463,24 @@ def widened_seed_items(
     if not any(normalize_path_key(item) == key for item in items):
         # A clip with no exact family of its own (no sidecar, no seed) is still
         # the row it anchors, so the pool always opens with it.
-        items.insert(0, index.path_by_key.get(key, path))
+        items.insert(0, index.indexed_path(key, path))
     seen = {normalize_path_key(item) for item in items} | {key}
     action = indexed_act(index, path)
-    from_image = index.image_to_video_by_path.get(key, False)
-    mine = index.scene_tags_by_path.get(key, frozenset())
+    mine_entry = index.entry(path)
     ranked = sorted(
         (
             (
-                index.image_to_video_by_path.get(other_key, False) == from_image,
-                _tag_overlap(mine, index.scene_tags_by_path.get(other_key, frozenset())),
+                other.from_image == mine_entry.from_image,
+                _tag_overlap(mine_entry.scene_tags, other.scene_tags),
                 other_key,
             )
-            for other_key in index.path_by_key
-            if other_key not in seen and indexed_act(index, other_key) == action
+            for other_key, other in index.entries.items()
+            if other_key not in seen and _norm_text(other.action) == action
         ),
         # Nearest first; the path key only breaks ties, so the row is stable.
         key=lambda scored: (-scored[0], -scored[1], scored[2]),
     )
-    items.extend(index.path_by_key[scored[-1]] for scored in ranked[:max(additions, 0)])
+    items.extend(index.entries[scored[-1]].path for scored in ranked[:max(additions, 0)])
     return items
 
 
@@ -473,14 +491,14 @@ def action_label(index: GroupIndex, path: str) -> str:
     they read as "Alpha 1" and "Alpha 2" as you cycle around the group.
     """
     key = normalize_path_key(path)
-    action = index.action_by_path.get(key, "")
-    group = index.action_key_by_path.get(key)
+    entry = index.entry(path)
+    action, group = entry.action, entry.action_key
     if not action or group is None:
         return action
     twins = [
         item
         for item in index.action_items[group]
-        if index.action_by_path.get(normalize_path_key(item), "") == action
+        if index.act_of(item) == action
     ]
     if len(twins) < 2:
         return action
@@ -490,17 +508,18 @@ def action_label(index: GroupIndex, path: str) -> str:
     return f"{action} {position + 1}"
 
 
-def _record_seed_group(
-    key: tuple[str, str] | None,
-    path: str,
-    key_by_path: dict[str, tuple[str, str]],
-    items: dict[str, list[str]],
-) -> None:
-    """File *path* under its ``(family, seed)`` *key*, if it has one."""
-    if key is None:
-        return
-    key_by_path[normalize_path_key(path)] = key
-    items.setdefault(key[0], []).append(path)
+
+
+def _entry_for(path: str, metadata: dict) -> ClipEntry:
+    return ClipEntry(
+        path=path,
+        action=str((metadata.get("video") or {}).get("action") or "").strip(),
+        action_key=action_group_key(metadata),
+        seed_key=seed_group_key(metadata),
+        scene_tags=scene_tags(metadata),
+        from_image=bool(metadata.get("source_image")),
+        weight=watch_weight_of(metadata),
+    )
 
 
 def build_group_index(
@@ -512,47 +531,21 @@ def build_group_index(
     Videos without a metadata sidecar are remembered (for staleness checks)
     but belong to no group.
     """
-    action_key_by_path: dict[str, str] = {}
+    entries: dict[str, ClipEntry] = {}
     action_items: dict[str, list[str]] = {}
-    action_by_path: dict[str, str] = {}
-    seed_key_by_path: dict[str, tuple[str, str]] = {}
     seed_items: dict[str, list[str]] = {}
-    path_by_key: dict[str, str] = {}
-    scene_tags_by_path: dict[str, frozenset[str]] = {}
-    image_to_video_by_path: dict[str, bool] = {}
-    weight_by_path: dict[str, float] = {}
     for path in video_paths:
-        path_by_key[normalize_path_key(path)] = path
         sidecar = metadata_path_for(path, metadata_root)
-        if sidecar is None or not sidecar.is_file():
-            continue
-        metadata = load_metadata(sidecar)
-        weight_by_path[normalize_path_key(path)] = watch_weight_of(metadata)
-        action = str((metadata.get("video") or {}).get("action") or "").strip()
-        if action:
-            action_by_path[normalize_path_key(path)] = action
-        image_to_video_by_path[normalize_path_key(path)] = bool(metadata.get("source_image"))
-        tags = scene_tags(metadata)
-        if tags:
-            scene_tags_by_path[normalize_path_key(path)] = tags
-        action_key = action_group_key(metadata)
-        if action_key is not None:
-            action_key_by_path[normalize_path_key(path)] = action_key
-            action_items.setdefault(action_key, []).append(path)
-        _record_seed_group(seed_group_key(metadata), path, seed_key_by_path, seed_items)
+        metadata = load_metadata(sidecar) if sidecar is not None and sidecar.is_file() else {}
+        entry = _entry_for(path, metadata)
+        entries[normalize_path_key(path)] = entry
+        if entry.action_key is not None:
+            action_items.setdefault(entry.action_key, []).append(path)
+        if entry.seed_key is not None:
+            seed_items.setdefault(entry.seed_key[0], []).append(path)
     for items in (*action_items.values(), *seed_items.values()):
         items.sort()
-    return GroupIndex(
-        action_key_by_path=action_key_by_path,
-        action_items=action_items,
-        action_by_path=action_by_path,
-        seed_key_by_path=seed_key_by_path,
-        seed_items=seed_items,
-        path_by_key=path_by_key,
-        scene_tags_by_path=scene_tags_by_path,
-        image_to_video_by_path=image_to_video_by_path,
-        weight_by_path=weight_by_path,
-    )
+    return GroupIndex(entries=entries, action_items=action_items, seed_items=seed_items)
 
 
 # Sidecar scans cost ~1000 file reads per library, so indexes are cached per
