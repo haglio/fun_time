@@ -41,6 +41,7 @@ _QUIT_TOOL_NAME = "launcher.exe"
 _QUIT_SERVICES = ("PiPlatformService", "PiPlayService")  # the client's own order
 _DISPLAY_SERVER_NAME = "pi_server.exe"  # its exit is the headset going off
 QUIT_TIMEOUT_S = 15.0  # PiPlayService's quit waits on pi_server: ~3s in practice
+ASK_TIMEOUT_S = 10.0  # tasklist answers in milliseconds, or it never does
 
 _UNKNOWN_FAILURE = "VR could not be started."
 
@@ -161,6 +162,7 @@ def process_running(image_name: str) -> bool:
         output = subprocess.check_output(
             ["tasklist", "/FI", f"IMAGENAME eq {image_name}", "/NH", "/FO", "CSV"],
             text=True,
+            timeout=ASK_TIMEOUT_S,
             **hidden_subprocess_kwargs(),
         )
     except (OSError, subprocess.SubprocessError):
@@ -210,7 +212,8 @@ def _run_quietly(command: list[str], *, cwd: Path | None = None) -> None:
         subprocess.run(
             command,
             check=False,
-            capture_output=True,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
             timeout=QUIT_TIMEOUT_S,
             cwd=None if cwd is None else str(cwd),
             **hidden_subprocess_kwargs(),

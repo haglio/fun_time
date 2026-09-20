@@ -7,6 +7,7 @@ a module attribute), and the FunTimeVR popup wording.
 """
 from __future__ import annotations
 
+import subprocess
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -16,11 +17,13 @@ from fun_time_vr.vr_runtime import (
     _QUIT_SERVICES,
     Probe,
     Readiness,
+    _run_quietly,
     active_runtime_json,
     ensure_ready,
     explain,
     launcher_for_runtime,
     probe,
+    process_running,
     runtime_quit_tool,
     runtime_was_running,
     stop_runtime,
@@ -389,6 +392,31 @@ def test_stop_runtime_does_nothing_it_cannot_do(tmp_path):
     ):
         stop_runtime()
     run.assert_not_called()
+
+
+class TestShuttingDownCannotWaitForever:
+    """Nothing on this path may block without a deadline.  The session holds the
+    single-instance name until its process is gone, so a shutdown that never
+    finishes locks every later launch on the machine out of VR -- one sat on the
+    question below from 01:14 to past 03:00 on 2026-09-20, and every branch that
+    tried to enter VR after it was refused, with nothing left running."""
+
+    def test_asking_what_is_running_gives_up_rather_than_waiting(self):
+        with patch("fun_time_vr.vr_runtime.subprocess.check_output",
+                   side_effect=subprocess.TimeoutExpired("tasklist", 1)) as asked:
+            assert process_running("pi_server.exe") is False
+        assert 0 < asked.call_args.kwargs["timeout"] < 60
+
+    def test_a_quit_command_is_not_read_back(self):
+        """`capture_output` outlives the deadline: killing the command on time
+        still leaves the wait on its pipes, which anything it started and did
+        not take with it keeps open -- the deadline expires, the wait does not."""
+        with patch("fun_time_vr.vr_runtime.subprocess.run") as ran:
+            _run_quietly(["launcher.exe", "PiPlayService", "quit"])
+        asked = ran.call_args.kwargs
+        assert asked["stdout"] == asked["stderr"] == subprocess.DEVNULL
+        assert not asked.get("capture_output")
+        assert 0 < asked["timeout"] < 60
 
 
 def test_stop_runtime_survives_a_quit_command_that_will_not_run(tmp_path):
