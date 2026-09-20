@@ -14,11 +14,8 @@ CREATE_BREAKAWAY_FROM_JOB = 0x01000000
 
 
 def subprocess_window_kwargs() -> dict:
-    """This session's standard "launch a child without a console" kwargs.
-
-    A thin name of our own over the shared helper, so ``broker_launch_kwargs``
-    below has something to extend and every launch site reads the same.
-    """
+    """A thin name of our own over the shared helper, so
+    ``broker_launch_kwargs`` has something to extend."""
     return hidden_subprocess_kwargs()
 
 

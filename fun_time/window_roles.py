@@ -24,20 +24,18 @@ FIXED_TOPMOST_ROLES: tuple[str, ...] = ("rfb", "portrait", "landscape", "dashboa
 # The hosted Origenerator's one window: it SHARES the RFB's rect, so like the
 # main-slot pair it is mode-dependent — in the band only while the satellites
 # are in origenerator mode.  Listed AFTER the fixed roles because HWND_TOPMOST
-# inserts at the top of the band: promoted later means stacked above the
-# window it covers.  Its slideshows need no window of their own; they play on
-# the satellite players (fun_time.player_handover).
+# inserts at the top of the band: promoted later means stacked above the window
+# it covers.  Its shows play on the satellite players, not in windows of its
+# own (fun_time.player_handover).
 ORIGENERATOR_ROLE = "origenerator"
 
 # The caption that window wears, resolved together with the app's PID: by
 # title alone a standalone Origenerator of his would match.
 ORIGENERATOR_TITLE = "Origenerator"
 
-# What Genau's window calls itself, and what it calls itself while its HUD is
-# over the main player's video.  Passed to it on the launch, the way each
-# satellite is passed its own caption, and matched here EXACTLY: a substring
-# match happened to find both because the plain name sits inside the other
-# one, which is luck rather than an agreement.
+# What Genau's window calls itself, plainly and while its HUD is over the main
+# player's video.  Passed to it on the launch, like each satellite's, and
+# matched EXACTLY: a substring match found both only by luck.
 GENAU_TITLE = "Genau"
 GENAU_VIDEO_TITLE = "Video Main Player+Genau"
 GENAU_TITLES = (GENAU_TITLE, GENAU_VIDEO_TITLE)
