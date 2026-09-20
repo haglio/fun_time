@@ -67,6 +67,23 @@ class TestClaimingTheSession:
         let_the_session_go(claimed)
         _close(left_behind)
 
+    def test_letting_go_of_a_name_a_wedged_session_abandoned_frees_it_for_the_next(self):
+        """A session that hangs on the way out leaves the name ABANDONED: its
+        owning thread is gone, its process lingers holding a handle open.  The
+        relay that carries a crossing only ASKS whether the outgoing session has
+        let go -- and asking took the name and did not give it back, so the wait
+        said free, the relay started the other session, and that session was
+        refused by the relay itself.  A crossing on 2026-09-20 left nothing
+        running at all that way, with the desktop session already shut down.
+        """
+        name = self._a_name()
+        wedged = _abandoned_by_a_dead_owner(name)
+
+        let_the_session_go(claim_the_session(name))
+
+        assert _claimed_elsewhere(name) is not None
+        _close(wedged)
+
 
 def _claimed_elsewhere(name: str) -> int | None:
     """What a claim from another thread answers -- a mutex is re-entrant for the
@@ -77,6 +94,18 @@ def _claimed_elsewhere(name: str) -> int | None:
     thread.join()
     let_the_session_go(answer[0])
     return answer[0]
+
+
+def _abandoned_by_a_dead_owner(name: str) -> int:
+    """A handle to *name* whose owner thread has gone, as a session wedged on
+    the way out leaves: the object stays alive on the handle, owned by nobody."""
+    claimed: list[int | None] = []
+    owner = threading.Thread(target=lambda: claimed.append(claim_the_session(name)))
+    owner.start()
+    owner.join()
+    handle = claimed[0]
+    assert handle, "the owner thread could not claim the name to abandon"
+    return handle
 
 
 def _left_behind(name: str) -> int:
