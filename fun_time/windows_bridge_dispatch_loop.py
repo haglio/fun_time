@@ -35,7 +35,7 @@ from .dashboard_actions import (
     LIBRARY_OPEN_FILENAME,
     REFERENCE_OPEN_FILENAME,
 )
-from .dashboard_bridge import write_dashboard_snapshot
+from .dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from .device_arbiter import DeviceArbiter
 from .event_log import FAVORITE, NOTICE, SOURCE_MAIN, SOURCE_SYSTEM, notice
 from .hud_feed import HudFeed
@@ -644,14 +644,17 @@ class DispatchLoopRunner:
             voice_active = self.voice_controller is not None and not self.voice_controller.is_muted
             write_dashboard_snapshot(
                 str(self.config.dashboard_state_file),
-                omni_paused=self.state.omni_paused,
-                voice_active=voice_active,
-                f_mode=(self.state.main_scripted_filter
-                        and all(self.state.satellite(p).favorites_filter for p in Player.SATELLITES)),
-                in_vr=self.config.vr_main_player,
-                nothing_to_reset=room_at_defaults(
-                    self.state, self.config,
-                    read_main_player_status(self.config.main_player_status_file)),
+                DashboardSnapshot(
+                    omni_paused=self.state.omni_paused,
+                    voice_active=voice_active,
+                    f_mode=(self.state.main_scripted_filter
+                            and all(self.state.satellite(p).favorites_filter
+                                    for p in Player.SATELLITES)),
+                    in_vr=self.config.vr_main_player,
+                    nothing_to_reset=room_at_defaults(
+                        self.state, self.config,
+                        read_main_player_status(self.config.main_player_status_file)),
+                ),
             )
         except OSError as exc:
             now = time.monotonic()

@@ -5,7 +5,27 @@ from pathlib import Path
 
 import pytest
 
-from fun_time.dashboard_bridge import build_dashboard_snapshot_text, write_dashboard_snapshot
+from fun_time.dashboard_bridge import (
+    DashboardSnapshot,
+    build_dashboard_snapshot_text,
+    write_dashboard_snapshot,
+)
+
+
+def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
+    """The five facts the bar draws travelled as five loose keywords on the way
+    out and as a record on the way back, so adding a sixth was an edit in four
+    files.  It is the one record both ways now."""
+    from fun_time.dashboard_runtime import load_dashboard_snapshot
+
+    snapshot = DashboardSnapshot(
+        omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
+    )
+    path = tmp_path / "dashboard_state.ini"
+
+    write_dashboard_snapshot(path, snapshot)
+
+    assert load_dashboard_snapshot(path) == snapshot
 
 
 def test_the_snapshot_carries_only_the_sections_the_dashboard_reads():
@@ -41,27 +61,27 @@ def test_build_dashboard_snapshot_text_matches_bridge_contract():
 
 
 def test_build_dashboard_snapshot_text_includes_omnipause_state():
-    text = build_dashboard_snapshot_text(omni_paused=True)
+    text = build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True))
 
     assert "[omnipause]\nactive=1\n" in text
 
 
 def test_build_dashboard_snapshot_text_includes_voice_state():
-    text = build_dashboard_snapshot_text(voice_active=False)
+    text = build_dashboard_snapshot_text(DashboardSnapshot(voice_active=False))
 
     assert "[voice]\nactive=0\n" in text
 
 
 def test_the_snapshot_says_when_every_player_has_nothing_to_reset():
-    assert "[reset]\nnothing=1\n" in build_dashboard_snapshot_text(nothing_to_reset=True)
+    assert "[reset]\nnothing=1\n" in build_dashboard_snapshot_text(DashboardSnapshot(nothing_to_reset=True))
     assert "[reset]\nnothing=0\n" in build_dashboard_snapshot_text()
 
 
 def test_write_dashboard_snapshot_writes_utf16_and_skips_identical_content(tmp_path: Path):
     output = tmp_path / "dashboard_state.ini"
 
-    first = write_dashboard_snapshot(output, omni_paused=True)
-    second = write_dashboard_snapshot(output, omni_paused=True)
+    first = write_dashboard_snapshot(output, DashboardSnapshot(omni_paused=True))
+    second = write_dashboard_snapshot(output, DashboardSnapshot(omni_paused=True))
 
     assert first is True
     assert second is False
@@ -85,10 +105,9 @@ class TestTheSnapshotsEncoding:
         )
 
         path = tmp_path / "dashboard_state.ini"
-        write_dashboard_snapshot(path, omni_paused=True)
+        write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True))
 
-        assert decode_snapshot(path.read_bytes()) == build_dashboard_snapshot_text(
-            omni_paused=True)
+        assert decode_snapshot(path.read_bytes()) == build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True))
 
     def test_the_decoder_normalizes_the_newlines_text_mode_writes(self):
         """`write_text` opens in text mode, so on Windows the writer's ``\n``
@@ -120,7 +139,7 @@ class TestTheSnapshotsEncoding:
         path = tmp_path / "dashboard_state.ini"
         path.write_bytes(b"\xff\xfe\xfd")
 
-        assert write_dashboard_snapshot(path, omni_paused=True) is True
+        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is True
 
 
 class TestTheWriterSkipsAnUnchangedSnapshot:
@@ -139,8 +158,8 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
 
         path = tmp_path / "dashboard_state.ini"
 
-        assert write_dashboard_snapshot(path, omni_paused=True) is True
-        assert write_dashboard_snapshot(path, omni_paused=True) is False
+        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is True
+        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is False
 
     def test_nor_when_the_file_carries_the_line_endings_windows_gave_it(self, tmp_path):
         """The reader has to undo what the writer's text mode did, or the two
@@ -151,9 +170,9 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
         )
 
         path = tmp_path / "dashboard_state.ini"
-        self._write_as_windows_would(path, build_dashboard_snapshot_text(omni_paused=True))
+        self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
-        assert write_dashboard_snapshot(path, omni_paused=True) is False
+        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is False
 
     def test_a_snapshot_that_did_change_is_written(self, tmp_path):
         from fun_time.dashboard_bridge import (
@@ -162,6 +181,6 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
         )
 
         path = tmp_path / "dashboard_state.ini"
-        self._write_as_windows_would(path, build_dashboard_snapshot_text(omni_paused=True))
+        self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
-        assert write_dashboard_snapshot(path, omni_paused=False) is True
+        assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=False)) is True

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from player_core.modes import LengthMode
 
-from fun_time.dashboard_bridge import write_dashboard_snapshot
+from fun_time.dashboard_bridge import DashboardSnapshot, write_dashboard_snapshot
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.player_status import (
     GenauStatus,
@@ -22,7 +22,7 @@ def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
 
 def test_load_dashboard_snapshot_reads_omnipause_state(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file, omni_paused=True)
+    write_dashboard_snapshot(snapshot_file, DashboardSnapshot(omni_paused=True))
 
     snapshot = load_dashboard_snapshot(snapshot_file)
 
@@ -44,7 +44,7 @@ def test_load_dashboard_snapshot_defaults_omnipause_to_false(tmp_path: Path):
 
 def test_load_dashboard_snapshot_reads_voice_active(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file, voice_active=False)
+    write_dashboard_snapshot(snapshot_file, DashboardSnapshot(voice_active=False))
 
     snapshot = load_dashboard_snapshot(snapshot_file)
 
@@ -66,7 +66,7 @@ def test_load_dashboard_snapshot_defaults_voice_active_to_true(tmp_path: Path):
 
 def test_load_dashboard_snapshot_reads_whether_every_player_has_nothing_to_reset(tmp_path: Path):
     snapshot_file = tmp_path / "dashboard_state.ini"
-    write_dashboard_snapshot(snapshot_file, nothing_to_reset=True)
+    write_dashboard_snapshot(snapshot_file, DashboardSnapshot(nothing_to_reset=True))
 
     assert load_dashboard_snapshot(snapshot_file).nothing_to_reset is True
 

@@ -38,6 +38,7 @@ from fun_time.dashboard_actions import (
     RESET_ALL,
     VOICE_TOGGLE,
 )
+from fun_time.dashboard_bridge import DashboardSnapshot
 from fun_time.dashboard_controls import BarControl, bar_controls, mark_side
 from fun_time.dashboard_layout import (
     DashboardBarLayout,
@@ -47,7 +48,7 @@ from fun_time.dashboard_layout import (
     compute_dashboard_bar_layout,
     rect_from_arguments,
 )
-from fun_time.dashboard_runtime import DashboardSnapshot, load_dashboard_snapshot
+from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import event_log_path
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget, prefs_path
