@@ -1463,6 +1463,32 @@ class TestOrigeneratorLaunch:
         assert not stale_status.exists()
         assert Path(cfg.origenerator_paused_file).read_text(encoding="utf-8") == "0"
 
+    def test_a_session_claims_the_osr2_of_the_checkout_it_names(
+        self, cfg_factory, tmp_path
+    ):
+        # Even with no window to take over: a window this missed keeps its own
+        # switch, and two apps then stream into the one device.
+        checkout = tmp_path / "origenerator"
+        cfg = load_config(cfg_factory({"paths": {"origenerator_dir": str(checkout)}}))
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
+        )
+
+        with _sequencer_stubs(launch_origenerator=dict()):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert (checkout / "state" / "fun_time_session.txt").read_text(
+            encoding="utf-8").split() == [
+                str(os.getpid()), str(get_process_creation_time(os.getpid()))]
+
+    def test_a_session_with_no_checkout_claims_nothing(self, cfg_factory, tmp_path):
+        cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
+
+        with _sequencer_stubs(launch_origenerator=dict()):
+            run_startup_sequence(manifest_path=manifest_path, state_dir=tmp_path)
+
+        assert not list(tmp_path.glob("**/fun_time_session.txt"))
+
     def test_an_app_taken_over_before_a_crossing_is_adopted_as_one_to_hand_back(
         self, cfg_factory, tmp_path
     ):
