@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import os
 import sys
 import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
+from app_support.threading_utils import start_daemon_thread
 from player_core.file_channel import append_command, consume_command_file
 from PyQt6.QtCore import QEvent, QPoint, QPointF, Qt, QTimer
 from PyQt6.QtGui import QImage, QMouseEvent, QWheelEvent
@@ -15,9 +17,11 @@ from shared_ui.chrome import family_stylesheet
 
 from fun_time.library_browser import LibraryBrowserWindow, load_browser_config
 from fun_time.library_handles import LibraryHandle, handles_by_shape
+from fun_time.modes import collect_video_files
 from fun_time.win32_process import is_process_alive
 
 from .frame_channel import FrameWriter
+from .library_listing_cache import remembered_listing
 from .library_panel import (
     DISMISSED,
     HOVER,
@@ -28,37 +32,63 @@ from .library_panel import (
 )
 from .pointer import DRAG, PRESS, RELEASE
 
+LISTING_FILENAME = "library_listing.json"
+
 _POLL_MS = 15
 _PARENT_CHECK_EVERY = 60
 _IDLE_LOOK_S = 0.1
 
 
 class HeadsetBrowse:
+    """The browser window, served to the headset -- built without its library.
+
+    Reading the library took minutes on a syncing drive and happened before this
+    process answered anything, so the headset's presses -- its close among them --
+    piled up unread (2026-09-20).  The library arrives later instead, through
+    :meth:`take_the_library`.
+    """
+
     def __init__(
-        self, handles: Sequence[LibraryHandle], *, thumbnail_cache: Path,
-        frames: FrameWriter, say: Callable[[str], None],
+        self, *, thumbnail_cache: Path, frames: FrameWriter, say: Callable[[str], None],
     ) -> None:
-        self.window = LibraryBrowserWindow(
-            handles, thumbnail_cache=thumbnail_cache,
-            on_pick=lambda video: say(picked_line(video)),
-            on_dismiss=lambda: say(DISMISSED),
-            activate_on_click=True,
-        )
-        self.window.resize(*LIBRARY_SIZE_PX)
+        self._thumbnail_cache = thumbnail_cache
+        self._say = say
+        self.window: LibraryBrowserWindow | None = None
         self._frames = frames
         self._token = 0
+        self._open_when_it_lands: str | None = None
         self._sent: bytes | None = None
         self._pointer = QPoint()
         self._pressed: QWidget | None = None
         self._asked = False
         self._looked_at: float | None = None
 
+    def take_the_library(self, handles: Sequence[LibraryHandle]) -> None:
+        """The read has landed: build the window, on the thread that serves it --
+        a Qt widget belongs to the thread that made it, and the read is a worker's."""
+        self.window = LibraryBrowserWindow(
+            handles, thumbnail_cache=self._thumbnail_cache,
+            on_pick=lambda video: self._say(picked_line(video)),
+            on_dismiss=lambda: self._say(DISMISSED),
+            activate_on_click=True,
+        )
+        self.window.resize(*LIBRARY_SIZE_PX)
+        if self._open_when_it_lands is not None:
+            self._open(self._token, self._open_when_it_lands)
+            self._open_when_it_lands = None
+
     def apply(self, line: str) -> None:
         self._asked = True
         kind, _, rest = line.partition(" ")
         if kind == OPEN:
             token, _, video = rest.partition(" ")
+            self._token = int(token)
+            if self.window is None:
+                self._open_when_it_lands = video
+                return
             self._open(int(token), video)
+        elif self.window is None:
+            return  # nothing to aim at yet; the headset draws its own reading panel
         elif kind in (PRESS, DRAG, HOVER):
             x, y = (int(part) for part in rest.split())
             self._pointer = QPoint(x, y)
@@ -70,7 +100,7 @@ class HeadsetBrowse:
             self._scroll(int(rest))
 
     def publish(self, now: float) -> None:
-        if not self.window.isVisible():
+        if self.window is None or not self.window.isVisible():
             return
         idle = not self._asked
         if idle and self._looked_at is not None and now - self._looked_at < _IDLE_LOOK_S:
@@ -132,6 +162,31 @@ def serve_once(
     return True
 
 
+def read_the_library(config, kept: Path, *, afresh: bool = False) -> list[LibraryHandle]:
+    """Everything the browse can show, read off the disks it lives on.
+
+    Minutes of work while a drive is syncing, so it runs on a worker while the
+    window it will fill is already being served.  Listing the folders is what
+    costs that wait, so the last listing is kept (*kept*) and answers the next
+    browse at once; *afresh* brings it up to date, once the browse is up.
+    """
+    try:
+        return handles_by_shape(
+            config.sources, config.vr_sources, config.metadata_root,
+            listing=lambda sources: remembered_listing(
+                kept.with_name(f"{kept.stem}_{_listing_key(sources)}{kept.suffix}"),
+                lambda: collect_video_files(sources), afresh=afresh),
+        )
+    except OSError:
+        return []
+
+
+def _listing_key(sources: str) -> str:
+    """Which folders a listing was of, as a filename -- so no shelf answers
+    another's browse, and a repointed library answers none of them."""
+    return hashlib.sha256(sources.encode("utf-8")).hexdigest()[:12]
+
+
 def _windows_fonts_offscreen_qt_lacks() -> Path:
     return Path(os.environ.get("WINDIR", r"C:\Windows")) / "Fonts"
 
@@ -152,16 +207,19 @@ def main(argv: list[str] | None = None) -> int:
     app = QApplication([sys.argv[0], "-platform", "offscreen"])
     app.setStyleSheet(family_stylesheet())
     config = load_browser_config(args.manifest_path)
-    try:
-        handles = handles_by_shape(config.sources, config.vr_sources, config.metadata_root)
-    except OSError:
-        handles = []
     width, height = LIBRARY_SIZE_PX
     frames = FrameWriter(args.frames, max_pixels=width * height)
     browse = HeadsetBrowse(
-        handles, thumbnail_cache=config.thumbnail_cache, frames=frames,
+        thumbnail_cache=config.thumbnail_cache, frames=frames,
         say=lambda line: append_command(args.output, line),
     )
+    kept = args.input.with_name(LISTING_FILENAME)
+    landed: list[Sequence[LibraryHandle]] = []
+    start_daemon_thread(
+        target=lambda: landed.append(read_the_library(config, kept)), name="library-read")
+    # Once the browse is up: what the drive holds now, kept for the next one.
+    start_daemon_thread(
+        target=lambda: read_the_library(config, kept, afresh=True), name="library-reread")
     ticks = 0
 
     def parent_alive() -> bool:
@@ -170,6 +228,8 @@ def main(argv: list[str] | None = None) -> int:
         return ticks % _PARENT_CHECK_EVERY != 0 or is_process_alive(args.parent)
 
     def tick() -> None:
+        if browse.window is None and landed:
+            browse.take_the_library(landed.pop())
         if not serve_once(browse, args.input, parent_alive=parent_alive, now=time.monotonic()):
             app.quit()
 

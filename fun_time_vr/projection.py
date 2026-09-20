@@ -1,14 +1,11 @@
 """Which shape a video is watched on, and how FunTimeVR remembers the answer.
 
-A 2D video hangs on a big flat screen; a VR video wraps the view in
-one of the projections its producer mastered it in (equirect 180 side-by-side
-is the overwhelming default, fisheye variants the exceptions).  The user fixes
-a wrong guess once — cycling with the P key, the spoken "projection" or a
-controller's stick — and
-the choice is written into the video's Evolver metadata sidecar under a
-``"vr"`` block of its own, so it holds for good.  Writes are read-merge-write,
-the same discipline Evolver's own writers use, so the two sides never clobber
-each other's fields.
+A 2D video hangs on a big flat screen; a VR video wraps the view in one of the
+projections its producer mastered it in (equirect 180 side-by-side the default,
+fisheye variants the exceptions).  A wrong guess is fixed once -- the P key, the
+spoken "projection", a controller's stick -- and the choice is written into the
+video's Evolver sidecar under a ``"vr"`` block of its own, read-merge-write, so
+neither side clobbers the other's fields.
 """
 from __future__ import annotations
 

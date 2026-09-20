@@ -450,11 +450,8 @@ class MainRole:
         self._scene_starts = scene_starts_ms(recorded)
 
     def look_with(self, look) -> None:
-        """Take the thing that reads the picture on screen, and set it on this video.
-
-        Handed in rather than built here: only the host holds a player whose
-        picture can be asked for, and a session without one simply never looks.
-        """
+        """Take what reads the picture on screen, and set it on this video -- handed
+        in, since only the host holds a player whose picture can be asked for."""
         self._look = look
         self._look_at_the_picture(self.current_video)
 

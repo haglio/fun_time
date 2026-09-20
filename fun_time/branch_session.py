@@ -124,28 +124,22 @@ def _primary_resolved_values(real: ProjectConfig) -> dict[str, dict[str, object]
     paired with what it resolved to in the primary.
 
     ``config._resolve_path`` anchors a relative value on ``config.PROJECT_DIR``,
-    which is whichever checkout imported the package — so the same config file
-    read from a worktree names files *inside that worktree*.  The live config
-    leans on that for several: ``favs.csv`` (the user's favorites, which would
-    come up empty), ``../broker/launch_broker_tray.vbs`` (one directory up from
-    the primary, which from a worktree is nothing at all), and the Chrome
-    shortcut, which is untracked and so exists in no worktree.  Pinning each to
-    what the primary resolved keeps a branch session on the machine's real
-    files.
+    whichever checkout imported the package -- so the same config file read from
+    a worktree names files *inside that worktree*.  The live config leans on that
+    for ``favs.csv`` (which would come up empty), the broker's launcher (a
+    directory above the primary, which from a worktree is nothing), and the
+    Chrome shortcut, untracked and so in no worktree.
 
-    ``broker_state_dir`` is pinned for a different reason, and is the one that
-    matters most here: it defaults to ``state_dir``, and ``state_dir`` is the one
-    value this rewrite goes on to move.  The broker is the machine's one broker,
-    configured against the primary for good, so a branch session that let its
-    heartbeat, serial-activity, command and mode files follow that move would read
-    an empty directory — the main console's broker light red and its OSR2 light
-    "off" while the device is plainly running, and its park and resume verbs
-    written where nothing reads them.
+    ``broker_state_dir`` is pinned for a different reason: it defaults to
+    ``state_dir``, which is the one value this rewrite goes on to move.  The
+    broker is the machine's one broker, configured against the primary for good,
+    so a branch session whose broker files followed that move would read an empty
+    directory -- the console's broker light red and its OSR2 light "off" while
+    the device is plainly running.
 
-    Every value comes from *real*, the config as production loaded it — nothing
-    here re-implements path resolution.  ``state_dir`` is listed for the same
-    reason: this is the complete set, and the state dir being overridden
-    afterwards is an exception on purpose rather than an omission.
+    Every value comes from *real*, the config as production loaded it.
+    ``state_dir`` is listed so this is the complete set, its being overridden
+    afterwards an exception on purpose rather than an omission.
     """
     paths, browser, regen = real.paths, real.random_favs_browser, real.regen
     return {

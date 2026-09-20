@@ -64,17 +64,16 @@ def panel_hud(
     scripted_filter: bool = False,
     playback_speed: float = 1.0,
 ) -> ConsoleHud:
-    """The engine's console re-said for the mode: the video's name on top and
-    the funscript folded into the readout by *drive_gate*
-    (:class:`player_core.drive_gate.DriveGate`) under a video, as the desktop's
-    video-mode console draws it; the clip's name (or the one still decoding)
-    over Genau's own motion in genau mode, where the gate is told nothing was
-    published, the video waiting paused while the wave moves on.  Before the
+    """The engine's console re-said for the mode: under a video, its name on top
+    and the funscript folded into the readout by *drive_gate*
+    (:class:`player_core.drive_gate.DriveGate`), as the desktop's video-mode
+    console draws it; in genau mode the clip's name (or the one still decoding)
+    over Genau's own motion, the gate told nothing was published.  Before the
     engine's first tick there is none, and the panel still names what plays.
 
-    *scripted_filter* is the main player's own, folded in as the main player folds in its own: the
-    published console lights the F button, the line beside it is the drawing
-    player's, and in genau mode that slot is Genau's filters'.
+    *scripted_filter* is the main player's own: the published console lights the
+    F button, the line beside it is the drawing player's, and in genau mode that
+    slot is Genau's filters'.
     """
     hud = engine_hud if engine_hud is not None else ConsoleHud()
     drives_itself = hud.console.device_drives_itself

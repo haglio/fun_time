@@ -450,14 +450,11 @@ def widened_seed_items(
     the *additions* clips of *path*'s own action whose scene is closest to it.
 
     The action is a hard bound, not a preference.  The seed axis means "the same
-    act, another subject", and a different act is what the action column is for —
-    so a widened row that ranked other acts in was answering a question nobody
-    asked, and, since "more seeds" loops the row it draws, those other acts
-    *played*.  Under a side filter that is plainly wrong (the filter is an act,
-    and the widen walked straight out of it); off a filter it is still wrong, just
-    quieter.  Bounding here rather than at each caller is what keeps a filter out
-    of this function entirely: the row can no longer leave the act it started in,
-    and every act filter is satisfied by the act it started in.
+    act, another subject", so a widened row that ranked other acts in was
+    answering a question nobody asked -- and since "more seeds" loops the row it
+    draws, those other acts *played*.  Bounding here rather than at each caller
+    keeps a filter out of this function entirely: the row cannot leave the act it
+    started in, and every act filter is satisfied by that act.
 
     Within the action, candidates are ranked:
 

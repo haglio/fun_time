@@ -1,28 +1,24 @@
 """The VR player process: the session's four players composited into one
 OpenXR scene.
 
-The desktop session runs the main player, Genau and two satellite processes, each owning a
-window; an OpenXR runtime gives the headset to a single rendering process, so in
-VR all four are surfaces of this one — :class:`fun_time_vr.roles.MainRole`,
+The desktop session runs the main player, Genau and two satellites as processes
+owning windows; an OpenXR runtime gives the headset to one rendering process, so
+in VR all four are surfaces of this one -- :class:`fun_time_vr.roles.MainRole`,
 :class:`fun_time_vr.genau_role.GenauRole` on a thread of its own, and the
-satellite package's own session against offscreen players.  Each keeps its
-desktop sibling's whole contract — the playlist/command/paused/status file
-quartet — so the orchestrator, dispatch loop, voice control and device arbiter
-drive them without knowing the display changed.  The console hangs in the scene
-as a panel of its own (:mod:`fun_time_vr.console_panel`), and the controllers
-move and resize every screen in it (:mod:`fun_time_vr.pointer`).
+satellite package's session against offscreen players.  Each keeps its desktop
+sibling's whole contract -- the playlist/command/paused/status quartet -- so
+everything that drives them is unaware the display changed.  The console hangs
+as a panel (:mod:`fun_time_vr.console_panel`) and the controllers move and
+resize every screen (:mod:`fun_time_vr.pointer`).
 
 ``_pump_channels`` owns every file channel, since file I/O under a sync client
 can stall for arbitrary milliseconds; each video paints on a thread and GL
 context of its own (:mod:`fun_time_vr.video_thread`), since a clip change costs
-mpv whole frames.  The frame loop only copies each newest picture into the
-scene and hands the compositor its layers.
-
-With ``vr.compositor_layers=true``, flat screens are submitted as compositor
-quad layers instead of drawn in-scene; what that costs, and why it is off by
-default, is in docs/known-issues.md.  Both ends of a session are covered from
-here too (:mod:`fun_time_vr.cover`), the headset having no monitors for the
-desktop's overlay windows to sit on.
+mpv whole frames.  The frame loop only copies each newest picture into the scene
+and hands the compositor its layers.  With ``vr.compositor_layers=true`` flat
+screens go as quad layers instead; the cost is in docs/known-issues.md.  Both
+ends of a session are covered from here (:mod:`fun_time_vr.cover`), the headset
+having no monitors for the desktop's overlay windows.
 
 A shell: what it wires is tested outside it, per CLAUDE.md's standing rules.
 """
@@ -280,11 +276,8 @@ def _folders(spec: str) -> tuple[Path, ...]:
 
 @dataclass(frozen=True)
 class VrSettings:
-    """The ``[vr]`` section the VR orchestrator adds to the launch manifest.
-
-    FunTimeVR's own half of the schema, read here rather than in
-    :mod:`fun_time.manifest` because a desktop session never writes it.
-    """
+    """The ``[vr]`` section the VR orchestrator adds to the launch manifest -- read
+    here rather than in :mod:`fun_time.manifest`, which a desktop session writes."""
 
     tcode_udp_host: str
     tcode_udp_port: int
@@ -627,11 +620,10 @@ class _MainUnit(_VideoUnit):
     def route_audio(self) -> None:
         """Give the main player its sound on the first frame the headset is WORN.
 
-        Routed earlier — at construction, or on VISIBLE with the headset on its
-        stand — the parked endpoint takes the stream without consuming it and
-        mpv's audio clock never ticks, freezing the main player on frame 1; FOCUSED
-        means a human is wearing it, endpoints draining.  When it wedges anyway,
-        :mod:`fun_time_vr.playback_watch` is what notices.
+        Routed earlier -- at construction, or on VISIBLE with the headset on its
+        stand -- a parked endpoint takes the stream without consuming it and mpv's
+        audio clock never ticks, freezing the player on frame 1.  When it wedges
+        anyway, :mod:`fun_time_vr.playback_watch` notices.
         """
         if self._audio_routed:
             return

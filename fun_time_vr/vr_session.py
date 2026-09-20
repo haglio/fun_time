@@ -1,12 +1,10 @@
 """OpenXR session lifecycle and swapchain management for the VR player.
 
 The loader's traps, each learned the slow way: graphics requirements queried
-before session creation, typed event casting, waiting for READY before the
-frame loop, and gating on view validity (an unlocated view reports an
-all-zero FOV, a division by zero in the projection matrix).  No per-eye depth
-buffers (the scene draws in painter's order).
-
-The OpenXR/GL shell -- see CLAUDE.md, "Standing rules".
+before session creation, typed event casting, waiting for READY before the frame
+loop, and gating on view validity (an unlocated view reports an all-zero FOV, a
+division by zero in the projection matrix).  No per-eye depth buffers -- the
+scene draws in painter's order.  The OpenXR/GL shell: CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 
@@ -544,13 +542,12 @@ class VRSession:
         project: bool = True,
         quads: list[QuadLayer] | None = None,
     ) -> None:
-        """Submit this frame's layers: the projection layer (when *project*),
-        then each :class:`QuadLayer` over it in painter's order.
+        """Submit this frame's layers: the projection layer (when *project*), then
+        each :class:`QuadLayer` over it in painter's order.
 
-        The runtime composites every layer at the true head pose each refresh,
-        so a quad holds rock-steady in the world even on a frame the app took
-        too long to update — flat screens as layers is exactly how a desktop
-        overlay tool stays smooth over a struggling game.
+        The runtime composites every layer at the true head pose each refresh, so
+        a quad holds steady in the world even on a frame the app took too long to
+        update -- how an overlay stays smooth over a struggling game.
         """
         # Built and kept in locals so every struct the layer pointers reference
         # stays alive until end_frame returns.
