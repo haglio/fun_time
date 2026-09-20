@@ -204,6 +204,12 @@ class ProjectConfig:
         return self.paths.state_dir / state_files.GENAU_PAUSED
 
     @property
+    def genau_status_file(self) -> Path:
+        """Where Genau publishes what the hand is doing, named on its launch:
+        left to Genau it followed whichever command file it was handed."""
+        return self.paths.state_dir / state_files.GENAU_STATUS
+
+    @property
     def main_player_cmd_file(self) -> Path:
         return self.paths.state_dir / "main_player_cmd.txt"
 

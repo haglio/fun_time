@@ -21,7 +21,6 @@ from .main_player_console import console_model
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
-    genau_status_path,
     is_broker_heartbeat_fresh,
     is_osr2_device_on,
     read_genau_status,
@@ -134,7 +133,7 @@ class HudFeed:
             # The console's buttons are lit and named from what each player
             # published, since the player drawing it is not always their subject.
             main_player=main_player,
-            genau=read_genau_status(genau_status_path(self.config.state_dir)),
+            genau=read_genau_status(self.config.genau_status_file),
             genau_pace_s=self._genau_pace_s(),
             nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
         )))

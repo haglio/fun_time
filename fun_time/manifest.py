@@ -80,6 +80,7 @@ def build_windows_bridge_manifest(
             "broker_mode_file": str(config.broker_mode_file),
             "genau_cmd_file": str(config.genau_cmd_file),
             "genau_paused_file": str(config.genau_paused_file),
+            "genau_status_file": str(config.genau_status_file),
             "main_player_cmd_file": str(config.main_player_cmd_file),
             "main_player_paused_file": str(config.main_player_paused_file),
             "main_player_status_file": str(config.main_player_status_file),
@@ -216,6 +217,7 @@ class CommandFiles:
     broker_mode_file: str
     genau_cmd_file: str
     genau_paused_file: str
+    genau_status_file: str
     main_player_cmd_file: str
     main_player_paused_file: str
     main_player_status_file: str

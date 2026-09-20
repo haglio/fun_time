@@ -25,7 +25,6 @@ from fun_time.manifest import (
 from fun_time.monitors import MonitorInfo
 from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
 from fun_time.player_status import (
-    genau_status_path,
     read_main_player_status,
 )
 from fun_time.players import Player
@@ -487,8 +486,8 @@ class TestRunStartupSequence:
         rescans its folder every launch — so it is read before Genau is started
         and handed straight back on the command line."""
         cfg, manifest_path = _make_manifest(cfg_factory, tmp_path)
-        genau_status_path(cfg.paths.state_dir).parent.mkdir(parents=True, exist_ok=True)
-        genau_status_path(cfg.paths.state_dir).write_text(
+        cfg.genau_status_file.parent.mkdir(parents=True, exist_ok=True)
+        cfg.genau_status_file.write_text(
             "cruise=0\nclip=C:\\clips\\alpha.mp4\n", encoding="utf-8",
         )
 

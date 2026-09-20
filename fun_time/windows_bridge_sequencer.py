@@ -930,9 +930,8 @@ def _move_window_to(hwnd: int, rect: WindowRect, label: str, *, activate: bool =
 def _resolve_genau_window(progress: ProgressReporter) -> int:
     """Genau's window, once its thread takes messages: it waits out its first
     clip's decode before its loop starts, and a placement sent sooner lands late."""
-    # Exactly, and only the plain caption: the other one is what this window
-    # wears while its HUD is over the main player's video, and that HUD is off
-    # until a mode switch, which is after this.
+    # Exactly, and the plain caption alone: the HUD that renames this window
+    # is off until a mode switch, which is after this.
     hwnd = wait_for_window_by_title(
         GENAU_TITLE, timeout_s=WINDOW_RESOLVE_TIMEOUT_S, exact=True)
     if not hwnd:

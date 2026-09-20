@@ -9,7 +9,6 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from app_support import state_files
 from app_support.file_channel import read_key_values, stamp_age
 from player_core.modes import LengthMode, LoopState, read_mode
 from player_core.status import PlayerStatus, parse_status
@@ -121,14 +120,6 @@ def _status_touch(values: dict) -> int | None:
     absent on a raised floor, an unlatched forecast, or an older main player."""
     raw = values.get("handoff_touch_ms", "").strip()
     return int(raw) if raw.isdigit() else None
-
-
-GENAU_STATUS_FILENAME = state_files.GENAU_STATUS
-
-
-def genau_status_path(state_dir: Path) -> Path:
-    """Where Genau publishes what it is doing, in *state_dir*."""
-    return Path(state_dir) / GENAU_STATUS_FILENAME
 
 
 @dataclass(frozen=True)

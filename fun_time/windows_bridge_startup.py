@@ -66,24 +66,18 @@ from .window_roles import GENAU_TITLE, GENAU_VIDEO_TITLE
 logger = logging.getLogger(__name__)
 
 
-# The two native satellites carry DISTINCT window captions so the sequencer can
-# resolve each to its slot by title when the pid lookup fails (the genau venv's
-# pythonw launcher can own a pid other than the window's — the same reason
-# launch_main_player needs a title fallback).  A shared caption lets the fallback assign
-# one side's window to the other, which is the portrait/landscape visual swap.
-# The sequencer imports these to resolve by, so the strings live in one place.
-# These captions are also what each window calls itself in Alt-Tab and on its
-# taskbar button, so they name what the window *is* rather than this project's
-# internal word for it.
+# DISTINCT captions, so the by-title fallback (the genau venv's pythonw
+# launcher can own a pid other than the window's) can never hand one side's
+# window to the other, which is the portrait/landscape visual swap.  They are
+# also what each window calls itself in Alt-Tab, so they name what the window
+# IS rather than this project's internal word for it.
 SATELLITE_PORTRAIT_TITLE = "Portrait AI Player"
 SATELLITE_LANDSCAPE_TITLE = "Landscape AI Player"
 
-# Every player this launches is one of Fun Time's windows, not an application of
-# its own, so each takes Fun Time's taskbar identity rather than claiming one:
-# Windows groups buttons by AppUserModelID and reads the icon and name off the
-# pinned shortcut carrying it, and without this the bar showed four apps.
-# Passed rather than shared as a constant -- the players are separate apps in
-# another repo and must not know Fun Time's name.
+# Every player this launches is one of Fun Time's windows, not an application
+# of its own, so each takes Fun Time's taskbar identity rather than claiming
+# one; without this the bar showed four apps.  Passed rather than shared as a
+# constant -- those apps are another repo's and must not know this one's name.
 TASKBAR_IDENTITY_ARGS = ("--taskbar-identity", APP_USER_MODEL_ID)
 
 
@@ -557,10 +551,8 @@ def launch_genau(
     ]
     cmd.extend(["--icon", str(PROJECT_ICON)])
     cmd.extend(TASKBAR_IDENTITY_ARGS)
-    # Both captions, because this session finds that window by them and matches
-    # them exactly.  Named here for the same reason each satellite's is: the
-    # window is one of this session's, and a caption it chose alone was a
-    # lookup that worked by luck.
+    # Both captions, for the same reason each satellite is handed its own: the
+    # window is one of this session's, and this session resolves it by them.
     cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_VIDEO_TITLE])
     if command_file is not None:
         cmd.extend(["--command-file", str(command_file)])
@@ -576,10 +568,8 @@ def launch_genau(
     # config wrote it into the Genau repo, where the main player was never looking.
     if drive_file is not None:
         cmd.extend(["--drive-file", str(drive_file)])
-    # Where it publishes what the hand is doing, for the dashboard to draw.
-    # Named by us, like the drive readout above: left to Genau it followed
-    # whichever directory the command file happened to be in, and the two sides
-    # agreed only because this session puts both in the same one today.
+    # Where it publishes what the hand is doing.  Named by us, like the drive
+    # readout above, so this session reads it where it said to write it.
     if status_file is not None:
         cmd.extend(["--status-file", str(status_file)])
     if dashboard_cmd_file is not None:
@@ -626,10 +616,8 @@ def origenerator_session_args(
 ) -> list[str]:
     rfb = layout_plan.random_favs_browser
     args = ["--fun-time", *_rect_args("", rfb)]
-    # The two satellite regions, for the shows the hosted app opens itself when
-    # a session hands it no player for a side.  Sent because its contract asks
-    # for them: unsent they fell to a rect of zeroes, which is a window nobody
-    # can see rather than a launch that says something is missing.
+    # The two satellite regions, for a show the hosted app opens itself where a
+    # session hands it no player.  Unsent, those fell to a rect of zeroes.
     args.extend(_rect_args("portrait-", layout_plan.portrait))
     args.extend(_rect_args("landscape-", layout_plan.landscape))
     for side, player in players.items():
