@@ -106,10 +106,11 @@ def get_logical_monitor_rects(
     primary_index: int,
     secondary_index: int,
 ) -> tuple[MonitorRect, MonitorRect]:
-    """Assign monitors to main/secondary roles, correcting for orientation.
+    """Assign monitors to the primary and secondary roles, correcting for orientation.
 
     The rules, one test each: landscape wins over portrait, else leftmost wins.
-    The two indices are the 1-based monitor numbers the config carries.
+    The two indices are the 1-based monitor numbers the config carries, and
+    "primary" is its word: not the main player's monitor, which is the secondary.
     """
     if not monitors:
         raise ValueError("No monitors detected")
@@ -117,21 +118,21 @@ def get_logical_monitor_rects(
     def _clamp(idx: int) -> int:
         return max(0, min(len(monitors) - 1, idx - 1))
 
-    configured_main = monitors[_clamp(primary_index)]
+    configured_primary = monitors[_clamp(primary_index)]
     configured_secondary = monitors[_clamp(secondary_index)]
 
-    main_is_landscape = configured_main.width >= configured_main.height
+    primary_is_landscape = configured_primary.width >= configured_primary.height
     secondary_is_portrait = configured_secondary.width < configured_secondary.height
 
-    if main_is_landscape and secondary_is_portrait:
-        main, secondary = configured_main, configured_secondary
-    elif not main_is_landscape and not secondary_is_portrait:
-        # Swapped: secondary is actually landscape, main is portrait
-        main, secondary = configured_secondary, configured_main
-    # Same orientation — leftmost is main
-    elif configured_main.x <= configured_secondary.x:
-        main, secondary = configured_main, configured_secondary
+    if primary_is_landscape and secondary_is_portrait:
+        primary, secondary = configured_primary, configured_secondary
+    elif not primary_is_landscape and not secondary_is_portrait:
+        # Swapped: the secondary is actually landscape, the primary portrait
+        primary, secondary = configured_secondary, configured_primary
+    # Same orientation — leftmost is the primary
+    elif configured_primary.x <= configured_secondary.x:
+        primary, secondary = configured_primary, configured_secondary
     else:
-        main, secondary = configured_secondary, configured_main
+        primary, secondary = configured_secondary, configured_primary
 
-    return main, secondary
+    return primary, secondary
