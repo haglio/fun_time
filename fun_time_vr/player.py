@@ -42,6 +42,7 @@ from pathlib import Path
 import numpy as np
 from app_support import ports
 from app_support.file_channel import read_flag
+from app_support.logging_utils import install_exception_logging
 from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import set_app_user_model_id
 from player_core.drive_gate import DriveGate
