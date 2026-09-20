@@ -233,7 +233,7 @@ class TestPlaybackVerbs:
 
     def test_set_volume_carries_level_and_mute_once_audio_is_live(self, role_parts):
         role, player = role_parts.role, role_parts.player
-        role.audio_live = True
+        role.sound_goes_live()
         role.apply_command("SET_VOLUME 40 1", on_quit=_never_quits)
         assert player.volume == 40
         assert player.muted is True
@@ -250,6 +250,18 @@ class TestPlaybackVerbs:
         assert role.volume == 70
         assert role.muted is False
         assert player.muted is None  # never touched
+
+
+    def test_the_recorded_level_comes_on_when_the_sound_does(self, role_parts):
+        """The host used to set the flag and then re-apply the level itself, so
+        the role owned the value and the host owned the moment it took effect."""
+        role, player = role_parts.role, role_parts.player
+        role.apply_command("SET_VOLUME 70 1", on_quit=_never_quits)
+
+        role.sound_goes_live()
+
+        assert player.volume == 70
+        assert player.muted is True
 
     def test_play_file_jumps_to_a_playlist_item(self, role_parts):
         role, player, files = role_parts.role, role_parts.player, role_parts.files
