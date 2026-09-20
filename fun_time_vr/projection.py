@@ -74,13 +74,20 @@ def default_projection(video_path: str, vr_dirs: Sequence[Path | str]) -> str:
     return FLAT
 
 
-def next_projection(current: str) -> str:
-    """The next stop on the cycle, restarting it from a retired/unknown value."""
+def _stepped(current: str, step: int) -> str:
     try:
         position = PROJECTIONS.index(current)
     except ValueError:
-        return PROJECTIONS[0]
-    return PROJECTIONS[(position + 1) % len(PROJECTIONS)]
+        return PROJECTIONS[0]  # a retired or unknown value restarts the ring
+    return PROJECTIONS[(position + step) % len(PROJECTIONS)]
+
+
+def next_projection(current: str) -> str:
+    return _stepped(current, 1)
+
+
+def previous_projection(current: str) -> str:
+    return _stepped(current, -1)
 
 
 def saved_projection(video_path: str, metadata_root: Path | None) -> str | None:

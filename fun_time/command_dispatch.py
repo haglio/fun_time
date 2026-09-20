@@ -1779,6 +1779,8 @@ def _build_handlers() -> dict[str, Handler]:
     handlers["genau_lock"] = partial(_genau_lock_on_screen, TOGGLE_LOCK)
     handlers["main_player_lock"] = partial(_forward_to_main_player_on_screen, TOGGLE_LOCK)
     handlers["projection_cycle"] = partial(_forward_to_the_vr_main_player, "CYCLE_PROJECTION")
+    handlers["projection_cycle_back"] = partial(
+        _forward_to_the_vr_main_player, "CYCLE_PROJECTION_BACK")
     handlers["recenter_view"] = partial(_forward_to_the_vr_main_player, "RECENTER")
     handlers["tilt_up"] = partial(_forward_to_the_vr_main_player, "TILT_UP")
     handlers["tilt_down"] = partial(_forward_to_the_vr_main_player, "TILT_DOWN")

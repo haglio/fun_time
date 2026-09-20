@@ -292,6 +292,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "portrait_trash",
     "portrait_wrong_action",
     "projection_cycle",
+    "projection_cycle_back",
     "quarter_button",
     "quit",
     "recenter_view",

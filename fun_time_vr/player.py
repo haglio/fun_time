@@ -1933,8 +1933,8 @@ def _hands_for_the_players(
 ) -> Mapping[str, HandInput]:
     if not library.takes_the_stick:
         return hands
-    library.scroll(scroll_from_stick(strongest(hand.stick for hand in hands.values()), elapsed_s))
-    return {name: replace(hand, stick=0.0) for name, hand in hands.items()}
+    library.scroll(scroll_from_stick(strongest(hand.stick_y for hand in hands.values()), elapsed_s))
+    return {name: replace(hand, stick_x=0.0, stick_y=0.0) for name, hand in hands.items()}
 
 
 def _draw_eyes(

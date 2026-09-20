@@ -12,10 +12,19 @@ NUDGE_FORWARD = "main_nudge_next"
 NUDGE_BACK = "main_nudge_prev"
 NEXT_SCENE = "main_scene_next"
 PREVIOUS_SCENE = "main_scene_prev"
+PROJECTION_ON = "projection_cycle"
+PROJECTION_BACK = "projection_cycle_back"
+
+SIDEWAYS_PUSH = 0.6
+SIDEWAYS_REST = 0.3
 
 
 def strongest(axes: Iterable[float]) -> float:
     return max(axes, key=abs, default=0.0)
+
+
+def _mostly_sideways(hand: HandInput) -> bool:
+    return abs(hand.stick_x) > abs(hand.stick_y)
 
 
 @dataclass(frozen=True)
@@ -30,20 +39,32 @@ class Thumbs:
     def __init__(self) -> None:
         self._down: dict[str, tuple[bool, bool]] = {}
         self._moving = False
+        self._pushed_sideways = 0
 
     def frame(self, hands: Mapping[str, HandInput], squeeze, *, elapsed_s: float) -> Thumb:
-        commands = self._pressed(hands, squeezing=squeeze.squeezing)
-        stick = strongest(hand.stick for hand in hands.values())
-        moving = abs(stick) > CONTROLLER_DEADZONE
+        pressed = self._pressed(hands, squeezing=squeeze.squeezing)
+        commands = pressed + self._stepped(hands)
+        push = strongest(hand.stick_y for hand in hands.values() if not _mostly_sideways(hand))
+        moving = abs(push) > CONTROLLER_DEADZONE
         settled, self._moving = self._moving and not moving, moving
-        if squeeze.squeezing and (moving or commands):
+        if squeeze.squeezing and (moving or pressed):
             squeeze.spend_the_squeeze()
         if not moving:
             return Thumb(commands=commands, settled=settled)
-        factor = 2.0 ** (-stick * elapsed_s * DOUBLINGS_PER_S)
+        factor = 2.0 ** (-push * elapsed_s * DOUBLINGS_PER_S)
         if squeeze.squeezing:
             return Thumb(nearer=factor, commands=commands)
         return Thumb(grow=factor, commands=commands)
+
+    def _stepped(self, hands: Mapping[str, HandInput]) -> tuple[str, ...]:
+        sideways = strongest(hand.stick_x for hand in hands.values() if _mostly_sideways(hand))
+        if abs(sideways) < SIDEWAYS_REST:
+            self._pushed_sideways = 0
+        pushed = (sideways > SIDEWAYS_PUSH) - (sideways < -SIDEWAYS_PUSH)
+        if not pushed or pushed == self._pushed_sideways:
+            return ()
+        self._pushed_sideways = pushed
+        return (PROJECTION_ON,) if pushed > 0 else (PROJECTION_BACK,)
 
     def _pressed(self, hands: Mapping[str, HandInput], *, squeezing: bool) -> tuple[str, ...]:
         forward, back = (NEXT_SCENE, PREVIOUS_SCENE) if squeezing else (NUDGE_FORWARD, NUDGE_BACK)

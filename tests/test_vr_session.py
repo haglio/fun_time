@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
 import xr
 
 from fun_time_vr.pointer import LEFT, RIGHT, HandInput
@@ -18,7 +19,8 @@ from fun_time_vr.vr_session import (
     BACK,
     CONTROLLER_BINDINGS,
     FORWARD,
-    STICK,
+    STICK_X,
+    STICK_Y,
     TRIGGER,
     VRSession,
     views_are_renderable,
@@ -138,11 +140,11 @@ def test_a_session_that_comes_back_is_ready_again(monkeypatch):
     assert session.session_ready is True
 
 
-def test_each_hand_reads_its_stick_and_both_skip_buttons(monkeypatch):
+def test_each_hand_reads_both_axes_of_its_stick_and_both_skip_buttons(monkeypatch):
     session = VRSession.__new__(VRSession)
     session._session = object()
-    session._actions = {name: name for name in (AIM, TRIGGER, STICK, FORWARD, BACK)}
-    readings = {TRIGGER: 0.2, STICK: -0.7, FORWARD: True, BACK: False}
+    session._actions = {name: name for name in (AIM, TRIGGER, STICK_X, STICK_Y, FORWARD, BACK)}
+    readings = {TRIGGER: 0.2, STICK_X: 0.4, STICK_Y: -0.7, FORWARD: True, BACK: False}
 
     def state(_session, get_info):
         return SimpleNamespace(is_active=True, current_state=readings[get_info.action])
@@ -155,17 +157,18 @@ def test_each_hand_reads_its_stick_and_both_skip_buttons(monkeypatch):
     monkeypatch.setattr(xr, "get_action_state_boolean", state)
 
     assert session._hand_input(RIGHT, object(), 0) == HandInput(
-        trigger=0.2, stick=-0.7, forward=True, back=False)
+        trigger=0.2, stick_x=0.4, stick_y=-0.7, forward=True, back=False)
 
 
 class TestControllerBindings:
-    def test_every_profile_with_a_stick_reads_it_on_either_hands_y_axis(self):
-        sticks = [bindings[STICK] for bindings in CONTROLLER_BINDINGS.values()
-                  if STICK in bindings]
+    @pytest.mark.parametrize("action, axis", [(STICK_X, "/x"), (STICK_Y, "/y")])
+    def test_every_profile_with_a_stick_reads_both_its_axes_on_either_hand(self, action, axis):
+        sticks = [bindings[action] for bindings in CONTROLLER_BINDINGS.values()
+                  if STICK_Y in bindings]
         assert sticks, "no controller has a stick to read"
         for paths in sticks:
             assert {path.split("/")[3] for path in paths} == {LEFT, RIGHT}
-            assert all(path.endswith("/y") for path in paths)
+            assert all(path.endswith(axis) for path in paths)
 
     def test_every_profile_points_and_squeezes_with_either_hand(self):
         for profile, bindings in CONTROLLER_BINDINGS.items():

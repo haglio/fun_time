@@ -60,7 +60,12 @@ from main_player.play_points import PlayPoints
 from main_player.seeking import OwedSeek, seek_if_taken
 
 from .layout import clamp_tilt
-from .projection import next_projection, resolve_projection, save_projection
+from .projection import (
+    next_projection,
+    previous_projection,
+    resolve_projection,
+    save_projection,
+)
 from .video_scenes import scene_starts_ms
 
 logger = logging.getLogger(__name__)
@@ -77,6 +82,7 @@ TILT_STEP_DEG = 5.0
 # tilt, a scene to jump to.  Spelled here, beside the registry that answers them,
 # the way a player's own verbs are everywhere in this family.
 CYCLE_PROJECTION = "CYCLE_PROJECTION"
+CYCLE_PROJECTION_BACK = "CYCLE_PROJECTION_BACK"
 RECENTER = "RECENTER"
 LAYOUT_RESET = "LAYOUT_RESET"
 TILT_UP = "TILT_UP"
@@ -581,7 +587,12 @@ class MainRole:
             self._resume.pay(self._player, self.seek_to)
 
     def cycle_projection(self) -> None:
-        projection = next_projection(self.projection)
+        self._watch_in(next_projection(self.projection))
+
+    def cycle_projection_back(self) -> None:
+        self._watch_in(previous_projection(self.projection))
+
+    def _watch_in(self, projection: str) -> None:
         self._projections[str(self.current_video)] = projection
         save_projection(str(self.current_video), self._metadata_root, projection)
         logger.info("Projection: %s (%s)", projection, self.current_video.name)
@@ -674,7 +685,11 @@ CONTROLS: tuple[Control, ...] = (
         name="f_mode",
         verbs=(Verb(SET_F_MODE, _reads(MainRole.set_scripted_filter_from), takes_a_value=True),),
     ),
-    Control(name="projection", verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),)),
+    Control(
+        name="projection",
+        verbs=(Verb(CYCLE_PROJECTION, _moves(MainRole.cycle_projection)),
+               Verb(CYCLE_PROJECTION_BACK, _moves(MainRole.cycle_projection_back))),
+    ),
     Control(name="heading", verbs=(Verb(RECENTER, _moves(lambda role: role.recenter.ask())),)),
     Control(name="layout", verbs=(Verb(LAYOUT_RESET, _moves(MainRole.reset_layout)),)),
     Control(

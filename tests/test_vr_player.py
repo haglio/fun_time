@@ -2345,17 +2345,29 @@ class TestTheLibraryUnderThePointer:
         host.sent.clear()
 
         hands = _hands_for_the_players(
-            unit, {"left": HandInput(stick=0.2), "right": HandInput(stick=-1.0, forward=True)},
+            unit, {"left": HandInput(stick_y=0.2), "right": HandInput(stick_y=-1.0, forward=True)},
             elapsed_s=0.5)
         unit.pump(threading.Event(), 0.0)
 
         assert hands == {"left": HandInput(), "right": HandInput(forward=True)}
         assert host.sent[-1] == scroll_line(int(scroll_from_stick(-1.0, 0.5)))
 
+    def test_the_stick_on_it_steps_no_projection_either(self, tmp_path):
+        host = _FakeLibraryHost()
+        unit = _a_library(tmp_path, host)
+        host.frames[1] = _a_frame()
+        write_flag(tmp_path / LIBRARY_OPEN_FILENAME, True)
+        unit.pump(threading.Event(), 0.0)
+        unit.point(Frame(hover=Hover(LIBRARY, SURFACE, *_uv(300, 400))))
+
+        hands = _hands_for_the_players(unit, {"right": HandInput(stick_x=0.9)}, elapsed_s=0.5)
+
+        assert hands == {"right": HandInput()}
+
     def test_the_stick_elsewhere_is_the_players_to_size(self, tmp_path):
         host = _FakeLibraryHost()
         unit = _a_library(tmp_path, host)
-        hands = {"right": HandInput(stick=-1.0)}
+        hands = {"right": HandInput(stick_y=-1.0)}
 
         assert _hands_for_the_players(unit, hands, elapsed_s=0.5) == hands
         assert host.sent == []
