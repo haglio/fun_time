@@ -696,48 +696,38 @@ def test_a_loop_takes_precedence_over_a_stale_nav_anchor():
 # --- map navigation geometry ---
 
 
-def test_navigate_from_the_corner_steps_onto_each_axis():
-    """From the anchor, right enters the seed row and down enters the action
-    column; left/up come round the other way, onto each axis's last cell."""
+def test_navigate_from_the_corner_steps_onto_the_action_column():
+    """From the anchor, down enters the column of other acts and up comes round
+    the other way, onto its last cell."""
     corner = ("corner", 0)
-    assert navigate_cell(corner, "right", seed_count=3, action_count=2) == ("seed", 0)
-    assert navigate_cell(corner, "down", seed_count=3, action_count=2) == ("action", 0)
-    assert navigate_cell(corner, "left", seed_count=3, action_count=2) == ("seed", 2)
-    assert navigate_cell(corner, "up", seed_count=3, action_count=2) == ("action", 1)
-
-
-def test_navigate_walks_the_seed_row_and_wraps_past_its_end():
-    assert navigate_cell(("seed", 0), "right", seed_count=3, action_count=0) == ("seed", 1)
-    assert navigate_cell(("seed", 1), "right", seed_count=3, action_count=0) == ("seed", 2)
-    # Off the last seed, right comes round to the corner the row started from.
-    assert navigate_cell(("seed", 2), "right", seed_count=3, action_count=0) == ("corner", 0)
-
-
-def test_navigate_walks_the_seed_row_back_to_the_corner():
-    assert navigate_cell(("seed", 1), "left", seed_count=3, action_count=0) == ("seed", 0)
-    assert navigate_cell(("seed", 0), "left", seed_count=3, action_count=0) == ("corner", 0)
+    assert navigate_cell(corner, "down", action_count=2) == ("action", 0)
+    assert navigate_cell(corner, "up", action_count=2) == ("action", 1)
 
 
 def test_navigate_walks_the_action_column_and_wraps_past_its_end():
-    assert navigate_cell(("action", 0), "down", seed_count=0, action_count=2) == ("action", 1)
-    assert navigate_cell(("action", 1), "down", seed_count=0, action_count=2) == ("corner", 0)
-    assert navigate_cell(("action", 1), "up", seed_count=0, action_count=2) == ("action", 0)
-    assert navigate_cell(("action", 0), "up", seed_count=0, action_count=2) == ("corner", 0)
+    assert navigate_cell(("action", 0), "down", action_count=2) == ("action", 1)
+    assert navigate_cell(("action", 1), "down", action_count=2) == ("corner", 0)
+    assert navigate_cell(("action", 1), "up", action_count=2) == ("action", 0)
+    assert navigate_cell(("action", 0), "up", action_count=2) == ("corner", 0)
 
 
-def test_navigate_off_axis_moves_are_no_ops():
-    """The map is an L: a seed has nothing below it, an action nothing to its
-    right — those moves keep the selection where it is."""
-    assert navigate_cell(("seed", 1), "down", seed_count=3, action_count=2) == ("seed", 1)
-    assert navigate_cell(("seed", 1), "up", seed_count=3, action_count=2) == ("seed", 1)
-    assert navigate_cell(("action", 1), "right", seed_count=3, action_count=2) == ("action", 1)
-    assert navigate_cell(("action", 1), "left", seed_count=3, action_count=2) == ("action", 1)
+def test_navigate_from_a_seed_cell_is_a_no_op():
+    """The map is an L and a seed has nothing below it.  A seed lit by a click
+    is stepped down into by re-rooting the map on it, which is the dispatcher's
+    own move (see navigate_hud), not this one's."""
+    assert navigate_cell(("seed", 1), "down", action_count=2) == ("seed", 1)
+    assert navigate_cell(("seed", 1), "up", action_count=2) == ("seed", 1)
 
 
-def test_navigate_from_the_corner_onto_an_empty_axis_stays_put():
+def test_navigate_along_the_row_is_no_longer_a_direction():
+    """Left and right are the versions of the clip on screen now."""
     corner = ("corner", 0)
-    assert navigate_cell(corner, "right", seed_count=0, action_count=2) == corner
-    assert navigate_cell(corner, "down", seed_count=3, action_count=0) == corner
+    assert navigate_cell(corner, "right", action_count=2) == corner
+    assert navigate_cell(corner, "left", action_count=2) == corner
+
+
+def test_navigate_onto_an_empty_column_stays_put():
+    assert navigate_cell(("corner", 0), "down", action_count=0) == ("corner", 0)
 
 
 def test_locate_cell_matches_the_corner_a_seed_or_an_action():

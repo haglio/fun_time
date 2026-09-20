@@ -101,6 +101,12 @@ def reset_button(published: dict) -> dict:
                 if button["command"].endswith("reset"))
 
 
+def version_button(published: dict) -> dict:
+    """The versions button a published satellite panel declares, as written."""
+    return next(button for row in published["rows"] for button in row
+                if button["command"].endswith("_cycle_version"))
+
+
 def broker_is_up(published: dict) -> bool:
     """What the published console's OSR2-line control says of the broker: lit
     while the service runs, red (``warn``) while it is down."""
@@ -260,6 +266,27 @@ class TestHudPublishing:
 
         assert not reset_button(panel(tmp_path, "portrait")).get("dim")
         assert reset_button(panel(tmp_path, "landscape"))["dim"] is True
+
+    def test_the_versions_button_lights_for_a_clip_the_library_has_twice(self, tmp_path):
+        """The upscale the side plays and the sorted original it was made from:
+        the button is pressable exactly where there is a second rendition on
+        disk, the way the main player's reads its own library."""
+        media_root = tmp_path / "AI"
+        upscale = (media_root / "2_outbox" / "upscaled_by_orientation" / "portrait"
+                   / "provider" / "clip_topaz.mp4")
+        original = media_root / "1_sorted" / "provider" / "portrait" / "clip.mp4"
+        for path in (upscale, original):
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text("x", encoding="utf-8")
+        feed = make_feed(tmp_path, config=make_config(tmp_path, regen_media_root=media_root))
+        publish_satellite_status(tmp_path / "portrait_status.txt", str(upscale))
+        publish_satellite_status(tmp_path / "landscape_status.txt", str(original))
+
+        feed.publish(BridgeState())
+
+        assert not version_button(panel(tmp_path, "portrait")).get("dim")
+        assert version_button(panel(tmp_path, "landscape"))["dim"] is True
+
 
     def test_a_hosted_shows_reset_is_never_faded_by_the_session(self, tmp_path):
         """That reset belongs to the show, whose state this room cannot see, so

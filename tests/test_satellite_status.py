@@ -31,6 +31,16 @@ class TestStatusFields:
 
         assert status_fields(session)["playlist_length"] == "1"
 
+    def test_a_version_stepped_to_is_published_as_the_clip_it_stands_in_for(self, tmp_path):
+        """The map, the star and the trash are all keyed on the clip, so the
+        file a version step put up is never what the status names."""
+        session, _player = make_satellite_session(tmp_path)
+        other = tmp_path / "v0_sorted.mp4"
+        other.write_text("fake")
+        session.step_version([session.current_video, other], 1)
+
+        assert status_fields(session)["video"] == str(tmp_path / "v0.mp4")
+
     def test_key_order_is_the_published_file_order(self):
         # The dispatch loop parses key=value lines, but the file's shape is this
         # player's contract; pinning the order keeps a reordering from passing

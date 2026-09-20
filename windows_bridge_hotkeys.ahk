@@ -160,18 +160,22 @@ w::QueueCommand("landscape_trash")
 s::QueueCommand("landscape_lock")
 ; Landscape's half of the loop cycle above.
 e::QueueCommand("landscape_loop")
-; HUD map keyboard navigation: Shift + arrows move a selection around the
-; portrait map and Shift + WASD around the landscape map, each switching the
-; satellite to the selected clip (like a thumbnail click).  These are distinct
-; from the unshifted nav keys above, and are suspended under OmniPause like the
-; rest.  Enter used to lock the selection and re-home the map on it; the side's
-; own lock key does both, so the extra key was retired.
-+Left::QueueCommand("portrait_nav_left")
-+Right::QueueCommand("portrait_nav_right")
+; The shifted step keys walk the versions of the clip on screen -- the upscale
+; the library plays and the original it was made from -- as they do on the main
+; player's own side (+[ / +] below).  The map's own row, which they used to walk,
+; is still reachable by clicking a thumbnail.
++Left::QueueCommand("portrait_cycle_version_back")
++Right::QueueCommand("portrait_cycle_version")
++a::QueueCommand("landscape_cycle_version_back")
++d::QueueCommand("landscape_cycle_version")
+; HUD map keyboard navigation: Shift + up/down moves a selection down the
+; portrait map's action column and Shift + W/S down the landscape map's, each
+; switching the satellite to the selected clip (like a thumbnail click).  These
+; are distinct from the unshifted nav keys above, and are suspended under
+; OmniPause like the rest.  Enter used to lock the selection and re-home the map
+; on it; the side's own lock key does both, so the extra key was retired.
 +Up::QueueCommand("portrait_nav_up")
 +Down::QueueCommand("portrait_nav_down")
-+a::QueueCommand("landscape_nav_left")
-+d::QueueCommand("landscape_nav_right")
 +w::QueueCommand("landscape_nav_up")
 +s::QueueCommand("landscape_nav_down")
 ; The main slot's lock, reaching whichever player is showing: the main player's video
@@ -199,7 +203,13 @@ r up:: {
 }
 
 ; The main player: cycle to another same-content version of the current video.
+; The shifted step keys walk the same versions either way, as the shifted step
+; keys on each satellite side do.
 v::QueueCommand("main_player_cycle_version")
++[::QueueCommand("main_player_cycle_version_back")
++SC01A::QueueCommand("main_player_cycle_version_back")
++]::QueueCommand("main_player_cycle_version")
++SC01B::QueueCommand("main_player_cycle_version")
 
 ; The main player: cycle the length of what plays — mixed (everything) / shorts / full-length.
 t::QueueCommand("main_player_toggle_length")

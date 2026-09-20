@@ -10,6 +10,8 @@ from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_OFF, LOCK_ON, RELOAD_PLAYLIST, play_file
 from player_core.playlist import PlaylistItem
 
+from satellite.versions import step_version
+
 from .bridge_records import BridgeConfig, WindowOp
 from .event_log import FAVORITE
 from .lock_hud import cell_path, hud_map_cells, locate_cell, navigate_cell
@@ -26,6 +28,7 @@ from .media_metadata import (
     seed_family_items,
     widened_seed_items,
 )
+from .media_renditions import renditions
 from .modes import collect_video_files, write_playlist_file
 from .players import Player
 from .runtime_flow import satellite_browse_paths
@@ -434,6 +437,23 @@ def no_loop(
     return state, [WindowOp(op="notice", key="Loop off", source=satellite_source(player))]
 
 
+def cycle_version(
+    player: Player, delta: int, state: BridgeState, config: BridgeConfig,
+    target_path: str = "",
+) -> tuple[BridgeState, list[WindowOp]]:
+    """Step the clip on screen to another of its renditions, either way."""
+    current = satellite_current(config, player)
+    clip = target_path or current
+    family = renditions(clip, config.regen_media_root)
+    if not family:
+        return state, [WindowOp(op="notice", key="No other version",
+                                source=satellite_source(player), level=logging.WARNING)]
+    if target_path and not same_video(target_path, current):
+        play_video(config, player, target_path)
+    send_satellite(config, player, step_version(delta, family))
+    return state, []
+
+
 def switch_to_video(
     player: Player, path: str, state: BridgeState, config: BridgeConfig
 ) -> tuple[BridgeState, list[WindowOp]]:
@@ -486,7 +506,7 @@ def navigate_hud(
         # seed with no other acts stays a dead end on an unmoved map.
         root, cell = current, ("corner", 0)
         seeds, actions = hud_map_cells(index, root)
-    target_cell = navigate_cell(cell, direction, seed_count=len(seeds), action_count=len(actions))
+    target_cell = navigate_cell(cell, direction, action_count=len(actions))
     target = cell_path(target_cell, root, seeds, actions)
     if target_cell == cell or not target or same_video(target, current):
         state = state.with_satellite(player, nav_anchor=anchor)

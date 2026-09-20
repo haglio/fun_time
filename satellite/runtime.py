@@ -34,6 +34,8 @@ from player_core.player_verbs import (
 )
 from player_core.playlist import item_from_line
 
+from .versions import NEXT_VERSION, PREV_VERSION, version_files
+
 logger = logging.getLogger(__name__)
 
 
@@ -98,6 +100,16 @@ def _play_file(controls: SatelliteControls, value: str) -> bool:
     return True
 
 
+def _step_version(delta: int) -> Act:
+    def act(controls: SatelliteControls, value: str) -> bool:
+        versions = version_files(value)
+        if not versions:
+            return False
+        controls.session.step_version(versions, delta)
+        return True
+    return act
+
+
 def _reload_playlist(controls: SatelliteControls, _value: str) -> bool:
     controls.reload_playlist()
     return True
@@ -126,6 +138,13 @@ CONTROLS: tuple[Control, ...] = (
         verbs=(Verb(LOCK_ON, _lock_set(True)), Verb(LOCK_OFF, _lock_set(False))),
     ),
     Control(name="clip", verbs=(Verb(TRASH, _discard),)),
+    Control(
+        name="version",
+        verbs=(
+            Verb(NEXT_VERSION, _step_version(1), takes_a_value=True),
+            Verb(PREV_VERSION, _step_version(-1), takes_a_value=True),
+        ),
+    ),
     Control(
         name="speed",
         verbs=(

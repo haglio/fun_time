@@ -749,7 +749,7 @@ class _SatelliteUnit(_VideoUnit):
         self.session.advance()
         self.player.push_still()
         self._status_writer.write(self.session)
-        self.hud.tick(video=self.session.current_video.stem, playback_speed=self.session.speed)
+        self.hud.tick(video=self.session.name_on_screen, playback_speed=self.session.speed)
         for event in self._presses.drain():
             kind = screen_kind(event.screen)
             if event.kind == PRESS:

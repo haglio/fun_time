@@ -543,7 +543,7 @@ Genau (the `../genau` project) consumes and clears this file.
 
 Written by the Python dispatch loop when the main player control commands are dispatched; the main player consumes and clears it.
 
-Commands (the full set `main_player/controls.py` answers to). The verbs every player in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `player_core.player_verbs` (see "The player contract" in `../player_core`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT`. The main player's own verbs are spelled in its registry:
+Commands (the full set `main_player/controls.py` answers to). The verbs every player in the family shares — stepping, the hold, `PLAY_FILE`, `RELOAD_PLAYLIST`, the sound, the rate, the display, `QUIT` — are spelled once in `player_core.player_verbs` (see "The player contract" in `../player_core`'s README) and the satellites answer the part of that set that is about the list and the clip: `NEXT`, `PREV`, `LOCK_ON`, `LOCK_OFF`, `TRASH`, `PLAY_FILE`, `RELOAD_PLAYLIST`, `QUIT` — plus two of their own, `NEXT_VERSION` / `PREV_VERSION` (spelled in `satellite/versions.py`), each carrying the clip's renditions as `path|path` so the player steps from the file it has up and puts the one it lands on in the clip's own place in the list. The main player's own verbs are spelled in its registry:
 
 - `NEXT` / `PREV`
 - `SEEK_FWD` / `SEEK_BACK`
@@ -551,7 +551,7 @@ Commands (the full set `main_player/controls.py` answers to). The verbs every pl
 - `SET_VOLUME <0-100> [muted]` — the level to *show* plus whether it is muted; the main player derives the audible loudness (see "Sound")
 - `RECORD_DOWN` / `RECORD_UP` / `RECORD_TAP`
 - `LOOP_CANCEL`
-- `CYCLE_VERSION`
+- `CYCLE_VERSION` / `CYCLE_VERSION_BACK`
 - `PLAY_FILE video[TAB]funscript`
 - `RELOAD_PLAYLIST`
 - `TOGGLE_LENGTH_MODE` / `SET_LENGTH_MODE mixed|shorts|full`

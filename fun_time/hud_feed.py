@@ -18,6 +18,7 @@ from .command_dispatch import main_player_at_defaults, satellite_at_defaults
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
 from .main_player_console import console_model
+from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
     genau_status_path,
@@ -86,6 +87,7 @@ class HudFeed:
                 favorites_filter=values.favorites_filter,
                 is_favorite=is_favorite_path(current, favs),
                 nothing_to_reset=satellite_at_defaults(values),
+                has_other_versions=bool(renditions(current, self.config.regen_media_root)),
             )
 
         if self.config.origenerator_enabled and origenerator_shows(state.satellites_mode):

@@ -19,6 +19,7 @@ from player_core.player_verbs import (
 )
 
 from satellite.runtime import VERBS, SatelliteControls, apply_command
+from satellite.versions import NEXT_VERSION, PREV_VERSION, step_version
 from tests.satellite_fakes import make_satellite_session
 
 
@@ -71,6 +72,33 @@ class TestApplyCommand:
         line = f"{PLAY_FILE} {tmp_path / 'v2.mp4'}\t{tmp_path / 'v2.funscript'}"
         assert apply_command(line, controls) is True
         assert controls.session.current_video == tmp_path / "v2.mp4"
+
+    def test_a_version_step_plays_the_rendition_the_family_names_next(self, tmp_path):
+        controls = _controls(tmp_path)
+        clip = controls.session.current_video
+        other = tmp_path / "v0_sorted.mp4"
+        other.write_text("fake")
+
+        assert apply_command(step_version(1, [clip, other]), controls) is True
+        assert controls.session.showing == other
+
+        assert apply_command(step_version(-1, [clip, other]), controls) is True
+        assert controls.session.showing == clip
+
+    def test_two_quick_steps_carrying_one_family_both_land(self, tmp_path):
+        """Fun Time reads the file on screen off a status file that lags the
+        player, so it sends the family rather than a target: two presses read
+        the same status, and a target would have put the same file up twice."""
+        controls = _controls(tmp_path)
+        clip = controls.session.current_video
+        family = [clip, tmp_path / "v0_sorted.mp4", tmp_path / "v0_small.mp4"]
+        for path in family[1:]:
+            path.write_text("fake")
+
+        for _ in range(2):
+            apply_command(step_version(1, family), controls)
+
+        assert controls.session.showing == family[2]
 
     def test_keyword_is_case_insensitive(self, tmp_path):
         controls = _controls(tmp_path)
@@ -133,14 +161,18 @@ class TestApplyCommand:
         assert controls.session.speed == 1.0
 
 
-def test_every_verb_the_satellite_answers_is_spelled_by_the_family():
-    """A satellite has no verbs of its own: everything it answers is a verb any
-    player may be sent, so a spelling here that player_verbs does not carry is a
-    control that drifted."""
+def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
+    """Everything a satellite answers is a verb any player may be sent, bar the
+    pair about another version of the clip on screen: only this player answers
+    those and only Fun Time sends them, so they are spelled beside its registry
+    rather than in the family's vocabulary — which is where player_core's own
+    rule leaves a name until a second repo needs it."""
     from player_core import player_verbs
 
-    assert set(VERBS) == {
+    its_own = {NEXT_VERSION, PREV_VERSION}
+    assert set(VERBS) == its_own | {
         NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,
         PLAY_FILE, RELOAD_PLAYLIST, SET_PACE, QUIT,
     }
-    assert all(getattr(player_verbs, verb) == verb for verb in VERBS)
+    assert all(getattr(player_verbs, verb) == verb for verb in set(VERBS) - its_own)
+    assert not [verb for verb in its_own if hasattr(player_verbs, verb)]

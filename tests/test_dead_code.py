@@ -204,7 +204,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # guard's claim that a call it gives up on is dropped.
 # 7928 since 2026-09-19, measured on the merged tree: an Origenerator already
 # open has its mode opened at once, in names and tests.
-MAX_PROSE_LINES = 7928
+# 7916 since 2026-09-19, measured on the merged tree, when the side players
+# learned their clips' other renditions: the satellite session's list, discard
+# and versions said in names and tests what three paragraphs had said, and the
+# note over the map's keyboard steps stopped counting four of them.
+MAX_PROSE_LINES = 7916
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

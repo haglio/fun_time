@@ -177,9 +177,11 @@ def _lock_set(locked: bool) -> Act:
     return act
 
 
-def _cycle_version(controls: MainPlayerControls, _value: str) -> bool:
-    controls.session.cycle_version()
-    return True
+def _cycle_version(step: int) -> Act:
+    def act(controls: MainPlayerControls, _value: str) -> bool:
+        controls.session.cycle_version(step)
+        return True
+    return act
 
 
 def _play_file(controls: MainPlayerControls, value: str) -> bool:
@@ -345,7 +347,13 @@ CONTROLS: tuple[Control, ...] = (
             Verb(LOCK_OFF, _lock_set(False)),
         ),
     ),
-    Control(name="version", verbs=(Verb("CYCLE_VERSION", _cycle_version),)),
+    Control(
+        name="version",
+        verbs=(
+            Verb("CYCLE_VERSION", _cycle_version(1)),
+            Verb("CYCLE_VERSION_BACK", _cycle_version(-1)),
+        ),
+    ),
     Control(
         name="playing_file",
         verbs=(Verb(PLAY_FILE, _play_file, takes_a_value=True),),

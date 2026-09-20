@@ -348,7 +348,12 @@ _SECTIONS: tuple[_Section, ...] = (
                                "main half speed", "main double speed",
                                "main speed one point five ex"),
             ),
-            _Row("Cycle through versions of the current video", ("V",), ("main_player_cycle_version",)),
+            _Row(
+                "Step through the other versions of this video — the same "
+                "content at another size or from another encode",
+                ("Shift+[", "Shift+]", "V"),
+                ("main_player_cycle_version_back", "main_player_cycle_version"),
+            ),
             _Row("Latest main — reload it newest-first", (), ("main_latest",)),
             _Row(
                 "Shape of what plays, in the headset: \"VR only\", \"flat only\" "
@@ -436,18 +441,25 @@ _SECTIONS: tuple[_Section, ...] = (
                 _sided("wrong_action"),
             ),
             _Row(
-                # Both key columns run left, right, up, down, so the two sides'
-                # keycaps line up with each other rather than reading as WASD.
-                "Navigate the map — move a selection (left, right, up, down), "
-                "switching to that clip",
-                ("Shift+Left", "Shift+Right", "Shift+Up", "Shift+Down"),
+                "Step through the other versions of this clip — the upscale the "
+                "library plays and the original it was made from",
+                ("Shift+Left", "Shift+Right"),
+                ("portrait_cycle_version_back", "portrait_cycle_version",
+                 "landscape_cycle_version_back", "landscape_cycle_version",
+                 "both_cycle_version"),
+                hotkeys_alt=("Shift+A", "Shift+D"),
+            ),
+            _Row(
+                # Both key columns run up then down, so the two sides' keycaps
+                # line up with each other rather than reading as WASD.
+                "Navigate the map — move a selection down the column of other "
+                "acts, switching to that clip",
+                ("Shift+Up", "Shift+Down"),
                 (
-                    "portrait_nav_left", "portrait_nav_right",
                     "portrait_nav_up", "portrait_nav_down",
-                    "landscape_nav_left", "landscape_nav_right",
                     "landscape_nav_up", "landscape_nav_down",
                 ),
-                hotkeys_alt=("Shift+A", "Shift+D", "Shift+W", "Shift+S"),
+                hotkeys_alt=("Shift+W", "Shift+S"),
             ),
             _Row("More seeds — widen to same-scene near-matches", (), _sided("more_seeds")),
             _Row("Loop the subject's actions — repeat that group", (), _sided("action_loop")),

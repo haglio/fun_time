@@ -108,6 +108,7 @@ class HudPanel:
     # Whether this side is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
+    has_other_versions: bool = False
 
 
 def _others(items: list[str], current: str) -> list[str]:
@@ -152,35 +153,21 @@ ACTION_LIMIT = 4
 Cell = tuple[str, int]  # ("corner", 0) | ("seed", i) | ("action", i)
 
 
-# Each direction rides one axis of the L: right/left the seed row, down/up the
-# action column.
-_AXIS_STEPS = {
-    "right": ("seed", 1),
-    "left": ("seed", -1),
-    "down": ("action", 1),
-    "up": ("action", -1),
-}
+_AXIS_STEPS = {"down": 1, "up": -1}
 
 
-def navigate_cell(cell: Cell, direction: str, *, seed_count: int, action_count: int) -> Cell:
-    """The cell reached by moving *direction* from *cell* on the L-shaped map.
-
-    Each axis is a ring with the corner at its head, so walking off either end
-    comes back around rather than dead-ending — hold a direction and you tour
-    that axis.  Two moves still keep the selection put, because there is nowhere
-    for them to go: off the axis the cell is on (a seed has nothing below it, an
-    action nothing beside it), and a ring holding only the corner.
-    """
-    axis_step = _AXIS_STEPS.get(direction)
-    if axis_step is None:
+def navigate_cell(cell: Cell, direction: str, *, action_count: int) -> Cell:
+    """The cell reached by moving *direction* from *cell* down the action column,
+    a ring the corner heads — the seed row's own keys are versions now."""
+    step = _AXIS_STEPS.get(direction)
+    if step is None:
         return cell
-    axis, step = axis_step
     bucket, index = cell
-    if bucket not in ("corner", axis):
+    if bucket not in ("corner", "action"):
         return cell
-    ring = (seed_count if axis == "seed" else action_count) + 1  # the corner heads it
+    ring = action_count + 1  # the corner heads it
     position = ((0 if bucket == "corner" else index + 1) + step) % ring
-    return ("corner", 0) if position == 0 else (axis, position - 1)
+    return ("corner", 0) if position == 0 else ("action", position - 1)
 
 
 def locate_cell(current: str, corner: str, seeds: list[str], actions: list[str]) -> Cell | None:
@@ -303,6 +290,7 @@ class SatelliteInputs:
     favorites_filter: bool = False
     is_favorite: bool = False
     nothing_to_reset: bool = False
+    has_other_versions: bool = False
 
 
 def build_hud_panel(
@@ -440,6 +428,7 @@ def build_hud_panel(
         satellites_mode=satellites_mode,
         origenerator_ready=origenerator_ready,
         nothing_to_reset=inputs.nothing_to_reset,
+        has_other_versions=inputs.has_other_versions,
     )
 
 

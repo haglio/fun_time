@@ -289,6 +289,15 @@ class TestVoiceCommands:
         for phrase in ("version", "cycle version", "next version", "change version"):
             assert VOICE_COMMANDS[phrase] == "main_player_cycle_version"
 
+    def test_a_side_version_is_said_of_that_side_and_never_bare(self):
+        """The bare word is the main player's own axis, so a satellite's
+        renditions are asked for by side — in either word order, "both" with
+        them, as every other satellite action is."""
+        for player in ("portrait", "landscape", "both"):
+            assert VOICE_COMMANDS[f"{player} version"] == f"{player}_cycle_version"
+            assert VOICE_COMMANDS[f"version {player}"] == f"{player}_cycle_version"
+        assert VOICE_COMMANDS["version"] == "main_player_cycle_version"
+
     def test_main_player_length_phrases(self):
         assert VOICE_COMMANDS["shorts"] == "main_player_length_shorts"
         assert VOICE_COMMANDS["full length"] == "main_player_length_full"
