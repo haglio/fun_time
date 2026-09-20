@@ -45,10 +45,10 @@ class MainSlotInputs:
     main_mode: MainMode
     main_player: MainPlayerStatus
     genau: GenauStatus
-    active: bool = False
-    osr2_mode: str = ""
+    active: bool
+    osr2_mode: str
+    broker: bool
     osr2_control: str = OSR2_DRIVING
-    broker: bool = False
     genau_pace_s: int = 0
     scripted_filter: bool = False
     latest: bool = False
