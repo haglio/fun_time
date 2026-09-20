@@ -30,7 +30,7 @@ from .engine_vendoring import ensure_engine_vendored
 apply_genau_dirs_to_sys_path()
 
 from app_support.logging_utils import configure_logging, install_exception_logging
-from app_support.win32 import mutex_name, stamp_pinned_shortcuts, try_acquire_mutex
+from app_support.win32 import mutex_name, stamp_pinned_shortcuts
 
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
@@ -40,7 +40,11 @@ from .session_handoff import (
     hand_over_if_asked,
     keep_the_crossing_cover,
 )
-from .single_instance import MUTEX_ORCHESTRATOR, show_already_running_message
+from .single_instance import (
+    MUTEX_ORCHESTRATOR,
+    claim_the_session,
+    show_already_running_message,
+)
 from .win32_taskbar import APP_USER_MODEL_ID
 from .windows_bridge_orchestrator import run_session
 
@@ -177,7 +181,7 @@ def main(argv: list[str] | None = None) -> int:
     logger = configure_logging("fun_time.orchestrator", config.log_file("orchestrator"), console=True)
     install_exception_logging(logger)
 
-    _mutex_handle = try_acquire_mutex(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
+    _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:
         logger.warning("Another Fun Time instance is already running; exiting")
         # The user got a message of our own; keep the launcher from adding a

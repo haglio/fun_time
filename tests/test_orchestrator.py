@@ -330,7 +330,7 @@ class TestBrokerHelpers:
         point has no broker business at all now."""
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -382,7 +382,7 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
 
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -398,7 +398,7 @@ class TestTheWayBackOffersNoEsc:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -414,7 +414,7 @@ class TestMainCheckFlag:
     def test_main_check_returns_zero_without_launching_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -436,7 +436,7 @@ class TestTheCrossingIntoTheOtherSession:
     def _main(self, cfg_path: Path, *, during_session=lambda: None):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -492,7 +492,7 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
     def _main(self, cfg_path: Path, stamp):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -522,7 +522,7 @@ class TestOrchestratorSingleInstance:
     def test_shows_message_and_exits_when_already_running(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=None), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=None), \
              patch("fun_time.orchestrator.show_already_running_message") as show_msg, \
              patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
             result = main(["--config", str(cfg_path)])
@@ -581,7 +581,7 @@ class TestStartupMarker:
     def test_successful_launch_leaves_the_marker(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"), \
              patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
@@ -597,7 +597,7 @@ class TestStartupMarker:
         stacking a misleading "failed to start" dialog on top of it."""
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=None), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=None), \
              patch("fun_time.orchestrator.show_already_running_message"):
             result = main(["--config", str(cfg_path)])
 
@@ -609,7 +609,7 @@ class TestStartupMarker:
         marker absent so the launcher surfaces the log."""
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config", side_effect=FileNotFoundError("missing dir")):
             with pytest.raises(FileNotFoundError):
@@ -622,7 +622,7 @@ class TestStartupMarker:
         started session and must not claim to be one."""
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.try_acquire_mutex", return_value=42), \
+             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
              patch("fun_time.orchestrator.ensure_runtime_files"), \
              patch("fun_time.orchestrator.validate_config"):
             result = main(["--config", str(cfg_path), "--check"])

@@ -8,6 +8,7 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
 import pytest
 
@@ -279,16 +280,34 @@ class TestWhichSessionIsWhich:
 
 
 class TestWaitingForTheOutgoingSession:
-    """The mutex frees when the outgoing process is gone, not when it is asked."""
+    """The name frees when the outgoing process is gone, not when it is asked."""
 
-    def test_it_returns_as_soon_as_nobody_holds_the_mutex(self):
-        holds = iter([True, True, False])
-        with patch.object(session_handoff, "is_mutex_held", lambda _name: next(holds)):
+    def test_it_returns_as_soon_as_no_session_is_playing(self):
+        playing = iter([True, True, False])
+        with patch.object(session_handoff, "a_session_is_playing", lambda _name: next(playing)):
             assert wait_for_the_session_to_let_go("m", poll_s=0) is True
 
     def test_it_gives_up_on_a_session_that_wedged_holding_it(self):
-        with patch.object(session_handoff, "is_mutex_held", return_value=True):
+        with patch.object(session_handoff, "a_session_is_playing", return_value=True):
             assert wait_for_the_session_to_let_go("m", timeout_s=0, poll_s=0) is False
+
+    def test_a_name_left_behind_by_a_session_that_is_gone_is_not_one_playing(self):
+        """What blocked every launch on this machine on 2026-09-19: a session
+        whose process Windows had not finished reaping still held the name, and
+        nothing was playing."""
+        import ctypes
+
+        from fun_time.session_handoff import a_session_is_playing
+        from fun_time.single_instance import let_the_session_go
+
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        kernel32.CreateMutexW.restype = ctypes.c_void_p
+        name = rf"Local\FunTimeTest.{uuid4().hex}"
+        left_behind = kernel32.CreateMutexW(None, False, name)  # a handle owning nothing
+
+        assert a_session_is_playing(name) is False
+
+        let_the_session_go(left_behind)
 
 
 class TestStartingTheIncomingSession:
