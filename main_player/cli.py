@@ -14,6 +14,8 @@ from pathlib import Path
 from app_support import ports
 from player_core.playlist import PlaylistItem, read_playlist
 
+from fun_time.win32_desktop import on_hidden_desktop
+
 from .duration_cache import DurationCache
 from .library import collapse_playlist_versions
 from .library_source import LibrarySource, build_library_source
@@ -79,15 +81,13 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
 
 
 def audio_muted(args) -> bool:
-    """Whether the main player should stay silent.
-
-    Honors ``--no-audio`` and the ``FUN_TIME_MUTE_AUDIO=1`` contract the
-    rest of the stack uses, so a Fun Time integration run never spends
-    ffmpeg on audio it will not play.
-    """
+    """Silent by ``--no-audio``, the ``FUN_TIME_MUTE_AUDIO`` contract, or being
+    off-screen -- so a hidden-desktop run is inaudible however it was launched."""
     import os
 
-    return bool(args.no_audio) or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+    return (bool(args.no_audio)
+            or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+            or on_hidden_desktop())
 
 
 def _state_path(args, name: str) -> Path:

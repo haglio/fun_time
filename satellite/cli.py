@@ -14,6 +14,8 @@ from pathlib import Path
 
 from player_core.playlist import read_playlist
 
+from fun_time.win32_desktop import on_hidden_desktop
+
 
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description="A native satellite video player")
@@ -66,10 +68,8 @@ def resolve_playlist(args) -> list[Path]:
 
 
 def audio_muted(args) -> bool:
-    """Whether the satellite is silent for good, its volume chip a fixed indicator.
-
-    Every satellite *opens* muted; this is the stronger thing the
-    ``FUN_TIME_MUTE_AUDIO=1`` contract buys, for hidden-desktop runs going on
-    unattended beside a live session.  A session's own launch passes neither.
-    """
-    return bool(args.no_audio) or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+    """Silent for good: by ``--no-audio``, the ``FUN_TIME_MUTE_AUDIO`` contract, or
+    being off-screen -- so a hidden-desktop run is inaudible however it was launched."""
+    return (bool(args.no_audio)
+            or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
+            or on_hidden_desktop())
