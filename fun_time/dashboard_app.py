@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import argparse
 import configparser
+import logging
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from app_support.logging_utils import install_exception_logging
 from player_core.file_channel import append_command
 from PyQt6.QtGui import QColor, QFont
 from shared_ui.chrome import family_stylesheet
@@ -59,6 +61,8 @@ from fun_time.press_channel import PressChannel
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.session_end import mark_session_end
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
+
+logger = logging.getLogger(__name__)
 
 COLOR_BG = BG_PRIMARY
 # The family's own resting button ground -- the one Origenerator's toolbar
@@ -856,7 +860,14 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def set_up_logging() -> logging.Logger:
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    install_exception_logging(logger)
+    return logger
+
+
 def main(argv: list[str] | None = None) -> int:
+    set_up_logging()
     args = parse_args(argv)
 
     # Set AppUserModelID before any window creation so the taskbar can group

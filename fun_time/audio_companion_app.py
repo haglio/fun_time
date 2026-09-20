@@ -252,10 +252,15 @@ class AudioPlaybackController:
             self.apply_state()
 
 
-def main(argv: list[str] | None = None) -> None:
-    config = load_config(preparse_config_path(argv))
+def set_up_logging(config) -> logging.Logger:
     logger = configure_logging("fun_time.genau_audio", config.log_file("genau_audio"))
     install_exception_logging(logger)
+    return logger
+
+
+def main(argv: list[str] | None = None) -> None:
+    config = load_config(preparse_config_path(argv))
+    logger = set_up_logging(config)
     args = build_parser(config).parse_args(argv)
 
     audio_folder = Path(args.audio_folder)

@@ -169,6 +169,13 @@ def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> N
         )
 
 
+def set_up_logging(config) -> logging.Logger:
+    logger = configure_logging(
+        "fun_time.orchestrator", config.log_file("orchestrator"), console=True)
+    install_exception_logging(logger)
+    return logger
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
@@ -178,8 +185,7 @@ def main(argv: list[str] | None = None) -> int:
     # for the same reason: the machine's one config must not be repointed at an
     # unlanded branch for every session on the machine.
     config = apply_origenerator_dir_override(config, integration=env.integration)
-    logger = configure_logging("fun_time.orchestrator", config.log_file("orchestrator"), console=True)
-    install_exception_logging(logger)
+    logger = set_up_logging(config)
 
     _mutex_handle = claim_the_session(mutex_name(MUTEX_ORCHESTRATOR, config.instance_id))
     if _mutex_handle is None:

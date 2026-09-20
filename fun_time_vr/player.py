@@ -1490,8 +1490,14 @@ class _PointerDrawing:
             mesh.close()
 
 
-def main(argv: list[str] | None = None) -> int:
+def set_up_logging() -> logging.Logger:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s: %(message)s")
+    install_exception_logging(logger)
+    return logger
+
+
+def main(argv: list[str] | None = None) -> int:
+    set_up_logging()
     args = build_parser().parse_args(argv)
     manifest = LaunchManifest.read(args.manifest)
     # The strip that shows this process's notices tails the session's event log,
