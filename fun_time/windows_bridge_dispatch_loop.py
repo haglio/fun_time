@@ -53,7 +53,7 @@ from .players import Player
 from .role_windows import WindowRoles
 from .satellite_speeds import SatelliteSpeeds
 from .satellites_mode import VIDEO_MODE, origenerator_shows
-from .session_end import mark_session_end
+from .session_end import mark_session_end, session_end_asked
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_session
 from .shared_state import BridgeState, read_shared_state, write_shared_state
@@ -545,6 +545,10 @@ class DispatchLoopRunner:
         target = HANDOFF_COMMANDS[cmd]
         if target is this_session(vr_main_player=self.config.vr_main_player):
             notice(logger, f"Already running {target.app_name}", source=SOURCE_SYSTEM,
+                   level=logging.WARNING)
+            return
+        if session_end_asked(self.config.state_dir):
+            notice(logger, f"Already crossing to {target.app_name}", source=SOURCE_SYSTEM,
                    level=logging.WARNING)
             return
         logger.info("Handing this session over to %s", target.app_name)

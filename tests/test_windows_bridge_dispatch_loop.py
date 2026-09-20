@@ -803,6 +803,28 @@ class TestDispatchLoopRunner:
         assert [r.levelno for r in caplog.records
                 if r.getMessage().startswith("Already running")] == [logging.WARNING]
 
+    def test_saying_it_again_while_the_crossing_is_under_way_is_ignored(self, tmp_path, caplog):
+        """Speech takes seconds to settle, so a room that has been asked to
+        cross hears nothing back for long enough that the natural thing is to
+        say it again.  The session is already on its way out by then, and the
+        second ask must not start anything: it says so and stops."""
+        import logging
+
+        runner = make_runner(tmp_path)
+        (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
+        runner.tick()
+        assert take_handoff_request(tmp_path).target is VR  # the first one stands
+        (tmp_path / "ahk_cmd.txt").unlink()
+        (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
+
+        with caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_dispatch_loop"):
+            runner.tick()
+
+        assert not (tmp_path / "ahk_cmd.txt").exists()
+        assert take_handoff_request(tmp_path) is None
+        assert [r.levelno for r in caplog.records
+                if r.getMessage().startswith("Already crossing")] == [logging.WARNING]
+
     def test_a_crossing_is_frozen_by_omnipause_like_every_other_spoken_command(
         self, tmp_path,
     ):
