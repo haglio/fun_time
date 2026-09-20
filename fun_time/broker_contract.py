@@ -1,8 +1,6 @@
-"""What the broker says about its own processes and source.
-
-This session manages it without importing it, so those names were copied here
-by hand and a rename over there broke every reading of them silently.
-"""
+"""What the broker says about its own processes and source: this
+session manages it without importing it, so those names were copied here by
+hand, and a rename over there broke every reading of them silently."""
 from __future__ import annotations
 
 import json
