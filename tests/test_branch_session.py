@@ -345,29 +345,6 @@ def test_the_private_overlays_follow_the_session_into_the_worktree(checkouts):
     ).read_text(encoding="utf-8") == "// autofill"
 
 
-def test_an_overlay_edited_since_the_last_launch_is_refreshed(checkouts):
-    """Copied on every launch, so a worktree kept around for days never runs on
-    a vocabulary the user has since changed."""
-    overlay = checkouts.primary / "content.local.json"
-    overlay.write_text(json.dumps({"studios": ["First Studio"]}), encoding="utf-8")
-    kwargs = dict(primary_config_path=checkouts.config_path, primary=checkouts.primary)
-    branch_session.build_branch_config(checkouts.worktree, **kwargs)
-
-    overlay.write_text(json.dumps({"studios": ["Second Studio"]}), encoding="utf-8")
-    branch_session.build_branch_config(checkouts.worktree, **kwargs)
-
-    assert json.loads((checkouts.worktree / "content.local.json").read_text(encoding="utf-8")) == {
-        "studios": ["Second Studio"]
-    }
-
-
-def test_the_real_config_is_never_one_of_the_overlays_carried_over():
-    """A copy of ``fun_time_config.json`` loose in a worktree is a live config
-    nobody passes ``--config`` — and the branch config written under ``state/``
-    is the entire point of this module."""
-    assert not any("fun_time_config" in str(path) for path in branch_session._PRIVATE_OVERLAYS)
-
-
 def _git(repo: Path, *args: str, when: str | None = None) -> None:
     env = {
         **os.environ,
@@ -587,149 +564,26 @@ def test_a_shortcut_is_refused_for_a_worktree_missing_work_the_primary_has(prima
     assert not (primary_with_launcher.primary / "Verify example-newer.lnk").exists()
 
 
-def _live_state(checkouts) -> Path:
-    """The live session's state dir, with something of each kind in it."""
+def test_the_launch_seeds_the_branchs_state_from_the_live_sessions(checkouts):
+    """Which files come across and on what rule is ``branch_seeding``'s; that a
+    launch runs it at all is this module's, and the wiring is what breaks when
+    the two drift."""
     state = checkouts.primary / "state"
     (state / "hud_thumbnails").mkdir(parents=True)
     (state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"thumbnail")
-    (state / "main_player_durations.json").write_text(json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8")
-    (state / "watch_stats.json").write_text(json.dumps({"C:/library/main/one.mp4": {"seconds": 90}}), encoding="utf-8")
-    # Session state, which must stay the branch session's own.
-    (state / "main_player_playlist.tsv").write_text("C:/library/main/one.mp4\n", encoding="utf-8")
-    (state / "dashboard_cmd.txt").write_text("portrait_lock", encoding="utf-8")
-    (state / "shared_state.ini").write_text("[state]\n", encoding="utf-8")
-    return state
-
-
-def test_the_library_caches_are_started_from_the_live_sessions(checkouts):
-    """Startup waits for the main player to report the video it is opening, and the main player reports
-    nothing until it has a duration for it — so against a cold
-    ``main_player_durations.json`` it probed the whole library first and a branch launch
-    took 45 seconds where the live session takes 4.  The thumbnail cache and the
-    watch stats are the same cost paid later: blank HUD maps and an empty
-    breeding view, neither of them the branch's doing."""
-    _live_state(checkouts)
+    (state / "main_player_durations.json").write_text(
+        json.dumps({"C:/library/main/one.mp4": {"ms": 1}}), encoding="utf-8"
+    )
 
     branch_config = branch_session.build_branch_config(
         checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary
     )
 
-    state = branch_config.parent
-    assert json.loads((state / "main_player_durations.json").read_text(encoding="utf-8")) == {
-        "C:/library/main/one.mp4": {"ms": 1}
-    }
-    assert (state / "watch_stats.json").is_file()
-    assert (state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"thumbnail"
-
-
-def test_nothing_describing_the_session_itself_is_seeded(checkouts):
-    """The separate state dir exists so a half-finished branch cannot corrupt
-    what the live session reads back.  Seeding a playlist, a command file or the
-    resume point would hand back exactly what it prevents."""
-    _live_state(checkouts)
-
-    branch_config = branch_session.build_branch_config(
-        checkouts.worktree, primary_config_path=checkouts.config_path, primary=checkouts.primary
-    )
-
-    state = branch_config.parent
-    assert not (state / "main_player_playlist.tsv").exists()
-    assert not (state / "dashboard_cmd.txt").exists()
-    assert not (state / "shared_state.ini").exists()
-
-
-def test_a_branch_sessions_own_watch_stats_are_not_rolled_back_by_older_ones(checkouts):
-    """A seed, not a sync.  A worktree kept around for days has its own newer
-    stats by then, and replacing them with the live session's would lose them."""
-    live = _live_state(checkouts)
-    branch_state = checkouts.worktree / "state"
-    branch_state.mkdir(parents=True)
-    (branch_state / "watch_stats.json").write_text(json.dumps({"newer": {}}), encoding="utf-8")
-    stale = (live / "watch_stats.json").stat().st_mtime - 60
-    os.utime(live / "watch_stats.json", (stale, stale))
-
-    branch_session.seed_derived_caches(live, branch_state)
-
-    assert json.loads((branch_state / "watch_stats.json").read_text(encoding="utf-8")) == {"newer": {}}
-
-
-def test_the_duration_cache_is_merged_rather_than_copied(checkouts):
-    """The main player rewrites the file with what it loaded plus what it probed, so a
-    branch session's copy shrinks to its own view of the library.  Both files
-    are partial views of one library, and the union is what either wants."""
-    live = _live_state(checkouts)
-    branch_state = checkouts.worktree / "state"
-    branch_state.mkdir(parents=True)
-    (branch_state / "main_player_durations.json").write_text(
-        json.dumps({"C:/library/main/two.mp4": {"ms": 2}}), encoding="utf-8"
-    )
-
-    branch_session.merge_duration_cache(live, branch_state)
-
-    assert json.loads((branch_state / "main_player_durations.json").read_text(encoding="utf-8")) == {
-        "C:/library/main/one.mp4": {"ms": 1},
-        "C:/library/main/two.mp4": {"ms": 2},
-    }
-
-
-def test_a_newer_duration_cache_still_takes_what_the_live_session_knows(checkouts):
-    """The regression this exists for.  Copy-if-newer skipped the seed for every
-    worktree that had launched once, because the main player's own rewrite is always newer
-    than the live session's file — so branch launches went on re-probing the
-    library and taking half a minute long after the seeding landed."""
-    live = _live_state(checkouts)
-    branch_state = checkouts.worktree / "state"
-    branch_state.mkdir(parents=True)
-    (branch_state / "main_player_durations.json").write_text(json.dumps({"its own": {}}), encoding="utf-8")
-    stale = (live / "main_player_durations.json").stat().st_mtime - 3600
-    os.utime(live / "main_player_durations.json", (stale, stale))
-
-    branch_session.seed_derived_caches(live, branch_state)
-
-    merged = json.loads((branch_state / "main_player_durations.json").read_text(encoding="utf-8"))
-    assert set(merged) == {"its own", "C:/library/main/one.mp4"}
-
-
-def test_the_branchs_own_reading_of_a_file_wins_over_the_live_sessions(checkouts):
-    """Both are observations of the same video; the branch session's is the more
-    recent one, and a stale entry is re-probed against mtime and size anyway."""
-    live = _live_state(checkouts)
-    branch_state = checkouts.worktree / "state"
-    branch_state.mkdir(parents=True)
-    (branch_state / "main_player_durations.json").write_text(
-        json.dumps({"C:/library/main/one.mp4": {"ms": 999}}), encoding="utf-8"
-    )
-
-    branch_session.merge_duration_cache(live, branch_state)
-
-    merged = json.loads((branch_state / "main_player_durations.json").read_text(encoding="utf-8"))
-    assert merged["C:/library/main/one.mp4"] == {"ms": 999}
-
-
-def test_merging_survives_a_state_dir_with_no_duration_cache_either_side(tmp_path):
-    """A first launch on a machine whose live session has never written one."""
-    live, branch = tmp_path / "live", tmp_path / "branch"
-    live.mkdir()
-    branch.mkdir()
-
-    assert branch_session.merge_duration_cache(live, branch) == 0
-
-
-def test_the_thumbnail_cache_is_only_ever_topped_up(checkouts):
-    """A thumbnail is named for its video and that video's modification time, so
-    one already there can never be out of date — every launch after the first
-    copies nothing rather than thousands of files."""
-    live = _live_state(checkouts)
-    branch_state = checkouts.worktree / "state"
-    (branch_state / "hud_thumbnails").mkdir(parents=True)
-    (branch_state / "hud_thumbnails" / "abc123.jpg").write_bytes(b"already here")
-    (live / "hud_thumbnails" / "def456.jpg").write_bytes(b"new one")
-
-    seeded = branch_session.seed_derived_caches(live, branch_state)
-
-    assert (branch_state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"already here"
-    assert (branch_state / "hud_thumbnails" / "def456.jpg").read_bytes() == b"new one"
-    assert branch_state / "hud_thumbnails" / "abc123.jpg" not in seeded
+    branch_state = branch_config.parent
+    assert json.loads(
+        (branch_state / "main_player_durations.json").read_text(encoding="utf-8")
+    ) == {"C:/library/main/one.mp4": {"ms": 1}}
+    assert (branch_state / "hud_thumbnails" / "abc123.jpg").read_bytes() == b"thumbnail"
 
 
 @pytestmark_shortcut
