@@ -1,21 +1,19 @@
 """GL rendering for the VR scene: video targets, screens, and immersive wraps.
 
 Two ways a player reaches the eye.  Windowed surfaces (a flat 2D primary, the
-two satellites) are flat screens from :mod:`fun_time_vr.scene`, textured
-with the player's rendered frame.  Immersive projections wrap the whole view:
-a full-screen pass reconstructs each pixel's world ray (GenauVR's proven
-technique) and maps it into the video by projection — equirect 180 SBS,
-fisheye 190 / MKX200 SBS (equidistant), or mono equirect 360.
+two satellites) are flat screens from :mod:`fun_time_vr.scene`, textured with
+the player's rendered frame.  An immersive projection wraps the whole view: a
+full-screen pass reconstructs each pixel's world ray and maps it into the video
+by the :data:`_WRAPS` entry that projection carries.
 
-Color is passthrough by design: mpv renders sRGB-encoded pixels into plain
-RGBA8 targets, these shaders sample them undecoded, and GL_FRAMEBUFFER_SRGB
-stays off — so the bytes reach the sRGB swapchain exactly as mpv wrote them.
-(GenauVR sampled through an sRGB texture without re-encoding, which darkened
-everything and forced its brightness=1.4 hack; this pipeline needs none.)
+Color is passthrough by design: mpv renders sRGB-encoded pixels into plain RGBA8
+targets, these shaders sample them undecoded, and GL_FRAMEBUFFER_SRGB stays off
+-- so the bytes reach the sRGB swapchain exactly as mpv wrote them.  (GenauVR
+sampled through an sRGB texture without re-encoding, which darkened everything
+and forced its brightness=1.4 hack; this pipeline needs none.)
 
-A GL shell.  The geometry and matrices it draws come tested from
-scene.py/matrices.py, and the offscreen pixel path is MpvRenderPlayer's,
-verified against the real DLL.  See CLAUDE.md, "Standing rules".
+A GL shell: what it draws comes tested from scene.py/matrices.py, and the
+offscreen pixel path is MpvRenderPlayer's.  See CLAUDE.md, "Standing rules".
 """
 from __future__ import annotations
 

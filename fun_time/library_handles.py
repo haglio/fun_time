@@ -229,7 +229,9 @@ def is_an_excerpt(path: tuple[str, ...], kind: str, cuts: dict[str, str]) -> boo
     return len(path) > 1 and cuts.get(path[0]) == path[1]
 
 
-def build_library_handles(sources: str, metadata_root: Path | None) -> list[LibraryHandle]:
+def build_library_handles(
+    sources: str, metadata_root: Path | None, *, listing=collect_video_files,
+) -> list[LibraryHandle]:
     """Every video under *sources*, as one handle per version family.
 
     Sectioned by where a video came from, biggest section first so the browse
@@ -239,7 +241,7 @@ def build_library_handles(sources: str, metadata_root: Path | None) -> list[Libr
 
     A family that spans the excerpt line becomes two handles — see below.
     """
-    videos = collect_video_files(sources)
+    videos = listing(sources)
     payloads = {video: _payload(video, metadata_root) for video in videos}
     paths = {video: source_path(video, sources) for video in videos}
     # Where each source folder files the cuts Evolver HAS recorded, so the ones
@@ -309,14 +311,14 @@ _FLAT_FOLDER = "2D"
 
 
 def handles_by_shape(
-    sources: str, vr_sources: str, metadata_root: Path | None,
+    sources: str, vr_sources: str, metadata_root: Path | None, *, listing=collect_video_files,
 ) -> list[LibraryHandle]:
     vr_roots = source_roots(vr_sources)
     flat_sources = "|".join(str(root) for root in source_roots(sources) if root not in vr_roots)
     shelves = [
         (name, handles)
         for name, spec in ((_VR_FOLDER, vr_sources), (_FLAT_FOLDER, flat_sources))
-        if (handles := build_library_handles(spec, metadata_root))
+        if (handles := build_library_handles(spec, metadata_root, listing=listing))
     ]
     if len(shelves) < 2:
         return [handle for _name, handles in shelves for handle in handles]

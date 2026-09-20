@@ -1,8 +1,8 @@
 """The cover Fun Time VR hangs in the headset while the session is changing.
 
-A headset has no monitors for the desktop's overlay windows to sit on, so this
-cover is a surface the VR player draws over its own scene, on the desktop's
-channel (:mod:`fun_time.overlay_progress`) -- only the phase lists differ.
+A headset has no monitors for the desktop's overlay windows, so this cover is a
+surface the VR player draws over its own scene, on the desktop's channel
+(:mod:`fun_time.overlay_progress`) -- only the phase lists differ.
 """
 from __future__ import annotations
 

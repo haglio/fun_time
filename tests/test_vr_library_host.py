@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 import numpy as np
 import pytest
@@ -10,7 +12,12 @@ from PyQt6.QtCore import QPoint
 from fun_time.library_browser import TOP_LEVEL_NAME
 from fun_time.library_handles import LibraryHandle
 from fun_time_vr.frame_channel import FrameReader, FrameWriter
-from fun_time_vr.library_host import HeadsetBrowse, serve_once
+from fun_time_vr.library_host import (
+    LISTING_FILENAME,
+    HeadsetBrowse,
+    read_the_library,
+    serve_once,
+)
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX
 
 
@@ -29,8 +36,8 @@ def headset(tmp_path):
     frames = FrameWriter(tmp_path / "frame.bin", max_pixels=LIBRARY_SIZE_PX[0] * LIBRARY_SIZE_PX[1])
     reader = FrameReader(tmp_path / "frame.bin")
     said: list[str] = []
-    browse = HeadsetBrowse(_LIBRARY, thumbnail_cache=tmp_path / "stills", frames=frames,
-                           say=said.append)
+    browse = HeadsetBrowse(thumbnail_cache=tmp_path / "stills", frames=frames, say=said.append)
+    browse.take_the_library(_LIBRARY)
     yield browse, reader, said
     browse.window.close()
     reader.close()
@@ -211,3 +218,108 @@ class TestServing:
 
         assert serve_once(browse, tmp_path / "input.txt", parent_alive=lambda: False,
                           now=0.0) is False
+
+
+class TestWhileTheLibraryIsStillBeingRead:
+    """Reading it is minutes of work when its drive is syncing.  It used to happen
+    before the process served anything, so the headset's presses -- its close among
+    them -- piled up in the input file unread (2026-09-20)."""
+
+    @pytest.fixture
+    def waiting(self, tmp_path):
+        frames = FrameWriter(tmp_path / "frame.bin",
+                             max_pixels=LIBRARY_SIZE_PX[0] * LIBRARY_SIZE_PX[1])
+        said: list[str] = []
+        browse = HeadsetBrowse(thumbnail_cache=tmp_path / "stills", frames=frames,
+                               say=said.append)
+        yield browse, said
+        if browse.window is not None:
+            browse.window.close()
+        frames.close()
+
+    def test_there_is_no_window_until_the_read_lands(self, waiting):
+        browse, _said = waiting
+
+        assert browse.window is None
+
+    def test_every_press_and_hover_is_taken_and_answered_without_one(self, waiting, tmp_path):
+        browse, said = waiting
+        asked = tmp_path / "input.txt"
+        asked.write_text("open 3 C:/videos/Beta Scene.mp4\nhover 5 5\npress 5 5\nrelease\n"
+                         "scroll 120\n", encoding="utf-8")
+
+        assert serve_once(browse, asked, parent_alive=lambda: True, now=0.0) is True
+
+        assert not asked.exists()  # every line taken, none left to pile up
+        assert said == []
+
+    def test_the_opening_it_was_asked_for_happens_once_the_read_lands(self, waiting):
+        browse, _said = waiting
+        browse.apply("open 3 C:/videos/Beta Scene.mp4")
+
+        browse.take_the_library(_LIBRARY)
+
+        assert browse.window.isVisible()
+        assert "Beta Scene" in _names(browse)
+
+    def test_it_opens_at_the_token_it_was_asked_at_not_a_later_one(self, waiting, tmp_path):
+        browse, _said = waiting
+        reader = FrameReader(tmp_path / "frame.bin")
+        browse.apply("open 7")
+
+        browse.take_the_library(_LIBRARY)
+        browse.publish(0.0)
+
+        assert reader.latest(7) is not None
+        reader.close()
+
+    def test_nothing_is_published_before_the_read_lands(self, waiting, tmp_path):
+        browse, _said = waiting
+        reader = FrameReader(tmp_path / "frame.bin")
+        browse.apply("open 1")
+
+        browse.publish(0.0)
+
+        assert reader.latest(1) is None
+        reader.close()
+
+
+class TestTheListingItKeeps:
+    """Listing the folders is what costs the wait, so the last one is kept and
+    answers the next browse at once."""
+
+    def _config(self, tmp_path):
+        return SimpleNamespace(
+            sources="C:/videos/vr|C:/videos/flat", vr_sources="C:/videos/vr",
+            metadata_root=tmp_path / "metadata", thumbnail_cache=tmp_path / "stills",
+        )
+
+    def test_the_first_read_lists_the_drive_and_the_next_does_not(self, tmp_path):
+        listed: list[str] = []
+        kept = tmp_path / LISTING_FILENAME
+        with patch("fun_time_vr.library_host.collect_video_files",
+                   side_effect=lambda sources: listed.append(sources) or []):
+            read_the_library(self._config(tmp_path), kept)
+            asked_once = list(listed)
+            read_the_library(self._config(tmp_path), kept)
+
+        assert asked_once, "the first read never listed anything"
+        assert listed == asked_once
+
+    def test_a_fresh_read_lists_it_again(self, tmp_path):
+        listed: list[str] = []
+        kept = tmp_path / LISTING_FILENAME
+        with patch("fun_time_vr.library_host.collect_video_files",
+                   side_effect=lambda sources: listed.append(sources) or []):
+            read_the_library(self._config(tmp_path), kept)
+            asked_once = list(listed)
+            read_the_library(self._config(tmp_path), kept, afresh=True)
+
+        assert listed == asked_once * 2
+
+    def test_each_shelf_keeps_its_own_listing_so_neither_answers_the_others(self, tmp_path):
+        kept = tmp_path / LISTING_FILENAME
+        with patch("fun_time_vr.library_host.collect_video_files", return_value=[]):
+            read_the_library(self._config(tmp_path), kept)
+
+        assert len(list(tmp_path.glob(f"{kept.stem}_*.json"))) == 2

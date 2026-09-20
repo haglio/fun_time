@@ -289,29 +289,26 @@ def seed_startup_states(
     held until the sequencer's reveal starts whichever the mode puts on screen,
     and the sound, F-mode and mode this session comes back in.
 
-    All three of those last are the session's, not a fresh session's.  The level
-    is seeded because the main player and the audio companion each launch unattenuated and
-    neither reads a level from a file it already has, so seeding is the only way
-    a resumed session comes up as loud as you left it — and both sinks are told,
-    through the one publisher the live volume commands use, which is what keeps a
-    resumed mute explicable rather than a silence with nothing on screen backing
-    it (the main player draws the level and the mute it is given).
+    All three of those last are the session's, not a fresh session's.  The main
+    player and the audio companion each launch unattenuated and neither reads a
+    level from a file it already has, so seeding is the only way a resumed session
+    comes up as loud as you left it -- and both sinks are told, through the one
+    publisher the live volume commands use, which is what keeps a resumed mute
+    explicable rather than a silence with nothing on screen backing it.
 
-    *scripted_filter* is the main player's own — this whole function is the main slot's
-    seeding — and it is seeded for the same shape of reason: the playlist the main player is
-    handed has already been narrowed and a list of scripted videos looks like any
-    other, so the main player's HUD can only know from being told.  fun_time draws the
-    satellites' HUD model itself, which is why a resumed F-mode session showed
-    F-Mode on every player except the one that had to be sent it.
+    *scripted_filter* is seeded for the same shape of reason: the playlist the
+    main player is handed has already been narrowed and a list of scripted videos
+    looks like any other, so its HUD can only know from being told.  fun_time
+    draws the satellites' HUD model itself, which is why a resumed F-mode session
+    showed F-Mode on every player except the one that had to be sent it.
 
-    *mode* is which player owns the big display, and it is seeded with the same
-    verbs a live switch into it says (see ``mode_plan``): Genau's window is told
-    whether it is the display or the HUD layer over the main player's video, and the main player
-    whether it is on screen at all — the mirror pair, so an alt-tab back to a
-    parked main player lands on black rather than on the frame it stopped on.  Only
-    those verbs, never the switch's RESUME: a live switch starts its player
-    immediately and startup must not (the reveal is what hands Genau its
-    RESUME), and the windows are parked to match by the sequencer.
+    *mode* is which player owns the big display, seeded with the same verbs a live
+    switch into it says (see ``mode_plan``): Genau's window is told whether it is
+    the display or the HUD layer over the video, and the main player whether it is
+    on screen at all -- the mirror pair, so an alt-tab back to a parked main player
+    lands on black rather than on the frame it stopped on.  Never the switch's
+    RESUME, though: a live switch starts its player immediately and startup must
+    not, the reveal being what hands Genau its RESUME.
 
     The defaults are a fresh session's: full, unmuted, unnarrowed, in video mode.
     """

@@ -1,14 +1,13 @@
 """FunTimeVR session entry point: the desktop orchestrator, aimed at a headset.
 
-Same config, same broker, same playlists, same dispatch loop / voice / AHK
-hotkeys — the difference is what gets launched: instead of the main player, Genau and two
-satellite windows, ONE VR player process (fun_time_vr.player) hosts every
-visual role, and the audio companion goes to the headset's output.  Everything
-else runs on the state files it always did.
+Same config, broker, playlists, dispatch loop, voice and AHK hotkeys -- the
+difference is what gets launched: instead of the main player, Genau and two
+satellite windows, ONE VR player process (fun_time_vr.player) hosts every visual
+role, with the audio companion on the headset's output.  Everything else runs on
+the state files it always did.
 
-What a VR session does not launch, what each control it sends reaches, and
-what that waits on, is in docs/known-issues.md and
-tests/test_vr_control_parity.py.
+What a VR session does not launch, and what each control it sends reaches, is in
+docs/known-issues.md and tests/test_vr_control_parity.py.
 """
 from __future__ import annotations
 
