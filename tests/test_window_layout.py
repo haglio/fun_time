@@ -47,7 +47,7 @@ def test_compute_window_layout_uses_secondary_monitor_for_portrait(cfg_path: Pat
     assert plan.portrait.width == 1440
 
 
-def test_compute_window_layout_uses_main_monitor_for_landscape_and_random_favs_browser(cfg_path: Path):
+def test_the_primary_monitor_holds_the_landscape_satellite_and_the_browser(cfg_path: Path):
     config = load_config(cfg_path)
 
     plan = compute_window_layout(
@@ -130,7 +130,7 @@ def test_dashboard_offset_monitor_origin_is_respected(cfg_path: Path):
     assert plan.random_favs_browser.y == 50 + plan.dashboard.height
 
 
-def test_primary_media_rect_is_the_secondary_below_the_portrait_satellite(cfg_path: Path):
+def test_the_main_players_rect_is_on_the_secondary_below_the_portrait_satellite(cfg_path: Path):
     """The main player fills the secondary monitor below the portrait's slice
     — the rect startup launches main player/Genau into and the notice overlay flashes
     main-player notices over.  It abuts the portrait window with no gap and no
