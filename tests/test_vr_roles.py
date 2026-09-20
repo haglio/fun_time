@@ -41,9 +41,13 @@ class FakePlayer(RefusesSeeks):
         self.eof = False
         self.paces: list[float] = []
         self.showing_picture = False
+        self.pushes = 0
 
     def set_pace(self, seconds: float) -> None:
         self.paces.append(seconds)
+
+    def push_still(self) -> None:
+        self.pushes += 1
 
     def load(self, path: Path) -> None:
         self.loaded.append(Path(path))
@@ -136,6 +140,27 @@ def role_parts(tmp_path):
         role=role, player=player, driver=driver, playlist=playlist,
         metadata=metadata, files=(one, two, three, script), points=points,
     )
+
+
+class TestTheCreepIntoAPicture:
+    """A still does not simply sit there while it holds the headset's screen:
+    every turn of the pump asks the player to creep a little further into it,
+    the way the desktop players' loops do."""
+
+    def test_every_turn_of_the_pump_carries_it_on(self, role_parts):
+        role_parts.role.tick(now=0.0)
+
+        assert role_parts.player.pushes == 1
+
+    def test_a_frozen_room_asks_for_it_too(self, role_parts):
+        """Frozen, the push holds where it had got to rather than stopping being
+        asked for -- the hold is the player's to keep, and a tick that returned
+        before asking would leave the picture wherever the last frame left it."""
+        role_parts.role.set_paused(True)
+
+        role_parts.role.tick(now=0.0)
+
+        assert role_parts.player.pushes == 1
 
 
 class TestPlaybackVerbs:

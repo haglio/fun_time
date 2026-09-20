@@ -211,3 +211,16 @@ def test_no_audio_leaves_the_chip_a_read_only_indicator(tmp_path):
     _code, player, _fake = _run_loop(tmp_path, args, fake=fake)
 
     assert player.muted is True
+
+
+def test_each_pass_creeps_a_little_further_into_the_picture(tmp_path):
+    """A still does not simply sit there while it holds the screen — the loop
+    asks the player to push into it every frame, the way it repaints the
+    overlays every frame."""
+    clips = _clips(tmp_path, "v0")
+    args = _loop_args(tmp_path, clips)
+    (tmp_path / "cmd.txt").write_text("QUIT\n", encoding="utf-8")
+
+    _code, player, _fake = _run_loop(tmp_path, args)
+
+    assert player.pushes == 1

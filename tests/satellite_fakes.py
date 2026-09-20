@@ -35,6 +35,10 @@ class FakeSatellitePlayer(RefusesSeeks):
         self.speed = 1.0
         self.pace_s: float | None = None
         self.showing_picture = False
+        # How many times the loop has asked for the creep into a still to be
+        # carried on — the player's own account of where it has got to lives
+        # in player_core, and this only counts the asking.
+        self.pushes = 0
 
     # --- the interface SatelliteSession drives -------------------------------
     def load(self, path: Path) -> None:
@@ -67,6 +71,9 @@ class FakeSatellitePlayer(RefusesSeeks):
 
     def set_pace(self, seconds: float) -> None:
         self.pace_s = seconds
+
+    def push_still(self) -> None:
+        self.pushes += 1
 
     def seek_ms(self, ms: float) -> None:
         self.refuse_if_asked()

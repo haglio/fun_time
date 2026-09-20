@@ -288,6 +288,7 @@ class MainRole:
         write down where this one is, then drive the OSR2 for this instant --
         waypoints while scripted, parked while unscripted, silent while paused
         or handed to the Robot Hand."""
+        self._player.push_still()
         self._resume.pay(self._player, self.seek_to)
         self._step_at_eof()
         if self._paused:
