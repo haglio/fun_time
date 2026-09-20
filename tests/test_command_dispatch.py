@@ -4210,6 +4210,20 @@ class TestOrigeneratorTransport:
         rebuild.assert_not_called()
         assert _origenerator_cmds(config) == ["filter_portrait_scene_one"]
 
+    def test_an_act_said_to_no_side_narrows_both_hosted_shows(self, tmp_path):
+        """Said with no side named, an act filters both satellites; over two
+        hosted shows that is both shows, each told in its own side's words --
+        and never a rebuild of the players the hosted app is feeding."""
+        config = _origenerator_config(tmp_path)
+        state = _up(satellites_mode="origenerator")
+
+        with patch("fun_time.command_dispatch.apply_satellite_filter") as rebuild:
+            state, _ = dispatch_command("filter_both_scene_one", state, config)
+
+        rebuild.assert_not_called()
+        assert _origenerator_cmds(config) == [
+            "filter_portrait_scene_one", "filter_landscape_scene_one"]
+
     def test_the_players_own_controls_stay_the_sessions(self, tmp_path):
         """Minimize parks the player's window and speed is the rate it plays at:
         both are the player's, whoever is handing it what to play."""

@@ -43,7 +43,7 @@ from .event_log import (
     SOURCE_PORTRAIT,
     SOURCE_SYSTEM,
 )
-from .filter_vocab import decode_filter_command
+from .filter_vocab import decode_filter_command, set_command
 from .lock import build_discard_plan, build_lock_toggle_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
@@ -1192,6 +1192,13 @@ def _about_a_satellite(command: str) -> bool:
     return not any(own in verb for own in _THE_PLAYERS_OWN)
 
 
+def _said_to_each_side(command: str) -> tuple[str, ...]:
+    target = decode_filter_command(command)
+    if target is None or target[0] != "both":
+        return (command,)
+    return tuple(set_command(player.label, target[1]) for player in Player.SATELLITES)
+
+
 # The hosted app's own spoken vocabulary, one command per phrase.  The session
 # hears them (it owns the room's microphone) and posts the WORDS on the hosted
 # app's channel; matching them is the hosted app's own business, since only it
@@ -1219,7 +1226,8 @@ def routes_to_origenerator(command: str, state: BridgeState, config: BridgeConfi
     question -- its watch tracking must not book a show's step or cull against
     a library video.
     """
-    if command not in _ORIGENERATOR_SPEECH and not _about_a_satellite(command):
+    if command not in _ORIGENERATOR_SPEECH and not all(
+            _about_a_satellite(said) for said in _said_to_each_side(command)):
         return False
     return hosting_origenerator(state, config)
 
@@ -1247,7 +1255,8 @@ def _origenerator_transport(
         player_name, phrase = spoken
         append_command(config.origenerator_cmd_file, f"{player_name.upper()}_SAY:{phrase}")
         return []
-    append_command(config.origenerator_cmd_file, command)
+    for said in _said_to_each_side(command):
+        append_command(config.origenerator_cmd_file, said)
     return []
 
 
