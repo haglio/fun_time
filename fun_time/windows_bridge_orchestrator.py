@@ -617,9 +617,8 @@ def _fix_post_loading_windows(result: StartupResult, *,
     main_player_hwnd = find_window_by_pid(result.main_player_pid) or wait_for_window_by_title(
         "Main Player", timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True
     )
-    # Exactly, and only the plain caption: this window wears the other one
-    # while its HUD is over the main player's video, and that HUD is off until
-    # a mode switch, which cannot have happened before this pass.
+    # Exactly, and the plain caption alone: the HUD that renames this window
+    # is off until a mode switch, which is after this pass.
     genau_hwnd = wait_for_window_by_title(
         GENAU_TITLE, timeout_s=POST_LOADING_RESOLVE_TIMEOUT_S, exact=True)
     # By title as well as pid, like the main player above: python_exe is the venv's pythonw

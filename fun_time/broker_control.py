@@ -1,11 +1,9 @@
 """fun_time's side of the OSR2 broker's command channel.
 
-The broker polls a single command file on each tick and consumes whatever verb
-it finds.  Unlike a satellite's queue, that file holds exactly one verb: the
-broker reads the whole file, strips it, and blanks it, so a second verb written
-before the next tick replaces the first rather than queueing after it.  Writes
-here overwrite to match.  Nothing clears the file when the broker starts, so a
-verb written while no broker is up survives to its first tick.
+That file holds exactly one verb, unlike a satellite's queue: the broker reads
+it whole, strips it and blanks it, so a second verb written before the next
+tick replaces the first.  Writes here overwrite to match.  Nothing clears it
+when the broker starts, so a verb written while none is up survives.
 """
 from __future__ import annotations
 

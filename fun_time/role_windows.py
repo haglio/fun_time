@@ -116,10 +116,8 @@ class WindowRoles:
         if hwnd:
             return hwnd
         if role == "genau":
-            # Either caption, each matched exactly: this window renames itself
-            # when its HUD goes over the main player's video, and a substring
-            # match reached both only because the plain name sits inside the
-            # other one.
+            # Either caption, each matched exactly: this window renames
+            # itself when its HUD goes over the main player's video.
             hwnd = next((found for title in GENAU_TITLES
                          if (found := find_window_by_title(title, exact=True))), 0)
         # The three SDL players are looked up by pid AND by caption: the pid on
