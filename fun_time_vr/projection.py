@@ -3,7 +3,8 @@
 A 2D video hangs on a big flat screen; a VR video wraps the view in
 one of the projections its producer mastered it in (equirect 180 side-by-side
 is the overwhelming default, fisheye variants the exceptions).  The user fixes
-a wrong guess once — cycling with the P key or the spoken "projection" — and
+a wrong guess once — cycling with the P key, the spoken "projection" or a
+controller's stick — and
 the choice is written into the video's Evolver metadata sidecar under a
 ``"vr"`` block of its own, so it holds for good.  Writes are read-merge-write,
 the same discipline Evolver's own writers use, so the two sides never clobber
@@ -14,6 +15,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass
 from pathlib import Path
 
 from fun_time.media_metadata import load_metadata, metadata_path_for
@@ -90,45 +92,36 @@ def previous_projection(current: str) -> str:
     return _stepped(current, -1)
 
 
-def saved_projection(video_path: str, metadata_root: Path | None) -> str | None:
-    """The projection remembered in the video's sidecar, or None.
+@dataclass(frozen=True)
+class ProjectionMemory:
+    metadata_root: Path | None
+    vr_dirs: tuple[Path | str, ...] = ()
 
-    A value the cycle no longer contains reads as unset rather than surviving
-    as an unrenderable mode.
-    """
-    sidecar = metadata_path_for(video_path, metadata_root)
-    if sidecar is None or not sidecar.is_file():
-        return None
-    block = load_metadata(sidecar).get(_SIDECAR_BLOCK)
-    value = block.get(_PROJECTION_FIELD) if isinstance(block, dict) else None
-    return value if value in PROJECTIONS else None
+    def resolve(self, video_path: str) -> str:
+        return self.saved(video_path) or default_projection(video_path, self.vr_dirs)
 
+    def saved(self, video_path: str) -> str | None:
+        sidecar = self._sidecar(video_path)
+        if sidecar is None or not sidecar.is_file():
+            return None
+        block = load_metadata(sidecar).get(_SIDECAR_BLOCK)
+        value = block.get(_PROJECTION_FIELD) if isinstance(block, dict) else None
+        return value if value in PROJECTIONS else None  # a retired one reads as unset
 
-def save_projection(video_path: str, metadata_root: Path | None, projection: str) -> bool:
-    """Remember *projection* in the video's sidecar; False when it has none.
+    def save(self, video_path: str, projection: str) -> bool:
+        sidecar = self._sidecar(video_path)
+        if sidecar is None:
+            logger.info("No sidecar path for %s; projection not remembered", video_path)
+            return False
+        payload = load_metadata(sidecar) if sidecar.is_file() else {}
+        payload.setdefault(_SIDECAR_BLOCK, {})[_PROJECTION_FIELD] = projection
+        try:
+            sidecar.parent.mkdir(parents=True, exist_ok=True)
+            sidecar.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
+        except OSError:
+            logger.warning("Could not write sidecar %s", sidecar, exc_info=True)
+            return False
+        return True
 
-    Read-merge-write with Evolver's own file shape (indent=2, trailing
-    newline), touching only the ``vr`` block, so every field another writer
-    owns rides through untouched.  A video outside the mirrored library has no
-    sidecar path, and gets no stray file invented for it.
-    """
-    sidecar = metadata_path_for(video_path, metadata_root)
-    if sidecar is None:
-        logger.info("No sidecar path for %s; projection not remembered", video_path)
-        return False
-    payload = load_metadata(sidecar) if sidecar.is_file() else {}
-    payload.setdefault(_SIDECAR_BLOCK, {})[_PROJECTION_FIELD] = projection
-    try:
-        sidecar.parent.mkdir(parents=True, exist_ok=True)
-        sidecar.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")
-    except OSError:
-        logger.warning("Could not write sidecar %s", sidecar, exc_info=True)
-        return False
-    return True
-
-
-def resolve_projection(
-    video_path: str, metadata_root: Path | None, vr_dirs: Sequence[Path | str]
-) -> str:
-    """What to open *video_path* in: the remembered choice, else the default."""
-    return saved_projection(video_path, metadata_root) or default_projection(video_path, vr_dirs)
+    def _sidecar(self, video_path: str) -> Path | None:
+        return metadata_path_for(video_path, self.metadata_root, outlying_dirs=self.vr_dirs)

@@ -101,6 +101,30 @@ def test_without_both_roots_configured_no_metadata_file_is_named(tmp_path: Path)
     assert metadata_path_for(tmp_path / "x.mp4", None) is None
 
 
+def test_a_library_folder_kept_on_another_drive_mirrors_as_the_same_tree_would_beside_the_root(
+        tmp_path: Path):
+    """The VR folder lives only on the cloud drive, in a copy of the tree the
+    metadata root sits in locally, so none of its videos is beside that root:
+    every one came back with no sidecar path, and nothing chosen for one of
+    them was ever remembered."""
+    metadata_root = tmp_path / "local" / "videos" / "metadata"
+    away = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
+
+    result = metadata_path_for(away / "scene one.mp4", metadata_root, outlying_dirs=[away])
+
+    assert result == metadata_root / "VR" / "finished" / "scene one.json"
+
+
+def test_an_outlying_folder_inside_no_library_folder_is_measured_from_the_folder_holding_it(
+        tmp_path: Path):
+    metadata_root = tmp_path / "local" / "videos" / "metadata"
+    away = tmp_path / "elsewhere" / "headset"
+
+    result = metadata_path_for(away / "scene one.mp4", metadata_root, outlying_dirs=[away])
+
+    assert result == metadata_root / "headset" / "scene one.json"
+
+
 # --- load_metadata ---
 
 

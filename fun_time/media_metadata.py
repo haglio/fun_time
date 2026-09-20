@@ -19,16 +19,25 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.json_store import locked_update
-from app_support.mirrored_tree import library_roots_beside, mirrored_path
+from app_support.mirrored_tree import LIBRARY_DIR_NAME, library_roots_beside, mirrored_path
 
 
 def normalize_path_key(path: str) -> str:
     return path.strip().lower()
 
 
+def _library_holding(folder: Path) -> Path:
+    for ancestor in (folder, *folder.parents):
+        if ancestor.name.lower() == LIBRARY_DIR_NAME:
+            return ancestor
+    return folder.parent
+
+
 def metadata_path_for(
     video_path: str | Path,
     metadata_root: str | Path | None,
+    *,
+    outlying_dirs: Iterable[str | Path] = (),
 ) -> Path | None:
     """Map a video to its metadata JSON, mirroring the whole video library.
 
@@ -42,7 +51,8 @@ def metadata_path_for(
     metadata_root = Path(metadata_root)
     return mirrored_path(
         video_path,
-        roots=library_roots_beside(metadata_root),
+        roots=(*library_roots_beside(metadata_root),
+               *(_library_holding(Path(folder)) for folder in outlying_dirs)),
         mirror_root=metadata_root,
         suffix=".json",
     )

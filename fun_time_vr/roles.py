@@ -60,12 +60,7 @@ from main_player.play_points import PlayPoints
 from main_player.seeking import OwedSeek, seek_if_taken
 
 from .layout import clamp_tilt
-from .projection import (
-    next_projection,
-    previous_projection,
-    resolve_projection,
-    save_projection,
-)
+from .projection import ProjectionMemory, next_projection, previous_projection
 from .video_scenes import scene_starts_ms
 
 logger = logging.getLogger(__name__)
@@ -107,12 +102,6 @@ UNIMPLEMENTED_MAIN_PLAYER_VERBS: dict[str, str] = {
 }
 
 
-def _recorded_for(video: Path, metadata_root: Path | None) -> dict:
-    """Everything Evolver recorded about *video*, ``{}`` where that is nothing."""
-    sidecar = metadata_path_for(video, metadata_root)
-    return {} if sidecar is None else load_metadata(sidecar)
-
-
 class HostRequest:
     def __init__(self) -> None:
         self._asked = False
@@ -145,6 +134,7 @@ class MainRole:
         self._playlist_file = Path(playlist_file)
         self._metadata_root = metadata_root
         self._vr_dirs = tuple(vr_dirs)
+        self._remembered = ProjectionMemory(metadata_root, self._vr_dirs)
         self._play_points = play_points or PlayPoints(None)
         self._resume = OwedSeek()
         self._loops = LoopMachine(
@@ -449,15 +439,15 @@ class MainRole:
         self._funscript = self._load_funscript(item.funscript)
         self._loops.open(self._funscript)
         self._driver.reset()
-        self._projections[str(item.path)] = resolve_projection(
-            str(item.path), self._metadata_root, self._vr_dirs)
-        self._title = video_title(_recorded_for(item.path, self._metadata_root), item.path)
+        self._projections[str(item.path)] = self._remembered.resolve(str(item.path))
+        recorded = self._recorded_for(item.path)
+        self._title = video_title(recorded, item.path)
         self._resume.owe(self._play_points.point_for(item.path) or None)
-        self._scene_starts = self._read_scene_starts(item.path)
+        self._scene_starts = scene_starts_ms(recorded)
 
-    def _read_scene_starts(self, video: Path) -> tuple[float, ...]:
-        sidecar = metadata_path_for(video, self._metadata_root)
-        return scene_starts_ms(load_metadata(sidecar)) if sidecar is not None else ()
+    def _recorded_for(self, video: Path) -> dict:
+        sidecar = metadata_path_for(video, self._metadata_root, outlying_dirs=self._vr_dirs)
+        return {} if sidecar is None else load_metadata(sidecar)
 
     def next_scene(self) -> None:
         position = self._player.position_ms
@@ -594,7 +584,7 @@ class MainRole:
 
     def _watch_in(self, projection: str) -> None:
         self._projections[str(self.current_video)] = projection
-        save_projection(str(self.current_video), self._metadata_root, projection)
+        self._remembered.save(str(self.current_video), projection)
         logger.info("Projection: %s (%s)", projection, self.current_video.name)
 
 
