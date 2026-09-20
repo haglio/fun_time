@@ -91,6 +91,7 @@ from satellite.status import status_fields as satellite_status_fields
 from satellite.volume import SatelliteVolume
 
 from . import vr_runtime
+from .bringup import open_vr_session
 from .console_panel import (
     DEG_PER_PX,
     NOTICE_STRIP_HEIGHT,
@@ -237,11 +238,6 @@ LIBRARY_READING_SHOWN_AFTER_S = 0.3
 # The file-channel worker's cadence: the dispatch loop polls these same files
 # at ~20Hz, so 30Hz loses no responsiveness.
 PUMP_HZ = 30.0
-
-# How long bring-up tolerates a cold runtime whose graphics device is still
-# coming up, and how often it retries; inside the orchestrator's 120s.
-SESSION_BRINGUP_TIMEOUT_S = 60.0
-SESSION_BRINGUP_RETRY_S = 2.0
 
 LASER_REACH_M = 3.0  # when the laser meets no screen
 HANDLE_COLOR = (0.85, 0.85, 0.9, 0.35)
@@ -1914,33 +1910,12 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
 
     from .vr_session import VRSession
 
-    bringup_deadline = time.monotonic() + SESSION_BRINGUP_TIMEOUT_S
-    while True:
-        try:
-            session = VRSession()
-            break
-        except xr.exception.GraphicsDeviceInvalidError as exc:
-            # A cold-started runtime answers the readiness probe before its
-            # compositor's graphics device is up, and create_session in that
-            # window fails with GRAPHICS_DEVICE_INVALID -- transient, so bring-up
-            # waits it out instead of dying on the popup.
-            if time.monotonic() >= bringup_deadline:
-                logger.error("VR session bring-up failed: %s", exc)
-                _show_error_popup(
-                    "Could not start a VR session.\n\nThe VR runtime started, but its "
-                    "graphics device never became ready.\n\nError: "
-                    f"{exc}"
-                )
-                return 1
-            logger.info("VR runtime's graphics device not ready yet; retrying bring-up")
-            time.sleep(SESSION_BRINGUP_RETRY_S)
-        except Exception as exc:
-            logger.exception("VR session bring-up failed")
-            _show_error_popup(
-                "Could not start a VR session.\n\nThe headset answered, but FunTimeVR "
-                f"could not open a session on it.\n\nError: {exc}"
-            )
-            return 1
+    opened = open_vr_session(
+        VRSession, device_not_ready=xr.exception.GraphicsDeviceInvalidError)
+    if opened.session is None:
+        _show_error_popup(opened.message)
+        return 1
+    session = opened.session
 
     renderer = SceneRenderer()
     contexts = session.shared_contexts()
