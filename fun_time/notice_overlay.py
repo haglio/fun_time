@@ -2,54 +2,9 @@
 top-center of the window it is about: a main-slot one over the main player/Genau
 display, a portrait/landscape one over that satellite.
 
-The pure model here (which rect a source maps to, where the overlay sits on it)
-is separated from the Qt window so it tests without a QApplication.
+Which window and where on it are :mod:`fun_time.notice_placement`'s.
 """
 from __future__ import annotations
-
-from dataclasses import dataclass
-
-from fun_time.dashboard_layout import Rect, Size
-from fun_time.event_log import is_announcement
-
-# Re-exported: notice_feed and the tests read the rule from here.
-__all__ = ["PlayerRects", "is_announcement"]
-
-
-@dataclass(frozen=True)
-class PlayerRects:
-    """Where each notice-bearing window sits on screen, in real coordinates."""
-
-    main: Rect
-    portrait: Rect
-    landscape: Rect
-    dash: Rect
-
-
-def notice_target_rect(source: str, rects: PlayerRects) -> Rect:
-    """The window a *source*'s notice flashes over.
-
-    ``system`` (and any unexpected source) has no player of its own, so it falls
-    back to the main player — the one always on screen.
-    """
-    return {
-        "main": rects.main,
-        "portrait": rects.portrait,
-        "landscape": rects.landscape,
-        "dash": rects.dash,
-    }.get(source, rects.main)
-
-
-def top_center_position(target: Rect, size: Size, *, margin: int) -> tuple[int, int]:
-    """Top-left corner that centers a *size* overlay across *target*'s top.
-
-    Clamped to the target's left edge so an overlay wider than its window never
-    starts off to the left of it.
-    """
-    x = target.x + max(0, (target.width - size.width) // 2)
-    y = target.y + margin
-    return x, y
-
 
 # ---------------------------------------------------------------------------
 # PyQt6 window
@@ -59,7 +14,10 @@ from PyQt6.QtWidgets import QLabel
 from shared_ui.colors import BG_SECONDARY
 from shared_ui.fonts import FONT_UI, SIZE_HEADING, make_font
 
+from fun_time.dashboard_layout import Rect, Size
+from fun_time.event_log import EventRecord
 from fun_time.log_panel import level_color
+from fun_time.notice_placement import top_center_position
 
 # How long a flashed notice lingers before fading out.
 NOTICE_LINGER_MS = 2200

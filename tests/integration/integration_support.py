@@ -18,7 +18,7 @@ from player_core.file_channel import append_command
 from fun_time.branch_session import _apply_genau_checkout_override
 from fun_time.checkout_overrides import STATE_DIRNAME
 from fun_time.config import DEFAULT_CONFIG_PATH, PROJECT_DIR, load_config
-from fun_time.event_log import EventRecord, event_log_path, read_events
+from fun_time.event_log import EventRecord, event_log_path, is_announcement, read_events
 from fun_time.media_actions import ensure_favs_csv_exists, ensure_in_favs
 from fun_time.modes import (
     LIBRARY_MARKER,
@@ -26,7 +26,6 @@ from fun_time.modes import (
     has_handcrafted_funscript,
     matching_funscript,
 )
-from fun_time.notice_overlay import is_announcement
 from fun_time.player_status import (
     MainPlayerStatus,
     read_key_values,

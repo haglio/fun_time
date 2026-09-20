@@ -3,10 +3,9 @@ from __future__ import annotations
 import logging
 
 from fun_time.dashboard_layout import Rect, Size
-from fun_time.event_log import NOTICE, EventRecord
-from fun_time.notice_overlay import (
+from fun_time.event_log import NOTICE, EventRecord, is_announcement
+from fun_time.notice_placement import (
     PlayerRects,
-    is_announcement,
     notice_target_rect,
     top_center_position,
 )

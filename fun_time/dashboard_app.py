@@ -53,7 +53,8 @@ from fun_time.dashboard_layout import (
 from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import event_log_path
 from fun_time.loading_reveal import LoadingReveal
-from fun_time.log_panel import LogPanelWidget, prefs_path
+from fun_time.log_panel import LogPanelWidget
+from fun_time.log_panel_model import prefs_path
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay

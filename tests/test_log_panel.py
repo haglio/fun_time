@@ -10,15 +10,14 @@ from PyQt6.QtGui import QMouseEvent
 from PyQt6.QtWidgets import QApplication, QToolButton
 
 from fun_time.event_log import FAVORITE, NOTICE, EventRecord
-from fun_time.log_panel import (
+from fun_time.log_panel import LogPanelWidget, level_color
+from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
     LogPanelPrefs,
-    LogPanelWidget,
     append_records,
     copy_button_position,
     format_record,
-    level_color,
     load_prefs,
     save_prefs,
     visible_records,
