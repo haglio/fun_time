@@ -8,6 +8,8 @@ means the same window a test in the other one does.
 """
 from __future__ import annotations
 
+from fun_time.window_roles import GENAU_TITLES
+
 # HWNDs the role lookups resolve to: portrait, landscape and dashboard by pid;
 # The main player by pid (with an exact-title fallback); Genau by title; RFB from the hwnd
 # captured at startup.
@@ -46,7 +48,9 @@ def lookup_pid(pid):
 
 
 def lookup_title(title, exact=False):
-    return GENAU_HWND if title == "Genau" and not exact else 0
+    """Genau's window, under either caption and matched exactly -- the way the
+    session matches it now that it names both of them on the launch."""
+    return GENAU_HWND if exact and title in GENAU_TITLES else 0
 
 
 def lookup_hosted(pid, title, *, include_hidden=False):

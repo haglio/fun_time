@@ -33,6 +33,15 @@ ORIGENERATOR_ROLE = "origenerator"
 # title alone a standalone Origenerator of his would match.
 ORIGENERATOR_TITLE = "Origenerator"
 
+# What Genau's window calls itself, and what it calls itself while its HUD is
+# over the main player's video.  Passed to it on the launch, the way each
+# satellite is passed its own caption, and matched here EXACTLY: a substring
+# match happened to find both because the plain name sits inside the other
+# one, which is luck rather than an agreement.
+GENAU_TITLE = "Genau"
+GENAU_VIDEO_TITLE = "Video Main Player+Genau"
+GENAU_TITLES = (GENAU_TITLE, GENAU_VIDEO_TITLE)
+
 # The two players that share the main slot's rect and therefore need
 # explicit stacking (the main player under Genau's HUD in video mode).
 MAIN_SLOT_ROLES: tuple[str, ...] = ("main_player", "genau")
