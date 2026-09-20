@@ -40,6 +40,7 @@ from .orchestrator_broker import (
     broker_launch_kwargs,
     subprocess_window_kwargs,
 )
+from .player_handover import take_back_the_list
 from .player_status import (
     is_broker_heartbeat_fresh,
     read_main_player_status,
@@ -429,6 +430,9 @@ def start_core_session(
     # where videos added since come in.
     main_player_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_PLAYER)
     main_player_status = read_main_player_status(Path(main_player_status_file))
+    for slot in (portrait, landscape):
+        if take_back_the_list(Path(slot.playlist_file)):
+            logger.info("Took %s's own clips back from the hosted app", slot.player.label)
     resumed = resume_playlists([
         (Path(portrait.playlist_file), read_satellite_status(Path(portrait.status_file)).video),
         (Path(landscape.playlist_file), read_satellite_status(Path(landscape.status_file)).video),
