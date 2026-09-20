@@ -13,7 +13,8 @@ from player_core.robot_hand import FULL_INTENSITY
 from fun_time.event_log import NOTICE, SOURCE_MAIN
 from fun_time.player_status import read_main_player_status
 from fun_time_vr.layout import TILT_LIMIT_DEG
-from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
+from fun_time_vr.picture_shape import FISHEYE_CIRCLE
+from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_180_SBS, FISHEYE_190_SBS, FLAT
 from fun_time_vr.roles import TILT_STEP_DEG, MainRole
 from main_player.play_points import PlayPoints
 from tests.mpv_refusals import RefusesSeeks
@@ -22,6 +23,28 @@ from tests.mpv_refusals import RefusesSeeks
 def _never_quits() -> None:
     """The quit hook, for the verbs that must not reach it."""
     raise AssertionError("QUIT was not the command under test")
+
+
+class _ALook:
+    """PictureLook's surface, with the looking done by hand: ``found`` is the
+    call the real one makes from its own thread once it has seen a shape twice."""
+
+    def __init__(self, looked: list[Path]) -> None:
+        self._looked = looked
+        self._asked: tuple[Path, object] | None = None
+        self.ended = False
+
+    def look_at(self, video: Path, on_shape) -> None:
+        self._looked.append(video)
+        self._asked = (video, on_shape)
+
+    def found(self, shape: str, *, video: Path | None = None) -> None:
+        looked_at, on_shape = self._asked
+        on_shape(video or looked_at, shape)
+
+    def close(self) -> None:
+        self._asked = None
+        self.ended = True
 
 
 class FakePlayer(RefusesSeeks):
@@ -345,6 +368,74 @@ class TestTheProjectionAPictureIsWrappedIn:
         assert role.projection_of(str(two)) == FLAT
 
 
+class TestLookingAtWhatIsOnScreen:
+    """A VR video nobody has chosen a projection for gets its picture looked at,
+    and a fisheye circle found there is what it opens in from then on."""
+
+    def _looking(self, role_parts):
+        looked: list[Path] = []
+        role_parts.role.look_with(_ALook(looked))
+        return looked
+
+    def test_the_video_already_on_screen_is_looked_at_as_soon_as_there_is_a_look(self, role_parts):
+        assert self._looking(role_parts) == [role_parts.files[0]]
+
+    def test_each_vr_video_opened_after_that_is_looked_at_too(self, role_parts):
+        looked = self._looking(role_parts)
+
+        role_parts.role.apply_command("PREV", on_quit=_never_quits)  # scene three, a VR video
+
+        assert looked[-1] == role_parts.files[2]
+
+    def test_a_flat_video_is_not(self, role_parts):
+        looked = self._looking(role_parts)
+        del looked[:]
+
+        role_parts.role.apply_command("NEXT", on_quit=_never_quits)  # scene two, a flat video
+
+        assert looked == []
+
+    def test_a_circle_found_in_the_picture_is_what_it_opens_in_from_then_on(self, role_parts):
+        role, files = role_parts.role, role_parts.files
+        look = _ALook([])
+        role.look_with(look)
+        role.apply_command("PREV", on_quit=_never_quits)
+        assert role.projection == EQUIRECT_180_SBS
+
+        look.found(FISHEYE_CIRCLE)
+
+        assert role.projection == FISHEYE_180_SBS
+        role.apply_command("NEXT", on_quit=_never_quits)
+        role.apply_command("PREV", on_quit=_never_quits)
+        assert role.projection == FISHEYE_180_SBS
+        assert role_parts.role.current_video == files[2]
+
+    def test_a_shape_found_for_a_video_no_longer_on_screen_changes_nothing(self, role_parts):
+        role = role_parts.role
+        look = _ALook([])
+        role.look_with(look)
+        role.apply_command("PREV", on_quit=_never_quits)
+        looked_at = role.current_video
+        role.apply_command("NEXT", on_quit=_never_quits)  # back to scene one
+
+        look.found(FISHEYE_CIRCLE, video=looked_at)
+
+        assert role.projection == EQUIRECT_180_SBS
+
+    def test_the_look_is_ended_with_the_session(self, role_parts):
+        look = _ALook([])
+        role_parts.role.look_with(look)
+
+        role_parts.role.close()
+
+        assert look.ended
+
+    def test_a_session_with_nothing_looking_still_opens_its_videos(self, role_parts):
+        role_parts.role.apply_command("PREV", on_quit=_never_quits)
+
+        assert role_parts.role.projection == EQUIRECT_180_SBS
+
+
 class TestProjectionCycling:
     def test_cycle_advances_and_persists_to_the_sidecar(self, role_parts):
         role, metadata, files = role_parts.role, role_parts.metadata, role_parts.files
@@ -352,17 +443,17 @@ class TestProjectionCycling:
 
         role.apply_command("CYCLE_PROJECTION", on_quit=_never_quits)
 
-        assert role.projection == FISHEYE_190_SBS
+        assert role.projection == FISHEYE_180_SBS
         sidecar = metadata / "VR" / "finished" / "scene one.json"
         payload = json.loads(sidecar.read_text(encoding="utf-8"))
-        assert payload["vr"]["projection"] == "fisheye_190_sbs"
+        assert payload["vr"]["projection"] == "fisheye_180_sbs"
 
     def test_the_persisted_choice_holds_when_the_video_comes_back(self, role_parts):
         role = role_parts.role
         role.apply_command("CYCLE_PROJECTION", on_quit=_never_quits)
         role.apply_command("NEXT", on_quit=_never_quits)
         role.apply_command("PREV", on_quit=_never_quits)
-        assert role.projection == FISHEYE_190_SBS
+        assert role.projection == FISHEYE_180_SBS
 
     def test_a_choice_holds_for_a_vr_folder_kept_away_from_the_rest_of_the_library(self, tmp_path):
         metadata = tmp_path / "local" / "videos" / "metadata"
@@ -381,7 +472,7 @@ class TestProjectionCycling:
         role.apply_command("NEXT", on_quit=_never_quits)
         role.apply_command("PREV", on_quit=_never_quits)
 
-        assert role.projection == FISHEYE_190_SBS
+        assert role.projection == FISHEYE_180_SBS
 
     def test_cycling_back_steps_the_other_way_and_persists_too(self, role_parts):
         role, metadata = role_parts.role, role_parts.metadata

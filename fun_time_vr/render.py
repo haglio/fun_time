@@ -20,11 +20,20 @@ verified against the real DLL.  See CLAUDE.md, "Standing rules".
 from __future__ import annotations
 
 import ctypes
+import math
+from dataclasses import dataclass
 
 import numpy as np
 from OpenGL import GL
 
-from .projection import EQUIRECT_180_SBS, EQUIRECT_360, FISHEYE_190_SBS, MKX200_SBS
+from .projection import (
+    EQUIRECT_180_SBS,
+    EQUIRECT_360,
+    FISHEYE_180_SBS,
+    FISHEYE_190_SBS,
+    FISHEYE_220_SBS,
+    MKX200_SBS,
+)
 
 _QUAD_VERTEX_SHADER = """
 #version 330 core
@@ -88,21 +97,23 @@ void main() {
 }
 """
 
-# The immersive shader's mode ids per projection; FLAT is absent because a
-# flat video draws as a screen, not an immersive wrap.
-_PROJECTION_MODES = {
-    EQUIRECT_180_SBS: 1,
-    FISHEYE_190_SBS: 2,
-    MKX200_SBS: 3,
-    EQUIRECT_360: 4,
-}
+_EQUIRECT_180_MODE, _FISHEYE_MODE, _EQUIRECT_360_MODE = 1, 2, 3
 
-# Each fisheye projection's full field of view, in degrees — the number its own
-# constant is named after.  The shader derived these from the mode id, so
-# renumbering the table above silently changed what it drew.
-_FISHEYE_FOV_DEGREES = {
-    FISHEYE_190_SBS: 190.0,
-    MKX200_SBS: 200.0,
+
+@dataclass(frozen=True)
+class Wrap:
+    mode: int
+    fisheye_fov_deg: float = 0.0
+
+
+# FLAT is absent because a flat video draws as a screen, not an immersive wrap.
+_WRAPS = {
+    EQUIRECT_180_SBS: Wrap(_EQUIRECT_180_MODE),
+    FISHEYE_180_SBS: Wrap(_FISHEYE_MODE, 180.0),
+    FISHEYE_190_SBS: Wrap(_FISHEYE_MODE, 190.0),
+    MKX200_SBS: Wrap(_FISHEYE_MODE, 200.0),
+    FISHEYE_220_SBS: Wrap(_FISHEYE_MODE, 220.0),
+    EQUIRECT_360: Wrap(_EQUIRECT_360_MODE),
 }
 
 _IMMERSIVE_FRAGMENT_SHADER = f"""
@@ -113,7 +124,8 @@ out vec4 frag_color;
 uniform sampler2D video_tex;
 uniform mat4 inv_view_proj;
 uniform int eye;   // 0=left, 1=right
-uniform int mode;  // written in from _PROJECTION_MODES below
+uniform int mode;  // a Wrap's, written in from the mode ids below
+uniform float fisheye_half_fov;  // radians; a fisheye Wrap's, unread by the rest
 
 const float PI = 3.14159265359;
 
@@ -127,10 +139,10 @@ void main() {{
     float phi = asin(clamp(dir.y, -1.0, 1.0));
 
     vec2 uv;
-    if (mode == {_PROJECTION_MODES[EQUIRECT_360]}) {{
+    if (mode == {_EQUIRECT_360_MODE}) {{
         // Equirect 360, mono: the full sphere across the whole texture.
         uv = vec2(theta / (2.0 * PI) + 0.5, phi / PI + 0.5);
-    }} else if (mode == {_PROJECTION_MODES[EQUIRECT_180_SBS]}) {{
+    }} else if (mode == {_EQUIRECT_180_MODE}) {{
         // Equirect 180, side-by-side stereo: black outside the front hemisphere.
         if (abs(theta) > PI * 0.5) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
         float u = theta / PI + 0.5;
@@ -138,23 +150,20 @@ void main() {{
     }} else {{
         // Fisheye, side-by-side stereo, equidistant mapping: the ray's
         // off-axis angle sets the radius from each eye-image's center.
-        float half_fov = radians(mode == {_PROJECTION_MODES[FISHEYE_190_SBS]}
-                                 ? {_FISHEYE_FOV_DEGREES[FISHEYE_190_SBS]}
-                                 : {_FISHEYE_FOV_DEGREES[MKX200_SBS]}) * 0.5;
         float off_axis = acos(clamp(-dir.z, -1.0, 1.0));
-        if (off_axis > half_fov) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
+        if (off_axis > fisheye_half_fov) {{ frag_color = vec4(0.0, 0.0, 0.0, 1.0); return; }}
         float planar_len = length(dir.xy);
         vec2 planar = planar_len > 0.0 ? dir.xy / planar_len : vec2(0.0);
-        vec2 local = vec2(0.5) + (off_axis / half_fov * 0.5) * planar;
+        vec2 local = vec2(0.5) + (off_axis / fisheye_half_fov * 0.5) * planar;
         uv = vec2(local.x * 0.5 + float(eye) * 0.5, local.y);
     }}
     frag_color = texture(video_tex, uv);
 }}
 """
 
-def immersive_mode(projection: str) -> int | None:
-    """The shader mode for *projection*, or None when it draws as a screen."""
-    return _PROJECTION_MODES.get(projection)
+def immersive_wrap(projection: str) -> Wrap | None:
+    """How *projection* wraps the viewer, or None when it draws as a screen."""
+    return _WRAPS.get(projection)
 
 
 def _compile_shader(source: str, shader_type: int) -> int:
@@ -365,6 +374,8 @@ class SceneRenderer:
         self._imm_inv_view_proj = GL.glGetUniformLocation(self._immersive_program, "inv_view_proj")
         self._imm_eye = GL.glGetUniformLocation(self._immersive_program, "eye")
         self._imm_mode = GL.glGetUniformLocation(self._immersive_program, "mode")
+        self._imm_fisheye_half_fov = GL.glGetUniformLocation(
+            self._immersive_program, "fisheye_half_fov")
         self._imm_tex = GL.glGetUniformLocation(self._immersive_program, "video_tex")
         self._copy_program = _compile_program(_FULLSCREEN_VERTEX_SHADER, _COPY_FRAGMENT_SHADER)
         self._copy_tex = GL.glGetUniformLocation(self._copy_program, "video_tex")
@@ -384,12 +395,13 @@ class SceneRenderer:
         GL.glClearColor(*clear)
         GL.glClear(GL.GL_COLOR_BUFFER_BIT)
 
-    def draw_immersive(self, mode: int, texture: int, inv_view_proj: np.ndarray, eye: int) -> None:
+    def draw_immersive(self, wrap: Wrap, texture: int, inv_view_proj: np.ndarray, eye: int) -> None:
         """*inv_view_proj* must already be float32 (converted once per eye by
         the caller, not per draw)."""
         GL.glUseProgram(self._immersive_program)
         GL.glUniform1i(self._imm_eye, eye)
-        GL.glUniform1i(self._imm_mode, mode)
+        GL.glUniform1i(self._imm_mode, wrap.mode)
+        GL.glUniform1f(self._imm_fisheye_half_fov, math.radians(wrap.fisheye_fov_deg) / 2)
         GL.glUniform1i(self._imm_tex, 0)
         GL.glUniformMatrix4fv(self._imm_inv_view_proj, 1, GL.GL_TRUE, inv_view_proj)
         GL.glActiveTexture(GL.GL_TEXTURE0)

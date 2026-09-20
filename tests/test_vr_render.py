@@ -1,9 +1,9 @@
-"""fun_time_vr.render's platform-free seam: which shader wraps a projection.
+"""fun_time_vr.render's platform-free seam: how a projection wraps the viewer.
 
 The GL classes (RenderTarget, ScreenMesh, SceneRenderer) need a live context
 and stay covered by the VR integration run; what a unit test CAN pin is the
-projection-to-shader-mode mapping, which decides whether a clip wraps around
-the viewer or hangs as a screen — the difference the user watches.
+projection-to-wrap mapping, which decides whether a clip wraps around the viewer
+or hangs as a screen, and by which math — the difference the user watches.
 """
 from __future__ import annotations
 
@@ -14,38 +14,35 @@ from fun_time_vr import render
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
     EQUIRECT_360,
+    FISHEYE_180_SBS,
     FISHEYE_190_SBS,
+    FISHEYE_220_SBS,
     FLAT,
     MKX200_SBS,
+    PROJECTIONS,
 )
-from fun_time_vr.render import (
-    _FISHEYE_FOV_DEGREES,
-    _IMMERSIVE_FRAGMENT_SHADER,
-    _PROJECTION_MODES,
-    immersive_mode,
-)
+from fun_time_vr.render import immersive_wrap
+
+_FISHEYES = (FISHEYE_180_SBS, FISHEYE_190_SBS, MKX200_SBS, FISHEYE_220_SBS)
 
 
-def test_every_wrapped_projection_gets_its_own_shader_mode():
-    modes = {
-        projection: immersive_mode(projection)
-        for projection in (EQUIRECT_180_SBS, FISHEYE_190_SBS, MKX200_SBS, EQUIRECT_360)
-    }
+def test_every_projection_but_flat_wraps_the_viewer_its_own_way():
+    wraps = {projection: immersive_wrap(projection)
+             for projection in PROJECTIONS if projection != FLAT}
 
-    assert None not in modes.values(), "a wrap fell back to drawing as a screen"
-    # Distinct wraps run distinct shader math; two sharing a mode would render
-    # one of them with the other's mapping.
-    assert len(set(modes.values())) == len(modes)
+    assert None not in wraps.values(), "a wrap fell back to drawing as a screen"
+    # Two drawn alike would show one of them with the other's mapping.
+    assert len(set(wraps.values())) == len(wraps)
 
 
 def test_a_flat_video_draws_as_a_screen_not_a_wrap():
-    assert immersive_mode(FLAT) is None
+    assert immersive_wrap(FLAT) is None
 
 
 def test_an_unknown_projection_falls_back_to_the_screen():
     # The safe default: a projection this build has no shader for still shows
     # the video, just on a screen, instead of wrapping it wrongly or crashing.
-    assert immersive_mode("someday_projection") is None
+    assert immersive_wrap("someday_projection") is None
 
 
 class TestTheShaderAndTheTableAreOneSource:
@@ -53,25 +50,33 @@ class TestTheShaderAndTheTableAreOneSource:
     Python table only by a comment — and to derive each fisheye's field of view
     from the id, so renumbering the table silently changed what it drew."""
 
-    def test_every_mode_id_reaches_the_shader(self):
-        for projection, mode in _PROJECTION_MODES.items():
-            if projection is MKX200_SBS:
-                continue  # the else arm; it is not compared against
-            assert f"mode == {mode}" in _IMMERSIVE_FRAGMENT_SHADER, projection
+    def test_every_mode_id_but_the_else_arms_reaches_the_shader(self):
+        from fun_time_vr.render import _FISHEYE_MODE, _IMMERSIVE_FRAGMENT_SHADER
+
+        modes = {immersive_wrap(projection).mode
+                 for projection in PROJECTIONS if projection != FLAT}
+        for mode in modes - {_FISHEYE_MODE}:
+            assert f"mode == {mode}" in _IMMERSIVE_FRAGMENT_SHADER, mode
 
     def test_each_fisheye_is_drawn_at_the_angle_its_name_gives(self):
-        """`fisheye_190_sbs` is 190 degrees and `mkx200_sbs` is 200.  The shader
-        read those off the mode id, which is not what either name says."""
-        for projection, degrees in _FISHEYE_FOV_DEGREES.items():
+        for projection in _FISHEYES:
+            degrees = immersive_wrap(projection).fisheye_fov_deg
             assert str(int(degrees)) in projection, projection
 
     def test_the_fisheyes_are_exactly_the_projections_that_have_a_field_of_view(self):
-        assert set(_FISHEYE_FOV_DEGREES) == {FISHEYE_190_SBS, MKX200_SBS}
-        assert set(_FISHEYE_FOV_DEGREES) <= set(_PROJECTION_MODES)
+        with_one = {projection for projection in PROJECTIONS
+                    if projection != FLAT and immersive_wrap(projection).fisheye_fov_deg}
 
-    def test_both_of_those_angles_are_written_into_the_shader(self):
-        for degrees in _FISHEYE_FOV_DEGREES.values():
-            assert str(degrees) in _IMMERSIVE_FRAGMENT_SHADER
+        assert with_one == set(_FISHEYES)
+        assert not immersive_wrap(EQUIRECT_180_SBS).fisheye_fov_deg
+        assert not immersive_wrap(EQUIRECT_360).fisheye_fov_deg
+
+    def test_the_shader_is_handed_the_angle_and_holds_none_of_its_own(self):
+        from fun_time_vr.render import _IMMERSIVE_FRAGMENT_SHADER
+
+        assert "uniform float fisheye_half_fov;" in _IMMERSIVE_FRAGMENT_SHADER
+        for projection in _FISHEYES:
+            assert str(immersive_wrap(projection).fisheye_fov_deg) not in _IMMERSIVE_FRAGMENT_SHADER
 
     def test_every_glsl_brace_is_doubled_in_the_source(self):
         """It is an f-string, so a GLSL brace left single is an interpolation:
@@ -88,6 +93,6 @@ class TestTheShaderAndTheTableAreOneSource:
             if isinstance(part, ast.Constant))
 
         # Every brace that survived as text; the interpolations are the mode
-        # ids and the two fields of view, none of which carries one.
+        # ids, none of which carries one.
         assert literal.count("{") == literal.count("}") == 6
         assert render._IMMERSIVE_FRAGMENT_SHADER.count("{") == 6

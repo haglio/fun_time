@@ -44,7 +44,7 @@ from fun_time_vr.layout import (
     read_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
-from fun_time_vr.render import SceneRenderer, immersive_mode
+from fun_time_vr.render import SceneRenderer, immersive_wrap
 from fun_time_vr.scheduling import ahead_of_background_work
 from main_player.loop_verbs import LOOP_CANCEL, RECORD_TAP, SET_LOOP
 
@@ -144,8 +144,6 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     assert glfw.init(), "glfw failed to initialize"
     window = hidden_gl_window("vr-pipeline-test")
     glfw.make_context_current(window)
-
-
 
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
@@ -349,7 +347,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
         assert main.role.projection in PROJECTIONS
         assert main.role.projection == "flat" or (
-            immersive_mode(main.role.projection) is not None
+            immersive_wrap(main.role.projection) is not None
         )
 
         # Teardown, deliberately in the hostile order: the players close while
