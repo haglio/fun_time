@@ -209,8 +209,13 @@ it is simply not something to pin any more.
 
 ## The hosted app is not booted twice
 
-Origenerator is by far the slowest child of a desktop session: its window lands
-ten to thirty seconds after launch, against five to eight for everything else.
+Origenerator is by far the slowest child of a session, either shape of it: its
+window lands ten to thirty seconds after launch, against five to eight for
+everything else. Both sessions host it as of 2026-09-20, so origenerator mode
+crosses like any other mode — the shows are the satellite players' own
+playlists, and the headset's satellites are players
+([known-issues.md](known-issues.md) has what the headset still cannot show of
+it: the app's own window).
 The curtain no longer waits for it — every room opens in video mode and the
 dispatch loop opens that mode up once the app publishes a status — but a boot
 still costs a minute of a session with no Origenerator mode in it, and a
@@ -235,8 +240,8 @@ only when a show opens or closes, so a cleared one would stay missing until
 then. The paused flag and the command file are cleared as ever: a stale freeze
 or an unread verb from the last session would land on this one.
 
-Whoever ends up with nothing to hand it to lets it go: a VR session quitting
-rather than crossing back, and a relay whose crossing failed. A copy the
+Whoever ends up with nothing to hand it to lets it go: either session quitting
+rather than crossing, and a relay whose crossing failed. A copy the
 desktop session took over from an Origenerator that was already open is sent
 `RELEASE` and goes back to being a window of its own; a copy a session
 launched is closed. A record whose process is gone is simply forgotten.

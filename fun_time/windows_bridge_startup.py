@@ -614,8 +614,7 @@ def origenerator_session_args(
     dashboard_cmd_file: str | Path,
     players: Mapping[str, HandedPlayer],
 ) -> list[str]:
-    rfb = layout_plan.random_favs_browser
-    args = ["--fun-time", *_rect_args("", rfb)]
+    args = ["--fun-time", *_rect_args("", layout_plan.random_favs_browser)]
     # The two satellite regions, for a show the hosted app opens itself where a
     # session hands it no player.  Unsent, those fell to a rect of zeroes.
     args.extend(_rect_args("portrait-", layout_plan.portrait))

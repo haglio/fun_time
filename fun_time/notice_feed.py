@@ -13,10 +13,9 @@ from pathlib import Path
 
 from fun_time.config import LayoutConfig
 from fun_time.event_log import EVENT_LOG_FILENAME, read_events
-from fun_time.monitors import enumerate_monitors, get_logical_monitor_rects
 from fun_time.notice_overlay import PlayerRects, is_announcement, notice_target_rect
 from fun_time.overlay_progress import loading_cover_is_up
-from fun_time.window_layout import compute_main_media_rect, compute_window_layout
+from fun_time.window_layout import compute_main_media_rect, screen_layout
 
 
 def player_rects(layout: LayoutConfig) -> PlayerRects | None:
@@ -26,27 +25,15 @@ def player_rects(layout: LayoutConfig) -> PlayerRects | None:
     its window.  None on a headless run, where notices simply do not flash.
     """
     try:
-        monitors = enumerate_monitors()
-        primary_rect, secondary_rect = get_logical_monitor_rects(
-            monitors,
-            primary_index=layout.primary_monitor,
-            secondary_index=layout.secondary_monitor,
-        )
+        screens = screen_layout(layout)
     except (ValueError, OSError):
         return None
-    plan = compute_window_layout(
-        primary_monitor=primary_rect,
-        secondary_monitor=secondary_rect,
-        layout_config=layout,
-    )
-    main = compute_main_media_rect(
-        secondary_monitor=secondary_rect, layout_config=layout,
-    )
     return PlayerRects(
-        main=main,
-        portrait=plan.portrait,
-        landscape=plan.landscape,
-        dash=plan.dashboard,
+        main=compute_main_media_rect(
+            secondary_monitor=screens.secondary_monitor, layout_config=layout),
+        portrait=screens.plan.portrait,
+        landscape=screens.plan.landscape,
+        dash=screens.plan.dashboard,
     )
 
 

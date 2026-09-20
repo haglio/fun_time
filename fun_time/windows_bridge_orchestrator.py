@@ -276,6 +276,27 @@ def _park_the_hosted_origenerator(
     return True
 
 
+def see_the_hosted_app_out(
+    state_dir: Path,
+    child: ChildProcess | None,
+    command_file: Path | None,
+    *,
+    keep: bool,
+    taken_over: bool,
+) -> bool:
+    """Park the hosted app for the session crossing in after this one, release one
+    this session took over, or close the one it launched; whether it was spared."""
+    if keep and command_file is not None and _park_the_hosted_origenerator(
+            state_dir, child, command_file, taken_over=taken_over):
+        return True
+    forget_the_kept_origenerator(state_dir)
+    if taken_over and command_file is not None:
+        append_command(command_file, RELEASE)
+        return True
+    _close_origenerator_gracefully(child)
+    return False
+
+
 def let_go_of_a_kept_origenerator(state_dir: Path, command_file: Path) -> None:
     kept = kept_origenerator(state_dir)
     forget_the_kept_origenerator(state_dir)
@@ -304,21 +325,15 @@ def _shutdown_children(
 
     Reports each group as it starts, so the closing screen can say which windows
     are on their way out — and, if a kill wedges, which one it wedged on.
-    *keep_origenerator_via*, the hosted app's command file, parks it for the
-    session crossing in after this one rather than closing it (docs/entering-vr.md).
     """
     progress.advance("browser")
     close_window(rfb_hwnd)
-    kept = keep_origenerator_via is not None and _park_the_hosted_origenerator(
-        state_dir, children.get("origenerator_pid"), keep_origenerator_via,
-        taken_over=release_origenerator_via is not None)
-    if not kept:
-        forget_the_kept_origenerator(state_dir)
-        if release_origenerator_via is not None:
-            append_command(release_origenerator_via, RELEASE)
-        else:
-            _close_origenerator_gracefully(children.get("origenerator_pid"))
-    spared = kept or release_origenerator_via is not None
+    spared = see_the_hosted_app_out(
+        state_dir, children.get("origenerator_pid"),
+        keep_origenerator_via or release_origenerator_via,
+        keep=keep_origenerator_via is not None,
+        taken_over=release_origenerator_via is not None,
+    )
     for phase, keys in _CHILD_GROUPS:
         progress.advance(phase)
         for key in keys:

@@ -1,14 +1,36 @@
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 from fun_time import load_config
 from fun_time.dashboard_layout import dashboard_window_height
+from fun_time.monitors import MonitorInfo
 from fun_time.window_layout import (
     MonitorRect,
     compute_main_media_rect,
     compute_window_layout,
+    screen_layout,
 )
+
+
+def test_screen_layout_plans_for_the_monitors_this_machine_has(cfg_path: Path):
+    """The one incantation from a layout config to every window's rect: the
+    startup sequencer, a VR session's hosted app and the notice overlay each
+    spelled it out for themselves."""
+    config = load_config(cfg_path)
+    monitors = [MonitorInfo(0, 0, 2560, 1392), MonitorInfo(2560, 0, 1440, 3440)]
+
+    with patch("fun_time.window_layout.enumerate_monitors", return_value=monitors):
+        layout = screen_layout(config.layout)
+
+    assert layout.plan == compute_window_layout(
+        primary_monitor=MonitorRect(0, 0, 2560, 1392),
+        secondary_monitor=MonitorRect(2560, 0, 1440, 3440),
+        layout_config=config.layout,
+    )
+    assert layout.secondary_monitor == MonitorRect(2560, 0, 1440, 3440)
+    assert layout.config == config.layout
 
 
 def test_compute_window_layout_uses_secondary_monitor_for_portrait(cfg_path: Path):

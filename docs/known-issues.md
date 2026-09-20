@@ -29,16 +29,19 @@
 - Status: Deferred
 - Scope:
   - Not launched in VR: the Qt dashboard and its log panel, the Random Favs Browser,
-    the loopback server, and the hosted Origenerator. The main slot's two modes,
+    and the loopback server. The main slot's two modes,
     Genau's clips and the Robot Hand's stretches, and the audio companion (on the
     headset's output) all run in VR as of 2026-09-04, on the engine that moved to
     `player_core` for it; GenauVR, the standalone headset app, is retired with that.
-  - Without the hosted app there is no origenerator mode either, so
-    `build_vr_manifest` empties `origenerator_dir` and the session says so the
-    one way every reader already understands: no mode pair on the satellites'
-    HUDs, a resumed origenerator mode pulled back to video, and the switch
-    answered with "No Origenerator configured". Advertising it instead is what
-    opened a VR session in a mode nothing was hosting.
+  - The hosted Origenerator IS launched, as of 2026-09-20, so origenerator mode
+    runs in the headset: the mode's shows are the satellite players' own
+    playlists (`fun_time.player_handover`), and the headset's satellites are
+    players. `fun_time.hosted_origenerator` brings the app up for either shape
+    of session and sees it out of either teardown. What a headset has nowhere to
+    show is the app's own window, which shares the Random Favs Browser's rect:
+    it boots parked and nothing in a VR session restores it, so the gallery and
+    its tabs are the monitors' half of the mode and reachable only from a
+    desktop session. A session hosting none is still a config naming none.
   - The main player verbs the VR main role does not implement: loop recording, version cycling,
     clip jumps, funscript jumps, length modes, compilations. They report unhandled,
     and the player logs each once rather than crashing. The list with a reason
@@ -48,13 +51,6 @@
     through the real dispatch and holds each verb that lands to the vocabulary of
     whatever will read it in VR, so a gap is a red test rather than a discovery
     in the log.
-  - Origenerator is not hosted in VR, and a VR bridge config says so
-    (`build_bridge_config_from_manifest(..., vr_main_player=True)`) however the
-    config is set up: the hosted app rides in the Random Favs Browser's Chrome
-    window, which is not launched. Without that, a session resuming origenerator
-    mode from a desktop session sat in the headset in front of two satellite
-    players the mode had handed to an app that was never started, every verb
-    for them routed to it, and `X` did the same on purpose.
   - Every notice a command raises is a desktop overlay window the session does not
     launch, so a key that only flashes a confirmation on the desktop (`X` in a VR
     session, say) shows nothing in the headset. What the panel and the satellite

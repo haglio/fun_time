@@ -178,18 +178,15 @@ def test_the_bridge_config_carries_the_port_the_session_serves_on(cfg_factory, t
     assert build_bridge_config_from_manifest(manifest).loopback_port == 8771
 
 
-def test_only_a_desktop_session_hosts_the_origenerator_its_config_names(
-    cfg_factory, tmp_path,
-):
-    """One configured Origenerator, two sessions, one host.
+def test_either_session_hosts_the_origenerator_its_config_names(cfg_factory, tmp_path):
+    """One configured Origenerator, two session shapes, both hosting it.
 
-    The hosted app rides in the Random Favs Browser's Chrome window, and a VR
-    session launches neither — but both sessions build from the same manifest,
-    so the headset read the configured directory and believed it was hosting.
-    Origenerator mode then pauses both satellite PLAYERS for the whole mode and
-    routes every satellite verb to the app: a session that merely resumed the
-    mode from a desktop session sat in the headset in front of two black
-    screens with no key that reached them, and X did the same on purpose.
+    The headset was excluded for as long as the app's shows were windows of
+    their own laid over the satellites, which a VR session has none of.  They
+    are the satellite PLAYERS' own playlists now (fun_time.player_handover),
+    and the headset's satellites are players, so the same checkout is the same
+    mode in either shape.  A session that hosts none is still a config naming
+    none, which the assertion below the fixture holds.
     """
     origenerator_dir = tmp_path / "origenerator"
     origenerator_dir.mkdir()
@@ -197,7 +194,7 @@ def test_only_a_desktop_session_hosts_the_origenerator_its_config_names(
     manifest = LaunchManifest.read(write_windows_bridge_manifest(config, tmp_path / "manifest.ini"))
 
     assert build_bridge_config_from_manifest(manifest).origenerator_enabled
-    assert not build_bridge_config_from_manifest(
+    assert build_bridge_config_from_manifest(
         manifest, vr_main_player=True).origenerator_enabled
 
 

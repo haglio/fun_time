@@ -11,9 +11,10 @@ import ctypes
 import ctypes.wintypes
 import os
 
+from .dashboard_layout import Rect
 from .win32_loader import Win32Rect
-from .window_layout import MonitorRect
 
+MonitorRect = Rect
 MonitorInfo = MonitorRect
 
 
