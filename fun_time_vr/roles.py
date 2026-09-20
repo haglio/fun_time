@@ -135,6 +135,7 @@ class MainRole:
         self._metadata_root = metadata_root
         self._vr_dirs = tuple(vr_dirs)
         self._remembered = ProjectionMemory(metadata_root, self._vr_dirs)
+        self._look = None
         self._play_points = play_points or PlayPoints(None)
         self._resume = OwedSeek()
         self._loops = LoopMachine(
@@ -423,6 +424,8 @@ class MainRole:
 
     def close(self) -> None:
         self._play_points.leave()
+        if self._look is not None:
+            self._look.close()  # before the player: its looks read a picture from one
         self._driver.close()
         self._player.close()
 
@@ -440,10 +443,31 @@ class MainRole:
         self._loops.open(self._funscript)
         self._driver.reset()
         self._projections[str(item.path)] = self._remembered.resolve(str(item.path))
+        self._look_at_the_picture(item.path)
         recorded = self._recorded_for(item.path)
         self._title = video_title(recorded, item.path)
         self._resume.owe(self._play_points.point_for(item.path) or None)
         self._scene_starts = scene_starts_ms(recorded)
+
+    def look_with(self, look) -> None:
+        """Take the thing that reads the picture on screen, and set it on this video.
+
+        Handed in rather than built here: only the host holds a player whose
+        picture can be asked for, and a session without one simply never looks.
+        """
+        self._look = look
+        self._look_at_the_picture(self.current_video)
+
+    def _look_at_the_picture(self, video: Path) -> None:
+        if self._look is not None and self._remembered.wants_a_look(str(video)):
+            self._look.look_at(video, self._shape_found)
+
+    def _shape_found(self, video: Path, shape: str) -> None:
+        """What the picture turned out to be -- from the look's own thread."""
+        self._remembered.note_shape(str(video), shape)
+        self._projections[str(video)] = self._remembered.resolve(str(video))
+        logger.info(
+            "Projection: %s (%s, off its picture)", self._projections[str(video)], video.name)
 
     def _recorded_for(self, video: Path) -> dict:
         sidecar = metadata_path_for(video, self._metadata_root, outlying_dirs=self._vr_dirs)

@@ -4,10 +4,13 @@ import json
 
 import pytest
 
+from fun_time_vr.picture_shape import FISHEYE_CIRCLE, FULL_FRAME
 from fun_time_vr.projection import (
     EQUIRECT_180_SBS,
     EQUIRECT_360,
+    FISHEYE_180_SBS,
     FISHEYE_190_SBS,
+    FISHEYE_220_SBS,
     FLAT,
     MKX200_SBS,
     PROJECTIONS,
@@ -187,3 +190,87 @@ class TestResolve:
         video = videos / "VR" / "finished" / "scene one.mp4"
 
         assert ProjectionMemory(None, (videos / "VR",)).resolve(str(video)) == EQUIRECT_180_SBS
+
+
+class TestWhatThePictureShowed:
+    def test_a_video_whose_picture_is_a_circle_opens_as_a_fisheye(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+
+        memory.note_shape(str(video), FISHEYE_CIRCLE)
+
+        assert memory.resolve(str(video)) == FISHEYE_180_SBS
+
+    def test_his_own_choice_outranks_what_the_picture_showed(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+        memory.note_shape(str(video), FISHEYE_CIRCLE)
+
+        memory.save(str(video), EQUIRECT_180_SBS)
+
+        assert memory.resolve(str(video)) == EQUIRECT_180_SBS
+
+    def test_a_name_that_says_which_fisheye_it_is_outranks_the_picture(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene three (fisheye).mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+
+        memory.note_shape(str(video), FISHEYE_CIRCLE)
+
+        assert memory.resolve(str(video)) == FISHEYE_190_SBS
+
+    def test_a_picture_that_fills_the_frame_leaves_the_default_alone(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+
+        memory.note_shape(str(video), FULL_FRAME)
+
+        assert memory.resolve(str(video)) == EQUIRECT_180_SBS
+
+    def test_both_things_kept_about_a_video_share_its_one_record(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+
+        memory.save(str(video), MKX200_SBS)
+        memory.note_shape(str(video), FISHEYE_CIRCLE)
+
+        sidecar = metadata / "VR" / "finished" / "scene one.json"
+        assert json.loads(sidecar.read_text(encoding="utf-8")) == {
+            "vr": {"projection": "mkx200_sbs", "picture": "fisheye_circle"}
+        }
+
+
+class TestWhichVideosAreWorthALook:
+    def test_a_vr_video_nobody_has_chosen_for_or_looked_at(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+
+        assert ProjectionMemory(metadata, (videos / "VR",)).wants_a_look(str(video))
+
+    def test_not_one_already_looked_at(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+        memory.note_shape(str(video), FULL_FRAME)
+
+        assert not memory.wants_a_look(str(video))
+
+    def test_not_one_he_has_chosen_for(self, library):
+        videos, metadata = library
+        video = videos / "VR" / "finished" / "scene one.mp4"
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+        memory.save(str(video), FISHEYE_220_SBS)
+
+        assert not memory.wants_a_look(str(video))
+
+    def test_not_a_flat_video_or_one_whose_name_settles_it(self, library):
+        videos, metadata = library
+        memory = ProjectionMemory(metadata, (videos / "VR",))
+
+        assert not memory.wants_a_look(str(videos / "2D" / "non_AI" / "scene two.mp4"))
+        assert not memory.wants_a_look(str(videos / "VR" / "finished" / "scene four MKX200.mp4"))
+        assert not memory.wants_a_look(str(videos / "VR" / "finished" / "scene seven_360.mp4"))

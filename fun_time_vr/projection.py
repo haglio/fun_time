@@ -21,12 +21,16 @@ from pathlib import Path
 from fun_time.media_metadata import load_metadata, metadata_path_for
 from fun_time.vr_videos import VR_FILENAME_TOKENS, is_vr_video
 
+from .picture_shape import FISHEYE_CIRCLE
+
 logger = logging.getLogger(__name__)
 
 FLAT = "flat"
 EQUIRECT_180_SBS = "equirect_180_sbs"
+FISHEYE_180_SBS = "fisheye_180_sbs"
 FISHEYE_190_SBS = "fisheye_190_sbs"
 MKX200_SBS = "mkx200_sbs"
+FISHEYE_220_SBS = "fisheye_220_sbs"
 EQUIRECT_360 = "equirect_360"
 
 # The cycle order: the P key / "projection" walks this ring.  Flat first, so a
@@ -34,8 +38,10 @@ EQUIRECT_360 = "equirect_360"
 PROJECTIONS: tuple[str, ...] = (
     FLAT,
     EQUIRECT_180_SBS,
+    FISHEYE_180_SBS,
     FISHEYE_190_SBS,
     MKX200_SBS,
+    FISHEYE_220_SBS,
     EQUIRECT_360,
 )
 
@@ -57,6 +63,7 @@ _FILENAME_HINTS: tuple[tuple[str, str], ...] = tuple(
 
 _SIDECAR_BLOCK = "vr"
 _PROJECTION_FIELD = "projection"
+_PICTURE_FIELD = "picture"
 
 
 def default_projection(video_path: str, vr_dirs: Sequence[Path | str]) -> str:
@@ -98,23 +105,43 @@ class ProjectionMemory:
     vr_dirs: tuple[Path | str, ...] = ()
 
     def resolve(self, video_path: str) -> str:
-        return self.saved(video_path) or default_projection(video_path, self.vr_dirs)
+        chosen = self.saved(video_path)
+        if chosen:
+            return chosen
+        named = default_projection(video_path, self.vr_dirs)
+        if named == EQUIRECT_180_SBS and self._kept(video_path, _PICTURE_FIELD) == FISHEYE_CIRCLE:
+            return FISHEYE_180_SBS
+        return named
 
     def saved(self, video_path: str) -> str | None:
+        value = self._kept(video_path, _PROJECTION_FIELD)
+        return value if value in PROJECTIONS else None  # a retired one reads as unset
+
+    def save(self, video_path: str, projection: str) -> bool:
+        return self._keep(video_path, _PROJECTION_FIELD, projection)
+
+    def note_shape(self, video_path: str, shape: str) -> bool:
+        return self._keep(video_path, _PICTURE_FIELD, shape)
+
+    def wants_a_look(self, video_path: str) -> bool:
+        return (default_projection(video_path, self.vr_dirs) == EQUIRECT_180_SBS
+                and not self.saved(video_path)
+                and not self._kept(video_path, _PICTURE_FIELD))
+
+    def _kept(self, video_path: str, field: str) -> str | None:
         sidecar = self._sidecar(video_path)
         if sidecar is None or not sidecar.is_file():
             return None
         block = load_metadata(sidecar).get(_SIDECAR_BLOCK)
-        value = block.get(_PROJECTION_FIELD) if isinstance(block, dict) else None
-        return value if value in PROJECTIONS else None  # a retired one reads as unset
+        return block.get(field) if isinstance(block, dict) else None
 
-    def save(self, video_path: str, projection: str) -> bool:
+    def _keep(self, video_path: str, field: str, value: str) -> bool:
         sidecar = self._sidecar(video_path)
         if sidecar is None:
-            logger.info("No sidecar path for %s; projection not remembered", video_path)
+            logger.info("No sidecar path for %s; its %s is not remembered", video_path, field)
             return False
         payload = load_metadata(sidecar) if sidecar.is_file() else {}
-        payload.setdefault(_SIDECAR_BLOCK, {})[_PROJECTION_FIELD] = projection
+        payload.setdefault(_SIDECAR_BLOCK, {})[field] = value
         try:
             sidecar.parent.mkdir(parents=True, exist_ok=True)
             sidecar.write_text(json.dumps(payload, indent=2) + "\n", encoding="utf-8")

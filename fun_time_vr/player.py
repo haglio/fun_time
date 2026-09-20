@@ -174,6 +174,7 @@ from .matrices import (
 from .notice_banner import banner_bgra
 from .notices import NoticeBoard
 from .perf import FramePerf
+from .picture_look import PictureLook
 from .playback_watch import STALLED, PlaybackWatch
 from .pointer import (
     DRAG,
@@ -200,7 +201,7 @@ from .reference_panel import (
     paint_reference,
     reference_height,
 )
-from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_mode
+from .render import FrameTexture, RenderTarget, SceneRenderer, ScreenMesh, immersive_wrap
 from .roles import UNIMPLEMENTED_MAIN_PLAYER_VERBS, MainRole
 from .room import Hanging, Hangs
 from .satellite_hud import (
@@ -503,7 +504,7 @@ class _VideoUnit:
 
 def _in_the_slot(screen, picture, projection) -> tuple[Hanging, ...]:
     """Round the viewer rather than on a screen leaves no rectangle to aim at."""
-    wrap = immersive_mode(projection)
+    wrap = immersive_wrap(projection)
     if wrap is not None:
         return (Hanging(Screen(MAIN, screen.placement, picture.aspect,
                                pressable=True, immersive=True),
@@ -562,6 +563,10 @@ class _MainUnit(_VideoUnit):
                 Path(commands.state_dir) / play_points_filename("main_player")),
         )
         self._genau_role = genau_role  # the other player the main slot can be showing
+        # A VR video nobody has chosen a projection for gets its picture read, on
+        # a thread of its own: a fisheye circle found there opens it as a fisheye
+        # rather than pinching its nadir as a 180 equirect.
+        self.role.look_with(PictureLook(self.player))
         # The panel's forecasts of Genau's publish, and the touch each status carries.
         self.drive_gate = DriveGate(self.role)
         self._audio_device = vr.audio_device.strip()
