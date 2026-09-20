@@ -1013,27 +1013,20 @@ def _dispatch_main_reorder(
     """Reload the main player in a fresh order — Latest (newest-first) or Shuffle.
 
     To whichever player owns the main slot's screen, the split the lock makes (see
-    ``_MAIN_LOCK_COMMANDS``) and for the same reason: a browse order is about
-    what you are looking at.  Sent to the main player regardless, "main latest" said in genau
-    mode rewrote a playlist for a player that was neither on screen nor playing,
-    and Genau — the one actually showing — went on with the order it launched in.
+    ``_MAIN_LOCK_COMMANDS``) and for the same reason: a browse order is about what
+    you are looking at.  Sent to the main player regardless, "main latest" said in
+    genau mode rewrote a playlist for a player neither on screen nor playing.  Both
+    branches rescan as they go, which is most of what "latest" is for.
 
-    Both branches rescan as they go, which is most of what "latest" is for: a clip
-    that arrived since is in no list until something looks again.
+    The main player's playlist is ours to write, so that branch rewrites the file
+    and hands it the same RELOAD_PLAYLIST an F-mode change gets, from the top of
+    the new order -- a reorder filters nothing out, so it would otherwise carry on
+    from where it sits and the arrivals would never come up.  Genau owns its own
+    sequence, so it is told the order and rescans its clips folder itself.
 
-    The main player's playlist is ours to write, so that branch rewrites the file and hands
-    The main player the same RELOAD_PLAYLIST an F-mode change gets, from the top of the new
-    order — a reorder filters nothing out, so the main player would otherwise keep the video
-    on screen and carry on from wherever it now sits, the newest-first list
-    applying only after it and the arrivals never coming up.  Genau has no
-    playlist file at all; it owns its own sequence, so it is told the order and
-    rescans its clips folder itself.
-
-    Each player's order is remembered under its own flag.  ``main_latest``
-    describes the playlist file we built for the main player — a later F-mode rebuild reads it
-    to reload the same way round — so recording a Genau reorder there would light
-    "Latest" over a main player playlist nobody reordered.  ``genau_latest`` is Genau's,
-    and both reach the console, which draws whichever player is showing.
+    Each player's order is remembered under its own flag, since ``main_latest``
+    describes the playlist file we built and a Genau reorder recorded there would
+    light "Latest" over a playlist nobody reordered.
     """
     on_main_player = main_player_displays(state.main_mode)
     if on_main_player:

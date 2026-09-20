@@ -11,14 +11,12 @@ video is shown under, and for the three navigations Fun Time exposes:
 
 ``full vid``/``clip jump`` answer from a ``full_video`` the sidecar records when
 one is there: Evolver's clip-match batch found the clip's own frames inside that
-scene, so it beats any reading of the names. The answer is held against the scene's
-*version family* rather than the one file matched, so it survives whichever
-version is on screen and hands back the same best-of-family the playlist shows.
-Without a recording they fall back to matching the source/performer against the
-filename — deliberately loose (token containment) because a library file names
-its scene however the user happened to save it, and often enough carries no movie
-title at all. Most sources are not in the library, so a miss (``None``) is the
-common, expected case either way.
+scene, so it beats any reading of the names.  The answer is held against the
+scene's *version family* rather than the one file matched, so it survives
+whichever version is on screen.  Without a recording they fall back to matching
+the source/performer against the filename -- deliberately loose, since a library
+file names its scene however it happened to be saved and often carries no movie
+title at all.  A miss (``None``) is the common case either way.
 """
 from __future__ import annotations
 

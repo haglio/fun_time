@@ -46,21 +46,16 @@ def publish_audio_level(
     same level every time and the bridge alone holds the authoritative value.
 
     The companion is only ever asked to be quiet, so a mute reaches it as a level
-    of zero and it stays dumb.  The two *players* also draw the level, and zero
-    cannot tell muted from turned all the way down, nor what unmuting should
-    return to — so each gets the level and the mute, and works the audible
-    loudness out itself.  Genau is told in every mode, not only the ones it is
-    showing in, so the chip it draws is already right when it takes the screen.
+    of zero.  The two *players* also draw the level, and zero cannot tell muted
+    from turned all the way down, nor what unmuting should return to -- so each
+    gets the level and the mute and works the audible loudness out itself.  Genau
+    is told in every mode, so the chip it draws is right when it takes the screen.
 
-    One function because startup seeds the session's opening level through it and
-    every spoken "quieter" goes through it after: sinks with different spellings
-    of the same state are exactly the pair that drifts when each caller writes
-    them itself.
-
-    A player's verb *joins* its queue rather than replacing it.  Startup seeds
-    more than one thing on the main player's channel — the level and whether F-mode is on —
-    before the main player is up to drain any of them, and a whole-file write would land
-    whichever went last and silently drop the other.
+    One function, because sinks with different spellings of the same state are
+    exactly the pair that drifts when each caller writes them itself.  A player's
+    verb *joins* its queue rather than replacing it: startup seeds more than one
+    thing on the main player's channel before it is up to drain any, and a
+    whole-file write would land the last and drop the rest.
     """
     verb = f"{SET_VOLUME} {volume} {int(muted)}"
     append_command(main_player_cmd_file, verb)

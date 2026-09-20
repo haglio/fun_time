@@ -23,12 +23,22 @@ def _run_now(*, target, args=(), name=None) -> None:
 
 
 class _Player:
+    """A video thread's surface: a still is asked for and turns up on a later look,
+    painted by the thread that owns the GL context."""
+
     def __init__(self, frames, *, duration_ms: float = 60_000.0) -> None:
         self.frames = list(frames)
         self.duration_ms = duration_ms
+        self._asked = False
 
-    def screenshot_bgra(self, _height: int):
-        return self.frames.pop(0) if self.frames else None
+    def ask_for_a_still(self) -> None:
+        self._asked = True
+
+    def take_a_still(self):
+        if not self._asked or not self.frames:
+            return None
+        self._asked = False
+        return self.frames.pop(0)
 
 
 def _looked(player) -> list[tuple[Path, str]]:
@@ -68,8 +78,8 @@ def test_it_waits_before_each_look_so_the_file_asked_for_is_the_one_playing():
     read as the new one's."""
     events: list[str] = []
     player = _Player([_bgra(CIRCLE), _bgra(CIRCLE)])
-    grab = player.screenshot_bgra
-    player.screenshot_bgra = lambda height: events.append("look") or grab(height)
+    grab = player.take_a_still
+    player.take_a_still = lambda: events.append("look") or grab()
     look = PictureLook(player, start_thread=_run_now,
                        sleep=lambda _seconds: events.append("wait"))
 
@@ -90,15 +100,15 @@ def test_opening_another_video_ends_the_look_at_the_last_one():
     said: list[tuple[Path, str]] = []
     player = _Player([_bgra(CIRCLE), _bgra(FULL), _bgra(FULL), _bgra(FULL), _bgra(CIRCLE)])
     look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: None)
-    grab = player.screenshot_bgra
+    grab = player.take_a_still
 
-    def grab_then_move_on(height):
-        frame = grab(height)
+    def grab_then_move_on():
+        frame = grab()
         if len(player.frames) == 4:  # the first look at the first video, just taken
             look.look_at(other, lambda video, shape: said.append((video, shape)))
         return frame
 
-    player.screenshot_bgra = grab_then_move_on
+    player.take_a_still = grab_then_move_on
 
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
 
@@ -109,15 +119,15 @@ def test_a_video_opened_again_is_looked_at_once_not_twice_over():
     said: list[tuple[Path, str]] = []
     player = _Player([_bgra(CIRCLE)] * 5)
     look = PictureLook(player, start_thread=_run_now, sleep=lambda _seconds: None)
-    grab = player.screenshot_bgra
+    grab = player.take_a_still
 
-    def grab_then_open_it_again(height):
-        frame = grab(height)
+    def grab_then_open_it_again():
+        frame = grab()
         if len(player.frames) == 4:
             look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
         return frame
 
-    player.screenshot_bgra = grab_then_open_it_again
+    player.take_a_still = grab_then_open_it_again
 
     look.look_at(VIDEO, lambda video, shape: said.append((video, shape)))
 
@@ -129,22 +139,6 @@ def test_a_video_that_never_shows_its_shape_is_given_up_on():
 
     assert _looked(player) == []
     assert len(player.frames) == 3
-
-
-def test_a_player_that_refuses_its_picture_is_asked_again_later():
-    """mpv refuses the grab until the file it is opening plays, and python-mpv
-    raises that refusal as a SystemError."""
-    player = _Player([_bgra(CIRCLE), _bgra(CIRCLE)])
-    grab, refusals = player.screenshot_bgra, [SystemError("not yet")]
-
-    def refuse_once(height):
-        if refusals:
-            raise refusals.pop()
-        return grab(height)
-
-    player.screenshot_bgra = refuse_once
-
-    assert _looked(player) == [(VIDEO, FISHEYE_CIRCLE)]
 
 
 def test_a_session_closing_ends_the_look():

@@ -131,7 +131,7 @@ from fun_time_vr.pointer import (
 )
 from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
-from fun_time_vr.render import immersive_mode
+from fun_time_vr.render import immersive_wrap
 from fun_time_vr.satellite_hud import HUD_GAP_DEG, hud_screen_name
 from fun_time_vr.scene import (
     MAIN_WIDTH_DEG,
@@ -1607,7 +1607,7 @@ class TestTheMainPlayersPictureIsWrappedAsItsOwnVideo:
 
         (hanging,) = main_unit.hangings()
 
-        assert hanging.wrap == immersive_mode(EQUIRECT_180_SBS)
+        assert hanging.wrap == immersive_wrap(EQUIRECT_180_SBS)
 
 
 class TestTheMainSlotUnderThePointer:
@@ -1693,7 +1693,7 @@ class TestTheMainSlotUnderThePointer:
         (wrap,) = room.what_hangs(self._units(projection=EQUIRECT_180_SBS))
 
         assert wrap.mesh is None
-        assert wrap.wrap == immersive_mode(EQUIRECT_180_SBS)
+        assert wrap.wrap == immersive_wrap(EQUIRECT_180_SBS)
 
     @pytest.mark.parametrize("state", [
         {"picture": False},

@@ -6,6 +6,37 @@ from dataclasses import dataclass
 SLOTS = 3
 
 
+class StillAsked:
+    """A one-frame copy asked for by another thread, painted by the one that owns
+    the GL context -- the picture check's way in, since mpv's own screenshot needs
+    that context and refuses from anywhere else."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self._wanted = False
+        self._left = None
+
+    @property
+    def wanted(self) -> bool:
+        with self._lock:
+            return self._wanted
+
+    def ask(self) -> None:
+        with self._lock:
+            if self._left is None:
+                self._wanted = True
+
+    def leave(self, still) -> None:
+        with self._lock:
+            self._wanted = False
+            self._left = still
+
+    def take(self):
+        with self._lock:
+            still, self._left = self._left, None
+        return still
+
+
 def capped_size(dims: tuple[int, int], cap_px: int) -> tuple[int, int] | None:
     width, height = dims
     if not width or not height:

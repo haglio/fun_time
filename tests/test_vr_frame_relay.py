@@ -6,7 +6,7 @@ that agreement, apart from the GL calls it is made of.
 """
 from __future__ import annotations
 
-from fun_time_vr.frame_relay import FrameRelay, capped_size
+from fun_time_vr.frame_relay import FrameRelay, StillAsked, capped_size
 
 WIDE = "C:/videos/wide.mp4"
 
@@ -75,3 +75,44 @@ def test_there_is_no_size_to_paint_until_mpv_says_what_the_video_is():
     """Between files mpv reports (0, 0), and a target sized from that would be
     the teardown flicker the last picture is held through."""
     assert capped_size((0, 0), 2048) is None
+
+
+class TestTheStillAVideoThreadIsAskedFor:
+    """The picture check reads a frame to tell a fisheye recording from a 180 one.
+    It used to ask mpv for a screenshot from its own thread, which on an offscreen
+    player is "No render context set" -- the render context belongs to the thread
+    that paints, and asking wedged the player instead (2026-09-20)."""
+
+    def test_nothing_is_there_until_one_is_asked_for(self):
+        assert StillAsked().take() is None
+
+    def test_what_the_painting_thread_leaves_is_what_comes_back(self):
+        asked = StillAsked()
+        asked.ask()
+
+        assert asked.wanted
+        asked.leave("a picture")
+
+        assert asked.take() == "a picture"
+
+    def test_and_only_once(self):
+        asked = StillAsked()
+        asked.ask()
+        asked.leave("a picture")
+        asked.take()
+
+        assert asked.take() is None
+
+    def test_nothing_is_painted_for_a_still_nobody_asked_for(self):
+        asked = StillAsked()
+
+        assert not asked.wanted
+
+    def test_asking_again_while_one_is_waiting_does_not_lose_it(self):
+        asked = StillAsked()
+        asked.ask()
+        asked.leave("a picture")
+
+        asked.ask()
+
+        assert asked.take() == "a picture"
