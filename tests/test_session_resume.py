@@ -7,6 +7,8 @@ from pathlib import Path
 from player_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
 from player_core.modes import MainMode
 
+from fun_time.bridge_records import SatelliteChannel
+from fun_time.player_handover import hand_back, keep_aside
 from fun_time.players import Player
 from fun_time.session_resume import (
     NOT_RESUMED,
@@ -37,6 +39,26 @@ def _clips(tmp_path: Path, *names: str) -> list[str]:
 def _write_playlist(path: Path, lines: list[str]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("".join(f"{line}\n" for line in lines), encoding="utf-8")
+
+
+def _never_came_home(
+    tmp_path: Path, *, own: list[str], showing: str, hosted: list[str],
+) -> SatelliteChannel:
+    """The portrait player as a session quit in origenerator mode leaves it: its
+    own list kept aside the way entering that mode keeps it, the hosted app's
+    list in its playlist file."""
+    channel = SatelliteChannel(
+        cmd_file=tmp_path / "portrait_cmd.txt",
+        paused_file=tmp_path / "portrait_paused.txt",
+        status_file=tmp_path / "portrait_status.txt",
+        playlist_file=tmp_path / "portrait_playlist.tsv",
+        sources="",
+    )
+    _write_playlist(channel.playlist_file, own)
+    channel.status_file.write_text(f"video={showing}\n", encoding="utf-8")
+    keep_aside(channel)
+    _write_playlist(channel.playlist_file, hosted)
+    return channel
 
 
 class TestResumePlaylists:
@@ -113,6 +135,32 @@ class TestResumePlaylists:
         assert resume_playlists([(playlist, b)]) is True
 
         assert playlist.read_text(encoding="utf-8").splitlines() == [b, a]
+
+    def test_opens_a_player_that_never_came_home_on_its_own_list(self, tmp_path: Path):
+        """A session quit while the hosted Origenerator had the player leaves that
+        app's pictures in the playlist file and the player's own list kept aside.
+        Every room is built in video mode, so its own list is what it opens on —
+        at the clip it was showing when it left."""
+        a, b, picture = _clips(tmp_path, "a.mp4", "b.mp4", "picture.png")
+        channel = _never_came_home(tmp_path, own=[a, b], showing=b, hosted=[picture])
+
+        assert resume_playlists([(channel.playlist_file, picture)]) is True
+
+        assert channel.playlist_file.read_text(encoding="utf-8").splitlines() == [b, a]
+
+    def test_spends_a_kept_list_even_when_there_is_nothing_to_resume(self, tmp_path: Path):
+        """The caller then rebuilds every playlist, and a kept list that outlived
+        the rebuild would be dealt over it the next time that player came home."""
+        a, picture = _clips(tmp_path, "a.mp4", "picture.png")
+        channel = _never_came_home(tmp_path, own=[a], showing=a, hosted=[picture])
+
+        resumed = resume_playlists([
+            (tmp_path / "main_player_playlist.tsv", ""),
+            (channel.playlist_file, picture),
+        ])
+
+        assert resumed is False
+        assert hand_back(channel) is False
 
 
 class TestResumeSharedState:

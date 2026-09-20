@@ -44,9 +44,9 @@ def let_go_since(channel: SatelliteChannel, stamp: PanelStamp) -> bool:
         return False
 
 
-def _kept(channel: SatelliteChannel) -> Path:
-    """Where *channel*'s own list waits while the hosted app has the player."""
-    return channel.playlist_file.with_name(f"{channel.playlist_file.stem}.kept.tsv")
+def _kept(playlist_file: Path) -> Path:
+    """Where a player's own list waits while the hosted app has the player."""
+    return playlist_file.with_name(f"{playlist_file.stem}.kept.tsv")
 
 
 def keep_aside(channel: SatelliteChannel) -> None:
@@ -55,26 +55,33 @@ def keep_aside(channel: SatelliteChannel) -> None:
     A player already holding a kept list never came home, and the list it
     has now is the hosted app's, not the session's.
     """
-    if _kept(channel).exists():
+    kept = _kept(channel.playlist_file)
+    if kept.exists():
         return
     entries = read_playlist(channel.playlist_file)
     if not entries:
         return
     video = read_satellite_status(channel.status_file).video
-    write_playlist(_kept(channel), rotated_onto(entries, video))
+    write_playlist(kept, rotated_onto(entries, video))
 
 
-def hand_back(channel: SatelliteChannel) -> bool:
-    """Give *channel*'s player its own list again; ``False`` with none kept.
+def take_back_the_list(playlist_file: Path) -> bool:
+    """Put the list kept aside for *playlist_file* back in it; ``False`` with none kept.
 
     The kept list is spent by it: a stale one would be dealt over whatever the
     session has built for that player since.
     """
-    kept = _kept(channel)
+    kept = _kept(playlist_file)
     entries = read_playlist(kept)
     if not entries:
         return False
-    write_playlist(channel.playlist_file, entries)
-    append_command(channel.cmd_file, RELOAD_PLAYLIST)
+    write_playlist(playlist_file, entries)
     kept.unlink(missing_ok=True)
+    return True
+
+
+def hand_back(channel: SatelliteChannel) -> bool:
+    if not take_back_the_list(channel.playlist_file):
+        return False
+    append_command(channel.cmd_file, RELOAD_PLAYLIST)
     return True
