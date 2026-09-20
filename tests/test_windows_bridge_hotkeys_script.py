@@ -3,7 +3,7 @@ one chord that ends a session."""
 from __future__ import annotations
 
 from fun_time.overlay_progress import CANCEL_FILENAME
-from tests.ahk_script import function_source, script_text
+from tests.ahk_script import function_code, function_source, script_text
 
 
 def _suspend_exempt_block() -> str:
@@ -70,13 +70,15 @@ def test_the_letter_hotkeys_yield_while_origenerator_has_the_keyboard():
     exempt trio (quit and the omnipause pair), which are session gestures
     wherever the focus sits and must stay above the gate."""
     text = script_text()
-    gate = text.index("#HotIf !OrigeneratorHasKeyboard()")
+    gate = text.index("#HotIf !OrigeneratorHasKeyboard\n")
     gate_close = text.index("#HotIf", gate + 1)
-    # Exact-title matching, never the script's substring mode: "Origenerator"
-    # appears in plenty of other window titles (an Explorer at the checkout, a
-    # terminal on a branch), and a substring match killed every hotkey while
-    # one of those was focused.
-    assert 'WinGetTitle("A") = "Origenerator"' in text
+    # Exact-title matching, never a title that merely contains the name:
+    # "Origenerator" appears in plenty of other window titles (an Explorer at
+    # the checkout, a terminal on a branch), and a substring match killed every
+    # hotkey while one of those was focused.
+    watch = function_code("WatchWhoHasTheKeyboard")
+    assert '= "Origenerator")' in watch
+    assert "InStr(" not in watch
     for exempt in ("^!q::", "Esc::QueueCommand", "+Esc::QueueCommand"):
         assert text.index(exempt) < gate, exempt
     for gated in ('x::QueueCommand("satellites_toggle")',
@@ -87,15 +89,69 @@ def test_the_letter_hotkeys_yield_while_origenerator_has_the_keyboard():
         assert gate < position < gate_close, gated
 
 
+class TestTheGateIsAFlagNotAQuestion:
+    """AutoHotkey evaluates a ``#HotIf`` expression on the script's main thread
+    while the keyboard hook HOLDS the key, and that hook sees every key pressed
+    anywhere on the machine -- not only the session's.  So a gate that asks
+    Windows anything delays the user's typing in whatever app he is in, which
+    from his chair is a dead keyboard.  A timer does the asking; the gate reads
+    what it wrote."""
+
+    def test_the_gate_reads_a_flag_rather_than_asking_windows(self):
+        text = script_text()
+        gate = text[text.index("#HotIf !OrigeneratorHasKeyboard"):]
+
+        assert gate[:gate.index("\n")] == "#HotIf !OrigeneratorHasKeyboard", (
+            "the gate calls something, so the hook holds each key for an answer"
+        )
+
+    def test_a_timer_keeps_the_flag_fresh(self):
+        """Nothing else writes it, so a missing timer gates the letters off --
+        or on -- for the whole session.  The interval is how long the answer may
+        be wrong, and wrong one way his typing in Origenerator runs as session
+        commands: w throws away the clip on the landscape side."""
+        text = script_text()
+        assert "SetTimer(WatchWhoHasTheKeyboard, " in text, "nothing refreshes the flag"
+
+        started = text.index("SetTimer(WatchWhoHasTheKeyboard, ")
+        interval = int(text[started:text.index(")", started)].rsplit(",", 1)[1])
+
+        assert interval <= 100, (
+            f"{interval}ms is longer than it takes him to start typing after switching windows"
+        )
+
+    def test_the_flag_is_written_before_the_first_hotkey_line(self):
+        """The auto-execute section ends at the first hotkey, so an assignment
+        below that never runs -- and a ``#HotIf`` reading an unset variable
+        throws, with no call site to catch it, putting AutoHotkey's own error
+        dialog on the screen once per key pressed."""
+        text = script_text()
+
+        assert text.index("OrigeneratorHasKeyboard := false") < text.index("^!q::EndSession()")
+
+    def test_the_refresher_never_waits_on_the_window_it_reads(self):
+        """It runs on the same thread that answers the gate, so a call that
+        waits for another app to reply would stall every keystroke exactly as
+        the question it replaced did.  Windows documents ``GetWindowTextW`` as
+        handing back the caption it already holds for another process's window,
+        asking that process nothing; AutoHotkey's window functions make no such
+        promise."""
+        watch = function_code("WatchWhoHasTheKeyboard")
+
+        assert "GetWindowTextW" in watch
+        for waits in ("WinGetTitle", "WinGetText", "WinWait", "SendMessage"):
+            assert waits not in watch, f"{waits} can wait on the app that is focused"
+
+
 def test_the_region_shows_do_not_gate_the_hotkeys():
     """The arrows and WASD drive the portrait and landscape regions by SIDE,
     exactly as they drive the players — wherever the focus sits, a show's
     included.  A show has no text field, so only the main window (the typing
     app) may take the keyboard away; gating on the show captions left a
     focused slideshow answering its own arrows instead of the side's."""
-    gate = function_source("OrigeneratorHasKeyboard")
-    assert '"Origenerator Portrait"' not in gate
-    assert '"Origenerator Landscape"' not in gate
+    watch = function_code("WatchWhoHasTheKeyboard")
+    assert '"Origenerator Portrait"' not in watch
+    assert '"Origenerator Landscape"' not in watch
 
 
 def test_it_is_told_which_orchestrator_launched_it():

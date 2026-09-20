@@ -17,6 +17,17 @@ def script_text() -> str:
     return SCRIPT.read_text(encoding="utf-8")
 
 
+def function_code(name: str) -> str:
+    """One function's source with its comment lines dropped.
+
+    For assertions about what a function *does not* call: a comment naming the
+    call it is written against ("GetWindowTextW rather than WinGetTitle") would
+    otherwise read as the call itself, so the test fails on its own explanation.
+    """
+    lines = function_source(name).splitlines()
+    return "\n".join(line for line in lines if not line.lstrip().startswith(";"))
+
+
 def function_source(name: str) -> str:
     """One AHK function's whole definition, braces included.
 
