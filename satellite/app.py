@@ -9,14 +9,15 @@ scrubber and the volume chip — they and the picture take this loop's mouse eve
 
 A shell: the control logic it drives lives in satellite.session,
 satellite.runtime, satellite.pointer, satellite.volume and
-player_core.satellite_hud*.  See CLAUDE.md, "Standing rules", for why nothing
-here is unit-tested.
+player_core.satellite_hud*, and the loop itself runs against fakes for the
+window system and the video engine (tests/test_satellite_app_loop.py).
 """
 from __future__ import annotations
 
 import logging
 import os
 import threading
+from dataclasses import dataclass
 from pathlib import Path
 
 import pygame
@@ -82,7 +83,9 @@ def main(argv: list[str] | None = None) -> int:
     return _run(args, playlist)
 
 
-def _run(args, playlist: list[Path]) -> int:
+def _open_window(args) -> int:
+    """Put this satellite's borderless window on screen; return its HWND.  The
+    order here is the whole content of the function, and each step says why."""
     # Before the window exists, and before pygame.init(): SDL otherwise eats the
     # click that focuses this window, so every press on a control had to be made
     # twice.  The mechanism is written down in player_core.sdl_hints.
@@ -99,23 +102,41 @@ def _run(args, playlist: list[Path]) -> int:
     pygame.init()
     if args.x is not None and args.y is not None:
         os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
-    # Borderless, so the client area IS the slot: mpv paints into this window via
-    # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
-    # the portrait/landscape rect.
     icon = _load_icon_surface()
     if icon is not None:
         pygame.display.set_icon(icon)  # must precede set_mode to take effect
+    # Borderless, so the client area IS the slot: mpv paints into this window via
+    # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
+    # the portrait/landscape rect.
     pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
     # A distinct --title per satellite, so the sequencer can resolve each window
     # to its slot by title when the pid lookup fails; also its Alt-Tab name.
     pygame.display.set_caption(args.title)
-    clock = pygame.time.Clock()
-    wid = pygame.display.get_wm_info()["window"]
+    return pygame.display.get_wm_info()["window"]
 
+
+@dataclass(frozen=True)
+class _Runtime:
+    """Everything the frame loop drives, built once around the open window."""
+
+    player: MpvPlayer
+    session: SatelliteSession
+    pointer: Pointer
+    controls: SatelliteControls
+    stop_event: threading.Event
+    volume: SatelliteVolume
+    volume_painter: VolumeHudPainter
+    readout_painter: PlayheadHudPainter
+    paused_file: Path | None
+    command_file: Path | None
+    dashboard_cmd_file: Path | None
+    status_writer: StatusWriter | None
+    hud: HudOverlay | None
+
+
+def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
     paused_file: Path | None = args.paused_file
-    command_file: Path | None = args.command_file
     start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
-
     # loop_file=False so end-of-file advances the playlist; the lock toggles it on.
     # prefetch=True so mpv opens the next clip before the current ends and the
     # auto-advance is seamless instead of a cold on-screen reload.
@@ -123,7 +144,13 @@ def _run(args, playlist: list[Path]) -> int:
     player = MpvPlayer(wid, muted=True, loop_file=False, prefetch=True)
     session = SatelliteSession(playlist, player=player, start_paused=start_paused,
                                play_points=PlayPoints(args.play_points_file))
-    status_writer = StatusWriter(args.status_file, status_fields) if args.status_file else None
+    stop_event = threading.Event()
+
+    def _reload_playlist() -> None:
+        reloaded = resolve_playlist(args)
+        if reloaded:
+            session.replace_playlist(reloaded)
+
     # Composited into this window's video, so it needs no window of its own.
     hud = (
         HudOverlay(
@@ -132,77 +159,90 @@ def _run(args, playlist: list[Path]) -> int:
         if args.hud_file and args.dashboard_cmd_file
         else None
     )
-    # The scrubber and the volume chip, drawn from the shared engine and taking
-    # presses like the main player's: the bar seeks, the chip sets this player's own sound,
-    # and the picture asks fun_time to pause or resume the room.  Missing beside
-    # The main player's is only the heatmap, which needs a script a satellite's clips lack.
     volume = SatelliteVolume(player, live=not audio_muted(args))
-    volume_painter = VolumeHudPainter()
-    readout_painter = PlayheadHudPainter()
-    pointer = Pointer(session=session, volume=volume, hud=hud,
-                      dashboard_cmd_file=args.dashboard_cmd_file)
-    stop_event = threading.Event()
+    return _Runtime(
+        player=player,
+        session=session,
+        pointer=Pointer(session=session, volume=volume, hud=hud,
+                        dashboard_cmd_file=args.dashboard_cmd_file),
+        controls=SatelliteControls(
+            session=session, stop_event=stop_event, reload_playlist=_reload_playlist),
+        stop_event=stop_event,
+        volume=volume,
+        volume_painter=VolumeHudPainter(),
+        readout_painter=PlayheadHudPainter(),
+        paused_file=paused_file,
+        command_file=args.command_file,
+        dashboard_cmd_file=args.dashboard_cmd_file,
+        status_writer=StatusWriter(args.status_file, status_fields) if args.status_file else None,
+        hud=hud,
+    )
 
-    def _reload_playlist() -> None:
-        reloaded = resolve_playlist(args)
-        if reloaded:
-            session.replace_playlist(reloaded)
 
-    controls = SatelliteControls(
-        session=session, stop_event=stop_event, reload_playlist=_reload_playlist)
+def _take_events(runtime: _Runtime, win_w: int, win_h: int) -> None:
+    """This pass's window events.  No key here ends this player: the session ends
+    as a whole, through Ctrl+Alt+Q, which the bridge turns into the teardown that
+    takes these processes down with it (CLAUDE.md, "Standing rules").  The
+    window's own close is that same ask; see player_core.session_quit."""
+    for ev in pygame.event.get():
+        if ev.type == pygame.QUIT:
+            if quit_gesture(runtime.dashboard_cmd_file):
+                runtime.stop_event.set()
+        elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
+            runtime.pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
+        elif ev.type == pygame.MOUSEMOTION:
+            runtime.pointer.motion(*ev.pos, held=bool(ev.buttons[0]),
+                                   win_w=win_w, win_h=win_h)
 
-    while not stop_event.is_set():
+
+def _paint_overlays(runtime: _Runtime, win_w: int, win_h: int) -> None:
+    """The scrubber, the volume chip and the playhead pill over this frame."""
+    session, player = runtime.session, runtime.player
+    if session.showing_picture:
+        player.remove_overlay(_OV_SCRUBBER)
+    else:
+        scrubber = progress_bar_bgra(session.position_ms, session.duration_ms, None, win_w)
+        player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
+    vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
+    player.overlay(_OV_VOLUME, vx, vy, runtime.volume_painter.bgra(runtime.volume.hud))
+    readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)
+    if readout is None:
+        player.remove_overlay(_OV_READOUT)
+    else:
+        pill = runtime.readout_painter.bgra(readout)
+        player.overlay(_OV_READOUT, *readout_xy(
+            pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
+
+
+def _run(args, playlist: list[Path]) -> int:
+    runtime = _build_runtime(args, _open_window(args), playlist)
+    clock = pygame.time.Clock()
+    while not runtime.stop_event.is_set():
         # Before the events, which have to be placed against the window they
         # landed in; the sequencer can move this one between passes.
         win_w, win_h = pygame.display.get_window_size()
-        for ev in pygame.event.get():
-            # No key here ends this player: the session ends as a whole, through
-            # Ctrl+Alt+Q, which the bridge turns into the teardown that takes
-            # these processes down with it (CLAUDE.md, "Standing rules").  The
-            # window's own close is that same ask; see player_core.session_quit.
-            if ev.type == pygame.QUIT:
-                if quit_gesture(args.dashboard_cmd_file):
-                    stop_event.set()
-            elif ev.type == pygame.MOUSEBUTTONDOWN and ev.button == 1:
-                pointer.press(*ev.pos, win_w=win_w, win_h=win_h)
-            elif ev.type == pygame.MOUSEMOTION:
-                pointer.motion(*ev.pos, held=bool(ev.buttons[0]),
-                               win_w=win_w, win_h=win_h)
+        _take_events(runtime, win_w, win_h)
 
-        if paused_file is not None:
-            session.set_paused(read_paused_state(paused_file, logger=logger))
-        if command_file is not None:
-            for cmd in consume_command_file(command_file, logger=logger, uppercase=False):
-                apply_command(cmd, controls)
+        if runtime.paused_file is not None:
+            runtime.session.set_paused(read_paused_state(runtime.paused_file, logger=logger))
+        if runtime.command_file is not None:
+            for cmd in consume_command_file(runtime.command_file, logger=logger, uppercase=False):
+                apply_command(cmd, runtime.controls)
 
-        session.advance()
-        player.push_still()
-        if status_writer is not None:
-            status_writer.write(session)
-        if hud is not None:
+        runtime.session.advance()
+        runtime.player.push_still()
+        if runtime.status_writer is not None:
+            runtime.status_writer.write(runtime.session)
+        if runtime.hud is not None:
             # The clip on screen is the session's, not the published panel's — the
             # playlist walks on by itself between publishes — so the HUD is told what
             # is decoding, the same way the main player names its file from its own session.
-            hud.tick(video=session.name_on_screen, playback_speed=session.speed)
+            runtime.hud.tick(video=runtime.session.name_on_screen,
+                             playback_speed=runtime.session.speed)
 
-        if session.showing_picture:
-            player.remove_overlay(_OV_SCRUBBER)
-        else:
-            scrubber = progress_bar_bgra(
-                session.position_ms, session.duration_ms, None, win_w)
-            player.overlay(_OV_SCRUBBER, 0, win_h - scrubber.shape[0], scrubber)
-        vx, vy = chip_xy(win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT)
-        player.overlay(_OV_VOLUME, vx, vy, volume_painter.bgra(volume.hud))
-        readout = video_playhead(session.position_ms, session.duration_ms, player.frame_rate)
-        if readout is None:
-            player.remove_overlay(_OV_READOUT)
-        else:
-            pill = readout_painter.bgra(readout)
-            player.overlay(_OV_READOUT, *readout_xy(
-                pill.shape[1], win_w=win_w, win_h=win_h, timeline_h=TIMELINE_HEIGHT), pill)
-
+        _paint_overlays(runtime, win_w, win_h)
         clock.tick(60)
 
-    session.close()
+    runtime.session.close()
     pygame.quit()
     return 0
