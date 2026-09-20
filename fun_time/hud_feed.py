@@ -17,7 +17,7 @@ from .bridge_records import BridgeConfig
 from .command_dispatch import main_player_at_defaults, satellite_at_defaults
 from .hud_transport import HudPublisher, hosted_model
 from .lock_hud import SatelliteInputs, build_panels
-from .main_player_console import console_model
+from .main_player_console import MainSlotInputs, console_model
 from .media_renditions import renditions
 from .modes import is_favorite_path, read_favs_content, source_roots
 from .player_status import (
@@ -117,7 +117,7 @@ class HudFeed:
         # can see for itself.
         main_player = read_main_player_status(self.config.main_player_status_file)
         shapes_offered = bool(source_roots(self.config.vr_library_dirs))
-        self.publisher.publish_text("main_player", console_text(console_model(
+        self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(
             main_mode=state.main_mode,
             active=state.active_player == Player.MAIN,
             scripted_filter=state.main_scripted_filter,
@@ -136,7 +136,7 @@ class HudFeed:
             genau=read_genau_status(self.config.genau_status_file),
             genau_pace_s=self._genau_pace_s(),
             nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
-        )))
+        ))))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:
         """The hosted app's panel for *player*'s side, or None; one it is
