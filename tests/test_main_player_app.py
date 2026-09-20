@@ -232,6 +232,16 @@ class TestWhatABlankedFrameStillDoes:
 
         assert skip < paint
 
+    def test_the_creep_into_a_picture_is_skipped_with_the_painting(self):
+        """The push into a still is picture, not playback: skipped with the
+        rest of what nobody can see, and back where it belongs the moment the
+        slot returns, since the creep is paced by a clock that ran on through."""
+        run = _run_body()
+        loop = next(n for n in ast.walk(run) if isinstance(n, ast.While))
+        _write, skip, _paint = _run_loop_lines()
+
+        assert skip < _call(loop, "player.push_still").lineno
+
 
 class TestWhenSomethingCosmeticFails:
     """Two things the main player does on the way in are decoration -- its window icon and

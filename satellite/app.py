@@ -176,6 +176,7 @@ def _run(args, playlist: list[Path]) -> int:
                 apply_command(cmd, controls)
 
         session.advance()
+        player.push_still()
         if status_writer is not None:
             status_writer.write(session)
         if hud is not None:

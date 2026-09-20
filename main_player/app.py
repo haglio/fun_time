@@ -309,6 +309,7 @@ def _run(args) -> int:
             clock.tick(60)
             continue
 
+        player.push_still()
         painter.paint(win_w, win_h, hover=pointer.hover)
 
         clock.tick(60)

@@ -747,6 +747,7 @@ class _SatelliteUnit(_VideoUnit):
         for command in consume_command_file(self.cmd_file, logger=logger, uppercase=False):
             apply_satellite_command(command, self._controls)
         self.session.advance()
+        self.player.push_still()
         self._status_writer.write(self.session)
         self.hud.tick(video=self.session.current_video.stem, playback_speed=self.session.speed)
         for event in self._presses.drain():
