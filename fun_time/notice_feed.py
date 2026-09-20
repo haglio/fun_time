@@ -12,8 +12,8 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fun_time.config import LayoutConfig
-from fun_time.event_log import EVENT_LOG_FILENAME, read_events
-from fun_time.notice_overlay import PlayerRects, is_announcement, notice_target_rect
+from fun_time.event_log import EVENT_LOG_FILENAME, is_announcement, read_events
+from fun_time.notice_placement import PlayerRects, notice_target_rect
 from fun_time.overlay_progress import loading_cover_is_up
 from fun_time.window_layout import compute_main_media_rect, screen_layout
 
