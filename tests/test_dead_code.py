@@ -63,7 +63,13 @@ def test_no_constructor_parameter_is_stored_and_never_read():
 
 
 def test_no_dataclass_field_goes_unread():
-    unread.assert_no_dataclass_field_goes_unread(ROOT, SCANNED)
+    # CommandFiles.player_file asks for a side's file by kind, so the two the
+    # satellites' channels now take that way are read by getattr rather than by
+    # name. Their four neighbours escape this only because other modules happen
+    # to spell them out.
+    unread.assert_no_dataclass_field_goes_unread(
+        ROOT, SCANNED,
+        allowing=("CommandFiles.portrait_hud_file", "CommandFiles.landscape_hud_file"))
 
 
 def test_every_declared_command_line_option_is_read():
@@ -223,7 +229,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # docs/resuming-a-session.md and their own test names: eleven docstrings and two
 # comment blocks said what a named test already asserts, and the four flags a
 # resumed session re-asserts are written down in one place rather than two.
-MAX_PROSE_LINES = 7828
+# 7827 the same day: what a satellite is launched with is one record rather than
+# three declarations, so the paragraphs telling each reader about the other two
+# are the record's name.
+MAX_PROSE_LINES = 7827
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

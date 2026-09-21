@@ -83,6 +83,7 @@ from fun_time.session_handoff import (
 )
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from main_player.play_points import PlayPoints, play_points_filename
+from satellite.contract import SatelliteChannels
 from satellite.hud_overlay import HudOverlay
 from satellite.pointer import OMNIPAUSE_TOGGLE
 from satellite.runtime import SatelliteControls
@@ -682,24 +683,27 @@ class _SatelliteUnit(_VideoUnit):
         commands = manifest.commands
         self.screen_name = player  # its notices flash over its own picture
         self._notices = notices
-        self.cmd_file = Path(commands.player_file(player, "cmd"))
-        self.paused_file = Path(commands.player_file(player, "paused"))
-        self.playlist_file = Path(commands.player_file(player, "playlist"))
+        # What a launched satellite is given on its command line, read out of
+        # the manifest instead: this one runs in the headset's own process.
+        channels = SatelliteChannels.from_manifest(
+            commands, player,
+            play_points=Path(commands.state_dir) / play_points_filename(player))
+        self.cmd_file = channels.command
+        self.paused_file = channels.paused
+        self.playlist_file = channels.playlist
         self.session = SatelliteSession(
             self._read_playlist(),
             player=self.player,
             start_paused=read_paused_state(self.paused_file, logger=logger),
-            play_points=PlayPoints(Path(commands.state_dir) / play_points_filename(player)),
+            play_points=PlayPoints(channels.play_points),
         )
-        self._status_writer = StatusWriter(
-            Path(commands.player_file(player, "status")), satellite_status_fields
-        )
+        self._status_writer = StatusWriter(channels.status, satellite_status_fields)
         self._controls = SatelliteControls(
             session=self.session, reload_playlist=self._reload_playlist)
         self.hud_surface = HudSurface()
         self.hud = HudOverlay(
-            hud_file=Path(commands.player_file(player, "hud")),
-            command_file=Path(commands.dashboard_cmd_file),
+            hud_file=channels.hud,
+            command_file=channels.dashboard_cmd,
             player=self.hud_surface,
         )
         self.hud_texture = FrameTexture()
@@ -710,7 +714,7 @@ class _SatelliteUnit(_VideoUnit):
         self._audio_device = vr.audio_device.strip()
         self._audio_routed = False
         self._presses = _Presses(player, hud_screen_name(player))
-        self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
+        self._dashboard_cmd_file = channels.dashboard_cmd
         self._pointer = SatellitePointer(
             hud=self.hud, seek=self.session.seek_to,
             duration_ms=lambda: self.session.duration_ms,

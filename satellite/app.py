@@ -35,6 +35,7 @@ from player_core.volume import VolumeHudPainter, chip_xy
 from main_player.play_points import PlayPoints
 
 from .cli import audio_muted, build_parser, resolve_playlist
+from .contract import SatelliteChannels, WindowPlacement
 from .hud_overlay import HudOverlay
 from .pointer import Pointer
 from .runtime import SatelliteControls, apply_command
@@ -102,24 +103,26 @@ def _open_window(args) -> int:
     # window is created, and a satellite that claims none is filed under whatever
     # the shared interpreter's path is registered to — some unrelated program,
     # wearing its icon.  Cosmetic, so a refusal never costs the player its start.
-    if args.taskbar_identity:
+    placement = WindowPlacement.from_args(args)
+    if placement.taskbar_identity:
         try:
-            set_app_user_model_id(args.taskbar_identity)
+            set_app_user_model_id(placement.taskbar_identity)
         except OSError:
-            logger.info("Could not take the taskbar identity %s", args.taskbar_identity)
+            logger.info("Could not take the taskbar identity %s",
+                        placement.taskbar_identity)
     pygame.init()
-    if args.x is not None and args.y is not None:
-        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{args.x},{args.y}"
+    if placement.x is not None and placement.y is not None:
+        os.environ["SDL_VIDEO_WINDOW_POS"] = f"{placement.x},{placement.y}"
     icon = _load_icon_surface()
     if icon is not None:
         pygame.display.set_icon(icon)  # must precede set_mode to take effect
     # Borderless, so the client area IS the slot: mpv paints into this window via
     # its HWND (the pygame surface is never blitted) and the sequencer sizes it to
     # the portrait/landscape rect.
-    pygame.display.set_mode((args.width, args.height), pygame.NOFRAME)
+    pygame.display.set_mode((placement.width, placement.height), pygame.NOFRAME)
     # A distinct --title per satellite, so the sequencer can resolve each window
     # to its slot by title when the pid lookup fails; also its Alt-Tab name.
-    pygame.display.set_caption(args.title)
+    pygame.display.set_caption(placement.title)
     return pygame.display.get_wm_info()["window"]
 
 
@@ -143,7 +146,8 @@ class _Runtime:
 
 
 def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
-    paused_file: Path | None = args.paused_file
+    channels = SatelliteChannels.from_args(args)
+    paused_file = channels.paused
     start_paused = paused_file is not None and read_paused_state(paused_file, logger=logger)
     # loop_file=False so end-of-file advances the playlist; the lock toggles it on.
     # prefetch=True so mpv opens the next clip before the current ends and the
@@ -151,7 +155,7 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
     # muted=True: a satellite is heard only once its chip is asked (satellite.volume).
     player = MpvPlayer(wid, muted=True, loop_file=False, prefetch=True)
     session = SatelliteSession(playlist, player=player, start_paused=start_paused,
-                               play_points=PlayPoints(args.play_points_file))
+                               play_points=PlayPoints(channels.play_points))
     stop_event = threading.Event()
 
     def _reload_playlist() -> None:
@@ -162,9 +166,9 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
     # Composited into this window's video, so it needs no window of its own.
     hud = (
         HudOverlay(
-            hud_file=args.hud_file, command_file=args.dashboard_cmd_file, player=player,
+            hud_file=channels.hud, command_file=channels.dashboard_cmd, player=player,
         )
-        if args.hud_file and args.dashboard_cmd_file
+        if channels.hud and channels.dashboard_cmd
         else None
     )
     volume = SatelliteVolume(player, live=not audio_muted(args))
@@ -172,7 +176,7 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
         player=player,
         session=session,
         pointer=Pointer(session=session, volume=volume, hud=hud,
-                        dashboard_cmd_file=args.dashboard_cmd_file),
+                        dashboard_cmd_file=channels.dashboard_cmd),
         controls=SatelliteControls(
             session=session, stop_event=stop_event, reload_playlist=_reload_playlist),
         stop_event=stop_event,
@@ -180,9 +184,10 @@ def _build_runtime(args, wid: int, playlist: list[Path]) -> _Runtime:
         volume_painter=VolumeHudPainter(),
         readout_painter=PlayheadHudPainter(),
         paused_file=paused_file,
-        command_file=args.command_file,
-        dashboard_cmd_file=args.dashboard_cmd_file,
-        status_writer=StatusWriter(args.status_file, status_fields) if args.status_file else None,
+        command_file=channels.command,
+        dashboard_cmd_file=channels.dashboard_cmd,
+        status_writer=(StatusWriter(channels.status, status_fields)
+                       if channels.status else None),
         hud=hud,
     )
 

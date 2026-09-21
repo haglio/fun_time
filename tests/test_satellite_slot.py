@@ -8,18 +8,20 @@ import pytest
 from fun_time.players import Player
 from fun_time.satellite_slot import SatelliteSlot, for_player
 from fun_time.window_layout import WindowRect
+from satellite.contract import SatelliteChannels
 
 
 def _slot(player: Player, tmp_path: Path) -> SatelliteSlot:
     return SatelliteSlot(
         player=player,
         sources=str(tmp_path / player.label),
-        cmd_file=tmp_path / f"{player.label}_cmd.txt",
-        paused_file=tmp_path / f"{player.label}_paused.txt",
-        status_file=tmp_path / f"{player.label}_status.txt",
-        play_points_file="points.json",
+        channels=SatelliteChannels(
+            playlist=tmp_path / f"{player.label}_playlist.tsv",
+            command=tmp_path / f"{player.label}_cmd.txt",
+            paused=tmp_path / f"{player.label}_paused.txt",
+            status=tmp_path / f"{player.label}_status.txt",
+            play_points=Path("points.json")),
         log_file=tmp_path / f"{player.label}.log",
-        playlist_file=tmp_path / f"{player.label}_playlist.tsv",
         rect=WindowRect(x=0, y=0, width=100, height=100),
     )
 

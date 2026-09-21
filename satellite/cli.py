@@ -1,10 +1,9 @@
 """Argument parsing and playlist resolution for a satellite player — no pygame.
 
-Kept apart from the run loop so the orchestrator-facing surface (the file
-quartet fun_time hands each satellite, the window geometry) is importable and
-testable without an SDL display, exactly as the main player's own CLI is.  A satellite always
-receives an explicit ``--playlist`` from fun_time, so there is no library
-discovery or version grouping here — just read the list.
+Kept apart from the run loop so what fun_time hands each satellite
+(:mod:`satellite.contract`) is importable and testable without an SDL display,
+exactly as the main player's own CLI is.  A satellite is always given an
+explicit ``--playlist``, so there is no library discovery here.
 """
 from __future__ import annotations
 
