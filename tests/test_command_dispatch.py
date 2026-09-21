@@ -3271,7 +3271,9 @@ def test_marking_clips_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_pa
     assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "TRASH", "LOCK_ON"]
     assert state.satellite(Player.PORTRAIT).locked is True
     assert state.satellite(Player.PORTRAIT).loop == ""
-    assert ("notice", "Locked", "portrait") in [(op.op, op.key, op.source) for op in ops]
+    # Plain, not the favorites' green: nothing was starred, nothing was pressed.
+    assert [(op.op, op.key, op.source, op.level) for op in ops
+            if op.key == "Locked"] == [("notice", "Locked", "portrait", NOTICE)]
 
 
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
