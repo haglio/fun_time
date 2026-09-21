@@ -25,10 +25,22 @@ in either orchestrator:
 | Each satellite's lock | yes, re-queued on its command file |
 | F-mode per player, each side's filter, browse order, group loops, map anchors | yes, via `resume_shared_state` |
 | Sound level and mute | yes |
-| The main slot's mode (video / Genau) and the satellites' (video / Origenerator) | yes |
+| The main slot's mode (video / Genau) | yes |
 | The main player's clip | yes, when the arriving session can play it |
 | The main player's A/B loop | only when the clip carried and the arriving app has A/B loops |
+| Every player's playback rate | yes, re-queued on its command file — a crossing only |
+| The main player's hold on the video it is playing | yes, same |
+| Genau's speed, amplitude, center, shape, clip seconds, cruise, learned motion and hold | yes, same |
+| The satellites' mode (video / Origenerator) | no — every room opens in video mode |
 | OmniPause | no — a session never opens paused |
+
+The three marked "a crossing only" are carried by a session that is crossing and
+by no other, which is what `--crossing` on the arriving orchestrator's command
+line says: the relay is the only thing that starts a session carrying on from one
+that just ended, so an ordinary launch opens every player where a fresh one opens
+(`SessionEnvironment.crossing`, and `session_resume.resume_rates` with the two
+beside it). Everything else in the table is carried by any reopen
+([resuming-a-session.md](resuming-a-session.md)).
 
 The main player is the one that needed work, and it is why this note exists.
 Each app refuses the other's main playlist: the desktop must never put a

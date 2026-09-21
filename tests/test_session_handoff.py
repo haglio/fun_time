@@ -336,11 +336,20 @@ class TestStartingTheIncomingSession:
                 state_dir=tmp_path, config_path=tmp_path / "branch.json",
             )
         command = popen.call_args.args[0]
-        assert command == [
+        assert command[:5] == [
             "py.exe", "-m", "fun_time_vr.orchestrator",
             "--config", str(tmp_path / "branch.json"),
         ]
         assert popen.call_args.kwargs["cwd"] == str(tmp_path / "worktree")
+
+    def test_the_session_it_starts_knows_it_carries_on_a_crossing(self, tmp_path: Path):
+        with patch.object(session_handoff.subprocess, "Popen") as popen:
+            start_the_session(
+                VR, python_exe="py.exe", project_dir=tmp_path,
+                state_dir=tmp_path, config_path=tmp_path / "c.json",
+            )
+
+        assert "--crossing" in popen.call_args.args[0]
 
 
     def test_a_way_back_starts_the_session_offering_no_esc(self, tmp_path: Path):

@@ -60,6 +60,7 @@ from .session_resume import (
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
+    resume_what_lives_in_a_player,
 )
 from .shared_state import shared_state_path
 from .win32_taskbar import APP_USER_MODEL_ID
@@ -399,6 +400,7 @@ def start_core_session(
     dashboard_cmd_file: str | Path | None = None,
     regen_metadata_root: Path | None = None,
     project_dirs: str | None = None,
+    crossing: bool = False,
 ) -> str:
     """Launch the session's media stack, returning the mode its main slot
     opens in — which the caller needs because parking the main player/Genau pair to match
@@ -429,14 +431,14 @@ def start_core_session(
     # where videos added since come in.
     main_player_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_PLAYER)
     main_player_status = read_main_player_status(Path(main_player_status_file))
+    portrait_status = read_satellite_status(Path(portrait.channels.status))
+    landscape_status = read_satellite_status(Path(landscape.channels.status))
     for slot in (portrait, landscape):
         if take_back_the_list(Path(slot.channels.playlist)):
             logger.info("Took %s's own clips back from the hosted app", slot.player.label)
     resumed = resume_playlists([
-        (Path(portrait.channels.playlist),
-         read_satellite_status(Path(portrait.channels.status)).video),
-        (Path(landscape.channels.playlist),
-         read_satellite_status(Path(landscape.channels.status)).video),
+        (Path(portrait.channels.playlist), portrait_status.video),
+        (Path(landscape.channels.playlist), landscape_status.video),
         (main_player_playlist, main_player_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
@@ -499,6 +501,13 @@ def start_core_session(
         Path(main_player_cmd_file),
         main_player_status.loop_bounds if playlist_opens_on(main_player_playlist, main_player_status.video) else None,
     )
+    if crossing:
+        resume_what_lives_in_a_player(
+            main_player=(Path(main_player_cmd_file), main_player_status),
+            satellites=[(Path(portrait.channels.command), portrait_status),
+                        (Path(landscape.channels.command), landscape_status)],
+            genau_cmd_file=Path(genau_cmd_file), state_dir=state_path,
+        )
     launch_core_apps(
         python_exe=satellite_python_exe,
         satellite_module=satellite_module,

@@ -352,7 +352,7 @@ def start_the_session(
     # Named as launch.vbs names it: a session entered by voice is as findable
     # in the task list as one entered by clicking.
     named = NAMER.named_exe(python_exe, "Orchestrator")
-    command = [named, "-m", target.module, "--config", str(config_path)]
+    command = [named, "-m", target.module, "--config", str(config_path), "--crossing"]
     if not cancelable:
         command.append("--no-cancel")
     with open_child_log(Path(state_dir) / target.launcher_log, command) as log:
