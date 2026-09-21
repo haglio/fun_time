@@ -17,7 +17,8 @@ from player_core.modes import MainMode
 from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
-from fun_time.event_log import EventLogHandler, event_log_path, read_events
+from fun_time.event_log import EventLogHandler, event_log_path, open_event_log, read_events
+from fun_time.loading_cover import open_the_cover
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -43,7 +44,6 @@ from fun_time.session_handoff import (
     DESKTOP,
     VR,
     crossing_progress_path,
-    drop_crossing_cover,
     headset_hold_asked,
     hold_the_headset,
     keep_the_origenerator,
@@ -51,7 +51,6 @@ from fun_time.session_handoff import (
     pending_handoff,
     raise_crossing_cover,
     request_handoff,
-    returning_from_a_crossing,
     take_handoff_request,
 )
 from fun_time.shared_state import BridgeState, shared_state_path
@@ -67,20 +66,36 @@ from fun_time.windows_bridge_orchestrator import (
     _close_origenerator_gracefully,
     _fix_post_loading_windows,
     _log_window_obstruction,
-    _open_the_cover,
     _shutdown_children,
     add_dispatch_file_handler,
     clear_last_sessions_leftovers,
     identify_children,
     kill_process_tree,
     kill_recorded_child,
-    open_event_log,
     run_session,
     silence_the_players,
     write_pids_file,
 )
 from fun_time.windows_bridge_sequencer import StartupResult
 from tests.sleeps import sleeps_in
+
+
+def _a_session(**kwargs) -> int:
+    """A session the way a launch runs one: under a cover raised before it.
+
+    The cover goes up in :mod:`fun_time.orchestrator`, before the checks and the
+    imports that used to run over a bare desktop, and is handed to the session
+    already standing -- so a test that opened one inside ``run_session`` would be
+    driving a shape nothing launches.
+    """
+    env = kwargs.get("env", ORDINARY_SESSION)
+    cover = open_the_cover(
+        Path(kwargs["state_dir"]),
+        show_overlays=env.show_overlays,
+        project_dirs=LaunchManifest.read(kwargs["manifest_path"]).runtime.genau_project_dirs,
+        cancelable=kwargs.pop("cancelable", True),
+    )
+    return run_session(cover=cover, **kwargs)
 
 
 def _fake_startup_result() -> StartupResult:
@@ -631,7 +646,7 @@ class TestHotkeySuspendDuringIntegration:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -691,7 +706,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.get_process_creation_time", side_effect=lambda pid: pid * 10), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree", side_effect=fake_kill_tree):
 
-            code = run_session(
+            code = _a_session(
                 manifest_path=manifest_path,
                 ahk_exe=str(tmp_path / "ahk.exe"),
                 hotkey_script=str(tmp_path / "hotkeys.ahk"),
@@ -727,7 +742,7 @@ class TestRunPythonOrchestratedBridge:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                    side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(MagicMock(), primed)) as start_priming,              patch.object(primed, "wait", return_value=True) as mock_wait:
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -750,7 +765,7 @@ class TestRunPythonOrchestratedBridge:
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
                    side_effect=lambda **kwargs: _fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_proc),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"),              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, primed)),              patch.object(primed, "wait") as mock_wait:
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -776,7 +791,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner, \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -807,7 +822,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback") as mock_serve:
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -838,7 +853,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.serve_loopback", return_value=server):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             )
@@ -864,7 +879,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.serve_loopback",
                    side_effect=OSError("port busy")):
 
-            assert run_session(
+            assert _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
             ) == 0
@@ -895,7 +910,7 @@ class TestRunPythonOrchestratedBridge:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="C:\\ahk.exe",
                 hotkey_script="C:\\hotkeys.ahk",
@@ -944,7 +959,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -974,7 +989,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1010,7 +1025,7 @@ class TestLoadingScreenLifecycle:
 
         with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence", return_value=_fake_startup_result()),              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen),              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1039,7 +1054,7 @@ class TestLoadingScreenLifecycle:
                    return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1068,7 +1083,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1104,7 +1119,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1136,7 +1151,7 @@ class TestLoadingScreenLifecycle:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as runner, \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -1401,7 +1416,7 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
          patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                side_effect=lambda pid: events.append(f"kill:{pid}")):
 
-        run_session(
+        _a_session(
             manifest_path=manifest_path,
             ahk_exe="ahk.exe",
             hotkey_script="hotkeys.ahk",
@@ -1708,7 +1723,7 @@ def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None
                return_value=0), \
          patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
          patch("fun_time.windows_bridge_orchestrator.close_window"):
-        run_session(
+        _a_session(
             manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
             state_dir=state_dir, project_dir=tmp_path,
         )
@@ -1751,7 +1766,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.close_window", side_effect=closed.append), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = run_session(
+            code = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1876,7 +1891,7 @@ class TestStartupCancellation:
                    return_value=(None, threading.Event())) as mock_priming, \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner") as mock_runner:
 
-            code = run_session(
+            code = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1918,7 +1933,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.start_hud_priming",
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -1949,7 +1964,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner",
                    side_effect=TypeError("a caller the last refactor missed")), \
              pytest.raises(TypeError):
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
                 env=SessionEnvironment(integration=True, show_overlays=False),
@@ -1990,7 +2005,7 @@ class TestStartupCancellation:
                    return_value=(None, threading.Event())), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
 
-            code = run_session(
+            code = _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
             )
@@ -2020,7 +2035,7 @@ class TestStartupCancellation:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", return_value=fake_ahk_proc), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"), \
              patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"):
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=tmp_path / "state", project_dir=tmp_path,
                 env=SessionEnvironment(integration=True, show_overlays=False),
@@ -2113,7 +2128,7 @@ class TestHotkeyScriptGoesUpFirst:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2144,7 +2159,7 @@ class TestHotkeyScriptGoesUpFirst:
              patch("fun_time.windows_bridge_orchestrator.subprocess.Popen", side_effect=fake_popen), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2225,7 +2240,7 @@ class TestPostLoadingWindowState:
              patch("fun_time.windows_bridge_orchestrator.iter_zorder", return_value=[]), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title", side_effect=lambda title, **kw: title_to_hwnd.get(title, 0)):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2337,7 +2352,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController", return_value=mock_vc):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2371,7 +2386,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class, \
              caplog.at_level(logging.DEBUG, logger="fun_time.windows_bridge_orchestrator"):
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2407,7 +2422,7 @@ class TestVoiceControlIntegration:
              patch("fun_time.windows_bridge_orchestrator.why_unavailable", return_value=""), \
              patch("fun_time.windows_bridge_orchestrator.VoiceController") as mock_vc_class:
 
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2598,7 +2613,7 @@ class TestThePlayersStartWhenTheCoverIsGone:
              patch("fun_time.windows_bridge_orchestrator.release_the_players",
                    side_effect=lambda *_a: events.append("players released")), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
-            run_session(
+            _a_session(
                 manifest_path=manifest_path,
                 ahk_exe="ahk.exe",
                 hotkey_script="hotkeys.ahk",
@@ -2662,7 +2677,7 @@ class TestTheSessionEndsOnItsMarker:
              patch("fun_time.windows_bridge_orchestrator.close_window"), \
              patch("fun_time.windows_bridge_orchestrator.kill_process_tree",
                    side_effect=lambda pid: events.append(f"kill:{pid}")):
-            run_session(
+            _a_session(
                 manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
                 state_dir=state_dir, project_dir=tmp_path,
                 env=SessionEnvironment(integration=True, show_overlays=False),
@@ -2671,79 +2686,6 @@ class TestTheSessionEndsOnItsMarker:
         assert not Hotkeys.waited_on_while_running, "the orchestrator waited for the script to exit"
         assert "kill:300" in events
         assert told_to_exit()
-
-
-class TestWhatEscCancelsAtTheLoadingScreen:
-    @staticmethod
-    def _opened_cover(state_dir, *, cancelable=True):
-        with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
-             patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
-                   return_value=0):
-            return _open_the_cover(state_dir, show_overlays=True, project_dirs="",
-                                   cancelable=cancelable)
-
-    @classmethod
-    def _opened_line(cls, state_dir, *, cancelable=True):
-        cover = cls._opened_cover(state_dir, cancelable=cancelable)
-        cover.progress.advance("services")
-        return parse_progress(cover.progress_file.read_text(encoding="utf-8"))
-
-    def test_a_launch_says_esc_cancels_opening_fun_time(self, tmp_path):
-        assert self._opened_line(tmp_path).hint == "Press Esc to cancel opening Fun Time"
-
-    def test_a_launch_arriving_from_vr_says_esc_cancels_exiting_vr(self, tmp_path):
-        """He asked for the desktop from inside the headset: until it is up,
-        Esc takes him back into VR."""
-        raise_crossing_cover(tmp_path, DESKTOP)
-
-        assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
-
-    def test_a_launch_on_the_way_back_offers_no_esc(self, tmp_path):
-        """Esc already called the crossing off; a second would send him back
-        the other way for as long as he kept pressing it."""
-        raise_crossing_cover(tmp_path, DESKTOP)
-
-        assert self._opened_line(tmp_path, cancelable=False).hint == ""
-
-    def test_an_esc_pressed_while_the_room_changed_over_calls_the_arrival_off(
-        self, tmp_path,
-    ):
-        """Nothing but the hotkey script left over from the session he left was
-        listening then, and the flag it dropped is his answer to this launch."""
-        raise_crossing_cover(tmp_path, DESKTOP)
-        (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
-
-        cover = self._opened_cover(tmp_path)
-
-        assert cover.progress.cancelled
-
-    def test_a_launch_on_the_way_back_clears_the_esc_that_sent_it(self, tmp_path):
-        raise_crossing_cover(tmp_path, DESKTOP)
-        flag = tmp_path / CANCEL_FILENAME
-        flag.write_text("cancel\n", encoding="utf-8")
-
-        cover = self._opened_cover(tmp_path, cancelable=False)
-
-        assert not flag.exists()
-        assert not cover.progress.cancelled
-
-
-class TestEscOnTheWayBackFromACancelledCrossing:
-    """A launch that IS a crossing coming back cannot be cancelled.  Esc is what
-    called the crossing off; there is nowhere further back to go, and cancelling
-    here closed the app out from under him -- which is not what any number of
-    Escs may do."""
-
-    def test_the_standing_cover_is_what_says_this_is_a_return(self, tmp_path):
-        assert not returning_from_a_crossing(tmp_path)
-
-        raise_crossing_cover(tmp_path, VR)
-        assert returning_from_a_crossing(tmp_path)
-
-        drop_crossing_cover(tmp_path)
-        assert returning_from_a_crossing(tmp_path), (
-            "DONE is the other session's word that it is up, not a deletion"
-        )
 
 
 class TestStartingVoice:

@@ -35,8 +35,14 @@ _LAUNCH_MODULE = re.compile(r'-m\s+([A-Za-z_][\w.]*)')
 # it: the crossing relay is started by an orchestrator on its way out
 # (fun_time.session_handoff), which means nothing else is watching it either --
 # a session that died importing it would leave an empty desktop and no word.
-_UNLAUNCHED_ENTRY_POINTS = (("session_handoff (started by an orchestrator)",
-                             "fun_time.session_handoff"),)
+_UNLAUNCHED_ENTRY_POINTS = (
+    ("session_handoff (started by an orchestrator)", "fun_time.session_handoff"),
+    # The session machinery, imported by the launch rather than by a launcher:
+    # it loads under the cover, so no ``-m`` names it and the scan cannot find
+    # it -- while it is where nearly every cross-repo import on this path lives.
+    ("windows_bridge_orchestrator (loaded under the cover)",
+     "fun_time.windows_bridge_orchestrator"),
+)
 
 
 def _launched_modules() -> list[tuple[str, str]]:

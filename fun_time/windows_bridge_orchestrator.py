@@ -1,4 +1,4 @@
-"""A session's whole lifecycle, from the first cover to the last child killed.
+"""A session's whole lifecycle, from the cover it is handed to its last child.
 
 Runs the startup phases, launches the AHK hotkey script, starts the dispatch
 loop, holds the session open until the hotkeys exit, then shuts every child
@@ -30,11 +30,11 @@ from .checkout_overrides import genau_project_kwargs
 from .child_launch import no_child_log, no_console_window
 from .config import load_config
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
-from .event_log import EventLogHandler, start_event_log
+from .event_log import THE_LISTENERS_LOGGERS
 from .filter_vocab import load_camera_words
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles
-from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
+from .loading_cover import LoadingCover
 from .lock_hud import prime_group_indexes
 from .loopback_server import ThreadingHTTPServer, serve_loopback
 from .manifest import CommandFiles, LaunchManifest
@@ -43,9 +43,7 @@ from .modes import collect_video_files
 from .overlay_progress import (
     CANCEL_CLOSING_FUN_TIME,
     CANCEL_FILENAME,
-    CANCEL_OPENING_FUN_TIME,
     CANCEL_WORD,
-    PROGRESS_FILENAME,
     SHUTDOWN_PHASES,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
@@ -65,7 +63,6 @@ from .session_end import session_end_marker_path
 from .session_environment import ORDINARY_SESSION, SessionEnvironment
 from .session_handoff import (
     DESKTOP,
-    VR,
     HandoffTarget,
     crossing_progress_path,
     drop_crossing_cover,
@@ -77,7 +74,6 @@ from .session_handoff import (
     pending_handoff,
     release_the_headset,
     request_handoff,
-    returning_from_a_crossing,
 )
 from .shared_state import shared_state_path
 from .shortcuts import Shortcut, resolve_shortcut
@@ -450,7 +446,7 @@ def _take_down_the_startup(
     *,
     pids: list[int],
     rfb_hwnd: int,
-    cover: _Cover,
+    cover: LoadingCover,
     ahk_proc: subprocess.Popen,
     ahk_cmd_file: Path,
     project_dirs: str,
@@ -479,14 +475,7 @@ def _take_down_the_startup(
         _wait_for_closing_screen(ready_file_for(crossing_progress_path(state_dir)), way_back)
         request_handoff(state_dir, back_to, cancelable=False)
     # Only now that the windows under it are gone: drop the overlay.
-    cover.progress.finish()
-    if cover.process is not None:
-        try:
-            cover.process.wait(timeout=3.0)
-        except subprocess.TimeoutExpired:
-            cover.process.kill()
-            logger.warning("Loading screen did not exit, killed")
-    cover.progress_file.unlink(missing_ok=True)
+    cover.take_it_down()
     cover.cancel_file.unlink(missing_ok=True)
     if back_to is None:
         drop_crossing_cover(state_dir)  # else: no way out of an empty machine
@@ -507,12 +496,6 @@ class _AppendOnWriteHandler(logging.Handler):
             pass
 
 
-# What the family's listener says of each utterance -- how it ended, how loud it
-# was, a microphone gone quiet -- is this session's record too, though it is said
-# under the library's name rather than fun_time's.
-_THE_LISTENERS_LOGGERS = ("voice_core",)
-
-
 def add_dispatch_file_handler(log_path: Path) -> None:
     """Add a file handler to bridge-related loggers.
 
@@ -525,36 +508,10 @@ def add_dispatch_file_handler(log_path: Path) -> None:
     handler = _AppendOnWriteHandler(log_path)
     for name in ("fun_time.command_dispatch",
                   "fun_time.windows_bridge_dispatch_loop", "fun_time.voice_control",
-                  "fun_time.windows_bridge_orchestrator", *_THE_LISTENERS_LOGGERS):
+                  "fun_time.windows_bridge_orchestrator", *THE_LISTENERS_LOGGERS):
         lg = logging.getLogger(name)
         lg.setLevel(logging.DEBUG)
         lg.addHandler(handler)
-
-
-# The orchestrator's logger owns the console and so does not propagate; it has
-# to be enrolled in the event log by name.  Every other fun_time.* logger reaches
-# the handler on the package logger by propagation.
-_NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
-
-
-def open_event_log(state_dir: Path) -> None:
-    """Start this session's event log and feed every fun_time logger into it.
-
-    The package logger's level is opened all the way to DEBUG because the log
-    panel — not the writer — is where verbosity is chosen: the file carries
-    everything the session says, and the panel shows the slice you asked for.
-
-    Re-opening replaces the previous handler rather than stacking a second one.
-    """
-    handler = EventLogHandler(start_event_log(state_dir))
-    handler.setLevel(logging.DEBUG)
-    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *_THE_LISTENERS_LOGGERS):
-        target = logging.getLogger(name)
-        for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
-            target.removeHandler(existing)
-        target.addHandler(handler)
-    for name in ("fun_time", *_THE_LISTENERS_LOGGERS):
-        logging.getLogger(name).setLevel(logging.DEBUG)
 
 
 # What the finishing pass may spend, all of it under the cover.  The cover comes
@@ -782,18 +739,6 @@ def start_hud_priming(
     return publisher, primed
 
 
-@dataclass(frozen=True)
-class _Cover:
-    """The loading screen, or the absence of one on the path without a curtain."""
-
-    process: subprocess.Popen | None
-    progress: ProgressReporter
-    hwnd: int
-    progress_file: Path
-    cancel_file: Path
-    turns_back_to: HandoffTarget | None
-
-
 def clear_last_sessions_leftovers(
     state_dir: Path, commands: CommandFiles, *, pids_file: Path, ahk_cmd_file: Path,
 ) -> None:
@@ -821,55 +766,11 @@ def clear_last_sessions_leftovers(
         stale.unlink(missing_ok=True)
 
 
-def _open_the_cover(state_dir: Path, *, show_overlays: bool, project_dirs: str,
-                    cancelable: bool = True) -> _Cover:
-    """The loading screen over every monitor, its window resolved."""
-    returning = returning_from_a_crossing(state_dir)
-    esc_cancels = ("" if not cancelable
-                   else DESKTOP.crossing_hint if returning
-                   else CANCEL_OPENING_FUN_TIME)
-    turns_back_to = VR if returning and esc_cancels else None
-    progress_file = state_dir / PROGRESS_FILENAME
-    cancel_file = state_dir / CANCEL_FILENAME
-    # Clear a cancel flag left over from a previous session so it can't abort
-    # this one before the user has touched anything.
-    if turns_back_to is None:
-        cancel_file.unlink(missing_ok=True)
-    if not show_overlays:
-        return _Cover(None, NullProgress(), 0, progress_file, cancel_file, turns_back_to)
-
-    loading_proc = subprocess.Popen(
-        [
-            NAMER.named_exe(sys.executable, "LoadingScreen"),
-            "-m", "fun_time.loading_screen", str(progress_file),
-        ],
-        **no_child_log(),
-        **no_console_window(),
-        **genau_project_kwargs(project_dirs),
-    )
-    logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
-    overlay_hwnd = wait_for_window_by_title(
-        LOADING_SCREEN_TITLE, timeout_s=5.0, exact=True, include_hidden=True,
-    )
-    if overlay_hwnd:
-        logger.info("Loading cover resolved (hwnd=%d)", overlay_hwnd)
-    else:
-        logger.warning("The loading cover's window did not appear; startup "
-                       "will show through whatever it raises")
-    # Handed over here, not at the reveal, which it would sit on top of.
-    drop_crossing_cover(state_dir)
-    return _Cover(
-        loading_proc,
-        PhaseProgress(progress_file, cancel_file=cancel_file, hint=esc_cancels),
-        overlay_hwnd, progress_file, cancel_file, turns_back_to,
-    )
-
-
 def _reveal_the_room(
     result: StartupResult,
     *,
     manifest: LaunchManifest,
-    cover: _Cover,
+    cover: LoadingCover,
     hud_publisher,
     hud_primed,
 ) -> None:
@@ -889,14 +790,7 @@ def _reveal_the_room(
     # whatever was on those monitors, climbing over it a second later.
     role_hwnds = _fix_post_loading_windows(result, overlay_hwnd=cover.hwnd)
 
-    cover.progress.finish()
-    if cover.process:
-        try:
-            cover.process.wait(timeout=3.0)
-        except subprocess.TimeoutExpired:
-            cover.process.kill()
-            logger.warning("Loading screen did not exit, killed")
-    cover.progress_file.unlink(missing_ok=True)
+    cover.take_it_down()
 
     # The cover is off the screen: NOW the players may run.  The phase walk
     # deliberately leaves this to us (see ``release_the_players``) — released
@@ -1150,37 +1044,23 @@ def run_session(
     hotkey_script: str,
     state_dir: str | Path,
     project_dir: str | Path,
+    cover: LoadingCover,
     env: SessionEnvironment = ORDINARY_SESSION,
-    cancelable: bool = True,
 ) -> int:
-    """Open a session, hold it, and close it.
-
-    1. Cover every monitor and put the hotkey script up under it
-    2. Run startup sequencer (core session + window positioning + UI companions)
-    3. Write the PIDs file, which is also what tells AHK the session is up
-    4. Wait for AHK to exit
-    5. Shut down all child processes
-    """
+    """Hold a session under the cover already standing over it, then close it."""
     manifest_path = Path(manifest_path)
     state_dir = Path(state_dir)
     project_dir = Path(project_dir)
 
-    # A session saved under the retired name is taken up under the new one,
-    # before anything opens a channel by its name.
+    # Taken up before anything opens a channel by its name.
     take_up_the_retired_state_file_names(state_dir)
-
-    # Before anything else logs, and before the dashboard launches the panel that
-    # tails it: this session's event log starts empty and starts collecting.
-    open_event_log(state_dir)
 
     manifest = LaunchManifest.read(manifest_path)
     bridge_config = build_bridge_config_from_manifest(manifest)
     dashboard_enabled = manifest.dashboard_enabled
 
-    # Route dispatch log messages to the windows bridge log file so they
-    # appear alongside AHK log entries (integration tests read this file).
-    # Before the hotkey script goes up, so the line naming what was launched
-    # lands in the same file the script itself starts writing to.
+    # Bridge lines land in the log AHK writes to, before the script goes up, so
+    # the line naming what was launched is in the file the script then appends.
     add_dispatch_file_handler(Path(manifest.runtime.windows_bridge_log_file))
 
     dashboard_cmd_file = Path(manifest.commands.dashboard_cmd_file)
@@ -1189,10 +1069,6 @@ def run_session(
     clear_last_sessions_leftovers(state_dir, manifest.commands,
                                   pids_file=pids_file, ahk_cmd_file=ahk_cmd_file)
 
-    # --- Launch loading screen (normal mode only) ---
-    cover = _open_the_cover(state_dir, show_overlays=env.show_overlays,
-                            project_dirs=manifest.runtime.genau_project_dirs,
-                            cancelable=cancelable)
     progress = cover.progress
 
     if env.integration:

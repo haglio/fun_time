@@ -55,11 +55,17 @@ def engine_missing_abort(
     run: Runner = subprocess.run,
     alert: Callable[[str], None] = show_engine_alert,
     log: Callable[[str], None] | None = None,
+    uncover: Callable[[], None] | None = None,
 ) -> bool:
+    """Whether the players' engine is missing; says so on screen when it is.
+    *uncover* runs first: an alert raised under a launch's own cover cannot be
+    read or answered, and that cover outlives the launch."""
     error = engine_preflight_error(player_interpreters(config.paths), run=run)
     if error is None:
         return False
     if log is not None:
         log(error)
+    if uncover is not None:
+        uncover()
     alert(error)
     return True

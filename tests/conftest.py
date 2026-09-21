@@ -33,7 +33,7 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 
 apply_genau_dirs_to_sys_path()
 
-from fun_time import win32, windows_bridge_orchestrator
+from fun_time import loading_cover, win32, windows_bridge_orchestrator
 from fun_time.config import DEFAULT_CONFIG_PATH
 from fun_time.media_metadata import reset_group_index_cache
 from tests.logging_state import logging_given_back
@@ -125,11 +125,8 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
     """
     if request.node.get_closest_marker("real_startup_waits"):
         return
-    monkeypatch.setattr(
-        windows_bridge_orchestrator,
-        "wait_for_window_by_title",
-        lambda _title, **_kwargs: 0,
-    )
+    for module in (windows_bridge_orchestrator, loading_cover):
+        monkeypatch.setattr(module, "wait_for_window_by_title", lambda _title, **_kwargs: 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
 

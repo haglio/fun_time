@@ -134,13 +134,22 @@ class Phase:
     weight: float
 
 
-# The startup sequence as the loading screen sees it, in order.  The bar
-# advances by TIME rather than step count: an equal share per step parked it at
-# 83% through the one phase that waits on other processes.  The last is
-# weightless so the bar reads full while the room is settled under the cover.
-# There is no phase for the hosted Origenerator: it boots out of sight, and
-# waiting on it would be nine parts against the other six's three and a half.
-STARTUP_PHASES: tuple[Phase, ...] = (
+# Startup as the loading screen sees it, in order.  The bar advances by TIME
+# rather than step count: an equal share per step parked it at 83% through the
+# one phase that waits on other processes.  The last is weightless so the bar
+# reads full while the room is settled under the cover.  There is no phase for
+# the hosted Origenerator: it boots out of sight, and waiting on it would be
+# nine parts against the others' four and a half.
+#
+# First, the launch's own work, before there is a room to report on.  The screen
+# opens on this one's words: anything else reads as a flicker on its first poll.
+LAUNCH_PHASES: tuple[Phase, ...] = (
+    Phase("starting", "Starting...", 0.3),
+    Phase("engine", "Checking the video engine...", 1.0),
+)
+
+# The sequencer's own, as it builds the room.
+ROOM_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),
     Phase("companions", "Launching companions...", 1.3),
@@ -148,6 +157,8 @@ STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("windows", "Positioning windows...", 0.5),
     Phase("finalizing", "Finalizing...", 0.0),
 )
+
+STARTUP_PHASES: tuple[Phase, ...] = (*LAUNCH_PHASES, *ROOM_PHASES)
 
 # The teardown as the closing screen sees it.  NOT seconds: a taskkill returns
 # when Windows says so, so the bar walks the steps.  No weightless phase ends
@@ -165,6 +176,7 @@ SHUTDOWN_PHASES: tuple[Phase, ...] = (
 @runtime_checkable
 class ProgressReporter(Protocol):
     def advance(self, phase: str) -> None: ...
+    def announce(self, phase: str) -> None: ...
     def finish(self) -> None: ...
     @property
     def cancelled(self) -> bool: ...
@@ -173,7 +185,8 @@ class ProgressReporter(Protocol):
 class PhaseProgress:
     """Writes progress updates to a file for a cover to read.  Each ``advance``
     names the phase entered, and with a cancel file is a checkpoint too: a
-    dropped flag aborts the phase before it runs.  Startup alone passes one."""
+    dropped flag aborts the phase before it runs.  Startup alone passes one, and
+    ``announce`` is that line without the checkpoint."""
 
     def __init__(
         self,
@@ -198,6 +211,9 @@ class PhaseProgress:
     def advance(self, phase: str) -> None:
         if self.cancelled:
             raise StartupCancelled()
+        self.announce(phase)
+
+    def announce(self, phase: str) -> None:
         entered = self._phase_index(phase)
         # Hundredths of a unit: the cover reads two integers.  The position is
         # work ALREADY done, so only a weightless final phase reaches the total.
@@ -221,6 +237,9 @@ class NullProgress:  # silent no-op reporter, for integration mode
     cancelled = False
 
     def advance(self, phase: str) -> None:
+        pass
+
+    def announce(self, phase: str) -> None:
         pass
 
     def finish(self) -> None:

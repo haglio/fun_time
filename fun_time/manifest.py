@@ -10,7 +10,6 @@ one side alone.
 from __future__ import annotations
 
 import configparser
-import os
 from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
@@ -42,8 +41,7 @@ def build_windows_bridge_manifest(
             # Where Genau and the main player are started from.  Empty means "wherever we
             # are", resolving them through their venv's editable install; named,
             # another checkout of that repo runs instead.
-            "genau_project_dirs": os.pathsep.join(
-                str(path) for path in config.paths.genau_project_dirs),
+            "genau_project_dirs": config.paths.genau_project_path,
             # The Origenerator checkout the session hosts, or "" for a session
             # with no origenerator mode at all (see fun_time.satellites_mode).
             "origenerator_dir": str(config.paths.origenerator_dir or ""),

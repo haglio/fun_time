@@ -64,6 +64,11 @@ class PathsConfig:
     origenerator_dir: Path | None = None
     origenerator_python_exe: Path | None = None
 
+    @property
+    def genau_project_path(self) -> str:
+        """Those checkouts as one PYTHONPATH value, which is how a child is told."""
+        return os.pathsep.join(str(path) for path in self.genau_project_dirs)
+
 
 @dataclass(frozen=True)
 class LayoutConfig:
