@@ -70,6 +70,7 @@ def make_feed(tmp_path, *, config=None) -> HudFeed:
          "landscape": tmp_path / "landscape_hud.json",
          "main_player": tmp_path / "main_player_console.json"},
         tmp_path / "thumbs",
+        (),
     )
     return HudFeed(config=config or make_config(tmp_path), publisher=publisher)
 

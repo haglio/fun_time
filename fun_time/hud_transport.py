@@ -66,7 +66,8 @@ def _loop_cells(paths: list[str], cache_dir: Path,
                  for path in paths)
 
 
-def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
+def hud_model(panel: HudPanel, cache_dir: Path,
+              camera_words: tuple[str, ...] = ()) -> HudModel:
     """*panel* as the record the satellite player renders.
 
     Thumbnails are resolved here, so the player never touches the library: it gets
@@ -106,6 +107,7 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
                          nothing_to_reset=panel.nothing_to_reset,
                          has_other_versions=panel.has_other_versions),
         filter_query=panel.filter_query,
+        camera_words=camera_words,
         seed_count=panel.seed_count,
         action_count=panel.action_count,
         active_loop=panel.active_loop,
@@ -135,14 +137,17 @@ class HudPublisher:
     write-only-on-change, publish-whole treatment.
     """
 
-    def __init__(self, files: dict[str, Path], cache_dir: Path) -> None:
+    def __init__(self, files: dict[str, Path], cache_dir: Path,
+                 camera_words: tuple[str, ...]) -> None:
         self._files = files
         self._cache_dir = cache_dir
+        self._camera_words = camera_words
         self._last: dict[str, str] = {}
 
     def publish(self, player: str, panel: HudPanel) -> bool:
         """Write *player*'s map if the panel changed; return whether it wrote."""
-        return self.publish_text(player, hud_text(hud_model(panel, self._cache_dir)))
+        return self.publish_text(
+            player, hud_text(hud_model(panel, self._cache_dir, self._camera_words)))
 
     def publish_text(self, name: str, text: str) -> bool:
         """Write *name*'s HUD file if *text* changed; return whether it wrote."""

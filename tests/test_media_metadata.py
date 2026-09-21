@@ -785,9 +785,12 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
     """
     from player_core.satellite_hud import label_is_filtered
 
+    camera_words = ("Side", "XYZ")
     cases = [
         ("Gamma", "gamma", True),               # the row that names it
         ("Side Gamma", "gamma", True),          # the query is one act of the row
+        ("Side Gamma", "side gamma", True),     # the filter set from that very row
+        ("XYZ Gamma", "side gamma", False),     # …which is not the other camera's row
         ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
         ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both sides
         ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very clip
@@ -797,10 +800,10 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
     ]
     for label, query, expected in cases:
         assert matches_query({"video": {"action": label}}, query) is expected, (label, query)
-        assert label_is_filtered(label, query) is expected, (label, query)
+        assert label_is_filtered(label, query, camera_words) is expected, (label, query)
 
     assert matches_query({"video": {"action": "Gamma"}}, "") is True
-    assert label_is_filtered("Gamma", "") is False
+    assert label_is_filtered("Gamma", "", camera_words) is False
 
 
 def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_really_is(tmp_path, monkeypatch):
