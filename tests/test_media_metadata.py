@@ -65,7 +65,7 @@ VIDEO_ONLY_META = {
     "video": {
         "prompt": "JUST A VIDEO",
         "model": "Video v3",
-        "action": "Pov Epsilon",
+        "action": "Side Epsilon",
         "resolution": "1280x720",
         "aspect_ratio": "16:9",
         "quality": "720p",
@@ -399,12 +399,12 @@ def test_filter_haystack_tolerates_missing_blocks():
     assert filter_haystack({}) == ""
     assert filter_haystack({"video": {}}) == ""
     assert filter_haystack({"video": {"prompt": "epsilon"}}) == ""
-    assert "epsilon" in filter_haystack({"video": {"action": "Pov Epsilon"}})
+    assert "epsilon" in filter_haystack({"video": {"action": "Side Epsilon"}})
 
 
 def test_matches_query_is_a_case_insensitive_substring_of_the_act():
     meta = {
-        "video": {"action": "Pov Epsilon", "prompt": "subject subject"},
+        "video": {"action": "Side Epsilon", "prompt": "subject subject"},
         "source_image": {"positive_prompt": "pool party"},
     }
     assert matches_query(meta, "epsilon")  # substring of the action
@@ -616,12 +616,12 @@ def test_widened_seed_items_come_up_empty_on_a_one_of_a_kind_act(tmp_path: Path)
 
 
 def test_widened_seed_items_read_one_act_spelled_two_ways_as_one_act(tmp_path: Path):
-    """The library holds "POV …" beside "Pov …".  With the act now bounding the row
+    """The library holds "XYZ …" beside "Xyz …".  With the act now bounding the row
     rather than merely ranking it, a raw string compare would leave a clip alone in
     its casing with no seed row at all."""
     media_root, metadata_root, paths = _write_library(tmp_path, {
-        "cur": _t2v("POV Alpha", "1", prompt="a, b, c"),
-        "other_casing": _t2v("Pov Alpha", "2", prompt="a, b, c"),
+        "cur": _t2v("XYZ Alpha", "1", prompt="a, b, c"),
+        "other_casing": _t2v("Xyz Alpha", "2", prompt="a, b, c"),
     })
     index = build_group_index(list(paths.values()), metadata_root)
 
@@ -787,7 +787,7 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
 
     cases = [
         ("Gamma", "gamma", True),               # the row that names it
-        ("POV Gamma", "gamma", True),           # the query is one act of the row
+        ("Side Gamma", "gamma", True),          # the query is one act of the row
         ("Gamma, Theta", "gamma", True),        # one of two acts on the clip
         ("Gamma   Theta", "gamma theta", True),  # whitespace collapsed on both sides
         ("Gamma, Theta", "gamma, theta", True),  # the filter set from that very clip

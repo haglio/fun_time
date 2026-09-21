@@ -465,7 +465,7 @@ def test_shuffled_satellite_build_plays_one_item_per_action_group(tmp_path: Path
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
         "subject1_zeta": _i2v_meta("111", "Zeta Massage"),
         "subject1_alpha": _i2v_meta("111", "Alpha"),
-        "subject1_epsilon": _i2v_meta("111", "Pov Epsilon"),
+        "subject1_epsilon": _i2v_meta("111", "Side Epsilon"),
         "subject2_solo": _i2v_meta("222", "Dancing"),
         "no_metadata": None,
     })
@@ -737,9 +737,9 @@ def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     """Seed-family collapse must not merge different acts: the t2v family pins
     the action, so a Theta clip stays its own family."""
     source_dir, metadata_root, paths = _grouped_library(tmp_path, {
-        "clip_a": _t2v_meta("Pov Alpha", "1"),
-        "clip_b": _t2v_meta("Pov Alpha", "2"),
-        "theta": _t2v_meta("Pov Theta", "1"),
+        "clip_a": _t2v_meta("Side Alpha", "1"),
+        "clip_b": _t2v_meta("Side Alpha", "2"),
+        "theta": _t2v_meta("Side Theta", "1"),
     })
 
     # A filter matching all three (the camera word all their acts carry) still
@@ -747,7 +747,7 @@ def test_filtered_build_keeps_distinct_actions_apart(tmp_path: Path):
     # survives.
     built = build_satellite_playlist_paths(
         str(source_dir), False, tmp_path / "favs.csv",
-        filter_query="pov", recent=True, metadata_root=metadata_root,
+        filter_query="side", recent=True, metadata_root=metadata_root,
     )
 
     assert len(built) == 2
