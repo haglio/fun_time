@@ -678,11 +678,11 @@ def test_the_panel_leaves_the_topmost_band_before_it_becomes_visible(dashboard_a
 
 
 @pytest.mark.parametrize("building", [True, False])
-def test_the_toasts_start_held_exactly_when_the_panel_starts_hidden(
+def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
         building, dashboard_app_config):
     """One answer decides both.  Read separately they could disagree — startup
     finishes between the two reads — and the panel would then come up holding
-    toasts nothing releases, or releasing them over the cover."""
+    notices nothing releases, or releasing them over the cover."""
     from fun_time.event_log import NOTICE
 
     with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
@@ -701,8 +701,8 @@ def test_the_toasts_start_held_exactly_when_the_panel_starts_hidden(
         window.close()
 
 
-def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
-    """The panel shows itself one phase BEFORE the cover goes, so a toast
+def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
+    """The panel shows itself one phase BEFORE the cover goes, so a notice
     released here would still flash through the scrim.  They wait for the cover
     itself; see NoticeFeed."""
     from unittest.mock import MagicMock
@@ -724,7 +724,7 @@ def test_the_reveal_does_not_release_the_toasts(dashboard_app_config):
 
         assert window._reveal.deferred is False
         # Asked of the feed, which owns the hold — a reveal that cleared it
-        # would flash a toast through the scrim the cover is still holding up.
+        # would flash a notice through the scrim the cover is still holding up.
         window._notices.overlay = _FakeOverlay()
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
         with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
@@ -1381,7 +1381,7 @@ def _monitors(primary=(0, 0, 1920, 1080), secondary=(1920, 0, 1080, 1920)):
 
 def test_the_player_rects_come_from_the_layout_startup_positions_with(
         dashboard_app_config):
-    """The toast has to land ON the window, not near it, so both ends compute
+    """The notice has to land ON the window, not near it, so both ends compute
     the rect from the same two functions rather than from two descriptions."""
     from fun_time.window_layout import compute_main_media_rect, compute_window_layout
 
@@ -1412,7 +1412,7 @@ def test_the_player_rects_come_from_the_layout_startup_positions_with(
 def test_monitors_that_cannot_be_read_leave_the_notices_off_rather_than_crash(
         failure, dashboard_app_config):
     """A headless run has no monitors to enumerate; the panel still comes up,
-    it just has nowhere to put a toast."""
+    it just has nowhere to put a notice."""
     with patch("fun_time.window_layout.enumerate_monitors", side_effect=failure):
         window = build_dashboard_window(dashboard_app_config)
     try:
@@ -1447,7 +1447,7 @@ def _write_event(app_config, message: str, *, level: int) -> None:
 
 def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(
         dashboard_app_config):
-    """A toast is topmost, so one that fired while the cover was up would
+    """A notice is topmost, so one that fired while the cover was up would
     appear for a moment through the scrim the cover is there to be.  Held, the
     read offset does not advance, so the announcement arrives afterwards over
     the room it is about."""
@@ -1500,7 +1500,7 @@ def test_a_window_that_never_waited_asks_about_the_cover_at_all(dashboard_app_co
 
 def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         dashboard_app_config):
-    """The strip shows every event; only the announcements get a toast — and an
+    """The strip shows every event; only the announcements get a notice — and an
     event that gets none must still not be re-read on the next poll."""
     import logging
 

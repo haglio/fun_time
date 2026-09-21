@@ -2,8 +2,8 @@
 
 The dispatcher only raises the ``save_clip`` op (tests/test_command_dispatch.py);
 the loop runs it on a worker thread (tests/test_windows_bridge_dispatch_loop.py).
-What runs is pinned here: the exact command line, the toast on success, and on
-failure no toast of its own, only the error it logs.
+What runs is pinned here: the exact command line, the notice on success, and on
+failure no notice of its own, only the error it logs.
 """
 from __future__ import annotations
 
@@ -72,7 +72,7 @@ def test_the_save_runs_clippers_venv_on_main_players_video_and_position(tmp_path
     assert r"C:\videos\test.mp4" in cmd
     assert "--time" in cmd
     assert "42.5" in cmd
-    # The toast names the session after the path's stem.  Windows path
+    # The notice names the session after the path's stem.  Windows path
     # splitting differs off Windows, so the pin is the shape, not the equality.
     assert message.startswith("Clipper: ")
     assert "test" in message

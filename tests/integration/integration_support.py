@@ -369,7 +369,7 @@ class FunTimeIntegrationSession:
         """Every announcement in this session's event log so far.
 
         The overlay flashes exactly what clears :func:`is_announcement`, so a
-        record here with the right source is a toast over the right player —
+        record here with the right source is a notice over the right player —
         assertable without a QApplication.
         """
         records, _offset = read_events(event_log_path(self.config.paths.state_dir))

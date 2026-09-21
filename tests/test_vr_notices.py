@@ -63,7 +63,7 @@ class TestWhatItPicksUp:
         assert board.lines == ()
 
     def test_the_diagnostic_chatter_under_a_notice_is_not_shown(self, tmp_path):
-        """The same bar the desktop's toasts flash on — a notice, or louder —
+        """The same bar the desktop's notices flash on — a notice, or louder —
         so the two surfaces say the same things."""
         path = _log(tmp_path)
         board = NoticeBoard(path)
@@ -85,7 +85,7 @@ class TestWhatItPicksUp:
         assert [line.level for line in board.lines] == [FAVORITE]
 
 
-class TestTheToastOverEachPlayer:
+class TestTheBannerOverEachPlayer:
     def test_a_line_flashes_over_the_player_it_names(self, tmp_path):
         path = _log(tmp_path)
         board = NoticeBoard(path)
@@ -93,9 +93,9 @@ class TestTheToastOverEachPlayer:
 
         board.pump(None, now=1.0)
 
-        assert board.toast(SOURCE_PORTRAIT).message == "portrait next"
-        assert board.toast(SOURCE_LANDSCAPE) is None
-        assert board.toast(MAIN) is None
+        assert board.banner(SOURCE_PORTRAIT).message == "portrait next"
+        assert board.banner(SOURCE_LANDSCAPE) is None
+        assert board.banner(MAIN) is None
 
     def test_the_newest_line_wins_its_screen(self, tmp_path):
         """One banner per player, as on the desktop: a second notice replaces
@@ -107,7 +107,7 @@ class TestTheToastOverEachPlayer:
 
         board.pump(None, now=1.0)
 
-        assert board.toast(SOURCE_PORTRAIT).message == "portrait lock"
+        assert board.banner(SOURCE_PORTRAIT).message == "portrait lock"
 
     def test_each_screen_flashes_its_own(self, tmp_path):
         path = _log(tmp_path)
@@ -117,20 +117,20 @@ class TestTheToastOverEachPlayer:
 
         board.pump(None, now=1.0)
 
-        assert board.toast(SOURCE_PORTRAIT).message == "portrait next"
-        assert board.toast(MAIN).message == "skip"
+        assert board.banner(SOURCE_PORTRAIT).message == "portrait next"
+        assert board.banner(MAIN).message == "skip"
 
-    def test_a_toast_clears_sooner_than_the_strip_keeps_it(self, tmp_path):
+    def test_a_banner_clears_sooner_than_the_strip_keeps_it(self, tmp_path):
         """It sits over the picture, so it goes while the strip beside the
         console still has it."""
         path = _log(tmp_path)
-        board = NoticeBoard(path, seconds=8.0, toast_seconds=2.0)
+        board = NoticeBoard(path, seconds=8.0, banner_seconds=2.0)
         _write(path, "skip", source=SOURCE_MAIN)
         board.pump(None, now=100.0)
 
         board.pump(None, now=102.5)
 
-        assert board.toast(MAIN) is None
+        assert board.banner(MAIN) is None
         assert [line.message for line in board.lines] == ["skip"]
 
 
@@ -176,7 +176,7 @@ class TestWhatItDrops:
         board.pump(None, now=1.0)
 
         assert board.lines == ()
-        assert board.toast(MAIN) is None
+        assert board.banner(MAIN) is None
 
 
 class TestWhatTheChannelWorkerAsksOfIt:

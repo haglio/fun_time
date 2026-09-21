@@ -703,7 +703,7 @@ class DispatchLoopRunner:
             self._update_dashboard()
 
     def _handle_clipper_save(self) -> None:
-        """Run the clipper save and flash its toast — from the clipper-save thread."""
+        """Run the clipper save and flash its notice — from the clipper-save thread."""
         message = save_clip_session(self.config)
         if message:
             notice(logger, message, source=SOURCE_MAIN)

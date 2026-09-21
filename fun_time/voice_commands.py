@@ -529,10 +529,10 @@ VOICE_COMMANDS: Mapping[str, str] = build_voice_commands()
 
 
 # Commands that flash their own outcome, so the generic "I heard you" echo must
-# not stack a second toast on top.  The clip and funscript jumps report from the main player,
+# not stack a second notice on top.  The clip and funscript jumps report from the main player,
 # where they landed or could not; the rest report from the dispatch, which alone
 # knows which way a toggle went or which act a judgement struck — and by owning
-# the toast there, the keys and the buttons flash it too, not just voice.  Every
+# the notice there, the keys and the buttons flash it too, not just voice.  Every
 # spelling of each is listed, any of them being what voice hands over.
 SELF_REPORTING_COMMANDS = frozenset({
     "main_player_compilation",
@@ -557,7 +557,7 @@ SELF_REPORTING_COMMANDS = frozenset({
     ),
     # Every spelling of the two browse orders, for the same reason: the dispatch
     # flashes "Latest" / "Shuffle" on the player it reordered.  Echoed as well,
-    # "main latest" came back as two toasts at once — the phrase, and the outcome
+    # "main latest" came back as two notices at once — the phrase, and the outcome
     # of it — which is one more than either says.  "both latest" made three.
     *(
         f"{player}_{order}"
@@ -567,7 +567,7 @@ SELF_REPORTING_COMMANDS = frozenset({
 })
 
 
-# recognizer phrase -> what the reference and the toasts show, one pair per word
+# recognizer phrase -> what the reference and the notices show, one pair per word
 # vosk cannot hear: a mode name, a joined-up word it only has the halves of, or
 # a device name it only has the letters of.  EVERY sound-alike spelling above is
 # here and nowhere else, which is why no row up there explains its own.

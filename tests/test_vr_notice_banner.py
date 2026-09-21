@@ -6,17 +6,17 @@ import logging
 import numpy as np
 
 from fun_time.event_log import FAVORITE, NOTICE
-from fun_time_vr.toast import (
+from fun_time_vr.notice_banner import (
     MIN_FONT_PX,
+    banner_bgra,
+    banner_placement,
     font_px,
-    paint_toast,
-    toast_bgra,
-    toast_placement,
+    paint_banner,
 )
 
 
 def _banner(message="skip", level=NOTICE, *, max_width=1600, size=48):
-    return paint_toast(message, level, max_width=max_width, size=size)
+    return paint_banner(message, level, max_width=max_width, size=size)
 
 
 class TestTheBanner:
@@ -29,7 +29,7 @@ class TestTheBanner:
 
     def test_it_reads_the_level_the_log_panel_reads(self):
         """One color per level across every surface: a red line is red on the
-        desktop's toast, in its log panel and here."""
+        desktop's notice, in its log panel and here."""
         plain = np.asarray(_banner(level=NOTICE))
         loud = np.asarray(_banner(level=logging.ERROR))
         favorite = np.asarray(_banner(level=FAVORITE))
@@ -64,8 +64,8 @@ class TestItIsSizedToThePictureItGoesOn:
         assert large.height / small.height > 3.0
 
     def test_a_bigger_picture_gets_a_bigger_banner(self):
-        _x, _y, small = toast_bgra("skip", NOTICE, width=1280, height=720)
-        _x, _y, large = toast_bgra("skip", NOTICE, width=3840, height=2160)
+        _x, _y, small = banner_bgra("skip", NOTICE, width=1280, height=720)
+        _x, _y, large = banner_bgra("skip", NOTICE, width=3840, height=2160)
 
         assert large.shape[0] > small.shape[0]
 
@@ -74,7 +74,7 @@ class TestWhereItSits:
     def test_it_is_centered_across_the_top(self):
         banner = _banner()
 
-        x, y = toast_placement(banner, 1920, 1080)
+        x, y = banner_placement(banner, 1920, 1080)
 
         assert x == (1920 - banner.width) // 2
         assert 0 < y < 1080 // 10
@@ -82,29 +82,29 @@ class TestWhereItSits:
     def test_it_sits_where_the_desktop_sits_it(self):
         """The desktop puts its banner 28px down a player's window; on a picture
         this tall that is the same place, and it was twice as far down."""
-        _x, y = toast_placement(_banner(), 1920, 1000)
+        _x, y = banner_placement(_banner(), 1920, 1000)
 
         assert 20 <= y <= 36
 
     def test_it_never_starts_off_the_left_of_a_narrow_picture(self):
         banner = _banner("landscape shuffle", max_width=4000, size=64)
 
-        x, _y = toast_placement(banner, 40, 400)
+        x, _y = banner_placement(banner, 40, 400)
 
         assert x == 0
 
     def test_the_margin_scales_with_the_picture(self):
         banner = _banner()
 
-        _x, small = toast_placement(banner, 1280, 720)
-        _x, large = toast_placement(banner, 3840, 2160)
+        _x, small = banner_placement(banner, 1280, 720)
+        _x, large = banner_placement(banner, 3840, 2160)
 
         assert large > small
 
 
 class TestWhatTheOverlayGets:
     def test_it_hands_over_a_placed_bgra_block(self):
-        placed = toast_bgra("skip", NOTICE, width=1920, height=1080)
+        placed = banner_bgra("skip", NOTICE, width=1920, height=1080)
 
         assert placed is not None
         x, y, bgra = placed
@@ -112,11 +112,11 @@ class TestWhatTheOverlayGets:
         assert x >= 0 and y >= 0
 
     def test_the_banner_stays_inside_the_picture(self):
-        x, _y, bgra = toast_bgra("landscape shuffle please", NOTICE, width=1152, height=2048)
+        x, _y, bgra = banner_bgra("landscape shuffle please", NOTICE, width=1152, height=2048)
 
         assert x + bgra.shape[1] <= 1152
 
     def test_a_picture_with_no_size_yet_gets_nothing(self):
         """Before mpv reports its dimensions the target is 1x1; a banner drawn
         onto that is a banner mpv would scale over the whole screen."""
-        assert toast_bgra("skip", NOTICE, width=1, height=1) is None
+        assert banner_bgra("skip", NOTICE, width=1, height=1) is None

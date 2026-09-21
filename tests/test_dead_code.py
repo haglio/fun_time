@@ -146,7 +146,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # 8202 since 2026-09-13, measured on the merged tree: startup stopped putting
 # the loading cover back on top after every raise and banded the room under it
 # instead, and the paragraphs explaining the put-back went with it.
-# 8225 since 2026-09-13, measured on the merged tree: the toast colors took the
+# 8225 since 2026-09-13, measured on the merged tree: the notice colors took the
 # two notice-level aliases out, with the paragraphs that justified them.
 # 8234 since 2026-09-13, when the VR screens went flat and the paragraphs
 # explaining the curve and its flat stand-in went with it.

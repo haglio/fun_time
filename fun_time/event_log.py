@@ -128,7 +128,7 @@ def notice(logger: logging.Logger, message: str, *, source: str, level: int = NO
     """Log a message meant for the person watching the screen.
 
     "Clip saved", "No other seeds", "unrecognized voice command: …".  Each reaches
-    three surfaces: the dashboard's log panel keeps the history, a toast flashes
+    three surfaces: the dashboard's log panel keeps the history, a notice flashes
     over the player *source* names (:mod:`fun_time.notice_feed`), and a VR
     session, which has neither, draws a strip on the console hanging in the
     headset (:mod:`fun_time_vr.notices`).

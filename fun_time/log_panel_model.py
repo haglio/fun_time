@@ -17,7 +17,7 @@ from fun_time.event_log import (
 # scroll back through, and an unbounded list is an unbounded widget.
 MAX_RECORDS = 2000
 
-PREFS_FILENAME = "log_panel.ini"
+UI_STATE_FILENAME = "log_panel_state.ini"
 
 
 @dataclass(frozen=True)
@@ -69,42 +69,42 @@ def copy_button_position(
 
 
 @dataclass(frozen=True)
-class LogPanelPrefs:
+class LogPanelState:
     verbosity: int
     sources: frozenset[str]
 
 
-DEFAULT_PREFS = LogPanelPrefs(verbosity=NOTICE, sources=frozenset(SOURCES))
+DEFAULT_UI_STATE = LogPanelState(verbosity=NOTICE, sources=frozenset(SOURCES))
 
 
-def prefs_path(state_dir: str | Path) -> Path:
-    return Path(state_dir) / PREFS_FILENAME
+def ui_state_path(state_dir: str | Path) -> Path:
+    return Path(state_dir) / UI_STATE_FILENAME
 
 
-def load_prefs(path: str | Path) -> LogPanelPrefs:
+def load_ui_state(path: str | Path) -> LogPanelState:
     """Read the panel's saved verbosity and source set, defaulting on any fault.
 
-    A malformed prefs file must not stop the session's logs from being visible.
+    A malformed state file must not stop the session's logs from being visible.
     """
     parser = configparser.ConfigParser()
     try:
         if not parser.read(str(path), encoding="utf-8"):
-            return DEFAULT_PREFS
+            return DEFAULT_UI_STATE
         section = parser["panel"]
         verbosity = int(section["verbosity"])
         sources = frozenset(s for s in section["sources"].split(",") if s in SOURCES)
     except (configparser.Error, KeyError, ValueError, OSError):
-        return DEFAULT_PREFS
-    return LogPanelPrefs(verbosity=verbosity, sources=sources)
+        return DEFAULT_UI_STATE
+    return LogPanelState(verbosity=verbosity, sources=sources)
 
 
-def save_prefs(path: str | Path, prefs: LogPanelPrefs) -> None:
+def save_ui_state(path: str | Path, state: LogPanelState) -> None:
     path = Path(path)
     path.parent.mkdir(parents=True, exist_ok=True)
     parser = configparser.ConfigParser()
     parser["panel"] = {
-        "verbosity": str(prefs.verbosity),
-        "sources": ",".join(sorted(prefs.sources)),
+        "verbosity": str(state.verbosity),
+        "sources": ",".join(sorted(state.sources)),
     }
     with path.open("w", encoding="utf-8") as fp:
         parser.write(fp)

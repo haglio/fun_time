@@ -68,7 +68,7 @@ class TestTheSpokenCrossing:
         [("enter v r", "enter VR"), ("enter vr", "enter VR"),
          ("exit v r", "exit VR"), ("exit vr", "exit VR")],
     )
-    def test_the_reference_and_the_toasts_show_one_spelling(self, phrase, shown):
+    def test_the_reference_and_the_notices_show_one_spelling(self, phrase, shown):
         assert friendly_voice(phrase) == shown
 
     def test_the_crossing_is_not_exempt_from_omnipause(self):

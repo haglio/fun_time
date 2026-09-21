@@ -19,9 +19,9 @@ from .layout import MAIN
 NOTICE_SECONDS = 8.0
 KEPT = 3
 
-# What the desktop's toast lingers -- shorter than the strip, since it sits over
+# How long the banner lingers -- shorter than the strip, since it sits over
 # the picture rather than beside it.
-TOAST_SECONDS = 2.2
+BANNER_SECONDS = 2.2
 
 # How much of the stream the dash can reach back through.
 KEPT_RECORDS = 400
@@ -45,19 +45,19 @@ class Notice:  # with its screen and the reader's clock when it arrived
 
 class NoticeBoard:
     """One read of the event log per tick, for everything that shows a notice:
-    the console's strip, and one toast per screen.  Both fade on the CALLER's
+    the console's strip, and one banner per screen.  Both fade on the CALLER's
     clock, so a wall-clock stamp and a monotonic pump are never subtracted."""
 
     def __init__(self, event_log: Path | str, *, seconds: float = NOTICE_SECONDS,
-                 kept: int = KEPT, toast_seconds: float = TOAST_SECONDS,
+                 kept: int = KEPT, banner_seconds: float = BANNER_SECONDS,
                  kept_records: int = KEPT_RECORDS) -> None:
         self._path = Path(event_log)
         self._seconds = seconds
         self._kept = kept
-        self._toast_seconds = toast_seconds
+        self._banner_seconds = banner_seconds
         self._kept_records = kept_records
         self._lines: list[Notice] = []
-        self._toasts: dict[str, Notice] = {}
+        self._banners: dict[str, Notice] = {}
         self._records: list = []
         _, self._offset = read_events(self._path, 0)
 
@@ -70,20 +70,20 @@ class NoticeBoard:
                 continue
             notice = Notice(record.message, record.level, screen_for(record.source), now)
             self._lines.append(notice)
-            self._toasts[notice.screen] = notice  # the newest wins its screen
+            self._banners[notice.screen] = notice  # the newest wins its screen
         self._lines = [line for line in self._lines if now - line.seen_at < self._seconds]
         del self._lines[:-self._kept]
-        self._toasts = {
-            screen: toast for screen, toast in self._toasts.items()
-            if now - toast.seen_at < self._toast_seconds
+        self._banners = {
+            screen: banner for screen, banner in self._banners.items()
+            if now - banner.seen_at < self._banner_seconds
         }
 
     @property
     def lines(self) -> tuple[Notice, ...]:  # oldest first
         return tuple(self._lines)
 
-    def toast(self, screen: str) -> Notice | None:  # what is flashing over it
-        return self._toasts.get(screen)
+    def banner(self, screen: str) -> Notice | None:  # what is flashing over it
+        return self._banners.get(screen)
 
     @property
     def records(self) -> tuple:  # the whole stream, unfiltered, oldest first
