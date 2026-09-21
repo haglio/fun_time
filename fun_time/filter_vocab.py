@@ -40,6 +40,14 @@ def load_acts(
     data = load_content(local_path, example_path)
     return {query: tuple(forms) for query, forms in data["acts"].items()}
 
+
+@functools.cache
+def load_camera_words(
+    local_path: Path = LOCAL_CONTENT,
+    example_path: Path = EXAMPLE_CONTENT,
+) -> tuple[str, ...]:
+    return tuple(load_content(local_path, example_path)["cameras"])
+
 # Spoken scope word -> command scope token.  "" means no orientation was said,
 # so the filter applies to both players.
 _SCOPES: dict[str, str] = {"": "both", "portrait": "portrait", "landscape": "landscape"}

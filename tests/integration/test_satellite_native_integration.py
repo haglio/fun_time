@@ -21,6 +21,7 @@ from player_core.file_channel import append_command
 from player_core.player_verbs import LOCK_ON, NEXT, QUIT, SET_PACE, SET_SPEED
 
 from fun_time.config import load_config
+from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import SatelliteInputs, build_hud_panel
 from fun_time.satellite_control import read_satellite_status
@@ -193,7 +194,7 @@ def test_the_satellite_composites_the_published_lock_hud(tmp_path):
     hud_file = tmp_path / "portrait_hud.json"
     dashboard_cmd = tmp_path / "dashboard_cmd.txt"
 
-    publisher = HudPublisher({"portrait": hud_file}, cache_dir)
+    publisher = HudPublisher({"portrait": hud_file}, cache_dir, load_camera_words())
 
     def publish(locked: bool) -> None:
         publisher.publish("portrait", build_hud_panel(

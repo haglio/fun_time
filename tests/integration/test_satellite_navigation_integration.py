@@ -28,6 +28,7 @@ from player_core.player_verbs import LOCK_ON, QUIT
 from fun_time.bridge_records import BridgeConfig
 from fun_time.command_dispatch import dispatch_command
 from fun_time.config import load_config
+from fun_time.filter_vocab import load_camera_words
 from fun_time.hud_transport import HudPublisher
 from fun_time.lock_hud import HudPanel
 from fun_time.modes import write_playlist_file
@@ -410,7 +411,7 @@ def test_more_seeds_leaves_the_player_decoding(tmp_path):
         # player re-renders it at a new size and hands mpv a differently-shaped
         # overlay while the video under it keeps decoding.
         publisher = HudPublisher({"portrait": satellite.hud},
-                                 tmp_path / THUMBNAIL_CACHE_DIRNAME)
+                                 tmp_path / THUMBNAIL_CACHE_DIRNAME, load_camera_words())
 
         def publish(row: list[str], loop: str) -> None:
             publisher.publish("portrait", HudPanel(

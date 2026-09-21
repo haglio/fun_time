@@ -31,6 +31,7 @@ from .child_launch import no_child_log, no_console_window
 from .config import load_config
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import EventLogHandler, start_event_log
+from .filter_vocab import load_camera_words
 from .hud_transport import HudPublisher
 from .library_handles import build_library_handles
 from .loading_screen import WINDOW_TITLE as LOADING_SCREEN_TITLE
@@ -764,6 +765,7 @@ def start_hud_priming(
             "main_player": Path(manifest.commands.main_player_console_file),
         },
         cache_dir,
+        load_camera_words(),
     )
 
     def _warm() -> None:

@@ -9,6 +9,7 @@ from fun_time.filter_vocab import (
     display_forms,
     filter_voice_commands,
     load_acts,
+    load_camera_words,
     set_command,
     set_commands_for_scope,
 )
@@ -125,3 +126,14 @@ class TestLoadFilterActs:
         example.write_text(json.dumps({"acts": {"y": ["y", "y two"]}}), encoding="utf-8")
         acts = load_acts(tmp_path / "missing.json", example)
         assert acts == {"y": ("y", "y two")}
+
+
+class TestLoadCameraWords:
+    def test_the_words_come_from_the_overlay_written_as_the_library_writes_them(self, tmp_path: Path):
+        local = tmp_path / "content.local.json"
+        local.write_text(json.dumps({"cameras": ["North", "QRS"]}), encoding="utf-8")
+
+        assert load_camera_words(local, EXAMPLE_CONTENT) == ("North", "QRS")
+
+    def test_the_committed_example_names_placeholder_words(self, tmp_path: Path):
+        assert load_camera_words(tmp_path / "no_local.json", EXAMPLE_CONTENT) == ("Side", "XYZ")

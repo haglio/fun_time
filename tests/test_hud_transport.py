@@ -42,6 +42,15 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
     )
 
 
+def test_hud_payload_names_the_librarys_camera_words():
+    """The player sets a leading camera word apart from the act on a row, and only
+    fun_time knows which words the library writes there."""
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        model = hud_model(_panel(), Path("C:/t"), ("Side", "XYZ"))
+
+    assert model.camera_words == ("Side", "XYZ")
+
+
 def test_hud_payload_carries_whether_this_side_is_the_active_one():
     """The player draws the dot; only fun_time knows which side has the floor."""
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
@@ -188,7 +197,7 @@ def test_publish_writes_the_file_only_when_the_panel_changes(tmp_path: Path):
     """The player re-renders whenever the file changes, so an unchanged tick must
     not rewrite it — the dispatch loop publishes many times per clip."""
     hud_file = tmp_path / "portrait_hud.json"
-    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
         assert publisher.publish("portrait", _panel()) is True
@@ -206,7 +215,7 @@ def test_publish_republishes_a_panel_whose_write_never_landed(tmp_path: Path):
     (Getting the panel onto disk whole, and riding out a reader's hold on the
     file, is ``player_core.file_channel.publish_whole`` and is covered there.)"""
     hud_file = tmp_path / "portrait_hud.json"
-    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs")
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 
     with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
         with patch("fun_time.hud_transport.publish_whole", return_value=False):
@@ -217,8 +226,18 @@ def test_publish_republishes_a_panel_whose_write_never_landed(tmp_path: Path):
     assert json.loads(hud_file.read_text(encoding="utf-8"))["locked"] is True
 
 
+def test_every_panel_a_publisher_writes_names_the_camera_words_it_was_given(tmp_path: Path):
+    hud_file = tmp_path / "portrait_hud.json"
+    publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ("Side", "XYZ"))
+
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+        publisher.publish("portrait", _panel())
+
+    assert json.loads(hud_file.read_text(encoding="utf-8"))["camera_words"] == ["Side", "XYZ"]
+
+
 def test_publish_ignores_a_side_with_no_file(tmp_path: Path):
-    publisher = HudPublisher({}, tmp_path / "thumbs")
+    publisher = HudPublisher({}, tmp_path / "thumbs", ())
 
     assert publisher.publish("portrait", _panel()) is False
 

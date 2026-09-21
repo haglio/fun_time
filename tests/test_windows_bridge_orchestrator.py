@@ -2831,3 +2831,22 @@ class TestStartingVoice:
             )
 
         assert controller.call_args.kwargs["confirm_commands"] is False
+
+
+class TestTheHudPublisherASessionStarts:
+    def test_it_names_the_camera_words_the_content_overlay_lists(self, tmp_path: Path):
+        """The desktop session and the headset's both start their publisher here,
+        so this is the one place the overlay's words reach every player's panel."""
+        from types import SimpleNamespace
+
+        bridge_config = SimpleNamespace(
+            portrait_sources="", landscape_sources="", state_dir=tmp_path)
+        manifest = SimpleNamespace(commands=SimpleNamespace(
+            player_file=lambda player, kind: str(tmp_path / f"{player}_{kind}.json"),
+            main_player_console_file=str(tmp_path / "console.json")))
+
+        with patch("fun_time.windows_bridge_orchestrator.load_camera_words",
+                   return_value=("Side", "XYZ")),              patch("fun_time.windows_bridge_orchestrator.HudPublisher") as publisher,              patch("fun_time.windows_bridge_orchestrator.threading.Thread"):
+            windows_bridge_orchestrator.start_hud_priming(bridge_config, manifest, enabled=True)
+
+        assert publisher.call_args.args[2] == ("Side", "XYZ")
