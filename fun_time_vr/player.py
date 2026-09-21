@@ -142,7 +142,6 @@ from .layout import (
     migrate_layout,
     read_layout,
     rearranged,
-    vr_reset_layout,
     write_layout,
 )
 from .library_panel import (
@@ -207,6 +206,7 @@ from .satellite_hud import (
     screen_kind,
 )
 from .scene import (
+    MAIN_WIDTH_DEG,
     Placement,
     attached_below,
     quad_layer_placement,
@@ -351,6 +351,11 @@ class _SlotControls:  # what the row shows and does, said by the player in the s
 class _VideoUnit:
     """What every mpv-backed player shares: a video thread and a texture target."""
 
+    SPOTS: dict[str, Placement] = {}
+
+    def put_back(self) -> None:
+        self.screen.placement = self.SPOTS[self.screen_name]
+
     def __init__(self, video: VideoThread, placement: Placement) -> None:
         self.video = video
         self.player = video.player
@@ -483,10 +488,11 @@ def _in_the_slot(screen, picture, projection) -> tuple[Hanging, ...]:
 
 class _MainUnit(_VideoUnit):
     screen_name = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
+    SPOTS = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
 
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, contexts, *,
-        placement: Placement, genau_role, notices=None, perf=None,
+        remembered: Mapping[str, Placement], genau_role, notices=None, perf=None,
     ) -> None:
         # Muted at birth: the headset's sink cannot be trusted until the
         # compositor is presenting (see route_audio).
@@ -497,7 +503,7 @@ class _MainUnit(_VideoUnit):
                     contexts.get_proc_address, muted=True, loop_file=True),
                 MAIN_VIDEO_CAP_PX, name="main-video", perf=perf,
             ),
-            placement,
+            remembered.get(MAIN, self.SPOTS[MAIN]),
         )
         commands = manifest.commands
         self.cmd_file = Path(commands.main_player_cmd_file)
@@ -651,9 +657,16 @@ class _MainUnit(_VideoUnit):
 
 
 class _SatelliteUnit(_VideoUnit):
+    # Tuned on the first headset run: flush beside the main screen put both of them
+    # in the peripheral vision.
+    SPOTS = {
+        LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
+        PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
+    }
+
     def __init__(
         self, player: str, manifest: LaunchManifest, contexts, *,
-        vr: VrSettings, placement: Placement, notices=None, perf=None,
+        vr: VrSettings, remembered: Mapping[str, Placement], notices=None, perf=None,
     ) -> None:
         # Muted, and on the default sink until the headset is worn, for the reason
         # _MainUnit.route_audio waits: a sink not draining stops the video clock.
@@ -664,7 +677,7 @@ class _SatelliteUnit(_VideoUnit):
                     contexts.get_proc_address, muted=True, loop_file=False, prefetch=True),
                 SATELLITE_VIDEO_CAP_PX, name=f"{player}-video", perf=perf,
             ),
-            placement,
+            remembered.get(player, self.SPOTS[player]),
         )
         commands = manifest.commands
         self.screen_name = player  # its notices flash over its own picture
@@ -690,7 +703,7 @@ class _SatelliteUnit(_VideoUnit):
             player=self.hud_surface,
         )
         self.hud_texture = FrameTexture()
-        self.hud_screen = _HangingScreen(placement)
+        self.hud_screen = _HangingScreen(self.screen.placement)
         self._hud_version = -1
         self._hud_shown = False
         self.volume = SatelliteVolume(self.player)
@@ -822,9 +835,11 @@ class _GenauUnit:
     wrapped round the viewer by the clip's projection.  Its scrubber and volume
     slider are blended into that frame -- there is no mpv under it to paint."""
 
+    SPOTS = _MainUnit.SPOTS  # the same slot, which the two take turns in
+
     def __init__(
         self, manifest: LaunchManifest, vr: VrSettings, stop: threading.Event, *,
-        placement: Placement,
+        remembered: Mapping[str, Placement],
     ) -> None:
         if not vr.clips_dirs:
             raise RuntimeError("the launch manifest names no clips folder for Genau's role")
@@ -847,7 +862,7 @@ class _GenauUnit:
             start_clip=read_genau_status(Path(commands.genau_status_file)).clip or None,
         )
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(placement)
+        self.screen = _HangingScreen(remembered.get(MAIN, self.SPOTS[MAIN]))
         self._dashboard_cmd_file = Path(commands.dashboard_cmd_file)
         self._presses = _Presses(MAIN)
         self._pointer = FurniturePointer(
@@ -876,6 +891,9 @@ class _GenauUnit:
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {MAIN: Hangs((self.screen,))}
+
+    def put_back(self) -> None:
+        self.screen.placement = self.SPOTS[MAIN]
 
     def point(self, frame: Frame) -> None:
         if self.owns_the_slot:
@@ -991,6 +1009,8 @@ class _PanelUnit:
     """The console, docked under the main player -- or, a wrapped video leaving nothing to
     dock to and no edge for a scrubber, carrying that video's row and docked to the dash."""
 
+    SPOTS: dict[str, Placement] = {}
+
     def __init__(
         self, main_unit: _MainUnit, genau: _GenauUnit, dash, *,
         dashboard_cmd_file: Path, notices: NoticeBoard,
@@ -1033,6 +1053,9 @@ class _PanelUnit:
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}  # it hangs from whatever is above it, and is never dragged
+
+    def put_back(self) -> None:
+        pass  # it follows whatever it is docked under, back to that screen's own spot
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -1140,8 +1163,14 @@ class _PanelUnit:
 class _DashUnit:
     # Painted like the console; the pair's handle while it carries one, and a spot for that.
 
-    def __init__(self, main_unit: _MainUnit, genau: _GenauUnit, *, placement: Placement,
-                 wrapped_placement: Placement, dashboard_cmd_file: Path,
+    SPOTS = {
+        DASH: Placement(azimuth_deg=0.0, elevation_deg=33.1, width_deg=40.0),
+        # Carrying the console, the video having wrapped the viewer: lower, under it.
+        PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
+    }
+
+    def __init__(self, main_unit: _MainUnit, genau: _GenauUnit, *,
+                 remembered: Mapping[str, Placement], dashboard_cmd_file: Path,
                  notices: NoticeBoard, dashboard_state_file: Path,
                  reference_flag: Path) -> None:
         self._main_unit = main_unit
@@ -1149,8 +1178,8 @@ class _DashUnit:
         self._notices = notices
         self._state_file = dashboard_state_file
         self._reference_flag = reference_flag
-        self._floating = placement
-        self._wrapped = wrapped_placement
+        self._floating = remembered.get(DASH, self.SPOTS[DASH])
+        self._wrapped = remembered.get(PANEL, self.SPOTS[PANEL])
         self._pointer = DashPointer(
             post=lambda command: append_command(dashboard_cmd_file, command))
         self._presses = _Presses(DASH)
@@ -1159,7 +1188,7 @@ class _DashUnit:
         self._key = None
         self._uploaded = None
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(placement)
+        self.screen = _HangingScreen(self._floating)
 
     @property
     def carrying_the_console(self) -> bool:  # a wrapped slot leaves it the only handle
@@ -1181,9 +1210,9 @@ class _DashUnit:
         else:
             self._floating = placement
 
-    def put_back(self, layout: dict[str, Placement]) -> None:
-        self._floating = layout[DASH]
-        self._wrapped = layout[PANEL]
+    def put_back(self) -> None:
+        self._floating, self._wrapped = self.SPOTS[DASH], self.SPOTS[PANEL]
+        self.placement = self.SPOTS[self.layout_key]
 
     def hangings(self) -> tuple[Hanging, ...]:
         if not self.texture.ready:
@@ -1238,6 +1267,8 @@ class _DashUnit:
 class _ReferenceUnit:
     """The hotkeys and voice reference, hanging from the dashboard while it is up."""
 
+    SPOTS: dict[str, Placement] = {}
+
     def __init__(self, dash: _DashUnit, panel: _PanelUnit, *, flag: Path) -> None:
         self._dash = dash
         self._panel = panel
@@ -1264,6 +1295,9 @@ class _ReferenceUnit:
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}  # it moves with the dashboard it hangs from
+
+    def put_back(self) -> None:
+        pass  # it hangs under the dashboard, back to wherever that goes
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -1297,8 +1331,11 @@ class _ReferenceUnit:
 
 
 class _LibraryUnit:
+    # A browse to read and press: dead ahead and wide, over the picture while it is up.
+    SPOTS = {LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0)}
+
     def __init__(
-        self, *, placement: Placement, flag: Path, host,
+        self, *, remembered: Mapping[str, Placement], flag: Path, host,
         main_player_cmd_file: Path, main_player_status_file: Path,
         dashboard_cmd_file: Path,
     ) -> None:
@@ -1318,7 +1355,7 @@ class _LibraryUnit:
         self._hovered: tuple[int, int] | None = None
         self._scrolled = 0.0
         self.texture = FrameTexture()
-        self.screen = _HangingScreen(placement)
+        self.screen = _HangingScreen(remembered.get(LIBRARY, self.SPOTS[LIBRARY]))
 
     @property
     def showing(self) -> bool:
@@ -1338,6 +1375,9 @@ class _LibraryUnit:
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {LIBRARY: Hangs((self.screen,))}
+
+    def put_back(self) -> None:
+        self.screen.placement = self.SPOTS[LIBRARY]
 
     def point(self, frame: Frame) -> None:
         self._presses.point(frame)
@@ -1404,6 +1444,8 @@ class _LibraryUnit:
 
 
 class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
+    SPOTS: dict[str, Placement] = {}
+
     def __init__(self, state_dir: Path) -> None:
         self._state_dir = state_dir
         self.holding = False  # render-thread-read, set on the pump's refresh
@@ -1427,6 +1469,9 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
 
     def hangs_by(self) -> dict[str, Hangs]:
         return {}
+
+    def put_back(self) -> None:
+        pass  # it hangs where the viewer is looking, never in a remembered spot
 
     def point(self, frame: Frame) -> None:
         pass  # a cover stands in place of everything there is to aim at
@@ -1495,16 +1540,21 @@ class _CoverUnit:  # :mod:`fun_time_vr.cover`, drawn in place of the scene
 
 
 class _LayoutKeeper:
-    def __init__(self, path: Path, layout: dict[str, Placement]) -> None:
+    def __init__(self, path: Path, remembered: dict[str, Placement]) -> None:
         self._path = path
-        self._layout = layout
+        self._remembered = remembered
         self._lock = threading.Lock()
         self._unsaved = False
         self._settled = False
 
     def place(self, name: str, placement: Placement) -> None:
         with self._lock:
-            self._layout[name] = placement
+            self._remembered[name] = placement
+            self._unsaved = True
+
+    def forget(self) -> None:
+        with self._lock:
+            self._remembered.clear()
             self._unsaved = True
 
     def settle(self) -> None:
@@ -1515,7 +1565,7 @@ class _LayoutKeeper:
         with self._lock:
             if not (self._settled or (self._unsaved and not settled_only)):
                 return
-            snapshot = dict(self._layout)
+            snapshot = dict(self._remembered)
             self._settled = self._unsaved = False
         write_layout(self._path, snapshot)
 
@@ -1947,20 +1997,20 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     state_dir = Path(commands.dashboard_cmd_file).parent
     layout_path = state_dir / LAYOUT_FILENAME
     migrate_layout(layout_path)
-    layout = read_layout(layout_path)
+    remembered = read_layout(layout_path)
     # Before the players and refreshed between them: each opens media.
     cover = _CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)
     # One read of the event log per tick, pumped before anything that shows a
     # notice off it: the console's strip and every screen's own banner.
     notices = NoticeBoard(event_log_path(state_dir))
-    genau = _GenauUnit(manifest, vr, stop, placement=layout[MAIN])
+    genau = _GenauUnit(manifest, vr, stop, remembered=remembered)
     _present_the_cover(session, renderer, cover)
-    main_unit = _MainUnit(manifest, vr, contexts, placement=layout[MAIN],
+    main_unit = _MainUnit(manifest, vr, contexts, remembered=remembered,
                           genau_role=genau.role, notices=notices, perf=perf)
     _present_the_cover(session, renderer, cover)
     satellites = [
-        _SatelliteUnit(player, manifest, contexts, vr=vr, placement=layout[player],
+        _SatelliteUnit(player, manifest, contexts, vr=vr, remembered=remembered,
                        notices=notices, perf=perf)
         for player in (PORTRAIT, LANDSCAPE)
     ]
@@ -1968,8 +2018,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     reference_flag = Path(state_dir) / REFERENCE_OPEN_FILENAME
     dash = _DashUnit(
         main_unit, genau,
-        placement=layout[DASH],
-        wrapped_placement=layout[PANEL],
+        remembered=remembered,
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
         notices=notices,
         dashboard_state_file=Path(commands.dashboard_state_file),
@@ -1982,14 +2031,14 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     )
     reference = _ReferenceUnit(dash, panel, flag=reference_flag)
     library = _LibraryUnit(
-        placement=layout[LIBRARY],
+        remembered=remembered,
         flag=Path(state_dir) / LIBRARY_OPEN_FILENAME,
         host=LibraryHost(manifest_path=manifest_path, state_dir=Path(state_dir)),
         main_player_cmd_file=Path(commands.main_player_cmd_file),
         main_player_status_file=Path(commands.main_player_status_file),
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
     )
-    keeper = _LayoutKeeper(layout_path, layout)
+    keeper = _LayoutKeeper(layout_path, remembered)
     scene_ready = SceneReady(scene_ready_file(state_dir))
     cover_seen = CoverSeen()
     posts = _ControllerPosts(Path(commands.dashboard_cmd_file))
@@ -2081,9 +2130,8 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     logger.info(
                         "Recentered the scene onto heading %.0f°", math.degrees(scene_yaw)
                     )
-                reset = {}
-                if main_unit.role.layout_reset.take():
-                    reset = vr_reset_layout()
+                reset = main_unit.role.layout_reset.take()
+                if reset:
                     pointer.let_go()
                     logger.info(
                         "Put the players and the dashboard back in their default spots and sizes")
@@ -2114,11 +2162,9 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
                     where[name].put(placement)  # its own spot, of however many
                     keeper.place(where[name].spot(name), placement)
                 if reset:
-                    for name, hangs in where.items():
-                        hangs.put(reset[name])
-                    dash.put_back(reset)
-                    for name, placement in reset.items():
-                        keeper.place(name, placement)
+                    for unit in units:
+                        unit.put_back()
+                    keeper.forget()
                 if frame.settled or thumb.settled or reset:
                     keeper.settle()
                 for unit in units:
