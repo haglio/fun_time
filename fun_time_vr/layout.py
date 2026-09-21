@@ -1,4 +1,4 @@
-"""Where each movable screen hangs by default, and where the controllers left it."""
+"""Where the controllers left each movable screen, and the reach a drag is held to."""
 from __future__ import annotations
 
 import json
@@ -7,7 +7,7 @@ from collections.abc import Mapping
 from dataclasses import fields, replace
 from pathlib import Path
 
-from .scene import MAIN_PLACEMENT, Placement, turn_deg
+from .scene import Placement, turn_deg
 
 logger = logging.getLogger(__name__)
 
@@ -22,26 +22,7 @@ REFERENCE = "reference"
 LIBRARY = "library"
 LAYOUT_FILENAME = "vr_layout.json"
 
-# Sides as on the desktop: landscape left of the main player, portrait right.  Tuned on
-# the first headset run — satellites flush beside the main screen sat in the peripheral
-# vision, so they tuck inward over its edges and ride a little high.
-DEFAULT_LAYOUT: dict[str, Placement] = {
-    MAIN: MAIN_PLACEMENT,
-    LANDSCAPE: Placement(azimuth_deg=-38.0, elevation_deg=10.0, width_deg=28.0),
-    PORTRAIT: Placement(azimuth_deg=38.0, elevation_deg=10.0, width_deg=28.0),
-    # The dashboard with the console under it, the video having wrapped the viewer:
-    PANEL: Placement(azimuth_deg=0.0, elevation_deg=-11.0, width_deg=40.0),
-    DASH: Placement(azimuth_deg=0.0, elevation_deg=33.1, width_deg=40.0),
-    # A browse to read and press: dead ahead and wide, over the picture while it is up.
-    LIBRARY: Placement(azimuth_deg=0.0, elevation_deg=4.0, width_deg=80.0),
-}
-
-
 PLAYERS = (MAIN, LANDSCAPE, PORTRAIT)
-
-
-def vr_reset_layout() -> dict[str, Placement]:
-    return {name: DEFAULT_LAYOUT[name] for name in (*PLAYERS, DASH, PANEL, LIBRARY)}
 
 
 AZIMUTH_LIMIT_DEG = 150.0
@@ -126,8 +107,8 @@ _LAST_SESSIONS_MAIN = "primary"
 
 def migrate_layout(path: Path) -> bool:
     """Rewrite *path* once if it still names the main screen by its old word:
-    :func:`read_layout` defaults a screen it cannot find, which would have
-    quietly dropped where he placed the main screen.  Returns whether it rewrote."""
+    a screen :func:`read_layout` finds nothing for starts in its own default
+    spot, which would have dropped where he placed the main screen."""
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -145,21 +126,23 @@ def migrate_layout(path: Path) -> bool:
 
 
 def read_layout(path: Path) -> dict[str, Placement]:
+    """Only where the last session was left holding each screen."""
     try:
         raw = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, ValueError):
-        raw = {}
-    layout = dict(DEFAULT_LAYOUT)
-    for name in layout:
-        remembered = raw.get(name) if isinstance(raw, dict) else None
-        if not isinstance(remembered, dict):
+        return {}
+    if not isinstance(raw, dict):
+        return {}
+    remembered: dict[str, Placement] = {}
+    for name, spot in raw.items():
+        if not isinstance(spot, dict):
             continue
         try:
-            layout[name] = clamp_placement(
-                Placement(**{field: float(remembered[field]) for field in _FIELDS}))
+            remembered[name] = clamp_placement(
+                Placement(**{field: float(spot[field]) for field in _FIELDS}))
         except (KeyError, TypeError, ValueError):
             logger.warning("Ignoring the remembered %s placement in %s", name, path)
-    return layout
+    return remembered
 
 
 def write_layout(path: Path, layout: dict[str, Placement]) -> bool:

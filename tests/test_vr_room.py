@@ -264,9 +264,24 @@ class TestTheGatesOnTheRoomsAssembly:
 
         assert {kind.__name__ for kind in kinds} == self._kinds_the_room_holds()
         for kind in kinds:
-            for asked in ("hangings", "hangs_by", "point", "pump",
+            for asked in ("hangings", "hangs_by", "put_back", "point", "pump",
                           "render_latest_frame", "close"):
                 assert callable(getattr(kind, asked, None)), (kind.__name__, asked)
+
+    def _spots_held_by(self, module) -> dict[str, object]:
+        return {name: value for name, value in vars(module).items()
+                if isinstance(value, Placement) or (isinstance(value, dict) and any(
+                    isinstance(one, Placement) for one in value.values()))}
+
+    def test_no_screen_keeps_its_opening_spot_anywhere_but_on_its_own_unit(self):
+        """The second place a new screen had to be written: one line of data in
+        the layout module beside its unit.  Two branches adding unrelated
+        screens met there; there is nowhere left for them to meet."""
+        assert self._spots_held_by(layout) == {}
+        assert {name for name, kind in vars(player).items()
+                if isinstance(kind, type) and getattr(kind, "SPOTS", None)} == {
+            "_MainUnit", "_GenauUnit", "_SatelliteUnit", "_DashUnit", "_LibraryUnit"}
+        assert self._spots_held_by(player) == {}
 
     def test_the_room_is_the_one_list_everything_is_read_off(self):
         """One registration per screen: the same list is what is pumped, what

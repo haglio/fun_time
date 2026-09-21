@@ -36,10 +36,8 @@ from fun_time.runtime_flow import apply_mode_switch
 from fun_time.satellite_control import read_satellite_status
 from fun_time_vr.gl_contexts import SharedContexts, hidden_gl_window
 from fun_time_vr.layout import (
-    DEFAULT_LAYOUT,
     LANDSCAPE,
     LAYOUT_FILENAME,
-    MAIN,
     PORTRAIT,
     read_layout,
 )
@@ -148,11 +146,11 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
 
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
-    layout = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
-    main = vrp._MainUnit(manifest, vr, contexts, placement=layout[MAIN],
+    remembered = read_layout(config.paths.state_dir / LAYOUT_FILENAME)
+    main = vrp._MainUnit(manifest, vr, contexts, remembered=remembered,
                          genau_role=SimpleNamespace(showing=False))
     satellites = [
-        vrp._SatelliteUnit(side, manifest, contexts, vr=vr, placement=layout[side])
+        vrp._SatelliteUnit(side, manifest, contexts, vr=vr, remembered=remembered)
         for side in (PORTRAIT, LANDSCAPE)
     ]
     units = [main, *satellites]
@@ -411,8 +409,7 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
     window = hidden_gl_window("vr-play-test")
     glfw.make_context_current(window)
 
-    main = vrp._MainUnit(manifest, vr, SharedContexts(window),
-                         placement=DEFAULT_LAYOUT[MAIN],
+    main = vrp._MainUnit(manifest, vr, SharedContexts(window), remembered={},
                          genau_role=SimpleNamespace(showing=False))
     stop = threading.Event()
     pump = threading.Thread(

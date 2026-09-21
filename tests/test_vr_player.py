@@ -79,15 +79,14 @@ from fun_time_vr.dash_panel import DASH_WIDTH_PX, dash_actions, dash_height
 from fun_time_vr.furniture import control_size
 from fun_time_vr.layout import (
     DASH,
-    DEFAULT_LAYOUT,
     LANDSCAPE,
     LIBRARY,
     MAIN,
     PANEL,
     PORTRAIT,
     REFERENCE,
+    clamp_placement,
     read_layout,
-    vr_reset_layout,
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
 from fun_time_vr.notices import NoticeBoard
@@ -130,7 +129,13 @@ from fun_time_vr.projection import EQUIRECT_180_SBS, FLAT
 from fun_time_vr.reference_panel import REFERENCE_WIDTH_DEG
 from fun_time_vr.render import immersive_mode
 from fun_time_vr.satellite_hud import hud_screen_name
-from fun_time_vr.scene import RADIUS, Placement, attached_below, surface_vertices
+from fun_time_vr.scene import (
+    MAIN_WIDTH_DEG,
+    RADIUS,
+    Placement,
+    attached_below,
+    surface_vertices,
+)
 from fun_time_vr.stacking import Stacking
 from fun_time_vr.video_thread import VideoThread
 from main_player.play_points import play_points_filename
@@ -207,6 +212,10 @@ _UNIT_COLLABORATORS = (
 # The video thread is faked above, so no GL context is ever asked for.
 _NO_GL_CONTEXTS = None
 
+# Where each screen starts, read off the units, there being no one table of them.
+SPOTS = {name: spot for kind in vars(player).values() if isinstance(kind, type)
+         for name, spot in getattr(kind, "SPOTS", {}).items()}
+
 
 def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
     """A real manifest, written by the writer the VR launcher uses."""
@@ -227,6 +236,41 @@ def faked_collaborators():
         yield fakes
 
 
+def test_the_main_slot_opens_where_the_last_session_left_it(tmp_path, faked_collaborators):
+    """Genau and the main player take turns in the one slot, so both open in
+    whatever the last drag on it settled."""
+    moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
+    manifest = _manifest_for_a_vr_session(tmp_path)
+    vr = VrSettings(
+        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+        audio_device="", compositor_layers=False,
+    )
+
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered={MAIN: moved},
+                     genau_role=SimpleNamespace(showing=False))
+
+    assert unit.screen.placement == moved
+
+
+def test_genau_opens_in_the_same_slot_the_last_session_left_it(tmp_path):
+    """It takes the main player's slot in turn, so a drag on the slot has to
+    reach it too -- else the picture jumps back on every mode change."""
+    moved = Placement(azimuth_deg=18.0, elevation_deg=-6.0, width_deg=95.0)
+    vr = VrSettings(
+        tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
+        audio_device="", compositor_layers=False, clips_dirs=(tmp_path,),
+    )
+
+    with patch.multiple("fun_time_vr.player", GenauRole=DEFAULT, GenauNotifier=DEFAULT,
+                        FrameTexture=DEFAULT, UdpTCodeSink=DEFAULT, VolumeHudPainter=DEFAULT,
+                        PlayheadHudPainter=DEFAULT),             patch("fun_time_vr.player.read_genau_status",
+                  return_value=SimpleNamespace(clip="")):
+        unit = _GenauUnit(_manifest_for_a_vr_session(tmp_path), vr, threading.Event(),
+                          remembered={MAIN: moved})
+
+    assert unit.screen.placement == moved
+
+
 def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         tmp_path, faked_collaborators):
     """The main unit reads four paths and one device name out of the session it
@@ -238,7 +282,7 @@ def test_the_main_unit_finds_every_file_it_needs_in_the_manifest(
         audio_device="Example Headset", compositor_layers=False,
     )
 
-    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, placement=DEFAULT_LAYOUT[MAIN],
+    unit = _MainUnit(manifest, vr, _NO_GL_CONTEXTS, remembered={},
                      genau_role=SimpleNamespace(showing=False))
 
     commands = manifest.commands
@@ -269,7 +313,7 @@ def test_a_satellite_unit_finds_every_file_it_needs_in_the_manifest(
     )
 
     unit = _SatelliteUnit(
-        player, manifest, _NO_GL_CONTEXTS, vr=vr, placement=DEFAULT_LAYOUT[player])
+        player, manifest, _NO_GL_CONTEXTS, vr=vr, remembered={})
 
     commands = manifest.commands
     assert unit.cmd_file == Path(commands.player_file(player, "cmd"))
@@ -312,7 +356,7 @@ def _unit_with_pixels(width=640, height=480) -> tuple[_VideoUnit, _OverlayPlayer
     # suite's, and overlay_furniture reads only these three fields of it.
     unit.target = SimpleNamespace(ready=True, width=width, height=height,
                                  aspect=width / height)
-    unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN])
+    unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
     return unit, player
 
 
@@ -475,7 +519,7 @@ class _FakeMesh:
 
 
 def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
-    screen = _HangingScreen(DEFAULT_LAYOUT[LANDSCAPE])
+    screen = _HangingScreen(SPOTS[LANDSCAPE])
     screen.mesh = _FakeMesh()
 
     screen.rehang(4 / 3)
@@ -490,24 +534,38 @@ def test_a_screen_rehangs_when_its_placement_moves_and_only_then():
     assert not np.array_equal(screen.mesh.uploads[0], screen.mesh.uploads[1])
 
 
-def test_a_satellite_hangs_where_the_layout_says(tmp_path, faked_collaborators):
-    manifest = _manifest_for_a_vr_session(tmp_path)
-    moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
-
+def _a_satellite_unit(tmp_path, player, remembered):
     vr = VrSettings(
         tcode_udp_host="127.0.0.1", tcode_udp_port=8000, library_dirs=(),
         audio_device="", compositor_layers=False,
     )
+    return _SatelliteUnit(player, _manifest_for_a_vr_session(tmp_path), _NO_GL_CONTEXTS,
+                          vr=vr, remembered=remembered)
 
-    unit = _SatelliteUnit("portrait", manifest, _NO_GL_CONTEXTS, vr=vr, placement=moved)
+
+def test_a_satellite_hangs_where_the_layout_says(tmp_path, faked_collaborators):
+    moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
+
+    unit = _a_satellite_unit(tmp_path, PORTRAIT, {PORTRAIT: moved})
 
     assert unit.screen.placement == moved
+
+
+def test_a_satellite_the_layout_says_nothing_about_hangs_in_its_own_spot(
+        tmp_path, faked_collaborators):
+    """A remembered layout names only the screens a session actually moved, so
+    the one that was left alone has to find its opening spot for itself."""
+    landscape_only = {LANDSCAPE: Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)}
+
+    unit = _a_satellite_unit(tmp_path, PORTRAIT, landscape_only)
+
+    assert unit.screen.placement == _SatelliteUnit.SPOTS[PORTRAIT]
 
 
 class TestTheLayoutKeeper:
     def test_what_the_controllers_settled_is_written_once_on_the_worker(self, tmp_path):
         path = tmp_path / "vr_layout.json"
-        keeper = _LayoutKeeper(path, dict(DEFAULT_LAYOUT))
+        keeper = _LayoutKeeper(path, {})
         moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
 
         keeper.pump(threading.Event(), 0.0)
@@ -526,13 +584,29 @@ class TestTheLayoutKeeper:
 
     def test_a_session_ending_mid_drag_still_keeps_the_screen_where_it_was_left(self, tmp_path):
         path = tmp_path / "vr_layout.json"
-        keeper = _LayoutKeeper(path, dict(DEFAULT_LAYOUT))
+        keeper = _LayoutKeeper(path, {})
         moved = Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0)
 
         keeper.place(PORTRAIT, moved)
         keeper.close()
 
         assert read_layout(path)[PORTRAIT] == moved
+
+    def test_putting_the_room_back_leaves_the_session_remembering_nothing(self, tmp_path):
+        """The file is only where he moved a screen TO, so a room put back has
+        nothing to say -- and each screen then opens in its own unit's spot."""
+        path = tmp_path / "vr_layout.json"
+        keeper = _LayoutKeeper(path, {})
+        keeper.place(PORTRAIT, Placement(azimuth_deg=-60.0, elevation_deg=-5.0, width_deg=20.0))
+        keeper.settle()
+        keeper.pump(threading.Event(), 0.0)
+        assert read_layout(path)
+
+        keeper.forget()
+        keeper.settle()
+        keeper.pump(threading.Event(), 0.0)
+
+        assert read_layout(path) == {}
 
 
 class TestWhatTheControllersPost:
@@ -593,7 +667,7 @@ class TestThePanelUnderThePointer:
             drive_gate=SimpleNamespace(
                 readout=lambda published, device_drives_itself=False: published),
             target=SimpleNamespace(ready=True, aspect=16 / 9),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
+            screen=SimpleNamespace(placement=SPOTS[MAIN]),
             controls=_SlotControls(
                 position=1_000.0, duration=600_000.0,
                 playhead=video_playhead(1_000.0, 600_000.0, 30.0),
@@ -602,7 +676,7 @@ class TestThePanelUnderThePointer:
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
             owns_the_slot=showing,
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
+            screen=SimpleNamespace(placement=SPOTS[MAIN]),
             texture=SimpleNamespace(ready=True, aspect=4 / 3),
             # Genau's bar counts frames, and its seek takes the fraction read out.
             controls=_SlotControls(
@@ -628,7 +702,7 @@ class TestThePanelUnderThePointer:
         event_log = tmp_path / "event_log.jsonl"
         notices = NoticeBoard(event_log)
         dash = SimpleNamespace(texture=SimpleNamespace(ready=True, aspect=560 / 218),
-                               screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PANEL]))
+                               screen=SimpleNamespace(placement=SPOTS[PANEL]))
         with patch("fun_time_vr.player.FrameTexture", _FakePanelTexture):
             unit = _PanelUnit(main_unit, genau, dash,
                               dashboard_cmd_file=command_file, notices=notices)
@@ -713,7 +787,7 @@ class TestThePanelUnderThePointer:
             p.unit.render_latest_frame()
             followed = p.unit.screen.placement
 
-        assert docked.azimuth_deg == DEFAULT_LAYOUT[MAIN].azimuth_deg
+        assert docked.azimuth_deg == SPOTS[MAIN].azimuth_deg
         assert docked.elevation_deg < 0.0  # under the picture, never over it
         assert followed.azimuth_deg == -40.0
         assert followed.elevation_deg < docked.elevation_deg  # a bigger player hangs lower
@@ -1251,8 +1325,10 @@ def test_a_squeeze_brings_forward_what_the_ray_and_the_eyes_both_see():
 
 def _like(kind, stand_in):
     """Answer the room's questions the way *kind* does, off a stand-in."""
+    stand_in.SPOTS = kind.SPOTS
     stand_in.hangings = lambda: kind.hangings(stand_in)
     stand_in.hangs_by = lambda: kind.hangs_by(stand_in)
+    stand_in.put_back = lambda: kind.put_back(stand_in)
     return stand_in
 
 
@@ -1270,14 +1346,14 @@ class TestTheMainSlotUnderThePointer:
             target=SimpleNamespace(ready=settings["picture"], aspect=16 / 9),
             role=SimpleNamespace(
                 displayed=settings["displayed"], projection=settings["projection"]),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
+            screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=not settings["showing"],
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=settings["clip"], aspect=4 / 3),
             role=SimpleNamespace(
                 showing=settings["showing"], projection=settings["clip_projection"]),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
+            screen=SimpleNamespace(placement=SPOTS[MAIN]),
             owns_the_slot=settings["showing"],
         ))
         return main_unit, genau
@@ -1301,7 +1377,7 @@ class TestTheMainSlotUnderThePointer:
         screen = self._slot()
 
         assert (screen.name, screen.movable, screen.resizable) == (MAIN, True, True)
-        assert screen.placement == DEFAULT_LAYOUT[MAIN]
+        assert screen.placement == SPOTS[MAIN]
         assert screen.aspect == 16 / 9
 
     def test_a_flat_main_player_is_a_picture_a_squeeze_clicks_or_carries(self):
@@ -1357,7 +1433,7 @@ class TestTheMainSlotUnderThePointer:
     def _the_room_around_the_slot(self) -> list:
         dash = _like(_DashUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=False, aspect=2.5),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH])))
+            screen=SimpleNamespace(placement=SPOTS[DASH])))
         reference = _like(_ReferenceUnit, SimpleNamespace(
             showing=False, texture=SimpleNamespace(ready=False, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
@@ -1420,7 +1496,7 @@ class TestTheClipsOwnControls:
     def _unit(self, *, played=5, of=20, volume=70, muted=False):
         unit = _GenauUnit.__new__(_GenauUnit)
         unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
-        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN])
+        unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
         unit._volume_painter = VolumeHudPainter()
         unit._readout_painter = PlayheadHudPainter()
         unit._control_size = None
@@ -1435,7 +1511,7 @@ class TestTheClipsOwnControls:
         unit.role.projection = projection
         uploaded: list = []
         unit.texture = SimpleNamespace(aspect=16 / 9, upload=uploaded.append)
-        unit.screen = SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN],
+        unit.screen = SimpleNamespace(placement=SPOTS[MAIN],
                                       rehang=lambda _aspect: None)
         unit.render_latest_frame()
         return clip, uploaded[-1]
@@ -1484,7 +1560,7 @@ class TestTheClipsOwnControls:
 
         unit._furnished(np.zeros((360, 640, 3), dtype=np.uint8))
 
-        assert unit._control_size == control_size(DEFAULT_LAYOUT[MAIN].width_deg, 640 / 360)
+        assert unit._control_size == control_size(SPOTS[MAIN].width_deg, 640 / 360)
 
     def test_the_clip_says_which_frame_is_up_beside_its_bar(self):
         unit = self._unit()
@@ -1518,7 +1594,7 @@ def _hanging(name: str, aspect: float):
     return SimpleNamespace(
         texture=SimpleNamespace(ready=True, texture=object(), aspect=aspect),
         screen=SimpleNamespace(ready=True, mesh=name,
-                               placement=DEFAULT_LAYOUT.get(name, _UNDER_THE_DASH)),
+                               placement=SPOTS.get(name, _UNDER_THE_DASH)),
     )
 
 
@@ -1542,14 +1618,14 @@ class TestEveryHangingScreenIsDrawn:
             bind_eye_framebuffer=lambda _i: None, release_eye_framebuffer=lambda _i: None)
         main_unit = _like(_MainUnit, SimpleNamespace(
             target=SimpleNamespace(ready=projection is not None, texture=object(), aspect=16 / 9),
-            screen=SimpleNamespace(ready=True, mesh=MAIN, placement=DEFAULT_LAYOUT[MAIN]),
+            screen=SimpleNamespace(ready=True, mesh=MAIN, placement=SPOTS[MAIN]),
             role=SimpleNamespace(displayed=True, projection=projection or FLAT),
             owns_the_slot=True,
         ))
         genau = _like(_GenauUnit, SimpleNamespace(
             role=SimpleNamespace(showing=False, projection=FLAT),
             texture=SimpleNamespace(ready=False, texture=object(), aspect=4 / 3),
-            screen=SimpleNamespace(ready=False, mesh="genau", placement=DEFAULT_LAYOUT[MAIN]),
+            screen=SimpleNamespace(ready=False, mesh="genau", placement=SPOTS[MAIN]),
             owns_the_slot=False,
         ))
         panel = _like(_PanelUnit, _hanging(PANEL, 1.2))
@@ -1657,7 +1733,7 @@ def _a_panel(*, ready=True):
     """The console as the pointer reads it: pressed, never dragged."""
     return _like(_PanelUnit, SimpleNamespace(
         texture=SimpleNamespace(ready=ready, aspect=1.2),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[PANEL]),
+        screen=SimpleNamespace(placement=SPOTS[PANEL]),
     ))
 
 
@@ -1667,24 +1743,23 @@ def _slot(*, wrapped=False):
     main_unit = _like(_MainUnit, SimpleNamespace(
         target=SimpleNamespace(ready=True, aspect=16 / 9),
         role=SimpleNamespace(displayed=True, projection=projection),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
+        screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=True,
     ))
     genau = _like(_GenauUnit, SimpleNamespace(
         texture=SimpleNamespace(ready=True, aspect=4 / 3),
         role=SimpleNamespace(showing=False, projection=projection),
-        screen=SimpleNamespace(placement=DEFAULT_LAYOUT[MAIN]),
+        screen=SimpleNamespace(placement=SPOTS[MAIN]),
         owns_the_slot=False,
     ))
     return main_unit, genau
 
 
-def _a_dash(tmp_path, *, wrapped=False, texture=None):
+def _a_dash(tmp_path, *, wrapped=False, texture=None, remembered=None):
     with patch("fun_time_vr.player.FrameTexture"):
         dash = _DashUnit(
             *_slot(wrapped=wrapped),
-            placement=DEFAULT_LAYOUT[DASH],
-            wrapped_placement=DEFAULT_LAYOUT[PANEL],
+            remembered=remembered or {},
             dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
             notices=NoticeBoard(tmp_path / "event_log.jsonl"),
             dashboard_state_file=tmp_path / "dashboard_state.ini",
@@ -1758,10 +1833,10 @@ class _FakeLibraryHost:
         self.closed = True
 
 
-def _a_library(tmp_path, host):
+def _a_library(tmp_path, host, remembered=None):
     with patch("fun_time_vr.player.FrameTexture"):
         return _LibraryUnit(
-            placement=DEFAULT_LAYOUT[LIBRARY],
+            remembered=remembered or {},
             flag=tmp_path / LIBRARY_OPEN_FILENAME,
             host=host,
             main_player_cmd_file=tmp_path / "main_player_cmd.txt",
@@ -1781,6 +1856,13 @@ def _uv(x: int, y: int) -> tuple[float, float]:
 
 
 class TestTheLibraryUnderThePointer:
+    def test_it_opens_where_the_last_session_left_it(self, tmp_path):
+        moved = Placement(azimuth_deg=-25.0, elevation_deg=18.0, width_deg=60.0)
+
+        unit = _a_library(tmp_path, _FakeLibraryHost(), remembered={LIBRARY: moved})
+
+        assert unit.screen.placement == moved
+
     def test_opening_it_asks_the_browser_to_open_on_the_video_playing(self, tmp_path):
         host = _FakeLibraryHost()
         unit = _a_library(tmp_path, host)
@@ -1979,7 +2061,7 @@ class TestWhatThePointerCanReach:
 
 
 def _a_satellite(player: str, *, hud: bool = False):
-    placement = DEFAULT_LAYOUT[player]
+    placement = SPOTS[player]
     return _like(_SatelliteUnit, SimpleNamespace(
         screen_name=player, target=SimpleNamespace(ready=True, aspect=16 / 9),
         screen=SimpleNamespace(placement=placement), hud_ready=hud,
@@ -1994,7 +2076,7 @@ class TestWhatComesForwardTogether:
                   wrapped=False):
         dash = dash or _like(_DashUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=False, aspect=2.5),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH])))
+            screen=SimpleNamespace(placement=SPOTS[DASH])))
         reference = _like(_ReferenceUnit, SimpleNamespace(
             showing=reference_up, texture=SimpleNamespace(ready=True, aspect=1.7),
             screen=SimpleNamespace(placement=_UNDER_THE_DASH)))
@@ -2006,7 +2088,7 @@ class TestWhatComesForwardTogether:
         stacking = Stacking()
         dash = _like(_DashUnit, SimpleNamespace(
             texture=SimpleNamespace(ready=True, aspect=2.5),
-            screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH])))
+            screen=SimpleNamespace(placement=SPOTS[DASH])))
         stacking.take(MAIN)
         stacking.take(REFERENCE)
 
@@ -2046,7 +2128,7 @@ class TestTheReferenceUnderTheDashboard:
     it and goes wherever it goes, with no handles of its own."""
 
     def _unit(self, tmp_path, *, carrying_the_console=False):
-        dash = SimpleNamespace(screen=SimpleNamespace(placement=DEFAULT_LAYOUT[DASH]),
+        dash = SimpleNamespace(screen=SimpleNamespace(placement=SPOTS[DASH]),
                                texture=SimpleNamespace(aspect=2.5),
                                carrying_the_console=carrying_the_console)
         panel = SimpleNamespace(
@@ -2075,8 +2157,8 @@ class TestTheReferenceUnderTheDashboard:
         dash.screen.placement = Placement(azimuth_deg=-40.0, elevation_deg=30.0, width_deg=40.0)
         followed = self._placed(unit)
 
-        assert under.azimuth_deg == DEFAULT_LAYOUT[DASH].azimuth_deg
-        assert self._meets(DEFAULT_LAYOUT[DASH], 2.5, under)
+        assert under.azimuth_deg == SPOTS[DASH].azimuth_deg
+        assert self._meets(SPOTS[DASH], 2.5, under)
         assert followed.azimuth_deg == -40.0
         assert self._meets(dash.screen.placement, 2.5, followed)
         assert under.width_deg == followed.width_deg == REFERENCE_WIDTH_DEG
@@ -2097,8 +2179,9 @@ class TestWhereTheDashboardHangs:
     with the console under it -- dragged there, it must not drop over the
     picture the next time a flat video comes back."""
 
-    def _placed(self, tmp_path, *, wrapped=False):
-        dash = _a_dash(tmp_path, wrapped=wrapped, texture=_FakePanelTexture())
+    def _placed(self, tmp_path, *, wrapped=False, remembered=None):
+        dash = _a_dash(tmp_path, wrapped=wrapped, texture=_FakePanelTexture(),
+                       remembered=remembered)
         with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
         return dash
@@ -2106,7 +2189,7 @@ class TestWhereTheDashboardHangs:
     def test_it_keeps_its_own_place_while_a_picture_is_in_the_slot(self, tmp_path):
         """A flat video's dashboard is where the session left it, and where it
         always was: the console docking under it is the wrapped case alone."""
-        assert self._placed(tmp_path).screen.placement == DEFAULT_LAYOUT[DASH]
+        assert self._placed(tmp_path).screen.placement == SPOTS[DASH]
 
     def test_a_flat_video_does_not_move_it_with_the_console(self, tmp_path):
         """The console rides under the picture there, and the dashboard rides
@@ -2118,7 +2201,7 @@ class TestWhereTheDashboardHangs:
         with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
 
-        assert dash.screen.placement == DEFAULT_LAYOUT[DASH]
+        assert dash.screen.placement == SPOTS[DASH]
 
     def test_a_flat_video_still_offers_it_to_the_pointer(self, tmp_path):
         """Drawn but unreachable is the same as gone: it is the only thing in
@@ -2128,7 +2211,7 @@ class TestWhereTheDashboardHangs:
         assert screens[DASH].pressable and screens[DASH].movable
 
     def test_it_takes_the_pairs_place_while_it_carries_the_console(self, tmp_path):
-        assert self._placed(tmp_path, wrapped=True).screen.placement == DEFAULT_LAYOUT[PANEL]
+        assert self._placed(tmp_path, wrapped=True).screen.placement == SPOTS[PANEL]
 
     def test_a_drag_lands_in_the_spot_that_is_showing(self, tmp_path):
         put = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
@@ -2148,29 +2231,149 @@ class TestWhereTheDashboardHangs:
 
         dash.placement = Placement(azimuth_deg=25.0, elevation_deg=-12.0, width_deg=40.0)
 
-        assert dash._floating == DEFAULT_LAYOUT[DASH]
+        assert dash._floating == SPOTS[DASH]
         assert dash.layout_key == PANEL
+
+    def test_it_opens_in_whichever_of_the_two_the_last_session_left_it_in(self, tmp_path):
+        """Both are remembered, so a dashboard dragged in one of them must not
+        be found in the other's place the next time that one comes up."""
+        floating = Placement(azimuth_deg=-30.0, elevation_deg=40.0, width_deg=44.0)
+        carrying = Placement(azimuth_deg=15.0, elevation_deg=-20.0, width_deg=36.0)
+        remembered = {DASH: floating, PANEL: carrying}
+
+        assert self._placed(tmp_path, remembered=remembered).screen.placement == floating
+        assert self._placed(
+            tmp_path, wrapped=True, remembered=remembered).screen.placement == carrying
 
     def test_a_vr_reset_puts_both_of_its_spots_back_wherever_it_was_dragged(self, tmp_path):
         dash = self._placed(tmp_path)
         dash.placement = Placement(azimuth_deg=110.0, elevation_deg=5.0, width_deg=40.0)
 
-        dash.put_back(vr_reset_layout())
+        dash.put_back()
         with patch("fun_time_vr.player.ScreenMesh", _FakeMesh):
             dash.render_latest_frame()
 
-        assert dash.screen.placement == DEFAULT_LAYOUT[DASH]
-        assert (dash._floating, dash._wrapped) == (DEFAULT_LAYOUT[DASH], DEFAULT_LAYOUT[PANEL])
+        assert dash.screen.placement == SPOTS[DASH]
+        assert (dash._floating, dash._wrapped) == (SPOTS[DASH], SPOTS[PANEL])
+
+
+_DRAGGED_OFF = Placement(azimuth_deg=-110.0, elevation_deg=-30.0, width_deg=15.0)
+
+
+class TestTheSpotEachScreenStartsIn:
+    """No one table lists these: the unit that hangs a screen keeps the spot it
+    opens in, so a screen is added by writing its unit and registering it."""
+
+    def test_the_main_screen_is_one_of_the_movable_screens_hanging_dead_ahead(self):
+        """It moves and zooms by the same handles the satellites do, and starts
+        where it has always sat -- level and straight on."""
+        assert _MainUnit.SPOTS[MAIN] == Placement(0.0, 0.0, MAIN_WIDTH_DEG)
+
+    def test_genau_opens_in_the_main_players_own_slot(self):
+        """The two take turns in one slot, so a session opening in Genau's mode
+        puts the picture exactly where the main player's would."""
+        assert _GenauUnit.SPOTS[MAIN] == _MainUnit.SPOTS[MAIN]
+
+    def test_the_satellites_flank_the_main_screen_landscape_left_portrait_right(self):
+        """The sides a desktop session puts them on, so the room reads the same
+        in the headset as it does on the monitors."""
+        portrait, landscape = _SatelliteUnit.SPOTS[PORTRAIT], _SatelliteUnit.SPOTS[LANDSCAPE]
+
+        assert landscape.azimuth_deg < 0 < portrait.azimuth_deg
+        assert portrait.azimuth_deg == -landscape.azimuth_deg
+        assert portrait.width_deg == landscape.width_deg
+        assert portrait.elevation_deg == landscape.elevation_deg
+
+    def test_the_satellites_tuck_inside_the_flush_position(self):
+        # First headset run: flush-beside-the-main-player put both satellites in
+        # the peripheral vision, so they overlap the main player's edges instead --
+        # they draw over it, so overlap costs nothing.
+        landscape = _SatelliteUnit.SPOTS[LANDSCAPE]
+        flush = (MAIN_WIDTH_DEG + landscape.width_deg) / 2
+
+        assert abs(landscape.azimuth_deg) < flush
+
+    def test_the_satellites_are_smaller_than_half_the_main_screen(self):
+        assert _SatelliteUnit.SPOTS[LANDSCAPE].width_deg < MAIN_WIDTH_DEG / 2
+
+    def test_the_satellites_ride_above_the_horizon(self):
+        assert _SatelliteUnit.SPOTS[LANDSCAPE].elevation_deg > 0
+
+    def test_only_the_screens_a_controller_places_keep_one(self):
+        """The console is one of them: a video that wraps the viewer leaves no
+        picture to dock it under, so the dashboard carries it and keeps a second
+        spot for that.  The reference is not -- it hangs from the dashboard,
+        wherever that was put."""
+        assert set(SPOTS) == {MAIN, PORTRAIT, LANDSCAPE, PANEL, DASH, LIBRARY}
+
+    def test_every_one_of_them_is_already_inside_the_scene(self):
+        """A spot outside the reach a drag is held to would be clamped the first
+        time it was written down, so the screen would not come back where it
+        opened."""
+        for name, spot in SPOTS.items():
+            assert clamp_placement(spot) == spot, name
+
+
+class TestPuttingTheRoomBack:
+    """One press puts every screen back: each unit hangs its own in the spot it
+    keeps, and the session is left remembering nothing -- which is what makes
+    the next one open the same way."""
+
+    @pytest.mark.parametrize("player", [PORTRAIT, LANDSCAPE])
+    def test_a_satellite_goes_back_to_its_own_side(self, player):
+        unit = _like(_SatelliteUnit, SimpleNamespace(
+            screen_name=player, screen=SimpleNamespace(placement=_DRAGGED_OFF)))
+
+        unit.put_back()
+
+        assert unit.screen.placement == _SatelliteUnit.SPOTS[player]
+
+    def test_the_main_player_goes_back_to_the_slot(self):
+        unit = _like(_MainUnit, SimpleNamespace(
+            screen_name=MAIN, screen=SimpleNamespace(placement=_DRAGGED_OFF)))
+
+        unit.put_back()
+
+        assert unit.screen.placement == _MainUnit.SPOTS[MAIN]
+
+    def test_genau_goes_back_to_the_same_slot(self):
+        """Dragging the slot moves both of them, so putting it back must too --
+        else whichever was not showing comes forward somewhere else."""
+        unit = _like(_GenauUnit, SimpleNamespace(
+            screen=SimpleNamespace(placement=_DRAGGED_OFF)))
+
+        unit.put_back()
+
+        assert unit.screen.placement == _MainUnit.SPOTS[MAIN]
+
+    def test_the_browse_goes_back_to_its_own_spot(self, tmp_path):
+        unit = _a_library(tmp_path, _FakeLibraryHost())
+        unit.screen.placement = _DRAGGED_OFF
+
+        unit.put_back()
+
+        assert unit.screen.placement == _LibraryUnit.SPOTS[LIBRARY]
+
+    @pytest.mark.parametrize("kind", [_PanelUnit, _ReferenceUnit, _CoverUnit])
+    def test_what_rides_on_another_screen_keeps_no_spot_and_is_left_riding(self, kind):
+        """Each of these hangs off something else and finds its place again every
+        frame, so putting the room back must not pull it off what it rides on."""
+        riding = SimpleNamespace(screen=SimpleNamespace(placement=_DRAGGED_OFF))
+
+        kind.put_back(riding)
+
+        assert kind.SPOTS == {}
+        assert riding.screen.placement == _DRAGGED_OFF
 
 
 class TestWhereItHangsToStart:
     def test_the_dash_opens_centered_over_the_main_player(self):
-        assert DEFAULT_LAYOUT[DASH].azimuth_deg == DEFAULT_LAYOUT[MAIN].azimuth_deg
+        assert SPOTS[DASH].azimuth_deg == SPOTS[MAIN].azimuth_deg
 
     def test_it_opens_two_reposition_handles_above_the_main_players_top(self):
-        main_top = surface_vertices(DEFAULT_LAYOUT[MAIN], aspect=16 / 9)[:, 1].max()
+        main_top = surface_vertices(SPOTS[MAIN], aspect=16 / 9)[:, 1].max()
         dash_lower_edge = surface_vertices(
-            DEFAULT_LAYOUT[DASH], aspect=DASH_WIDTH_PX / dash_height())[:, 1].min()
+            SPOTS[DASH], aspect=DASH_WIDTH_PX / dash_height())[:, 1].min()
 
         assert dash_lower_edge - main_top == pytest.approx(
             2 * RADIUS * np.radians(HANDLE_DEG), rel=0.05)

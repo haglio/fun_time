@@ -25,9 +25,6 @@ class Placement:
     width_deg: float
 
 
-MAIN_PLACEMENT = Placement(0.0, 0.0, MAIN_WIDTH_DEG)
-
-
 def center_height(placement: Placement, radius: float = RADIUS) -> float:
     return radius * math.tan(math.radians(placement.elevation_deg))
 
