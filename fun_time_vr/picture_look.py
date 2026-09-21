@@ -17,11 +17,9 @@ _LOOKS_TO_BELIEVE = {FISHEYE_CIRCLE: 2, FULL_FRAME: 3}
 
 
 class PictureLook:
-    """What a VR video's own picture shows, read while it plays.
-
-    The frame comes from the thread that paints it (:mod:`fun_time_vr.video_thread`):
-    asking mpv for a screenshot instead is "No render context set" from anywhere
-    but that thread, and the ask wedged the player (2026-09-20).
+    """What a VR video's own picture shows, read from the thread that paints it
+    (:mod:`fun_time_vr.video_thread`) -- mpv's render context is thread-bound,
+    so a screenshot asked from elsewhere is refused, not answered.
     """
 
     def __init__(self, video, *, start_thread=start_daemon_thread,
