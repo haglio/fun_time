@@ -507,7 +507,7 @@ def start_core_session(
     return carried.main_mode
 
 
-def launch_genau(
+def genau_launch_command(
     *,
     python_exe: str | Path,
     genau_module: str,
@@ -517,20 +517,18 @@ def launch_genau(
     genau_y: int,
     genau_width: int,
     genau_height: int,
-    command_file: str | Path | None = None,
-    paused_file: str | Path | None = None,
-    console_file: str | Path | None = None,
-    drive_file: str | Path | None = None,
-    status_file: str | Path | None = None,
-    dashboard_cmd_file: str | Path | None = None,
+    command_file: str | Path,
+    paused_file: str | Path,
+    console_file: str | Path,
+    drive_file: str | Path,
+    status_file: str | Path,
+    dashboard_cmd_file: str | Path,
     start_clip: str = "",
-    project_dirs: str | None = None,
-) -> int:
-    """Launch Genau subprocess, returning its PID.
-
-    *start_clip* is the clip the last session was left showing, or "" for a
-    session with none to come back to.  *project_dir* is which checkout of the
-    genau repo to run — see :func:`genau_project_kwargs`.
+) -> list[str]:
+    """The argv a session launches Genau with, which
+    ``tests/test_genau_launch_contract`` holds against Genau's own published
+    document.  Every file below is required because Genau requires it: left
+    off, it used to fall through to a directory this session never reads.
     """
     cmd = [
         NAMER.named_exe(python_exe, "Genau"),
@@ -554,35 +552,28 @@ def launch_genau(
     # Both captions, for the same reason each satellite is handed its own: the
     # window is one of this session's, and this session resolves it by them.
     cmd.extend(["--title", GENAU_TITLE, "--video-title", GENAU_VIDEO_TITLE])
-    if command_file is not None:
-        cmd.extend(["--command-file", str(command_file)])
-    if paused_file is not None:
-        cmd.extend(["--paused-file", str(paused_file)])
-    # In genau mode Genau draws the main console — the same panel the main player draws in
-    # video mode — so it reads the console Fun Time publishes and posts a
-    # press back on the dashboard command file, exactly as the main player does.
-    if console_file is not None:
-        cmd.extend(["--console-file", str(console_file)])
-    # Where Genau publishes its drive readout for the main player to draw in video mode.  Named by
-    # us so both players name the same file; Genau resolving it from its own
-    # config wrote it into the Genau repo, where the main player was never looking.
-    if drive_file is not None:
-        cmd.extend(["--drive-file", str(drive_file)])
-    # Where it publishes what the hand is doing.  Named by us, like the drive
-    # readout above, so this session reads it where it said to write it.
-    if status_file is not None:
-        cmd.extend(["--status-file", str(status_file)])
-    if dashboard_cmd_file is not None:
-        cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
-    # Genau rescans its clips folder every launch and opens at the top of it, so
-    # the clip a session was left showing comes back only by being named here.  On
-    # the command line rather than the command channel because that channel
-    # upper-cases every line (a path cannot survive it) and because a verb would
-    # arrive after Genau had already decoded the wrong clip.
+    cmd.extend(["--command-file", str(command_file)])
+    cmd.extend(["--paused-file", str(paused_file)])
+    cmd.extend(["--console-file", str(console_file)])
+    cmd.extend(["--drive-file", str(drive_file)])
+    cmd.extend(["--status-file", str(status_file)])
+    cmd.extend(["--dashboard-cmd-file", str(dashboard_cmd_file)])
+    # On the command line rather than the command channel: that channel
+    # upper-cases every line, which no path survives, and a verb would arrive
+    # after Genau had already decoded the wrong clip.
     if start_clip:
         cmd.extend(["--start-clip", start_clip])
+    return cmd
+
+
+def launch_genau(*, project_dirs: str | None = None, **contract) -> int:
+    """Launch Genau subprocess, returning its PID.
+
+    *contract* is :func:`genau_launch_command`'s; *project_dirs* is which
+    checkout of the genau repo to run — see :func:`genau_project_kwargs`.
+    """
     proc = subprocess.Popen(
-        cmd, **no_child_log(),
+        genau_launch_command(**contract), **no_child_log(),
         **genau_project_kwargs(project_dirs), **subprocess_window_kwargs())
     return proc.pid
 
