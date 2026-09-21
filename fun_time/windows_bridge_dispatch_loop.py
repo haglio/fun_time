@@ -64,7 +64,7 @@ from .session_handoff import DESKTOP, VR, HandoffTarget, request_handoff, this_s
 from .shared_state import BridgeState, read_shared_state, write_shared_state
 from .shortcuts import Shortcut
 from .voice_commands import CommandLine, parse_command_line
-from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController
+from .voice_control import SUSPEND_EXEMPT_COMMANDS, VoiceController, say_the_mic_is_off
 from .watch_sampling import WatchSampler
 from .watch_stats import watch_stats_path
 from .win32 import (
@@ -723,6 +723,7 @@ class DispatchLoopRunner:
             self.voice_controller.unmute()
         else:
             self.voice_controller.mute()
+        say_the_mic_is_off(Path(self.config.state_dir), off=self.voice_controller.is_muted)
         if self.dashboard_enabled:
             self._update_dashboard()
 

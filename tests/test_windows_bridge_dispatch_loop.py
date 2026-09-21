@@ -41,7 +41,7 @@ from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.voice_commands import format_spoken_command, parse_command_line
-from fun_time.voice_control import VoiceController
+from fun_time.voice_control import VoiceController, take_whether_the_mic_was_off
 from fun_time.watch_stats import load_watch_stats
 from fun_time.window_layout import MonitorRect, secondary_monitor_rects
 from fun_time.windows_bridge_dispatch_loop import (
@@ -1277,6 +1277,29 @@ class TestDispatchLoopRunner:
         runner.tick()
 
         assert vc.is_muted
+
+    def test_the_mic_being_turned_off_is_written_down_for_a_crossing(self, tmp_path):
+        """The mute is this controller's alone, and the session that crosses is
+        about to be replaced by one with a controller of its own."""
+        runner = make_runner(tmp_path)
+        runner.voice_controller = VoiceController(
+            cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        (tmp_path / "dashboard_cmd.txt").write_text("voice_off", encoding="utf-8")
+
+        runner.tick()
+
+        assert take_whether_the_mic_was_off(runner.config.state_dir) is True
+
+    def test_turning_it_back_on_is_written_down_too(self, tmp_path):
+        runner = make_runner(tmp_path)
+        vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
+        vc.mute()
+        runner.voice_controller = vc
+        (tmp_path / "dashboard_cmd.txt").write_text("voice_toggle", encoding="utf-8")
+
+        runner.tick()
+
+        assert take_whether_the_mic_was_off(runner.config.state_dir) is False
 
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a

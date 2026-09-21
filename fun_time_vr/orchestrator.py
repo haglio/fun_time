@@ -120,6 +120,7 @@ from fun_time.single_instance import (
     show_already_running_message,
 )
 from fun_time.state_file_names import take_up_the_retired_state_file_names
+from fun_time.voice_control import take_whether_the_mic_was_off
 from fun_time.vr_videos import shapes_verb
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
@@ -711,6 +712,7 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             prepared_voice,
             dashboard_cmd_file=dashboard_cmd_file,
             dispatch_runner=dispatch_runner,
+            muted=take_whether_the_mic_was_off(state_dir) and env.crossing,
         )
     except BaseException:
         logger.info("The session failed while opening; tearing down %d launched child(ren)",

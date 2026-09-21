@@ -469,3 +469,24 @@ class TestWriteCommand:
         vc.mute()
         vc._write_spoken("play", spoken_at=1.0)
         assert not cmd_file.exists()
+
+
+class TestTheMicBeingOff:
+    """The mute lives in this session's controller, so a crossing has nowhere to
+    read it from but what the session that ended wrote down."""
+
+    def test_the_next_session_takes_what_the_last_one_said(self, tmp_path: Path):
+        voice_control.say_the_mic_is_off(tmp_path, off=True)
+
+        assert voice_control.take_whether_the_mic_was_off(tmp_path) is True
+
+    def test_it_is_spent_in_the_taking(self, tmp_path: Path):
+        """Taken at every startup, crossing or not, so a session that ended
+        muted cannot quietly mute some later launch of its own."""
+        voice_control.say_the_mic_is_off(tmp_path, off=True)
+        voice_control.take_whether_the_mic_was_off(tmp_path)
+
+        assert voice_control.take_whether_the_mic_was_off(tmp_path) is False
+
+    def test_a_session_that_said_nothing_left_the_mic_on(self, tmp_path: Path):
+        assert voice_control.take_whether_the_mic_was_off(tmp_path) is False

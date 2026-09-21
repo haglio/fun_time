@@ -60,6 +60,7 @@ from fun_time.session_handoff import (
 from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.unlogged_notices import UNLOGGED_NOTICE_PORT_FILENAME
+from fun_time.voice_control import say_the_mic_is_off
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
     _CHILD_PID_KEYS,
@@ -2810,9 +2811,61 @@ class TestTheSessionEndsOnItsMarker:
         assert told_to_exit()
 
 
+class TestTheMicACrossingOpensWith:
+    """The mute lives in the controller a crossing replaces, so the arriving
+    session starts its own muted or not by what the last one wrote down."""
+
+    def _muted_at_the_voice_start(self, cfg_factory, tmp_path, *, crossing: bool) -> bool:
+        cfg = load_config(cfg_factory())
+        manifest_path = write_windows_bridge_manifest(
+            cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True, exist_ok=True)
+        say_the_mic_is_off(state_dir, off=True)
+        asked: list[bool] = []
+
+        def the_user_quits(*_args, **kwargs):
+            asked.append(kwargs["muted"])
+            (state_dir / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
+            return None, None
+
+        class Hotkeys:
+            def poll(self):
+                return 0
+
+            def wait(self, timeout=None):
+                return 0
+
+        with patch("fun_time.windows_bridge_orchestrator.run_startup_sequence",
+                   return_value=_fake_startup_result()), \
+             patch("fun_time.windows_bridge_orchestrator.subprocess.Popen",
+                   return_value=Hotkeys()), \
+             patch("fun_time.windows_bridge_orchestrator.start_voice_control",
+                   side_effect=the_user_quits), \
+             patch("fun_time.windows_bridge_orchestrator.DispatchLoopRunner"), \
+             patch("fun_time.windows_bridge_orchestrator.get_process_creation_time",
+                   side_effect=lambda pid: pid * 10), \
+             patch("fun_time.windows_bridge_orchestrator.close_window"), \
+             patch("fun_time.windows_bridge_orchestrator.kill_process_tree"):
+            _a_session(
+                manifest_path=manifest_path, ahk_exe="ahk.exe", hotkey_script="hotkeys.ahk",
+                state_dir=state_dir, project_dir=tmp_path,
+                env=SessionEnvironment(integration=True, show_overlays=False,
+                                       crossing=crossing),
+            )
+        return asked == [True]
+
+    def test_a_crossing_from_a_room_that_said_mic_off_opens_muted(self, cfg_factory, tmp_path):
+        assert self._muted_at_the_voice_start(cfg_factory, tmp_path, crossing=True)
+
+    def test_a_launch_of_its_own_opens_listening(self, cfg_factory, tmp_path):
+        assert not self._muted_at_the_voice_start(cfg_factory, tmp_path, crossing=False)
+
+
 class TestStartingVoice:
     @staticmethod
-    def _started(config_path, tmp_path, *, controller=None, second_listener=None):
+    def _started(config_path, tmp_path, *, controller=None, second_listener=None,
+                 muted=False):
         with patch.object(windows_bridge_orchestrator, "why_unavailable", return_value=""), \
              patch.object(windows_bridge_orchestrator, "WhisperReader",
                           return_value=second_listener or MagicMock()), \
@@ -2822,6 +2875,7 @@ class TestStartingVoice:
             return windows_bridge_orchestrator.start_voice_control(
                 windows_bridge_orchestrator.prepare_voice_control(str(config_path)),
                 dashboard_cmd_file=tmp_path / "dashboard_cmd.txt", dispatch_runner=MagicMock(),
+                muted=muted,
             )
 
     def test_a_microphone_that_will_not_open_leaves_a_session_without_voice(
@@ -2930,6 +2984,16 @@ class TestStartingVoice:
             )
 
         assert order == ["voice prepared", "the room comes up", prepared]
+
+    def test_a_crossing_that_was_left_with_the_mic_off_opens_with_it_off(
+        self, cfg_factory, tmp_path,
+    ):
+        config_path = cfg_factory({"voice_control": {"enabled": True}})
+        controller = MagicMock()
+
+        self._started(config_path, tmp_path, controller=controller, muted=True)
+
+        controller.return_value.mute.assert_called_once_with()
 
 
 class TestTheHudPublisherASessionStarts:
