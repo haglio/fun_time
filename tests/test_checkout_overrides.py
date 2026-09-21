@@ -43,6 +43,29 @@ def test_the_sys_path_override_only_adds_directories_that_exist(tmp_path, monkey
     assert apply_genau_dirs_to_sys_path() == [str(real)]
 
 
+def test_this_checkouts_own_packages_still_come_before_a_siblings(tmp_path, monkeypatch):
+    state = tmp_path / "state"
+    state.mkdir()
+    sibling = tmp_path / "sibling_checkout"
+    sibling.mkdir()
+    (state / GENAU_DIRS_OVERRIDE_NAME).write_text(str(sibling), encoding="utf-8")
+    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(checkout_overrides, "sys", type("s", (), {"path": ["", "site-packages"]})())
+
+    apply_genau_dirs_to_sys_path()
+
+    assert checkout_overrides.sys.path[:3] == [str(tmp_path), str(sibling), ""]
+
+
+def test_a_checkout_with_no_siblings_named_leaves_the_path_as_it_found_it(tmp_path, monkeypatch):
+    monkeypatch.setattr(checkout_overrides.config_module, "PROJECT_DIR", tmp_path)
+    monkeypatch.setattr(checkout_overrides, "sys", type("s", (), {"path": ["", "site-packages"]})())
+
+    apply_genau_dirs_to_sys_path()
+
+    assert checkout_overrides.sys.path == ["", "site-packages"]
+
+
 def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path, monkeypatch, cfg_path):
     """The branch-config generator runs the PRIMARY checkout's copy of this
     module, so a branch that INTRODUCES the override cannot rely on it — the

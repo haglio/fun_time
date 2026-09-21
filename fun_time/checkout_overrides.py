@@ -62,8 +62,10 @@ def apply_genau_dirs_to_sys_path() -> list[str]:
     """
     dirs = [entry for entry in (_own_override(GENAU_DIRS_OVERRIDE_NAME) or [])
             if Path(entry).is_dir()]
-    for entry in reversed(dirs):
-        if entry not in sys.path:
+    if dirs:
+        for entry in reversed([str(config_module.PROJECT_DIR), *dirs]):
+            if entry in sys.path:
+                sys.path.remove(entry)
             sys.path.insert(0, entry)
     return dirs
 
