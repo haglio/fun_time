@@ -3242,6 +3242,40 @@ def test_a_non_widened_seed_loop_clears_a_stale_widen_anchor(tmp_path: Path):
     assert new_state.satellite(Player.PORTRAIT).widen_clip == ""  # stale anchor dropped
 
 
+def test_a_clip_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
+    """The map draws the library around the clip on screen, and a weirded clip
+    has left the library — so its row stops offering it, rather than holding a
+    thumbnail of something that is no longer there for the rest of the session.
+    """
+    from fun_time.lock_hud import hud_map_cells
+    from fun_time.satellite_groups import _satellite_group_index
+
+    config, a, b = _loop_config(tmp_path, axis="seed")
+    _set_current(config, 2, a)
+    assert hud_map_cells(_satellite_group_index(Player.PORTRAIT, config, b), b)[0] == [a]
+
+    _discard(2, _make_state(), config)            # "weird" on the clip on screen
+
+    index = _satellite_group_index(Player.PORTRAIT, config, b)
+    assert hud_map_cells(index, b)[0] == []
+
+
+def test_marking_clips_weird_until_one_is_left_turns_the_loop_into_a_lock(tmp_path: Path):
+    """A loop shrinks with its group, and a loop of one clip is that clip over
+    and over — which is the lock.  So the side locks and the loop goes, the same
+    answer a loop button gives a group that only ever held one clip."""
+    config, a, b = _loop_config(tmp_path, axis="seed")
+    _set_current(config, 2, a)
+    state, _ops = dispatch_command("portrait_seed_loop", _make_state(), config)
+
+    state, ops = _discard(2, state, config)       # "weird" on the clip on screen
+
+    assert _cmds(config, 2) == ["RELOAD_PLAYLIST", "TRASH", "LOCK_ON"]
+    assert state.satellite(Player.PORTRAIT).locked is True
+    assert state.satellite(Player.PORTRAIT).loop == ""
+    assert ("notice", "Locked", "portrait") in [(op.op, op.key, op.source) for op in ops]
+
+
 def test_loop_with_one_video_becomes_a_single_video_lock(tmp_path: Path):
     """A group of one is not a dead end: the loop buttons still work, they just
     mean "lock" then — repeat-one on the current clip, no sub-playlist."""

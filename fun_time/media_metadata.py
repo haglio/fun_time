@@ -371,6 +371,13 @@ class GroupIndex:
     def act_of(self, path: str) -> str:
         return self.entry(path).action
 
+    def forget(self, path: str) -> None:
+        key = normalize_path_key(path)
+        if self.entries.pop(key, None) is None:
+            return
+        for items in (*self.action_items.values(), *self.seed_items.values()):
+            items[:] = [item for item in items if normalize_path_key(item) != key]
+
     def indexed_path(self, key: str, fallback: str = "") -> str:
         entry = self.entries.get(key)
         return entry.path if entry is not None else fallback
@@ -568,6 +575,10 @@ class GroupIndexCache:
             self._indexes[cache_key] = index
         return index
 
+    def forget(self, path: str) -> None:
+        for index in self._indexes.values():
+            index.forget(path)
+
     def clear(self) -> None:
         self._indexes.clear()
 
@@ -578,3 +589,4 @@ SESSION_INDEXES = GroupIndexCache()
 
 cached_group_index = SESSION_INDEXES.index_for
 reset_group_index_cache = SESSION_INDEXES.clear
+forget_indexed_clip = SESSION_INDEXES.forget

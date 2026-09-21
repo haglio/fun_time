@@ -336,6 +336,21 @@ def group_loop(
 _LOOP_CYCLE: tuple[str, ...] = ("seed", "action", "")
 
 
+def lock_a_loop_left_with_one_clip(
+    player: Player, state: BridgeState, config: BridgeConfig, clip_that_left: str
+) -> tuple[BridgeState, list[WindowOp]]:
+    axis = state.satellite(player).loop
+    if not axis:
+        return state, []
+    items, _widened = _loop_items(player, axis, state, config, clip_that_left)
+    if len(items) >= 2:
+        return state, []
+    send_satellite(config, player, LOCK_ON)
+    state = clear_side_grouping(state.with_satellite(player, locked=True), player)
+    return state, [WindowOp(op="notice", key="Locked", source=satellite_source(player),
+                            level=FAVORITE)]
+
+
 def loop_cycle(
     player: Player, state: BridgeState, config: BridgeConfig, target_path: str = ""
 ) -> tuple[BridgeState, list[WindowOp]]:

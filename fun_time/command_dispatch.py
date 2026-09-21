@@ -46,6 +46,7 @@ from .event_log import (
 from .filter_vocab import decode_filter_command, set_command
 from .lock import build_discard_plan, build_lock_toggle_plan
 from .media_actions import ensure_in_favs, make_web_url_from_path, move_to_weird, remove_from_favs
+from .media_metadata import forget_indexed_clip
 from .mode_plan import MAIN_GENAU_MODE, MAIN_VIDEO_MODE, main_player_displays
 from .modes import VideoShapes, is_favorite_path, read_favs_content
 from .omnipause import build_omnipause_plan
@@ -72,6 +73,7 @@ from .satellite_groups import (
     cycle_version,
     group_loop,
     is_single_video_loop,
+    lock_a_loop_left_with_one_clip,
     loop_cycle,
     more_seeds,
     navigate_hud,
@@ -315,8 +317,12 @@ def _discard(
             # be done to the clip itself, so a satellite that already moved on is
             # left alone rather than dragged back to a clip it would leave again.
             send_satellite(config, player, NEXT)
+    state = state.with_satellite(player, locked=False)
+    lock_ops: list[WindowOp] = []
     if plan.move_to_weird:
         move_to_weird(config.weird_dir, Path(condemned))
+        state, lock_ops = lock_a_loop_left_with_one_clip(player, state, config, condemned)
+        forget_indexed_clip(condemned)
     if plan.log_message:
         logger.info(plan.log_message)
     # Which of the two things this key does is invisible otherwise: both look
@@ -331,7 +337,7 @@ def _discard(
         if plan.notice_message
         else []
     )
-    return state.with_satellite(player, locked=False), discard_ops
+    return state, [*discard_ops, *lock_ops]
 
 
 # The satellite and the variation axis each cycle command reaches.
