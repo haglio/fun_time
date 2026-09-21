@@ -8,6 +8,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from app_support.file_channel import read_flag, write_flag
 from player_core.file_channel import append_command
 from voice_core.commands import CommandRules
 from voice_core.listener import CommandListener, Engines, ListenerEvents, ListenerSettings
@@ -39,6 +40,19 @@ NO_COMMAND = "unrecognized voice command"
 def _how_many(words: str) -> str:
     count = len(words.split())
     return f"{count} word{'' if count == 1 else 's'}"
+
+MIC_OFF_FILENAME = "mic_off.flag"
+
+
+def say_the_mic_is_off(state_dir: Path, *, off: bool) -> None:
+    write_flag(Path(state_dir) / MIC_OFF_FILENAME, off)
+
+
+def take_whether_the_mic_was_off(state_dir: Path) -> bool:
+    path = Path(state_dir) / MIC_OFF_FILENAME
+    was_off = read_flag(path, default=False)
+    path.unlink(missing_ok=True)
+    return was_off
 
 
 # The player words a speaker can put in any command, and which window a notice

@@ -122,8 +122,10 @@ clip seconds and three switches. A session that is CROSSING re-sends all of
 them off the status and drive files the last one published, so the room the
 headset opens is the room the monitors were showing
 ([entering-vr.md](entering-vr.md)); a session opened any other way does not, and
-every player opens where a fresh one opens. The arriving orchestrator knows
-which it is from `--crossing`, which only the relay passes.
+every player opens where a fresh one opens. The mic goes the same way: the mute
+lives in the controller this session runs, so the dispatch loop writes it down
+whenever it moves and a crossing starts its own controller muted. The arriving
+orchestrator knows which it is from `--crossing`, which only the relay passes.
 
 ## Two rules that are easy to lose
 

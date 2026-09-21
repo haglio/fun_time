@@ -45,6 +45,7 @@ from fun_time.session_handoff import (
     take_handoff_request,
 )
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
+from fun_time.voice_control import say_the_mic_is_off
 from fun_time.win32_taskbar import APP_USER_MODEL_ID
 from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
 from fun_time.windows_bridge_orchestrator import ChildProcess
@@ -1788,4 +1789,21 @@ class TestOpeningAVrSession:
             prepared,
             dashboard_cmd_file=Path(manifest.commands.dashboard_cmd_file),
             dispatch_runner=runner.return_value,
+            muted=False,
         )
+
+    def test_a_crossing_from_a_room_that_said_mic_off_opens_muted(self, config):
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        say_the_mic_is_off(config.paths.state_dir, off=True)
+        start_voice = MagicMock(return_value=(None, None))
+
+        with _launch_stand_ins(
+            orchestrator, [],
+            start_voice_control=start_voice,
+            _wait_for_session_end=MagicMock(return_value="ahk"),
+        ), patch.object(orchestrator.vr_runtime, "runtime_was_running",
+                        return_value=True), \
+             patch("fun_time_vr.orchestrator.subprocess.Popen"):
+            orchestrator.run_vr_bridge(config, SessionEnvironment(crossing=True))
+
+        assert start_voice.call_args.kwargs["muted"] is True
