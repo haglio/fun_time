@@ -156,7 +156,7 @@ class TestAPressOnASatellite:
 
 def _a_panel() -> str:
     """A published panel with the mode row and the side's own band, as Fun Time
-    publishes one for a session hosting an Origenerator."""
+    publishes one for a headset session hosting an Origenerator."""
     from pathlib import Path
 
     from player_core.satellite_hud import hud_text
@@ -167,7 +167,7 @@ def _a_panel() -> str:
     return hud_text(hud_model(HudPanel(
         player="portrait", locked=False, lock_label="Shuffle", current="",
         seed_siblings=[], action_siblings=[], active=True, latest=False,
-        satellites_mode="video",
+        satellites_mode="video", in_vr=True,
     ), Path("C:/t")))
 
 

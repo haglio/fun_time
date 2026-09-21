@@ -214,7 +214,9 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7912 since 2026-09-20, when the control bar learned its own width: which
 # rectangles it places, and that the width counts them all, is a property's name
 # and two tests rather than a paragraph over the field it used to name.
-MAX_PROSE_LINES = 7912
+# 7911 since 2026-09-20, when the headset stopped offering minimize, and the
+# switch that left the console's mode row off, which no caller used, went.
+MAX_PROSE_LINES = 7911
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

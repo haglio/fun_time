@@ -94,7 +94,8 @@ class HudFeed:
                 self.publisher.publish_text(player.label, hud_text(hosted_model(
                     player.label, self._hosted_panel(player),
                     active=state.active_player == player,
-                    origenerator_ready=state.origenerator_ready)))
+                    origenerator_ready=state.origenerator_ready,
+                    in_vr=self.config.vr_main_player)))
         else:
             portrait, landscape = build_panels(
                 satellite("portrait", 2, sources=self.config.portrait_sources,
@@ -108,6 +109,7 @@ class HudFeed:
                 satellites_mode=(state.satellites_mode
                                  if self.config.origenerator_enabled else None),
                 origenerator_ready=state.origenerator_ready,
+                in_vr=self.config.vr_main_player,
             )
             self.publisher.publish("portrait", portrait)
             self.publisher.publish("landscape", landscape)
@@ -136,6 +138,7 @@ class HudFeed:
             genau=read_genau_status(self.config.genau_status_file),
             genau_pace_s=self._genau_pace_s(),
             nothing_to_reset=main_player_at_defaults(state, self.config, main_player),
+            in_vr=self.config.vr_main_player,
         ))))
 
     def _hosted_panel(self, player: Player) -> HudModel | None:

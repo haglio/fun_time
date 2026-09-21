@@ -38,7 +38,8 @@ def _published(main_mode, **fields) -> ConsoleModel:
     """The panel Fun Time publishes for *main_mode*, its buttons declared and
     the broker up."""
     return ConsoleModel(main_mode=main_mode, locked=False,
-                        rows=console_rows(MainSlot(main_mode=main_mode, locked=False)),
+                        rows=console_rows(MainSlot(main_mode=main_mode, locked=False),
+                                          in_vr=True),
                         osr2_controls=osr2_controls(broker=True), **fields)
 
 
@@ -246,7 +247,7 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
     # so the length pair is never among them, while the shapes pair always is.
     widest = max(
         _row_width(console_rows(MainSlot(main_mode=mode, latest=False,
-                                         plays_vr=True, plays_flat=True)))
+                                         plays_vr=True, plays_flat=True), in_vr=True))
         for mode in ("video", "genau")
     )
 

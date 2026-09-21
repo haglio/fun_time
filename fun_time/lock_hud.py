@@ -105,6 +105,7 @@ class HudPanel:
     # Whether the hosted app that mode is made of is up yet: false for a
     # session's first half-minute, over which that button is drawn dim.
     origenerator_ready: bool = True
+    in_vr: bool = False
     # Whether this side is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
@@ -436,6 +437,7 @@ def build_hud_panel(
     active: bool = False,
     satellites_mode: SatellitesMode | None = None,
     origenerator_ready: bool = True,
+    in_vr: bool = False,
 ) -> HudPanel:
     """One side's HUD panel, from everything that side is (:class:`SatelliteInputs`).
 
@@ -482,6 +484,7 @@ def build_hud_panel(
         playing=drawn.playing,
         satellites_mode=satellites_mode,
         origenerator_ready=origenerator_ready,
+        in_vr=in_vr,
         nothing_to_reset=inputs.nothing_to_reset,
         has_other_versions=inputs.has_other_versions,
     )
@@ -490,6 +493,7 @@ def build_hud_panel(
 def _satellite_panel(
     inputs: SatelliteInputs, metadata_root: Path | None, active_player: str,
     satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
+    in_vr: bool = False,
 ) -> HudPanel:
     index: GroupIndex | None = None
     if inputs.current:
@@ -505,7 +509,7 @@ def _satellite_panel(
         )
     return build_hud_panel(
         inputs, index=index, active=active_player == inputs.player,
-        satellites_mode=satellites_mode, origenerator_ready=origenerator_ready,
+        satellites_mode=satellites_mode, origenerator_ready=origenerator_ready, in_vr=in_vr,
     )
 
 
@@ -528,6 +532,7 @@ def build_panels(
     portrait: SatelliteInputs, landscape: SatelliteInputs, *,
     metadata_root: Path | None = None, active_player: str = "",
     satellites_mode: SatellitesMode | None = None, origenerator_ready: bool = True,
+    in_vr: bool = False,
 ) -> tuple[HudPanel, HudPanel]:
     """Both satellites' HUD panels, indexing each side from its own sources.
 
@@ -545,9 +550,9 @@ def build_panels(
     called everywhere else in here; the one translation lives where the number does.
     """
     return (_satellite_panel(portrait, metadata_root, active_player, satellites_mode,
-                        origenerator_ready),
+                        origenerator_ready, in_vr),
             _satellite_panel(landscape, metadata_root, active_player, satellites_mode,
-                        origenerator_ready))
+                        origenerator_ready, in_vr))
 
 
 def panel_thumbnails(

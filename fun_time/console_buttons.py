@@ -89,27 +89,27 @@ MODE_BUTTONS = (
 )
 
 
-def console_rows(slot: MainSlot, *, modes: bool = True) -> tuple[tuple[Button, ...], ...]:
-    """The mode row (with minimize and the file controls riding it), the
-    transport, the pace of what it steps, and the Robot Hand's hands-free row.
-    *modes* off drops the mode row, for a console inside another app's window."""
-    rows: list[tuple[Button, ...]] = []
-    if modes:
-        rows.append((
+def console_rows(slot: MainSlot, *, in_vr: bool = False) -> tuple[tuple[Button, ...], ...]:
+    """The mode row (with minimize outside the headset, and the file controls riding
+    it), the transport, the pace of what it steps, and the Robot Hand's hands-free row."""
+    return (
+        (
             *(
                 Button(command, label, f"{label} mode", width=BUTTON_WORD_W,
                        lit=slot.main_mode is main_mode)
                 for command, label, main_mode in MODE_BUTTONS
             ),
-            Button("main_minimize", MINIMIZE_ICON,
-                   "Minimize this player — bring it back from the taskbar",
-                   group_break=True),
+            *(() if in_vr else (
+                Button("main_minimize", MINIMIZE_ICON,
+                       "Minimize this player — bring it back from the taskbar",
+                       group_break=True),
+            )),
             *_file_controls(slot),
-        ))
-    rows.append(_transport_row(slot))
-    rows.append(_playback_speed_row() if main_player_displays(slot.main_mode) else _clip_seconds_row())
-    rows.append(_control_row(slot))
-    return tuple(rows)
+        ),
+        _transport_row(slot),
+        _playback_speed_row() if main_player_displays(slot.main_mode) else _clip_seconds_row(),
+        _control_row(slot),
+    )
 
 
 def osr2_controls(*, broker: bool) -> tuple[Button, ...]:

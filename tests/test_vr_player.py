@@ -612,7 +612,8 @@ class TestThePanelUnderThePointer:
                 console_hud=ConsoleHud(
                     console=ConsoleModel(
                         main_mode=MainMode.VIDEO, locked=False,
-                        rows=console_rows(MainSlot(main_mode=MainMode.VIDEO, locked=False)),
+                        rows=console_rows(MainSlot(main_mode=MainMode.VIDEO, locked=False),
+                                          in_vr=True),
                         osr2_controls=osr2_controls(broker=True)),
                     drive=DriveHud(speed=50, amplitude=60, center=50, shape="sine",
                                    position=1000, advance_interval=10,

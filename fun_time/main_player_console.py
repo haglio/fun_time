@@ -56,6 +56,7 @@ class MainSlotInputs:
     plays_vr: bool | None = None
     plays_flat: bool | None = None
     nothing_to_reset: bool = False
+    in_vr: bool = False
 
 
 def console_model(inputs: MainSlotInputs) -> ConsoleModel:
@@ -91,7 +92,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         osr2_control=slot.osr2_control,  # beside what has the device, what is DONE to it
         locked=slot.locked,
         latest=slot.latest,
-        rows=console_rows(slot),
+        rows=console_rows(slot, in_vr=inputs.in_vr),
         osr2_controls=osr2_controls(broker=inputs.broker),
     )
 
