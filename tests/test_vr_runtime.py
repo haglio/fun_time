@@ -122,7 +122,7 @@ def test_launcher_for_runtime_finds_the_pimax_client_beside_the_runtime(tmp_path
     assert launcher_for_runtime(runtime_json) == client
 
 
-def test_launcher_for_runtime_returns_none_when_no_client_is_installed(tmp_path):
+def test_a_runtime_with_no_client_installed_offers_nothing_to_launch(tmp_path):
     runtime_json, _ = _pimax_tree(tmp_path, with_client=False)
     assert launcher_for_runtime(runtime_json) is None
 

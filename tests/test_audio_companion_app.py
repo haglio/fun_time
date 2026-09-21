@@ -14,7 +14,7 @@ from fun_time.audio_companion_app import AudioPlaybackController, find_audio, in
 
 
 class TestFindAudio:
-    def test_returns_first_supported_extension(self, tmp_path: Path):
+    def test_the_first_sound_file_beside_the_clip_is_the_one_played(self, tmp_path: Path):
         mp3 = tmp_path / "demo.mp3"
         wav = tmp_path / "demo.wav"
         mp3.write_bytes(b"mp3")
@@ -22,7 +22,7 @@ class TestFindAudio:
 
         assert find_audio(tmp_path, "demo") == mp3
 
-    def test_returns_none_when_stem_missing(self, tmp_path: Path):
+    def test_a_clip_with_no_sound_file_beside_it_plays_nothing(self, tmp_path: Path):
         assert find_audio(tmp_path, "missing") is None
 
 

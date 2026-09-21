@@ -325,14 +325,14 @@ class TestPollDashboardCommands:
         assert result == ["portrait_next"]
         assert not cmd_file.exists()
 
-    def test_returns_empty_when_file_missing(self, tmp_path):
+    def test_a_command_file_that_is_not_there_holds_no_commands(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
 
         result = poll_dashboard_commands(cmd_file)
 
         assert result == []
 
-    def test_returns_empty_for_empty_file(self, tmp_path):
+    def test_a_command_file_nobody_has_written_to_holds_no_commands(self, tmp_path):
         cmd_file = tmp_path / "dashboard_cmd.txt"
         cmd_file.write_text("", encoding="utf-8")
 

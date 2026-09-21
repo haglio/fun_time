@@ -127,7 +127,7 @@ def _setup(tmp_path: Path, orient: str, name: str, meta: dict) -> tuple[Path, Pa
     return media_root, metadata_root, video
 
 
-def test_regen_url_for_video_returns_image_url_for_source_image(tmp_path: Path):
+def test_a_video_made_from_a_source_image_regenerates_from_that_image(tmp_path: Path):
     _, metadata_root, video = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
 
     url = regen_url_for_video(
@@ -138,7 +138,7 @@ def test_regen_url_for_video_returns_image_url_for_source_image(tmp_path: Path):
     assert url.startswith(IMAGE_URL + "#ft=")
 
 
-def test_regen_url_for_video_returns_empty_for_non_provider(tmp_path: Path):
+def test_a_video_no_provider_made_offers_no_regenerate_link(tmp_path: Path):
     media_root, metadata_root, _ = _setup(tmp_path, "portrait", "abc_topaz.mp4", IMAGE_META)
     provider2 = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider2" / "x.mp4"
 
@@ -150,7 +150,7 @@ def test_regen_url_for_video_returns_empty_for_non_provider(tmp_path: Path):
     assert url == ""
 
 
-def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_a_kind(tmp_path: Path):
+def test_a_sidecar_holding_only_a_kind_offers_no_regenerate_link(tmp_path: Path):
     """Evolver records what kind every video is, so a clip whose generation was
     never scraped now HAS a sidecar. There is nothing to regenerate from in it,
     and a URL built off it would carry no prompt at all."""
@@ -166,7 +166,7 @@ def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_a_kind(tmp
     assert url == ""
 
 
-def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_the_stamps(tmp_path: Path):
+def test_a_sidecar_holding_only_the_stamps_offers_no_regenerate_link(tmp_path: Path):
     """Evolver also stamps what every app watched, and a favorite flag, on
     every sidecar; neither says anything about how the clip was made."""
     _media_root, metadata_root, video = _setup(
@@ -182,7 +182,7 @@ def test_regen_url_for_video_returns_empty_for_a_sidecar_holding_only_the_stamps
     assert url == ""
 
 
-def test_regen_url_for_video_returns_empty_when_metadata_absent(tmp_path: Path):
+def test_a_video_with_no_sidecar_offers_no_regenerate_link(tmp_path: Path):
     media_root = tmp_path / "videos" / "videos" / "2D" / "AI"
     metadata_root = tmp_path / "videos" / "metadata"
     video = media_root / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "missing_topaz.mp4"

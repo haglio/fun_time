@@ -34,7 +34,7 @@ def test_record_watch_event_accumulates_counts_per_video(tmp_path: Path):
     assert entry == {"completions": 2, "skips": 1, "locks": 1}
 
 
-def test_load_watch_stats_returns_empty_when_missing_or_corrupt(tmp_path: Path):
+def test_watch_stats_that_are_missing_or_unreadable_count_as_none(tmp_path: Path):
     assert load_watch_stats(tmp_path / "absent.json") == {}
     bad = tmp_path / "bad.json"
     bad.write_text("{oops", encoding="utf-8")

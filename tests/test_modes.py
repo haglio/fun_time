@@ -239,7 +239,7 @@ def test_collect_video_files_ignores_single_non_video_file(tmp_path: Path):
 # --- build_mirrored_funscript_path edge cases ---
 
 
-def test_build_mirrored_funscript_path_returns_empty_when_no_marker():
+def test_a_video_outside_the_mirrored_tree_names_no_funscript():
     assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
 
 
@@ -299,11 +299,11 @@ def test_the_marker_path_is_empty_off_the_library(tmp_path: Path):
 # --- read_favs_content / is_favorite_path edge cases ---
 
 
-def test_read_favs_content_returns_empty_for_missing_file(tmp_path: Path):
+def test_a_favorites_file_that_is_not_there_reads_as_no_favorites(tmp_path: Path):
     assert read_favs_content(tmp_path / "nope.csv") == ""
 
 
-def test_is_favorite_path_returns_false_for_empty_inputs():
+def test_an_empty_path_is_not_a_favorite():
     assert is_favorite_path("", "some content") is False
     assert is_favorite_path("video.mp4", "") is False
 
@@ -403,18 +403,18 @@ def test_build_all_playlists_recent_orders_satellites(tmp_path: Path):
 # --- shuffle_paths edge cases ---
 
 
-def test_shuffle_paths_returns_empty_list_unchanged():
+def test_shuffling_nothing_leaves_nothing():
     assert shuffle_paths([]) == []
 
 
-def test_shuffle_paths_returns_single_item_unchanged():
+def test_shuffling_one_clip_leaves_that_clip():
     assert shuffle_paths(["only.mp4"]) == ["only.mp4"]
 
 
 # --- f_mode=False branches ---
 
 
-def test_build_primary_playlist_paths_returns_all_when_f_mode_false(tmp_path: Path):
+def test_with_f_mode_off_the_main_playlist_holds_every_video(tmp_path: Path):
     d = tmp_path / "vids"
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")
@@ -423,7 +423,7 @@ def test_build_primary_playlist_paths_returns_all_when_f_mode_false(tmp_path: Pa
     assert len(paths) == 2
 
 
-def test_build_satellite_playlist_paths_returns_all_when_f_mode_false(tmp_path: Path):
+def test_with_f_mode_off_a_satellites_playlist_holds_every_video(tmp_path: Path):
     d = tmp_path / "vids"
     d.mkdir()
     (d / "a.mp4").write_text("x", encoding="utf-8")

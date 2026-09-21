@@ -23,7 +23,7 @@ def _example() -> dict:
 
 
 class TestLoadContent:
-    def test_absent_local_returns_the_example_wholesale(self, tmp_path: Path):
+    def test_without_a_local_overlay_the_committed_example_is_what_loads(self, tmp_path: Path):
         result = load_content(tmp_path / "missing.json", EXAMPLE_CONTENT)
         assert result == _example()
 

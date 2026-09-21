@@ -88,7 +88,7 @@ class TestRequireDir:
 # ---------------------------------------------------------------------------
 
 class TestControllerManifest:
-    def test_returns_sections(self, cfg_path: Path):
+    def test_every_section_the_launch_needs_is_in_the_manifest(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         result = build_windows_bridge_manifest(cfg)
         assert isinstance(result, dict)
@@ -411,7 +411,7 @@ class TestTheWayBackOffersNoEsc:
 
 
 class TestMainCheckFlag:
-    def test_main_check_returns_zero_without_launching_bridge(self, cfg_path: Path):
+    def test_the_check_flag_reports_success_without_starting_the_bridge(self, cfg_path: Path):
         with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
              patch("fun_time.orchestrator.install_exception_logging"), \
              patch("fun_time.orchestrator.claim_the_session", return_value=42), \

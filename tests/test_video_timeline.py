@@ -5,7 +5,7 @@ from fun_time.video_timeline import VideoTimeline
 
 
 class TestPathAt:
-    def test_returns_the_only_observed_video(self):
+    def test_one_video_seen_all_session_is_the_whole_timeline(self):
         timeline = VideoTimeline()
         timeline.observe("a.mp4", now=10.0)
         assert timeline.path_at(10.5) == "a.mp4"

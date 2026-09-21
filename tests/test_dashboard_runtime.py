@@ -17,7 +17,7 @@ from fun_time.player_status import (
 )
 
 
-def test_load_dashboard_snapshot_returns_none_when_missing(tmp_path: Path):
+def test_a_snapshot_that_was_never_written_reads_as_no_snapshot(tmp_path: Path):
     assert load_dashboard_snapshot(tmp_path / "missing.ini") is None
 
 
@@ -115,7 +115,7 @@ def test_broker_heartbeat_is_stale_when_old_or_invalid(tmp_path: Path):
     assert is_broker_heartbeat_fresh(tmp_path / "missing.txt", now=101.0) is False
 
 
-def test_read_genau_status_returns_defaults_when_missing(tmp_path: Path):
+def test_a_genau_that_has_not_reported_yet_reads_at_the_defaults(tmp_path: Path):
     status = read_genau_status(tmp_path / "missing.txt")
 
     assert status == GenauStatus()

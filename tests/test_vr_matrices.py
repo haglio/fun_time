@@ -44,7 +44,7 @@ class TestFovToProjectionMatrix:
 
 
 class TestPoseToViewMatrix:
-    def test_identity_pose_returns_identity(self):
+    def test_a_pose_that_has_not_moved_leaves_the_view_alone(self):
         mat = pose_to_view_matrix((0.0, 0.0, 0.0), (0.0, 0.0, 0.0, 1.0))
         np.testing.assert_allclose(mat, np.eye(4), atol=1e-7)
 

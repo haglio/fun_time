@@ -426,27 +426,27 @@ class TestCloseWindow:
 
 
 class TestIsWindowTopmost:
-    def test_returns_true_when_topmost_bit_set(self):
+    def test_a_window_in_the_topmost_band_says_so(self):
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = WS_EX_TOPMOST | 0x100
             assert is_window_topmost(111) is True
         mock.GetWindowLongW.assert_called_once_with(111, GWL_EXSTYLE)
 
-    def test_returns_false_when_topmost_bit_clear(self):
+    def test_a_window_outside_the_topmost_band_says_so(self):
         with patch("fun_time.win32._user32") as mock:
             mock.GetWindowLongW.return_value = 0x100
             assert is_window_topmost(111) is False
 
 
 class TestGetProcessImageName:
-    def test_returns_own_executable_path(self):
+    def test_this_process_resolves_to_its_own_executable(self):
         path = get_process_image_name(os.getpid())
 
         assert path is not None
         assert Path(path).name.lower() in {"python.exe", "pythonw.exe"}
         assert Path(path).is_file()
 
-    def test_returns_none_when_process_cannot_be_opened(self):
+    def test_a_process_this_one_may_not_open_resolves_to_nothing(self):
         with patch("fun_time.win32_process._kernel32") as mock:
             mock.OpenProcess.return_value = None
             assert get_process_image_name(4242) is None
@@ -460,7 +460,7 @@ class TestGetProcessImageName:
 
 
 class TestGetProcessCreationTime:
-    def test_returns_a_stable_creation_time_for_our_own_process(self):
+    def test_this_process_has_one_creation_time_however_often_it_is_asked(self):
         first = get_process_creation_time(os.getpid())
 
         assert first is not None

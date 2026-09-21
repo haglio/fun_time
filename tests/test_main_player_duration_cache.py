@@ -26,7 +26,7 @@ def _make_video(path: Path, content: str = "fake") -> Path:
 
 
 class TestDurationCache:
-    def test_probes_and_returns_duration(self, tmp_path):
+    def test_a_clips_running_time_is_probed_once_and_remembered(self, tmp_path):
         vid = _make_video(tmp_path / "a.mp4")
         prober = FakeProber({vid: 123.0})
         cache = DurationCache(tmp_path / "dur.json", prober=prober)

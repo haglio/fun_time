@@ -576,7 +576,7 @@ def test_apply_satellite_filter_clear_restores_everything(tmp_path: Path):
     assert result.count == 2
 
 
-def test_satellite_browse_paths_returns_the_filtered_browse(tmp_path: Path):
+def test_a_satellites_browse_is_the_filter_applied_to_the_library(tmp_path: Path):
     """The pure browse builder "no loop" reshapes the queue back to: it honors
     the satellite's filter and returns the paths, with no file to touch."""
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"

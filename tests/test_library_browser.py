@@ -880,7 +880,7 @@ def test_the_browser_reads_which_of_its_library_is_vr_from_the_session_manifest(
     assert load_browser_config(headset).vr_sources == "D:/vr_one|D:/vr_two"
 
 
-def test_browsing_runs_the_browser_and_returns_what_it_picked(tmp_path: Path):
+def test_browsing_runs_the_browser_and_plays_what_was_picked(tmp_path: Path):
     manifest = tmp_path / "windows_bridge_launch.ini"
     manifest.write_text("", encoding="utf-8")
     commands: list[list[str]] = []
