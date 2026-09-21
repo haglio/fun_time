@@ -37,6 +37,7 @@ from fun_time.library_handles import LibraryHandle
 from fun_time.library_tree import SubFolder
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.thumbnail_cache import thumbnail_path
+from tests.drive_fakes import files_that_never_answer, folders_listed
 
 
 def _handle(title: str, *versions: str, section: str = "main") -> LibraryHandle:
@@ -359,6 +360,31 @@ def test_a_cached_still_becomes_the_tile_and_only_misses_are_extracted(browser, 
     assert not window.grid.item(pictured_row).icon().isNull()
     assert window.grid.item(bare_row).icon().isNull()
     assert rows_needing_stills(window.grid.rows, cache) == [bare_row]
+
+
+def test_a_folder_opens_pictured_on_a_drive_stuck_on_its_videos(browser, tmp_path: Path):
+    """The headset's browse draws its tiles on the thread that serves it, so a
+    question put to each video froze the whole browse on the one the drive was
+    stuck on.  The folder's listing dates every still instead, once per folder
+    drawn: here the top level and then "main"."""
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    folder = tmp_path / "vids"
+    folder.mkdir()
+    handles = []
+    for name in ("alpha", "beta", "gamma"):
+        video = folder / f"{name}.mp4"
+        video.write_bytes(b"\0")
+        Image.new("RGB", (16, 9)).save(thumbnail_path(video, cache), "JPEG")
+        handles.append(_handle(f"{name} scene", str(video)))
+
+    with files_that_never_answer(folder), folders_listed() as read:
+        window = browser(handles, thumbnail_cache=cache, on_pick=lambda _video: None)
+        window.open_folder(("main",))
+
+    rows = [window.grid.rows.index(handle) for handle in handles]
+    assert all(not window.grid.item(row).icon().isNull() for row in rows)
+    assert len(read) == 2
 
 
 def test_a_folder_tile_is_pictured_with_a_still_from_inside_it(browser, tmp_path: Path):

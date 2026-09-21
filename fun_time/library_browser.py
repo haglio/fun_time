@@ -61,6 +61,7 @@ from shared_ui.icons import glyph_icon
 from shared_ui.mark_button import fill_square_with_mark
 from shared_ui.spacing import BUTTON_RADIUS, MARGIN_STANDARD
 
+from .folder_listings import FolderListings
 from .library_handles import LibraryHandle, handle_for, handles_by_shape
 from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
@@ -181,16 +182,17 @@ class LibraryGrid(BrowseList):
         """Lay out *folder* — its sub-folder tiles, or the videos it holds."""
         self.clear()
         self.rows = []
+        listings = FolderListings()
         if folder.parent is not None:
             self._add_row(self._up_item(folder.parent), None)
         for child in folder.children:
-            self._add_row(self._folder_item(child), child)
+            self._add_row(self._folder_item(child, listings), child)
         for handle in folder.handles:
-            self._add_row(self._tile_item(handle), handle)
+            self._add_row(self._tile_item(handle, listings), handle)
         # The selection starts on the first thing you would open, not on the way
         # back — arrowing off the top of a folder is not what a browse is for.
         self.setCurrentRow(min(1 if folder.parent is not None else 0, self.count() - 1))
-        self.start_thumbnail_extraction()
+        self.start_thumbnail_extraction(listings)
 
     def reveal(self, row: int) -> None:
         """Put the selection on *row* and scroll it up out of wherever it was.
@@ -209,17 +211,18 @@ class LibraryGrid(BrowseList):
         self.rows.append(what)
         self.addItem(item)
 
-    def _tile_item(self, handle: LibraryHandle) -> QListWidgetItem:
-        return self._pictured_item(handle.title, handle.preview)
+    def _tile_item(self, handle: LibraryHandle, listings: FolderListings) -> QListWidgetItem:
+        return self._pictured_item(handle.title, handle.preview, listings)
 
-    def _folder_item(self, child: SubFolder) -> QListWidgetItem:
+    def _folder_item(self, child: SubFolder, listings: FolderListings) -> QListWidgetItem:
         """A folder tile: its name, how much is in it, and stills from inside."""
         item = QListWidgetItem(f"{child.name}  ({child.count})")
         item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
         item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
         stills = [
             cached for cached in (
-                cached_thumbnail(preview, self._thumbnail_cache) for preview in child.previews
+                cached_thumbnail(preview, self._thumbnail_cache, listings)
+                for preview in child.previews
             ) if cached is not None
         ]
         if stills:
@@ -235,18 +238,20 @@ class LibraryGrid(BrowseList):
         item.setForeground(TEXT_MUTED)
         return item
 
-    def _pictured_item(self, label: str, preview: str) -> QListWidgetItem:
+    def _pictured_item(
+        self, label: str, preview: str, listings: FolderListings
+    ) -> QListWidgetItem:
         item = QListWidgetItem(label)
         item.setSizeHint(QSize(TILE_WIDTH, TILE_HEIGHT))
         item.setTextAlignment(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignBottom)
-        cached = cached_thumbnail(preview, self._thumbnail_cache)
+        cached = cached_thumbnail(preview, self._thumbnail_cache, listings)
         if cached is not None:
             item.setIcon(fitted_icon(cached))
         return item
 
-    def start_thumbnail_extraction(self) -> None:
+    def start_thumbnail_extraction(self, listings: FolderListings | None = None) -> None:
         """Fill in the stills the cache did not already have, in the background."""
-        pending = rows_needing_stills(self.rows, self._thumbnail_cache)
+        pending = rows_needing_stills(self.rows, self._thumbnail_cache, listings)
         if not pending or (self._extractor is not None and self._extractor.is_alive()):
             return
         self._extractor = threading.Thread(
@@ -260,12 +265,14 @@ class LibraryGrid(BrowseList):
         # The rows are captured, not read live: opening a folder mid-extraction
         # replaces them, and a still must never land on whatever row now sits at
         # that index in another folder.
+        listings = FolderListings()
         for row in rows:
             for preview in previews_of(showing[row]):
-                thumbnail_for(preview, self._thumbnail_cache)
+                thumbnail_for(preview, self._thumbnail_cache, listings=listings)
             self._extracted.put(row)
 
     def _collect_thumbnails(self) -> None:
+        listings = FolderListings()
         while True:
             try:
                 row = self._extracted.get_nowait()
@@ -277,7 +284,7 @@ class LibraryGrid(BrowseList):
                 continue
             stills = [
                 cached for cached in (
-                    cached_thumbnail(preview, self._thumbnail_cache)
+                    cached_thumbnail(preview, self._thumbnail_cache, listings)
                     for preview in previews_of(what)
                 ) if cached is not None
             ]
@@ -712,17 +719,21 @@ def previews_of(what: LibraryHandle | SubFolder | None) -> tuple[str, ...]:
     return what.previews if what is not None else ()
 
 
-def rows_needing_stills(rows: Sequence[object], thumbnail_cache: str | Path) -> list[int]:
+def rows_needing_stills(
+    rows: Sequence[object], thumbnail_cache: str | Path,
+    listings: FolderListings | None = None,
+) -> list[int]:
     """Which rows still need a still extracted — the cache misses, in order.
 
     The go-back row pictures nothing and is skipped; a folder row counts as a
     miss while any of its four is missing, so its tile completes.
     """
+    dated = listings or FolderListings()
     return [
         row
         for row, what in enumerate(rows)
         if any(
-            cached_thumbnail(preview, thumbnail_cache) is None
+            cached_thumbnail(preview, thumbnail_cache, dated) is None
             for preview in previews_of(what)
         )
     ]

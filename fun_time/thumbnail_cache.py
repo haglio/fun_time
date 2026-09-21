@@ -8,12 +8,15 @@ path yields a fresh thumbnail instead of a stale one.
 from __future__ import annotations
 
 import hashlib
+import os
 import time
 from collections.abc import Callable, Iterable
 from pathlib import Path
 
 import cv2
 from PIL import Image
+
+from .folder_listings import FolderListings
 
 # Default longest-edge size (px) for a HUD sibling thumbnail.
 DEFAULT_MAX_SIZE = 160
@@ -24,34 +27,28 @@ DEFAULT_MAX_SIZE = 160
 THUMBNAIL_CACHE_DIRNAME = "hud_thumbnails"
 
 
-def _norm(path: str | Path) -> Path:
-    try:
-        return Path(path).resolve()
-    except OSError:
-        return Path(path)
-
-
-def thumbnail_path(video_path: str | Path, cache_dir: str | Path) -> Path:
+def thumbnail_path(
+    video_path: str | Path, cache_dir: str | Path, listings: FolderListings | None = None
+) -> Path:
     """Deterministic cache location for *video_path*'s thumbnail.
 
-    The name folds in the resolved path and the file's mtime, so the same clip
+    The name folds in the path and the date its folder lists, so the same clip
     maps to the same file until it is modified, then to a new one.
     """
-    resolved = _norm(video_path)
-    try:
-        mtime = int(resolved.stat().st_mtime)
-    except OSError:
-        mtime = 0
-    digest = hashlib.sha1(f"{resolved}|{mtime}".encode()).hexdigest()[:16]
+    spelled = os.path.abspath(video_path)
+    dated = listings or FolderListings()
+    digest = hashlib.sha1(f"{spelled}|{int(dated.modified(spelled))}".encode()).hexdigest()[:16]
     return Path(cache_dir) / f"{digest}.jpg"
 
 
-def cached_thumbnail(video_path: str | Path, cache_dir: str | Path) -> Path | None:
+def cached_thumbnail(
+    video_path: str | Path, cache_dir: str | Path, listings: FolderListings | None = None
+) -> Path | None:
     """The cached thumbnail for *video_path* if it already exists, else None —
     never extracting one.  The HUD paints with this so its refresh never blocks
     on a cv2 frame grab (seconds, for HEVC); the background prewarm does the
     extracting, and the next refresh picks the file up."""
-    dest = thumbnail_path(video_path, cache_dir)
+    dest = thumbnail_path(video_path, cache_dir, listings)
     return dest if dest.is_file() else None
 
 
@@ -75,14 +72,15 @@ def _read_representative_frame(video_path: str | Path):
 
 
 def thumbnail_for(
-    video_path: str | Path, cache_dir: str | Path, max_size: int = DEFAULT_MAX_SIZE
+    video_path: str | Path, cache_dir: str | Path, max_size: int = DEFAULT_MAX_SIZE,
+    listings: FolderListings | None = None,
 ) -> Path | None:
     """Path to *video_path*'s cached thumbnail, extracting it on first use.
 
     Returns ``None`` when the video cannot be opened or has no readable frame.
     A previously cached thumbnail is reused without touching the video.
     """
-    dest = thumbnail_path(video_path, cache_dir)
+    dest = thumbnail_path(video_path, cache_dir, listings)
     if dest.is_file():
         return dest
     frame = _read_representative_frame(video_path)

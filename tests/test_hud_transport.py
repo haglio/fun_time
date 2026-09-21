@@ -10,6 +10,8 @@ from player_core.satellite_hud import HudCell
 
 from fun_time.hud_transport import HudPublisher, hud_model
 from fun_time.lock_hud import ACTION_LIMIT, HudPanel
+from fun_time.thumbnail_cache import thumbnail_path
+from tests.drive_fakes import folders_listed
 
 
 def _panel(**overrides) -> HudPanel:
@@ -28,7 +30,7 @@ def _thumb(path: str) -> Path:
 
 
 def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         model = hud_model(_panel(), Path("C:/state/thumbs"))
 
     assert model.player == "portrait"
@@ -45,15 +47,38 @@ def test_hud_payload_carries_the_map_with_its_cached_thumbnails():
 def test_hud_payload_names_the_librarys_camera_words():
     """The player sets a leading camera word apart from the act on a row, and only
     fun_time knows which words the library writes there."""
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         model = hud_model(_panel(), Path("C:/t"), ("Side", "XYZ"))
 
     assert model.camera_words == ("Side", "XYZ")
 
 
+def test_a_whole_map_is_drawn_off_one_listing_of_the_folder(tmp_path: Path):
+    """The map is built on the dispatch loop, so a question per clip is a question
+    per clip put to the library drive -- and a drive stuck on one of them takes
+    every button and spoken command in the session down with it."""
+    folder = tmp_path / "vids"
+    folder.mkdir()
+    cache = tmp_path / "thumbs"
+    cache.mkdir()
+    clips = []
+    for name in ("cur", "s1", "a1"):
+        clip = folder / f"{name}.mp4"
+        clip.write_bytes(b"x")
+        thumbnail_path(clip, cache).write_bytes(b"jpeg")
+        clips.append(str(clip))
+
+    panel = _panel(current=clips[0], seed_siblings=[clips[1]], action_siblings=[clips[2]])
+    with folders_listed() as read:
+        model = hud_model(panel, cache)
+
+    assert len(read) == 1
+    assert model.corner == HudCell(path=clips[0], thumb=str(thumbnail_path(clips[0], cache)))
+
+
 def test_hud_payload_carries_whether_this_side_is_the_active_one():
     """The player draws the dot; only fun_time knows which side has the floor."""
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         active = hud_model(_panel(active=True), Path("C:/state/thumbs"))
         idle = hud_model(_panel(active=False), Path("C:/state/thumbs"))
 
@@ -63,7 +88,7 @@ def test_hud_payload_carries_whether_this_side_is_the_active_one():
 def test_hud_payload_carries_whether_the_clip_is_a_favorite():
     """The dashboard's panel said this by turning green; the HUD marks it instead,
     so the flag has to reach the player along with the map."""
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         assert hud_model(_panel(is_favorite=True), Path("C:/t")).is_favorite is True
         assert hud_model(_panel(), Path("C:/t")).is_favorite is False
 
@@ -78,7 +103,7 @@ def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an
     it — so a satellite gets the pair, one of the two lit, and the
     origenerator-mode panel, whose player is black and paused under a show,
     gets neither."""
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         newest = _band(hud_model(_panel(latest=True), Path("C:/t")))
         shuffled = _band(hud_model(_panel(latest=False), Path("C:/t")))
         unswitchable = _band(hud_model(_panel(), Path("C:/t")))
@@ -91,7 +116,7 @@ def test_hud_payload_declares_the_browse_order_pair_only_where_the_side_names_an
 def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
     """The lock and F-mode light off the side's state, and every button posts
     that side's own verb -- what the dispatcher answers for it."""
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         band = _band(hud_model(_panel(locked=True, favorites_filter=True), Path("C:/t")))
 
     assert band["lock"].lit and band["fmode"].lit and not band["trash"].lit
@@ -99,7 +124,7 @@ def test_hud_payload_declares_the_sides_buttons_lit_off_its_own_state():
 
 
 def test_hud_payload_declares_the_mode_row_where_the_session_hosts_an_origenerator():
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         hosted = hud_model(_panel(satellites_mode=SatellitesMode.ORIGENERATOR), Path("C:/t"))
         plain = hud_model(_panel(), Path("C:/t"))
 
@@ -134,7 +159,7 @@ def test_hud_payload_marks_the_cell_actually_on_screen():
     """Mid-loop the map holds still and a non-corner cell is what is playing; the
     payload names that cell so the player lights it instead of the corner."""
     panel = _panel(active_loop="seed", playing="C:/v/s1.mp4")
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(panel, Path("C:/t"))
 
     assert payload.playing == ("seed", 0)
@@ -149,7 +174,7 @@ def test_a_running_loop_publishes_every_item_it_cycles():
     seeds = [f"C:/v/s{i}.mp4" for i in range(12)]
     panel = _panel(active_loop="seed", seed_siblings=seeds, playing=seeds[9])
 
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(panel, Path("C:/t"))
 
     assert [cell.path for cell in payload.seeds] == seeds
@@ -164,7 +189,7 @@ def test_a_running_loop_keeps_an_item_whose_thumbnail_is_not_cached_yet():
     panel = _panel(active_loop="seed", seed_siblings=seeds, playing=seeds[2])
 
     with patch("fun_time.hud_transport.cached_thumbnail",
-               side_effect=lambda p, _d: None if p == "C:/v/s1.mp4" else _thumb(p)):
+               side_effect=lambda p, _d, _listed=None: None if p == "C:/v/s1.mp4" else _thumb(p)):
         payload = hud_model(panel, Path("C:/t"))
 
     assert [cell.path for cell in payload.seeds] == seeds
@@ -178,7 +203,7 @@ def test_the_axis_a_loop_is_not_running_on_stays_capped():
     actions = [f"C:/v/a{i}.mp4" for i in range(9)]
     panel = _panel(active_loop="seed", action_siblings=actions, action_labels=tuple("x" * 9))
 
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(panel, Path("C:/t"))
 
     assert len(payload.actions) == ACTION_LIMIT
@@ -188,7 +213,7 @@ def test_hud_payload_falls_back_to_the_corner_for_an_off_map_clip():
     """A satellite that auto-advanced off the drawn map has no cell to light, so
     the corner stays bright rather than nothing at all."""
     panel = _panel(playing="C:/v/elsewhere.mp4")
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         payload = hud_model(panel, Path("C:/t"))
 
     assert payload.playing == ("corner", 0)
@@ -200,7 +225,7 @@ def test_publish_writes_the_file_only_when_the_panel_changes(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         assert publisher.publish("portrait", _panel()) is True
         assert publisher.publish("portrait", _panel()) is False
         assert publisher.publish("portrait", _panel(locked=False, lock_label="Unlocked")) is True
@@ -218,7 +243,7 @@ def test_publish_republishes_a_panel_whose_write_never_landed(tmp_path: Path):
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ())
 
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         with patch("fun_time.hud_transport.publish_whole", return_value=False):
             assert publisher.publish("portrait", _panel()) is False
         # The very same panel, now that the file is free again.
@@ -231,7 +256,7 @@ def test_every_panel_a_publisher_writes_names_the_camera_words_it_was_given(tmp_
     hud_file = tmp_path / "portrait_hud.json"
     publisher = HudPublisher({"portrait": hud_file}, tmp_path / "thumbs", ("Side", "XYZ"))
 
-    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d: _thumb(p)):
+    with patch("fun_time.hud_transport.cached_thumbnail", side_effect=lambda p, _d, _listed=None: _thumb(p)):
         publisher.publish("portrait", _panel())
 
     assert json.loads(hud_file.read_text(encoding="utf-8"))["camera_words"] == ["Side", "XYZ"]
