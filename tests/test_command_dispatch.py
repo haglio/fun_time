@@ -29,6 +29,7 @@ from fun_time.command_dispatch import (
 )
 from fun_time.content import WebProvider, load_content, load_web_providers
 from fun_time.event_log import FAVORITE, NOTICE
+from fun_time.lock_hud import hud_map_cells
 from fun_time.loopback_server import omnipause_url
 from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
 from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
@@ -3247,9 +3248,6 @@ def test_a_clip_marked_weird_stops_being_drawn_on_the_map(tmp_path: Path):
     has left the library — so its row stops offering it, rather than holding a
     thumbnail of something that is no longer there for the rest of the session.
     """
-    from fun_time.lock_hud import hud_map_cells
-    from fun_time.satellite_groups import _satellite_group_index
-
     config, a, b = _loop_config(tmp_path, axis="seed")
     _set_current(config, 2, a)
     assert hud_map_cells(_satellite_group_index(Player.PORTRAIT, config, b), b)[0] == [a]
