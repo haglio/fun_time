@@ -24,7 +24,7 @@ requires-python = ">=3.14"
 # one is this repo's own commit, with its own suite to answer for it.
 dependencies = [
     "app-support @ git+https://github.com/haglio/app_support@v0.1.156",
-    "player-core @ git+https://github.com/haglio/player_core@v0.1.295",
+    "player-core @ git+https://github.com/haglio/player_core@v0.1.300",
     "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.129",
     # The family's listener: it brings vosk and sounddevice, and hears for this
     # app, Evolver's backfill tool and Origenerator alike.
