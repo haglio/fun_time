@@ -7,7 +7,10 @@ from player_core.console import (
     ConsoleModel,
     console_text,
     parse_console,
+    read_console,
 )
+from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
+from player_core.drive_readout import DriveHud
 from player_core.hud_button import Button
 from player_core.modes import LengthMode, LoopState, MainMode, Osr2State
 
@@ -225,10 +228,6 @@ class TestTheReadoutTheWordLeaves:
     def _readout(payload: ConsoleModel, tmp_path):
         """The painter, fed *payload* the way the player is fed it, with a live
         motion on the readout; plus where the panel sits in the window."""
-        from player_core.console import read_console
-        from player_core.console_hud import ConsoleHud, ConsolePainter, hud_xy
-        from player_core.drive_readout import DriveHud
-
         panel = tmp_path / "main_player_console.json"
         panel.write_text(console_text(payload), encoding="utf-8")
         console = read_console(panel)

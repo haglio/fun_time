@@ -79,8 +79,6 @@ def test_a_folder_pictures_itself_with_four_of_its_videos():
     browse to browse, so a folder is never represented by the same picture twice
     running.
     """
-    import random
-
     handles = [_handle(f"Scene {i}", "big_batch") for i in range(10)]
 
     child = folder_at(handles, (), rng=random.Random(7)).children[0]

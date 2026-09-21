@@ -1,8 +1,12 @@
 """Where the dashboard's controls sit, now that it is a bar and not a schematic."""
 from __future__ import annotations
 
-import pytest
+from dataclasses import fields
 
+import pytest
+from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
+
+from fun_time.dashboard_app import DashboardLaunchGeometry, parse_args
 from fun_time.dashboard_layout import (
     BUTTON,
     GAP,
@@ -12,7 +16,10 @@ from fun_time.dashboard_layout import (
     client_rect_filling_frame,
     compute_dashboard_bar_layout,
     dashboard_window_height,
+    rect_from_arguments,
 )
+from fun_time.monitors import MonitorInfo
+from fun_time.window_layout import MonitorRect, WindowRect
 
 
 def test_the_bar_reads_left_to_right_in_the_order_it_is_written():
@@ -93,10 +100,6 @@ def test_the_bar_uses_the_familys_button_metrics():
     """A control here is the same object a control on a player's HUD is -- the
     HUDs' square, since the bar sits directly above them on the same screen and
     two sizes of one control, one above the other, read as two kinds of chrome."""
-    from shared_ui.spacing import BUTTON_GAP, BUTTON_SIZE_HUD
-
-    from fun_time.dashboard_layout import BUTTON, GAP
-
     assert BUTTON == BUTTON_SIZE_HUD
     assert GAP == BUTTON_GAP
 
@@ -106,11 +109,6 @@ def test_one_rectangle_under_every_name_the_session_calls_it():
     Rect, MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry — and
     callers paid for it in hand-written conversions between types that were
     already identical."""
-    from fun_time.dashboard_app import DashboardLaunchGeometry
-    from fun_time.dashboard_layout import Rect
-    from fun_time.monitors import MonitorInfo
-    from fun_time.window_layout import MonitorRect, WindowRect
-
     every_name = (MonitorRect, WindowRect, MonitorInfo, DashboardLaunchGeometry)
 
     assert all(name is Rect for name in every_name)
@@ -118,10 +116,6 @@ def test_one_rectangle_under_every_name_the_session_calls_it():
 
 def test_a_rect_is_still_four_ints_in_that_order():
     """Every one of those names was constructed positionally somewhere."""
-    from dataclasses import fields
-
-    from fun_time.dashboard_layout import Rect
-
     assert [f.name for f in fields(Rect)] == ["x", "y", "width", "height"]
     assert Rect(1, 2, 3, 4) == Rect(x=1, y=2, width=3, height=4)
 
@@ -132,9 +126,6 @@ class TestARectOnACommandLine:
     `if None not in {...}` idiom, which nothing pinned in either direction."""
 
     def test_all_four_flags_name_a_rect(self):
-        from fun_time.dashboard_app import parse_args
-        from fun_time.dashboard_layout import Rect, rect_from_arguments
-
         args = parse_args(["state/m.ini", "--x", "100", "--y", "200",
                            "--width", "300", "--height", "400"])
 
@@ -143,18 +134,12 @@ class TestARectOnACommandLine:
     @pytest.mark.parametrize("given", ["--x", "--y", "--width", "--height"])
     def test_any_one_of_them_missing_is_not_a_rect(self, given: str):
         """Three of four would place a window somewhere nobody asked for."""
-        from fun_time.dashboard_app import parse_args
-        from fun_time.dashboard_layout import rect_from_arguments
-
         args = parse_args(["state/m.ini", given, "100"])
 
         assert rect_from_arguments(args) is None
 
     def test_a_prefixed_quartet_is_its_own_rect(self):
         """The panel is handed two: its own, and the browser's."""
-        from fun_time.dashboard_app import parse_args
-        from fun_time.dashboard_layout import Rect, rect_from_arguments
-
         args = parse_args(["state/m.ini", "--rfb-x", "1", "--rfb-y", "2",
                            "--rfb-width", "3", "--rfb-height", "4"])
 

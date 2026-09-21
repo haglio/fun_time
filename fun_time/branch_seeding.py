@@ -63,7 +63,7 @@ def _seeded_state_names() -> tuple[str, ...]:
     verification session must never show.  The duration cache, which is the one
     that costs *startup*, is merged instead.
     """
-    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # pulls in cv2
+    from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME  # noqa: PLC0415  (pulls in cv2)
 
     return ("watch_stats.json", THUMBNAIL_CACHE_DIRNAME)
 

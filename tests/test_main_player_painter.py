@@ -23,7 +23,9 @@ from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import VolumeHud
 
+from main_player.display import _OVERLAY_ID
 from main_player.overlay import HeatmapStrip, LoopThumbCapture
+from main_player.painter import HUD_OVERLAYS, ConsolePanel, Painter
 
 WIN_W, WIN_H = 1000, 600
 TRACK_W = bar_track_x(WIN_W)[1] - bar_track_x(WIN_W)[0]
@@ -107,7 +109,6 @@ def _frame(height: int = 10, width: int = 20):
 
 
 def _console(session, log, *, osr2: str = "robot_hand"):
-    from main_player.painter import ConsolePanel
     room = SpyRoom(log)
     room.console = ConsoleModel(osr2=osr2)
     return ConsolePanel(session, room=room, drive_gate=SpyGate(log),
@@ -115,7 +116,6 @@ def _console(session, log, *, osr2: str = "robot_hand"):
 
 
 def _painter(session, *, player=None, log=None, thumbs=None, heatmap=None):
-    from main_player.painter import Painter
     log = [] if log is None else log
     player = player or SpyPlayer()
     painter = Painter(
@@ -205,8 +205,6 @@ class TestWhatTheBlankHasToTakeDown:
         without extending the tuple fails, and a tuple entry nothing draws any
         more fails too.
         """
-        from main_player.display import _OVERLAY_ID
-        from main_player.painter import HUD_OVERLAYS
         session = FakeSession(bounds=LOOP)
         painter, player = _painter(session, player=SpyPlayer(_frame()))
 

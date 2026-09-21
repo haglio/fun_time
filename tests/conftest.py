@@ -35,6 +35,7 @@ apply_genau_dirs_to_sys_path()
 
 from fun_time import win32, windows_bridge_orchestrator
 from fun_time.config import DEFAULT_CONFIG_PATH
+from fun_time.media_metadata import reset_group_index_cache
 from tests.logging_state import logging_given_back
 
 # test_real_config_launchable is a check on THIS MACHINE's state — the
@@ -141,8 +142,6 @@ def _fresh_group_index_cache():
     fixture, whether a test began clean depended on its author remembering a
     ``reset_group_index_cache()`` prelude (ten call sites, seven provably
     unnecessary), and a forgotten one made a failure depend on run order."""
-    from fun_time.media_metadata import reset_group_index_cache
-
     reset_group_index_cache()
 
 

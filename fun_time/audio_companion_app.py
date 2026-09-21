@@ -16,6 +16,7 @@ from app_support.cli import preparse_config_path
 from app_support.logging_utils import configure_logging, install_exception_logging
 from player_core.audio_outputs import Output, pick_output
 from player_core.file_channel import read_paused_state
+from pygame._sdl2.audio import get_audio_device_names
 
 from .audio_companion_runtime import AudioCompanionRuntime
 from .audio_volume import MAX_VOLUME, read_volume
@@ -48,7 +49,6 @@ def init_mixer(wanted: str | None) -> str | None:
     if not wanted:
         pygame.mixer.init(devicename=None)
         return None
-    from pygame._sdl2.audio import get_audio_device_names
 
     pygame.mixer.init(devicename=None)
     try:

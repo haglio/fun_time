@@ -15,6 +15,7 @@ from player_core.console import (
     OSR2_PARKED,
     OSR2_RETRACTED,
 )
+from player_core.file_channel import append_command as real_append
 from player_core.funscript import PARK_TOUCH_WAIT_CAP_MS
 
 from fun_time.device_arbiter import REASSERT_S, DeviceArbiter
@@ -266,8 +267,6 @@ class TestVideoModeFunscriptHandoff:
         split-brained for a whole cluster: the hand paused, the funscript never
         enabled, everything idle and grey.  So the edge is recorded only once
         BOTH verbs actually queued, and a failed one is retried next tick."""
-        from player_core.file_channel import append_command as real_append
-
         driver = make_driver(tmp_path)
         publish_main_player(driver, has_funscript=True, resting=False)
 

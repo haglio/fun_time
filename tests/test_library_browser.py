@@ -27,7 +27,9 @@ from fun_time.library_browser import (
     browse_library,
     load_browser_config,
     main,
+    name_of,
     pick_file_for,
+    previews_of,
     rows_needing_stills,
 )
 from fun_time.library_handles import LibraryHandle
@@ -1098,10 +1100,6 @@ class TestARowSaysWhatItIs:
     and a third row kind would be handled by accident."""
 
     def test_a_video_and_a_folder_each_name_themselves(self):
-        from fun_time.library_browser import name_of
-        from fun_time.library_handles import LibraryHandle
-        from fun_time.library_tree import SubFolder
-
         video = LibraryHandle(title="alpha scene", versions=("C:/v/a.mp4",),
                               section="big_batch")
         folder = SubFolder(name="big_batch", count=3, previews=())
@@ -1111,10 +1109,6 @@ class TestARowSaysWhatItIs:
         assert name_of(None) == ""
 
     def test_a_video_shows_one_still_and_a_folder_up_to_four(self):
-        from fun_time.library_browser import previews_of
-        from fun_time.library_handles import LibraryHandle
-        from fun_time.library_tree import SubFolder
-
         video = LibraryHandle(title="alpha scene", versions=("C:/v/a.mp4",),
                               section="big_batch")
         folder = SubFolder(name="big_batch", count=3,

@@ -275,8 +275,6 @@ class TestDiscoverClips:
 def test_standalone_source_serves_all_videos_by_default():
     """Standalone main player is a general player; scripted-focus is Fun Time's
     F-mode, so the default source serves scripted and unscripted alike."""
-    from pathlib import Path
-
 
     scripted = LibraryEntry(video=Path("Gigi-topaz.mp4"), funscript=Path("Gigi.funscript"), size=900)
     unscripted = LibraryEntry(video=Path("Hana-1080p.mp4"), funscript=None, size=900)
@@ -292,8 +290,6 @@ def test_standalone_source_serves_all_videos_by_default():
 
 
 def test_version_index_groups_by_metadata_sidecar_when_metadata_root_set(tmp_path):
-    import json
-
 
     lib = tmp_path / "videos" / "videos"
     meta = tmp_path / "videos" / "metadata"

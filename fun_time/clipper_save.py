@@ -23,7 +23,7 @@ def _clipper_project_dir() -> Path:
     both halves).  Cached: one git subprocess, and the answer cannot change
     while the session runs.
     """
-    from .branch_session import primary_checkout  # avoids a launcher import on the hot path
+    from .branch_session import primary_checkout  # noqa: PLC0415 (no launcher import here)
 
     try:
         return primary_checkout().parent / "clipper"

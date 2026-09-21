@@ -6,8 +6,8 @@ from dataclasses import replace
 from types import SimpleNamespace
 
 import numpy as np
-from player_core.console import ConsoleModel
-from player_core.console_hud import ConsoleHud, ConsolePainter, ModeHud
+from player_core.console import ConsoleModel, _row_width
+from player_core.console_hud import _PAD, ConsoleHud, ConsolePainter, ModeHud
 from player_core.drive_layout import SPEED
 from player_core.drive_readout import DriveHud
 from player_core.hud_status import F_MODE_LABEL
@@ -238,11 +238,6 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
     mode does — which is the one thing holding it fixed exists to prevent.  The
     video-mode transport row is that row, and it grows every time the console
     grows a button."""
-    from player_core.console import _row_width
-    from player_core.console_hud import _PAD
-
-    from fun_time.console_buttons import MainSlot, console_rows
-
     # The rows the headset can show: its main player publishes no length mode,
     # so the length pair is never among them, while the shapes pair always is.
     widest = max(

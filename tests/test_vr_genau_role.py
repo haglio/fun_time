@@ -9,14 +9,17 @@ the panel should draw.
 from __future__ import annotations
 
 import logging
+import os
 import threading
 from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
+from player_core.console import ConsoleModel, console_text
 from player_core.modes import MainMode
 
+from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time_vr.genau_role import GenauRole, run_ticks
 from fun_time_vr.genau_settings import GenauSettings
 from fun_time_vr.projection import EQUIRECT_180_SBS, FISHEYE_190_SBS, FLAT
@@ -171,8 +174,6 @@ class TestTheClipOnScreen:
             logging.ERROR]
 
     def test_latest_rescans_the_folder_newest_first(self, tmp_path):
-        import os
-
         genau = Genau(tmp_path)
         newest = genau.clips_dir / "delta_180.mp4"
         newest.write_bytes(b"clip")
@@ -292,10 +293,6 @@ class TestWhatItPublishes:
         assert hud.drive is not None
 
     def test_the_console_file_fun_time_publishes_is_read(self, tmp_path):
-        from player_core.console import ConsoleModel, console_text
-
-        from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
-
         published = ConsoleModel(main_mode=MainMode.GENAU,
                                  rows=console_rows(MainSlot(main_mode=MainMode.GENAU),
                                                    in_vr=True),

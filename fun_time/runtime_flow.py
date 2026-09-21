@@ -204,8 +204,8 @@ def apply_fmode(
 
     A player not named is not touched at all — its playlist file is left exactly
     as it is, so setting one side's F-mode cannot reshuffle the other's queue out
-    from under it.  That is the whole reason the rebuild is per player rather than
-    the one all-three build this used to do.
+    from under it.  That is the whole reason the rebuild is per player rather
+    than one build of all three.
     """
     named = tuple(player for player in FMODE_PLAYERS if player in players)
     if Player.MAIN in named:

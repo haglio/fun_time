@@ -1,12 +1,18 @@
 from __future__ import annotations
 
+import ctypes
 from unittest.mock import patch
 
 import pytest
 
 from fun_time.monitors import (
+    SM_CXVIRTUALSCREEN,
+    SM_CYVIRTUALSCREEN,
+    SM_XVIRTUALSCREEN,
+    SM_YVIRTUALSCREEN,
     MonitorInfo,
     get_logical_monitor_rects,
+    virtual_desktop_rect,
 )
 from fun_time.window_layout import MonitorRect
 
@@ -73,16 +79,6 @@ class TestTheVirtualDesktop:
     """
 
     def test_the_four_metrics_come_back_as_one_rect(self):
-        import ctypes
-
-        from fun_time.monitors import (
-            SM_CXVIRTUALSCREEN,
-            SM_CYVIRTUALSCREEN,
-            SM_XVIRTUALSCREEN,
-            SM_YVIRTUALSCREEN,
-            virtual_desktop_rect,
-        )
-
         answers = {SM_XVIRTUALSCREEN: -1920, SM_YVIRTUALSCREEN: -100,
                    SM_CXVIRTUALSCREEN: 3840, SM_CYVIRTUALSCREEN: 1180}
         with patch.object(ctypes.windll.user32, "GetSystemMetrics", answers.get), \
@@ -95,10 +91,6 @@ class TestTheVirtualDesktop:
         """Off Windows there is no ``windll`` to ask, and the caller has its own
         answer to fall back on — so this says so rather than raising into a
         constructor that has a window half-built."""
-        import ctypes
-
-        from fun_time.monitors import virtual_desktop_rect
-
         with patch.object(ctypes.windll.user32, "SetProcessDPIAware",
                           side_effect=AttributeError("no windll")):
             assert virtual_desktop_rect() is None
@@ -106,10 +98,6 @@ class TestTheVirtualDesktop:
     def test_the_dpi_awareness_is_claimed_before_the_metrics_are_asked_for(self):
         """Unaware, Windows answers with the scaled numbers and the cover comes
         up short of the real desktop on a display that is not at 100%."""
-        import ctypes
-
-        from fun_time.monitors import virtual_desktop_rect
-
         order: list[str] = []
         with patch.object(ctypes.windll.user32, "SetProcessDPIAware",
                           side_effect=lambda: order.append("dpi")), \

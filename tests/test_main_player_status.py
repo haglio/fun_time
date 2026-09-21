@@ -3,6 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from player_core.modes import LengthMode
+from player_core.status import PlayerStatus, parse_status
 
 from main_player.status import LibraryStatus, status_fields
 
@@ -56,8 +57,6 @@ class TestStatusFields:
         ]
 
     def test_the_seven_every_player_leads_with_read_back_as_the_familys_record(self):
-        from player_core.status import PlayerStatus, parse_status
-
         assert parse_status(status_fields(StubSession(), None)) == PlayerStatus(
             video=str(Path("C:/vids/clip.mp4")), position_ms=12345, duration_ms=60000, locked=True)
 

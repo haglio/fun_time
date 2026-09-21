@@ -52,7 +52,7 @@ def _load_icon_surface(icon_path: Path | None):
     if icon_path is None or not icon_path.exists():
         return None
     try:
-        from PIL import Image
+        from PIL import Image  # noqa: PLC0415  (optional: no Pillow, no icon)
         img = Image.open(icon_path).convert("RGBA")
         return pygame.image.fromstring(img.tobytes(), img.size, "RGBA")
     except Exception:

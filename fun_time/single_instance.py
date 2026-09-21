@@ -4,6 +4,7 @@ from __future__ import annotations
 import ctypes
 from ctypes import wintypes
 
+from fun_time.project_paths import PROJECT_ICON
 from fun_time.win32_loader import load_dll
 
 # ``app_support.win32.mutex_name`` adds the session's identity, so a branch
@@ -50,8 +51,7 @@ def let_the_session_go(handle: int | None) -> None:
 
 def show_already_running_message(text: str, title: str = "Fun Time") -> None:
     """Say another instance holds the mutex, in Fun Time's own colors."""
-    from shared_ui.alert import Level, show_alert
-
-    from fun_time.project_paths import PROJECT_ICON
+    # Qt loads only for this: asking whether we may run draws nothing.
+    from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
     show_alert(title, text, level=Level.INFO, icon=PROJECT_ICON)

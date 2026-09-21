@@ -7,8 +7,8 @@ every other session, and nothing took it back out.  A file in the checkout's own
 state dir answers it per session instead.
 
 Here rather than in :mod:`fun_time.branch_session` because the orchestrator
-applies these at launch, and importing them used to bring the whole branch
-machinery -- git worktree parsing, PowerShell, a CLI -- with them.
+applies these at launch, and importing that module brings the whole branch
+machinery -- git worktree parsing, PowerShell, a CLI -- with it.
 """
 from __future__ import annotations
 

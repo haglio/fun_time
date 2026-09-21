@@ -2,15 +2,22 @@ from __future__ import annotations
 
 import json
 import logging
+from itertools import pairwise
 from pathlib import Path
 
 import pytest
 from PyQt6.QtCore import QEvent, QPointF, QSize, Qt
-from PyQt6.QtGui import QMouseEvent
+from PyQt6.QtGui import QColor, QFontMetrics, QMouseEvent
 from PyQt6.QtWidgets import QApplication, QToolButton
+from shared_ui import colors
+from shared_ui.colors import TEXT_PRIMARY, hovered
+from shared_ui.fonts import SIZE_TINY
+from shared_ui.icons import glyph_pixmap
+from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
+from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP, BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
 
 from fun_time.event_log import FAVORITE, NOTICE, EventRecord
-from fun_time.log_panel import LogPanelWidget, level_color
+from fun_time.log_panel import _COPY_ICON_SIZE, LogPanelWidget, level_color
 from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
@@ -210,11 +217,6 @@ class TestHoverCopyButton:
         microphone had, one layer down -- so both marks now come out of
         shared_ui rather than out of a copy kept in either app.
         """
-        from shared_ui.colors import TEXT_PRIMARY
-        from shared_ui.icons import glyph_pixmap
-
-        from fun_time.log_panel import _COPY_ICON_SIZE
-
         panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
         button = _copy_button(panel)
@@ -302,9 +304,6 @@ def test_the_level_dial_fits_its_longest_name(panel_factory):
 
 
 def test_the_level_dial_wears_the_huds_button_edge_ground_and_height(panel_factory):
-    from shared_ui.palette import BG_BUTTON, TEXT_MUTED
-    from shared_ui.spacing import BUTTON_SIZE_HUD
-
     dial = panel_factory(["Clip state"])._verbosity
     pixel = _grabbed(dial)
     middle = dial.height() // 2
@@ -315,8 +314,6 @@ def test_the_level_dial_wears_the_huds_button_edge_ground_and_height(panel_facto
 
 
 def test_the_level_dial_shows_an_arrow_pointing_down(panel_factory):
-    from shared_ui.palette import BG_BUTTON
-
     dial = panel_factory(["Clip state"])._verbosity
     pixel = _grabbed(dial)
     inked = [(y, sum(pixel(x, y) != BG_BUTTON for x in range(dial.width() - 16, dial.width() - 2)))
@@ -330,10 +327,6 @@ def test_the_level_dial_shows_an_arrow_pointing_down(panel_factory):
 
 
 def test_the_filter_row_sets_the_dial_a_group_apart_from_the_toggles(panel_factory):
-    from itertools import pairwise
-
-    from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP
-
     panel = panel_factory(["Clip state"])
     panel.controls.adjustSize()
     panel.controls.layout().activate()
@@ -347,11 +340,6 @@ def test_the_filter_row_sets_the_dial_a_group_apart_from_the_toggles(panel_facto
 
 
 def test_a_source_toggle_is_sized_the_way_a_huds_mode_button_is(panel_factory):
-    from PyQt6.QtCore import Qt
-    from PyQt6.QtGui import QFontMetrics
-    from shared_ui.fonts import SIZE_TINY
-    from shared_ui.spacing import BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
-
     panel = panel_factory(["Clip state"])
 
     for button in panel._source_buttons.values():
@@ -365,8 +353,6 @@ def test_a_source_toggle_is_sized_the_way_a_huds_mode_button_is(panel_factory):
 
 
 def _grabbed(widget):
-    from PyQt6.QtGui import QColor
-
     image = widget.grab().toImage()
     return lambda x, y: QColor(image.pixel(x, y)).getRgb()[:3]
 
@@ -385,8 +371,6 @@ def _one_off_and_one_on(panel):
 
 
 def test_a_word_button_wears_the_huds_mode_button_edge_and_ground(panel_factory):
-    from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
-
     off, on = _one_off_and_one_on(panel_factory(["Clip state"]))
 
     for button, edge, ground in ((off, TEXT_MUTED, BG_BUTTON), (on, BLUE, BLUE)):
@@ -404,10 +388,10 @@ def test_a_word_buttons_label_is_bright_off_and_white_on(panel_factory):
 
 
 def test_a_word_button_still_lightens_under_the_pointer(panel_factory):
-    from shared_ui.colors import BG_BUTTON, BLUE, hovered
-
+    # The Qt spelling of each color, not the palette's raw triple beside it.
     sheet = panel_factory(["Clip state"])._source_buttons["system"].styleSheet()
 
-    assert hovered(BG_BUTTON).name() in sheet and hovered(BLUE).name() in sheet
+    assert (hovered(colors.BG_BUTTON).name() in sheet
+            and hovered(colors.BLUE).name() in sheet)
 
 

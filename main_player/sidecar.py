@@ -2,7 +2,7 @@
 
 The metadata tree mirrors the video library one-to-one, and that rule belongs
 to every app that reads or writes one of these -- it is
-:mod:`app_support.mirrored_tree`, which this player used to spell out for itself.
+:mod:`app_support.mirrored_tree`, not this player.
 Evolver owns what goes in; the main player only reads, and a missing or malformed
 file is the ordinary case rather than an error -- plenty of videos predate the
 metadata.

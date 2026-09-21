@@ -1,8 +1,8 @@
 """Topmost band policy for the managed Fun Time windows.
 
 Startup, omnipause and mode switches all read this ONE policy, so they can
-never disagree about a window's topmost band — the drift that once left the main player
-stranded on top after entering omnipause.
+never disagree about a window's topmost band, which is the drift that leaves
+the main player stranded on top after entering omnipause.
 
 The satellite / dashboard / RFB windows each own a screen rect and never
 overlap, so they are unconditionally topmost.  The main player and Genau are the exception:

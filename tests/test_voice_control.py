@@ -13,6 +13,7 @@ from voice_core.commands import Recognition
 from voice_core.listening import Heard
 
 from fun_time import voice_control
+from fun_time.filter_vocab import filter_voice_commands
 from fun_time.voice_commands import VOICE_COMMANDS, parse_command_line
 from fun_time.voice_control import VoiceController, command_rules
 
@@ -25,8 +26,6 @@ def _heard(recognition: Recognition) -> Heard:
 
 class TestCommandRules:
     def test_every_spoken_phrase_is_one_the_listener_is_told_to_hear(self):
-        from fun_time.filter_vocab import filter_voice_commands
-
         rules = command_rules(confidence_threshold=0.7, confirm_commands=True)
 
         assert rules.phrases == frozenset(VOICE_COMMANDS)

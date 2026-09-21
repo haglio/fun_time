@@ -21,6 +21,7 @@ from pathlib import Path
 import pytest
 
 from fun_time.branch_session import build_branch_config
+from fun_time.checkout_overrides import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
 
 from .integration_support import (
     FunTimeIntegrationSession,
@@ -59,7 +60,6 @@ def _copy_checkout(destination: Path) -> Path:
     # applies it to its own imports at launch, so without it a branch that leans
     # on an unlanded sibling change cannot even start here, while the real
     # shortcut (launching the checkout that HAS the file) comes up fine.
-    from fun_time.checkout_overrides import GENAU_DIRS_OVERRIDE_NAME, STATE_DIRNAME
     override = CHECKOUT_DIR / STATE_DIRNAME / GENAU_DIRS_OVERRIDE_NAME
     if override.is_file():
         (destination / STATE_DIRNAME).mkdir(parents=True, exist_ok=True)

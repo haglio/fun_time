@@ -4,10 +4,10 @@ Two things over there need to ask this session something, and neither can read
 a file to find it out:
 
 * Tampermonkey fetches the Provider autofill userscript.  It is hand-installed
-  once, but Chrome refuses to *update* a script from a ``file://`` path, so
-  every later edit used to mean copy-all-paste-save into the Tampermonkey
-  dashboard by hand.  The script now carries ``@updateURL`` / ``@downloadURL``
-  pointing here, and every merge lands on its next update check.
+  once, but Chrome refuses to *update* a script from a ``file://`` path, which
+  makes every later edit a copy-all-paste-save into the Tampermonkey dashboard
+  by hand.  The script carries ``@updateURL`` / ``@downloadURL`` pointing here
+  instead, and every merge lands on its next update check.
 * The RFB tab pages ask whether the session is in OmniPause, and freeze the
   clip they are showing while it is.  A page is a ``file://`` document with no
   way to watch the state dir, so it polls (see ``omnipause_url``).

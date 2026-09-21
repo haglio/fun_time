@@ -339,8 +339,8 @@ class LaunchManifest:
         return cls(
             **{attr: record(section, kind)
                for section, (attr, kind) in _SECTION_RECORDS.items()},
-            # "1"/"0" on the wire; the two readers of each used to spell the
-            # comparison themselves, in two different ways.
+            # "1"/"0" on the wire, read once here: each reader spelling the
+            # comparison itself is how two of them come to disagree.
             dashboard_enabled=flag("dashboard", "enabled").strip()
             not in {"", "0", "false", "False"},
             loopback_port=int(flag("loopback", "port")),

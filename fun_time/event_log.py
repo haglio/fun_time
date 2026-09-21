@@ -20,8 +20,7 @@ from pathlib import Path
 
 # A message meant for the person watching, not for a post-mortem: "Clip saved",
 # "No other seeds".  Louder than INFO's diagnostic chatter, quieter than a
-# WARNING.  These used to flash as AHK tooltips under the mouse; now they are
-# what the log panel shows at its default verbosity.
+# WARNING.  These are what the log panel shows at its default verbosity.
 NOTICE = 25
 logging.addLevelName(NOTICE, "NOTICE")
 

@@ -17,6 +17,7 @@ from fun_time.lock_hud import (
 from fun_time.media_metadata import (
     ClipEntry,
     GroupIndex,
+    cached_group_index,
     metadata_path_for,
 )
 from fun_time.media_metadata import (
@@ -822,8 +823,6 @@ def _clip(media_root: Path, metadata_root: Path, name: str, meta: dict) -> str:
 def test_prime_group_indexes_builds_both_sides_up_front(tmp_path: Path):
     """Priming builds each player's real index up front and caches it, so a later
     read serves it from memory — no per-clip rebuild during the session."""
-    from fun_time.media_metadata import cached_group_index
-
     media_root, metadata_root = tmp_path / "videos" / "videos", tmp_path / "videos" / "metadata"
     _clip(media_root, metadata_root, "a", _i2v("Alpha", "1"))
     sources = str(media_root / "portrait")

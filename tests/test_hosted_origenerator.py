@@ -2,12 +2,13 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from fun_time import load_config
-from fun_time.hosted_origenerator import bring_up_the_hosted_app
+from fun_time.hosted_origenerator import _adopt_a_kept_origenerator, bring_up_the_hosted_app
 from fun_time.manifest import LaunchManifest, write_windows_bridge_manifest
 from fun_time.monitors import MonitorInfo
+from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
 from fun_time.window_layout import screen_layout
 
 
@@ -56,8 +57,6 @@ class TestAdoptingAKeptOrigenerator:
     up rather than paying for a second boot (docs/entering-vr.md)."""
 
     def _manifest(self, tmp_path):
-        from unittest.mock import MagicMock
-
         m = MagicMock()
         m.commands.origenerator_status_file = str(tmp_path / "origenerator_status.txt")
         m.commands.origenerator_paused_file = str(tmp_path / "origenerator_paused.txt")
@@ -65,11 +64,6 @@ class TestAdoptingAKeptOrigenerator:
         return m
 
     def test_a_live_record_is_adopted_and_spent(self, tmp_path: Path):
-        from unittest.mock import patch
-
-        from fun_time.hosted_origenerator import _adopt_a_kept_origenerator
-        from fun_time.session_handoff import keep_the_origenerator, kept_origenerator
-
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
         with patch("fun_time.hosted_origenerator.get_process_creation_time",
                    return_value=44):
@@ -80,29 +74,17 @@ class TestAdoptingAKeptOrigenerator:
     def test_a_recycled_pid_is_never_adopted(self, tmp_path: Path):
         """Windows hands freed pids straight back out, so the creation time is
         what says the process is still the one that was parked."""
-        from unittest.mock import patch
-
-        from fun_time.hosted_origenerator import _adopt_a_kept_origenerator
-        from fun_time.session_handoff import keep_the_origenerator
-
         keep_the_origenerator(tmp_path, pid=6060, created_at=44)
         with patch("fun_time.hosted_origenerator.get_process_creation_time",
                    return_value=45):
             assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
     def test_an_ordinary_startup_adopts_nothing(self, tmp_path: Path):
-        from fun_time.hosted_origenerator import _adopt_a_kept_origenerator
-
         assert _adopt_a_kept_origenerator(self._manifest(tmp_path)) is None
 
     def test_adoption_clears_the_channel_but_never_the_status(self, tmp_path: Path):
         """The app rewrites its status file only when a region changes, so one
         cleared here would stay empty while nothing did."""
-        from unittest.mock import patch
-
-        from fun_time.hosted_origenerator import _adopt_a_kept_origenerator
-        from fun_time.session_handoff import keep_the_origenerator
-
         status = tmp_path / "origenerator_status.txt"
         status.write_text("ready\n", encoding="utf-8")
         (tmp_path / "origenerator_cmd.txt").write_text("OPEN_SHOWS\n", encoding="utf-8")

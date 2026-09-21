@@ -527,8 +527,8 @@ def genau_launch_command(
 ) -> list[str]:
     """The argv a session launches Genau with, which
     ``tests/test_genau_launch_contract`` holds against Genau's own published
-    document.  Every file below is required because Genau requires it: left
-    off, it used to fall through to a directory this session never reads.
+    document.  Every file below is required because Genau requires it: left off,
+    Genau falls through to a directory this session never reads.
     """
     cmd = [
         NAMER.named_exe(python_exe, "Genau"),
@@ -756,10 +756,10 @@ def launch_main_player(
         str(status_file),
         "--state-dir",
         str(state_dir),
-        # The main player's HUD is the console the dashboard used to be: it reads the panel we
+        # The main player's HUD is this session's console: it reads the panel we
         # publish, reads Genau's readout for the section under it, and posts a
-        # press — on a button or on the volume control — back onto the same
-        # command file the dashboard wrote.
+        # press -- on a button or on the volume control -- back onto the
+        # dashboard's command file.
         "--console-file",
         str(console_file),
         "--drive-file",

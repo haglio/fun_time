@@ -744,8 +744,8 @@ def start_hud_priming(
     """Build the HUD publisher and warm what it needs, off the startup thread.
 
     Two costs sit under the first map: indexing each library's seed families and
-    action groups, and extracting a still frame per clip.  Both used to run in the
-    separate HUD process; with the model here they run on this daemon thread, so
+    action groups, and extracting a still frame per clip.  With the model here
+    rather than in a HUD process of its own, both run on this daemon thread, so
     startup keeps going while they finish.  The returned event fires once the
     indexes are ready — startup waits on it before revealing Fun Time, so the maps
     are never blank on screen.  The far longer thumbnail warm continues under it;

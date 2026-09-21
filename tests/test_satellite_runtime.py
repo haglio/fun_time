@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import threading
 
+from player_core import player_verbs
 from player_core.player_verbs import (
     LOCK_OFF,
     LOCK_ON,
@@ -167,8 +168,6 @@ def test_every_verb_the_satellite_answers_is_the_familys_or_its_own():
     those and only Fun Time sends them, so they are spelled beside its registry
     rather than in the family's vocabulary — which is where player_core's own
     rule leaves a name until a second repo needs it."""
-    from player_core import player_verbs
-
     its_own = {NEXT_VERSION, PREV_VERSION}
     assert set(VERBS) == its_own | {
         NEXT, PREV, LOCK_ON, LOCK_OFF, TRASH, SPEED_UP, SPEED_DOWN, SET_SPEED,

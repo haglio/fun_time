@@ -34,6 +34,7 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path, genau_proj
 # rules".)
 apply_genau_dirs_to_sys_path()
 
+from app_support.win32 import mutex_name
 from player_core.playlist import read_playlist
 
 from fun_time.broker_control import PARK_CMD, write_broker_command
@@ -107,6 +108,11 @@ from fun_time.session_resume import (
     resume_shared_state,
 )
 from fun_time.shared_state import shared_state_path
+from fun_time.single_instance import (
+    MUTEX_ORCHESTRATOR,
+    claim_the_session,
+    show_already_running_message,
+)
 from fun_time.state_file_names import take_up_the_retired_state_file_names
 from fun_time.win32_process import get_process_creation_time
 from fun_time.windows_bridge_dispatch_loop import (
@@ -791,13 +797,7 @@ def main(argv: list[str] | None = None) -> int:
     set_up_logging(config)
 
     # Mirrors fun_time.orchestrator.main.
-    from app_support.win32 import mutex_name
 
-    from fun_time.single_instance import (
-        MUTEX_ORCHESTRATOR,
-        claim_the_session,
-        show_already_running_message,
-    )
 
     # The SAME mutex as the desktop session: both drive the same state files
     # and the same players' channels, so they must never run together.

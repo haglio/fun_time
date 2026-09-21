@@ -22,10 +22,13 @@ import time
 from pathlib import Path
 from types import SimpleNamespace
 
+import glfw
 import numpy as np
 import pytest
+from OpenGL import GL
 from player_core.file_channel import append_command
 
+import fun_time_vr.player as vrp
 from fun_time.config import load_config
 from fun_time.manifest import LaunchManifest, write_manifest_data
 from fun_time.player_status import read_main_player_status
@@ -41,6 +44,7 @@ from fun_time_vr.layout import (
     read_layout,
 )
 from fun_time_vr.orchestrator import build_vr_manifest
+from fun_time_vr.render import SceneRenderer, immersive_mode
 from fun_time_vr.scheduling import ahead_of_background_work
 
 from .integration_support import (
@@ -111,9 +115,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
         manifest_data, config.paths.state_dir / "windows_bridge_launch.ini"
     )
 
-    import glfw  # noqa: PLC0415 — the GL stack loads only inside the test
 
-    import fun_time_vr.player as vrp  # noqa: PLC0415
 
     manifest = LaunchManifest.read(manifest_path)
     vr = vrp.VrSettings.read(manifest_path)
@@ -142,9 +144,7 @@ def test_vr_pipeline_holds_frame_budget_and_obeys_the_channels():
     window = hidden_gl_window("vr-pipeline-test")
     glfw.make_context_current(window)
 
-    from OpenGL import GL  # noqa: PLC0415
 
-    from fun_time_vr.render import SceneRenderer, immersive_mode  # noqa: PLC0415
 
     renderer = SceneRenderer()
     contexts = SharedContexts(window)
@@ -393,9 +393,7 @@ def test_the_main_player_plays_once_video_mode_unpauses_it():
         build_vr_manifest(config), config.paths.state_dir / "windows_bridge_launch.ini"
     )
 
-    import glfw  # noqa: PLC0415 — the GL stack loads only inside the test
 
-    import fun_time_vr.player as vrp  # noqa: PLC0415
 
     manifest = LaunchManifest.read(manifest_path)
     vr = vrp.VrSettings.read(manifest_path)

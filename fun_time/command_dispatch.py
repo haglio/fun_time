@@ -624,9 +624,9 @@ def dispatch_command(
         if handled is not None:
             return handled
 
-    # A missed rung used to be indistinguishable from a handled no-op — a key
-    # bound to a misspelled id was simply dead.  The state still comes back
-    # unchanged; the log says why nothing happened.
+    # Said, because a missed rung is otherwise indistinguishable from a handled
+    # no-op: a key bound to a misspelled id reads as simply dead.  The state
+    # still comes back unchanged; the log says why nothing happened.
     logger.warning("no handler for command %r", command)
     return state, []
 

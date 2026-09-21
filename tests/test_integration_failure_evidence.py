@@ -7,10 +7,11 @@ sent to fix it spent most of its budget making the failure happen again.
 from __future__ import annotations
 
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 
-from tests.integration import integration_support
+from tests.integration import conftest, integration_support
 from tests.integration.integration_support import clear_retired_roots, retire_temp_root
 
 
@@ -81,10 +82,6 @@ def test_two_failed_runs_keep_their_logs_apart(tmp_path: Path):
 
 
 def test_the_run_hands_its_outcome_to_the_cleanup_when_it_ends():
-    from unittest.mock import patch
-
-    from tests.integration import conftest
-
     with patch.object(conftest, "clear_retired_roots", return_value=None) as clear:
         conftest.pytest_sessionfinish(session=None, exitstatus=1)
         conftest.pytest_sessionfinish(session=None, exitstatus=0)
@@ -94,7 +91,5 @@ def test_the_run_hands_its_outcome_to_the_cleanup_when_it_ends():
 
 
 def test_failure_evidence_lands_in_the_checkouts_ignored_state_dir():
-    from tests.integration import conftest
-
     checkout = Path(__file__).resolve().parents[1]
     assert checkout / "state" / "integration_failures" == conftest.FAILURE_EVIDENCE

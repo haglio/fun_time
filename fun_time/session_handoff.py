@@ -30,6 +30,7 @@ from fun_time.overlay_progress import (
     what_the_flag_asks,
 )
 from fun_time.process_identity import NAMER
+from fun_time.project_paths import PROJECT_ICON
 from fun_time.single_instance import (
     MUTEX_ORCHESTRATOR,
     claim_the_session,
@@ -396,9 +397,7 @@ def last_lines_of(path: Path, count: int = 15) -> str:
 
 def report_a_failed_crossing(reason: str, log_file: Path) -> None:
     """Say the other session never came up; Qt loads only for this."""
-    from shared_ui.alert import Level, show_alert
-
-    from fun_time.project_paths import PROJECT_ICON
+    from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
     message = f"{reason}\n\nSee the full log at:\n{log_file}"
     tail = last_lines_of(log_file)
@@ -411,7 +410,11 @@ def report_a_failed_crossing(reason: str, log_file: Path) -> None:
 def _uncover_what_was_waiting(state_dir: Path, origenerator_cmd_file) -> None:
     drop_crossing_cover(state_dir)
     release_the_headset(state_dir)
-    from fun_time.windows_bridge_orchestrator import let_go_of_a_kept_origenerator
+    # Late: the dispatch loop's orchestrator imports this module, so a
+    # top-level import here is a cycle.
+    from fun_time.windows_bridge_orchestrator import (  # noqa: PLC0415
+        let_go_of_a_kept_origenerator,
+    )
 
     let_go_of_a_kept_origenerator(Path(state_dir), origenerator_cmd_file)
 

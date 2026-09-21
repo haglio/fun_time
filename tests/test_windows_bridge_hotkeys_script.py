@@ -3,6 +3,7 @@ one chord that ends a session."""
 from __future__ import annotations
 
 from fun_time.overlay_progress import CANCEL_FILENAME
+from fun_time.session_handoff import COVER_STALE_S, CROSSING_PROGRESS_NAME
 from tests.ahk_script import function_code, function_source, script_text
 
 
@@ -206,8 +207,6 @@ class TestTheSessionEndsButTheScriptStays:
 
     def test_the_crossing_it_watches_is_the_one_the_sessions_keep(self):
         """One file and one timeout, spelled in two languages."""
-        from fun_time.session_handoff import COVER_STALE_S, CROSSING_PROGRESS_NAME
-
         text = script_text()
 
         assert f'"\\{CROSSING_PROGRESS_NAME}"' in text

@@ -11,7 +11,7 @@ def load_icon_image(ico_path: Path, size: int) -> PILImage | None:
     """An ICO as an RGBA PIL Image at *size*, or None without the file or
     Pillow."""
     try:
-        from PIL import Image
+        from PIL import Image  # noqa: PLC0415  (optional: no Pillow, no icon)
 
         img = Image.open(ico_path)
         img = img.resize((size, size), Image.LANCZOS)  # largest, then downsample

@@ -18,6 +18,8 @@ from player_core.console import (
 from player_core.hud_button import BUTTON, Button
 from player_core.hud_marks import BROKER_ICON, MINIMIZE_ICON, SHARED_MARK, shared_mark_name
 from player_core.modes import LengthMode, LoopState, MainMode
+from player_core.satellite_hud import HudModel
+from player_core.satellite_hud_paint import HudRenderer
 from shared_ui.icon_geometry import glyph_names
 
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
@@ -446,9 +448,6 @@ class TestPaceRows:
     def test_the_rate_pair_says_what_a_satellites_rate_pair_says(self):
         """The satellites draw their own pair, in the players' words; one
         control reads the same on every player."""
-        from player_core.satellite_hud import HudModel
-        from player_core.satellite_hud_paint import HudRenderer
-
         rendered = HudRenderer("landscape").render(
             HudModel(player="landscape", playback_speed=1.0))
         satellite = [button.tooltip for _rect, button in rendered.targets.buttons

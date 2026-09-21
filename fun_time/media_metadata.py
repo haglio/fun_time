@@ -35,7 +35,7 @@ def metadata_path_for(
     The rule -- same relative path under the other root, suffix swapped, and
     the several spellings a path can reach here under -- belongs to every app
     that reads one of these files and is
-    :mod:`app_support.mirrored_tree`; this module used to carry a copy of it.
+    :mod:`app_support.mirrored_tree`, not this module.
     """
     if metadata_root is None:
         return None
@@ -394,9 +394,9 @@ def indexed_act(index: GroupIndex, path: str) -> str:
     The seed axis asks "is this the same act?" to decide who is in a row, so a raw
     string compare splits one act into pools that cannot see each other the moment
     two clips are labeled with different casing — and a clip alone in its spelling
-    has no seed row at all.  The library had 179 such clips (a camera initialism
-    in title case beside the same one in capitals) before they were consolidated;
-    this is what keeps the next one from mattering.
+    has no seed row at all.  One act spelled two ways -- title case beside
+    capitals -- is the ordinary case in a hand-labeled library, and this is what
+    keeps it from mattering.
     """
     return _norm_text(index.act_of(path))
 

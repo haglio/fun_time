@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import argparse
+import importlib
 import sys
 
 import pytest
 
-from fun_time import win32_desktop
+from fun_time import audio_companion_app, win32_desktop
 from fun_time.win32_desktop import _is_off_screen, current_desktop_name, on_hidden_desktop
 
 
@@ -49,8 +50,6 @@ def test_the_unit_run_is_on_the_interactive_desktop_so_nothing_is_silenced():
 
 @pytest.mark.parametrize("module_name", ["main_player.cli", "satellite.cli"])
 def test_a_video_player_silences_itself_off_screen_with_no_switch_set(module_name, monkeypatch):
-    import importlib
-
     module = importlib.import_module(module_name)
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.setattr(module, "on_hidden_desktop", lambda: True)
@@ -60,8 +59,6 @@ def test_a_video_player_silences_itself_off_screen_with_no_switch_set(module_nam
 
 
 def test_the_audio_companion_silences_itself_off_screen_with_no_switch_set(monkeypatch):
-    from fun_time import audio_companion_app
-
     monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
     monkeypatch.setattr(audio_companion_app, "on_hidden_desktop", lambda: True)
     assert audio_companion_app.force_muted() is True

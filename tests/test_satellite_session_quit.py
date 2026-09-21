@@ -25,6 +25,8 @@ from pathlib import Path
 
 from player_core.session_quit import SESSION_QUIT
 
+from fun_time.dashboard_actions import QUIT_BUTTON
+
 SOURCE = Path(__file__).resolve().parents[1] / "satellite" / "app.py"
 
 # The event types this loop is allowed to answer.  QUIT is here because the loop
@@ -37,8 +39,6 @@ def test_the_ask_is_the_dashboards_own_quit_verb():
     """What the Quit button posts and the dispatch loop turns into "exit" for
     the bridge.  Rename it and a closed satellite asks for something nothing
     answers, so the gesture goes quiet rather than wrong."""
-    from fun_time.dashboard_actions import QUIT_BUTTON
-
     assert SESSION_QUIT == QUIT_BUTTON
 
 

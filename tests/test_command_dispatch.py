@@ -17,21 +17,27 @@ from player_core.console import (
 )
 from player_core.modes import MainMode
 
+from fun_time import clipper_save
 from fun_time.bridge_records import BridgeConfig, WindowOp
 from fun_time.broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD
+from fun_time.clipper_save import _clipper_project_dir
 from fun_time.command_dispatch import (
     _discard,
     _toggle_lock,
     dispatch_command,
     routes_to_origenerator,
 )
+from fun_time.content import WebProvider, load_content, load_web_providers
 from fun_time.event_log import FAVORITE, NOTICE
 from fun_time.loopback_server import omnipause_url
-from fun_time.media_actions import ensure_in_favs
+from fun_time.media_actions import ensure_in_favs, make_web_url_from_path
+from fun_time.media_metadata import load_metadata, metadata_path_for, normalize_path_key
 from fun_time.modes import write_playlist_file
 from fun_time.players import Player
-from fun_time.satellite_groups import cancel_lock
+from fun_time.satellite_groups import _satellite_group_index, cancel_lock
 from fun_time.shared_state import BridgeState, SatelliteState
+from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
+from fun_time.watch_stats import load_watch_stats
 
 
 def _publish_drive(config: BridgeConfig, *, amplitude: int) -> None:
@@ -136,8 +142,6 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
 
-    from fun_time.content import load_web_providers
-    from fun_time.media_actions import make_web_url_from_path
 
     path = rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4"
     _set_current(config, 2, path)
@@ -154,7 +158,6 @@ def test_portrait_lock_opens_a_landing_page_not_the_site(tmp_path: Path):
 def test_lock_landing_page_plays_the_locked_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
-    from fun_time.content import load_web_providers
 
     video = tmp_path / "videos" / load_web_providers()[0].marker / "abc_123.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
@@ -173,8 +176,6 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
 
     keys = []
     for _ in range(2):
-        from fun_time.content import load_web_providers
-
         _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
         with patch("fun_time.command_dispatch.ensure_in_favs"):
             _, ops = dispatch_command("portrait_lock", _make_state(portrait=SatelliteState(locked=False)), config)
@@ -187,9 +188,6 @@ def test_locking_the_same_video_twice_reuses_one_landing_page(tmp_path: Path):
 def test_portrait_lock_records_a_lock_watch_event(tmp_path: Path):
     """Locking is the strongest 'I like this' signal — it must feed the
     watch stats that drive playback frequency."""
-    from fun_time.media_metadata import normalize_path_key
-    from fun_time.watch_stats import load_watch_stats
-
     config = _make_config(tmp_path)
     state = _make_state(portrait=SatelliteState(locked=False))
     video = tmp_path / "clip.mp4"
@@ -220,7 +218,6 @@ def test_the_locks_landing_page_polls_the_port_this_session_serves_on(tmp_path: 
     config = replace(_make_config(tmp_path), loopback_port=8771)
     state = _make_state(portrait=SatelliteState(locked=False))
 
-    from fun_time.content import load_web_providers
 
     _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
     with patch("fun_time.command_dispatch.ensure_in_favs"):
@@ -257,8 +254,6 @@ def test_landscape_lock_emits_open_rfb_tab_op_for_known_video(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state(landscape=SatelliteState(locked=False))
 
-    from fun_time.content import load_web_providers
-    from fun_time.media_actions import make_web_url_from_path
 
     path = rf"C:\videos\{load_web_providers()[0].marker}\def_456.mp4"
     _set_current(config, 3, path)
@@ -289,7 +284,6 @@ def test_landscape_lock_emits_regen_url_when_metadata_present(tmp_path: Path):
     config.regen_media_root = media_root
     config.regen_metadata_root = metadata_root
     state = _make_state(landscape=SatelliteState(locked=False))
-    from fun_time.content import WebProvider
 
     providers = (WebProvider(marker="provider", gallery_url="https://example.com/image/{id}"),)
 
@@ -793,13 +787,10 @@ def test_funscript_nav_inert_in_genau_mode(tmp_path: Path):
 
 
 def test_clip_nav_voice_phrases():
-    from fun_time.voice_commands import VOICE_COMMANDS
-
     assert VOICE_COMMANDS["compilation"] == "main_player_compilation"
     assert VOICE_COMMANDS["full video"] == "main_player_full_vid"
     # The clip-jump phrases are overlay content, so take them from whichever
     # overlay is loaded rather than naming one.
-    from fun_time.content import load_content
 
     for phrase in load_content()["clip_jump_phrases"]:
         assert VOICE_COMMANDS[phrase] == "main_player_clip_jump"
@@ -808,8 +799,6 @@ def test_clip_nav_voice_phrases():
 def test_funscript_nav_voice_phrases_are_split_for_vosk():
     """The small vosk model has no "funscript" token, so the recognizer listens
     for the two-word form; the reference rejoins it (see friendly_voice)."""
-    from fun_time.voice_commands import VOICE_COMMANDS
-
     assert VOICE_COMMANDS["jump to fun script"] == "main_player_funscript_jump"
     assert VOICE_COMMANDS["next fun scripted"] == "main_player_next_funscripted"
     assert "jump to funscript" not in VOICE_COMMANDS
@@ -890,8 +879,6 @@ def test_a_fresh_session_starts_with_the_primary_active():
     """The main player is on the display the eye opens on, so it holds the floor at
     startup — a bare 'next' or 'lock' goes there, not to a satellite, until one is
     addressed."""
-    from fun_time.shared_state import BridgeState
-
     assert BridgeState().active_player == 1
 
 
@@ -1787,8 +1774,6 @@ def _make_grouped_config(
     Only the named player's sources point at the dir, so a command that reads
     the wrong player's library comes up empty instead of silently passing.
     """
-    from fun_time.media_metadata import metadata_path_for
-
     media_root = tmp_path / "videos" / "videos"  # the metadata tree mirrors this
     metadata_root = tmp_path / "videos" / "metadata"
     side_dir = media_root / ("portrait" if player == 2 else "landscape")
@@ -2131,8 +2116,6 @@ def test_portrait_cycle_seed_stays_within_the_current_action(tmp_path: Path):
 
 def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
     """The landscape variants must hit the landscape port and lock flag."""
-    from fun_time.media_metadata import metadata_path_for
-
     config, paths = _make_grouped_config(tmp_path, {})
     media_root = config.regen_media_root
     landscape_dir = media_root / "landscape"
@@ -2164,8 +2147,6 @@ def test_landscape_cycle_commands_target_the_landscape_player(tmp_path: Path):
 
 
 def _sidecar_video(config: BridgeConfig, path: str) -> dict:
-    from fun_time.media_metadata import load_metadata, metadata_path_for
-
     return load_metadata(metadata_path_for(path, config.regen_metadata_root)).get("video", {})
 
 
@@ -2251,7 +2232,6 @@ def test_wrong_action_rebuilds_the_grouping_index_it_just_invalidated(tmp_path: 
     dispatch_command("portrait_cycle_action", state, config)  # warms the cached index
     dispatch_command("portrait_wrong_action", state, config)
 
-    from fun_time.satellite_groups import _satellite_group_index
 
     index = _satellite_group_index(2, config, paths["subject_zeta"])
     assert index.act_of(paths["subject_zeta"]) == ""
@@ -3796,8 +3776,6 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
     there is nothing there — the save died in its ``cwd=`` and the hotkey looked
     like the branch had broken it.  The siblings live beside the primary
     checkout, which a worktree can name because they share a git directory."""
-    from fun_time.clipper_save import _clipper_project_dir
-
     _clipper_project_dir.cache_clear()
     try:
         resolved = _clipper_project_dir()
@@ -3811,8 +3789,6 @@ def test_the_clipper_sibling_is_found_beside_the_primary_not_beside_a_worktree()
 def test_the_clipper_sibling_falls_back_to_this_checkout_without_git():
     """No worse than it was: where git cannot answer, the checkout that is
     running is the only guess available."""
-    from fun_time import clipper_save
-
     clipper_save._clipper_project_dir.cache_clear()
     try:
         with patch("fun_time.branch_session.primary_checkout", side_effect=OSError("no git")):
@@ -4291,8 +4267,6 @@ class TestOrigeneratorTransport:
         """The vocabulary and the routing are generated from one list, so a
         phrase vosk can hear is a phrase this can send — a phrase recognized
         with nowhere to go would be heard and silently dropped."""
-        from fun_time.voice_commands import ORIGENERATOR_PHRASES, VOICE_COMMANDS
-
         config = _origenerator_config(tmp_path)
         state = _up(satellites_mode="origenerator")
         for player in ("portrait", "landscape"):
@@ -4407,7 +4381,6 @@ def test_cancel_lock_writes_nothing_when_not_locked(tmp_path: Path):
 
 def test_locking_a_known_video_opens_an_rfb_tab(tmp_path: Path):
     config = _make_config(tmp_path)
-    from fun_time.content import load_web_providers
 
     _set_current(config, 2, rf"C:\videos\{load_web_providers()[0].marker}\abc_123.mp4")
 

@@ -8,16 +8,16 @@ import pytest
 from fun_time.dashboard_bridge import (
     DashboardSnapshot,
     build_dashboard_snapshot_text,
+    decode_snapshot,
     write_dashboard_snapshot,
 )
+from fun_time.dashboard_runtime import load_dashboard_snapshot
 
 
 def test_the_writer_and_the_reader_speak_one_record(tmp_path: Path):
     """The five facts the bar draws travelled as five loose keywords on the way
     out and as a record on the way back, so adding a sixth was an edit in four
     files.  It is the one record both ways now."""
-    from fun_time.dashboard_runtime import load_dashboard_snapshot
-
     snapshot = DashboardSnapshot(
         omni_paused=True, voice_active=False, f_mode=True, in_vr=True, nothing_to_reset=True,
     )
@@ -98,12 +98,6 @@ class TestTheSnapshotsEncoding:
     """
 
     def test_what_the_writer_wrote_reads_back(self, tmp_path):
-        from fun_time.dashboard_bridge import (
-            build_dashboard_snapshot_text,
-            decode_snapshot,
-            write_dashboard_snapshot,
-        )
-
         path = tmp_path / "dashboard_state.ini"
         write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True))
 
@@ -113,29 +107,21 @@ class TestTheSnapshotsEncoding:
         """`write_text` opens in text mode, so on Windows the writer's ``\n``
         lands as ``\r\n``.  The decoder every reader shares normalizes it back,
         so a round trip equals what the builder emits on every platform."""
-        from fun_time.dashboard_bridge import decode_snapshot
-
         assert decode_snapshot("[voice]\r\nactive=1\r\n".encode("utf-16")) == (
             "[voice]\nactive=1\n")
 
     @pytest.mark.parametrize("encoding", ["utf-16", "utf-8", "utf-8-sig"])
     def test_an_older_sessions_file_is_still_readable(self, tmp_path, encoding):
         """Both readers took more than the writer emits, and must keep to it."""
-        from fun_time.dashboard_bridge import decode_snapshot
-
         assert decode_snapshot("[voice]\nactive=1\n".encode(encoding)) == (
             "[voice]\nactive=1\n")
 
     def test_bytes_in_none_of_those_say_so(self):
-        from fun_time.dashboard_bridge import decode_snapshot
-
         with pytest.raises(UnicodeDecodeError):
             decode_snapshot(b"\xff\xfe\xfd")
 
     def test_this_side_never_fails_a_write_over_an_unreadable_file(self, tmp_path):
         """A snapshot it cannot read is one it has to overwrite, not raise on."""
-        from fun_time.dashboard_bridge import write_dashboard_snapshot
-
         path = tmp_path / "dashboard_state.ini"
         path.write_bytes(b"\xff\xfe\xfd")
 
@@ -154,8 +140,6 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
             handle.write(text)
 
     def test_an_identical_snapshot_is_not_rewritten(self, tmp_path):
-        from fun_time.dashboard_bridge import write_dashboard_snapshot
-
         path = tmp_path / "dashboard_state.ini"
 
         assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is True
@@ -164,22 +148,12 @@ class TestTheWriterSkipsAnUnchangedSnapshot:
     def test_nor_when_the_file_carries_the_line_endings_windows_gave_it(self, tmp_path):
         """The reader has to undo what the writer's text mode did, or the two
         never match and every tick rewrites the file."""
-        from fun_time.dashboard_bridge import (
-            build_dashboard_snapshot_text,
-            write_dashboard_snapshot,
-        )
-
         path = tmp_path / "dashboard_state.ini"
         self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 
         assert write_dashboard_snapshot(path, DashboardSnapshot(omni_paused=True)) is False
 
     def test_a_snapshot_that_did_change_is_written(self, tmp_path):
-        from fun_time.dashboard_bridge import (
-            build_dashboard_snapshot_text,
-            write_dashboard_snapshot,
-        )
-
         path = tmp_path / "dashboard_state.ini"
         self._write_as_windows_would(path, build_dashboard_snapshot_text(DashboardSnapshot(omni_paused=True)))
 

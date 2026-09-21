@@ -216,7 +216,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # and two tests rather than a paragraph over the field it used to name.
 # 7911 since 2026-09-20, when the headset stopped offering minimize, and the
 # switch that left the console's mode row off, which no caller used, went.
-MAX_PROSE_LINES = 7911
+# 7908 since 2026-09-21, when twenty comment blocks stopped replaying the
+# incident that produced the rule and said the rule instead, in the present
+# tense -- and the imports that stayed local said why in one line each.
+MAX_PROSE_LINES = 7908
 
 # What the count was against at the last ratchet, so the norm the audit
 # measured stays readable. Reported on failure; not asserted.

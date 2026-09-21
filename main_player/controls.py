@@ -203,9 +203,9 @@ def _set_volume(controls: MainPlayerControls, value: str) -> bool:
     """``SET_VOLUME <0-100> [muted]`` — the main slot's sound level.
 
     The mute comes as a flag of its own rather than as a level of zero.  Zero is
-    what an audio *sink* needs and all Fun Time used to send, but a control that
-    has to be looked at cannot tell silent from turned-all-the-way-down from it —
-    and unmuting has to come back to the level the speaker chose.  So the level is
+    what an audio *sink* needs, but a control that has to be looked at cannot
+    tell silent from turned-all-the-way-down from it — and unmuting has to come
+    back to the level the speaker chose.  So the level is
     what is drawn, the mute is drawn over it, and the audible loudness is worked
     out here.  False on a level it cannot read as a number, which
     :func:`apply_command` turns into the log line.

@@ -6,12 +6,17 @@ import sys
 from pathlib import Path
 
 from fun_time.command_reference import (
+    _SECTIONS,
     CommandRef,
     ReferenceSection,
+    _collapse_scopes,
+    _display_voice,
     build_reference_sections,
     render_reference_html,
 )
+from fun_time.filter_vocab import display_forms, filter_voice_commands, load_acts
 from fun_time.voice_commands import VOICE_COMMANDS, friendly_voice
+from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
 _NUMERIC_RE = re.compile(r"^(robot_hand_(amp|center|speed)|genau_clip_seconds)_\d+$")
@@ -411,12 +416,6 @@ def test_latest_and_shuffle_reach_one_side_or_both():
 def test_voice_phrases_are_derived_from_voice_commands():
     """Each row's voice must include every phrase VOICE_COMMANDS assigns to its
     commands — except rows with an explicit voice_display alias."""
-    from fun_time.command_reference import (
-        _SECTIONS,
-        _collapse_scopes,
-        _display_voice,
-    )
-
     inverse: dict[str, list[str]] = {}
     for phrase, cmd in VOICE_COMMANDS.items():
         inverse.setdefault(cmd, []).append(phrase)
@@ -624,7 +623,6 @@ def test_relief_survives_the_omnipause_suspension_on_both_input_paths():
     # Imported here, not at module scope: this file is otherwise free of the
     # voice runtime module, the same property its subprocess test pins for the
     # production reference.
-    from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 
     assert "relief_omnipause" in _ahk_suspend_exempt_commands()
     # The whole set, not one item: what a paused room may be heard to do is
@@ -699,8 +697,6 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
     section: one row sets a filter by act, one drops it.  Neither spells out
     "portrait"/"landscape" any more — the section's note aims them, the same way
     it aims "next"."""
-    from fun_time.filter_vocab import display_forms, load_acts
-
     rows = _satellite_section().rows
     set_row = next(r for r in rows if r.description.startswith("Filter by act"))
     # The acts read under their real names, not the sound-alikes the grammar is
@@ -725,8 +721,6 @@ def test_the_spoken_filters_are_two_rows_of_the_satellite_grid():
 
 
 def test_every_filter_voice_command_is_represented():
-    from fun_time.filter_vocab import filter_voice_commands
-
     covered = _covered_commands()
     missing = {cmd for cmd in filter_voice_commands().values() if cmd not in covered}
     assert not missing, f"filter commands missing from reference: {sorted(missing)}"

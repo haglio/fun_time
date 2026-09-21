@@ -85,7 +85,7 @@ def _build_content(root: tk.Tk, *, origin: tuple[int, int], status: str) -> _Con
     icon_img = load_icon_image(PROJECT_ICON, ICON_DISPLAY_SIZE)
     if icon_img is not None:
         try:
-            from PIL import ImageTk
+            from PIL import ImageTk  # noqa: PLC0415  (optional: no Pillow, no icon)
 
             icon_label = tk.Label(frame, bg=BG)
             # On the label: what keeps the PhotoImage from being collected.

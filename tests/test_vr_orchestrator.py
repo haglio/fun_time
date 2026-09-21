@@ -1,18 +1,63 @@
 from __future__ import annotations
 
-from dataclasses import fields
+import ast
+import dataclasses
+import inspect
+import json
+import logging
+import os
+import threading
+import time
+from dataclasses import fields, replace
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from player_core.modes import MainMode
 
+from fun_time import win32_taskbar
 from fun_time.config import load_config
+from fun_time.hosted_origenerator import HostedApp
+from fun_time.manifest import LaunchManifest, build_windows_bridge_manifest, write_manifest_data
+from fun_time.overlay_progress import (
+    CANCEL_FILENAME,
+    CANCELING,
+    SHUTDOWN_PROGRESS_FILENAME,
+    SHUTDOWN_READY_FILENAME,
+    StartupCancelled,
+    parse_progress,
+)
+from fun_time.session_end import SESSION_END_MARKER
+from fun_time.session_environment import SessionEnvironment
+from fun_time.session_handoff import (
+    DESKTOP,
+    VR,
+    crossing_progress_path,
+    headset_hold_asked,
+    hold_the_headset,
+    pending_handoff,
+    raise_crossing_cover,
+    request_handoff,
+    take_handoff_request,
+)
 from fun_time.shared_state import BridgeState, read_shared_state, write_shared_state
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
+from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
+from fun_time.windows_bridge_orchestrator import ChildProcess
+from fun_time_vr import orchestrator, player
+from fun_time_vr.cover import CLOSING_STATUS, scene_ready_file
 from fun_time_vr.genau_settings import GenauSettings
 from fun_time_vr.orchestrator import (
     VR_PLAYER_MODULE,
+    _closing_cover,
+    _Cover,
     _release_vr_runtime,
+    _wait_for_player,
+    _wait_for_session_end,
+    _wait_for_the_headset_hold,
+    _wait_for_the_room,
     build_vr_manifest,
+    launch_vr_player,
     main_playlist_has_vr,
     stock_the_playlists,
     validate_vr_config,
@@ -141,8 +186,6 @@ class TestVrManifest:
         assert genau_keys <= written
 
     def test_manifest_carries_a_layers_opt_in(self, config):
-        import dataclasses  # noqa: PLC0415
-
         opted_in = dataclasses.replace(
             config, vr=dataclasses.replace(config.vr, compositor_layers=True)
         )
@@ -170,8 +213,6 @@ class TestOrigeneratorInVr:
     @pytest.fixture
     def hosted(self, config, tmp_path):
         """The same config with an Origenerator named, as a real one names it."""
-        from dataclasses import replace
-
         origenerator = tmp_path / "origenerator"
         origenerator.mkdir()
         return replace(config, paths=replace(
@@ -182,8 +223,6 @@ class TestOrigeneratorInVr:
 
     def test_the_desktop_manifest_does_name_one(self, hosted, tmp_path):
         """The precondition, so the assertions below cannot pass vacuously."""
-        from fun_time.manifest import build_windows_bridge_manifest
-
         desktop = build_windows_bridge_manifest(hosted)
         assert desktop["runtime"]["origenerator_dir"] == str(tmp_path / "origenerator")
         assert desktop["executables"]["origenerator_python_exe"]
@@ -198,9 +237,6 @@ class TestOrigeneratorInVr:
         """The join the rest hangs off: ``origenerator_enabled`` is what puts the
         mode pair on both HUDs, lets a resumed origenerator mode stand, and
         answers the switch with the mode instead of a notice."""
-        from fun_time.manifest import LaunchManifest, write_manifest_data
-        from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
-
         path = write_manifest_data(build_vr_manifest(hosted), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
             LaunchManifest.read(path), vr_main_player=True)
@@ -218,11 +254,6 @@ class TestOrigeneratorInVr:
     def test_the_app_runs_the_checkouts_this_session_names(self):
         """It imports player_core too, so a branch of it reaches the app the way
         it reaches every other child."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         (call,) = [n for n in ast.walk(tree) if isinstance(n, ast.Call)
                    and ast.unparse(n.func) == "bring_up_the_hosted_app"]
@@ -233,9 +264,6 @@ class TestOrigeneratorInVr:
     def test_a_session_with_no_checkout_named_still_hosts_none(self, config, tmp_path):
         """The mode is offered off the checkout alone, in the headset as on the
         monitors: a config naming none is a session without the mode."""
-        from fun_time.manifest import LaunchManifest, write_manifest_data
-        from fun_time.windows_bridge_dispatch_loop import build_bridge_config_from_manifest
-
         path = write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
         bridge = build_bridge_config_from_manifest(
             LaunchManifest.read(path), vr_main_player=True)
@@ -268,8 +296,6 @@ class _FakeProc:
 
 class TestWaitForSessionEnd:
     def test_ahk_exit_ends_the_session(self, tmp_path):
-        from fun_time_vr.orchestrator import _wait_for_session_end
-
         assert _wait_for_session_end(
             _FakeProc(exits_after_polls=2), _FakeProc(), state_dir=tmp_path, poll_s=0.0
         ) == "ahk"
@@ -277,9 +303,6 @@ class TestWaitForSessionEnd:
     def test_a_marked_end_ends_the_session_with_the_script_still_running(self, tmp_path):
         """The script stays up over the closing cover, where Esc can still call
         the end off, so its exit is not what says the session ended."""
-        from fun_time.session_end import SESSION_END_MARKER
-        from fun_time_vr.orchestrator import _wait_for_session_end
-
         (tmp_path / SESSION_END_MARKER).write_text("the quit chord", encoding="utf-8")
 
         assert _wait_for_session_end(
@@ -290,11 +313,6 @@ class TestWaitForSessionEnd:
         """Up over the closing cover so Esc stays live, and never left running
         once the teardown is done: a script outliving its session swallows
         every key it binds."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         (session,) = [n for n in ast.walk(tree) if isinstance(n, ast.Try) and any(
             isinstance(c, ast.Call) and ast.unparse(c.func) == "_wait_for_session_end"
@@ -309,7 +327,6 @@ class TestWaitForSessionEnd:
         # The VR player's window is the session's only window, so closing it
         # must end the whole session — an orchestrator that kept waiting on
         # AHK held the single-instance mutex and blocked every relaunch.
-        from fun_time_vr.orchestrator import _wait_for_session_end
 
         assert _wait_for_session_end(
             _FakeProc(), _FakeProc(exits_after_polls=2), state_dir=tmp_path, poll_s=0.0
@@ -353,11 +370,6 @@ class TestTheModeASessionComesBackIn:
 
     @staticmethod
     def _calls(function_name: str, spelling: str):
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(getattr(orchestrator, function_name)))
         return [n for n in ast.walk(tree)
                 if isinstance(n, ast.Call) and ast.unparse(n.func) == spelling]
@@ -365,8 +377,6 @@ class TestTheModeASessionComesBackIn:
     def test_the_state_is_no_longer_corrected_on_the_way_in(self, tmp_path):
         """There used to be a resume_vr_state that struck the mode out; the state
         the session opens on is fun_time's own resume, mode and all."""
-        from fun_time_vr import orchestrator
-
         assert not hasattr(orchestrator, "resume_vr_state")
         state_file = tmp_path / "shared_bridge_state.ini"
         write_shared_state(state_file, BridgeState(main_mode=MainMode.GENAU, volume=40))
@@ -376,8 +386,6 @@ class TestTheModeASessionComesBackIn:
     def test_the_flags_are_seeded_in_the_carried_mode(self):
         """Seeded in the default instead, Genau's role would open as the HUD layer
         under a video the dispatch loop believes is parked."""
-        import ast
-
         (seed,) = self._calls("run_vr_bridge", "seed_startup_states")
         given = {kw.arg: ast.unparse(kw.value) for kw in seed.keywords}
 
@@ -386,8 +394,6 @@ class TestTheModeASessionComesBackIn:
     def test_the_reveal_releases_the_players_the_mode_puts_to_work(self):
         """The desktop's own reveal: the video in video mode, Genau's hand and its
         music in genau mode -- rather than unpausing the video whatever the mode."""
-        import ast
-
         (release,) = self._calls("run_vr_bridge", "release_the_players")
 
         assert [ast.unparse(arg) for arg in release.args] == ["manifest", "carried.main_mode"]
@@ -400,10 +406,6 @@ class TestLaunchVrPlayer:
         player ships from this repo), the player module, and the manifest that
         tells it everything else — with its console kept in a log, because
         under pythonw an import-time death is otherwise traceless."""
-        from unittest.mock import patch
-
-        from fun_time_vr.orchestrator import launch_vr_player
-
         with patch("fun_time_vr.orchestrator.subprocess.Popen") as popen:
             launch_vr_player(
                 python_exe=tmp_path / "python.exe",
@@ -437,18 +439,12 @@ class TestWaitForPlayer:
             return 3
 
     def test_the_first_status_write_is_ready(self, tmp_path):
-        from fun_time_vr.orchestrator import _wait_for_player
-
         status = tmp_path / "main_player_status.txt"
         status.write_text("video=C:\\v\\scene one.mp4\n", encoding="utf-8")
 
         assert _wait_for_player(status, self._Alive()) is True
 
     def test_an_early_death_is_reported_at_once_not_after_the_timeout(self, tmp_path, caplog):
-        import logging
-
-        from fun_time_vr.orchestrator import _wait_for_player
-
         with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
             ready = _wait_for_player(tmp_path / "main_player_status.txt", self._Dead())
 
@@ -457,10 +453,6 @@ class TestWaitForPlayer:
         assert "3" in caplog.text
 
     def test_a_silent_player_is_given_up_on_at_the_deadline(self, tmp_path, caplog, monkeypatch):
-        import logging
-
-        from fun_time_vr import orchestrator
-
         monkeypatch.setattr(orchestrator, "PLAYER_READY_TIMEOUT_S", 0.0)
         with caplog.at_level(logging.ERROR, logger="fun_time_vr.orchestrator"):
             ready = orchestrator._wait_for_player(tmp_path / "main_player_status.txt", self._Alive())
@@ -474,10 +466,6 @@ class TestTheCheckRun:
     uses to refuse a bad session before any window is opened."""
 
     def test_a_valid_config_checks_out(self, config, monkeypatch, tmp_path):
-        from unittest.mock import patch
-
-        from fun_time_vr import orchestrator
-
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch.object(orchestrator, "install_exception_logging"):
@@ -488,11 +476,6 @@ class TestTheCheckRun:
         one ``main`` sets up has to BE that one — it used to be threaded back in
         as a parameter under a second name, which was the same object only
         because the string happened to match."""
-        import logging
-        from unittest.mock import patch
-
-        from fun_time_vr import orchestrator
-
         configured: list[logging.Logger] = []
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
@@ -512,11 +495,6 @@ class TestTheCheckRun:
         `__name__` is `"__main__"` — so a literal configured a logger this
         module never wrote through, and `__name__` would put "__main__" in
         every line of the log."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         assert orchestrator.logger.name == "fun_time_vr.orchestrator"
 
         tree = ast.parse(inspect.getsource(orchestrator.set_up_logging))
@@ -539,8 +517,6 @@ class TestStockingThePlaylists:
     with it, this one did not, and FunTimeVR could not start at all)."""
 
     def _manifest(self, config, tmp_path):
-        from fun_time.manifest import LaunchManifest, write_manifest_data
-
         return LaunchManifest.read(
             write_manifest_data(build_vr_manifest(config), tmp_path / "launch.ini")
         )
@@ -657,10 +633,6 @@ class TestTheCrossingBackToTheDesktop:
     cleared coming in, the relay spawned going out (docs/entering-vr.md)."""
 
     def _main(self, config, *, during_session=lambda: None):
-        from unittest.mock import MagicMock, patch
-
-        from fun_time_vr import orchestrator
-
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
              patch.object(orchestrator, "install_exception_logging"), \
@@ -673,8 +645,6 @@ class TestTheCrossingBackToTheDesktop:
             return orchestrator.main([]), popen
 
     def test_a_session_that_asked_to_cross_spawns_the_relay_on_its_way_out(self, config):
-        from fun_time.session_handoff import DESKTOP, request_handoff
-
         code, popen = self._main(
             config,
             during_session=lambda: request_handoff(config.paths.state_dir, DESKTOP),
@@ -689,8 +659,6 @@ class TestTheCrossingBackToTheDesktop:
         popen.assert_not_called()
 
     def test_a_request_a_crash_left_behind_never_reaches_the_next_session(self, config):
-        from fun_time.session_handoff import DESKTOP, request_handoff
-
         request_handoff(config.paths.state_dir, DESKTOP)
 
         _code, popen = self._main(config)
@@ -700,10 +668,6 @@ class TestTheCrossingBackToTheDesktop:
 
 class TestTheWayBackIntoVr:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, config):
-        from unittest.mock import MagicMock, patch
-
-        from fun_time_vr import orchestrator
-
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
              patch.object(orchestrator, "install_exception_logging"), \
@@ -722,12 +686,6 @@ class TestTheWayBackIntoVr:
         """Let go of first, it would close its XR session and could stop the very
         runtime this launch needs; its hold left on disk, the new player would
         read itself as held and show "Returning to Fun Time..." for good."""
-        from unittest.mock import MagicMock, patch
-
-        from fun_time.session_environment import SessionEnvironment
-        from fun_time.session_handoff import headset_hold_asked, hold_the_headset
-        from fun_time_vr import orchestrator
-
         class PlayerLaunched(Exception):
             pass
 
@@ -773,21 +731,12 @@ class TestHandingTheHeadsetOver:
             return 1
 
     def test_a_player_that_takes_the_hold_is_left_running(self, tmp_path: Path):
-        from unittest.mock import patch
-
-        from fun_time_vr.orchestrator import _wait_for_the_headset_hold
-
         with patch("fun_time_vr.orchestrator.headset_is_held", return_value=True):
             assert _wait_for_the_headset_hold(tmp_path, self._Alive()) is True
 
     def test_a_player_that_never_answers_is_closed_as_before(self, tmp_path: Path):
         """A hold that cannot be taken is never worth a session that will not
         start, so the flag goes back off and the caller kills the player."""
-        from unittest.mock import patch
-
-        from fun_time.session_handoff import headset_hold_asked, hold_the_headset
-        from fun_time_vr import orchestrator
-
         hold_the_headset(tmp_path, stop_runtime=False)
 
         with patch.object(orchestrator, "HEADSET_HOLD_ACK_TIMEOUT_S", 0.0):
@@ -800,12 +749,6 @@ class TestHandingTheHeadsetOver:
         """It answered nothing because it was not there to answer: the wait ran
         its whole fifteen seconds anyway, on every crossing, and those seconds
         were the room not coming back."""
-        import logging
-        import time
-
-        from fun_time.session_handoff import headset_hold_asked, hold_the_headset
-        from fun_time_vr import orchestrator
-
         hold_the_headset(tmp_path, stop_runtime=False)
         started = time.monotonic()
 
@@ -842,8 +785,6 @@ class TestTheVrClipsFolder:
     the desktop's clips folder holds flat ones."""
 
     def test_it_is_read_from_the_vr_section(self, config, tmp_path):
-        import json
-
         raw = json.loads((tmp_path / "fun_time_config.json").read_text(encoding="utf-8"))
         raw["vr"]["clips_dir"] = str(tmp_path / "vr_clips").replace("\\", "/")
         named = tmp_path / "named_config.json"
@@ -860,8 +801,6 @@ class TestGenausRoleInTheManifest:
     it reads: the folder, the companion's address, and the engine's numbers."""
 
     def test_the_vr_clips_folder_rides_when_named(self, config, tmp_path):
-        from dataclasses import replace
-
         named = replace(config, vr=replace(config.vr, clips_dir=tmp_path / "vr_clips"))
 
         vr = build_vr_manifest(named)["vr"]
@@ -880,9 +819,6 @@ class TestGenausRoleInTheManifest:
         assert (vr["notify_host"], vr["notify_port"]) == ("127.0.0.1", "50556")
 
     def test_genaus_numbers_come_off_genaus_config(self, config, tmp_path):
-        import json
-        from dataclasses import replace
-
         genau_config = tmp_path / "genau_config.json"
         genau_config.write_text(json.dumps({"genau": {"beats_per_loop": 2.0, "udp_port": 50999}}),
                                 encoding="utf-8")
@@ -895,8 +831,6 @@ class TestGenausRoleInTheManifest:
         assert vr["bpm_smoothing"] == str(GenauSettings().bpm_smoothing)
 
     def test_the_player_reads_all_of_it_back(self, config, tmp_path):
-        from fun_time.manifest import write_manifest_data
-
         path = write_manifest_data(build_vr_manifest(config), tmp_path / "manifest.ini")
 
         settings = VrSettings.read(path)
@@ -916,12 +850,6 @@ class TestTheOnePin:
     def test_the_vr_player_claims_fun_times_own_identity(self):
         """The claim is made before any window exists, so the id it names is
         what every window of the session ends up grouped under."""
-        import ast
-        import inspect
-
-        from fun_time.win32_taskbar import APP_USER_MODEL_ID
-        from fun_time_vr import player
-
         source = inspect.getsource(player.main)
         claimed = [
             node.args[0].id
@@ -935,16 +863,10 @@ class TestTheOnePin:
     def test_there_is_no_second_identity_left_to_claim(self):
         """The VR id is gone rather than merely unused: left defined, the next
         window opened in the headset could still be given a button of its own."""
-        from fun_time import win32_taskbar
-
         assert not [name for name in vars(win32_taskbar) if name.endswith("APP_USER_MODEL_ID")
                     and name != "APP_USER_MODEL_ID"]
 
     def test_a_session_on_another_config_leaves_the_pin_alone(self, config):
-        from unittest.mock import patch
-
-        from fun_time_vr import orchestrator
-
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
              patch.object(orchestrator, "install_exception_logging"), \
@@ -954,10 +876,6 @@ class TestTheOnePin:
         stamp.assert_not_called()
 
     def test_the_installed_app_stamps_the_one_pin(self, config):
-        from unittest.mock import patch
-
-        from fun_time_vr import orchestrator
-
         with patch.object(orchestrator, "load_config", return_value=config), \
              patch.object(orchestrator, "DEFAULT_CONFIG_PATH", config.config_path), \
              patch("app_support.win32.try_acquire_mutex", return_value=object()), \
@@ -969,11 +887,6 @@ class TestTheOnePin:
 
 
 def _call_lines_in_run_vr_bridge() -> dict[str, int]:
-    import ast
-    import inspect
-
-    from fun_time_vr import orchestrator
-
     tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
     return {ast.unparse(n.func): n.lineno for n in ast.walk(tree) if isinstance(n, ast.Call)}
 
@@ -983,11 +896,6 @@ class TestTheAudioCompanionInVr:
     Genau's role says which clip is up, and sent to the headset's output."""
 
     def test_it_is_launched_on_the_headsets_output(self):
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         (launch,) = [n for n in ast.walk(tree)
                      if isinstance(n, ast.Call) and ast.unparse(n.func) == "launch_audio_companion"]
@@ -998,10 +906,6 @@ class TestTheAudioCompanionInVr:
         assert given["project_dirs"] == "manifest.runtime.genau_project_dirs"
 
     def test_it_is_launched_before_the_player_and_killed_with_it(self):
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         calls = _call_lines_in_run_vr_bridge()
 
         assert calls["launch_audio_companion"] < calls["launch_vr_player"]
@@ -1016,9 +920,6 @@ class TestTheHeadsetsCover:
     def test_a_stale_cancel_flag_cannot_abort_the_next_launch(self, tmp_path):
         """One left by a session that was called off would raise at this
         launch's first checkpoint, before the user had touched anything."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-        from fun_time_vr.orchestrator import _Cover
-
         stale = tmp_path / CANCEL_FILENAME
         stale.write_text("cancel\n", encoding="utf-8")
 
@@ -1028,9 +929,6 @@ class TestTheHeadsetsCover:
         assert not cover.progress.cancelled
 
     def test_a_launch_says_esc_cancels_opening_fun_time_vr(self, tmp_path):
-        from fun_time.overlay_progress import parse_progress
-        from fun_time_vr.orchestrator import _Cover
-
         cover = _Cover(tmp_path)
         cover.progress.advance("services")
 
@@ -1038,10 +936,6 @@ class TestTheHeadsetsCover:
             "Press Esc to cancel opening Fun Time VR")
 
     def test_a_session_entered_from_fun_time_says_esc_cancels_entering_vr(self, tmp_path):
-        from fun_time.overlay_progress import parse_progress
-        from fun_time.session_handoff import VR, raise_crossing_cover
-        from fun_time_vr.orchestrator import _Cover
-
         raise_crossing_cover(tmp_path, VR)
         cover = _Cover(tmp_path)
         cover.progress.advance("services")
@@ -1051,10 +945,6 @@ class TestTheHeadsetsCover:
 
     def test_an_esc_pressed_while_the_room_changed_over_calls_the_arrival_off(self, tmp_path):
         """The hotkey script left over from Fun Time was all that heard it."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-        from fun_time.session_handoff import VR, raise_crossing_cover
-        from fun_time_vr.orchestrator import _Cover
-
         raise_crossing_cover(tmp_path, VR)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -1062,10 +952,6 @@ class TestTheHeadsetsCover:
 
     def test_a_session_entered_on_the_way_back_offers_no_esc(self, tmp_path):
         """Esc already called a crossing off to get here."""
-        from fun_time.overlay_progress import parse_progress
-        from fun_time.session_handoff import VR, raise_crossing_cover
-        from fun_time_vr.orchestrator import _Cover
-
         raise_crossing_cover(tmp_path, VR)
         cover = _Cover(tmp_path, cancelable=False)
         cover.progress.advance("services")
@@ -1076,8 +962,6 @@ class TestTheHeadsetsCover:
         """DONE is how a finished launch uncovers a room worth seeing.  The
         paths that clear without one have nothing to reveal, and the cover comes
         down with the player instead."""
-        from fun_time_vr.orchestrator import _Cover
-
         cover = _Cover(tmp_path)
         cover.progress.advance("players")
 
@@ -1108,10 +992,6 @@ class TestTheHeadsetsCover:
 class TestCancellingALaunch:
     def _cancel(self, tmp_path, monkeypatch, children, *, by_quit_chord=False,
                 crossing=True, taken_over=False):
-        from fun_time.session_end import SESSION_END_MARKER
-        from fun_time.session_handoff import raise_crossing_cover
-        from fun_time_vr import orchestrator
-
         order: list = []
         monkeypatch.setattr(orchestrator, "stop_hotkey_script",
                             lambda _proc, _file: order.append("hotkeys"))
@@ -1140,8 +1020,6 @@ class TestCancellingALaunch:
     def test_esc_on_a_launch_nobody_crossed_into_closes_it(self, tmp_path, monkeypatch):
         """It said "cancel opening Fun Time VR", and nothing was open before it
         to go back to."""
-        from fun_time.session_handoff import pending_handoff
-
         self._cancel(tmp_path, monkeypatch, {}, crossing=False)
 
         assert pending_handoff(tmp_path) is None
@@ -1151,8 +1029,6 @@ class TestCancellingALaunch:
         """It is the thing wearing the "Cancelling..." panel: every other child
         goes while that is still in front of the eyes, so nothing half-started
         is ever revealed."""
-        from fun_time.windows_bridge_orchestrator import ChildProcess
-
         children = {
             "vr_player_pid": ChildProcess(pid="player", created_at=1),
             "audio_pid": ChildProcess(pid="audio", created_at=1),
@@ -1176,8 +1052,6 @@ class TestCancellingALaunch:
         command channel, which stamps the session-end marker -- so reading THAT
         made every Esc look like the quit chord and took his monitors instead of
         handing them back.  The word in the cancel flag is the one that knows."""
-        from fun_time.session_handoff import DESKTOP, pending_handoff
-
         self._cancel(tmp_path, monkeypatch, {})  # marker present, flag says cancel
 
         assert pending_handoff(tmp_path) == DESKTOP
@@ -1188,8 +1062,6 @@ class TestCancellingALaunch:
         standing over a machine with no session running, there is no way back to
         Fun Time and no way to anything else -- it cost him a reboot.  So the
         desktop is asked for, and the cover stays up until IT is running."""
-        from fun_time.session_handoff import DESKTOP, crossing_progress_path, pending_handoff
-
         self._cancel(tmp_path, monkeypatch, {})
 
         assert pending_handoff(tmp_path) == DESKTOP
@@ -1198,8 +1070,6 @@ class TestCancellingALaunch:
     def test_the_quit_chord_closes_the_hosted_app_fun_time_left_waiting(
             self, tmp_path, monkeypatch):
         """Fun Time parked it for its return, and no return is coming."""
-        from fun_time_vr import orchestrator
-
         closed: list = []
         monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
                             lambda state_dir, _cmd_file: closed.append(state_dir))
@@ -1209,8 +1079,6 @@ class TestCancellingALaunch:
         assert closed == [tmp_path]
 
     def test_esc_leaves_the_hosted_app_for_fun_time_to_adopt(self, tmp_path, monkeypatch):
-        from fun_time_vr import orchestrator
-
         closed: list = []
         monkeypatch.setattr(orchestrator, "let_go_of_a_kept_origenerator",
                             lambda state_dir, _cmd_file: closed.append(state_dir))
@@ -1221,8 +1089,6 @@ class TestCancellingALaunch:
 
     def test_the_way_back_to_fun_time_offers_no_esc(self, tmp_path, monkeypatch):
         """One Esc per cover: a second would send him back into VR."""
-        from fun_time.session_handoff import DESKTOP, take_handoff_request
-
         self._cancel(tmp_path, monkeypatch, {})
 
         taken = take_handoff_request(tmp_path)
@@ -1232,9 +1098,6 @@ class TestCancellingALaunch:
         """Pressing Esc looked like nothing happening: the cover went on saying
         "Entering VR..." through a teardown that takes seconds, so he pressed it
         again -- and the second one cancelled the launch coming back."""
-        from fun_time.overlay_progress import CANCELING
-        from fun_time.session_handoff import crossing_progress_path
-
         self._cancel(tmp_path, monkeypatch, {})
 
         said = crossing_progress_path(tmp_path).read_text(encoding="utf-8")
@@ -1244,8 +1107,6 @@ class TestCancellingALaunch:
             self, tmp_path, monkeypatch):
         """Esc means "not this, put me back"; the quit chord means "end
         everything", and nothing is coming to drop the cover for us."""
-        from fun_time.session_handoff import crossing_progress_path, pending_handoff
-
         self._cancel(tmp_path, monkeypatch, {}, by_quit_chord=True)
 
         assert pending_handoff(tmp_path) is None
@@ -1265,14 +1126,6 @@ class TestTheClosingCover:
         """The player reports the panel painted by dropping the desktop's own
         ready flag; until then, killing anything would show the very thing the
         cover exists to hide."""
-        from fun_time.overlay_progress import (
-            SHUTDOWN_PROGRESS_FILENAME,
-            SHUTDOWN_READY_FILENAME,
-            parse_progress,
-        )
-        from fun_time_vr.cover import CLOSING_STATUS
-        from fun_time_vr.orchestrator import _closing_cover
-
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
         seen = []
 
@@ -1288,13 +1141,6 @@ class TestTheClosingCover:
         assert not (tmp_path / SHUTDOWN_READY_FILENAME).exists()
 
     def test_it_says_what_esc_would_cancel(self, tmp_path):
-        from fun_time.overlay_progress import (
-            SHUTDOWN_PROGRESS_FILENAME,
-            SHUTDOWN_READY_FILENAME,
-            parse_progress,
-        )
-        from fun_time_vr.orchestrator import _closing_cover
-
         (tmp_path / SHUTDOWN_READY_FILENAME).write_text("", encoding="utf-8")
 
         with _closing_cover(tmp_path, _AlivePlayer(), enabled=True,
@@ -1306,9 +1152,6 @@ class TestTheClosingCover:
 
     def test_a_flag_from_a_previous_session_cannot_vouch_for_this_one(self, tmp_path):
         """It would let this teardown start with nothing yet covering the view."""
-        from fun_time.overlay_progress import SHUTDOWN_READY_FILENAME
-        from fun_time_vr.orchestrator import _closing_cover
-
         stale = tmp_path / SHUTDOWN_READY_FILENAME
         stale.write_text("", encoding="utf-8")
         cleared = []
@@ -1322,9 +1165,6 @@ class TestTheClosingCover:
         """Nothing is left that can put a picture in the headset -- and nothing
         left to hide either, the cut to the runtime's own environment having
         already happened."""
-        from fun_time.overlay_progress import SHUTDOWN_PROGRESS_FILENAME
-        from fun_time_vr.orchestrator import _closing_cover
-
         with _closing_cover(tmp_path, _AlivePlayer(alive=False), enabled=False) as shutdown:
             shutdown.advance("players")
 
@@ -1332,11 +1172,6 @@ class TestTheClosingCover:
 
     def test_the_player_is_the_last_child_teardown_kills(self):
         """It wears the cover, so it goes after everything it was hiding."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         kills = [ast.unparse(n) for n in sorted(
             (n for n in ast.walk(tree)
@@ -1360,24 +1195,15 @@ class TestWaitingForTheRoom:
     so before any of it reaches the headset."""
 
     def test_the_marker_landing_ends_the_wait(self, tmp_path):
-        from fun_time_vr.cover import scene_ready_file
-        from fun_time_vr.orchestrator import _wait_for_the_room
-
         marker = scene_ready_file(tmp_path)
         marker.write_text("", encoding="utf-8")
 
         assert _wait_for_the_room(marker, _AlivePlayer())
 
     def test_a_player_that_died_is_not_waited_for(self, tmp_path):
-        from fun_time_vr.cover import scene_ready_file
-        from fun_time_vr.orchestrator import _wait_for_the_room
-
         assert not _wait_for_the_room(scene_ready_file(tmp_path), _AlivePlayer(alive=False))
 
     def test_the_cap_gives_up_rather_than_hangs(self, tmp_path, monkeypatch):
-        from fun_time_vr import orchestrator
-        from fun_time_vr.cover import scene_ready_file
-
         monkeypatch.setattr(orchestrator, "SCENE_READY_TIMEOUT_S", 0.0)
 
         assert not orchestrator._wait_for_the_room(
@@ -1388,11 +1214,6 @@ class TestWaitingForTheRoom:
         something stranger than a slow decode -- and holding a launch on it
         would be worse than a room with one screen still blank.  The answer is
         deliberately dropped: nothing downstream may branch on it."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         (call,) = [n for n in ast.walk(tree)
                    if isinstance(n, ast.Call) and ast.unparse(n.func) == "_wait_for_the_room"]
@@ -1409,10 +1230,6 @@ class TestWaitingForTheRoom:
 
     def test_a_previous_sessions_marker_cannot_vouch_for_this_one(self):
         """It would say the room was up before a frame of it existed."""
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         source = inspect.getsource(orchestrator.run_vr_bridge)
 
         assert "room_ready_file.unlink(missing_ok=True)" in source
@@ -1434,28 +1251,16 @@ class TestEscDuringTheLongWait:
             pass
 
     def test_the_wait_for_the_player_gives_up_at_once(self, tmp_path):
-        from fun_time.overlay_progress import StartupCancelled
-        from fun_time_vr.orchestrator import _wait_for_player
-
         with pytest.raises(StartupCancelled):
             _wait_for_player(tmp_path / "main_player_status.txt", _AlivePlayer(), self._Cancelled())
 
     def test_the_wait_for_the_room_gives_up_at_once(self, tmp_path):
-        from fun_time.overlay_progress import StartupCancelled
-        from fun_time_vr.cover import scene_ready_file
-        from fun_time_vr.orchestrator import _wait_for_the_room
-
         with pytest.raises(StartupCancelled):
             _wait_for_the_room(scene_ready_file(tmp_path), _AlivePlayer(), self._Cancelled())
 
     def test_both_waits_are_handed_the_reporter_that_carries_the_flag(self):
         """Passed nothing they are plain waits, so a call site that forgot it is
         a phase Esc cannot reach."""
-        import ast
-        import inspect
-
-        from fun_time_vr import orchestrator
-
         tree = ast.parse(inspect.getsource(orchestrator.run_vr_bridge))
         waits = [ast.unparse(n) for n in ast.walk(tree)
                  if isinstance(n, ast.Call)
@@ -1467,11 +1272,6 @@ class TestEscDuringTheLongWait:
 
 class TestWhatAPreviousSessionLeft:
     def test_its_files_are_gone_before_the_hotkey_script_goes_up(self, config):
-        from unittest.mock import patch
-
-        from fun_time.session_environment import SessionEnvironment
-        from fun_time_vr import orchestrator
-
         class HotkeyScriptWentUp(Exception):
             pass
 
@@ -1497,12 +1297,6 @@ class TestTheHotkeyScriptsArguments:
     def test_it_is_told_which_orchestrator_to_watch(self, config):
         """After a crossing it outlives this process, and has to know when the
         session it belonged to is gone."""
-        import os
-        from unittest.mock import patch
-
-        from fun_time.session_environment import SessionEnvironment
-        from fun_time_vr import orchestrator
-
         class HotkeyScriptWentUp(Exception):
             pass
 
@@ -1523,9 +1317,6 @@ class TestTheHotkeyScriptsArguments:
 
 def _launch_stand_ins(orchestrator, torn_down: list, **overrides):
     """Everything a VR launch starts or waits on, faked; the files it writes are real."""
-    import threading
-    from unittest.mock import MagicMock, patch
-
     stand_ins = dict(
         open_event_log=MagicMock(),
         add_dispatch_file_handler=MagicMock(),
@@ -1552,10 +1343,6 @@ def _end_a_vr_session(
 ) -> list[str]:
     """Run a VR session to its end, every child faked; what its closing cover
     was told Esc cancels comes back."""
-    from unittest.mock import MagicMock, patch
-
-    from fun_time.session_environment import SessionEnvironment
-
     config.paths.state_dir.mkdir(parents=True, exist_ok=True)
     offered: list[str] = []
     real_closing_cover = orchestrator._closing_cover
@@ -1585,8 +1372,6 @@ def _end_a_vr_session(
 
 def _asked_to_cross(config):
     """The crossing to the desktop asked for, the way "exit VR" asks for it."""
-    from fun_time.session_handoff import DESKTOP, request_handoff
-
     def ended(*_args, **_kwargs):
         request_handoff(config.paths.state_dir, DESKTOP)
         return "asked"
@@ -1596,8 +1381,6 @@ def _asked_to_cross(config):
 
 def _asked_then_esc(config):
     """The quit asked for, then Esc pressed on the closing cover."""
-    from fun_time.overlay_progress import CANCEL_FILENAME
-
     def ended(*_args, **_kwargs):
         (config.paths.state_dir / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
         return "asked"
@@ -1607,12 +1390,6 @@ def _asked_then_esc(config):
 
 class TestOpeningAVrSession:
     def test_a_failure_takes_down_what_it_launched_and_gives_the_monitors_back(self, config):
-        from unittest.mock import MagicMock, patch
-
-        from fun_time.session_environment import SessionEnvironment
-        from fun_time.session_handoff import pending_handoff
-        from fun_time_vr import orchestrator
-
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         torn_down: list = []
 
@@ -1628,18 +1405,11 @@ class TestOpeningAVrSession:
         assert pending_handoff(config.paths.state_dir) is None
 
     def test_a_session_he_quit_says_esc_cancels_closing_fun_time_vr(self, config):
-        from fun_time_vr import orchestrator
-
         offered = _end_a_vr_session(orchestrator, config, ended_by=lambda *_a, **_k: "asked")
 
         assert offered == ["Press Esc to cancel closing Fun Time VR"]
 
     def test_a_session_crossing_to_fun_time_says_esc_cancels_exiting_vr(self, config):
-        from unittest.mock import MagicMock
-
-        from fun_time.session_handoff import DESKTOP, request_handoff
-        from fun_time_vr import orchestrator
-
         def asked_to_cross(*_args, **_kwargs):
             request_handoff(config.paths.state_dir, DESKTOP)
             return "asked"
@@ -1654,11 +1424,6 @@ class TestOpeningAVrSession:
     def test_a_session_crossing_to_fun_time_leaves_the_hotkey_script_listening(self, config):
         """While the room changes over nothing else hears Esc; the relay reads
         what it dropped once this session has let go."""
-        from unittest.mock import MagicMock
-
-        from fun_time.session_handoff import DESKTOP, request_handoff
-        from fun_time_vr import orchestrator
-
         def asked_to_cross(*_args, **_kwargs):
             request_handoff(config.paths.state_dir, DESKTOP)
             return "asked"
@@ -1671,11 +1436,6 @@ class TestOpeningAVrSession:
         stopped.assert_not_called()
 
     def test_esc_on_the_closing_cover_opens_fun_time_vr_again_offering_no_esc(self, config):
-        from unittest.mock import MagicMock
-
-        from fun_time.session_handoff import VR, take_handoff_request
-        from fun_time_vr import orchestrator
-
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_then_esc(config),
             _wait_for_the_headset_hold=MagicMock(return_value=True),
@@ -1688,11 +1448,6 @@ class TestOpeningAVrSession:
     def test_that_cover_runs_the_sibling_checkouts_the_session_names(self, config):
         """A cover that cannot import the branch's siblings never comes up,
         and this one is all the headset has until the next session is."""
-        from dataclasses import replace
-        from unittest.mock import MagicMock
-
-        from fun_time_vr import orchestrator
-
         sibling = config.paths.state_dir.parent / "sibling_checkout"
         sibling.mkdir(parents=True, exist_ok=True)
         named = replace(config, paths=replace(config.paths, genau_project_dirs=(sibling,)))
@@ -1711,10 +1466,6 @@ class TestOpeningAVrSession:
     ):
         """The player keeps its cover in front of him until the next one is up,
         and a runtime stopped here would only have to be started again."""
-        from unittest.mock import MagicMock
-
-        from fun_time_vr import orchestrator
-
         asked = MagicMock()
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           hold_the_headset=asked,
@@ -1726,10 +1477,6 @@ class TestOpeningAVrSession:
         self, config,
     ):
         """VR is coming straight back; stopped here it would only be started again."""
-        from unittest.mock import MagicMock
-
-        from fun_time_vr import orchestrator
-
         released: list = []
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           _wait_for_the_headset_hold=MagicMock(return_value=False),
@@ -1740,12 +1487,6 @@ class TestOpeningAVrSession:
     def test_on_the_way_back_into_vr_both_covers_say_it_is_canceling(self, config):
         """The held player reads the crossing cover's words; with none up it
         would go on saying "Returning to Fun Time..." on the way back into VR."""
-        from unittest.mock import MagicMock
-
-        from fun_time.overlay_progress import CANCELING, parse_progress
-        from fun_time.session_handoff import crossing_progress_path
-        from fun_time_vr import orchestrator
-
         _end_a_vr_session(orchestrator, config, ended_by=_asked_then_esc(config),
                           _wait_for_the_headset_hold=MagicMock(return_value=True))
 
@@ -1758,11 +1499,6 @@ class TestOpeningAVrSession:
         and four videos closed -- and the session has its own controls and its
         companion to bring down.  Asked first, the two run side by side; asked
         after, the crossing paid for them one at a time."""
-        from unittest.mock import MagicMock
-
-        from fun_time.session_handoff import headset_hold_asked
-        from fun_time_vr import orchestrator
-
         controls = MagicMock()
         asked_by_then: list[bool] = []
         controls.stop.side_effect = lambda: asked_by_then.append(
@@ -1780,10 +1516,6 @@ class TestOpeningAVrSession:
         """Nobody else knows it started one: the orchestrator is about to exit,
         and the player outlives it holding the cover, so the runtime's fate
         rides on the ask."""
-        from unittest.mock import MagicMock
-
-        from fun_time_vr import orchestrator
-
         asked = MagicMock()
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_to_cross(config),
@@ -1796,11 +1528,6 @@ class TestOpeningAVrSession:
 
     def test_on_the_way_back_into_vr_the_hosted_app_stays_parked(self, config):
         """Fun Time left it for its own return, which can still come later."""
-        from unittest.mock import MagicMock
-
-        from fun_time.hosted_origenerator import HostedApp
-        from fun_time_vr import orchestrator
-
         parked: list = []
         _end_a_vr_session(
             orchestrator, config, ended_by=_asked_then_esc(config),
@@ -1813,12 +1540,6 @@ class TestOpeningAVrSession:
         assert parked == [True], "the app was not left for the session coming back"
 
     def test_voice_starts_the_way_a_desktop_session_starts_it(self, config):
-        from unittest.mock import MagicMock, patch
-
-        from fun_time.manifest import LaunchManifest
-        from fun_time.session_environment import SessionEnvironment
-        from fun_time_vr import orchestrator
-
         config.paths.state_dir.mkdir(parents=True, exist_ok=True)
         runner = MagicMock()
         start_voice = MagicMock(return_value=(None, None))
