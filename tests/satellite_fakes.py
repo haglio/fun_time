@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from satellite.session import SatelliteSession
 from tests.mpv_refusals import RefusesSeeks
 
 
@@ -121,8 +122,6 @@ def make_satellite_session(tmp_path, *, entries=1, start_paused=False, duration_
     moves.  Returns the player too, so a test never reaches into the
     session's private one.
     """
-    from satellite.session import SatelliteSession
-
     playlist = []
     for i in range(entries):
         vid = tmp_path / f"v{i}.mp4"

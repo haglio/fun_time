@@ -1,18 +1,30 @@
 from __future__ import annotations
 
 import os
+import subprocess
 import sys
 import time
 import tkinter as tk
 from pathlib import Path
 from unittest.mock import MagicMock, call, patch
 
-from fun_time.overlay_progress import Progress, parse_progress
+from PyQt6.QtGui import QColor
+
+from fun_time.cover_palette import WORDMARK_MAGENTA
+from fun_time.dashboard_app import COLOR_APP_TITLE
+from fun_time.overlay_progress import (
+    Progress,
+    cancel_file_for,
+    parse_progress,
+    startup_still_building,
+)
 from fun_time.overlay_window import (
     POLL_MS,
+    TOPMOST_POLL_MS,
     OverlayWindow,
     _Content,
 )
+from tests.integration.integration_support import environment_with_this_checkouts_siblings
 
 
 class TestParseProgress:
@@ -146,11 +158,6 @@ def test_the_two_wordmarks_are_one_magenta():
     """The panel's "Fun Time" and the cover's are the same tone.  They were two
     hex literals in two files kept in step by a comment, in a repo where one of
     the files cannot import Qt and the other cannot import tkinter."""
-    from PyQt6.QtGui import QColor
-
-    from fun_time.cover_palette import WORDMARK_MAGENTA
-    from fun_time.dashboard_app import COLOR_APP_TITLE
-
     assert QColor(WORDMARK_MAGENTA) == COLOR_APP_TITLE
 
 
@@ -158,10 +165,6 @@ def test_a_cover_process_loads_no_qt():
     """A cover's whole job is to be on screen fast, and the orchestrator waits
     on its window before it goes on.  Taking the palette or the face from
     shared_ui would put PyQt6 on that path for five strings."""
-    import subprocess
-
-    from tests.integration.integration_support import environment_with_this_checkouts_siblings
-
     loaded = subprocess.run(
         [sys.executable, "-c",
          "import sys, fun_time.overlay_window\n"
@@ -203,8 +206,6 @@ class TestTheCoverKeepsTheTopOfItsBand:
         banded.assert_not_called()
 
     def test_it_re_arms_itself_at_the_fast_cadence(self, tmp_path: Path):
-        from fun_time.overlay_window import TOPMOST_POLL_MS
-
         window = _cover(tmp_path)
 
         with patch("fun_time.overlay_window.find_window_by_title", return_value=0):
@@ -233,8 +234,6 @@ class TestWhatEscWouldCancel:
 
     def test_while_it_offers_esc_the_flag_turns_it_to_canceling(self, tmp_path: Path):
         """The hotkey script drops the flag without any key reaching this window."""
-        from fun_time.overlay_progress import cancel_file_for
-
         window = _cover(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -247,8 +246,6 @@ class TestWhatEscWouldCancel:
 
     def test_the_quit_chord_never_turns_it_to_canceling(self, tmp_path: Path):
         """Over the closing screen it calls nothing off: the quit goes on."""
-        from fun_time.overlay_progress import cancel_file_for
-
         window = _cover(tmp_path)
         window._progress_file.write_text(
             "1/4|Closing...|Press Esc to cancel closing Fun Time", encoding="utf-8")
@@ -262,8 +259,6 @@ class TestWhatEscWouldCancel:
     def test_a_cover_offering_nothing_goes_on_showing_its_own_words(self, tmp_path: Path):
         """The way back after an Esc offers no second one, and the flag that
         started it can still be lying there."""
-        from fun_time.overlay_progress import cancel_file_for
-
         window = _cover(tmp_path)
         window._progress_file.write_text("2/6|Launching companions...", encoding="utf-8")
         cancel_file_for(window._progress_file).write_text("cancel\n", encoding="utf-8")
@@ -276,8 +271,6 @@ class TestWhatEscWouldCancel:
     def test_esc_on_a_cover_offering_it_drops_the_flag_itself(self, tmp_path: Path):
         """The route that needs the focus, for the moment before the hotkey
         script is up to take the key."""
-        from fun_time.overlay_progress import cancel_file_for
-
         window = _cover(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -290,8 +283,6 @@ class TestWhatEscWouldCancel:
         assert window._content.hint_label.text == ""
 
     def test_a_second_esc_asks_nothing_more(self, tmp_path: Path):
-        from fun_time.overlay_progress import cancel_file_for
-
         window = _cover(tmp_path)
         window._progress_file.write_text(
             "1/6|Preparing services...|Press Esc to cancel opening Fun Time", encoding="utf-8")
@@ -319,8 +310,6 @@ class TestWhatEscWouldCancel:
         assert window._content.hint_label.text == ""
 
     def test_esc_on_a_cover_offering_nothing_does_nothing(self, tmp_path: Path):
-        from fun_time.overlay_progress import cancel_file_for
-
         window = _cover(tmp_path)
         window._progress_file.write_text("2/4|Closing players...", encoding="utf-8")
         window._poll()
@@ -364,15 +353,11 @@ class TestALineTheCoverCannotRead:
 
     def test_a_torn_line_is_not_the_end_of_startup(self, tmp_path: Path):
         """The one thing that lifts the cover is the orchestrator's own DONE."""
-        from fun_time.overlay_progress import startup_still_building
-
         (tmp_path / "startup_progress.txt").write_text("3/", encoding="utf-8")
 
         assert startup_still_building(tmp_path) is True
 
     def test_a_line_it_can_read_says_so(self, tmp_path: Path):
-        from fun_time.overlay_progress import parse_progress
-
         assert parse_progress("3/6|Positioning windows...") == Progress(
             step=3, total=6, message="Positioning windows...", done=False)
         assert parse_progress("DONE").done is True

@@ -252,7 +252,8 @@ CONTROLLER_COLOR = (0.8, 0.8, 0.85, 1.0)
 def _show_error_popup(message: str) -> None:
     """Say why the headset never lit up -- a hidden launch that just exits
     is indistinguishable from a crash."""
-    from shared_ui.alert import show_alert
+    # Qt loads only for this: a headset session draws through OpenXR.
+    from shared_ui.alert import show_alert  # noqa: PLC0415
 
     show_alert("FunTimeVR", message, icon=PROJECT_VR_ICON)
 
@@ -1711,7 +1712,7 @@ def _update_quad_layer(
 ):
     """Refresh *unit*'s quad swapchain if its texture moved, and describe the
     layer to submit — or None before the first frame of content exists."""
-    from .vr_session import QuadLayer  # sibling of the lazy VRSession import
+    from .vr_session import QuadLayer  # noqa: PLC0415 (sibling of the lazy VRSession below)
 
     if unit.layer_dirty:
         session.ensure_quad_swapchain(index, unit.target.width, unit.target.height)
@@ -1925,10 +1926,11 @@ def _cover_the_teardown(session, renderer: SceneRenderer, cover: _CoverUnit) -> 
 
 
 def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
-    import glfw  # GL/XR stack loads only after the runtime probe
-    import xr
+    # The GL/XR stack loads only after the runtime probe found a headset.
+    import glfw  # noqa: PLC0415
+    import xr  # noqa: PLC0415
 
-    from .vr_session import VRSession
+    from .vr_session import VRSession  # noqa: PLC0415
 
     opened = open_vr_session(
         VRSession, device_not_ready=xr.exception.GraphicsDeviceInvalidError)

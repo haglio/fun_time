@@ -14,8 +14,22 @@ crossing to the headset and the dashboard window's close box all looked like.
 """
 from __future__ import annotations
 
+import ast
+from pathlib import Path
+
+from fun_time.config import load_config
+from fun_time.manifest import (
+    WINDOWS_BRIDGE_MANIFEST_FILENAME,
+    LaunchManifest,
+    write_windows_bridge_manifest,
+)
 from fun_time.session_end import SESSION_END_MARKER
-from fun_time.windows_bridge_orchestrator import _describe_session_end
+from fun_time.windows_bridge_orchestrator import (
+    _describe_session_end,
+    clear_last_sessions_leftovers,
+)
+from tests.ahk_script import function_source
+from tests.test_windows_bridge_dispatch_loop import make_runner
 
 
 def test_an_end_the_user_asked_for_names_what_asked(tmp_path):
@@ -76,8 +90,6 @@ def test_the_hotkey_script_stamps_the_marker_on_every_deliberate_end():
     crossing over leaves one of those too, so reading it made every Esc look
     like a quit.
     """
-    from tests.ahk_script import function_source
-
     assert SESSION_END_MARKER in _hotkey_script()
     chord = function_source("EndSession")
     assert chord.index('MarkSessionEnd("the quit chord (Ctrl+Alt+Q)")') < chord.index(
@@ -108,8 +120,6 @@ def test_the_command_channel_keeps_the_phrase_whatever_asked_left():
 
 
 def _hotkey_script() -> str:
-    from pathlib import Path
-
     script = Path(__file__).resolve().parents[1] / "windows_bridge_hotkeys.ahk"
     return script.read_text(encoding="utf-8")
 
@@ -121,9 +131,6 @@ def test_everything_that_asks_for_the_end_says_what_asked_first():
     back under the command channel's own line, which cannot tell a spoken
     "quit" from a crossing to the headset from a window someone closed.  The
     exit is left to stopping a script whose session never began or is over."""
-    import ast
-    from pathlib import Path
-
     package = Path(__file__).resolve().parents[1] / "fun_time"
     unmarked = []
     exits = []
@@ -151,8 +158,6 @@ def test_everything_that_asks_for_the_end_says_what_asked_first():
 
 
 def _writes_to_the_mailbox(node, word: str) -> bool:
-    import ast
-
     return (
         isinstance(node, ast.Call)
         and isinstance(node.func, ast.Attribute)
@@ -167,8 +172,6 @@ def test_the_quit_command_says_whether_it_was_spoken(tmp_path):
     """A mis-heard word and a deliberate press both arrive here as "quit", and
     used to leave the same phrase -- so the question the log could not answer
     was the obvious one: did voice control end that session?"""
-    from tests.test_windows_bridge_dispatch_loop import make_runner
-
     make_runner(tmp_path)._handle_command("quit", spoken_at=123.0)
     assert "spoken" in (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
 
@@ -177,8 +180,6 @@ def test_the_quit_command_says_whether_it_was_spoken(tmp_path):
 
 
 def test_a_crossing_to_the_headset_names_itself(tmp_path):
-    from tests.test_windows_bridge_dispatch_loop import make_runner
-
     make_runner(tmp_path)._handle_command("enter_vr")
 
     reason = (tmp_path / SESSION_END_MARKER).read_text(encoding="utf-8")
@@ -189,14 +190,6 @@ def test_a_marker_from_a_session_that_was_cut_off_is_not_worn_by_the_next(
         cfg_factory, tmp_path):
     """A session killed from the task list, or cut off by the machine
     restarting under it, never reaches the read that removes its marker."""
-    from fun_time.config import load_config
-    from fun_time.manifest import (
-        WINDOWS_BRIDGE_MANIFEST_FILENAME,
-        LaunchManifest,
-        write_windows_bridge_manifest,
-    )
-    from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
-
     commands = LaunchManifest.read(write_windows_bridge_manifest(
         load_config(cfg_factory()), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)).commands
     state_dir = tmp_path / "state"

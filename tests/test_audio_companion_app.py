@@ -5,10 +5,12 @@ import types
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
+import pygame
 import pytest
+from player_core.file_channel import read_paused_state
 
 from fun_time import audio_companion_app
-from fun_time.audio_companion_app import AudioPlaybackController, find_audio
+from fun_time.audio_companion_app import AudioPlaybackController, find_audio, init_mixer
 
 
 class TestFindAudio:
@@ -34,23 +36,17 @@ class TestTheFlagFilesThisProcessReads:
         (" 1 \n", True), ("\ufeff1", True),
     ])
     def test_only_an_exact_1_is_true(self, tmp_path: Path, text: str, expected: bool):
-        from player_core.file_channel import read_paused_state
-
         path = tmp_path / "flag.txt"
         path.write_text(text, encoding="utf-8")
 
         assert read_paused_state(path) is expected
 
     def test_a_file_that_is_not_there_yet_is_not_true(self, tmp_path: Path):
-        from player_core.file_channel import read_paused_state
-
         assert read_paused_state(tmp_path / "never_written.txt") is False
 
     @staticmethod
     def _reader_the_runtime_was_given(tmp_path, cfg_path):
         """The callable `main` actually hands the runtime, both times."""
-        from fun_time import audio_companion_app
-
         (tmp_path / "audio").mkdir(exist_ok=True)
         with patch.object(audio_companion_app.pygame.mixer, "init"), \
              patch.object(audio_companion_app, "AudioCompanionRuntime") as runtime, \
@@ -86,8 +82,6 @@ class TestTheFlagFilesThisProcessReads:
         assert read_flag(tmp_path / "never_written.txt") is False
 
     def test_no_local_copy_of_that_reader_is_left(self):
-        from fun_time import audio_companion_app
-
         assert not hasattr(audio_companion_app, "read_mode_active")
 
 
@@ -368,10 +362,6 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
             self, tmp_path, cfg_path):
         """main binds the measurement, so the controller can take any source
         that answers None — and the warning names the clip."""
-        import pygame
-
-        from fun_time import audio_companion_app
-
         (tmp_path / "audio").mkdir(exist_ok=True)
         logger = MagicMock()
         with patch.object(audio_companion_app.pygame.mixer, "init"), \
@@ -403,9 +393,7 @@ class TestTheOutputItPlaysOn:
     NAMES = ["Speakers (Example Audio)", HEADSET, "Digital Output"]
 
     def test_the_mixer_opens_on_the_output_the_session_named(self):
-        from fun_time.audio_companion_app import init_mixer
-
-        with patch("pygame._sdl2.audio.get_audio_device_names", return_value=self.NAMES), \
+        with patch("fun_time.audio_companion_app.get_audio_device_names", return_value=self.NAMES), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \
              patch.object(audio_companion_app.pygame.mixer, "quit"):
             picked = init_mixer("example headset")
@@ -417,11 +405,9 @@ class TestTheOutputItPlaysOn:
         """The headset maker's own streaming driver carries its name too and
         Windows lists it first, so taking the first match left the room silent.
         """
-        from fun_time.audio_companion_app import init_mixer
-
         with patch("player_core.audio_outputs.software_outputs",
                    return_value=frozenset({self.STREAMING})), \
-             patch("pygame._sdl2.audio.get_audio_device_names",
+             patch("fun_time.audio_companion_app.get_audio_device_names",
                    return_value=[self.STREAMING, self.HEADSET]), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \
              patch.object(audio_companion_app.pygame.mixer, "quit"):
@@ -433,9 +419,7 @@ class TestTheOutputItPlaysOn:
     def test_a_name_no_output_carries_means_the_default(self):
         """Rather than a companion that will not start: the session still plays,
         through the room."""
-        from fun_time.audio_companion_app import init_mixer
-
-        with patch("pygame._sdl2.audio.get_audio_device_names", return_value=self.NAMES), \
+        with patch("fun_time.audio_companion_app.get_audio_device_names", return_value=self.NAMES), \
              patch.object(audio_companion_app.pygame.mixer, "init") as init, \
              patch.object(audio_companion_app.pygame.mixer, "quit"):
             picked = init_mixer("Nowhere")
@@ -445,8 +429,6 @@ class TestTheOutputItPlaysOn:
 
     def test_the_outputs_are_listed_only_once_the_audio_subsystem_is_up(self):
         """Listing before the mixer opened raised "Audio system not initialised", crashing the companion on every VR launch."""
-        from fun_time.audio_companion_app import init_mixer
-
         audio_up = False
 
         def opened(devicename=None):
@@ -464,16 +446,14 @@ class TestTheOutputItPlaysOn:
 
         with patch.object(audio_companion_app.pygame.mixer, "init", side_effect=opened), \
              patch.object(audio_companion_app.pygame.mixer, "quit", side_effect=closed), \
-             patch("pygame._sdl2.audio.get_audio_device_names", side_effect=listed):
+             patch("fun_time.audio_companion_app.get_audio_device_names", side_effect=listed):
             picked = init_mixer("example headset")
 
         assert picked == self.HEADSET
 
     def test_with_nothing_wanted_the_devices_are_not_even_listed(self):
         """The desktop session: the default output, no SDL device enumeration."""
-        from fun_time.audio_companion_app import init_mixer
-
-        with patch("pygame._sdl2.audio.get_audio_device_names") as listed, \
+        with patch("fun_time.audio_companion_app.get_audio_device_names") as listed, \
              patch.object(audio_companion_app.pygame.mixer, "init") as init:
             picked = init_mixer(None)
 

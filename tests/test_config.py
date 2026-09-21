@@ -1,15 +1,19 @@
 """Tests for fun_time.config."""
 from __future__ import annotations
 
+import ast
 import json
 from pathlib import Path
 
 import pytest
 
 from fun_time import config
+from fun_time.config import PROJECT_DIR as CONFIG_ROOT
 from fun_time.config import ProjectConfig, load_config
 from fun_time.loopback_server import LOOPBACK_PORT
 from fun_time.players import Player
+from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
+from satellite.app import ICON_PATH
 
 # ---------------------------------------------------------------------------
 # load_config
@@ -428,17 +432,12 @@ class TestTheProjectsOwnPaths:
     """
 
     def test_the_icon_sits_at_the_root_of_this_checkout(self):
-        from fun_time.project_paths import PROJECT_DIR, PROJECT_ICON
-
         assert PROJECT_ICON == PROJECT_DIR / "icon.ico"
         assert PROJECT_ICON.is_file()
 
     def test_the_root_is_the_one_the_config_resolves_against(self):
         """One root, so a relative path in the config and the icon on the
         window's title bar cannot come from two different checkouts."""
-        from fun_time.config import PROJECT_DIR as CONFIG_ROOT
-        from fun_time.project_paths import PROJECT_DIR
-
         assert CONFIG_ROOT is PROJECT_DIR
 
     def test_every_module_that_wants_the_icon_asks_for_that_one(self):
@@ -446,10 +445,6 @@ class TestTheProjectsOwnPaths:
         the source, because some are uses rather than bindings and an alias
         would not show them.  FunTimeVR's window asks for the other constant --
         still project_paths', still not a path it spells itself."""
-        import ast
-
-        from fun_time.project_paths import PROJECT_DIR
-
         wants = {
             "fun_time/process_identity.py": "PROJECT_ICON",
             "fun_time_vr/vr_session.py": "PROJECT_VR_ICON",
@@ -469,11 +464,6 @@ class TestTheProjectsOwnPaths:
     def test_and_the_one_that_keeps_its_own_really_imports_nothing_from_fun_time(self):
         """`satellite/` imports nothing from `fun_time`, and one constant is
         not worth inverting that."""
-        import ast
-
-        from fun_time.project_paths import PROJECT_DIR
-        from satellite.app import ICON_PATH
-
         assert ICON_PATH == PROJECT_DIR / "icon.ico"
         tree = ast.parse((PROJECT_DIR / "satellite" / "app.py").read_text(encoding="utf-8"))
         imported = [

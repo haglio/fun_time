@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 import pytest
+from PIL import Image
 from player_core.satellite_hud import MARGIN
 
 from satellite.hud_overlay import HudOverlay
@@ -14,8 +15,6 @@ from tests.satellite_fakes import FakeSatellitePlayer
 @pytest.fixture
 def panel(tmp_path: Path) -> Path:
     """A published HUD panel on disk, with one seed and one action row."""
-    from PIL import Image
-
     thumb = tmp_path / "t.jpg"
     Image.new("RGB", (40, 60), (90, 90, 90)).save(thumb)
     path = tmp_path / "portrait_hud.json"

@@ -23,6 +23,8 @@ A hand-written copy is exactly what would keep passing while production broke.
 """
 from __future__ import annotations
 
+import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -149,8 +151,6 @@ def _run_the_launch(tmp_path: Path, extra: list[str]) -> subprocess.CompletedPro
     kwargs.pop("startupinfo", None)
     env = dict(kwargs.pop("env", None) or {})
     if not env:
-        import os
-
         env = {**os.environ}
     env["QT_QPA_PLATFORM"] = "offscreen"
     return subprocess.run(
@@ -212,8 +212,6 @@ def _the_contract_it_publishes(checkout: Path) -> dict:
     only place the two sides can be compared: neither repo installs the other,
     so nothing in either one's own gate can see both.
     """
-    import json
-
     published = Path(checkout) / "origenerator_contract.json"
     if not published.exists():
         pytest.skip(f"the hosted app publishes no contract at {published}")

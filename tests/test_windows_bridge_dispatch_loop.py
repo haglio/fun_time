@@ -14,10 +14,12 @@ from app_support.file_channel import read_flag
 from app_support.threading_utils import wait_until
 from player_core.file_channel import publish_whole
 from player_core.modes import MainMode
+from player_core.playlist import PlaylistItem, write_playlist
 
 from fun_time import load_config
-from fun_time.bridge_records import BridgeConfig, WindowOp
+from fun_time.bridge_records import BridgeConfig, Op, WindowOp
 from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME
+from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.manifest import (
     LaunchManifest,
     build_windows_bridge_manifest,
@@ -25,6 +27,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.media_metadata import normalize_path_key
+from fun_time.player_handover import keep_aside
 from fun_time.players import Player
 from fun_time.role_windows import (
     MAIN_BLANK_SETTLE_S,
@@ -36,8 +39,11 @@ from fun_time.session_handoff import DESKTOP, VR, take_handoff_request
 from fun_time.shared_state import BridgeState, SatelliteState, read_shared_state, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.voice_commands import parse_command_line
+from fun_time.voice_control import VoiceController
 from fun_time.watch_stats import load_watch_stats
 from fun_time.windows_bridge_dispatch_loop import (
+    _AHK_PASSTHROUGH_OPS,
+    _OP_HANDLERS,
     LET_GO_TIMEOUT_S,
     DispatchLoopRunner,
     build_bridge_config_from_manifest,
@@ -699,8 +705,6 @@ class TestDispatchLoopRunner:
         """A no-effect notice carries WARNING so the panel and flash render it
         yellow; the dispatch loop must pass that level through, not flatten it to
         NOTICE."""
-        import logging
-
         runner = make_runner(tmp_path)
 
         notice_op = WindowOp(op="notice", key="No other seeds", source="portrait", level=logging.WARNING)
@@ -788,8 +792,6 @@ class TestDispatchLoopRunner:
         while the headset was slow to come up — and ending the session on the
         second is the worst available reading of it.  The crossing had nowhere
         to go, so it is said as a warning, in yellow."""
-        import logging
-
         runner = make_runner(tmp_path, config=make_config(
             tmp_path, vr_main_player=vr_main_player,
         ))
@@ -808,8 +810,6 @@ class TestDispatchLoopRunner:
         cross hears nothing back for long enough that the natural thing is to
         say it again.  The session is already on its way out by then, and the
         second ask must not start anything: it says so and stops."""
-        import logging
-
         runner = make_runner(tmp_path)
         (tmp_path / "dashboard_cmd.txt").write_text("enter_vr", encoding="utf-8")
         runner.tick()
@@ -1171,8 +1171,6 @@ class TestDispatchLoopRunner:
         assert mock_dispatch.call_args[0][0] == "portrait_lock"
 
     def test_voice_off_mutes_voice_controller(self, tmp_path):
-        from fun_time.voice_control import VoiceController
-
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         runner.voice_controller = vc
@@ -1184,8 +1182,6 @@ class TestDispatchLoopRunner:
         assert vc.is_muted
 
     def test_voice_toggle_unmutes_when_muted(self, tmp_path):
-        from fun_time.voice_control import VoiceController
-
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         vc.mute()
@@ -1198,8 +1194,6 @@ class TestDispatchLoopRunner:
         assert not vc.is_muted
 
     def test_voice_toggle_mutes_when_not_muted(self, tmp_path):
-        from fun_time.voice_control import VoiceController
-
         runner = make_runner(tmp_path)
         vc = VoiceController(cmd_file=tmp_path / "vc_cmd.txt", model_path="unused")
         runner.voice_controller = vc
@@ -1213,8 +1207,6 @@ class TestDispatchLoopRunner:
     def test_omnipause_suspends_the_voice_controller(self, tmp_path):
         """Omnipause freezes voice the way it freezes the AHK hotkeys: of what a
         paused room says, only the exempt commands reach the dispatch loop."""
-        from fun_time.voice_control import VoiceController
-
         runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
@@ -1230,8 +1222,6 @@ class TestDispatchLoopRunner:
         assert [parse_command_line(line)[0] for line in written] == ["play"]
 
     def test_leaving_omnipause_unsuspends_the_voice_controller(self, tmp_path):
-        from fun_time.voice_control import VoiceController
-
         runner = make_runner(tmp_path)
         runner._last_watch_sample = float("inf")
         vc_cmd = tmp_path / "vc_cmd.txt"
@@ -2300,11 +2290,6 @@ class TestIdempotentVoiceCommands:
             runner._update_dashboard()
 
     def test_the_snapshot_says_whether_every_player_has_nothing_to_reset(self, tmp_path):
-        from dataclasses import replace
-
-        from fun_time.dashboard_runtime import load_dashboard_snapshot
-        from fun_time.shared_state import SatelliteState
-
         runner = make_runner(tmp_path, dashboard_enabled=True)
         runner.config.main_player_status_file.write_text(
             "video=C:/v/n.mp4\nlocked=0\nspeed=1.0\nlength_mode=mixed\n", encoding="utf-8")
@@ -2317,10 +2302,6 @@ class TestIdempotentVoiceCommands:
         assert load_dashboard_snapshot(runner.config.dashboard_state_file).nothing_to_reset is False
 
     def test_a_room_hosting_origenerator_never_says_it_has_nothing_to_reset(self, tmp_path):
-        from dataclasses import replace
-
-        from fun_time.dashboard_runtime import load_dashboard_snapshot
-
         runner = make_runner(tmp_path, dashboard_enabled=True, config=make_config(
             tmp_path, origenerator_enabled=True,
             origenerator_cmd_file=tmp_path / "origenerator_cmd.txt"))
@@ -2353,9 +2334,6 @@ class TestIdempotentVoiceCommands:
         """Every Op item has a handler, so a new op without one is caught by
         this (and by the import-time assert beside the table) instead of at the
         first press."""
-        from fun_time.bridge_records import Op
-        from fun_time.windows_bridge_dispatch_loop import _AHK_PASSTHROUGH_OPS, _OP_HANDLERS
-
         assert set(_OP_HANDLERS) == set(Op)
         assert {Op.SUSPEND_HOTKEYS, Op.UNSUSPEND_HOTKEYS} == _AHK_PASSTHROUGH_OPS
 
@@ -2495,8 +2473,6 @@ class TestWatchTracking:
             runner.tick()
 
     def test_tick_records_a_completion_for_a_fully_watched_video(self, tmp_path, monkeypatch):
-        from fun_time.watch_stats import load_watch_stats
-
         runner = make_runner(tmp_path)
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
@@ -2512,8 +2488,6 @@ class TestWatchTracking:
         assert stats[normalize_path_key(str(a))]["completions"] == 1
 
     def test_user_next_marks_an_early_departed_video_as_skipped(self, tmp_path, monkeypatch):
-        from fun_time.watch_stats import load_watch_stats
-
         runner = make_runner(tmp_path)
         a = tmp_path / "a.mp4"
         a.write_text("x", encoding="utf-8")
@@ -2973,10 +2947,6 @@ class TestThePlayersComeHome:
     the clip it left, with the session's own hold put back on it."""
 
     def _left_for_origenerator(self, tmp_path, *, locked=False):
-        from player_core.playlist import PlaylistItem, write_playlist
-
-        from fun_time.player_handover import keep_aside
-
         config = _hosting(tmp_path)
         runner = make_runner(tmp_path, config=config)
         runner.state = replace(runner.state, origenerator_ready=True,

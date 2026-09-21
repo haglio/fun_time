@@ -7,6 +7,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import fun_time.orchestrator as desktop
+import fun_time_vr.orchestrator as headset
 from fun_time.engine_vendoring import ensure_engine_vendored, ensure_vendored
 
 
@@ -102,8 +104,6 @@ def test_ensure_engine_vendored_covers_both_players_interpreters(tmp_path: Path)
 def test_both_the_desktop_and_headset_launches_self_heal_the_engine():
     # The headset's players load the engine from the same venvs as the desktop's,
     # so both entry points must vendor it before launching -- the pairing rule.
-    import fun_time.orchestrator as desktop
-    import fun_time_vr.orchestrator as headset
 
     for entry_point in (desktop, headset):
         source = Path(entry_point.__file__).read_text(encoding="utf-8")

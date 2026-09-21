@@ -6,6 +6,8 @@ from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
+from fun_time.project_paths import PROJECT_ICON
+
 _PROBE = "from player_core.mpv_player import _import_mpv; _import_mpv()"
 
 Runner = Callable[..., "subprocess.CompletedProcess[str]"]
@@ -41,9 +43,8 @@ def player_interpreters(paths) -> dict[str, Path]:
 
 
 def show_engine_alert(text: str) -> None:
-    from shared_ui.alert import Level, show_alert
-
-    from fun_time.project_paths import PROJECT_ICON
+    # Qt loads only for this: the preflight itself runs before any window.
+    from shared_ui.alert import Level, show_alert  # noqa: PLC0415
 
     show_alert("Fun Time", text, level=Level.ERROR, icon=PROJECT_ICON)
 

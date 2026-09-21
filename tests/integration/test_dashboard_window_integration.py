@@ -10,12 +10,15 @@ suite, where ``winId()`` is not a real top-level HWND and the styles read back a
 from __future__ import annotations
 
 import ctypes
+import logging
 import os
 import sys
 from pathlib import Path
 
 import pytest
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QCloseEvent
+from PyQt6.QtWidgets import QApplication
 
 from fun_time import load_config
 from fun_time.dashboard_actions import HELP_REFERENCE
@@ -26,7 +29,8 @@ from fun_time.dashboard_app import (
     load_dashboard_app_config,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot
-from fun_time.event_log import NOTICE, event_log_path, notice
+from fun_time.event_log import NOTICE, EventLogHandler, event_log_path, notice
+from fun_time.log_panel import level_color
 from fun_time.manifest import write_windows_bridge_manifest
 from fun_time.win32 import find_window_by_title, is_window_topmost
 from fun_time.window_layout import MonitorRect, compute_window_layout
@@ -89,8 +93,6 @@ def _build_merged_dashboard(cfg_path: Path):
     """Build the real dashboard at the rect production computes — one window that
     spans the whole left column, with the log stream embedded under the control bar.
     """
-    from PyQt6.QtWidgets import QApplication
-
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -138,8 +140,6 @@ def test_log_controls_fit_one_row_beside_the_bar_and_lines_word_wrap(cfg_path: P
     the space the top bar leaves them (real font metrics enforce a minimum the
     offscreen platform never does), and long log lines wrap instead of being cut
     off with an ellipsis."""
-    from PyQt6.QtCore import Qt
-
     window, _state_dir = _build_merged_dashboard(cfg_path)
     try:
         panel = window._log_widget
@@ -160,10 +160,6 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
     """End to end over a real file: a NOTICE the dispatch loop would emit is
     picked up by the dashboard's tail and flashed, at the top-center of the
     window its source names — the overlay that replaced the AHK tooltip."""
-    import logging
-
-    from fun_time.event_log import EventLogHandler
-
     window, state_dir = _build_merged_dashboard(cfg_path)
     try:
         writer = logging.getLogger("integration.event_log.writer")
@@ -185,8 +181,6 @@ def test_a_notice_in_the_event_log_flashes_over_the_player_it_is_for(cfg_path: P
         assert overlay.y() < portrait.y + portrait.height // 2
         # A normal notice reads white; a dead end (WARNING) reads yellow.  The
         # flash color is applied by stylesheet, so assert against level_color directly.
-        from fun_time.log_panel import level_color
-
         assert level_color(NOTICE).name() in overlay.styleSheet()
         notice(writer, "No other seeds", source="portrait", level=logging.WARNING)
         window._notices.poll()

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import _winapi
 import json
 import os
 import threading
@@ -7,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from app_support.json_store import locked_update
+from player_core.satellite_hud import label_is_filtered
 
 from fun_time.media_metadata import (
     GroupIndexCache,
@@ -783,8 +785,6 @@ def test_the_satellite_hud_lights_a_row_for_exactly_the_clips_this_filter_keeps(
     query is the one deliberate difference — it keeps every clip, and lights no
     row.
     """
-    from player_core.satellite_hud import label_is_filtered
-
     camera_words = ("Side", "XYZ")
     cases = [
         ("Gamma", "gamma", True),               # the row that names it
@@ -821,8 +821,6 @@ def test_a_video_under_the_library_is_mapped_without_asking_the_disk_where_it_re
 
 
 def test_a_video_reached_through_a_junction_is_still_placed_under_the_library(tmp_path):
-    import _winapi
-
     root = tmp_path / "videos"
     (root / "videos" / "2D").mkdir(parents=True)
     (root / "metadata").mkdir()

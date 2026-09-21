@@ -12,6 +12,7 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+from player_core.playhead import readout_xy
 from player_core.timeline import TIMELINE_HEIGHT, bar_track_x
 from player_core.volume import CHIP_H, chip_xy
 
@@ -151,8 +152,6 @@ class TestTheScrubber:
     def test_above_a_row_too_narrow_to_share_the_readout_is_not_the_picture(self, tmp_path):
         """400 across leaves the readout a line of its own above the row, over the
         picture: a press on it neither seeks nor asks the room to pause."""
-        from player_core.playhead import readout_xy
-
         pointer, player, hud = _pointer(tmp_path, hud_takes=False)
         x, y = readout_xy(131, win_w=400, win_h=WIN_H, timeline_h=TIMELINE_HEIGHT)
 

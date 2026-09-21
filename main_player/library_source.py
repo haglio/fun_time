@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from functools import cached_property
 from pathlib import Path
 
+from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 from player_core.modes import LengthMode
 from player_core.playlist import PlaylistItem
 
@@ -135,7 +136,6 @@ def discover_genau_clips(clips_dir: Path | None) -> list[LibraryEntry]:
     """
     if clips_dir is None or not clips_dir.is_dir():
         return []
-    from player_core.clip_folder import SUPPORTED_VIDEO_EXTS
 
     clips: list[LibraryEntry] = []
     for path in sorted(clips_dir.iterdir()):

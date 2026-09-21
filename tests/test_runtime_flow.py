@@ -8,6 +8,7 @@ import pytest
 from player_core.console import OSR2_CONTROL_OFF, OSR2_DRIVING
 from player_core.modes import MainMode
 
+from fun_time.media_metadata import metadata_path_for
 from fun_time.players import Player
 from fun_time.runtime_flow import (
     FMODE_PLAYERS,
@@ -28,7 +29,6 @@ def _make_action_video(
     video = folder / f"{name}.mp4"
     video.parent.mkdir(parents=True, exist_ok=True)
     video.write_text("x", encoding="utf-8")
-    from fun_time.media_metadata import metadata_path_for
 
     sidecar = metadata_path_for(video, metadata_root)
     sidecar.parent.mkdir(parents=True, exist_ok=True)

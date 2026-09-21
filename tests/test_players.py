@@ -3,6 +3,7 @@ an int slot and the other half as a name string (audit finding
 fun_time/A_dispatch/design/006)."""
 from __future__ import annotations
 
+from fun_time.event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
 from fun_time.players import Player
 
 
@@ -40,8 +41,6 @@ def test_satellites_are_the_scope_both_means():
 def test_the_event_log_sources_are_exactly_the_player_labels():
     """satellite_source answers Player(which).label, which is only sound while
     the event_log constants and the labels are the same strings."""
-    from fun_time.event_log import SOURCE_LANDSCAPE, SOURCE_MAIN, SOURCE_PORTRAIT
-
     assert Player.MAIN.label == SOURCE_MAIN
     assert Player.PORTRAIT.label == SOURCE_PORTRAIT
     assert Player.LANDSCAPE.label == SOURCE_LANDSCAPE

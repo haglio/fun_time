@@ -6,6 +6,8 @@ import subprocess
 from pathlib import Path
 from types import SimpleNamespace
 
+import fun_time.orchestrator as desktop
+import fun_time_vr.orchestrator as headset
 from fun_time.engine_preflight import (
     engine_missing_abort,
     engine_preflight_error,
@@ -116,8 +118,6 @@ def test_both_the_desktop_and_headset_launches_gate_on_the_preflight():
     # A dead engine takes the headset's players down exactly as it does the
     # desktop's, so both entry points must refuse rather than open onto empty
     # windows -- the desktop/headset pairing the engineering law now requires.
-    import fun_time.orchestrator as desktop
-    import fun_time_vr.orchestrator as headset
 
     for entry_point in (desktop, headset):
         source = Path(entry_point.__file__).read_text(encoding="utf-8")

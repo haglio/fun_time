@@ -9,6 +9,12 @@ from __future__ import annotations
 
 import pytest
 
+from fun_time.filter_vocab import (
+    decode_filter_command,
+    filter_voice_commands,
+    load_acts,
+    set_command,
+)
 from fun_time.voice_commands import (
     VOICE_COMMANDS,
     build_voice_commands,
@@ -16,6 +22,7 @@ from fun_time.voice_commands import (
     friendly_voice,
     parse_command_line,
 )
+from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
 
 
 class TestCommandLineFormat:
@@ -74,8 +81,6 @@ class TestTheSpokenCrossing:
     def test_the_crossing_is_not_exempt_from_omnipause(self):
         """A paused room answers three verbs, and taking the session away is
         not among them — so a phrase misheard while paused cannot cross."""
-        from fun_time.voice_control import SUSPEND_EXEMPT_COMMANDS
-
         assert {"enter_vr", "exit_vr"}.isdisjoint(SUSPEND_EXEMPT_COMMANDS)
 
 
@@ -589,8 +594,6 @@ def test_voice_commands_include_generated_filter_phrases():
     """Every act the overlay carries — not whichever happens to sort first —
     has its phrases in the grammar, checked against the same loader the
     grammar was generated from so the test is machine-independent."""
-    from fun_time.filter_vocab import load_acts, set_command
-
     acts = load_acts()
     assert acts
     for query, forms in acts.items():
@@ -616,7 +619,6 @@ def test_clearing_a_filter_scopes_like_every_other_satellite_action():
 def test_filter_phrases_do_not_shadow_other_commands():
     # Every filter phrase must resolve to its filter command — i.e. no filter
     # phrase silently overrode (or was overridden by) another voice command.
-    from fun_time.filter_vocab import decode_filter_command, filter_voice_commands
 
     for phrase, command in filter_voice_commands().items():
         assert VOICE_COMMANDS[phrase] == command

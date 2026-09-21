@@ -16,6 +16,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from satellite.app import set_up_logging
+
 ENTRY_POINTS = (
     "fun_time.dashboard_app",
     "fun_time.audio_companion_app",
@@ -71,8 +73,6 @@ def test_a_crash_on_a_worker_thread_names_the_thread(hooks_restored, caplog):
     """The default thread hook prints a traceback with no logger and no level,
     so a satellite that died on its own thread left the parent's log looking
     like output rather than like a failure."""
-    from satellite.app import set_up_logging
-
     logger = set_up_logging()
     with caplog.at_level("CRITICAL", logger=logger.name):
         thread = threading.Thread(target=lambda: 1 / 0, name="example-worker")

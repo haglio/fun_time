@@ -18,7 +18,18 @@ import tempfile
 import time
 from pathlib import Path
 
-from fun_time import transition_screen
+from fun_time import orchestrator as desktop_orchestrator
+from fun_time import session_handoff, transition_screen
+from fun_time.child_launch import open_child_log
+from fun_time.session_handoff import (
+    COVER_HEARTBEAT_S,
+    COVER_STALE_S,
+    crossing_progress_path,
+    drop_crossing_cover,
+    keep_the_crossing_cover,
+    returning_from_a_crossing,
+)
+from fun_time_vr import orchestrator as vr_orchestrator
 
 
 def test_it_gives_up_in_a_time_a_person_will_wait():
@@ -33,12 +44,6 @@ def test_a_slow_crossing_keeps_its_own_cover_up():
     minute to wake must not be uncovered halfway there.  So a session says the
     crossing is still under way -- without rewriting the line under it, which a
     torn read would blank on the screen."""
-    from fun_time.session_handoff import (
-        COVER_HEARTBEAT_S,
-        crossing_progress_path,
-        keep_the_crossing_cover,
-    )
-
     assert COVER_HEARTBEAT_S * 3 < transition_screen.STALE_TIMEOUT_S  # room to miss some
 
     with tempfile.TemporaryDirectory() as state_dir:
@@ -60,10 +65,6 @@ def test_a_crossing_has_no_process_that_forgets_to_say_so():
     relay, the session arriving -- and the cover stands across all three.  Any
     one of them that does not say so uncovers the monitors mid-crossing, which
     is worse than the trap this timeout was shortened to escape."""
-    from fun_time import orchestrator as desktop_orchestrator
-    from fun_time import session_handoff
-    from fun_time_vr import orchestrator as vr_orchestrator
-
     for func in (
         desktop_orchestrator.main,      # Fun Time, leaving or arriving
         vr_orchestrator.main,           # FunTimeVR, leaving or arriving
@@ -77,14 +78,6 @@ def test_a_crossing_file_nobody_tidied_is_not_a_crossing():
     stranded him.  Only the cover deletes that file, so a crossing that ended
     without one leaks it -- and a startup that reads it as a return builds an
     UNCANCELLABLE loading screen, for that session and every session after."""
-    from fun_time.session_handoff import (
-        COVER_STALE_S,
-        crossing_progress_path,
-        drop_crossing_cover,
-        keep_the_crossing_cover,
-        returning_from_a_crossing,
-    )
-
     with tempfile.TemporaryDirectory() as state_dir:
         progress = crossing_progress_path(state_dir)
         progress.write_text("1/2|Cancelling...", encoding="utf-8")
@@ -106,8 +99,6 @@ def test_a_child_log_that_cannot_be_opened_does_not_stop_the_child():
     """The specific way it stranded him: the relay bringing Fun Time back opened
     its log first, the file was locked, and the process died before it had done
     anything at all."""
-    from fun_time.child_launch import open_child_log
-
     handle = open_child_log(Path("Z:/no/such/place/relay.log"), ["a", "b"])
     try:
         handle.write(b"still runs\n")

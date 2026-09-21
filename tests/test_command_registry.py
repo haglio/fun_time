@@ -18,8 +18,11 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+from player_core.modes import SatellitesMode
+
 from fun_time import command_dispatch, dashboard_actions, windows_bridge_dispatch_loop
 from fun_time.command_reference import build_reference_sections
+from fun_time.satellite_buttons import player_rows
 from fun_time.voice_commands import VOICE_COMMANDS
 from fun_time.windows_bridge_dispatch_loop import (
     _MAIN_EQUIVALENTS,
@@ -164,10 +167,6 @@ def _console_verbs() -> frozenset[str]:
 def _satellite_verbs() -> frozenset[str]:
     """Every verb a satellite HUD button Fun Time declares can post, over both
     sides and every state the declaration takes."""
-    from player_core.modes import SatellitesMode
-
-    from fun_time.satellite_buttons import player_rows
-
     return frozenset(
         button.command
         for player in ("portrait", "landscape")

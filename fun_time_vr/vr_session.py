@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 
 import glfw
 import xr
-from OpenGL import GL
+from OpenGL import GL, WGL
 
 from fun_time.project_paths import PROJECT_VR_ICON
 from fun_time.win32 import draw_nothing_at_all, minimize_window, set_window_icon
@@ -202,7 +202,6 @@ class VRSession:
         # The loader requires this call before create_session.
         xr.get_opengl_graphics_requirements_khr(self._instance, system_id)
 
-        from OpenGL import WGL  # Windows-only binding
 
         graphics_binding = xr.GraphicsBindingOpenGLWin32KHR(
             h_dc=WGL.wglGetCurrentDC(),

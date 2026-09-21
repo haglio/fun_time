@@ -13,6 +13,7 @@ from unittest.mock import patch
 
 import pytest
 from player_core.console import OSR2_CONTROL_OFF
+from player_core.drive_readout import DriveHud, publish_drive
 from player_core.hud_button import Button
 from player_core.modes import MainMode
 from player_core.satellite_hud import HudCell, HudModel, hud_text, parse_hud
@@ -405,8 +406,6 @@ class TestHudPublishing:
     def test_the_consoles_lock_names_genaus_pace_off_its_drive_readout(self, tmp_path):
         """In genau mode the lock says how long an unheld clip stays up, and the
         one place Genau says its pace is the drive readout it publishes."""
-        from player_core.drive_readout import DriveHud, publish_drive
-
         feed, state = make_feed(tmp_path), BridgeState(main_mode=MainMode.GENAU)
         publish_drive(feed.config.genau_drive_file,
                       DriveHud(speed=50, amplitude=60, center=50, advance_interval=7))

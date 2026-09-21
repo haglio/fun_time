@@ -31,10 +31,12 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
+from app_support.win32 import set_app_user_model_id
 from PyQt6.QtCore import QSize, Qt, QTimer
 from PyQt6.QtGui import QIcon, QPainter, QPalette, QPixmap
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QApplication,
     QHBoxLayout,
     QLabel,
     QListWidget,
@@ -63,6 +65,7 @@ from .library_tree import Folder, SubFolder, folder_at, folder_of
 from .process_identity import NAMER
 from .thumbnail_cache import THUMBNAIL_CACHE_DIRNAME, cached_thumbnail, thumbnail_for
 from .win32 import force_foreground_window
+from .win32_taskbar import APP_USER_MODEL_ID
 
 WINDOW_TITLE = "Fun Time Library"
 TOP_LEVEL_NAME = "Library"
@@ -816,14 +819,9 @@ def bring_the_browse_forward(window: QWidget) -> bool:
 
 
 def main(argv: list[str] | None = None) -> int:
-    from PyQt6.QtWidgets import QApplication
-
     args = parse_args(argv)
     # Claim Fun Time's identity before any window exists, so the browse is never
     # mistaken for an unrelated app's window (see the Tool flag above).
-    from app_support.win32 import set_app_user_model_id
-
-    from .win32_taskbar import APP_USER_MODEL_ID
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:

@@ -2,14 +2,17 @@
 and what a press or a hover on either screen does."""
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import numpy as np
 import pytest
-from player_core.satellite_hud import MARGIN
+from player_core.satellite_hud import MARGIN, hud_text
 from player_core.timeline import TIMELINE_HEIGHT
 from player_core.volume import CHIP_H, SPEAKER_W, VolumeHud, chip_xy
 
+from fun_time.hud_transport import hud_model
+from fun_time.lock_hud import HudPanel
 from fun_time_vr.console_panel import DEG_PER_PX, PANEL_WIDTH_DEG, PANEL_WIDTH_PX
 from fun_time_vr.satellite_hud import (
     HUD,
@@ -157,13 +160,6 @@ class TestAPressOnASatellite:
 def _a_panel() -> str:
     """A published panel with the mode row and the side's own band, as Fun Time
     publishes one for a headset session hosting an Origenerator."""
-    from pathlib import Path
-
-    from player_core.satellite_hud import hud_text
-
-    from fun_time.hud_transport import hud_model
-    from fun_time.lock_hud import HudPanel
-
     return hud_text(hud_model(HudPanel(
         player="portrait", locked=False, lock_label="Shuffle", current="",
         seed_siblings=[], action_siblings=[], active=True, latest=False,

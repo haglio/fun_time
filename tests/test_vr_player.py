@@ -7,6 +7,8 @@ volume chip every video unit paints.
 """
 from __future__ import annotations
 
+import ast
+import inspect
 import json
 import logging
 import threading
@@ -39,7 +41,9 @@ from player_core.volume import (
     VolumeHudPainter,
     chip_xy,
 )
+from shared_ui.palette import BLUE
 
+from fun_time.config import load_config
 from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 from fun_time.dashboard_actions import (
     BROWSE_LIBRARY_CLOSE,
@@ -59,7 +63,7 @@ from fun_time.overlay_progress import (
     SHUTDOWN_READY_FILENAME,
     PhaseProgress,
 )
-from fun_time_vr import room
+from fun_time_vr import player, room
 from fun_time_vr.console_panel import (
     NOTICE_STRIP_HEIGHT,
     PANEL_WIDTH_DEG,
@@ -87,6 +91,7 @@ from fun_time_vr.layout import (
 )
 from fun_time_vr.library_panel import LIBRARY_SIZE_PX, scroll_from_stick, scroll_line
 from fun_time_vr.notices import NoticeBoard
+from fun_time_vr.orchestrator import build_vr_manifest
 from fun_time_vr.player import (
     VrSettings,
     _ControllerPosts,
@@ -127,6 +132,7 @@ from fun_time_vr.render import immersive_mode
 from fun_time_vr.satellite_hud import hud_screen_name
 from fun_time_vr.scene import RADIUS, Placement, attached_below, surface_vertices
 from fun_time_vr.stacking import Stacking
+from fun_time_vr.video_thread import VideoThread
 from main_player.play_points import play_points_filename
 
 
@@ -204,9 +210,6 @@ _NO_GL_CONTEXTS = None
 
 def _manifest_for_a_vr_session(tmp_path) -> LaunchManifest:
     """A real manifest, written by the writer the VR launcher uses."""
-    from fun_time.config import load_config  # noqa: PLC0415
-    from fun_time_vr.orchestrator import build_vr_manifest  # noqa: PLC0415
-
     config = load_config(Path("fun_time_config.example.json"))
     path = write_manifest_data(
         build_vr_manifest(config), tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME)
@@ -435,8 +438,6 @@ class TestWhatEveryVideoUnitOwes:
     @pytest.mark.parametrize("unit_class", [_MainUnit, _SatelliteUnit])
     def test_both_units_answer_the_calls_the_loop_makes(self, unit_class):
         """By convention until now: signatures that happened to match."""
-        import inspect
-
         assert unit_class.pump is not _VideoUnit.pump
         assert unit_class.close is not _VideoUnit.close
         assert list(inspect.signature(unit_class.pump).parameters) == [
@@ -1088,11 +1089,6 @@ class TestWhenTheRoomIsUp:
         """The other half of that contract, pinned in the source because the copy
         itself needs a GL context: the flag the gate reads is set where a picture
         is copied in, never beside the ``ensure`` that only sizes the texture."""
-        import ast
-        import inspect
-
-        from fun_time_vr.video_thread import VideoThread
-
         source = ast.unparse(ast.parse(inspect.getsource(VideoThread.show_newest).lstrip()))
         before, copied, after = source.partition("glCopyImageSubData")
         assert copied
@@ -1112,11 +1108,6 @@ class TestWhenTheRoomIsUp:
 def test_the_cover_goes_up_before_the_players_are_built():
     """Built first and shown after, it was on screen for the tail of a launch
     that had already finished -- which is why none of it was ever seen."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     calls = {}
     for node in ast.walk(tree):
@@ -1134,11 +1125,6 @@ def test_every_screen_is_registered_in_the_room(screen):
     """Out of the room a screen is never painted, pumped, pointed at, drawn or
     closed.  The dash was pumped, pointed at and placed in the layout and left
     out of the eye pass, so it existed everywhere except in front of him."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     (units,) = [node for node in ast.walk(tree)
                 if isinstance(node, ast.Assign) and ast.unparse(node.targets[0]) == "units"]
@@ -1147,11 +1133,6 @@ def test_every_screen_is_registered_in_the_room(screen):
 
 
 def test_everything_the_room_closes_when_it_ends_has_a_close():
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     built = {node.targets[0].id: node.value for node in ast.walk(tree)
              if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name)}
@@ -1180,11 +1161,6 @@ def test_everything_the_room_closes_when_it_ends_has_a_close():
 def test_the_reveal_waits_for_the_cover_to_have_been_seen():
     """The room being drawable is not the same as anyone having had the headset
     on while it was covered."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     (note,) = [n for n in ast.walk(tree)
                if isinstance(n, ast.Call) and ast.unparse(n.func) == "scene_ready.note"]
@@ -1199,11 +1175,6 @@ def test_the_reveal_waits_for_the_cover_to_have_been_seen():
 def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
     """Said before that, it would blame him for a launch still building the
     room; said off the same value the reveal reads, the two cannot disagree."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     (told,) = [n for n in ast.walk(tree)
                if isinstance(n, ast.Assign)
@@ -1220,11 +1191,6 @@ def test_the_cover_is_told_it_is_waiting_on_him_only_once_the_room_is_up():
 
 
 def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     calls = [node for node in ast.walk(tree) if isinstance(node, ast.Call)]
     (made,) = [call for call in calls if ast.unparse(call.func) == "Pointer"]
@@ -1241,11 +1207,6 @@ def test_the_controllers_reach_the_pictures_own_controls_and_the_worker():
 def test_a_carry_turns_the_room_whatever_the_main_player_is_showing():
     """It used to turn the scene only while a video wrapped the viewer, and move
     the main player's own placement otherwise; every carry turns the room now."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     carries = [node for node in ast.walk(tree)
                if isinstance(node, ast.Call) and ast.unparse(node.func) == "carried_heading"]
@@ -1259,11 +1220,6 @@ def test_a_carry_turns_the_room_whatever_the_main_player_is_showing():
 def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
     """A frame submitted while the runtime cannot locate the views, or while the
     headset is on the desk, showed nobody anything."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     (note,) = [n for n in ast.walk(tree)
                if isinstance(n, ast.Call) and ast.unparse(n.func) == "cover_seen.note"]
@@ -1272,11 +1228,6 @@ def test_only_frames_a_worn_headset_took_count_towards_the_dwell():
 
 
 def test_the_headset_session_runs_ahead_of_background_work():
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player.main))
     (scheduled,) = [n for n in ast.walk(tree)
                     if isinstance(n, ast.With)
@@ -1289,11 +1240,6 @@ def test_the_headset_session_runs_ahead_of_background_work():
 def test_a_squeeze_brings_forward_what_the_ray_and_the_eyes_both_see():
     """One arrangement goes to the pointer and to the eye pass, so what a squeeze
     lands on is what was in front -- and what it takes hold of is what moves."""
-    import ast
-    import inspect
-
-    from fun_time_vr import player
-
     tree = ast.parse(inspect.getsource(player._run))
     calls = [n for n in ast.walk(tree) if isinstance(n, ast.Call)]
     handed = {ast.unparse(call.func): ast.unparse(keyword.value)
@@ -1774,8 +1720,6 @@ class TestTheDashUnderThePointer:
         assert posted.strip() == QUIT_BUTTON
 
     def test_the_question_mark_lights_while_the_session_has_the_reference_up(self, tmp_path):
-        from shared_ui.palette import BLUE
-
         unit = self._unit(tmp_path)
         write_flag(tmp_path / REFERENCE_OPEN_FILENAME, True)
 

@@ -570,13 +570,11 @@ class TestWindowsObscuring:
 
 class TestConstants:
     def test_hwnd_topmost_is_64bit_pointer(self):
-        import ctypes
         assert isinstance(HWND_TOPMOST, ctypes.c_void_p)
         # Must be 0xFFFFFFFFFFFFFFFF on 64-bit, not truncated 0xFFFFFFFF
         assert HWND_TOPMOST.value == (2**64 - 1)
 
     def test_hwnd_notopmost_is_64bit_pointer(self):
-        import ctypes
         assert isinstance(HWND_NOTOPMOST, ctypes.c_void_p)
         assert HWND_NOTOPMOST.value == (2**64 - 2)
 
@@ -588,8 +586,6 @@ class TestLiveWindowMutationGuard:
     resolving the live 'main player'/'Genau' window by title and forcing it topmost)."""
 
     def test_mutating_user32_calls_are_inert(self):
-        from fun_time import win32
-
         for name in ("SetWindowPos", "SetForegroundWindow", "ShowWindow", "PostMessageW",
                      "BringWindowToTop"):
             # Stubbed to an inert no-op for the whole unit suite: callable, returns the

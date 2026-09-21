@@ -113,10 +113,9 @@ class HudFeed:
             )
             self.publisher.publish("portrait", portrait)
             self.publisher.publish("landscape", landscape)
-        # The main console: the controls the dashboard used to hold for
-        # whichever player owns the slot, what has the OSR2, whether the broker is
-        # up, and which player a bare command reaches — none of which the player
-        # can see for itself.
+        # The main console: the controls for whichever player owns the slot,
+        # what has the OSR2, whether the broker is up, and which player a bare
+        # command reaches -- none of which the player can see for itself.
         main_player = read_main_player_status(self.config.main_player_status_file)
         shapes_offered = bool(source_roots(self.config.vr_library_dirs))
         self.publisher.publish_text("main_player", console_text(console_model(MainSlotInputs(

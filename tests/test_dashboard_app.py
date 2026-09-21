@@ -1,15 +1,24 @@
 from __future__ import annotations
 
+import ctypes
+import json
+import logging
 import socket
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from app_support import file_channel
+from PyQt6.QtCore import QPoint, QRect
 from PyQt6.QtGui import QColor
-from shared_ui.colors import BLUE
+from PyQt6.QtWidgets import QTextBrowser, QWidget
+from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE, BLUE, GREEN, TEXT_MUTED, TEXT_PRIMARY
+from shared_ui.icons import glyph_pixmap
+from shared_ui.spacing import BUTTON_MARK_INSET_HUD, BUTTON_RADIUS_HUD
 
 from fun_time import load_config
 from fun_time.dashboard_actions import (
@@ -22,25 +31,39 @@ from fun_time.dashboard_actions import (
     VOICE_TOGGLE,
 )
 from fun_time.dashboard_app import (
+    _BUTTON_RADIUS,
     COLOR_APP_TITLE,
     COLOR_PANEL,
+    OMNIPAUSE_RESUME_TOOLTIP,
+    SOURCE_CHECKOUT_FILENAME,
     DashboardLaunchGeometry,
+    DashboardWidget,
     MarkCache,
+    ReferenceDialog,
     apply_dashboard_window_geometry,
     build_dashboard_scene,
     build_dashboard_window,
     lighten_color,
     load_dashboard_app_config,
+    record_source_checkout,
+    source_checkout,
     write_dashboard_command,
 )
 from fun_time.dashboard_layout import (
+    GAP,
     GROUP_GAP,
     Rect,
     compute_dashboard_bar_layout,
     dashboard_window_height,
 )
 from fun_time.dashboard_runtime import DashboardSnapshot
+from fun_time.event_log import EVENT_LOG_FILENAME, NOTICE, SOURCE_DASH
 from fun_time.manifest import write_windows_bridge_manifest
+from fun_time.monitors import MonitorInfo, get_logical_monitor_rects
+from fun_time.project_paths import PROJECT_ICON
+from fun_time.window_layout import compute_main_media_rect, compute_window_layout
+from fun_time.windows_bridge_dispatch_loop import expand_group_command, poll_dashboard_commands
+from tests.integration.integration_support import environment_with_this_checkouts_siblings
 from tests.sleeps import sleeps_in
 
 
@@ -115,16 +138,12 @@ def test_the_every_player_pair_and_the_crossing_each_stand_in_a_group_of_their_o
 
 
 def test_reset_all_stands_beside_f_mode_in_its_group():
-    from fun_time.dashboard_layout import GAP
-
     layout = compute_dashboard_bar_layout()
 
     assert layout.reset_all_button.x - (layout.fmode_button.x + layout.fmode_button.width) == GAP
 
 
 def test_the_bars_reset_all_resets_every_player():
-    from fun_time.windows_bridge_dispatch_loop import expand_group_command
-
     layout = compute_dashboard_bar_layout()
     scene = _scene()
 
@@ -158,8 +177,6 @@ def test_the_log_filters_follow_the_bar_a_group_gap_on(dashboard_app_config):
     session in the headset draws, out past the crossing.  Measured to the
     crossing instead, the bar was too narrow for its own widest state: the reset
     was cut off at the bar's edge and the filters crowded up against it."""
-    from PyQt6.QtCore import QPoint
-
     window = build_dashboard_window(
         dashboard_app_config,
         launch_geometry=DashboardLaunchGeometry(x=0, y=0, width=1200, height=300),
@@ -204,8 +221,6 @@ def test_the_pause_button_says_which_way_it_will_go():
     the action it will take, not the state it is in."""
     layout = compute_dashboard_bar_layout()
 
-    from shared_ui.colors import TEXT_PRIMARY
-    from shared_ui.icons import glyph_pixmap
 
     def mark(paused: bool):
         scene = _scene(_snapshot(omni_paused=paused))
@@ -248,9 +263,6 @@ def test_the_microphone_is_the_one_the_family_shares():
     reading as two.  So the mark on the panel has to be the shared glyph itself,
     pixel for pixel, rather than a copy that can drift from it again.
     """
-    from shared_ui.colors import TEXT_PRIMARY
-    from shared_ui.icons import glyph_pixmap
-
     panel = compute_dashboard_bar_layout().voice_panel
     drawn = {item.rect: item.pixmap for item in _scene().images}
 
@@ -269,8 +281,6 @@ def test_a_pressed_control_lightens_while_the_press_shows():
     """Onto the family's own on-ground, which is what Origenerator's toolbar
     lights a control with -- these buttons had their own lightening before, and
     sat on a darker resting ground than any other app's."""
-    from shared_ui.colors import BG_BUTTON, BG_BUTTON_ACTIVE
-
     layout = compute_dashboard_bar_layout()
 
     resting = _fill(_scene(), layout.quit_button)
@@ -362,8 +372,6 @@ def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
     """Two clicks landing between dispatch-loop drains must both survive: the
     writer appends newline-terminated lines, so ``poll_dashboard_commands`` reads
     both in order rather than only the last."""
-    from fun_time.windows_bridge_dispatch_loop import poll_dashboard_commands
-
     command_file = tmp_path / "state" / "dashboard_cmd.txt"
 
     write_dashboard_command(command_file, "portrait_lock")
@@ -375,7 +383,6 @@ def test_write_dashboard_command_queues_rather_than_clobbers(tmp_path: Path):
 def test_dashboard_window_geometry_prefers_launch_geometry_when_provided():
     scene = _scene()
 
-    from PyQt6.QtWidgets import QWidget
     widget = QWidget()
     apply_dashboard_window_geometry(
         widget,
@@ -496,9 +503,6 @@ def test_dashboard_stays_hidden_during_loading(dashboard_app_config):
     (SW_HIDE) — never shown, never minimized — so there is no flash and no
     minimize animation.  Built by hand: the deferral is decided at
     construction, so the patches must wrap the build itself."""
-    import ctypes
-    from unittest.mock import MagicMock
-
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     show_window = MagicMock()
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
@@ -522,9 +526,6 @@ def test_dashboard_reveals_with_show_after_loading(dashboard_app_config):
     to do it.  The cover is still up at that point; the two tests below say
     where the panel is put relative to it.  Built by hand: the deferral is
     decided at construction, so the patch must wrap the build itself."""
-    import ctypes
-    from unittest.mock import MagicMock
-
     launch_geo = DashboardLaunchGeometry(x=100, y=200, width=300, height=400)
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True):
         window = build_dashboard_window(dashboard_app_config, launch_geometry=launch_geo)
@@ -558,9 +559,6 @@ def test_dashboard_reveals_itself_underneath_the_cover(cfg_path: Path):
     prevent.  So the same SetWindowPos that shows it names the cover as the window
     to sit under, and does not activate.
     """
-    import ctypes
-    from unittest.mock import MagicMock
-
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -603,9 +601,6 @@ def test_dashboard_leaves_the_band_alone_when_there_is_no_cover(cfg_path: Path):
     where it already sits, exactly as it was before there was a cover to duck.
     The band drop exists only to duck one, and a panel dropped out of the band
     with nothing to duck would be shown under every player instead."""
-    import ctypes
-    from unittest.mock import MagicMock
-
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -683,8 +678,6 @@ def test_the_notices_start_held_exactly_when_the_panel_starts_hidden(
     """One answer decides both.  Read separately they could disagree — startup
     finishes between the two reads — and the panel would then come up holding
     notices nothing releases, or releasing them over the cover."""
-    from fun_time.event_log import NOTICE
-
     with patch("fun_time.loading_reveal.startup_still_building", return_value=building), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -705,10 +698,6 @@ def test_the_reveal_does_not_release_the_notices(dashboard_app_config):
     """The panel shows itself one phase BEFORE the cover goes, so a notice
     released here would still flash through the scrim.  They wait for the cover
     itself; see NoticeFeed."""
-    from unittest.mock import MagicMock
-
-    from fun_time.event_log import NOTICE
-
     with patch("fun_time.loading_reveal.startup_still_building", return_value=True), \
          patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
@@ -779,8 +768,6 @@ def test_reference_dialog_syncs_topmost_with_omnipause():
     orchestrator can drop, and not a child riding the dashboard's band — so it
     corrects its OWN band: out of topmost while paused, back on top after,
     drift-corrected so it never issues a redundant SetWindowPos."""
-    from fun_time.dashboard_app import ReferenceDialog
-
     dialog = ReferenceDialog()
     try:
         hwnd = int(dialog.winId())
@@ -810,8 +797,6 @@ def test_the_popup_asks_for_its_handle_again_every_time_it_is_banded():
     """Qt may recreate a native window across a hide/show, so a handle cached
     at construction would band a window that no longer exists — and the popup
     is hidden and shown by every toggle."""
-    from fun_time.dashboard_app import ReferenceDialog
-
     dialog = ReferenceDialog()
     try:
         handles: list[int] = []
@@ -856,8 +841,6 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
     """Qt applies StaysOnTop on show, so opening the popup mid-pause would
     strand it over the freed desktop until the next refresh — it is banded at
     open time instead, from the last snapshot's omni_paused."""
-    from unittest.mock import MagicMock
-
     window = dashboard_window
 
     window._last_snapshot = _snapshot(omni_paused=True)
@@ -869,8 +852,6 @@ def test_opening_the_reference_under_omnipause_lands_it_non_topmost(dashboard_wi
 
 def test_help_action_opens_dialog_locally_without_routing_command(dashboard_window, dashboard_app_config):
     """Help is a pure UI concern — it opens a dialog and must not write a dispatch command."""
-    from unittest.mock import MagicMock
-
     window = dashboard_window
 
     cmd_file = dashboard_app_config.dashboard_cmd_file
@@ -923,8 +904,6 @@ def test_help_reference_close_press_closes_reference_dialog(dashboard_window, da
 
 
 def test_the_question_mark_is_lit_exactly_while_the_reference_is_open(dashboard_window):
-    from shared_ui.colors import TEXT_MUTED
-
     help_button = compute_dashboard_bar_layout().help_button
 
     def edge():
@@ -942,8 +921,6 @@ def test_the_question_mark_is_lit_exactly_while_the_reference_is_open(dashboard_
 
 def test_toggle_reference_dialog_opens_then_closes(dashboard_window, dashboard_app_config):
     """The same trigger opens the popup, then closes it on the next invocation."""
-    from unittest.mock import MagicMock
-
     window = dashboard_window
 
     with patch("fun_time.dashboard_app.ReferenceDialog", MagicMock()) as mock_dialog:
@@ -962,12 +939,6 @@ def test_reference_dialog_frame_fills_rfb_rect(cfg_path: Path):
     """The reference popup is sized so its whole FRAME — title bar included —
     fills the RFB rect: it is placed at the rect, then its client insets by the
     window's chrome margins so the decoration no longer overhangs the top."""
-    from unittest.mock import MagicMock
-
-    from PyQt6.QtCore import QRect
-
-    from fun_time.dashboard_layout import Rect
-
     config = load_config(cfg_path)
     manifest_path = write_windows_bridge_manifest(config)
     app_config = load_dashboard_app_config(manifest_path)
@@ -1035,8 +1006,6 @@ def test_the_popup_lands_in_the_right_band_after_it_is_shown_not_before(cfg_path
 def test_reference_dialog_window_title_is_the_content_title():
     """The popup carries its name on the window chrome (the redundant in-window
     heading was removed), so the chrome title IS the reference's title."""
-    from fun_time.dashboard_app import ReferenceDialog
-
     dialog = ReferenceDialog()
     try:
         assert dialog.windowTitle() == "Hotkeys & Voice Commands Reference"
@@ -1046,10 +1015,6 @@ def test_reference_dialog_window_title_is_the_content_title():
 
 def test_reference_dialog_renders_hotkeys_and_voice():
     """The real dialog must render the reference content via QTextBrowser."""
-    from PyQt6.QtWidgets import QTextBrowser
-
-    from fun_time.dashboard_app import ReferenceDialog
-
     dialog = ReferenceDialog()
     try:
         browser = dialog.findChild(QTextBrowser)
@@ -1076,10 +1041,6 @@ def test_lighten_color_caps_at_255():
 
 def test_dashboard_widget_emits_action_on_click():
     """Clicking inside an action rect should emit action_triggered with the action ID."""
-    from PyQt6.QtCore import QPoint
-
-    from fun_time.dashboard_app import DashboardWidget
-
     layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, width=layout.width, marks=MarkCache())
 
@@ -1089,14 +1050,12 @@ def test_dashboard_widget_emits_action_on_click():
     widget.action_triggered.connect(received.append)
 
     # Simulate a click in the center of the quit button
-    from fun_time.dashboard_actions import QUIT_BUTTON
     quit_rect = None
     for action_id, rect in scene.actions:
         if action_id == QUIT_BUTTON:
             quit_rect = rect
             break
     assert quit_rect is not None
-    from unittest.mock import MagicMock
     event = MagicMock()
     event.position.return_value = QPoint(
         quit_rect.x + quit_rect.width // 2,
@@ -1109,10 +1068,6 @@ def test_dashboard_widget_emits_action_on_click():
 
 def test_dashboard_widget_ignores_click_outside_actions():
     """Clicking outside any action rect should not emit."""
-    from PyQt6.QtCore import QPoint
-
-    from fun_time.dashboard_app import DashboardWidget
-
     layout = compute_dashboard_bar_layout()
     scene = build_dashboard_scene(layout, width=layout.width, marks=MarkCache())
 
@@ -1121,7 +1076,6 @@ def test_dashboard_widget_ignores_click_outside_actions():
     received: list[str] = []
     widget.action_triggered.connect(received.append)
 
-    from unittest.mock import MagicMock
     event = MagicMock()
     event.position.return_value = QPoint(0, 0).toPointF()
     widget.mousePressEvent(event)
@@ -1137,9 +1091,6 @@ def test_every_control_on_the_bar_wears_a_drawn_mark():
     one and was visibly smaller than every mark beside it, and quit's power
     symbol was a different weight from the one Evolver draws.  So the bar's
     controls are drawn now, and only the app's own name is set in type."""
-    from shared_ui.colors import TEXT_PRIMARY
-    from shared_ui.icons import glyph_pixmap
-
     layout = compute_dashboard_bar_layout()
     scene = _scene()
     drawn = {item.rect: item.pixmap for item in scene.images}
@@ -1167,8 +1118,6 @@ def test_the_pause_tooltip_names_the_act_the_press_will_take():
     """The mark already flips to a play triangle when everything is paused; the
     tooltip said "Pause everything" either way, so hovering a paused bar offered
     to do what it had already done."""
-    from fun_time.dashboard_app import OMNIPAUSE_RESUME_TOOLTIP
-
     layout = compute_dashboard_bar_layout()
 
     def tip(paused: bool) -> str:
@@ -1181,11 +1130,6 @@ def test_the_pause_tooltip_names_the_act_the_press_will_take():
 
 
 def test_the_bar_wears_the_huds_button_edge_and_corner():
-    from shared_ui.colors import GREEN, TEXT_MUTED
-    from shared_ui.spacing import BUTTON_RADIUS_HUD
-
-    from fun_time.dashboard_app import _BUTTON_RADIUS
-
     layout = compute_dashboard_bar_layout()
     lit = {item.rect: item.outline
            for item in _scene(_snapshot(voice_active=True, f_mode=True)).rects}
@@ -1207,8 +1151,6 @@ def test_a_pressed_control_keeps_the_edge_its_state_gave_it():
 
 
 def _mark_side(rect) -> int:
-    from shared_ui.spacing import BUTTON_MARK_INSET_HUD
-
     return min(rect.width, rect.height) - 2 * BUTTON_MARK_INSET_HUD
 
 
@@ -1236,7 +1178,6 @@ class TestMarkCache:
     def test_the_icon_is_rescaled_once_per_height(self):
         marks = MarkCache()
 
-        from fun_time.project_paths import PROJECT_ICON
 
         assert marks.icon(PROJECT_ICON, 24) is marks.icon(PROJECT_ICON, 24)
         assert marks.icon(PROJECT_ICON, 24) is not marks.icon(PROJECT_ICON, 25)
@@ -1374,8 +1315,6 @@ class _FakeOverlay:
 
 def _monitors(primary=(0, 0, 1920, 1080), secondary=(1920, 0, 1080, 1920)):
     """Two monitors, patched in where enumerate_monitors would read them."""
-    from fun_time.monitors import MonitorInfo
-
     return [MonitorInfo(*primary), MonitorInfo(*secondary)]
 
 
@@ -1383,8 +1322,6 @@ def test_the_player_rects_come_from_the_layout_startup_positions_with(
         dashboard_app_config):
     """The notice has to land ON the window, not near it, so both ends compute
     the rect from the same two functions rather than from two descriptions."""
-    from fun_time.window_layout import compute_main_media_rect, compute_window_layout
-
     with patch("fun_time.window_layout.enumerate_monitors", return_value=_monitors()):
         window = build_dashboard_window(dashboard_app_config)
     try:
@@ -1393,7 +1330,6 @@ def test_the_player_rects_come_from_the_layout_startup_positions_with(
         window.close()
 
     layout = dashboard_app_config.layout
-    from fun_time.monitors import get_logical_monitor_rects
 
     primary, secondary = get_logical_monitor_rects(
         _monitors(), primary_index=layout.primary_monitor,
@@ -1434,10 +1370,6 @@ def _notice_window(dashboard_app_config, *, held: bool):
 
 def _write_event(app_config, message: str, *, level: int) -> None:
     """One line onto the shared event log, the way EventLogHandler writes it."""
-    import json
-
-    from fun_time.event_log import EVENT_LOG_FILENAME, SOURCE_DASH
-
     path = app_config.state_dir / EVENT_LOG_FILENAME
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as handle:
@@ -1453,8 +1385,6 @@ def test_nothing_flashes_through_the_cover_and_nothing_is_dropped_either(
     the room it is about."""
     window = _notice_window(dashboard_app_config, held=True)
     try:
-        from fun_time.event_log import NOTICE
-
         _write_event(dashboard_app_config, "Clip saved", level=NOTICE)
 
         with patch("fun_time.notice_feed.loading_cover_is_up", return_value=True):
@@ -1502,8 +1432,6 @@ def test_an_event_that_is_not_an_announcement_is_read_past_not_flashed(
         dashboard_app_config):
     """The strip shows every event; only the announcements get a notice — and an
     event that gets none must still not be re-read on the next poll."""
-    import logging
-
     window = _notice_window(dashboard_app_config, held=False)
     try:
         _write_event(dashboard_app_config, "just a log line", level=logging.INFO)
@@ -1521,12 +1449,6 @@ def test_the_dashboard_records_which_checkout_it_ran_from(tmp_path: Path):
     and nothing said whether that had taken.  A change that is in the code and
     not on the screen then leaves no way to tell an implementation fault from a
     delivery one, which costs a review round every time it happens."""
-    from fun_time.dashboard_app import (
-        SOURCE_CHECKOUT_FILENAME,
-        record_source_checkout,
-        source_checkout,
-    )
-
     written = record_source_checkout(tmp_path)
 
     assert written.name == SOURCE_CHECKOUT_FILENAME
@@ -1538,11 +1460,6 @@ def test_the_two_collaborators_that_claim_to_be_qt_free_are():
     """`press_channel` and `loading_reveal` say so in their docstrings, and a
     docstring is not a fact until something checks it.  `notice_feed` makes no
     such claim: it reads `notice_overlay`, whose widget half imports PyQt6."""
-    import subprocess
-    import sys
-
-    from tests.integration.integration_support import environment_with_this_checkouts_siblings
-
     def loads_qt(module: str) -> bool:
         result = subprocess.run(
             [sys.executable, "-c",

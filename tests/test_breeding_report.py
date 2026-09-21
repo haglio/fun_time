@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from fun_time.breeding_report import BreedingRow, build_breeding_rows, render_breeding_report
+from fun_time.breeding_report import BreedingRow, build_breeding_rows, main, render_breeding_report
 from fun_time.media_metadata import metadata_path_for
 
 
@@ -110,8 +110,6 @@ def test_render_breeding_report_limits_rows_and_handles_empty():
 
 
 def test_main_prints_the_leaderboard_for_the_configured_library(cfg_factory, tmp_path, capsys):
-    from fun_time.breeding_report import main
-
     media_root, metadata_root, paths = _library(tmp_path, {
         "loved": _watched(_meta("Alpha", "111"), 0, 0, 1, 2.0),
         "unwatched": _meta("Alpha", "222"),

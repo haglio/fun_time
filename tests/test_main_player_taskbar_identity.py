@@ -12,7 +12,7 @@ from unittest.mock import patch
 def _set_aumid():
     # Imported inside the test rather than at collection: importing the app
     # module pulls pygame in for real.
-    from main_player.app import _set_aumid
+    from main_player.app import _set_aumid  # noqa: PLC0415
     return _set_aumid
 
 

@@ -29,12 +29,15 @@ from fun_time.player_status import (
 )
 from fun_time.players import Player
 from fun_time.session_environment import SessionEnvironment
+from fun_time.session_handoff import keep_the_origenerator
+from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
 from fun_time.shortcuts import Shortcut
 from fun_time.win32 import ANSWER_TIMEOUT_MS
 from fun_time.win32_process import get_process_creation_time
 from fun_time.window_layout import (
     MonitorRect,
     WindowLayoutPlan,
+    compute_window_layout,
     screen_layout,
 )
 from fun_time.windows_bridge_sequencer import (
@@ -1189,7 +1192,6 @@ class TestMaybeLaunchRandomFavsBrowser:
 
     def _fake_plan(self) -> WindowLayoutPlan:
         """Build a minimal plan with a random_favs_browser rect."""
-        from fun_time.window_layout import compute_window_layout
         return compute_window_layout(
             primary_monitor=MAIN_RECT,
             secondary_monitor=MonitorRect(x=2560, y=0, width=1440, height=3440),
@@ -1504,8 +1506,6 @@ class TestOrigeneratorLaunch:
     def test_an_app_taken_over_before_a_crossing_is_adopted_as_one_to_hand_back(
         self, cfg_factory, tmp_path
     ):
-        from fun_time.session_handoff import keep_the_origenerator
-
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator")}}))
         manifest_path = write_windows_bridge_manifest(
@@ -1563,8 +1563,6 @@ class TestOrigeneratorLaunch:
     def test_a_room_that_adopted_the_app_a_crossing_kept_knows_it_was_already_open(
         self, cfg_factory, tmp_path
     ):
-        from fun_time.session_handoff import keep_the_origenerator
-
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator")}}))
         manifest_path = write_windows_bridge_manifest(
@@ -1617,8 +1615,6 @@ class TestOrigeneratorDoesNotHoldTheRoomUp:
     """
 
     def _hosted(self, cfg_factory, tmp_path, *, satellites_mode: str = "video"):
-        from fun_time.shared_state import BridgeState, shared_state_path, write_shared_state
-
         cfg = load_config(cfg_factory({"paths": {
             "origenerator_dir": str(tmp_path / "origenerator"),
         }}))

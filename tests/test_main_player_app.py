@@ -16,6 +16,8 @@ from pathlib import Path
 import pytest
 from player_core.modes import LengthMode
 
+from main_player import app
+from main_player.app import _controls, _status_writer
 from main_player.cli import build_parser
 from main_player.controls import apply_command
 from main_player.status import LibraryStatus, status_fields
@@ -57,7 +59,6 @@ class FakeModes:
 
 
 def _writer(args, gate, modes=None):
-    from main_player.app import _status_writer
     return _status_writer(args, gate, modes or FakeModes())
 
 
@@ -253,7 +254,6 @@ class TestWhenSomethingCosmeticFails:
     def test_an_icon_it_cannot_read_is_said_rather_than_swallowed(
         self, tmp_path, caplog, monkeypatch,
     ):
-        from main_player import app
         not_an_icon = tmp_path / "icon.ico"
         not_an_icon.write_text("this is not an icon", encoding="utf-8")
 
@@ -272,7 +272,6 @@ class TestWhichConfigTheFlagsAreReadAgainst:
     """
 
     def _main(self, monkeypatch, argv):
-        from main_player import app
         landed = []
         monkeypatch.setattr(app, "_run", lambda args: landed.append(args) or 0)
         app.main(argv)
@@ -337,7 +336,6 @@ class TestWhichCollaboratorEachVerbReaches:
 
     @staticmethod
     def _wiring(log, stop_event=None):
-        from main_player.app import _controls
         return _controls(
             Spy("session", log), stop_event or threading.Event(),
             modes=Spy("modes", log), jumps=Spy("jumps", log),

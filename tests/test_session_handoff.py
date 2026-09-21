@@ -5,6 +5,7 @@ that a reader could otherwise only take on trust.
 """
 from __future__ import annotations
 
+import ctypes
 import subprocess
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -20,6 +21,7 @@ from fun_time.session_handoff import (
     DESKTOP,
     STARTUP_TIMEOUT_S,
     VR,
+    a_session_is_playing,
     clear_handoff_request,
     crossing_progress_path,
     drop_crossing_cover,
@@ -47,6 +49,7 @@ from fun_time.session_handoff import (
     wait_for_the_session_to_come_up,
     wait_for_the_session_to_let_go,
 )
+from fun_time.single_instance import let_the_session_go
 from fun_time_vr.orchestrator import VR_STARTUP_MARKER_NAME
 from tests.test_launch_smoke import LAUNCHED
 
@@ -295,11 +298,6 @@ class TestWaitingForTheOutgoingSession:
         """What blocked every launch on this machine on 2026-09-19: a session
         whose process Windows had not finished reaping still held the name, and
         nothing was playing."""
-        import ctypes
-
-        from fun_time.session_handoff import a_session_is_playing
-        from fun_time.single_instance import let_the_session_go
-
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         kernel32.CreateMutexW.restype = ctypes.c_void_p
         name = rf"Local\FunTimeTest.{uuid4().hex}"

@@ -36,6 +36,7 @@ from fun_time.windows_bridge_startup import (
     HandedPlayer,
     _build_satellite_launch_command,
     ensure_broker,
+    launch_audio_companion,
     launch_broker_tray,
     launch_core_apps,
     launch_genau,
@@ -2244,8 +2245,6 @@ class TestLaunchingTheAudioCompanionOnItsOwn:
     and sends its sound to the headset."""
 
     def _launch(self, **over):
-        from fun_time.windows_bridge_startup import launch_audio_companion
-
         with patch(
             "fun_time.windows_bridge_startup.subprocess.Popen", return_value=_FakeProc(33),
         ) as popen, patch(

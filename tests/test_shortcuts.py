@@ -7,6 +7,7 @@ louder can catch, so what CAN be pinned off Windows is pinned here.
 from __future__ import annotations
 
 import logging
+import sys as _sys
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -38,8 +39,6 @@ class TestResolveShortcut:
         """Force the win32com import to fail, as it does off Windows — and so
         the test means the same thing on Windows CI, where it would otherwise
         answer from real COM."""
-        import sys as _sys
-
         monkeypatch.setitem(_sys.modules, "win32com", None)
         monkeypatch.setitem(_sys.modules, "win32com.client", None)
 

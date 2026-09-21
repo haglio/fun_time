@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import random
 from collections.abc import Callable
 from pathlib import Path
@@ -83,8 +84,6 @@ def build_parser(config: dict) -> argparse.ArgumentParser:
 def audio_muted(args) -> bool:
     """Silent by ``--no-audio``, the ``FUN_TIME_MUTE_AUDIO`` contract, or being
     off-screen -- so a hidden-desktop run is inaudible however it was launched."""
-    import os
-
     return (bool(args.no_audio)
             or os.environ.get("FUN_TIME_MUTE_AUDIO") == "1"
             or on_hidden_desktop())

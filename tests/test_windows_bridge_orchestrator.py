@@ -7,13 +7,17 @@ import subprocess
 import threading
 from dataclasses import replace
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from app_support.file_channel import read_flag, write_flag
 from player_core.modes import MainMode
 
 from fun_time import windows_bridge_orchestrator
 from fun_time.config import load_config
+from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
+from fun_time.event_log import EventLogHandler, event_log_path, read_events
 from fun_time.loading_screen import STALE_TIMEOUT_S
 from fun_time.manifest import (
     WINDOWS_BRIDGE_MANIFEST_FILENAME,
@@ -21,23 +25,36 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.overlay_progress import (
+    CANCEL_FILENAME,
+    CANCELING,
     PROGRESS_FILENAME,
     SHUTDOWN_PROGRESS_FILENAME,
     NullProgress,
     PhaseProgress,
     StartupCancelled,
     cancel_file_for,
+    parse_progress,
     ready_file_for,
 )
+from fun_time.press_channel import PRESS_PORT_FILENAME
+from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import ORDINARY_SESSION, SessionEnvironment
 from fun_time.session_handoff import (
+    DESKTOP,
     VR,
     crossing_progress_path,
+    drop_crossing_cover,
+    headset_hold_asked,
+    hold_the_headset,
     keep_the_origenerator,
     kept_origenerator,
+    pending_handoff,
+    raise_crossing_cover,
     request_handoff,
+    returning_from_a_crossing,
+    take_handoff_request,
 )
-from fun_time.shared_state import BridgeState
+from fun_time.shared_state import BridgeState, shared_state_path
 from fun_time.shortcuts import Shortcut
 from fun_time.win32 import StackedWindow
 from fun_time.windows_bridge_orchestrator import (
@@ -50,7 +67,10 @@ from fun_time.windows_bridge_orchestrator import (
     _close_origenerator_gracefully,
     _fix_post_loading_windows,
     _log_window_obstruction,
+    _open_the_cover,
     _shutdown_children,
+    add_dispatch_file_handler,
+    clear_last_sessions_leftovers,
     identify_children,
     kill_process_tree,
     kill_recorded_child,
@@ -883,7 +903,6 @@ class TestRunPythonOrchestratedBridge:
                 project_dir=tmp_path,
             )
 
-        import os
 
         # Find the AHK launch command (not the loading screen one)
         ahk_cmd = [c for c in popen_cmds if "ahk.exe" in str(c)][0]
@@ -1175,8 +1194,6 @@ class TestKeepingTheHostedApp:
         self, cfg_factory, tmp_path,
     ):
         """Fun Time is coming straight back, and this boot is its longest wait."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -1195,8 +1212,6 @@ class TestKeepingTheHostedApp:
         self, cfg_factory, tmp_path,
     ):
         """The quit chord after the Esc: nothing is coming back to adopt it."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-
         flag = tmp_path / "state" / CANCEL_FILENAME
         real_shutdown = windows_bridge_orchestrator._shutdown_children
 
@@ -1337,8 +1352,6 @@ def _run_a_session(cfg_factory, tmp_path, *, events: list[str], ready: bool = Tr
                    overrides: dict | None = None,
                    launches: dict[str, dict] | None = None,
                    result: StartupResult | None = None):
-    from fun_time.session_end import SESSION_END_MARKER
-
     cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1530,8 +1543,6 @@ class TestClosingScreenLifecycle:
         assert not (state_dir / SHUTDOWN_PROGRESS_FILENAME).exists()
 
     def test_a_quit_he_asked_for_says_esc_cancels_closing_fun_time(self, cfg_factory, tmp_path):
-        from fun_time.overlay_progress import parse_progress
-
         said: list[str] = []
 
         def read_the_closing_line():
@@ -1546,9 +1557,6 @@ class TestClosingScreenLifecycle:
     def test_esc_on_the_closing_screen_opens_fun_time_again_offering_no_esc(
         self, cfg_factory, tmp_path,
     ):
-        from fun_time.overlay_progress import CANCEL_FILENAME
-        from fun_time.session_handoff import DESKTOP, take_handoff_request
-
         def esc():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -1563,9 +1571,6 @@ class TestClosingScreenLifecycle:
         self, cfg_factory, tmp_path,
     ):
         """Even after an Esc: the chord means end everything."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-        from fun_time.session_handoff import pending_handoff
-
         def esc_then_the_quit_chord():
             (tmp_path / "state" / CANCEL_FILENAME).write_text("cancel\nquit\n", encoding="utf-8")
 
@@ -1619,8 +1624,6 @@ class TestClosingScreenLifecycle:
     def test_the_way_back_cover_runs_those_checkouts_too(self, cfg_factory, tmp_path):
         """Esc on the closing screen raises a cover of its own, and one that
         cannot import the branch's siblings never comes up at all."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-
         sibling = tmp_path / "sibling_checkout"
         sibling.mkdir()
         launches: dict[str, dict] = {}
@@ -1688,9 +1691,6 @@ class TestWaitForClosingScreen:
 
 def _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, *, word, popen=None, before=None,
                                       overrides=None):
-    from fun_time.overlay_progress import CANCEL_FILENAME
-    from fun_time.session_handoff import DESKTOP, raise_crossing_cover
-
     cfg = load_config(cfg_factory(overrides))
     manifest_path = write_windows_bridge_manifest(
         cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -1776,8 +1776,6 @@ class TestStartupCancellation:
         self, cfg_factory, tmp_path,
     ):
         """The Exit VR loading screen said Esc cancels exiting VR."""
-        from fun_time.session_handoff import take_handoff_request
-
         state_dir = _cancel_a_launch_arriving_from_vr(cfg_factory, tmp_path, word="cancel")
 
         taken = take_handoff_request(state_dir)
@@ -1788,8 +1786,6 @@ class TestStartupCancellation:
     def test_the_monitors_stay_covered_on_the_way_back_into_vr(self, cfg_factory, tmp_path):
         """The loading screen goes with this launch, and nothing else would be
         on the monitors until the headset session is up."""
-        from fun_time.overlay_progress import CANCELING, parse_progress
-
         events: list[str] = []
         real_finish = PhaseProgress.finish
 
@@ -1835,8 +1831,6 @@ class TestStartupCancellation:
     ):
         """Nothing is coming back for it: held, it would hang under "Returning
         to Fun Time..." for minutes after everything else had closed."""
-        from fun_time.session_handoff import headset_hold_asked, hold_the_headset, pending_handoff
-
         state_dir = _cancel_a_launch_arriving_from_vr(
             cfg_factory, tmp_path, word="quit",
             before=lambda state_dir: hold_the_headset(state_dir, stop_runtime=True))
@@ -2037,10 +2031,6 @@ class TestStartupCancellation:
     def test_every_file_a_previous_session_leaves_is_cleared_and_its_state_is_kept(
         self, cfg_factory, tmp_path,
     ):
-        from fun_time.press_channel import PRESS_PORT_FILENAME
-        from fun_time.shared_state import shared_state_path
-        from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
-
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -2068,11 +2058,6 @@ class TestStartupCancellation:
     def test_a_panel_the_last_session_left_up_does_not_open_over_this_one(
         self, cfg_factory, tmp_path,
     ):
-        from app_support.file_channel import read_flag, write_flag
-
-        from fun_time.dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
-        from fun_time.windows_bridge_orchestrator import clear_last_sessions_leftovers
-
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -2438,10 +2423,6 @@ class TestOpenEventLog:
         """One handler on the package logger catches every fun_time.* module by
         propagation, and the package level is opened all the way down: the file
         carries everything and the log panel picks the verbosity."""
-        import logging
-
-        from fun_time.event_log import EventLogHandler, event_log_path, read_events
-
         state_dir = tmp_path / "state"
         state_dir.mkdir()
         event_log_path(state_dir).write_text('{"ts":1,"level":20,"source":"dash","msg":"stale"}\n',
@@ -2465,10 +2446,6 @@ class TestOpenEventLog:
             package_logger.setLevel(original_level)
 
     def test_re_opening_replaces_the_handler_rather_than_stacking_one(self, tmp_path):
-        import logging
-
-        from fun_time.event_log import EventLogHandler
-
         package_logger = logging.getLogger("fun_time")
         original_handlers = list(package_logger.handlers)
         original_level = package_logger.level
@@ -2488,10 +2465,6 @@ class TestOpenEventLog:
     def test_the_orchestrator_logger_is_enrolled_even_though_it_does_not_propagate(self, tmp_path):
         """configure_logging turns propagation off for the console logger, so the
         one handler on the package would never see its lines."""
-        import logging
-
-        from fun_time.event_log import event_log_path, read_events
-
         orch_logger = logging.getLogger("fun_time.orchestrator")
         package_logger = logging.getLogger("fun_time")
         original = (list(package_logger.handlers), list(orch_logger.handlers),
@@ -2516,11 +2489,6 @@ class TestOpenEventLog:
     def test_what_the_familys_listener_says_is_this_sessions_record_too(self, tmp_path):
         """voice_core says how each utterance ended under its own name, not
         fun_time's, so neither the panel nor the bridge log would carry it."""
-        import logging
-
-        from fun_time.event_log import event_log_path, read_events
-        from fun_time.windows_bridge_orchestrator import add_dispatch_file_handler
-
         listener_logger = logging.getLogger("voice_core")
         package_logger = logging.getLogger("fun_time")
         original = (list(package_logger.handlers), list(listener_logger.handlers),
@@ -2656,8 +2624,6 @@ class TestTheSessionEndsOnItsMarker:
     def test_a_marked_end_is_torn_down_and_only_then_is_the_script_stopped(
         self, cfg_factory, tmp_path,
     ):
-        from fun_time.session_end import SESSION_END_MARKER
-
         cfg = load_config(cfg_factory())
         manifest_path = write_windows_bridge_manifest(
             cfg, tmp_path / WINDOWS_BRIDGE_MANIFEST_FILENAME
@@ -2710,8 +2676,6 @@ class TestTheSessionEndsOnItsMarker:
 class TestWhatEscCancelsAtTheLoadingScreen:
     @staticmethod
     def _opened_cover(state_dir, *, cancelable=True):
-        from fun_time.windows_bridge_orchestrator import _open_the_cover
-
         with patch("fun_time.windows_bridge_orchestrator.subprocess.Popen"), \
              patch("fun_time.windows_bridge_orchestrator.wait_for_window_by_title",
                    return_value=0):
@@ -2720,8 +2684,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
 
     @classmethod
     def _opened_line(cls, state_dir, *, cancelable=True):
-        from fun_time.overlay_progress import parse_progress
-
         cover = cls._opened_cover(state_dir, cancelable=cancelable)
         cover.progress.advance("services")
         return parse_progress(cover.progress_file.read_text(encoding="utf-8"))
@@ -2732,8 +2694,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
     def test_a_launch_arriving_from_vr_says_esc_cancels_exiting_vr(self, tmp_path):
         """He asked for the desktop from inside the headset: until it is up,
         Esc takes him back into VR."""
-        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
-
         raise_crossing_cover(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path).hint == "Press Esc to cancel exiting VR"
@@ -2741,8 +2701,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
     def test_a_launch_on_the_way_back_offers_no_esc(self, tmp_path):
         """Esc already called the crossing off; a second would send him back
         the other way for as long as he kept pressing it."""
-        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
-
         raise_crossing_cover(tmp_path, DESKTOP)
 
         assert self._opened_line(tmp_path, cancelable=False).hint == ""
@@ -2752,9 +2710,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
     ):
         """Nothing but the hotkey script left over from the session he left was
         listening then, and the flag it dropped is his answer to this launch."""
-        from fun_time.overlay_progress import CANCEL_FILENAME
-        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
-
         raise_crossing_cover(tmp_path, DESKTOP)
         (tmp_path / CANCEL_FILENAME).write_text("cancel\n", encoding="utf-8")
 
@@ -2763,9 +2718,6 @@ class TestWhatEscCancelsAtTheLoadingScreen:
         assert cover.progress.cancelled
 
     def test_a_launch_on_the_way_back_clears_the_esc_that_sent_it(self, tmp_path):
-        from fun_time.overlay_progress import CANCEL_FILENAME
-        from fun_time.session_handoff import DESKTOP, raise_crossing_cover
-
         raise_crossing_cover(tmp_path, DESKTOP)
         flag = tmp_path / CANCEL_FILENAME
         flag.write_text("cancel\n", encoding="utf-8")
@@ -2783,13 +2735,6 @@ class TestEscOnTheWayBackFromACancelledCrossing:
     Escs may do."""
 
     def test_the_standing_cover_is_what_says_this_is_a_return(self, tmp_path):
-        from fun_time.session_handoff import (
-            VR,
-            drop_crossing_cover,
-            raise_crossing_cover,
-            returning_from_a_crossing,
-        )
-
         assert not returning_from_a_crossing(tmp_path)
 
         raise_crossing_cover(tmp_path, VR)
@@ -2837,8 +2782,6 @@ class TestTheHudPublisherASessionStarts:
     def test_it_names_the_camera_words_the_content_overlay_lists(self, tmp_path: Path):
         """The desktop session and the headset's both start their publisher here,
         so this is the one place the overlay's words reach every player's panel."""
-        from types import SimpleNamespace
-
         bridge_config = SimpleNamespace(
             portrait_sources="", landscape_sources="", state_dir=tmp_path)
         manifest = SimpleNamespace(commands=SimpleNamespace(

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from player_core.status import PlayerStatus, parse_status
+
 from satellite.status import status_fields
 from tests.satellite_fakes import make_satellite_session
 
@@ -67,8 +69,6 @@ class TestStatusFields:
         assert status_fields(session)["speed"] == "1.5"
 
     def test_the_seven_every_player_leads_with_read_back_as_the_familys_record(self, tmp_path):
-        from player_core.status import PlayerStatus, parse_status
-
         session, player = make_satellite_session(tmp_path)
         player.position_ms = 1_500.0
 

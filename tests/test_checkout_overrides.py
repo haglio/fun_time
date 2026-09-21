@@ -11,6 +11,7 @@ from fun_time.checkout_overrides import (
     apply_origenerator_dir_override,
     override_lines,
 )
+from fun_time.config import load_config
 
 
 class TestOverrideLines:
@@ -46,8 +47,6 @@ def test_the_runtime_override_reaches_a_branch_that_introduces_the_key(tmp_path,
     """The branch-config generator runs the PRIMARY checkout's copy of this
     module, so a branch that INTRODUCES the override cannot rely on it — the
     orchestrator applies the file against its own checkout at launch instead."""
-    from fun_time.config import load_config
-
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
     (state / ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(
@@ -69,8 +68,6 @@ def test_the_runtime_override_yields_to_an_integration_run(tmp_path, monkeypatch
     Told by its argument, not by the environment: the process edge reads the
     switch once and every layer below takes the answer.
     """
-    from fun_time.config import load_config
-
     state = tmp_path / "state"
     state.mkdir(exist_ok=True)
     (state / ORIGENERATOR_DIR_OVERRIDE_NAME).write_text(

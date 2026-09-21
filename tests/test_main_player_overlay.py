@@ -5,6 +5,7 @@ from player_core.funscript import Funscript
 from player_core.modes import LoopState
 from player_core.timeline import BAR_INSET_Y, bar_track_x
 
+import main_player.overlay
 from main_player.heatmap import build_heatmap
 from main_player.overlay import (
     TIMELINE_HEIGHT,
@@ -353,7 +354,5 @@ def test_the_overlay_hands_on_none_of_the_timeline_it_does_not_use():
     in the module, kept alive by a blanket noqa so main_player.app could reach them
     through this one -- an indirection that bought nothing.
     """
-    import main_player.overlay
-
     assert not hasattr(main_player.overlay, "bar_track_x")
     assert not hasattr(main_player.overlay, "progress_bar_bgra")

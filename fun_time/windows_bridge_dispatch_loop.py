@@ -463,7 +463,8 @@ class DispatchLoopRunner:
             return
         self._send_press(cmd)
         if cmd == "quit":
-            # A mis-heard word used to read exactly like a deliberate click.
+            # Said, because a mis-heard word otherwise reads exactly like a
+            # deliberate click.
             mark_session_end(
                 self.config.state_dir,
                 "the quit command, spoken" if spoken_at is not None

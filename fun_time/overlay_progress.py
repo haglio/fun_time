@@ -42,8 +42,8 @@ SHUTDOWN_READY_FILENAME = "shutdown_ready.flag"
 @dataclass(frozen=True)
 class Progress:
     """One line of the progress file, parsed.  *malformed* separates "nothing
-    written yet" from "wrote something we could not read"; both used to arrive
-    as step 0 of 1, which reads as a genuine first phase."""
+    written yet" from "wrote something we could not read": without it both
+    arrive as step 0 of 1, which reads as a genuine first phase."""
 
     step: int = 0
     total: int = 1
@@ -138,9 +138,8 @@ class Phase:
 # advances by TIME rather than step count: an equal share per step parked it at
 # 83% through the one phase that waits on other processes.  The last is
 # weightless so the bar reads full while the room is settled under the cover.
-# There is no phase for the hosted Origenerator: it used to be nine parts
-# against the other six's three and a half, and taking its wait out is what
-# made a launch short.  It boots on out of sight now.
+# There is no phase for the hosted Origenerator: it boots out of sight, and
+# waiting on it would be nine parts against the other six's three and a half.
 STARTUP_PHASES: tuple[Phase, ...] = (
     Phase("services", "Preparing services...", 0.7),
     Phase("browser", "Launching browser...", 0.4),

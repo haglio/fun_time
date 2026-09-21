@@ -62,6 +62,7 @@ from fun_time.press_channel import PressChannel
 from fun_time.project_paths import PROJECT_ICON
 from fun_time.session_end import mark_session_end
 from fun_time.win32 import keep_in_topmost_band, set_taskbar_window_styles
+from fun_time.win32_taskbar import APP_USER_MODEL_ID
 
 logger = logging.getLogger(__name__)
 
@@ -167,8 +168,6 @@ class MarkCache:
         """An .ico scaled to a square of *height* pixels."""
         key = (str(path), height)
         if key not in self._icons:
-            from PyQt6.QtCore import Qt
-
             pm = QPixmap(str(path))
             if not pm.isNull():
                 pm = pm.scaled(
@@ -557,6 +556,7 @@ def apply_dashboard_window_geometry(
 PRESS_FLASH_S = 0.2
 
 
+from app_support.win32 import set_app_user_model_id
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from PyQt6.QtWidgets import QApplication, QMainWindow
@@ -873,9 +873,7 @@ def main(argv: list[str] | None = None) -> int:
 
     # Set AppUserModelID before any window creation so the taskbar can group
     # this process's windows with the pinned "Fun Time" shortcut.
-    from app_support.win32 import set_app_user_model_id
 
-    from .win32_taskbar import APP_USER_MODEL_ID
     try:
         set_app_user_model_id(APP_USER_MODEL_ID)
     except OSError:
