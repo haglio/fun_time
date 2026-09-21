@@ -1778,9 +1778,9 @@ class TestTheClipsOwnControls:
     scrubber and volume slider are blended into the picture -- same places, same
     size, as every player that has an mpv underneath to paint them into."""
 
-    def _unit(self, *, played=5, of=20, volume=70, muted=False):
+    def _unit(self, *, played=5, of=20, volume=70, muted=False, showing=True):
         unit = _GenauUnit.__new__(_GenauUnit)
-        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted)
+        unit.role = SimpleNamespace(playhead=(played, of), volume=volume, muted=muted, showing=showing)
         unit.screen = SimpleNamespace(placement=SPOTS[MAIN])
         unit._volume_painter = VolumeHudPainter()
         unit._readout_painter = PlayheadHudPainter()
@@ -1867,6 +1867,30 @@ class TestTheClipsOwnControls:
         x, y = readout_xy(pill.shape[1], win_w=width, win_h=height, timeline_h=TIMELINE_HEIGHT)
         middle = (round((y + pill.shape[0] / 2) * factor), round((x + pill.shape[1] / 2) * factor))
         assert furnished[middle].max() > 0
+
+    def test_nothing_is_blended_or_uploaded_while_the_main_slot_shows_something_else(self):
+        """Genau's engine free-runs on its own thread, driving the OSR2 off a
+        clip whether or not its picture is the one on screen -- so blending and
+        uploading a frame nobody draws used to cost every VR frame the room ran,
+        seconds a minute against a Topaz-upscaled clip, however the main slot
+        was actually spent."""
+        unit = self._unit(showing=False)
+        unit.role.take_frame = lambda: (_ for _ in ()).throw(
+            AssertionError("asked for a frame while hidden"))
+
+        unit.render_latest_frame()
+
+    def test_the_clip_is_still_taken_the_instant_genau_is_shown_again(self):
+        unit = self._unit(showing=True)
+        clip = np.zeros((360, 640, 3), dtype=np.uint8)
+        unit.role.take_frame = lambda: clip
+        unit.role.projection = FLAT
+        unit.texture = _FakeTexture()
+        unit.screen = SimpleNamespace(placement=SPOTS[MAIN], rehang_at=lambda _placement, _aspect: None)
+
+        unit.render_latest_frame()
+
+        assert unit.texture.uploads
 
 
 def test_a_frozen_clips_picture_goes_where_its_handle_drags_it():

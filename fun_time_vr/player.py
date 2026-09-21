@@ -966,6 +966,10 @@ class _GenauUnit:
         return immersive_wrap(self.role.projection) is not None
 
     def render_latest_frame(self) -> None:
+        # Genau's engine free-runs regardless of visibility; skipping a hidden
+        # slot's frame costs nothing, since only the newest one is ever kept.
+        if not self.owns_the_slot:
+            return
         frame = self.role.take_frame()
         if frame is not None:
             self.texture.upload(frame if self.wraps_the_viewer else self._furnished(frame))
