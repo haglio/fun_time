@@ -22,7 +22,7 @@ from . import broker_contract
 from .audio_volume import MAX_VOLUME, publish_audio_level
 from .broker_control import PARK_CMD, write_broker_command
 from .checkout_overrides import genau_project_kwargs
-from .child_log import no_child_log, open_child_log
+from .child_launch import no_child_log, open_child_log
 from .config import load_config
 from .content import load_web_providers
 from .mode_plan import STARTUP_MAIN_MODE, hud_verb, main_player_display_verb

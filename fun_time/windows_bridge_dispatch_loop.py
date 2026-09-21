@@ -20,7 +20,7 @@ from player_core.player_verbs import LOCK_OFF, LOCK_ON, play_file
 
 from .bridge_records import BridgeConfig, Op, WindowOp
 from .broker_control import PARK_CMD, write_broker_command
-from .child_log import no_child_log
+from .child_launch import no_child_log
 from .clipper_save import save_clip_session
 from .command_dispatch import (
     dispatch_command,

@@ -682,9 +682,10 @@ class _RecordedRun:
     def __init__(self):
         self.command: list[str] | None = None
         self.cwd: str | None = None
+        self.kwargs: dict = {}
 
-    def __call__(self, command, cwd=None, check=False):
-        self.command, self.cwd = list(command), cwd
+    def __call__(self, command, cwd=None, check=False, **kwargs):
+        self.command, self.cwd, self.kwargs = list(command), cwd, kwargs
         return SimpleNamespace(returncode=0)
 
 
@@ -703,6 +704,7 @@ def test_a_branch_session_runs_the_desktop_orchestrator(monkeypatch, tmp_path: P
 
     assert "fun_time.orchestrator" in recorded.command
     assert recorded.cwd == str(tmp_path.resolve())
+    assert recorded.kwargs["creationflags"] & subprocess.CREATE_NO_WINDOW
 
 
 def test_a_vr_branch_session_runs_the_vr_orchestrator(monkeypatch, tmp_path: Path):

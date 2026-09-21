@@ -16,6 +16,8 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.subprocess_utils import hidden_subprocess_kwargs
+
 logger = logging.getLogger("windows_bridge")
 
 # What the scan puts between a shortcut's fields; none may contain it.
@@ -52,6 +54,7 @@ def run_powershell(script: str, *, check: bool = True) -> str:
         check=check,
         encoding="utf-8",
         errors="replace",
+        **hidden_subprocess_kwargs(),
     )
     return result.stdout
 

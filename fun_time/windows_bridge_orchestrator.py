@@ -20,13 +20,14 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from app_support.subprocess_utils import hidden_subprocess_kwargs
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
 from voice_core.listener import why_unavailable
 
 from .append_only import append_line
 from .checkout_overrides import genau_project_kwargs
-from .child_log import no_child_log
+from .child_launch import no_child_log, no_console_window
 from .config import load_config
 from .dashboard_actions import LIBRARY_OPEN_FILENAME, REFERENCE_OPEN_FILENAME
 from .event_log import EventLogHandler, start_event_log
@@ -233,6 +234,7 @@ def kill_process_tree(pid: int) -> None:
             ["taskkill", "/PID", str(pid), "/T", "/F"],
             capture_output=True,
             check=False,
+            **hidden_subprocess_kwargs(),
         )
     except OSError:
         pass
@@ -401,7 +403,7 @@ def _closing_screen(
         proc = subprocess.Popen([
             NAMER.named_exe(sys.executable, "ClosingScreen"),
             "-m", "fun_time.closing_screen", str(progress_file),
-        ], **no_child_log(), **genau_project_kwargs(project_dirs))
+        ], **no_child_log(), **no_console_window(), **genau_project_kwargs(project_dirs))
     logger.info("Teardown cover launched (pid=%d)", proc.pid)
     _wait_for_closing_screen(ready_file, proc)
     try:
@@ -840,6 +842,7 @@ def _open_the_cover(state_dir: Path, *, show_overlays: bool, project_dirs: str,
             "-m", "fun_time.loading_screen", str(progress_file),
         ],
         **no_child_log(),
+        **no_console_window(),
         **genau_project_kwargs(project_dirs),
     )
     logger.info("Loading screen launched (pid=%d)", loading_proc.pid)
@@ -1200,7 +1203,8 @@ def run_session(
     # overlay_progress).  The script holds its other keys until the pids file.
     command = [ahk_exe, hotkey_script, str(manifest_path), str(pids_file), str(os.getpid())]
     logger.info("Launching AHK hotkey script: %s", " ".join(command))
-    ahk_proc = subprocess.Popen(command, cwd=project_dir, **no_child_log())
+    ahk_proc = subprocess.Popen(
+        command, cwd=project_dir, **no_child_log(), **no_console_window())
 
     # The lock HUD's model is built here and published for each satellite player
     # to draw into its own video.  It rides the dashboard's enable gate, so an

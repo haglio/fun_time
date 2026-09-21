@@ -106,7 +106,7 @@ def test_a_child_log_that_cannot_be_opened_does_not_stop_the_child():
     """The specific way it stranded him: the relay bringing Fun Time back opened
     its log first, the file was locked, and the process died before it had done
     anything at all."""
-    from fun_time.child_log import open_child_log
+    from fun_time.child_launch import open_child_log
 
     handle = open_child_log(Path("Z:/no/such/place/relay.log"), ["a", "b"])
     try:

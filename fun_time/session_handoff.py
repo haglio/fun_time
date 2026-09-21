@@ -17,7 +17,7 @@ from app_support.threading_utils import start_daemon_thread
 from app_support.win32 import mutex_name
 
 from fun_time.checkout_overrides import genau_project_kwargs
-from fun_time.child_log import no_child_log, open_child_log
+from fun_time.child_launch import no_child_log, no_console_window, open_child_log
 from fun_time.config import load_config
 from fun_time.overlay_progress import (
     CANCEL_ENTERING_VR,
@@ -285,7 +285,7 @@ def _launch_transition_screen(progress_file: Path, *, project_dirs: str) -> subp
     return subprocess.Popen([
         NAMER.named_exe(sys.executable, "TransitionScreen"),
         "-m", "fun_time.transition_screen", str(progress_file),
-    ], **no_child_log(), **genau_project_kwargs(project_dirs))
+    ], **no_child_log(), **no_console_window(), **genau_project_kwargs(project_dirs))
 
 
 def drop_crossing_cover(state_dir: str | Path) -> None:

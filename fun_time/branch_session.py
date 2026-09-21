@@ -35,6 +35,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app_support.subprocess_utils import hidden_subprocess_kwargs
+
 # PROJECT_DIR names whichever checkout imported the package, and this module is
 # the one place that has to tell two checkouts apart — so it is read through the
 # module at call time rather than bound once at import.
@@ -46,6 +48,7 @@ from .checkout_overrides import (
     STATE_DIRNAME,
     override_lines,
 )
+from .child_launch import no_console_window
 from .config import DEFAULT_CONFIG_PATH, ProjectConfig, load_config
 from .shortcuts import read_shortcuts, write_shortcut
 
@@ -98,6 +101,7 @@ def _git(args: list[str], cwd: Path) -> str:
         check=True,
         encoding="utf-8",
         errors="replace",
+        **hidden_subprocess_kwargs(),
     )
     return result.stdout
 
@@ -290,7 +294,8 @@ def launch(worktree: Path, *, vr: bool = False, primary: Path | None = None,
     config_path = build_branch_config(worktree, primary=primary, **kwargs)
     command = [sys.executable, "-m", ORCHESTRATOR_MODULES[vr], "--config", str(config_path)]
     print(f"Running {subprocess.list2cmdline(command)}\n  in {worktree}", flush=True)
-    returncode = subprocess.run(command, cwd=str(worktree), check=False).returncode
+    returncode = subprocess.run(
+        command, cwd=str(worktree), check=False, **no_console_window()).returncode
     if returncode:
         _leave_out_of_date_note(worktree, primary or primary_checkout())
     return returncode
