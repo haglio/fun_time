@@ -19,7 +19,7 @@ from pathlib import Path
 
 from app_support.subprocess_utils import hidden_subprocess_kwargs
 
-from fun_time.child_log import no_child_log
+from fun_time.child_launch import no_child_log
 
 logger = logging.getLogger(__name__)
 

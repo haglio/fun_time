@@ -1,10 +1,11 @@
-"""Where a launched child's stdout and stderr go -- never left unset, because
-unset means INHERITED and what this process inherited is the launcher's redirect
-(``LaunchLogIn`` in launch.vbs; ``tests/test_child_output.py``)."""
+"""How a session starts a child: where its output goes, and that it gets no
+console window.  Neither may be left to what this process inherited, and both
+are swept for over every spawn in the tree (``tests/test_child_launch.py``)."""
 from __future__ import annotations
 
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -18,6 +19,12 @@ CHILD_LOG_MAX_BYTES = 1_000_000
 def no_child_log() -> dict:
     # For a child that keeps a log of its own, or has no output worth keeping.
     return {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL}
+
+
+def no_console_window() -> dict:
+    if sys.platform != "win32":
+        return {}
+    return {"creationflags": subprocess.CREATE_NO_WINDOW}
 
 
 def open_child_log(

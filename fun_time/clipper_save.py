@@ -8,6 +8,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+from app_support.subprocess_utils import hidden_subprocess_kwargs
+
 from .bridge_records import BridgeConfig
 from .player_status import read_main_player_status
 
@@ -66,6 +68,7 @@ def save_clip_session(config: BridgeConfig) -> str:
             text=True,
             timeout=10,
             cwd=str(_clipper_project_dir()),
+            **hidden_subprocess_kwargs(),
         )
         if result.returncode == 0:
             session_path = result.stdout.strip()

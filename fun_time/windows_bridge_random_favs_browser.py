@@ -4,7 +4,7 @@ import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 
-from .child_log import no_child_log
+from .child_launch import no_child_log, no_console_window
 from .shortcuts import Shortcut
 
 # Matched as a substring of the window class, which is "Chrome_WidgetWin_1".
@@ -64,7 +64,8 @@ def launch_random_favs_browser(
 ) -> RandomFavsBrowserLaunchPlan:
     plan = build_random_favs_browser_launch_plan(manifest_path, shortcut=shortcut)
     if plan.should_launch and plan.cmd:
-        subprocess.Popen(plan.cmd, cwd=plan.work_dir, **no_child_log())
+        subprocess.Popen(plan.cmd, cwd=plan.work_dir,
+                         **no_child_log(), **no_console_window())
     return plan
 
 
@@ -76,4 +77,4 @@ def build_open_rfb_tab_command(*, urls: list[str], shortcut: Shortcut) -> str:
 def open_rfb_tab(*, urls: list[str], shortcut: Shortcut) -> None:
     """Open one or more URLs as tabs in the RFB Chrome window, in one launch."""
     cmd = build_open_rfb_tab_command(urls=urls, shortcut=shortcut)
-    subprocess.Popen(cmd, cwd=shortcut.work_dir, **no_child_log())
+    subprocess.Popen(cmd, cwd=shortcut.work_dir, **no_child_log(), **no_console_window())

@@ -16,7 +16,7 @@ from player_core.playlist import PlaylistItem, write_playlist
 
 from fun_time.audio_volume import MAX_VOLUME, read_volume
 from fun_time.broker_control import PARK_CMD
-from fun_time.child_log import no_child_log
+from fun_time.child_launch import no_child_log
 from fun_time.loopback_server import omnipause_url
 from fun_time.modes import SatelliteBuild
 from fun_time.players import Player

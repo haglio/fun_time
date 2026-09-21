@@ -3,6 +3,7 @@ from __future__ import annotations
 import configparser
 import logging
 import os
+import subprocess
 import threading
 from dataclasses import replace
 from pathlib import Path
@@ -394,12 +395,26 @@ class TestFixPostLoadingWindows:
             resolved = _fix_post_loading_windows(result)
 
         assert resolved == {"portrait": 111, "landscape": 222}
+
+
+class TestKillProcessTree:
     def test_taskkills_the_pid_and_its_descendants(self):
         with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
             kill_process_tree(1234)
 
         mock_run.assert_called_once()
         assert mock_run.call_args[0][0] == ["taskkill", "/PID", "1234", "/T", "/F"]
+
+    def test_the_kill_opens_no_console_window_of_its_own(self):
+        """taskkill is a console program, and a session started by the crossing
+        relay runs under the windowed interpreter -- so it has no console for a
+        console child to inherit, and Windows gives that child one of its own,
+        on screen.  A teardown kills several children, which is why quitting
+        flashed a row of black windows."""
+        with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
+            kill_process_tree(1234)
+
+        assert mock_run.call_args.kwargs["creationflags"] & subprocess.CREATE_NO_WINDOW
 
     def test_ignores_the_zero_pid_of_a_child_that_was_never_launched(self):
         with patch("fun_time.windows_bridge_orchestrator.subprocess.run") as mock_run:
@@ -1583,6 +1598,23 @@ class TestClosingScreenLifecycle:
 
         (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
         assert launched["env"]["PYTHONPATH"].split(os.pathsep)[0] == str(sibling)
+
+    @pytest.mark.parametrize("cover", ["loading_screen", "closing_screen", "transition_screen"])
+    def test_no_cover_opens_a_console_window_of_its_own(self, cfg_factory, tmp_path, cover):
+        """A cover is started through a named copy of whichever interpreter the
+        session runs under, and that is the CONSOLE one for a session launch.vbs
+        started -- while a session the crossing relay started has no console at
+        all, so Windows gives such a child a console window on screen.  The flag
+        says no console; the absence of a startupinfo is the other half, since
+        the hiding one would hide the cover's own window too."""
+        launches: dict[str, dict] = {}
+
+        _run_a_session(cfg_factory, tmp_path, events=[], launches=launches,
+                       crossing=VR if cover == "transition_screen" else None)
+
+        (launched,) = [kwargs for command, kwargs in launches.items() if cover in command]
+        assert launched["creationflags"] & subprocess.CREATE_NO_WINDOW
+        assert "startupinfo" not in launched
 
     def test_the_way_back_cover_runs_those_checkouts_too(self, cfg_factory, tmp_path):
         """Esc on the closing screen raises a cover of its own, and one that
