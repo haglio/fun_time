@@ -1063,6 +1063,18 @@ def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Pat
     assert broker_cmd_file.read_text(encoding="utf-8") == PARK_CMD
 
 
+# The six files Genau requires on every launch (its genau_contract.json names
+# them), spelled once so a test about something else need not list them.
+GENAU_SESSION_FILES = dict(
+    command_file="a-state-dir/genau_cmd.txt",
+    paused_file="a-state-dir/genau_paused.txt",
+    console_file="a-state-dir/console.json",
+    drive_file="a-state-dir/genau_drive.txt",
+    status_file="a-state-dir/genau_status.txt",
+    dashboard_cmd_file="a-state-dir/dashboard_cmd.txt",
+)
+
+
 def test_launch_genau_starts_process_and_returns_pid():
     class FakeProc:
         def __init__(self, pid: int):
@@ -1080,6 +1092,7 @@ def test_launch_genau_starts_process_and_returns_pid():
             genau_y=200,
             genau_width=300,
             genau_height=400,
+            **GENAU_SESSION_FILES,
         )
 
     assert pid == 42
@@ -1106,9 +1119,10 @@ def test_launch_genau_forwards_command_and_paused_files():
             genau_y=200,
             genau_width=300,
             genau_height=400,
-            command_file="state/genau_cmd.txt",
-            paused_file="state/genau_paused.txt",
-            drive_file="state/genau_drive.txt",
+            **{**GENAU_SESSION_FILES,
+               "command_file": "state/genau_cmd.txt",
+               "paused_file": "state/genau_paused.txt",
+               "drive_file": "state/genau_drive.txt"},
         )
 
     assert pid == 42
@@ -1139,7 +1153,7 @@ def test_launch_genau_opens_on_the_clip_it_was_left_showing():
         launch_genau(
             python_exe="python.exe", genau_module="genau", config_path="cfg.json",
             clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="C:/clips/alpha.mp4",
+            start_clip="C:/clips/alpha.mp4", **GENAU_SESSION_FILES,
         )
 
     command = popen.call_args.args[0]
@@ -1158,7 +1172,7 @@ def test_launch_genau_names_no_clip_for_a_session_with_none_to_resume():
         launch_genau(
             python_exe="python.exe", genau_module="genau", config_path="cfg.json",
             clips_folder="clips", genau_x=0, genau_y=0, genau_width=1, genau_height=1,
-            start_clip="",
+            start_clip="", **GENAU_SESSION_FILES,
         )
 
     assert "--start-clip" not in popen.call_args.args[0]
@@ -1315,6 +1329,7 @@ def test_launch_genau_hands_it_fun_times_icon():
             genau_y=0,
             genau_width=800,
             genau_height=600,
+            **GENAU_SESSION_FILES,
         )
 
     command = popen.call_args.args[0]
@@ -1374,6 +1389,7 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
             launch_genau,
             python_exe="python.exe", genau_module="genau.app", config_path="cfg.json",
             clips_folder="clips", genau_x=0, genau_y=0, genau_width=800, genau_height=600,
+            **GENAU_SESSION_FILES,
         )
 
         assert self._identity(command) == APP_USER_MODEL_ID
@@ -1406,7 +1422,7 @@ class TestGenauCheckout:
         return dict(python_exe="python.exe", genau_module="genau",
                     config_path="cfg.json", clips_folder="clips",
                     genau_x=0, genau_y=0, genau_width=800, genau_height=600,
-                    **overrides)
+                    **GENAU_SESSION_FILES, **overrides)
 
     @staticmethod
     def _main_player(tmp_path: Path, **overrides):
@@ -2038,6 +2054,7 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 config_path=tmp_path / "genau.json",
                 clips_folder=tmp_path / "clips",
                 genau_x=0, genau_y=0, genau_width=1, genau_height=1,
+                **GENAU_SESSION_FILES,
             )
         assert self._launched_exe(popen) == "FunTime-Genau.exe"
 
