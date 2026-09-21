@@ -49,10 +49,8 @@ def metadata_path_for(
 
 
 # Evolver records what kind every library video is on its sidecar, as
-# ``video.type`` — one answer to "what kind of video is this", written once for
-# the whole library in place of the several tests each app used to run.  This
-# app asks it one thing, so this is the one kind it names; the others
-# (``genau_clip``, ``short``, ``full_length``) come back as themselves.
+# ``video.type``: one answer to "what kind of video is this", for the whole
+# library.  This app asks it one thing, so this is the one kind it names.
 EXCERPT = "excerpt"
 
 
@@ -238,8 +236,10 @@ def path_matches_query(
 
 # Fields that pin down the generated image (subject(s) + situation).  "created"
 # is deliberately excluded: regenerating the identical config on another day
-# yields the same picture.
-_IMAGE_IDENTITY_FIELDS = (
+# yields the same picture.  Public, like the video's below: they are what this
+# app reads off a record another repo writes, and
+# tests/test_library_record_contract.py holds them to what it promises.
+IMAGE_IDENTITY_FIELDS = (
     "positive_prompt",
     "negative_prompt",
     "model",
@@ -252,8 +252,8 @@ _IMAGE_IDENTITY_FIELDS = (
 )
 
 # Video-block fields shared by every variation axis; "action" and "seed" are
-# appended per key kind ("created" excluded for the same reason as above).
-_VIDEO_BASE_FIELDS = (
+# appended per key kind ("created" excluded as above).
+VIDEO_BASE_FIELDS = (
     "prompt",
     "model",
     "resolution",
@@ -277,14 +277,14 @@ def action_group_key(metadata: dict) -> str | None:
     """
     source = metadata.get("source_image")
     if source:
-        return _field_key("img", source, _IMAGE_IDENTITY_FIELDS)
+        return _field_key("img", source, IMAGE_IDENTITY_FIELDS)
     video = metadata.get("video") or {}
     if not video.get("prompt"):
         return None
-    return _field_key("t2v", video, _VIDEO_BASE_FIELDS + ("seed",))
+    return _field_key("t2v", video, VIDEO_BASE_FIELDS + ("seed",))
 
 
-_IMAGE_FAMILY_FIELDS = tuple(f for f in _IMAGE_IDENTITY_FIELDS if f != "seed")
+_IMAGE_FAMILY_FIELDS = tuple(f for f in IMAGE_IDENTITY_FIELDS if f != "seed")
 
 
 def _seed_key(
@@ -311,7 +311,7 @@ def seed_group_key(metadata: dict) -> tuple[str, str] | None:
     Videos sharing a family were generated from the identical configuration
     with only the seed varied — the same scenario cast with a different subject.
     """
-    return _seed_key(metadata, _IMAGE_FAMILY_FIELDS, _VIDEO_BASE_FIELDS + ("action",))
+    return _seed_key(metadata, _IMAGE_FAMILY_FIELDS, VIDEO_BASE_FIELDS + ("action",))
 
 
 def scene_tags(metadata: dict) -> frozenset[str]:
