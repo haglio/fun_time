@@ -1,12 +1,14 @@
 from __future__ import annotations
 
+import os
 import random
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
 from player_core.playlist import PlaylistItem, write_playlist
 
+from .folder_listings import FolderListings
 from .media_metadata import GroupIndex, build_group_index, normalize_path_key, path_matches_query
 from .vr_videos import keep_shapes
 from .watch_stats import passes_inclusion, weighted_shuffle
@@ -33,22 +35,33 @@ def collect_video_files(source_spec: str) -> list[str]:
     files: list[str] = []
     seen: set[str] = set()
     for root_path in source_roots(source_spec):
-        if root_path.is_dir():
-            for candidate in root_path.rglob("*"):
-                if not candidate.is_file() or not is_supported_video_path(str(candidate)):
-                    continue
-                key = normalize_path_key(str(candidate))
-                if key in seen:
-                    continue
-                seen.add(key)
-                files.append(str(candidate))
-            continue
-        if root_path.is_file() and is_supported_video_path(str(root_path)):
-            key = normalize_path_key(str(root_path))
-            if key not in seen:
-                seen.add(key)
-                files.append(str(root_path))
+        for video in _videos_under(root_path):
+            key = normalize_path_key(video)
+            if key in seen:
+                continue
+            seen.add(key)
+            files.append(video)
     return files
+
+
+def _videos_under(root: Path) -> Iterator[str]:
+    """Every video below *root*, off the folder listings alone -- see
+    :mod:`fun_time.folder_listings` for why no video is asked about itself."""
+    try:
+        with os.scandir(root) as listing:
+            entries = list(listing)
+    except NotADirectoryError:
+        spelled = str(root)
+        if is_supported_video_path(spelled):
+            yield spelled
+        return
+    except OSError:
+        return
+    for entry in entries:
+        if entry.is_dir(follow_symlinks=False):
+            yield from _videos_under(Path(entry.path))
+        elif entry.is_file(follow_symlinks=False) and is_supported_video_path(entry.name):
+            yield entry.path
 
 
 # A third mirror of the video tree, beside ``scripts`` and Evolver's ``metadata``:
@@ -124,16 +137,12 @@ def shuffle_paths(paths: list[str], *, rng: random.Random | None = None) -> list
     return result
 
 
-def _path_mtime(path: str) -> float:
-    try:
-        return Path(path).stat().st_mtime
-    except OSError:
-        return 0.0
-
-
-def sort_paths_by_recency(paths: list[str]) -> list[str]:
-    """Order paths most-recently-modified first; unreadable files sort last."""
-    return sorted(paths, key=_path_mtime, reverse=True)
+def sort_paths_by_recency(
+    paths: list[str], listings: FolderListings | None = None
+) -> list[str]:
+    """Order paths most-recently-modified first; unlisted files sort last."""
+    dates = listings or FolderListings()
+    return sorted(paths, key=dates.modified, reverse=True)
 
 
 def order_paths(paths: list[str], *, recent: bool, rng: random.Random | None = None) -> list[str]:
@@ -284,10 +293,12 @@ def _collapse_recent(
     surfaces once, near the top.  Watch weighting is deliberately not applied —
     a chronically-skipped clip still appears; recency alone ranks.
     """
-    ordered = sort_paths_by_recency(paths)
+    dates = FolderListings()
+    ordered = sort_paths_by_recency(paths, dates)
     index = build_group_index(ordered, metadata_root)
     group_key_of, items_of = _collapse_axis(index, by_seed_family)
-    return _collapse_groups(ordered, group_key_of, items_of, lambda items: max(items, key=_path_mtime))
+    return _collapse_groups(
+        ordered, group_key_of, items_of, lambda items: max(items, key=dates.modified))
 
 
 def build_satellite_playlist_paths(

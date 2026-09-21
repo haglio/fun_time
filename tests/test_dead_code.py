@@ -241,7 +241,7 @@ def test_no_module_reaches_into_another_ones_privates():
 # that went, and the plain bar standing in for it is timeline_bgra's own branch.
 # 7786 the same day: what the headset's scrubber repaints on is the Scrubber's
 # state, held to the bar it draws by a test rather than a docstring.
-# 7772 the same day: the heatmap's fill is the shared scrubber's, so the main
+# 7772 on 2026-09-25: the heatmap's fill is the shared scrubber's, so the main
 # player's copy of that frame and its paragraphs went, and the side screens stopped
 # being described as unscripted now that they color their bars too.
 # 7713 on 2026-09-26: the main slot's handover finishes a mode switch, so the
@@ -271,6 +271,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # player that dies while the room comes up, is a test in test_player_engine.py
 # or test_player_deaths.py.
 MAX_PROSE_LINES = 7638
+
+# What the count was against at the last ratchet, so the norm the audit
+# measured stays readable. Reported on failure; not asserted.
+_PROSE_RATIO_AT_RATCHET = 0.4553
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
