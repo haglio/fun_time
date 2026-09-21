@@ -21,7 +21,7 @@ from fun_time.window_layout import compute_main_media_rect, screen_layout
 def player_rects(layout: LayoutConfig) -> PlayerRects | None:
     """Where each notice-bearing window sits, in real screen coordinates.
 
-    From the layout functions startup positioned them with, so a toast lands ON
+    From the layout functions startup positioned them with, so a notice lands ON
     its window.  None on a headless run, where notices simply do not flash.
     """
     try:
@@ -38,7 +38,7 @@ def player_rects(layout: LayoutConfig) -> PlayerRects | None:
 
 
 class NoticeFeed:
-    """One session's toasts: where they go, when they may go, how far read.
+    """One session's notices: where they go, when they may go, how far read.
 
     Two directories, because the two files are in two.  *held* waits for the
     COVER, which the panel's own reveal precedes.

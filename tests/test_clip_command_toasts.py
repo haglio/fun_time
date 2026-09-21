@@ -18,7 +18,7 @@ def test_the_clip_and_funscript_jumps_flash_their_own_outcome():
 
 def test_every_spoken_browse_order_is_self_reporting():
     """The dispatch flashes "Latest" / "Shuffle" on the player it reordered.  A
-    spelling left off this list is one that comes back as two toasts — the phrase
+    spelling left off this list is one that comes back as two notices — the phrase
     that was said, then the order it put the player in — where either alone says
     the whole thing."""
     spoken = {

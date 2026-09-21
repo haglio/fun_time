@@ -54,7 +54,7 @@ from fun_time.dashboard_runtime import load_dashboard_snapshot
 from fun_time.event_log import event_log_path
 from fun_time.loading_reveal import LoadingReveal
 from fun_time.log_panel import LogPanelWidget
-from fun_time.log_panel_model import prefs_path
+from fun_time.log_panel_model import ui_state_path
 from fun_time.manifest import WINDOWS_BRIDGE_MANIFEST_FILENAME
 from fun_time.notice_feed import NoticeFeed
 from fun_time.notice_overlay import NoticeOverlay
@@ -605,7 +605,7 @@ class DashboardWindow(QMainWindow):
         self._widget = DashboardWidget()
         self._widget.action_triggered.connect(self._on_action)
         self._log_widget = LogPanelWidget(
-            event_log_path(app_config.state_dir), prefs_path(app_config.state_dir))
+            event_log_path(app_config.state_dir), ui_state_path(app_config.state_dir))
         # The bar's buttons and the log's filters share one row, so the Dash is
         # a row shorter and the Random Favs Browser below it that much taller.
         top_row = QWidget(self)

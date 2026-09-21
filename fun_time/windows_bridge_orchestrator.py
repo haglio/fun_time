@@ -584,7 +584,7 @@ def _log_window_obstruction(name: str, hwnd: int, *, expected_over: int = 0,
     *expected_over* is the one window that belongs above the target in every
     mode — Genau's over the main player, which in video mode is the transparent HUD layer
     over the main player's video and in genau mode is the display itself.  Warning on the
-    session's own by-design layering toasted every startup with a "covering"
+    session's own by-design layering flashed a notice on every startup with a "covering"
     window that covers nothing you can see; anything else over the player
     still warns.  *ignore* is the loading
     overlay while this runs under it, which covers everything by design.

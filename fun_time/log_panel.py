@@ -58,12 +58,12 @@ from fun_time.event_log import (
 )
 from fun_time.log_panel_model import (
     LogFilter,
-    LogPanelPrefs,
+    LogPanelState,
     append_records,
     copy_button_position,
     format_record,
-    load_prefs,
-    save_prefs,
+    load_ui_state,
+    save_ui_state,
     visible_records,
 )
 
@@ -152,20 +152,20 @@ class LogPanelWidget(QWidget):
     def __init__(
         self,
         event_log: Path,
-        prefs_file: Path,
+        ui_state_file: Path,
         parent: QWidget | None = None,
     ) -> None:
         super().__init__(parent)
         self._event_log = Path(event_log)
-        self._prefs_file = Path(prefs_file)
+        self._ui_state_file = Path(ui_state_file)
         self._offset = 0
         self._records: list[EventRecord] = []
         # Where the cursor last was over the list, in viewport coordinates; None
         # once it has left.  The copy button's row is resolved from this.
         self._hover_pos: QPoint | None = None
 
-        prefs = load_prefs(self._prefs_file)
-        self._filter = LogFilter(verbosity=prefs.verbosity, sources=prefs.sources)
+        state = load_ui_state(self._ui_state_file)
+        self._filter = LogFilter(verbosity=state.verbosity, sources=state.sources)
 
         self._build_ui()
 
@@ -367,7 +367,7 @@ class LogPanelWidget(QWidget):
             verbosity=self._verbosity.currentData(),
             sources=self._filter.sources,
         )
-        self._save_prefs()
+        self._save_ui_state()
         self._rebuild_list()
 
     def _on_sources_changed(self) -> None:
@@ -375,13 +375,13 @@ class LogPanelWidget(QWidget):
             verbosity=self._filter.verbosity,
             sources=frozenset(s for s, button in self._source_buttons.items() if button.isChecked()),
         )
-        self._save_prefs()
+        self._save_ui_state()
         self._rebuild_list()
 
-    def _save_prefs(self) -> None:
-        save_prefs(
-            self._prefs_file,
-            LogPanelPrefs(verbosity=self._filter.verbosity, sources=self._filter.sources),
+    def _save_ui_state(self) -> None:
+        save_ui_state(
+            self._ui_state_file,
+            LogPanelState(verbosity=self._filter.verbosity, sources=self._filter.sources),
         )
 
     def _poll(self) -> None:

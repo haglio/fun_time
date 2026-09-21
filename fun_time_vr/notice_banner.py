@@ -37,7 +37,7 @@ def font_px(height: int) -> int:  # the type size for a picture this tall
     return max(MIN_FONT_PX, round(height * FONT_FRACTION))
 
 
-def paint_toast(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
+def paint_banner(message: str, level: int, *, max_width: int, size: int) -> Image.Image:
     """The banner, sized to what it says and to the picture it goes on."""
     font = load_font(size)
     pad_x, pad_y = round(size * _PAD_X), round(size * _PAD_Y)
@@ -58,18 +58,18 @@ def paint_toast(message: str, level: int, *, max_width: int, size: int) -> Image
     return banner
 
 
-def toast_placement(banner: Image.Image, width: int, height: int) -> tuple[int, int]:
+def banner_placement(banner: Image.Image, width: int, height: int) -> tuple[int, int]:
     """Centered across the top, never off a narrow picture's left edge."""
     return max(0, (width - banner.width) // 2), round(height * TOP_MARGIN_FRACTION)
 
 
-def toast_bgra(message: str, level: int, *, width: int, height: int):
+def banner_bgra(message: str, level: int, *, width: int, height: int):
     """``(x, y, bgra)`` for one overlay call, or None when it would not fit."""
     if width < 2 or height < 2:
         return None
-    banner = paint_toast(
+    banner = paint_banner(
         message, level, max_width=round(width * WIDTH_FRACTION), size=font_px(height),
     )
-    x, y = toast_placement(banner, width, height)
+    x, y = banner_placement(banner, width, height)
     rgba = np.asarray(banner)
     return x, y, np.ascontiguousarray(rgba[:, :, [2, 1, 0, 3]])

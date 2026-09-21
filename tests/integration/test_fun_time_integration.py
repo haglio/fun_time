@@ -649,7 +649,7 @@ def test_fun_time_landscape_trash_of_a_favorite_only_unfavorites_it(
     s.wait_until(
         lambda: any(n.message == "Unfavorited" and n.source == "landscape" for n in s.notices()),
         timeout=12,
-        description="an \"Unfavorited\" toast over the landscape player",
+        description="an \"Unfavorited\" notice over the landscape player",
     )
 
     s.wait_until(
@@ -713,7 +713,7 @@ def test_fun_time_portrait_trash_of_a_non_favorite_moves_it_to_weird(
             for n in isolated_integration_session.notices()
         ),
         timeout=12,
-        description='a "Marked weird" toast over the portrait player',
+        description='a "Marked weird" notice over the portrait player',
     )
 
 

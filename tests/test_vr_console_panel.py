@@ -255,7 +255,7 @@ def test_the_held_width_covers_the_widest_row_the_console_can_build():
 
 
 class TestTheAnnouncementStrip:
-    """The desktop flashes a toast over the player and lists it in the log
+    """The desktop flashes a notice over the player and lists it in the log
     panel; both live in the dashboard, which a VR session never launches, so
     this is the only place the headset is told what it was heard to say."""
 

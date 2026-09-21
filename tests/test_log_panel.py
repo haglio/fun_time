@@ -14,12 +14,12 @@ from fun_time.log_panel import LogPanelWidget, level_color
 from fun_time.log_panel_model import (
     MAX_RECORDS,
     LogFilter,
-    LogPanelPrefs,
+    LogPanelState,
     append_records,
     copy_button_position,
     format_record,
-    load_prefs,
-    save_prefs,
+    load_ui_state,
+    save_ui_state,
     visible_records,
 )
 
@@ -143,7 +143,7 @@ def panel_factory(tmp_path: Path):
     process-global whose isolation from the machine's real clipboard rests on
     the offscreen platform.  The conftest sets that with ``setdefault`` and
     invites overriding it to watch a test, so whatever the developer had
-    copied is saved here and put back on teardown rather than silently lost.
+    copied is state here and put back on teardown rather than silently lost.
     """
     built: list[LogPanelWidget] = []
     users_clipboard = QApplication.clipboard().text()
@@ -152,7 +152,7 @@ def panel_factory(tmp_path: Path):
         QApplication.clipboard().clear()
         log = tmp_path / "event_log.jsonl"
         log.write_text("".join(_event_line(m) for m in messages), encoding="utf-8")
-        panel = LogPanelWidget(log, tmp_path / "log_panel.ini")
+        panel = LogPanelWidget(log, tmp_path / "log_panel_state.ini")
         panel.resize(300, 200)
         panel.show()
         built.append(panel)
@@ -196,7 +196,7 @@ def _tail_advances(panel: LogPanelWidget, message: str) -> None:
 
 class TestHoverCopyButton:
     def test_hovering_a_row_offers_a_button_that_copies_that_line(self, panel_factory):
-        panel = panel_factory(["Clip saved", "No other seeds"])
+        panel = panel_factory(["Clip state", "No other seeds"])
 
         _hover_row(panel, 1)
         _copy_button(panel).click()
@@ -215,7 +215,7 @@ class TestHoverCopyButton:
 
         from fun_time.log_panel import _COPY_ICON_SIZE
 
-        panel = panel_factory(["Clip saved"])
+        panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
         button = _copy_button(panel)
         size = QSize(_COPY_ICON_SIZE, _COPY_ICON_SIZE)
@@ -226,7 +226,7 @@ class TestHoverCopyButton:
         assert button.icon().pixmap(size).toImage() ==             glyph_pixmap("check", _COPY_ICON_SIZE, TEXT_PRIMARY).toImage()
 
     def test_the_button_goes_away_once_the_cursor_leaves_the_log(self, panel_factory):
-        panel = panel_factory(["Clip saved"])
+        panel = panel_factory(["Clip state"])
         _hover_row(panel, 0)
         assert _copy_button(panel).isVisible()  # it was there to be dismissed
 
@@ -239,16 +239,16 @@ class TestHoverCopyButton:
     ):
         # Every tail advance clears and refills the list, so a button holding the
         # item it was shown for would be pointing at a destroyed row by now.
-        panel = panel_factory(["Clip saved", "No other seeds"])
+        panel = panel_factory(["Clip state", "No other seeds"])
         _hover_row(panel, 0)
 
         _tail_advances(panel, "Similar clip")
         _copy_button(panel).click()
 
-        assert QApplication.clipboard().text().endswith("Clip saved")
+        assert QApplication.clipboard().text().endswith("Clip state")
 
     def test_filtering_the_hovered_row_away_takes_its_button_with_it(self, panel_factory):
-        panel = panel_factory(["Clip saved", "No other seeds"])
+        panel = panel_factory(["Clip state", "No other seeds"])
         _hover_row(panel, 0)
         assert _copy_button(panel).isVisible()
 
@@ -257,34 +257,34 @@ class TestHoverCopyButton:
         assert not _copy_button(panel).isVisible()
 
 
-class TestPrefs:
+class TestTheSavedViewState:
     def test_round_trips_verbosity_and_sources(self, tmp_path: Path):
-        path = tmp_path / "log_panel.ini"
-        prefs = LogPanelPrefs(verbosity=logging.WARNING, sources=frozenset({"main", "dash"}))
+        path = tmp_path / "log_panel_state.ini"
+        state = LogPanelState(verbosity=logging.WARNING, sources=frozenset({"main", "dash"}))
 
-        save_prefs(path, prefs)
+        save_ui_state(path, state)
 
-        assert load_prefs(path) == prefs
+        assert load_ui_state(path) == state
 
     def test_a_missing_file_gives_notice_level_and_every_source(self, tmp_path: Path):
-        prefs = load_prefs(tmp_path / "absent.ini")
+        state = load_ui_state(tmp_path / "absent.ini")
 
-        assert prefs.verbosity == NOTICE
-        assert prefs.sources == ALL_SOURCES
+        assert state.verbosity == NOTICE
+        assert state.sources == ALL_SOURCES
 
     def test_an_unreadable_file_falls_back_to_the_defaults(self, tmp_path: Path):
-        path = tmp_path / "log_panel.ini"
+        path = tmp_path / "log_panel_state.ini"
         path.write_text("this is not an ini section", encoding="utf-8")
 
-        prefs = load_prefs(path)
+        state = load_ui_state(path)
 
-        assert prefs.verbosity == NOTICE
-        assert prefs.sources == ALL_SOURCES
+        assert state.verbosity == NOTICE
+        assert state.sources == ALL_SOURCES
 
     def test_saving_creates_the_parent_directory(self, tmp_path: Path):
-        path = tmp_path / "nested" / "log_panel.ini"
+        path = tmp_path / "nested" / "log_panel_state.ini"
 
-        save_prefs(path, LogPanelPrefs(verbosity=NOTICE, sources=ALL_SOURCES))
+        save_ui_state(path, LogPanelState(verbosity=NOTICE, sources=ALL_SOURCES))
 
         assert path.exists()
 
@@ -294,7 +294,7 @@ def test_the_level_dial_fits_its_longest_name(panel_factory):
     guessed at from the text plus a constant for the arrow came up short too.
     Qt's own hint, taken after the items are in, knows what this style's arrow
     and frame actually cost."""
-    panel = panel_factory(["Clip saved"])
+    panel = panel_factory(["Clip state"])
     dial = panel._verbosity
 
     assert dial.minimumWidth() >= dial.sizeHint().width()
@@ -305,7 +305,7 @@ def test_the_level_dial_wears_the_huds_button_edge_ground_and_height(panel_facto
     from shared_ui.palette import BG_BUTTON, TEXT_MUTED
     from shared_ui.spacing import BUTTON_SIZE_HUD
 
-    dial = panel_factory(["Clip saved"])._verbosity
+    dial = panel_factory(["Clip state"])._verbosity
     pixel = _grabbed(dial)
     middle = dial.height() // 2
 
@@ -317,7 +317,7 @@ def test_the_level_dial_wears_the_huds_button_edge_ground_and_height(panel_facto
 def test_the_level_dial_shows_an_arrow_pointing_down(panel_factory):
     from shared_ui.palette import BG_BUTTON
 
-    dial = panel_factory(["Clip saved"])._verbosity
+    dial = panel_factory(["Clip state"])._verbosity
     pixel = _grabbed(dial)
     inked = [(y, sum(pixel(x, y) != BG_BUTTON for x in range(dial.width() - 16, dial.width() - 2)))
              for y in range(2, dial.height() - 2)]
@@ -334,7 +334,7 @@ def test_the_filter_row_sets_the_dial_a_group_apart_from_the_toggles(panel_facto
 
     from shared_ui.spacing import BUTTON_GAP, BUTTON_GROUP_GAP
 
-    panel = panel_factory(["Clip saved"])
+    panel = panel_factory(["Clip state"])
     panel.controls.adjustSize()
     panel.controls.layout().activate()
     toggles = list(panel._source_buttons.values())
@@ -352,7 +352,7 @@ def test_a_source_toggle_is_sized_the_way_a_huds_mode_button_is(panel_factory):
     from shared_ui.fonts import SIZE_TINY
     from shared_ui.spacing import BUTTON_PAD_H_TIGHT, BUTTON_SIZE_HUD
 
-    panel = panel_factory(["Clip saved"])
+    panel = panel_factory(["Clip state"])
 
     for button in panel._source_buttons.values():
         label = QFontMetrics(button.font()).horizontalAdvance(button.text())
@@ -387,7 +387,7 @@ def _one_off_and_one_on(panel):
 def test_a_word_button_wears_the_huds_mode_button_edge_and_ground(panel_factory):
     from shared_ui.palette import BG_BUTTON, BLUE, TEXT_MUTED
 
-    off, on = _one_off_and_one_on(panel_factory(["Clip saved"]))
+    off, on = _one_off_and_one_on(panel_factory(["Clip state"]))
 
     for button, edge, ground in ((off, TEXT_MUTED, BG_BUTTON), (on, BLUE, BLUE)):
         pixel = _grabbed(button)
@@ -397,7 +397,7 @@ def test_a_word_button_wears_the_huds_mode_button_edge_and_ground(panel_factory)
 
 
 def test_a_word_buttons_label_is_bright_off_and_white_on(panel_factory):
-    off, on = _one_off_and_one_on(panel_factory(["Clip saved"]))
+    off, on = _one_off_and_one_on(panel_factory(["Clip state"]))
 
     assert _brightest_ink(off) > 200
     assert _brightest_ink(on) >= 250
@@ -406,7 +406,7 @@ def test_a_word_buttons_label_is_bright_off_and_white_on(panel_factory):
 def test_a_word_button_still_lightens_under_the_pointer(panel_factory):
     from shared_ui.colors import BG_BUTTON, BLUE, hovered
 
-    sheet = panel_factory(["Clip saved"])._source_buttons["system"].styleSheet()
+    sheet = panel_factory(["Clip state"])._source_buttons["system"].styleSheet()
 
     assert hovered(BG_BUTTON).name() in sheet and hovered(BLUE).name() in sheet
 

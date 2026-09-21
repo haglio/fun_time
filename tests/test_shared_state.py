@@ -63,7 +63,7 @@ def _shifted_state(state: BridgeState) -> BridgeState:
 def test_every_field_of_the_state_survives_the_round_trip(tmp_path: Path):
     """The dispatch loop replaces its whole state with what this file reads back,
     every tick.  So a field written by a command but missing from the INI is not
-    merely unsaved — it is undone a fraction of a second later, while the toast
+    merely unsaved — it is undone a fraction of a second later, while the notice
     that acknowledged it is still on screen.  That is what "main latest" did: the
     playlist was rebuilt newest-first and the flag was reset before any HUD drew it.
 

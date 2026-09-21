@@ -165,6 +165,7 @@ from .matrices import (
     yaw_of_orientation,
     yaw_rotation_matrix,
 )
+from .notice_banner import banner_bgra
 from .notices import NoticeBoard
 from .perf import FramePerf
 from .playback_watch import STALLED, PlaybackWatch
@@ -214,7 +215,6 @@ from .scene import (
 from .scheduling import ahead_of_background_work
 from .stacking import Stacking
 from .thumbs import Thumbs, strongest
-from .toast import toast_bgra
 from .video_thread import VideoThread
 
 logger = logging.getLogger(__name__)
@@ -222,7 +222,7 @@ logger = logging.getLogger(__name__)
 # Overlay ids shared with the desktop satellite (10 is its lock HUD).
 _OV_SCRUBBER = 11
 _OV_VOLUME = 12
-_OV_TOAST = 13
+_OV_NOTICE_BANNER = 13
 _OV_READOUT = 14
 
 _NO_TIMELINE = object()
@@ -364,7 +364,7 @@ class _VideoUnit:
         # Furniture last painted, pump-thread-owned.
         self._scrubber_shown: tuple | None = None
         self._chip_shown: tuple | None = None
-        self._toast_shown: tuple | None = None
+        self._banner_shown: tuple | None = None
         self._readout_shown: tuple | None = None
         self._readout_painter = PlayheadHudPainter()
 
@@ -412,24 +412,24 @@ class _VideoUnit:
             self.player.overlay(_OV_VOLUME, round(x * factor), round(y * factor),
                                 scaled(painter.bgra(volume_hud), factor))
 
-    def overlay_toast(self, notice) -> None:
+    def overlay_banner(self, notice) -> None:
         """Flash *notice* over this picture, or clear what was flashing --
         repainted only when it changes, as the furniture is."""
         if not self.target.ready:
             return
         width, height = self.target.width, self.target.height
         shown = None if notice is None else (notice.message, notice.level, width, height)
-        if shown == self._toast_shown:
+        if shown == self._banner_shown:
             return
-        self._toast_shown = shown
+        self._banner_shown = shown
         if shown is None:
-            self.player.remove_overlay(_OV_TOAST)
+            self.player.remove_overlay(_OV_NOTICE_BANNER)
             return
-        placed = toast_bgra(notice.message, notice.level, width=width, height=height)
+        placed = banner_bgra(notice.message, notice.level, width=width, height=height)
         if placed is None:
             return
         x, y, bgra = placed
-        self.player.overlay(_OV_TOAST, x, y, bgra)
+        self.player.overlay(_OV_NOTICE_BANNER, x, y, bgra)
 
     def overlay_readout(self, playhead) -> None:
         if not self.target.ready:
@@ -612,7 +612,7 @@ class _MainUnit(_VideoUnit):
             )
             self.overlay_readout(controls.playhead)
         if self._notices is not None:
-            self.overlay_toast(self._notices.toast(self.screen_name))
+            self.overlay_banner(self._notices.banner(self.screen_name))
 
     def _watch_progress(self, now: float) -> None:
         """Say it out loud when the video stops advancing, and reopen it once:
@@ -806,7 +806,7 @@ class _SatelliteUnit(_VideoUnit):
         self.overlay_readout(video_playhead(
             self.session.position_ms, self.session.duration_ms, self.player.frame_rate))
         if self._notices is not None:
-            self.overlay_toast(self._notices.toast(self.screen_name))
+            self.overlay_banner(self._notices.banner(self.screen_name))
 
     def close(self) -> None:
         self.video.close()  # frees mpv on the thread whose context it renders in
@@ -1950,7 +1950,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
     cover = _CoverUnit(state_dir)
     _raise_the_cover(session, renderer, cover)
     # One read of the event log per tick, pumped before anything that shows a
-    # notice off it: the console's strip and every screen's own toast.
+    # notice off it: the console's strip and every screen's own banner.
     notices = NoticeBoard(event_log_path(state_dir))
     genau = _GenauUnit(manifest, vr, stop, placement=layout[MAIN])
     _present_the_cover(session, renderer, cover)

@@ -2298,7 +2298,7 @@ class TestMainPlayerObstructionLog:
 
     def test_quiet_when_only_the_sessions_own_genau_layer_covers_main_player(self, caplog):
         """In video mode, Genau's window is the transparent HUD layer over the main player's
-        video — over it on purpose.  Warning on that toasted every video mode
+        video — over it on purpose.  Warning on that flashed a notice on every video mode
         startup with a covering window that covers nothing visible."""
         stack = [
             StackedWindow(hwnd=1010, title="Video Main Player+Genau", topmost=True,

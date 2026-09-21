@@ -3847,7 +3847,7 @@ def test_main_latest_reloads_the_main_player_newest_first(tmp_path, monkeypatch)
 def test_a_main_reorder_reaches_genau_when_genau_is_the_one_showing(tmp_path, monkeypatch):
     """The bug this fixes: "main latest" in genau mode rewrote a playlist for the main player,
     which was neither on screen nor playing, and Genau — the player actually
-    showing — carried on in the order it launched in.  Two toasts and nothing
+    showing — carried on in the order it launched in.  Two notices and nothing
     happening.  The reorder goes to whoever owns the slot's screen, as the lock
     does."""
     calls: list[dict] = []

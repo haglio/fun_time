@@ -1057,12 +1057,12 @@ def _dispatch_reorder(
     state = state.with_satellite(player, locked=False)
     state = clear_side_grouping(state, player)
     player_name = Player(player).label
-    # The order's own word and nothing else.  The toast flashes on the player it
+    # The order's own word and nothing else.  The notice flashes on the player it
     # was said to, and this is what that player's HUD calls the order it is now
     # in, so naming the player and then spelling the order out a second time
     # ("Latest: portrait newest-first") only read as a log line that had escaped
     # onto the screen.  The count and the side stay in the log, where they are of
-    # use.  The dispatch owns the toast the way it owns F-mode's, so a spoken
+    # use.  The dispatch owns the notice the way it owns F-mode's, so a spoken
     # reorder is not echoed on top of it (see SELF_REPORTING_COMMANDS).
     label = LATEST_LABEL if recent else SHUFFLE_LABEL
     logger.info("%s: %s (%d clips)", label, player_name, result.count)
@@ -1551,7 +1551,7 @@ def _save_clip(state: BridgeState, _config: BridgeConfig,
     """Ask the loop for a clipper save — asked for, not run: clipper boots a
     sibling repo's interpreter (up to its 10 s timeout) and this runs on the
     20 Hz tick, so the loop saves on a worker thread and flashes the result
-    when it lands — the one toast that trails its keypress."""
+    when it lands — the one notice that trails its keypress."""
     if state.main_mode == MAIN_GENAU_MODE:
         return state, []
     return state, [WindowOp(op="save_clip")]
