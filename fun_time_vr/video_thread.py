@@ -164,9 +164,8 @@ class VideoThread:
         """The frame on screen, small, as RGBA rows top-first.
 
         mpv draws it the way it draws every other frame -- into a framebuffer on
-        this thread, whose GL context is the one its render context was made on.
-        Asking mpv for a screenshot instead is "No render context set" from any
-        other thread, and the ask wedged the player (2026-09-20).
+        this thread, whose GL context is the one its render context was made on;
+        asking from any other thread is refused, not answered.
         """
         self.player.render(still.fbo, still.width, still.height)
         GL.glBindFramebuffer(GL.GL_FRAMEBUFFER, still.fbo)
