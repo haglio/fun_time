@@ -25,6 +25,7 @@ from fun_time.modes import (
     sort_paths_by_recency,
     write_playlist_file,
 )
+from tests.drive_fakes import files_that_never_answer
 
 
 def _lines(playlist: Path) -> list[str]:
@@ -236,6 +237,21 @@ def test_collect_video_files_ignores_single_non_video_file(tmp_path: Path):
     assert collect_video_files(str(f)) == []
 
 
+def test_collect_video_files_reads_the_folder_and_asks_no_file_about_itself(tmp_path: Path):
+    """A cloud drive that stops answering about one video must not stop a browse:
+    a folder's listing already says which entries are files."""
+    d = tmp_path / "vids"
+    (d / "deeper").mkdir(parents=True)
+    (d / "clip.mp4").write_text("x", encoding="utf-8")
+    (d / "deeper" / "other.mkv").write_text("x", encoding="utf-8")
+    (d / "notes.txt").write_text("x", encoding="utf-8")
+
+    with files_that_never_answer(d):
+        found = collect_video_files(str(d))
+
+    assert sorted(found) == [str(d / "clip.mp4"), str(d / "deeper" / "other.mkv")]
+
+
 # --- build_mirrored_funscript_path edge cases ---
 
 
@@ -391,6 +407,21 @@ def test_sort_paths_by_recency_orders_newest_first(tmp_path: Path):
     result = sort_paths_by_recency([str(old), str(mid), str(new)])
 
     assert result == [str(new), str(mid), str(old)]
+
+
+def test_sort_paths_by_recency_reads_the_dates_off_the_folder(tmp_path: Path):
+    """Newest-first on a drive that has stopped answering about its videos: the
+    folder listing carries every date the order needs."""
+    d = tmp_path / "vids"
+    old = d / "old.mp4"
+    new = d / "new.mp4"
+    _touch_with_mtime(old, 1000)
+    _touch_with_mtime(new, 3000)
+
+    with files_that_never_answer(d):
+        result = sort_paths_by_recency([str(old), str(new)])
+
+    assert result == [str(new), str(old)]
 
 
 def test_order_paths_recent_orders_by_recency(tmp_path: Path):

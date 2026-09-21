@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+from .folder_listings import FolderListings
 from .media_metadata import (
     EXCERPT,
     load_metadata,
@@ -84,13 +85,6 @@ def handle_for(handles: Sequence[LibraryHandle], video: str) -> LibraryHandle | 
         ),
         None,
     )
-
-
-def _file_size(video: str) -> int:
-    try:
-        return Path(video).stat().st_size
-    except OSError:
-        return 0
 
 
 def _payload(video: str, metadata_root: Path | None) -> dict:
@@ -242,6 +236,7 @@ def build_library_handles(
     A family that spans the excerpt line becomes two handles — see below.
     """
     videos = listing(sources)
+    sizes = FolderListings()
     payloads = {video: _payload(video, metadata_root) for video in videos}
     paths = {video: source_path(video, sources) for video in videos}
     # Where each source folder files the cuts Evolver HAS recorded, so the ones
@@ -270,7 +265,7 @@ def build_library_handles(
         ).append(video)
 
     played = {
-        family: tuple(sorted(videos, key=lambda video: (-_file_size(video), video)))
+        family: tuple(sorted(videos, key=lambda video: (-sizes.size(video), video)))
         for family, videos in families.items()
     }
     keys = {

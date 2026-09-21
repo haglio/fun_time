@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fun_time.library_handles import build_library_handles, handles_by_shape
 from fun_time.library_tree import folder_at
+from tests.drive_fakes import files_that_never_answer
 
 
 def _library(tmp_path: Path) -> tuple[Path, Path]:
@@ -156,6 +157,22 @@ def test_a_version_group_leads_with_its_largest_file(tmp_path: Path):
         _sidecar(metadata, video, library_root, "Beta Scene")
 
     handles = build_library_handles(str(videos), metadata)
+
+    assert handles[0].versions == (str(upscale), str(original))
+
+
+def test_the_version_order_reads_the_sizes_off_the_folders(tmp_path: Path):
+    """The browse opens on a drive that has stopped answering about its videos:
+    every size the order needs is in the folder listings already."""
+    videos, metadata = _library(tmp_path)
+    library_root = tmp_path / "videos" / "videos"
+    original = _video(videos, "0 unsorted/beta.mp4", size=2048)
+    upscale = _video(videos, "3_good_to_go/processed/beta_upscaled.mp4", size=9000)
+    for video in (original, upscale):
+        _sidecar(metadata, video, library_root, "Beta Scene")
+
+    with files_that_never_answer(videos):
+        handles = build_library_handles(str(videos), metadata)
 
     assert handles[0].versions == (str(upscale), str(original))
 
