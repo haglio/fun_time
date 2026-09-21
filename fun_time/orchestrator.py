@@ -55,6 +55,8 @@ def build_parser() -> argparse.ArgumentParser:
     ap.add_argument("--check", action="store_true", help="Validate config and exit.")
     ap.add_argument("--no-cancel", action="store_true",
                     help="The way back from a crossing Esc called off: offer no Esc.")
+    ap.add_argument("--crossing", action="store_true",
+                    help="Started by the relay: carry on the session that just ended.")
     return ap
 
 
@@ -174,7 +176,7 @@ def set_up_logging(config) -> logging.Logger:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    env = SessionEnvironment.from_environ(os.environ)
+    env = SessionEnvironment.from_environ(os.environ, crossing=args.crossing)
     config = load_config(args.config)
     # A worktree's own answer to "which Origenerator does this session host",
     # for the reason the genau override above has: the machine's one config must

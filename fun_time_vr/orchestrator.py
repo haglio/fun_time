@@ -111,6 +111,7 @@ from fun_time.session_resume import (
     resume_playlists,
     resume_satellite_locks,
     resume_shared_state,
+    resume_what_lives_in_a_player,
 )
 from fun_time.shared_state import shared_state_path
 from fun_time.single_instance import (
@@ -178,6 +179,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--check", action="store_true", help="Validate config and exit.")
     parser.add_argument("--no-cancel", action="store_true",
                         help="The way back from a crossing Esc called off: offer no Esc.")
+    parser.add_argument("--crossing", action="store_true",
+                        help="Started by the relay: carry on the session that just ended.")
     return parser
 
 
@@ -556,9 +559,11 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
         landscape_playlist = build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE)
         main_player_playlist = build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER)
         main_player_status = read_main_player_status(Path(commands.main_player_status_file))
+        portrait_status = read_satellite_status(Path(commands.portrait_status_file))
+        landscape_status = read_satellite_status(Path(commands.landscape_status_file))
         resumed = resume_playlists([
-            (portrait_playlist, read_satellite_status(Path(commands.portrait_status_file)).video),
-            (landscape_playlist, read_satellite_status(Path(commands.landscape_status_file)).video),
+            (portrait_playlist, portrait_status.video),
+            (landscape_playlist, landscape_status.video),
             (main_player_playlist, main_player_status.video),
         ])
         # And the state that session was in: F-mode, each side's filter, order and
@@ -582,6 +587,13 @@ def run_vr_bridge(config, env: SessionEnvironment, *, cancelable: bool = True) -
             (Path(commands.landscape_cmd_file), carried.satellite(Player.LANDSCAPE).locked),
         ])
         resume_genau_shapes(Path(commands.genau_cmd_file), genau_clip_shapes(carried, bridge_config))
+        if env.crossing:
+            resume_what_lives_in_a_player(
+                main_player=(Path(commands.main_player_cmd_file), main_player_status),
+                satellites=[(Path(commands.portrait_cmd_file), portrait_status),
+                            (Path(commands.landscape_cmd_file), landscape_status)],
+                genau_cmd_file=Path(commands.genau_cmd_file), state_dir=state_dir,
+            )
         stock_the_playlists(
             manifest,
             state_dir=state_dir,
@@ -814,7 +826,7 @@ def set_up_logging(config) -> logging.Logger:
 
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
-    env = SessionEnvironment.from_environ(os.environ)
+    env = SessionEnvironment.from_environ(os.environ, crossing=args.crossing)
     config = load_config(args.config)
     set_up_logging(config)
 

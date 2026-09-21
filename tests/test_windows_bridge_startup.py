@@ -12,6 +12,8 @@ from unittest.mock import patch
 from urllib.parse import urlparse
 from urllib.request import url2pathname
 
+from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from player_core.drive_readout import DriveHud, drive_text
 from player_core.modes import MainMode
 from player_core.playlist import PlaylistItem, write_playlist
 
@@ -724,6 +726,71 @@ def test_start_core_session_puts_the_primary_back_in_the_loop_it_was_running(tmp
     assert "SET_LOOP 2000 4000" in kwargs["main_player_cmd_file"].read_text(
         encoding="utf-8"
     ).splitlines()
+
+
+def _left_playing_at(kwargs: dict, *, main: float, portrait: float, landscape: float) -> None:
+    for status_file, speed in (
+        (kwargs["main_player_status_file"], main),
+        (kwargs["portrait"].channels.status, portrait),
+        (kwargs["landscape"].channels.status, landscape),
+    ):
+        Path(status_file).write_text(f"video=\nspeed={speed:g}\n", encoding="utf-8")
+
+
+def _queued(command_file) -> list[str]:
+    path = Path(command_file)
+    return path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+
+
+def test_a_crossing_hands_each_player_the_rate_it_was_playing_at(tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(kwargs)
+    _left_playing_at(kwargs, main=0.25, portrait=0.5, landscape=1.0)
+
+    _run_start_core_session({**kwargs, "crossing": True})
+
+    assert "SET_SPEED 0.25" in _queued(kwargs["main_player_cmd_file"])
+    assert "SET_SPEED 0.5" in _queued(kwargs["portrait"].channels.command)
+    assert not any(verb.startswith("SET_SPEED")
+                   for verb in _queued(kwargs["landscape"].channels.command))
+
+
+def test_a_crossing_hands_the_main_player_back_the_unlock_it_was_left_in(tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(kwargs)
+    Path(kwargs["main_player_status_file"]).write_text("video=\nlocked=0\n", encoding="utf-8")
+
+    _run_start_core_session({**kwargs, "crossing": True})
+
+    assert "LOCK_OFF" in _queued(kwargs["main_player_cmd_file"])
+
+
+def test_a_crossing_hands_genau_back_the_dials_it_was_left_at(tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(kwargs)
+    state_dir = Path(kwargs["state_dir"])
+    (state_dir / GENAU_DRIVE).write_text(
+        drive_text(DriveHud(speed=76, amplitude=100, center=50, advance_interval=10)),
+        encoding="utf-8")
+    (state_dir / GENAU_STATUS).write_text("learned=1\n", encoding="utf-8")
+
+    _run_start_core_session({**kwargs, "crossing": True})
+
+    queued = _queued(kwargs["genau_cmd_file"])
+    assert queued[0] == "PAUSE", "the fresh session's reset must still lead"
+    assert queued[-2:] == ["SPEED 76", "LEARNED_ON"]
+
+
+def test_a_launch_of_its_own_opens_every_player_at_normal_speed(tmp_path: Path):
+    kwargs = _start_core_session_kwargs(tmp_path)
+    _seed_resumable_session(kwargs)
+    _left_playing_at(kwargs, main=0.25, portrait=0.5, landscape=1.5)
+
+    _run_start_core_session(kwargs)
+
+    for command_file in (kwargs["main_player_cmd_file"], kwargs["portrait"].channels.command,
+                         kwargs["landscape"].channels.command):
+        assert not any(verb.startswith("SET_SPEED") for verb in _queued(command_file))
 
 
 def test_start_core_session_drops_a_loop_whose_video_did_not_come_back(tmp_path: Path):

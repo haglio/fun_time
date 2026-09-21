@@ -422,6 +422,12 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
         assert launch.run_windows_bridge.call_args.args[2] == SessionEnvironment(
             integration=True, show_overlays=False, dashboard_enabled=False)
 
+    def test_a_session_the_relay_started_knows_it_carries_on_a_crossing(self, cfg_path: Path):
+        with _a_launch() as launch:
+            main(["--config", str(cfg_path), "--crossing"])
+
+        assert launch.run_windows_bridge.call_args.args[2].crossing is True
+
 
 class TestTheWayBackOffersNoEsc:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, cfg_path: Path):

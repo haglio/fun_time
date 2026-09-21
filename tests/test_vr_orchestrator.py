@@ -13,6 +13,8 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
+from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from player_core.drive_readout import DriveHud, drive_text
 from player_core.modes import MainMode
 
 from fun_time import win32_taskbar
@@ -28,6 +30,7 @@ from fun_time.overlay_progress import (
     StartupCancelled,
     parse_progress,
 )
+from fun_time.players import Player
 from fun_time.session_end import SESSION_END_MARKER
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import (
@@ -784,6 +787,19 @@ class TestTheWayBackIntoVr:
 
         assert run_bridge.call_args.kwargs["cancelable"] is False
 
+    def test_a_session_the_relay_started_knows_it_carries_on_a_crossing(self, config):
+        with patch.object(orchestrator, "load_config", return_value=config), \
+             patch.object(orchestrator, "configure_logging", return_value=MagicMock()), \
+             patch.object(orchestrator, "install_exception_logging"), \
+             patch("app_support.win32.try_acquire_mutex", return_value=object()), \
+             patch("fun_time.session_handoff.subprocess.Popen"), \
+             patch.object(orchestrator, "engine_missing_abort", return_value=False), \
+             patch.object(orchestrator, "ensure_engine_vendored"), \
+             patch.object(orchestrator, "run_vr_bridge", return_value=0) as run_bridge:
+            orchestrator.main(["--crossing"])
+
+        assert run_bridge.call_args.args[1].crossing is True
+
     def test_a_player_left_holding_the_headset_is_gone_before_the_new_one_starts(
         self, config,
     ):
@@ -818,6 +834,81 @@ class TestTheWayBackIntoVr:
 
         assert held_while_reaping == [True]
         assert held_at_launch == [False]
+
+
+def _queued_when_the_player_launches(config, env: SessionEnvironment) -> dict[str, list[str]]:
+    class PlayerLaunched(Exception):
+        pass
+
+    channels = {
+        "main": config.main_player_cmd_file,
+        "portrait": config.satellite(Player.PORTRAIT).cmd_file,
+        "landscape": config.satellite(Player.LANDSCAPE).cmd_file,
+        "genau": config.genau_cmd_file,
+    }
+    queued: dict[str, list[str]] = {}
+
+    def launch(**_kwargs):
+        for name, path in channels.items():
+            queued[name] = path.read_text(encoding="utf-8").splitlines() if path.exists() else []
+        raise PlayerLaunched
+
+    with _launch_stand_ins(orchestrator, [], launch_vr_player=MagicMock(side_effect=launch)), \
+         patch.object(orchestrator.vr_runtime, "runtime_was_running", return_value=True), \
+         patch("fun_time_vr.orchestrator.subprocess.Popen"), \
+         pytest.raises(PlayerLaunched):
+        orchestrator.run_vr_bridge(config, env)
+    return queued
+
+
+def _left_playing_at(config, *, main: float, portrait: float, landscape: float) -> None:
+    config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+    for status_file, speed in (
+        (config.main_player_status_file, main),
+        (config.satellite(Player.PORTRAIT).status_file, portrait),
+        (config.satellite(Player.LANDSCAPE).status_file, landscape),
+    ):
+        status_file.write_text(f"video=\nspeed={speed:g}\n", encoding="utf-8")
+
+
+class TestWhatACrossingCarriesIntoTheHeadset:
+    def test_each_player_is_handed_the_rate_it_was_playing_at(self, config):
+        _left_playing_at(config, main=0.25, portrait=0.5, landscape=1.0)
+
+        queued = _queued_when_the_player_launches(config, SessionEnvironment(crossing=True))
+
+        assert "SET_SPEED 0.25" in queued["main"]
+        assert "SET_SPEED 0.5" in queued["portrait"]
+        assert not any(verb.startswith("SET_SPEED") for verb in queued["landscape"])
+
+    def test_the_main_player_is_handed_back_the_unlock_it_was_left_in(self, config):
+        config.paths.state_dir.mkdir(parents=True, exist_ok=True)
+        config.main_player_status_file.write_text("video=\nlocked=0\n", encoding="utf-8")
+
+        queued = _queued_when_the_player_launches(config, SessionEnvironment(crossing=True))
+
+        assert "LOCK_OFF" in queued["main"]
+
+    def test_genau_is_handed_back_the_dials_it_was_left_at(self, config):
+        state_dir = config.paths.state_dir
+        state_dir.mkdir(parents=True, exist_ok=True)
+        (state_dir / GENAU_DRIVE).write_text(
+            drive_text(DriveHud(speed=76, amplitude=100, center=50, advance_interval=10)),
+            encoding="utf-8")
+        (state_dir / GENAU_STATUS).write_text("cruise=1\n", encoding="utf-8")
+
+        queued = _queued_when_the_player_launches(config, SessionEnvironment(crossing=True))
+
+        assert queued["genau"][0] == "PAUSE", "the fresh session's reset must still lead"
+        assert queued["genau"][-2:] == ["SPEED 76", "CRUISE_ON"]
+
+    def test_a_launch_of_its_own_opens_every_player_at_normal_speed(self, config):
+        _left_playing_at(config, main=0.25, portrait=0.5, landscape=1.5)
+
+        queued = _queued_when_the_player_launches(config, SessionEnvironment())
+
+        assert not any(verb.startswith("SET_SPEED")
+                       for verbs in queued.values() for verb in verbs)
 
 
 class TestHandingTheHeadsetOver:

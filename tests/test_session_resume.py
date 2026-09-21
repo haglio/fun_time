@@ -4,23 +4,38 @@ from __future__ import annotations
 from dataclasses import fields
 from pathlib import Path
 
+from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from player_core.clip_advance import ClipAdvanceState
 from player_core.console import OSR2_CONTROL_OFF, OSR2_RETRACTED
+from player_core.drive_readout import DriveHud, drive_text
+from player_core.genau_controls import VERBS as GENAU_VERBS
 from player_core.modes import MainMode
+from player_core.robot_hand import RobotHandState
 
 from fun_time.bridge_records import SatelliteChannel
 from fun_time.crown import Crown
 from fun_time.player_handover import hand_back, keep_aside
 from fun_time.players import Player
 from fun_time.session_resume import (
+    CLIP_SECONDS,
+    CRUISE_ON,
+    CYCLE_SHAPE,
+    HAND_AMPLITUDE,
+    HAND_CENTER,
+    HAND_SPEED,
+    LEARNED_ON,
     NOT_RESUMED,
     NOT_RESUMED_PER_SATELLITE,
     RESUMED_FIELDS,
     RESUMED_SATELLITE_FIELDS,
     playlist_fits_sources,
     playlist_opens_on,
+    resume_genau,
+    resume_main_lock,
     resume_main_loop,
     resume_main_video,
     resume_playlists,
+    resume_rates,
     resume_satellite_locks,
     resume_shared_state,
 )
@@ -401,6 +416,127 @@ class TestResumeMainLoop:
         assert main_player_cmd.read_text(encoding="utf-8").splitlines() == [
             "SET_VOLUME 40 0", "SET_LOOP 2000 4000",
         ]
+
+
+class TestResumeRates:
+    def test_queues_the_rate_each_player_was_playing_at(self, tmp_path: Path):
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
+        portrait_cmd = tmp_path / "portrait_cmd.txt"
+
+        resume_rates([(main_player_cmd, 0.25), (portrait_cmd, 1.5)])
+
+        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["SET_SPEED 0.25"]
+        assert portrait_cmd.read_text(encoding="utf-8").splitlines() == ["SET_SPEED 1.5"]
+
+    def test_queues_nothing_for_a_player_at_normal_speed(self, tmp_path: Path):
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
+
+        resume_rates([(main_player_cmd, 1.0)])
+
+        assert not main_player_cmd.exists()
+
+
+class TestResumeMainLock:
+    """The main player opens holding the video it loads, so unlike a satellite's
+    lock it is the UNheld video that has to be re-sent."""
+
+    def test_queues_the_unlock_a_main_player_was_left_in(self, tmp_path: Path):
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
+
+        resume_main_lock(main_player_cmd, locked=False)
+
+        assert main_player_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
+
+    def test_queues_nothing_for_a_main_player_that_was_holding_its_video(self, tmp_path: Path):
+        main_player_cmd = tmp_path / "main_player_cmd.txt"
+
+        resume_main_lock(main_player_cmd, locked=True)
+
+        assert not main_player_cmd.exists()
+
+
+class TestResumeGenau:
+    """Genau's dials, its shape and its three switches live in the engine that
+    just died, and its own launch opens them at the family's defaults."""
+
+    @staticmethod
+    def _left_genau(tmp_path: Path, *, drive: str = "", status: str = "") -> Path:
+        (tmp_path / GENAU_DRIVE).write_text(drive, encoding="utf-8")
+        (tmp_path / GENAU_STATUS).write_text(status, encoding="utf-8")
+        return tmp_path / "genau_cmd.txt"
+
+    @staticmethod
+    def _drive(**dials: object) -> str:
+        """A readout of a hand left where a fresh one opens, bar what a test moves."""
+        hand, advance = RobotHandState(), ClipAdvanceState()
+        return drive_text(DriveHud(**{
+            "speed": hand.speed, "amplitude": hand.amplitude, "center": hand.center,
+            "shape": hand.shape.value, "advance_interval": advance.interval, **dials,
+        }))
+
+    def test_queues_the_dials_the_hand_was_left_at(self, tmp_path: Path):
+        genau_cmd = self._left_genau(
+            tmp_path, drive=self._drive(speed=76, amplitude=60, center=30, advance_interval=25))
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
+            "SPEED 76", "AMP 60", "CENTER 30", "CLIP_SECONDS 25",
+        ]
+
+    def test_queues_nothing_for_a_hand_left_where_the_next_one_opens(self, tmp_path: Path):
+        genau_cmd = self._left_genau(
+            tmp_path, drive=self._drive(), status="cruise=0\nlearned=0\nlocked=1\n")
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert not genau_cmd.exists()
+
+    def test_says_a_shape_as_the_steps_that_reach_it(self, tmp_path: Path):
+        """No verb names a shape outright, so the one to take up is said as the
+        steps from the shape a fresh engine opens on."""
+        genau_cmd = self._left_genau(tmp_path, drive=self._drive(shape="sawtooth"))
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == [
+            "CYCLE_SHAPE", "CYCLE_SHAPE", "CYCLE_SHAPE",
+        ]
+
+    def test_queues_the_cruise_that_was_running(self, tmp_path: Path):
+        genau_cmd = self._left_genau(tmp_path, status="cruise=1\n")
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["CRUISE_ON"]
+
+    def test_queues_the_learned_motion_that_was_running(self, tmp_path: Path):
+        genau_cmd = self._left_genau(tmp_path, status="learned=1\n")
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LEARNED_ON"]
+
+    def test_queues_the_unlock_genau_was_left_in(self, tmp_path: Path):
+        genau_cmd = self._left_genau(tmp_path, status="locked=0\n")
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["LOCK_OFF"]
+
+    def test_every_verb_it_sends_is_one_genau_answers(self):
+        """Genau's own verbs are spelled beside its registry rather than in the
+        family's shared list, so this side's copy is held to that registry."""
+        assert {HAND_SPEED, HAND_AMPLITUDE, HAND_CENTER, CLIP_SECONDS, CYCLE_SHAPE,
+                CRUISE_ON, LEARNED_ON, "LOCK_OFF"} <= set(GENAU_VERBS)
+
+    def test_a_session_that_published_no_readout_still_carries_its_switches(self, tmp_path: Path):
+        genau_cmd = tmp_path / "genau_cmd.txt"
+        (tmp_path / GENAU_STATUS).write_text("cruise=1\n", encoding="utf-8")
+
+        resume_genau(genau_cmd, tmp_path)
+
+        assert genau_cmd.read_text(encoding="utf-8").splitlines() == ["CRUISE_ON"]
 
 
 class TestPlaylistOpensOn:

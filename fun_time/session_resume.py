@@ -6,13 +6,19 @@ from collections.abc import Sequence
 from dataclasses import fields, replace
 from pathlib import Path
 
+from app_support.state_files import GENAU_DRIVE, GENAU_STATUS
+from player_core.clip_advance import ClipAdvanceState
+from player_core.drive_readout import read_drive
 from player_core.file_channel import append_command
-from player_core.player_verbs import LOCK_ON
+from player_core.player_verbs import LOCK_OFF, LOCK_ON, SET_SPEED
 from player_core.playlist import PlaylistItem, read_playlist, write_playlist
+from player_core.robot_hand import RobotHandState, WaveformShape
+from player_core.status import PlayerStatus
 
 from .media_metadata import normalize_path_key
 from .modes import rotated_onto, source_roots
 from .player_handover import take_back_the_list
+from .player_status import MainPlayerStatus, read_genau_status
 from .players import Player
 from .runtime_flow import SET_LOOP_CMD
 from .shared_state import (
@@ -24,6 +30,14 @@ from .shared_state import (
 )
 
 PlaylistEntries = list[PlaylistItem]
+
+HAND_SPEED = "SPEED"
+HAND_AMPLITUDE = "AMP"
+HAND_CENTER = "CENTER"
+CLIP_SECONDS = "CLIP_SECONDS"
+CYCLE_SHAPE = "CYCLE_SHAPE"
+CRUISE_ON = "CRUISE_ON"
+LEARNED_ON = "LEARNED_ON"
 
 # What a reopened session does NOT come back believing; everything else does.
 # Which four of those it keeps without a file of their own, and what re-asserts
@@ -126,19 +140,74 @@ def resume_main_video(playlist_file: Path, video: str) -> bool:
 
 
 def resume_satellite_locks(locks: Sequence[tuple[Path, bool]]) -> None:
-    """Queue LOCK_ON on the command file of each satellite that was locked.
-
-    A lock lives in the player process rather than in any file the new one
-    reads, so it has to be re-sent.
-    """
+    """Queue LOCK_ON on the command file of each satellite that was locked."""
     for command_file, locked in locks:
         if locked:
             append_command(Path(command_file), LOCK_ON)
 
 
+def _shape_steps(shape: str) -> list[str]:
+    shapes = [kind.value for kind in WaveformShape]
+    if shape not in shapes:
+        return []
+    opens_on = shapes.index(RobotHandState().shape.value)
+    return [CYCLE_SHAPE] * ((shapes.index(shape) - opens_on) % len(shapes))
+
+
+def resume_genau(genau_cmd_file: Path, state_dir: Path) -> None:
+    state_dir = Path(state_dir)
+    status = read_genau_status(state_dir / GENAU_STATUS)
+    drive = read_drive(state_dir / GENAU_DRIVE)
+    verbs: list[str] = []
+    if drive is not None:
+        hand, advance = RobotHandState(), ClipAdvanceState()
+        verbs += [f"{verb} {value}" for verb, value, opens_at in (
+            (HAND_SPEED, drive.speed, hand.speed),
+            (HAND_AMPLITUDE, drive.amplitude, hand.amplitude),
+            (HAND_CENTER, drive.center, hand.center),
+            (CLIP_SECONDS, drive.advance_interval, advance.interval),
+        ) if value != opens_at]
+        verbs += _shape_steps(drive.shape)
+    if status.cruise_active:
+        verbs.append(CRUISE_ON)
+    if status.learned_active:
+        verbs.append(LEARNED_ON)
+    if not status.locked:
+        verbs.append(LOCK_OFF)
+    for verb in verbs:
+        append_command(Path(genau_cmd_file), verb)
+
+
+def resume_main_lock(main_player_cmd_file: Path, *, locked: bool) -> None:
+    if not locked:
+        append_command(Path(main_player_cmd_file), LOCK_OFF)
+
+
+def resume_rates(rates: Sequence[tuple[Path, float]]) -> None:
+    for command_file, rate in rates:
+        if rate != 1.0:
+            append_command(Path(command_file), f"{SET_SPEED} {rate:g}")
+
+
+def resume_what_lives_in_a_player(
+    *,
+    main_player: tuple[Path, MainPlayerStatus],
+    satellites: Sequence[tuple[Path, PlayerStatus]],
+    genau_cmd_file: Path,
+    state_dir: Path,
+) -> None:
+    """What a crossing re-sends and an ordinary reopen does not: ``docs/entering-vr.md``."""
+    main_player_cmd_file, main_player_status = main_player
+    resume_rates([
+        (main_player_cmd_file, main_player_status.speed),
+        *((command_file, status.speed) for command_file, status in satellites),
+    ])
+    resume_main_lock(main_player_cmd_file, locked=main_player_status.locked)
+    resume_genau(genau_cmd_file, state_dir)
+
+
 def resume_main_loop(main_player_cmd_file: Path, bounds: tuple[int, int] | None) -> None:
-    """Queue SET_LOOP on the main player's command file for the loop it was
-    running, re-sent for the same reason :func:`resume_satellite_locks` is."""
+    """Queue SET_LOOP for the loop the main player was left running."""
     if bounds is not None:
         append_command(Path(main_player_cmd_file), f"{SET_LOOP_CMD} {bounds[0]} {bounds[1]}")
 
