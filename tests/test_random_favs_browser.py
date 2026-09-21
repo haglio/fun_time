@@ -50,7 +50,7 @@ def test_choose_random_uses_requested_count():
     assert len(set(chosen)) == 10
 
 
-def test_build_manifest_returns_profile_and_targets(cfg_factory, tmp_path: Path):
+def test_the_manifest_names_the_chrome_profile_and_every_target(cfg_factory, tmp_path: Path):
     user_data_dir = tmp_path / "User Data"
     user_data_dir.mkdir()
     (user_data_dir / "Local State").write_text(
@@ -307,7 +307,7 @@ def test_extract_url_from_hyperlink_empty():
     assert extract_url_from_hyperlink("") == ""
 
 
-def test_extract_path_from_hyperlink_returns_display_text():
+def test_a_hyperlink_cell_yields_the_path_its_label_shows():
     cell = '=HYPERLINK("file:///C:/img/a%20b.mp4";"C:\\img\\a b.mp4")'
     assert extract_path_from_hyperlink(cell) == "C:\\img\\a b.mp4"
 

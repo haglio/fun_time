@@ -3084,7 +3084,7 @@ def test_main_player_record_commands_noop_in_genau_mode(tmp_path: Path):
 # --- unknown command ---
 
 
-def test_unknown_command_returns_unchanged_state(tmp_path: Path):
+def test_an_unknown_command_leaves_the_session_exactly_as_it_was(tmp_path: Path):
     config = _make_config(tmp_path)
     state = _make_state()
 

@@ -346,7 +346,7 @@ def test_a_run_ends_on_the_code_pytest_decided_though_windows_never_finishes_tak
     assert "Windows has not finished taking its process down" in capsys.readouterr().err
 
 
-def test_main_hands_its_own_args_to_the_run_and_returns_its_code():
+def test_main_hands_its_own_args_to_the_run_and_exits_on_its_verdict():
     with patch.object(hidden_desktop, "run_on_hidden_desktop", return_value=0) as run, \
          patch.object(sys, "argv", ["hidden_desktop", "-k", "main_player"]):
         with pytest.raises(SystemExit) as exit_info:

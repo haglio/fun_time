@@ -119,7 +119,7 @@ def test_open_rfb_tab_calls_subprocess(monkeypatch):
 # --- Manifest tests ---
 
 
-def test_read_random_favs_browser_manifest_returns_profile_and_urls(tmp_path: Path):
+def test_the_manifest_names_the_chrome_profile_and_every_url(tmp_path: Path):
     manifest_file = tmp_path / "browser_manifest.txt"
     manifest_file.write_text(
         "Profile 2\nhttps://example.com/1\nhttps://example.com/2\n",

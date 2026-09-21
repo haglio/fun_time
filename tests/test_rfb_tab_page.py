@@ -101,7 +101,7 @@ def test_tabs_dir_hangs_off_the_state_dir(tmp_path: Path):
     assert tabs_dir(tmp_path) == tmp_path / "rfb_tabs"
 
 
-def test_write_tab_pages_returns_one_file_uri_per_target(tmp_path: Path):
+def test_each_target_gets_a_landing_page_of_its_own(tmp_path: Path):
     pages = tmp_path / "rfb_tabs"
 
     uris = write_tab_pages(pages, [TabTarget(REGEN_URL, "a"), TabTarget("https://b", "b")])

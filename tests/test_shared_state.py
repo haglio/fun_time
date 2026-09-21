@@ -94,7 +94,7 @@ class TestSharedState:
 
         assert loaded == state
 
-    def test_read_returns_none_when_missing(self, tmp_path):
+    def test_state_that_was_never_written_reads_as_absent(self, tmp_path):
         state_file = tmp_path / "shared_state.ini"
         assert read_shared_state(state_file) is None
 

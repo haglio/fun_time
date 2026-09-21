@@ -70,7 +70,7 @@ def test_to_file_uri_of_nothing_is_nothing():
 # ---------------------------------------------------------------------------
 
 @given(path=st.text(max_size=500))
-def test_make_web_url_from_path_returns_empty_for_unknown_sites(path: str):
+def test_a_path_from_no_known_site_makes_no_web_url(path: str):
     assume("\\alpha\\" not in path.lower().replace("/", "\\"))
     assume("\\beta\\" not in path.lower().replace("/", "\\"))
     assert make_web_url_from_path(path, _PROVIDERS) == ""

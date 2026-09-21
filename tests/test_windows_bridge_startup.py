@@ -1076,7 +1076,7 @@ GENAU_SESSION_FILES = dict(
 )
 
 
-def test_launch_genau_starts_process_and_returns_pid():
+def test_launching_genau_starts_it_and_says_which_process_it_is():
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1527,7 +1527,7 @@ def test_launch_main_player_sends_child_output_to_its_own_log(tmp_path: Path):
     assert "-m main_player" in log_file.read_text(encoding="utf-8")
 
 
-def test_launch_main_player_starts_process_and_returns_pid(tmp_path: Path):
+def test_launching_the_main_player_starts_it_and_says_which_process_it_is(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid
@@ -1848,7 +1848,7 @@ def test_build_satellite_launch_command_passes_no_config_flag():
     assert "--config" not in cmd
 
 
-def test_launch_satellite_starts_process_and_returns_pid(tmp_path: Path):
+def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: Path):
     class FakeProc:
         def __init__(self, pid: int):
             self.pid = pid

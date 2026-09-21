@@ -982,5 +982,5 @@ def test_panel_thumbnails_caps_at_limit_and_skips_unreadable():
     assert all(isinstance(thumb, Path) for _path, thumb in pairs)
 
 
-def test_panel_thumbnails_returns_empty_for_no_paths():
+def test_a_panel_with_no_clips_in_it_shows_no_thumbnails():
     assert panel_thumbnails([], Path("cache"), limit=4, thumbnailer=lambda *_: None) == []

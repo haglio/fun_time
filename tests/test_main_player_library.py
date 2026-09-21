@@ -235,7 +235,7 @@ class TestCanonicalPlaylist:
 
         assert [e.video for e in first] == [e.video for e in second]
 
-    def test_returns_library_entries(self):
+    def test_every_video_in_the_library_comes_back_as_an_entry(self):
         playlist = canonical_playlist([_entry("solo-1080p.mp4", 100)], random.Random(1))
 
         assert isinstance(playlist[0], LibraryEntry)
@@ -410,7 +410,7 @@ class TestLibraryPlaylist:
         assert as_dict[Path("Jane-1080p.mp4")] is None
         assert as_dict[Path("John-720p.mp4")] == Path("John.funscript")
 
-    def test_returns_path_tuples(self):
+    def test_each_entry_carries_its_video_and_its_funscript(self):
         entries = [_entry("solo-1080p.mp4", 100, funscript="solo.funscript")]
         durations = self._durations({"solo-1080p.mp4": 300.0})
 

@@ -90,14 +90,14 @@ def test_metadata_path_mirrors_media_tree_under_metadata_root(tmp_path: Path):
     assert result == metadata_root / "2D" / "AI" / "2_outbox" / "upscaled_by_orientation" / "portrait" / "provider" / "abc_topaz.json"
 
 
-def test_metadata_path_returns_none_when_outside_media_root(tmp_path: Path):
+def test_a_video_outside_the_library_has_no_metadata_file(tmp_path: Path):
     metadata_root = tmp_path / "videos" / "metadata"
     outside = tmp_path / "elsewhere" / "clip.mp4"
 
     assert metadata_path_for(outside, metadata_root) is None
 
 
-def test_metadata_path_returns_none_when_roots_missing(tmp_path: Path):
+def test_without_both_roots_configured_no_metadata_file_is_named(tmp_path: Path):
     assert metadata_path_for(tmp_path / "x.mp4", None) is None
 
 
@@ -126,7 +126,7 @@ def test_load_metadata_reads_dict(tmp_path: Path):
     assert load_metadata(p) == VIDEO_ONLY_META
 
 
-def test_load_metadata_returns_empty_on_missing_or_invalid(tmp_path: Path):
+def test_a_missing_or_unreadable_sidecar_reads_as_no_metadata(tmp_path: Path):
     assert load_metadata(tmp_path / "nope.json") == {}
     bad = tmp_path / "bad.json"
     bad.write_text("{not json", encoding="utf-8")
@@ -172,7 +172,7 @@ def test_action_group_key_for_text_to_video_frees_only_the_action():
     assert action_group_key(dancing) != action_group_key(_i2v_meta(action="Dancing", video_seed="42"))
 
 
-def test_action_group_key_returns_none_without_generation_identity():
+def test_a_clip_with_no_generation_identity_joins_no_action_group():
     assert action_group_key({}) is None
     assert action_group_key({"video": {"action": "Alpha", "seed": "1"}}) is None
 

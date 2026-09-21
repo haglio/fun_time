@@ -88,18 +88,18 @@ def test_thumbnail_for_reuses_the_cached_file(tmp_path: Path):
     assert second.read_bytes() == b"SENTINEL"  # served from cache, not rebuilt
 
 
-def test_thumbnail_for_returns_none_for_an_unreadable_video(tmp_path: Path):
+def test_a_video_that_cannot_be_decoded_gets_no_thumbnail(tmp_path: Path):
     bad = tmp_path / "garbage.mp4"
     bad.write_bytes(b"not a real video")
 
     assert thumbnail_for(bad, tmp_path / "cache") is None
 
 
-def test_thumbnail_for_returns_none_for_a_missing_video(tmp_path: Path):
+def test_a_video_that_is_not_there_gets_no_thumbnail(tmp_path: Path):
     assert thumbnail_for(tmp_path / "nope.mp4", tmp_path / "cache") is None
 
 
-def test_cached_thumbnail_returns_the_file_only_when_it_exists(tmp_path: Path):
+def test_a_cached_thumbnail_is_offered_only_while_its_file_is_there(tmp_path: Path):
     """The HUD paints with this, so it must never extract — just report the cached
     file if the prewarm has already made it, else None."""
     video = tmp_path / "clip.mp4"

@@ -14,7 +14,7 @@ class TestLoadIconImage:
         img = load_icon_image(ICON_PATH, 128)
         assert img.size == (128, 128)
 
-    def test_returns_none_for_missing_file(self):
+    def test_an_icon_file_that_is_not_there_loads_as_no_icon(self):
         result = load_icon_image(Path("nonexistent.ico"), 128)
         assert result is None
 

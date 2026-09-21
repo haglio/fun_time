@@ -42,7 +42,7 @@ def test_the_wire_format_is_the_filter_prefix_scope_and_slugged_query():
     assert decode_filter_command("filter_both_beta_gamma") == ("both", "beta gamma")
 
 
-def test_decode_returns_none_for_non_filter_commands():
+def test_a_command_that_is_not_about_the_filter_is_left_alone():
     for command in ("fmode_toggle", "portrait_next", "recency_order_refresh", "filterish", ""):
         assert decode_filter_command(command) is None
 

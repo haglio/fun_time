@@ -1160,7 +1160,7 @@ class TestWaitForNewChromeWindow:
             SimpleNamespace(monotonic=lambda: float(next(ticks)), sleep=lambda _s: None),
         )
 
-    def test_returns_the_window_that_was_not_there_before(self, monkeypatch):
+    def test_the_window_that_appeared_is_the_one_handed_back(self, monkeypatch):
         self._clock(monkeypatch)
         snapshots = iter([{111, 222}, {111, 222}, {111, 222, 333}])
         with patch("fun_time.windows_bridge_sequencer.find_windows_by_class",
