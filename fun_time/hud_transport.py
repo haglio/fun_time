@@ -21,6 +21,7 @@ from player_core.file_channel import publish_whole
 from player_core.hud_placement import HudCorner, HudEdge
 from player_core.satellite_hud import HudCell, HudModel, hud_text
 
+from .folder_listings import FolderListings
 from .lock_hud import ACTION_LIMIT, SEED_LIMIT, HudPanel, locate_cell, panel_thumbnails
 from .osr2_section import DeviceBlock
 from .satellite_buttons import mode_row, player_rows
@@ -36,7 +37,7 @@ def _cell(path: str, thumb: object, label: str = "") -> HudCell:
     return HudCell(path=path, thumb=str(thumb) if thumb else "", label=label)
 
 
-def _cells(paths: list[str], cache_dir: Path, *, limit: int,
+def _cells(paths: list[str], cache_dir: Path, listings: FolderListings, *, limit: int,
            labels: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
     """The drawable siblings: up to *limit* clips whose thumbnail is already cached.
 
@@ -49,11 +50,12 @@ def _cells(paths: list[str], cache_dir: Path, *, limit: int,
     return tuple(
         _cell(path, thumb, by_path.get(path, ""))
         for path, thumb in panel_thumbnails(
-            paths, cache_dir, limit=limit, thumbnailer=cached_thumbnail)
+            paths, cache_dir, limit=limit,
+            thumbnailer=lambda path, cache: cached_thumbnail(path, cache, listings))
     )
 
 
-def _loop_cells(paths: list[str], cache_dir: Path,
+def _loop_cells(paths: list[str], cache_dir: Path, listings: FolderListings,
                 labels: tuple[str, ...] = ()) -> tuple[HudCell, ...]:
     """Every clip a running loop cycles, in the loop's own order.
 
@@ -64,7 +66,7 @@ def _loop_cells(paths: list[str], cache_dir: Path,
     playing.
     """
     by_path = dict(zip(paths, labels))
-    return tuple(_cell(path, cached_thumbnail(path, cache_dir), by_path.get(path, ""))
+    return tuple(_cell(path, cached_thumbnail(path, cache_dir, listings), by_path.get(path, ""))
                  for path in paths)
 
 
@@ -77,21 +79,22 @@ def hud_model(panel: HudPanel, cache_dir: Path,
     siblings that actually made it onto the map, so the player lights exactly the
     thumbnail it drew.
     """
+    listings = FolderListings()
     # The looped axis is published whole — the player windows it around the clip on
     # screen; the other axis is the ordinary browse map, drawn to its cap.
     seeds = (
-        _loop_cells(panel.seed_siblings, cache_dir) if panel.active_loop == "seed"
-        else _cells(panel.seed_siblings, cache_dir, limit=SEED_LIMIT)
+        _loop_cells(panel.seed_siblings, cache_dir, listings) if panel.active_loop == "seed"
+        else _cells(panel.seed_siblings, cache_dir, listings, limit=SEED_LIMIT)
     )
     actions = (
-        _loop_cells(panel.action_siblings, cache_dir, panel.action_labels)
+        _loop_cells(panel.action_siblings, cache_dir, listings, panel.action_labels)
         if panel.active_loop == "action"
-        else _cells(panel.action_siblings, cache_dir, limit=ACTION_LIMIT,
+        else _cells(panel.action_siblings, cache_dir, listings, limit=ACTION_LIMIT,
                     labels=panel.action_labels)
     )
     corner = None
     if panel.current:
-        corner = _cell(panel.current, cached_thumbnail(panel.current, cache_dir))
+        corner = _cell(panel.current, cached_thumbnail(panel.current, cache_dir, listings))
     playing = locate_cell(
         panel.playing, panel.current,
         [cell.path for cell in seeds], [cell.path for cell in actions],

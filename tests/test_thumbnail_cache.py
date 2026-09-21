@@ -8,12 +8,14 @@ import numpy as np
 import pytest
 from PIL import Image
 
+from fun_time.folder_listings import FolderListings
 from fun_time.thumbnail_cache import (
     cached_thumbnail,
     prewarm_thumbnails,
     thumbnail_for,
     thumbnail_path,
 )
+from tests.drive_fakes import files_that_never_answer, folders_listed
 
 
 def _make_video(path: Path, *, width: int = 64, height: int = 48, frames: int = 10) -> None:
@@ -47,6 +49,42 @@ def test_thumbnail_path_changes_when_the_video_is_modified(tmp_path: Path):
     os.utime(video, (stat.st_atime, stat.st_mtime + 60))
 
     assert thumbnail_path(video, cache) != before
+
+
+def test_a_cached_still_is_found_for_a_video_its_drive_will_not_answer_about(tmp_path: Path):
+    """The map under the main player is drawn on the dispatch loop, so a still it
+    looks up while the drive is stuck on that very video would freeze every
+    control in the session -- the folder's listing dates it instead."""
+    folder = tmp_path / "vids"
+    folder.mkdir()
+    video = folder / "clip.mp4"
+    video.write_bytes(b"x")
+    cache = tmp_path / "cache"
+    cache.mkdir()
+    thumbnail_path(video, cache).write_bytes(b"jpeg")
+
+    with files_that_never_answer(folder):
+        found = cached_thumbnail(video, cache)
+
+    assert found == thumbnail_path(video, cache)
+
+
+def test_a_map_of_one_folder_s_clips_lists_that_folder_once(tmp_path: Path):
+    folder = tmp_path / "vids"
+    folder.mkdir()
+    videos = []
+    for index in range(4):
+        video = folder / f"clip{index}.mp4"
+        video.write_bytes(b"x")
+        videos.append(video)
+    cache = tmp_path / "cache"
+    listings = FolderListings()
+
+    with folders_listed() as read:
+        for video in videos:
+            cached_thumbnail(video, cache, listings)
+
+    assert len(read) == 1
 
 
 def test_thumbnail_for_extracts_a_frame_scaled_within_bounds(tmp_path: Path):
