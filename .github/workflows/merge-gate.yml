@@ -28,21 +28,16 @@ jobs:
       sdl-video: dummy
       sdl-audio: dummy
       extras: "dev,windows"
+      # The video engine, at the build player_core's `tools/libmpv.lock` names and
+      # whose digest its fetcher verifies -- the same one this repo's own startup
+      # preflight tells a developer to fetch. The fetcher and the lock sit outside
+      # the installed package, so the pinned tag is cloned for them; the tag is
+      # this repo's own, read back off the pyproject that pins it.
       prepare: |
         set -euo pipefail
-        get_url() {
-          gh api "repos/$1/releases?per_page=15" \
-            --jq '[.[].assets[]?.browser_download_url | select(test("mpv-dev-x86_64-[0-9].*\\.7z$"))][0] // empty'
-        }
-        url="$(get_url zhongfly/mpv-winbuild)"
-        [ -z "$url" ] && url="$(get_url shinchiro/mpv-winbuild-cmake)"
-        if [ -z "$url" ]; then echo "::error::could not resolve a libmpv dev build URL"; exit 1; fi
-        echo "libmpv dev build: $url"
-        curl -fL -o "$RUNNER_TEMP/mpv-dev.7z" "$url"
-        7z x "$RUNNER_TEMP/mpv-dev.7z" -o"$RUNNER_TEMP/mpv-dev" >/dev/null
-        dll="$(find "$RUNNER_TEMP/mpv-dev" -name 'libmpv-2.dll' | head -1)"
-        if [ -z "$dll" ]; then echo "::error::libmpv-2.dll not in the archive"; exit 1; fi
-        pydir="$(python -c 'import sys, os; print(os.path.dirname(sys.executable))')"
-        cp "$dll" "$pydir/mpv-2.dll"
-        echo "$pydir" >> "$GITHUB_PATH"
-        python -c "import app_support, player_core, shared_ui, mpv; print('imports OK')"
+        tag="$(python -c 'from pathlib import Path; from app_support.dependencies import pinned_siblings; print(pinned_siblings(Path("pyproject.toml"))["player_core"])')"
+        echo "libmpv from player_core $tag"
+        git clone --quiet --depth 1 --branch "$tag" \
+          https://github.com/haglio/player_core.git "$RUNNER_TEMP/player_core"
+        python "$RUNNER_TEMP/player_core/tools/fetch_libmpv.py" --require
+        python -c "import app_support, shared_ui; from player_core.mpv_player import _import_mpv; _import_mpv(); print('imports OK')"

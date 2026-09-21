@@ -67,3 +67,21 @@ def test_the_declared_python_floor_is_the_one_ci_actually_runs():
     leg of the gate runs rather than the first one it finds.
     """
     assert_the_declared_floor_is_the_one_the_gate_runs(PYPROJECT, MERGE_GATE)
+
+
+def test_the_gate_takes_the_video_engine_from_the_build_player_core_pins():
+    """The engine is ~117 MB, ships in no package, and every player stands on it.
+
+    This gate used to ask a community repository's releases feed for the newest
+    asset matching a glob and copy the result next to the interpreter -- no
+    version, no checksum, no signature, in a job holding the workflow token --
+    with a fallback to a second, unrelated publisher.  ``libmpv.lock`` in
+    player_core names the build and its digest and refuses a mismatch, and this
+    repo already runs that fetcher's twin at startup; the gate is the last place
+    that was still taking whatever the feed served that morning.
+    """
+    gate = MERGE_GATE.read_text(encoding="utf-8")
+
+    assert "tools/fetch_libmpv.py" in gate
+    assert "mpv-winbuild" not in gate, "a community feed is named here again"
+    assert "gh api" not in gate, "this gate is asking a feed what to install again"
