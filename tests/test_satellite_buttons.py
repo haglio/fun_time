@@ -95,6 +95,20 @@ def test_the_mode_pair_leads_where_the_session_hosts_an_origenerator():
     assert len(player_rows("portrait")) == 1
 
 
+def test_a_player_in_the_headset_has_no_window_to_minimize():
+    """Minimize parks a player's window, and in the headset a player is a
+    screen in the scene rather than a window of its own: there is nothing for
+    it to park, so it is left off the band and off the session's row alike."""
+    plain = player_rows("portrait", latest=False, in_vr=True)
+    hosting = player_rows("portrait", latest=False, satellites_mode=SatellitesMode.VIDEO,
+                          in_vr=True)
+
+    assert _names(plain[-1])[-1] == "cycle_version"
+    assert [b.command for b in hosting[0]] == [
+        "satellites_video_activate", "origenerator_activate"]
+    assert "minimize" not in _names(hosting[-1])
+
+
 def test_the_origenerator_button_is_dim_until_that_app_is_up():
     """The room opens without waiting out the hosted app's boot, so for the
     first half-minute the switch would land on windows that do not exist.  Dim

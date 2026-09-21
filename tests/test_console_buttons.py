@@ -562,6 +562,16 @@ class TestLayout:
 
         assert minimize[0] - (genau[0] + genau[2]) == GROUP_GAP
 
+    def test_a_console_in_the_headset_has_no_window_to_minimize(self):
+        """The players under it are screens in the scene there, not windows, so
+        the mode pair runs straight on into the file controls."""
+        video = [b.command for b in console_rows(MainSlot(main_mode=MainMode.VIDEO), in_vr=True)[0]]
+        genau = [b.command for b in console_rows(MainSlot(main_mode=MainMode.GENAU), in_vr=True)[0]]
+
+        assert video == ["main_video_activate", "genau_activate",
+                         "browse_library", "main_player_record_tap", "clipper_save"]
+        assert genau == ["main_video_activate", "genau_activate"]
+
     def test_minimize_asks_for_a_drawn_bar_rather_than_a_font_glyph(self):
         button = _button(MainSlot(main_mode=MainMode.GENAU), "main_minimize")
 
@@ -579,18 +589,6 @@ class TestLayout:
         placed = place_rows(console_rows(MainSlot(main_mode=MainMode.VIDEO)), x=0, y=0)
 
         assert all(rect[3] == BUTTON for rect, _b in placed)
-
-    def test_the_mode_row_can_be_left_off_and_takes_minimize_with_it(self):
-        full = console_rows(MainSlot(main_mode=MainMode.GENAU))
-        trimmed = console_rows(MainSlot(main_mode=MainMode.GENAU), modes=False)
-
-        assert trimmed == full[1:]
-        actions = [b.command for row in trimmed for b in row]
-        assert "main_minimize" not in actions
-        assert not any(a.endswith("_activate") for a in actions)
-        for kept in ("robot_hand_toggle_cruise", "robot_hand_cycle_shape", "main_lock",
-                     "genau_clip_seconds_up", "genau_clip_seconds_down"):
-            assert kept in actions
 
 
 class TestFaces:

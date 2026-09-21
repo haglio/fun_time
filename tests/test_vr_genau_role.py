@@ -297,7 +297,8 @@ class TestWhatItPublishes:
         from fun_time.console_buttons import MainSlot, console_rows, osr2_controls
 
         published = ConsoleModel(main_mode=MainMode.GENAU,
-                                 rows=console_rows(MainSlot(main_mode=MainMode.GENAU)),
+                                 rows=console_rows(MainSlot(main_mode=MainMode.GENAU),
+                                                   in_vr=True),
                                  osr2_controls=osr2_controls(broker=True))
         console = tmp_path / "main_player_console.json"
         console.write_text(console_text(published), encoding="utf-8")

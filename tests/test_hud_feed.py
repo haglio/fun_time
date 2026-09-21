@@ -11,6 +11,7 @@ from dataclasses import replace
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from player_core.console import OSR2_CONTROL_OFF
 from player_core.hud_button import Button
 from player_core.modes import MainMode
@@ -190,6 +191,25 @@ class TestHudPublishing:
             assert published.lock_label == "Origenerator mode"
             assert [[button.command for button in row] for row in published.rows] == [
                 ["satellites_video_activate", "origenerator_activate", f"{player}_minimize"]]
+
+    @pytest.mark.parametrize(("hosting", "satellites_mode"), [
+        (False, "video"), (True, "video"), (True, "origenerator")])
+    def test_no_player_in_a_headset_session_offers_to_minimize(
+        self, tmp_path, hosting, satellites_mode,
+    ):
+        """There every player is a screen in the scene with no window of its own
+        to park -- whichever row minimize would ride on the desktop: the end of
+        a side's band, the session's row over it, or the console's mode row."""
+        config = hosting_config(tmp_path) if hosting else make_config(tmp_path)
+        feed = make_feed(tmp_path, config=replace(config, vr_main_player=True))
+
+        feed.publish(BridgeState(satellites_mode=satellites_mode))
+
+        published = [panel(tmp_path, "portrait"), panel(tmp_path, "landscape"), console(tmp_path)]
+        commands = [button.get("command", "") for each in published for row in each["rows"]
+                    for button in row]
+        assert commands
+        assert [command for command in commands if command.endswith("_minimize")] == []
 
     def test_a_hosted_panel_caught_mid_write_leaves_the_last_one_up(self, tmp_path):
         """A read that loses to the app's own republish is not the app letting

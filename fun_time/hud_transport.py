@@ -104,7 +104,8 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
                          satellites_mode=panel.satellites_mode,
                          origenerator_ready=panel.origenerator_ready,
                          nothing_to_reset=panel.nothing_to_reset,
-                         has_other_versions=panel.has_other_versions),
+                         has_other_versions=panel.has_other_versions,
+                         in_vr=panel.in_vr),
         filter_query=panel.filter_query,
         seed_count=panel.seed_count,
         action_count=panel.action_count,
@@ -118,12 +119,12 @@ def hud_model(panel: HudPanel, cache_dir: Path) -> HudModel:
 
 
 def hosted_model(player: str, hosted: HudModel | None, *, active: bool,
-                 origenerator_ready: bool) -> HudModel:
+                 origenerator_ready: bool, in_vr: bool) -> HudModel:
     """What *player* wears while the hosted app holds its player: that app's own
     panel, or the mode's name while it has none, under the session's row."""
     panel = hosted or HudModel(player=player, lock_label=ORIGENERATOR_MODE_LABEL)
     row = mode_row(player, satellites_mode=ORIGENERATOR_MODE,
-                   origenerator_ready=origenerator_ready)
+                   origenerator_ready=origenerator_ready, in_vr=in_vr)
     return replace(panel, player=player, active=active, rows=(row, *panel.rows))
 
 

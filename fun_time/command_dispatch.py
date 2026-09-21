@@ -407,7 +407,7 @@ _MINIMIZE_ROLES: dict[str, str] = {
     "landscape_minimize": "landscape",
 }
 
-# The main player's own console button (``main_player.console``).  It names the *slot*
+# The main player's own console button (``fun_time.console_buttons``).  It names the *slot*
 # rather than a window, because two players share that rect.
 MAIN_MINIMIZE = "main_minimize"
 
