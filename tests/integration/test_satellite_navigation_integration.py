@@ -36,6 +36,7 @@ from fun_time.satellite_control import read_satellite_status
 from fun_time.shared_state import BridgeState, SatelliteState
 from fun_time.thumbnail_cache import THUMBNAIL_CACHE_DIRNAME
 from fun_time.windows_bridge_startup import launch_satellite
+from satellite.contract import SatelliteChannels, WindowPlacement
 
 from .integration_support import (
     checkout_project_dirs,
@@ -131,13 +132,18 @@ def launched(tmp_path: Path, videos: list[str], *, width: int, height: int):
     pid = launch_satellite(
         python_exe=str(load_config(real_config_path()).paths.python_exe),
         satellite_module="satellite",
-        title="Portrait AI Player",
+        channels=SatelliteChannels(
+            playlist=playlist,
+            command=cmd,
+            paused=paused,
+            status=status,
+            play_points=tmp_path / "portrait_play_points.json",
+            hud=hud,
+            dashboard_cmd=tmp_path / "dashboard_cmd.txt"),
+        placement=WindowPlacement(x=0, y=0, width=width, height=height,
+                                  title="Portrait AI Player"),
         role="Portrait",
-        playlist_file=playlist, command_file=cmd, paused_file=paused, status_file=status,
-        play_points_file=tmp_path / "portrait_play_points.json",
-        hud_file=hud, dashboard_cmd_file=tmp_path / "dashboard_cmd.txt",
         log_file=log,
-        x=0, y=0, width=width, height=height,
         # This checkout's siblings, as a session launches them.
         project_dirs=checkout_project_dirs(),
     )

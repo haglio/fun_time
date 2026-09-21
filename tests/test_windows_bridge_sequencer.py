@@ -287,11 +287,11 @@ class TestRunStartupSequence:
         for side in ("portrait", "landscape"):
             slot = core_called[side]
             assert slot.player.label == side
-            assert slot.cmd_file == str(state / f"{side}_cmd.txt")
-            assert slot.paused_file == str(state / f"{side}_paused.txt")
-            assert slot.status_file == str(state / f"{side}_status.txt")
+            assert slot.channels.command == Path(state / f"{side}_cmd.txt")
+            assert slot.channels.paused == Path(state / f"{side}_paused.txt")
+            assert slot.channels.status == Path(state / f"{side}_status.txt")
             assert slot.log_file == tmp_path / f"{side}_satellite.log"
-            assert slot.playlist_file == tmp_path / f"{side}_playlist.tsv"
+            assert slot.channels.playlist == tmp_path / f"{side}_playlist.tsv"
         # The main player's status file rides along too: startup resumes each player onto
         # the video its status file names, and the main player is the third of the three.
         assert core_called["main_player_status_file"] == str(cfg.main_player_status_file)

@@ -50,6 +50,7 @@ from fun_time.windows_bridge_startup import (
     seed_startup_states,
     start_core_session,
 )
+from satellite.contract import SatelliteChannels, WindowPlacement
 
 
 def test_launch_broker_tray_uses_the_brokers_own_launch_kwargs(tmp_path: Path):
@@ -504,28 +505,10 @@ def _start_core_session_kwargs(tmp_path: Path) -> dict:
         main_player_cmd_file=state_dir / "main_player_cmd.txt",
         satellite_python_exe="fun_time_python.exe",
         satellite_module="satellite",
-        portrait=SatelliteSlot(
-            player=Player.PORTRAIT,
-            sources=str(tmp_path / "portrait_a"),
-            cmd_file=state_dir / "portrait_cmd.txt",
-            paused_file=state_dir / "portrait_paused.txt",
-            status_file=state_dir / "portrait_status.txt",
-            play_points_file="state/portrait_play_points.json",
-            log_file=state_dir / "portrait_satellite.log",
-            playlist_file=state_dir / "portrait_playlist.tsv",
-            rect=WindowRect(x=2560, y=0, width=1440, height=2500),
-        ),
-        landscape=SatelliteSlot(
-            player=Player.LANDSCAPE,
-            sources=str(tmp_path / "landscape_a"),
-            cmd_file=state_dir / "landscape_cmd.txt",
-            paused_file=state_dir / "landscape_paused.txt",
-            status_file=state_dir / "landscape_status.txt",
-            play_points_file="state/landscape_play_points.json",
-            log_file=state_dir / "landscape_satellite.log",
-            playlist_file=state_dir / "landscape_playlist.tsv",
-            rect=WindowRect(x=1664, y=0, width=896, height=1392),
-        ),
+        portrait=_slot(Player.PORTRAIT, str(tmp_path / "portrait_a"), state_dir,
+                       WindowRect(x=2560, y=0, width=1440, height=2500)),
+        landscape=_slot(Player.LANDSCAPE, str(tmp_path / "landscape_a"), state_dir,
+                        WindowRect(x=1664, y=0, width=896, height=1392)),
         main_player_status_file=state_dir / "main_player_status.txt",
         main_sources=f"{tmp_path / 'main_a'}|{tmp_path / 'main_b'}",
         favs_file=tmp_path / "favs.csv",
@@ -830,8 +813,8 @@ def test_start_core_session_relocks_the_satellite_that_was_locked(tmp_path: Path
 
     state = read_shared_state(shared_state_path(kwargs["state_dir"]))
     assert (state.satellite(Player.PORTRAIT).locked, state.satellite(Player.LANDSCAPE).locked) == (True, False)
-    assert kwargs["portrait"].cmd_file.read_text(encoding="utf-8").split() == ["LOCK_ON"]
-    assert not kwargs["landscape"].cmd_file.exists()
+    assert kwargs["portrait"].channels.command.read_text(encoding="utf-8").split() == ["LOCK_ON"]
+    assert not kwargs["landscape"].channels.command.exists()
 
 
 def test_start_core_session_opens_a_freshly_built_session_on_a_clean_state(tmp_path: Path):
@@ -991,8 +974,8 @@ def test_start_core_session_clears_stale_satellite_paused_flags(tmp_path: Path):
     fresh session's satellites would read paused and never play (frozen at 0).
     start_core_session must reset both to "0" before the satellites launch."""
     kwargs = _start_core_session_kwargs(tmp_path)
-    portrait_paused = kwargs["portrait"].paused_file
-    landscape_paused = kwargs["landscape"].paused_file
+    portrait_paused = kwargs["portrait"].channels.paused
+    landscape_paused = kwargs["landscape"].channels.paused
     portrait_paused.parent.mkdir(parents=True, exist_ok=True)
     portrait_paused.write_text("1", encoding="utf-8")  # stranded by a prior OmniPause
     landscape_paused.write_text("1", encoding="utf-8")
@@ -1034,8 +1017,8 @@ def test_a_session_resumed_into_origenerator_mode_still_seeds_its_players_playin
     ):
         start_core_session(**kwargs)
 
-    assert kwargs["portrait"].paused_file.read_text(encoding="utf-8") == "0"
-    assert kwargs["landscape"].paused_file.read_text(encoding="utf-8") == "0"
+    assert kwargs["portrait"].channels.paused.read_text(encoding="utf-8") == "0"
+    assert kwargs["landscape"].channels.paused.read_text(encoding="utf-8") == "0"
 
 
 def test_start_core_session_parks_the_osr2_before_the_startup_wait(tmp_path: Path):
@@ -1364,11 +1347,11 @@ class TestEveryPlayerWearsFunTimesTaskbarIdentity:
 
     def test_the_satellites_are_told_who_they_belong_to(self):
         command = _build_satellite_launch_command(
-            "python.exe", "satellite", title="Portrait AI Player",
-            playlist_file="pl.tsv", command_file="cmd", paused_file="paused",
-            status_file="status", play_points_file="points.json",
-            x=0, y=0, width=100, height=100,
-        )
+            "python.exe", "satellite",
+            channels=_a_satellite_channels(),
+            placement=WindowPlacement(x=0, y=0, width=100, height=100,
+                                      title="Portrait AI Player",
+                                      taskbar_identity=APP_USER_MODEL_ID))
 
         assert self._identity(command) == APP_USER_MODEL_ID
 
@@ -1707,28 +1690,10 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
         launch_core_apps(
             python_exe="fun_time_python.exe",
             satellite_module="satellite",
-            portrait=SatelliteSlot(
-                player=Player.PORTRAIT,
-                sources=str(tmp_path / "portrait_a"),
-                cmd_file=state_dir / "portrait_cmd.txt",
-                paused_file=state_dir / "portrait_paused.txt",
-                status_file=state_dir / "portrait_status.txt",
-                play_points_file="state/portrait_play_points.json",
-                log_file=state_dir / "portrait_satellite.log",
-                playlist_file=portrait_playlist,
-                rect=portrait_rect,
-            ),
-            landscape=SatelliteSlot(
-                player=Player.LANDSCAPE,
-                sources=str(tmp_path / "landscape_a"),
-                cmd_file=state_dir / "landscape_cmd.txt",
-                paused_file=state_dir / "landscape_paused.txt",
-                status_file=state_dir / "landscape_status.txt",
-                play_points_file="state/landscape_play_points.json",
-                log_file=state_dir / "landscape_satellite.log",
-                playlist_file=landscape_playlist,
-                rect=landscape_rect,
-            ),
+            portrait=_slot(Player.PORTRAIT, str(tmp_path / "portrait_a"),
+                           state_dir, portrait_rect),
+            landscape=_slot(Player.LANDSCAPE, str(tmp_path / "landscape_a"),
+                            state_dir, landscape_rect),
             result_file=result_file,
         )
 
@@ -1743,19 +1708,19 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     # lookup fails — the portrait title on the portrait side, never swapped.
     assert portrait_kwargs["python_exe"] == "fun_time_python.exe"
     assert portrait_kwargs["satellite_module"] == "satellite"
-    assert portrait_kwargs["title"] == "Portrait AI Player"
-    assert portrait_kwargs["playlist_file"] == portrait_playlist
-    assert portrait_kwargs["command_file"] == state_dir / "portrait_cmd.txt"
-    assert portrait_kwargs["paused_file"] == state_dir / "portrait_paused.txt"
-    assert portrait_kwargs["status_file"] == state_dir / "portrait_status.txt"
+    assert portrait_kwargs["placement"].title == "Portrait AI Player"
+    assert portrait_kwargs["channels"].playlist == portrait_playlist
+    assert portrait_kwargs["channels"].command == state_dir / "portrait_cmd.txt"
+    assert portrait_kwargs["channels"].paused == state_dir / "portrait_paused.txt"
+    assert portrait_kwargs["channels"].status == state_dir / "portrait_status.txt"
 
     assert landscape_kwargs["python_exe"] == "fun_time_python.exe"
     assert landscape_kwargs["satellite_module"] == "satellite"
-    assert landscape_kwargs["title"] == "Landscape AI Player"
-    assert landscape_kwargs["playlist_file"] == landscape_playlist
-    assert landscape_kwargs["command_file"] == state_dir / "landscape_cmd.txt"
-    assert landscape_kwargs["paused_file"] == state_dir / "landscape_paused.txt"
-    assert landscape_kwargs["status_file"] == state_dir / "landscape_status.txt"
+    assert landscape_kwargs["placement"].title == "Landscape AI Player"
+    assert landscape_kwargs["channels"].playlist == landscape_playlist
+    assert landscape_kwargs["channels"].command == state_dir / "landscape_cmd.txt"
+    assert landscape_kwargs["channels"].paused == state_dir / "landscape_paused.txt"
+    assert landscape_kwargs["channels"].status == state_dir / "landscape_status.txt"
 
     # Each side's crash log is its own file, so a death on one side is legible
     # without untangling it from the other's output.
@@ -1765,14 +1730,11 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     # Each satellite launches straight into its own real rect (mpv won't rescale
     # on a later Win32 resize), so the portrait rect must land on the portrait
     # satellite and the landscape rect on the landscape one — never swapped.
-    assert (
-        portrait_kwargs["x"], portrait_kwargs["y"],
-        portrait_kwargs["width"], portrait_kwargs["height"],
-    ) == (portrait_rect.x, portrait_rect.y, portrait_rect.width, portrait_rect.height)
-    assert (
-        landscape_kwargs["x"], landscape_kwargs["y"],
-        landscape_kwargs["width"], landscape_kwargs["height"],
-    ) == (landscape_rect.x, landscape_rect.y, landscape_rect.width, landscape_rect.height)
+    for kwargs, rect in ((portrait_kwargs, portrait_rect),
+                         (landscape_kwargs, landscape_rect)):
+        placed = kwargs["placement"]
+        assert (placed.x, placed.y, placed.width, placed.height) == (
+            rect.x, rect.y, rect.width, rect.height)
 
     parser = configparser.ConfigParser()
     parser.optionxform = str
@@ -1782,16 +1744,53 @@ def test_launch_core_apps_spawns_two_native_satellites_and_writes_result(tmp_pat
     assert set(parser["result"].keys()) == {"portrait_pid", "landscape_pid"}
 
 
+
+def _a_satellite_channels(**overrides) -> SatelliteChannels:
+    """One side's files, filled in: what a session hands a satellite."""
+    return SatelliteChannels(
+        playlist=Path("state/portrait_playlist.tsv"),
+        command=Path("state/portrait_cmd.txt"),
+        paused=Path("state/portrait_paused.txt"),
+        status=Path("state/portrait_status.txt"),
+        play_points=Path("state/portrait_play_points.json"),
+        **overrides)
+
+
+def _a_satellite_argv(*, title="Portrait AI Player", **channels) -> list[str]:
+    return _build_satellite_launch_command(
+        "python.exe", "satellite",
+        channels=_a_satellite_channels(**channels),
+        placement=WindowPlacement(x=0, y=0, width=1, height=1, title=title))
+
+
+def _slot(player, sources, state_dir, rect) -> SatelliteSlot:
+    """One side's launch bundle, spelled the way the sequencer spells it."""
+    side = player.label
+    return SatelliteSlot(
+        player=player,
+        sources=sources,
+        channels=SatelliteChannels(
+            playlist=state_dir / f"{side}_playlist.tsv",
+            command=state_dir / f"{side}_cmd.txt",
+            paused=state_dir / f"{side}_paused.txt",
+            status=state_dir / f"{side}_status.txt",
+            play_points=Path(f"state/{side}_play_points.json")),
+        log_file=state_dir / f"{side}_satellite.log",
+        rect=rect,
+    )
+
+
 def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry():
     cmd = _build_satellite_launch_command(
         "python.exe", "satellite",
-        title="Portrait AI Player",
-        playlist_file="state/portrait_playlist.tsv",
-        command_file="state/portrait_cmd.txt",
-        paused_file="state/portrait_paused.txt",
-        status_file="state/portrait_status.txt",
-        play_points_file="state/portrait_play_points.json",
-        x=2560, y=0, width=1440, height=2500,
+        channels=SatelliteChannels(
+            playlist=Path("state/portrait_playlist.tsv"),
+            command=Path("state/portrait_cmd.txt"),
+            paused=Path("state/portrait_paused.txt"),
+            status=Path("state/portrait_status.txt"),
+            play_points=Path("state/portrait_play_points.json")),
+        placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
+                                  title="Portrait AI Player"),
     )
     assert cmd[:3] == ["python.exe", "-m", "satellite"]
 
@@ -1799,11 +1798,11 @@ def test_build_satellite_launch_command_forwards_the_file_quartet_and_geometry()
         return cmd[cmd.index(flag) + 1]
 
     assert _val("--title") == "Portrait AI Player"
-    assert _val("--playlist") == "state/portrait_playlist.tsv"
-    assert _val("--command-file") == "state/portrait_cmd.txt"
-    assert _val("--paused-file") == "state/portrait_paused.txt"
-    assert _val("--status-file") == "state/portrait_status.txt"
-    assert _val("--play-points-file") == "state/portrait_play_points.json"
+    assert Path(_val("--playlist")) == Path("state/portrait_playlist.tsv")
+    assert Path(_val("--command-file")) == Path("state/portrait_cmd.txt")
+    assert Path(_val("--paused-file")) == Path("state/portrait_paused.txt")
+    assert Path(_val("--status-file")) == Path("state/portrait_status.txt")
+    assert Path(_val("--play-points-file")) == Path("state/portrait_play_points.json")
     assert (_val("--x"), _val("--y"), _val("--width"), _val("--height")) == ("2560", "0", "1440", "2500")
 
 
@@ -1811,13 +1810,8 @@ def test_build_satellite_launch_command_forwards_the_distinct_title():
     # The two satellites carry distinct captions; the sequencer resolves each
     # window to its slot by title when the pid lookup fails, so a shared caption
     # (or a dropped --title) would let the portrait/landscape windows cross.
-    cmd = _build_satellite_launch_command(
-        "python.exe", "satellite",
-        title="Landscape AI Player",
-        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
-        play_points_file="points.json",
-        x=0, y=0, width=1, height=1,
-    )
+    cmd = _a_satellite_argv(title="Landscape AI Player")
+
     assert cmd[cmd.index("--title") + 1] == "Landscape AI Player"
 
 
@@ -1825,26 +1819,16 @@ def test_build_satellite_launch_command_leaves_the_audio_switchable():
     # A satellite opens muted whatever it is launched with, so --no-audio would
     # buy nothing here but a dead volume chip on its own window: the flag is the
     # permanent silence the unattended hidden-desktop runs ask for by env var.
-    cmd = _build_satellite_launch_command(
-        "python.exe", "satellite",
-        title="Portrait AI Player",
-        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
-        play_points_file="points.json",
-        x=0, y=0, width=1, height=1,
-    )
+    cmd = _a_satellite_argv()
+
     assert "--no-audio" not in cmd
 
 
 def test_build_satellite_launch_command_passes_no_config_flag():
     # The satellite CLI takes no --config (unlike the main player); it is fully specified by
     # the file quartet and geometry, so none must be forwarded.
-    cmd = _build_satellite_launch_command(
-        "python.exe", "satellite",
-        title="Portrait AI Player",
-        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
-        play_points_file="points.json",
-        x=0, y=0, width=1, height=1,
-    )
+    cmd = _a_satellite_argv()
+
     assert "--config" not in cmd
 
 
@@ -1859,18 +1843,11 @@ def test_launching_a_satellite_starts_it_and_says_which_process_it_is(tmp_path: 
         pid = launch_satellite(
             python_exe="python.exe",
             satellite_module="satellite",
-            title="Portrait AI Player",
+            channels=_a_satellite_channels(),
+            placement=WindowPlacement(x=2560, y=0, width=1440, height=2500,
+                                      title="Portrait AI Player"),
             role="Portrait",
-            playlist_file="state/portrait_playlist.tsv",
-            command_file="state/portrait_cmd.txt",
-            paused_file="state/portrait_paused.txt",
-            status_file="state/portrait_status.txt",
-            play_points_file="state/portrait_play_points.json",
             log_file=tmp_path / "portrait_satellite.log",
-            x=2560,
-            y=0,
-            width=1440,
-            height=2500,
         )
 
     assert pid == 51
@@ -1895,15 +1872,10 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
         launch_satellite(
             python_exe="pythonw.exe",
             satellite_module="satellite",
-            title="Portrait AI Player",
+            channels=_a_satellite_channels(),
+            placement=WindowPlacement(title="Portrait AI Player"),
             role="Portrait",
-            playlist_file="state/portrait_playlist.tsv",
-            command_file="state/portrait_cmd.txt",
-            paused_file="state/portrait_paused.txt",
-            status_file="state/portrait_status.txt",
-            play_points_file="state/portrait_play_points.json",
             log_file=log_file,
-            x=0, y=0, width=1, height=1,
         )
 
     stream = popen.call_args.kwargs["stdout"]
@@ -1918,30 +1890,17 @@ def test_launch_satellite_sends_child_output_to_its_own_log(tmp_path: Path):
 def test_build_satellite_launch_command_forwards_the_hud_files():
     """The HUD is drawn inside the player now, so each satellite is told which
     panel file to render and where to post the clicks on it."""
-    cmd = _build_satellite_launch_command(
-        "python.exe", "satellite",
-        title="Portrait AI Player",
-        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
-        play_points_file="points.json",
-        hud_file="state/portrait_hud.json", dashboard_cmd_file="state/dashboard_cmd.txt",
-        x=0, y=0, width=1, height=1,
-    )
+    cmd = _a_satellite_argv(hud=Path("state/portrait_hud.json"),
+                            dashboard_cmd=Path("state/dashboard_cmd.txt"))
 
-    assert cmd[cmd.index("--hud-file") + 1] == "state/portrait_hud.json"
-    assert cmd[cmd.index("--dashboard-cmd-file") + 1] == "state/dashboard_cmd.txt"
+    assert Path(cmd[cmd.index("--hud-file") + 1]) == Path("state/portrait_hud.json")
+    assert Path(cmd[cmd.index("--dashboard-cmd-file") + 1]) == Path("state/dashboard_cmd.txt")
 
 
 def test_build_satellite_launch_command_omits_an_absent_hud():
     """No HUD file means no HUD: the flags are dropped rather than passed empty,
     so a satellite launched without one simply draws no map."""
-    cmd = _build_satellite_launch_command(
-        "python.exe", "satellite",
-        title="Portrait AI Player",
-        playlist_file="p", command_file="c", paused_file="pa", status_file="s",
-        play_points_file="points.json",
-        hud_file=None, dashboard_cmd_file=None,
-        x=0, y=0, width=1, height=1,
-    )
+    cmd = _a_satellite_argv(hud=None, dashboard_cmd=None)
 
     assert "--hud-file" not in cmd
     assert "--dashboard-cmd-file" not in cmd
@@ -2029,15 +1988,10 @@ class TestEveryChildIsLaunchedUnderAFunTimeName:
                 launch_satellite(
                     python_exe=self._interpreter(tmp_path),
                     satellite_module="satellite",
-                    title=title,
+                    channels=_a_satellite_channels(),
+                    placement=WindowPlacement(title=title),
                     role=role,
-                    playlist_file="playlist.tsv",
-                    command_file="cmd.txt",
-                    paused_file="paused.txt",
-                    status_file="status.txt",
-                    play_points_file="points.json",
                     log_file=tmp_path / f"{role}.log",
-                    x=0, y=0, width=1, height=1,
                 )
 
             assert self._launched_exe(popen) == f"FunTime-{role}.exe"

@@ -10,7 +10,7 @@ from __future__ import annotations
 import configparser
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from app_support import state_files
@@ -18,6 +18,7 @@ from player_core.file_channel import append_command
 from player_core.modes import MainMode
 
 from main_player.play_points import play_points_filename
+from satellite.contract import SatelliteChannels
 
 from .hosted_origenerator import bring_up_the_hosted_app
 from .manifest import LaunchManifest, RandomFavsBrowserSettings
@@ -357,30 +358,24 @@ def _launch_the_satellites(
     broker_launcher_raw = m.commands.broker_tray_launcher.strip()
     regen_metadata_raw = m.regen.metadata_root.strip()
     # Each satellite's whole launch bundle, built once where the manifest is read.
-    portrait_slot = SatelliteSlot(
-        player=Player.PORTRAIT,
-        sources=m.media.portrait_dirs,
-        cmd_file=m.commands.portrait_cmd_file,
-        paused_file=m.commands.portrait_paused_file,
-        status_file=m.commands.portrait_status_file,
-        log_file=state_dir / "portrait_satellite.log",
-        play_points_file=state_dir / play_points_filename("portrait"),
-        playlist_file=build_playlist_file_path(state_dir, PLAYLIST_PORTRAIT),
-        rect=plan.portrait,
-        hud_file=m.commands.portrait_hud_file,
-    )
-    landscape_slot = SatelliteSlot(
-        player=Player.LANDSCAPE,
-        sources=m.media.landscape_dirs,
-        cmd_file=m.commands.landscape_cmd_file,
-        paused_file=m.commands.landscape_paused_file,
-        status_file=m.commands.landscape_status_file,
-        log_file=state_dir / "landscape_satellite.log",
-        play_points_file=state_dir / play_points_filename("landscape"),
-        playlist_file=build_playlist_file_path(state_dir, PLAYLIST_LANDSCAPE),
-        rect=plan.landscape,
-        hud_file=m.commands.landscape_hud_file,
-    )
+
+    def _slot(player: Player, side: str, sources: str, playlist: str, rect):
+        return SatelliteSlot(
+            player=player,
+            sources=sources,
+            channels=replace(
+                SatelliteChannels.from_manifest(
+                    m.commands, side,
+                    play_points=state_dir / play_points_filename(side)),
+                playlist=build_playlist_file_path(state_dir, playlist)),
+            log_file=state_dir / f"{side}_satellite.log",
+            rect=rect,
+        )
+
+    portrait_slot = _slot(Player.PORTRAIT, "portrait", m.media.portrait_dirs,
+                          PLAYLIST_PORTRAIT, plan.portrait)
+    landscape_slot = _slot(Player.LANDSCAPE, "landscape", m.media.landscape_dirs,
+                           PLAYLIST_LANDSCAPE, plan.landscape)
     main_mode = start_core_session(
         config_path=m.runtime.config_path,
         broker_cmd_file=m.commands.broker_cmd_file,

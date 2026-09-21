@@ -11,12 +11,14 @@ import os
 import re
 import subprocess
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from player_core.file_channel import append_command
 from player_core.modes import MainMode
 from player_core.player_verbs import SET_F_MODE
+
+from satellite.contract import SatelliteChannels, WindowPlacement
 
 from . import broker_contract
 from .audio_volume import MAX_VOLUME, publish_audio_level
@@ -408,7 +410,7 @@ def start_core_session(
     # file sets.  Bounded to those files: a session elsewhere on the machine (an
     # integration run) owns different ones and must be left alone.
     reap_orphaned_satellites(
-        satellite_module, [portrait.status_file, landscape.status_file],
+        satellite_module, [portrait.channels.status, landscape.channels.status],
     )
     # Send the OSR2 home first, so it waits out startup parked rather than
     # wherever the last session left it — the two native players decode their
@@ -428,11 +430,13 @@ def start_core_session(
     main_player_playlist = build_playlist_file_path(state_path, PLAYLIST_MAIN_PLAYER)
     main_player_status = read_main_player_status(Path(main_player_status_file))
     for slot in (portrait, landscape):
-        if take_back_the_list(Path(slot.playlist_file)):
+        if take_back_the_list(Path(slot.channels.playlist)):
             logger.info("Took %s's own clips back from the hosted app", slot.player.label)
     resumed = resume_playlists([
-        (Path(portrait.playlist_file), read_satellite_status(Path(portrait.status_file)).video),
-        (Path(landscape.playlist_file), read_satellite_status(Path(landscape.status_file)).video),
+        (Path(portrait.channels.playlist),
+         read_satellite_status(Path(portrait.channels.status)).video),
+        (Path(landscape.channels.playlist),
+         read_satellite_status(Path(landscape.channels.status)).video),
         (main_player_playlist, main_player_status.video),
     ])
     # Come back to the state that session was in, too — F-mode, each side's
@@ -449,7 +453,7 @@ def start_core_session(
         mode=carried.main_mode,
     )
     # seed_startup_states does not touch the satellite paused files.
-    reset_satellite_paused_states(portrait.paused_file, landscape.paused_file)
+    reset_satellite_paused_states(portrait.channels.paused, landscape.channels.paused)
     prepare_random_favs_browser_manifest(config_path, random_favs_browser_manifest_file)
     if not resumed:
         build_all_playlists(
@@ -483,8 +487,8 @@ def start_core_session(
     # A lock has no file of its own to come back in, so queue it for each side
     # that was holding one — from here it is waiting when the satellite starts.
     resume_satellite_locks([
-        (Path(portrait.cmd_file), carried.satellite(Player.PORTRAIT).locked),
-        (Path(landscape.cmd_file), carried.satellite(Player.LANDSCAPE).locked),
+        (Path(portrait.channels.command), carried.satellite(Player.PORTRAIT).locked),
+        (Path(landscape.channels.command), carried.satellite(Player.LANDSCAPE).locked),
     ])
     # The main player's loop is the same kind of thing, and queued the same way —
     # but only if the main player really did come back onto the video the loop was
@@ -915,14 +919,9 @@ def launch_core_apps(
 ) -> None:
     """Spawn the two native satellite players (portrait + landscape).
 
-    Each is our own mpv-backed process (this repo's ``satellite`` package),
-    driven through its command/paused/status file quartet like the main player.  Each launches
-    straight into its final portrait/landscape rect: mpv sizes its output to the
+    Each launches straight into its final rect: mpv sizes its output to the
     launch geometry and does NOT rescale when a later Win32 move resizes the
-    window, so launching at the real rect (exactly as the main player does) is what makes the
-    video fill it.  There is no HTTP interface to wait on and nothing to enqueue or
-    repeat-mode here — the native player owns its playlist and auto-advances (its
-    wrap is repeat-all).
+    window, so launching at the real rect is what makes the video fill it.
     """
     portrait = for_player(portrait, Player.PORTRAIT)
     landscape = for_player(landscape, Player.LANDSCAPE)
@@ -931,17 +930,16 @@ def launch_core_apps(
         return launch_satellite(
             python_exe=python_exe,
             satellite_module=satellite_module,
-            title=title,
+            channels=replace(slot.channels, dashboard_cmd=dashboard_cmd_file),
+            placement=WindowPlacement(
+                x=slot.rect.x, y=slot.rect.y,
+                width=slot.rect.width, height=slot.rect.height,
+                title=title,
+                # One of Fun Time's windows rather than an application of its
+                # own -- see TASKBAR_IDENTITY_ARGS.
+                taskbar_identity=TASKBAR_IDENTITY_ARGS[1]),
             role=role,
-            playlist_file=slot.playlist_file,
-            command_file=slot.cmd_file,
-            paused_file=slot.paused_file,
-            status_file=slot.status_file,
-            play_points_file=slot.play_points_file,
             log_file=slot.log_file,
-            x=slot.rect.x, y=slot.rect.y,
-            width=slot.rect.width, height=slot.rect.height,
-            hud_file=slot.hud_file, dashboard_cmd_file=dashboard_cmd_file,
             project_dirs=project_dirs,
         )
 
@@ -960,119 +958,51 @@ def _build_satellite_launch_command(
     python_exe: str | Path,
     satellite_module: str,
     *,
-    title: str,
-    playlist_file: str | Path,
-    command_file: str | Path,
-    paused_file: str | Path,
-    status_file: str | Path,
-    play_points_file: str | Path,
-    x: int,
-    y: int,
-    width: int,
-    height: int,
-    hud_file: str | Path | None = None,
-    dashboard_cmd_file: str | Path | None = None,
+    channels: SatelliteChannels,
+    placement: WindowPlacement,
 ) -> list[str]:
     """The argv for a native satellite player (``python -m satellite ...``).
 
-    The satellite is our own mpv-backed process, driven through the
-    command/paused/status file quartet exactly as the main player is.  It takes no
-    ``--config`` — the quartet plus geometry fully specify it — and ``--title``
-    gives it the distinct caption the sequencer resolves its slot by.
-
-    No ``--no-audio``: a satellite opens muted anyway, and the flag is the
+    It takes no ``--config``: the channels plus the placement fully specify it,
+    and each spells its own flags (:mod:`satellite.contract`).  No
+    ``--no-audio`` either -- a satellite opens muted anyway, and the flag is the
     permanent silence, which here would only kill the volume chip.
-
-    The lock HUD rides along as two more files: the panel this loop publishes for
-    the player to composite into its own video, and the command file a click on
-    that HUD posts back to.  Both absent means the satellite simply draws no map.
     """
-    command = [
+    return [
         str(python_exe),
         "-m",
         str(satellite_module),
-        "--title",
-        str(title),
-        "--playlist",
-        str(playlist_file),
-        "--command-file",
-        str(command_file),
-        "--paused-file",
-        str(paused_file),
-        "--status-file",
-        str(status_file),
-        "--play-points-file",
-        str(play_points_file),
-        "--x",
-        str(x),
-        "--y",
-        str(y),
-        "--width",
-        str(width),
-        "--height",
-        str(height),
-        # One of Fun Time's windows rather than an application of its own — see
-        # TASKBAR_IDENTITY_ARGS.
-        *TASKBAR_IDENTITY_ARGS,
+        *placement.to_argv(),
+        *channels.to_argv(),
     ]
-    if hud_file:
-        command += ["--hud-file", str(hud_file)]
-    if dashboard_cmd_file:
-        command += ["--dashboard-cmd-file", str(dashboard_cmd_file)]
-    return command
 
 
 def launch_satellite(
     *,
     python_exe: str | Path,
     satellite_module: str,
-    title: str,
+    channels: SatelliteChannels,
+    placement: WindowPlacement,
     role: str,
-    playlist_file: str | Path,
-    command_file: str | Path,
-    paused_file: str | Path,
-    status_file: str | Path,
-    play_points_file: str | Path,
     log_file: str | Path,
-    x: int,
-    y: int,
-    width: int,
-    height: int,
-    hud_file: str | Path | None = None,
-    dashboard_cmd_file: str | Path | None = None,
     project_dirs: str | None = None,
 ) -> int:
     """Launch a native satellite player subprocess, returning its PID.
 
-    A sibling of :func:`launch_main_player`: our own mpv-backed process, launched at the
-    given rect with the given distinct *title*, driven through the
-    command/paused/status file quartet, and drawing its own lock HUD from the
-    published panel.
+    A sibling of :func:`launch_main_player`: our own mpv-backed process, opened
+    where *placement* says and driven through *channels*.
 
     *role* names this player in the task list, where the two are otherwise the
     same anonymous interpreter as each other and as everything else -- it is the
-    *title*'s counterpart for the process the window belongs to.
+    caption's counterpart for the process the window belongs to.
 
     Its stdout and stderr go to *log_file*: a satellite runs windowed under
     ``pythonw`` and would otherwise die from an unhandled exception with the
     traceback written to a handle that goes nowhere.
     """
     cmd = _build_satellite_launch_command(
-        NAMER.named_exe(python_exe, role),
-        satellite_module,
-        title=title,
-        playlist_file=playlist_file,
-        command_file=command_file,
-        paused_file=paused_file,
-        status_file=status_file,
-        play_points_file=play_points_file,
-        x=x,
-        y=y,
-        width=width,
-        height=height,
-        hud_file=hud_file,
-        dashboard_cmd_file=dashboard_cmd_file,
-    )
+        NAMER.named_exe(python_exe, role), satellite_module,
+        channels=channels, placement=placement)
     with open_child_log(log_file, cmd) as log:
         proc = subprocess.Popen(cmd, stdout=log, stderr=log,
                                 **genau_project_kwargs(project_dirs),

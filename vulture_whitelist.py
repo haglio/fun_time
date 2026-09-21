@@ -18,7 +18,15 @@ _.optionxform  # ConfigParser hook, set to keep key case
 _.cbSize
 dwSize  # PROCESSENTRY32, for Toolhelp32
 
+# CommandFiles reaches these by side, through player_file: a satellite's
+# channels are read as a group now (satellite.contract), so no module
+# spells either key.
+portrait_hud_file
+landscape_hud_file
+
 # --- Read from a sibling package, which is a scan of its own ---
+from_manifest  # satellite.contract; fun_time_vr's player and the sequencer
+to_argv  # satellite.contract; the session's satellite launcher
 tcode_udp_host  # fun_time_vr/orchestrator.py
 tcode_udp_port  # fun_time_vr/orchestrator.py
 compositor_layers  # fun_time_vr/orchestrator.py
