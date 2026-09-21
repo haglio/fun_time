@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import configparser
+from contextlib import ExitStack, contextmanager
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -26,6 +28,42 @@ from fun_time.orchestrator import (
 )
 from fun_time.session_environment import SessionEnvironment
 from fun_time.session_handoff import VR, request_handoff
+
+
+def _a_cover() -> MagicMock:
+    """A cover with the two things a launch asks of it: a line to name what it
+    is doing, and a way to take the screen down again."""
+    return MagicMock(spec=["progress", "take_it_down"])
+
+
+@contextmanager
+def _a_launch(**overrides):
+    """``main()`` with every step that reaches the machine held off.
+
+    They are held in one place because forgetting one is not a failing test:
+    an unpatched ``open_the_cover`` throws a real loading screen over his
+    monitors, and an unpatched engine check spends a second of subprocesses.
+    Each is overridable by name, which is how a test says what it is about.
+    """
+    steps = {
+        "configure_logging": MagicMock(return_value=MagicMock()),
+        "install_exception_logging": MagicMock(),
+        "claim_the_session": MagicMock(return_value=42),
+        "ensure_runtime_files": MagicMock(),
+        "validate_config": MagicMock(),
+        "open_event_log": MagicMock(),
+        "open_the_cover": MagicMock(return_value=_a_cover()),
+        "stamp_shortcut_aumid": MagicMock(),
+        "ensure_engine_vendored": MagicMock(),
+        "engine_missing_abort": MagicMock(return_value=False),
+        "prepare_orchestrator_launcher": MagicMock(),
+        "run_windows_bridge": MagicMock(return_value=0),
+        **overrides,
+    }
+    with ExitStack() as stack:
+        for name, mock in steps.items():
+            stack.enter_context(patch(f"fun_time.orchestrator.{name}", mock))
+        yield SimpleNamespace(**steps)
 
 # ---------------------------------------------------------------------------
 # build_parser
@@ -328,28 +366,23 @@ class TestBrokerHelpers:
         survives is the richer of the two — it can also replace a broker older
         than its own sources — and it runs where it is needed, so this entry
         point has no broker business at all now."""
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_windows_bridge:
+        with _a_launch() as launch:
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
         assert not hasattr(orchestrator, "ensure_broker_running")
-        run_windows_bridge.assert_called_once()
+        launch.run_windows_bridge.assert_called_once()
+
 
 class TestRunController:
     def test_uses_manifest_path_for_bridge_launch(self, cfg_path: Path):
         cfg = load_config(cfg_path)
         logger = MagicMock()
+        cover = _a_cover()
 
         with patch("fun_time.orchestrator.write_windows_bridge_manifest", return_value=cfg.paths.state_dir / WINDOWS_BRIDGE_MANIFEST_FILENAME) as writer, \
-             patch("fun_time.orchestrator.run_session", return_value=0) as bridge:
-            result = run_windows_bridge(cfg, logger, SessionEnvironment())
+             patch("fun_time.windows_bridge_orchestrator.run_session", return_value=0) as bridge:
+            result = run_windows_bridge(cfg, logger, SessionEnvironment(), cover)
 
         assert result == 0
         # The manifest is written from the config plus the one switch the
@@ -363,6 +396,9 @@ class TestRunController:
         assert call_kwargs["state_dir"] == cfg.paths.state_dir
         assert call_kwargs["project_dir"] == cfg.project_dir
         assert call_kwargs["env"] == SessionEnvironment()
+        # The session runs under the cover the launch already raised, never one
+        # of its own: by the time it starts, that cover has been up for seconds.
+        assert call_kwargs["cover"] is cover
 
 
 # --- main() --check flag ---
@@ -380,50 +416,37 @@ class TestTheProcessEdgeReadsTheSwitchesOnce:
         monkeypatch.setenv("FUN_TIME_RUN_INTEGRATION", "1")
         monkeypatch.setenv("FUN_TIME_DISABLE_DASHBOARD", "1")
 
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_bridge:
+        with _a_launch() as launch:
             main(["--config", str(cfg_path)])
 
-        assert run_bridge.call_args.args[2] == SessionEnvironment(
+        assert launch.run_windows_bridge.call_args.args[2] == SessionEnvironment(
             integration=True, show_overlays=False, dashboard_enabled=False)
 
 
 class TestTheWayBackOffersNoEsc:
     def test_a_launch_started_as_a_way_back_is_handed_no_esc(self, cfg_path: Path):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.prepare_orchestrator_launcher"), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0) as run_bridge:
+        with _a_launch() as launch:
             main(["--config", str(cfg_path), "--no-cancel"])
 
-        assert run_bridge.call_args.kwargs["cancelable"] is False
+        assert launch.open_the_cover.call_args.kwargs["cancelable"] is False
 
 
 class TestMainCheckFlag:
     def test_the_check_flag_reports_success_without_starting_the_bridge(self, cfg_path: Path):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
+        with _a_launch() as launch:
             result = main(["--config", str(cfg_path), "--check"])
 
         assert result == 0
-        run_bridge.assert_not_called()
+        launch.run_windows_bridge.assert_not_called()
+
+    def test_a_check_raises_no_cover_and_stamps_no_pin(self, cfg_path: Path):
+        """It validates and exits: a cover flashed over his monitors, and his
+        taskbar pin relabelled, are a launch's doing and not a check's."""
+        with _a_launch() as launch:
+            main(["--config", str(cfg_path), "--check"])
+
+        launch.open_the_cover.assert_not_called()
+        launch.stamp_shortcut_aumid.assert_not_called()
 
 
 class TestTheCrossingIntoTheOtherSession:
@@ -434,17 +457,9 @@ class TestTheCrossingIntoTheOtherSession:
     """
 
     def _main(self, cfg_path: Path, *, during_session=lambda: None):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.prepare_orchestrator_launcher"), \
-             patch("fun_time.session_handoff.subprocess.Popen") as popen, \
-             patch("fun_time.orchestrator.run_windows_bridge",
-                   side_effect=lambda *_a, **_k: (during_session(), 0)[1]):
+        run_bridge = MagicMock(side_effect=lambda *_a, **_k: (during_session(), 0)[1])
+        with _a_launch(run_windows_bridge=run_bridge), \
+             patch("fun_time.session_handoff.subprocess.Popen") as popen:
             return main(["--config", str(cfg_path)]), popen
 
     def test_a_session_that_asked_to_cross_spawns_the_relay_on_its_way_out(
@@ -490,15 +505,7 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
     """
 
     def _main(self, cfg_path: Path, stamp):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.stamp_shortcut_aumid", stamp), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
+        with _a_launch(stamp_shortcut_aumid=stamp):
             return main(["--config", str(cfg_path)])
 
     def test_a_session_on_another_config_leaves_the_pin_alone(self, cfg_path: Path):
@@ -520,17 +527,86 @@ class TestMainStampsOnlyTheMachinesOwnShortcut:
 
 class TestOrchestratorSingleInstance:
     def test_shows_message_and_exits_when_already_running(self, cfg_path: Path):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=None), \
-             patch("fun_time.orchestrator.show_already_running_message") as show_msg, \
-             patch("fun_time.orchestrator.run_windows_bridge") as run_bridge:
+        show_msg = MagicMock()
+        with _a_launch(claim_the_session=MagicMock(return_value=None),
+                       show_already_running_message=show_msg) as launch:
             result = main(["--config", str(cfg_path)])
 
         assert result == 1
         show_msg.assert_called_once()
         assert "already running" in show_msg.call_args[0][0]
-        run_bridge.assert_not_called()
+        launch.run_windows_bridge.assert_not_called()
+        # That message is a window of its own, and a cover raised over it would
+        # leave him a monitor of nothing to answer.
+        launch.open_the_cover.assert_not_called()
+
+
+class TestTheCoverGoesUpFirst:
+    """A launch used to do its own work over a bare desktop -- the engine
+    probes, the session machinery's import, the taskbar pin -- and only cover
+    the monitors once all of it was done, six or seven seconds in.  The cover
+    goes up first now, and that work runs under it, named on it as it goes."""
+
+    def _order_of(self, cfg_path: Path) -> list[str]:
+        order: list[str] = []
+        cover = _a_cover()
+        with _a_launch(
+            open_the_cover=MagicMock(side_effect=lambda *_a, **_k: order.append("cover") or cover),
+            ensure_engine_vendored=MagicMock(side_effect=lambda *_a: order.append("engine")),
+            engine_missing_abort=MagicMock(
+                side_effect=lambda *_a, **_k: order.append("engine") or False),
+            run_windows_bridge=MagicMock(side_effect=lambda *_a: order.append("session") or 0),
+        ):
+            main(["--config", str(cfg_path)])
+        return order
+
+    def test_the_monitors_are_covered_before_the_engine_is_checked(self, cfg_path: Path):
+        assert self._order_of(cfg_path)[:2] == ["cover", "engine"]
+
+    def test_the_session_is_the_last_thing_under_it(self, cfg_path: Path):
+        assert self._order_of(cfg_path)[-1] == "session"
+
+    def test_the_cover_says_the_engine_is_being_checked_while_it_is(self, cfg_path: Path):
+        """The bar is the only thing he can read the wait off, so the phase is
+        named before the probes rather than after them."""
+        said: list[str] = []
+        cover = _a_cover()
+        cover.progress.announce.side_effect = said.append
+
+        with _a_launch(
+            open_the_cover=MagicMock(return_value=cover),
+            ensure_engine_vendored=MagicMock(side_effect=lambda *_a: said.append("probed")),
+        ):
+            main(["--config", str(cfg_path)])
+
+        assert said == ["engine", "probed"]
+
+    def test_a_launch_that_fails_under_the_cover_takes_it_down(self, cfg_path: Path):
+        """Nothing else would: the screen sits out its whole staleness guard,
+        topmost over every monitor, with the launcher's failure dialog stuck
+        under it."""
+        cover = _a_cover()
+
+        with _a_launch(
+            open_the_cover=MagicMock(return_value=cover),
+            ensure_engine_vendored=MagicMock(side_effect=OSError("vendoring failed")),
+        ), pytest.raises(OSError, match="vendoring failed"):
+            main(["--config", str(cfg_path)])
+
+        cover.take_it_down.assert_called_once()
+
+    def test_a_missing_engine_is_told_to_uncover_before_it_says_so(self, cfg_path: Path):
+        """Its alert is a window like any other, and one raised under the cover
+        cannot be read or clicked."""
+        cover = _a_cover()
+        abort = MagicMock(return_value=True)
+
+        with _a_launch(open_the_cover=MagicMock(return_value=cover),
+                       engine_missing_abort=abort):
+            result = main(["--config", str(cfg_path)])
+
+        assert result == 1
+        assert abort.call_args.kwargs["uncover"] == cover.take_it_down
 
 
 # ---------------------------------------------------------------------------
@@ -579,14 +655,7 @@ class TestStartupMarker:
         assert not startup_marker_path(cfg).exists()
 
     def test_successful_launch_leaves_the_marker(self, cfg_path: Path):
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"), \
-             patch("fun_time.orchestrator.engine_missing_abort", return_value=False), \
-             patch("fun_time.orchestrator.ensure_engine_vendored"), \
-             patch("fun_time.orchestrator.run_windows_bridge", return_value=0):
+        with _a_launch():
             result = main(["--config", str(cfg_path)])
 
         assert result == 0
@@ -595,10 +664,8 @@ class TestStartupMarker:
     def test_already_running_leaves_the_marker(self, cfg_path: Path):
         """The user got our own message; the marker keeps the launcher from
         stacking a misleading "failed to start" dialog on top of it."""
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=None), \
-             patch("fun_time.orchestrator.show_already_running_message"):
+        with _a_launch(claim_the_session=MagicMock(return_value=None),
+                       show_already_running_message=MagicMock()):
             result = main(["--config", str(cfg_path)])
 
         assert result == 1
@@ -607,24 +674,17 @@ class TestStartupMarker:
     def test_validation_failure_leaves_no_marker(self, cfg_path: Path):
         """A missing library dir (or any validation failure) must leave the
         marker absent so the launcher surfaces the log."""
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config", side_effect=FileNotFoundError("missing dir")):
-            with pytest.raises(FileNotFoundError):
-                main(["--config", str(cfg_path)])
+        with _a_launch(
+            validate_config=MagicMock(side_effect=FileNotFoundError("missing dir")),
+        ), pytest.raises(FileNotFoundError):
+            main(["--config", str(cfg_path)])
 
         assert not startup_marker_path(load_config(cfg_path)).exists()
 
     def test_check_only_run_leaves_no_marker(self, cfg_path: Path):
         """``--check`` validates and exits without launching, so it is not a
         started session and must not claim to be one."""
-        with patch("fun_time.orchestrator.configure_logging", return_value=MagicMock()), \
-             patch("fun_time.orchestrator.install_exception_logging"), \
-             patch("fun_time.orchestrator.claim_the_session", return_value=42), \
-             patch("fun_time.orchestrator.ensure_runtime_files"), \
-             patch("fun_time.orchestrator.validate_config"):
+        with _a_launch():
             result = main(["--config", str(cfg_path), "--check"])
 
         assert result == 0

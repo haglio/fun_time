@@ -8,8 +8,10 @@ from fun_time.overlay_progress import (
     CANCEL_FILENAME,
     CANCEL_OPENING_FUN_TIME,
     CANCEL_WORD,
+    LAUNCH_PHASES,
     PROGRESS_FILENAME,
     QUIT_WORD,
+    ROOM_PHASES,
     SHUTDOWN_PHASES,
     SHUTDOWN_READY_FILENAME,
     STARTUP_PHASES,
@@ -132,6 +134,32 @@ class TestPhaseProgress:
         with pytest.raises(KeyError):
             progress.advance("nonesuch")
 
+    def test_an_announced_phase_reads_exactly_as_an_advanced_one(self, tmp_path: Path):
+        announced, advanced = tmp_path / "announced.txt", tmp_path / "advanced.txt"
+        PhaseProgress(announced, phases=TWO_PHASES).announce("slow")
+        PhaseProgress(advanced, phases=TWO_PHASES).advance("slow")
+
+        assert announced.read_text(encoding="utf-8") == advanced.read_text(encoding="utf-8")
+
+    def test_an_announced_phase_is_not_a_checkpoint(self, tmp_path: Path):
+        """The launch names what it is doing before it has anything to tear
+        down; the cancel waiting on disk is answered at the first phase that
+        does, which is where the teardown lives."""
+        progress_file = tmp_path / PROGRESS_FILENAME
+        cancel_file_for(progress_file).write_text(f"{CANCEL_WORD}\n", encoding="utf-8")
+        progress = PhaseProgress(progress_file, phases=TWO_PHASES,
+                                 cancel_file=cancel_file_for(progress_file),
+                                 hint=CANCEL_OPENING_FUN_TIME)
+
+        progress.announce("quick")
+
+        assert parse_progress(progress_file.read_text(encoding="utf-8")).message == "Quick..."
+        with pytest.raises(StartupCancelled):
+            progress.advance("slow")
+
+    def test_a_null_reporter_answers_an_announcement_too(self, tmp_path: Path):
+        NullProgress().announce("quick")  # must not raise: integration runs with no cover
+
     def test_finish_writes_done(self, tmp_path: Path):
         progress_file = tmp_path / "progress.txt"
         progress = PhaseProgress(progress_file, phases=TWO_PHASES)
@@ -144,6 +172,12 @@ class TestStartupPhases:
     def test_every_phase_key_is_distinct(self):
         keys = [phase.key for phase in STARTUP_PHASES]
         assert len(keys) == len(set(keys))
+
+    def test_the_launch_names_its_own_work_before_the_room_arrives(self):
+        """Loading itself and checking the players' engine took seconds off an
+        uncovered desktop; they run under the cover, so the cover says so."""
+        assert (*LAUNCH_PHASES, *ROOM_PHASES) == STARTUP_PHASES
+        assert [phase.key for phase in LAUNCH_PHASES] == ["starting", "engine"]
 
     def test_the_last_phase_is_the_one_the_companions_wait_for(self):
         # Entering the last phase must land the bar on the total, which happens

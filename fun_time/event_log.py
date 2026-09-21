@@ -191,3 +191,29 @@ def read_events(path: str | Path, offset: int = 0) -> tuple[list[EventRecord], i
         except (ValueError, KeyError, TypeError, UnicodeDecodeError):
             continue
     return records, offset + consumed
+
+
+# What the family's listener says of each utterance -- how it ended, how loud it
+# was, a microphone gone quiet -- is this session's record too, though it is said
+# under the library's name rather than fun_time's.
+THE_LISTENERS_LOGGERS = ("voice_core",)
+
+# The orchestrator's logger owns the console and so does not propagate; it has
+# to be enrolled by name.  Every other fun_time.* logger reaches the handler on
+# the package logger by propagation.
+_NON_PROPAGATING_LOGGERS = ("fun_time.orchestrator",)
+
+
+def open_event_log(state_dir: Path) -> None:
+    """Start this session's event log and feed every fun_time logger into it.
+    DEBUG throughout because the log panel -- not the writer -- is where
+    verbosity is chosen."""
+    handler = EventLogHandler(start_event_log(state_dir))
+    handler.setLevel(logging.DEBUG)
+    for name in ("fun_time", *_NON_PROPAGATING_LOGGERS, *THE_LISTENERS_LOGGERS):
+        target = logging.getLogger(name)
+        for existing in [h for h in target.handlers if isinstance(h, EventLogHandler)]:
+            target.removeHandler(existing)
+        target.addHandler(handler)
+    for name in ("fun_time", *THE_LISTENERS_LOGGERS):
+        logging.getLogger(name).setLevel(logging.DEBUG)

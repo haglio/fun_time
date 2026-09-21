@@ -31,6 +31,8 @@ apply_genau_dirs_to_sys_path()
 from app_support.logging_utils import configure_logging, install_exception_logging
 from app_support.win32 import mutex_name, stamp_pinned_shortcuts
 
+from .event_log import open_event_log
+from .loading_cover import LoadingCover, open_the_cover
 from .manifest import write_windows_bridge_manifest
 from .process_identity import prepare_orchestrator_launcher
 from .session_environment import SessionEnvironment
@@ -45,7 +47,6 @@ from .single_instance import (
     show_already_running_message,
 )
 from .win32_taskbar import APP_USER_MODEL_ID
-from .windows_bridge_orchestrator import run_session
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -95,9 +96,10 @@ def validate_config(config) -> None:
 
 
 
-def run_windows_bridge(
-    config, logger, env: SessionEnvironment, *, cancelable: bool = True,
-) -> int:
+def run_windows_bridge(config, logger, env: SessionEnvironment, cover: LoadingCover) -> int:
+    # Seconds of import on a cold machine: it loads under the cover, not ahead of it.
+    from .windows_bridge_orchestrator import run_session  # noqa: PLC0415
+
     manifest_path = write_windows_bridge_manifest(
         config, dashboard_enabled=env.dashboard_enabled)
     hotkey_script = config.project_dir / "windows_bridge_hotkeys.ahk"
@@ -110,8 +112,8 @@ def run_windows_bridge(
         hotkey_script=str(hotkey_script),
         state_dir=config.paths.state_dir,
         project_dir=config.project_dir,
+        cover=cover,
         env=env,
-        cancelable=cancelable,
     )
     logger.info("Windows bridge exited with code %s", exit_code)
     return exit_code
@@ -120,10 +122,9 @@ def run_windows_bridge(
 def stamp_shortcut_aumid() -> None:
     """Set AppUserModelID on the pinned Fun Time taskbar shortcut.
 
-    Called by both shapes of the session (docs/entering-vr.md).  The name has to
-    be "Fun Time" whole: a retired "Fun Time VR.lnk" may still sit in the pin
-    folder, and stamping it would keep it looking live.  A failure is logged
-    rather than fatal — the app still launches, just without the open indicator.
+    The name has to be "Fun Time" whole: a retired "Fun Time VR.lnk" may still
+    sit in the pin folder, and stamping it would keep it looking live.  Logged
+    rather than fatal -- the app still launches, without the open indicator.
     """
     _log = logging.getLogger(__name__)
     for pin, refusal in stamp_pinned_shortcuts(APP_USER_MODEL_ID, ["Fun Time"]).items():
@@ -149,14 +150,10 @@ def startup_marker_path(config, marker_name: str = STARTUP_MARKER_NAME) -> Path:
 def signal_startup_resolved(config, marker_name: str = STARTUP_MARKER_NAME) -> None:
     """Tell ``launch.vbs`` that startup reached a resolved state.
 
-    The launcher runs the orchestrator hidden, so it can only tell a good
-    launch from a silent crash by watching for this marker.  We drop it once
-    config has validated and we are committing to run -- or once we have shown
-    the user our own "already running" message.  Every silent failure the
-    launcher exists to surface (an import-time crash, a bad config, a missing
-    library dir) happens *before* this point and leaves the marker absent,
-    which is the launcher's cue to pop the log.  A failure to write it must
-    never take the launch down with it, so it is only logged.
+    The launcher runs the orchestrator hidden, so this marker is the only thing
+    that tells a good launch from a silent crash, and every failure it exists to
+    surface happens before the marker is written.  Writing it must never take
+    the launch down with it, so a failure here is only logged.
     """
     marker = startup_marker_path(config, marker_name)
     try:
@@ -179,10 +176,9 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     env = SessionEnvironment.from_environ(os.environ)
     config = load_config(args.config)
-    # A worktree's own answer to "which Origenerator does this session host" —
-    # the counterpart of the genau override applied at the top of this module,
-    # for the same reason: the machine's one config must not be repointed at an
-    # unlanded branch for every session on the machine.
+    # A worktree's own answer to "which Origenerator does this session host",
+    # for the reason the genau override above has: the machine's one config must
+    # not be repointed at an unlanded branch for every session on it.
     config = apply_origenerator_dir_override(config, integration=env.integration)
     logger = set_up_logging(config)
 
@@ -200,32 +196,43 @@ def main(argv: list[str] | None = None) -> int:
     ensure_runtime_files(config)
     clear_handoff_request(config.paths.state_dir)
     validate_config(config)
-    # The taskbar pin belongs to the installed app, and lives in %APPDATA% —
-    # outside every checkout.  Only the session the pin actually launches has
-    # any business relabelling it; a session on some other config (an
-    # integration run's temp one, a developer's alternate) would be reaching
-    # into the user's shell to stamp a shortcut that points at neither of them.
-    if config.config_path == DEFAULT_CONFIG_PATH:
-        stamp_shortcut_aumid()
 
     if args.check:
         logger.info("Config validation succeeded")
         return 0
 
-    ensure_engine_vendored(config)
-    if engine_missing_abort(config, log=logger.error):
-        signal_startup_resolved(config)
-        return 1
+    # Before anything else logs, and before the dashboard launches the panel
+    # that tails it: this session's event log starts empty and starts collecting.
+    open_event_log(config.paths.state_dir)
+    # Everything below happens under the cover, and says so on it as it runs.
+    cover = open_the_cover(
+        config.paths.state_dir, show_overlays=env.show_overlays,
+        project_dirs=config.paths.genau_project_path, cancelable=not args.no_cancel,
+    )
+    try:
+        # The pin lives in %APPDATA%, outside every checkout: a session on some
+        # other config would be relabelling a shortcut that launches neither.
+        if config.config_path == DEFAULT_CONFIG_PATH:
+            stamp_shortcut_aumid()
 
-    # Config validated and we are committing to launch the stack: past here any
-    # crash is logged through the excepthook installed above, so the launcher's
-    # silent-failure watch has done its job.
-    signal_startup_resolved(config)
-    # Leave the launcher a named interpreter to start the NEXT session through.
-    # Every child below is named as it is launched; this one process cannot be,
-    # because it is the one doing the naming -- see prepare_orchestrator_launcher.
-    prepare_orchestrator_launcher()
-    exit_code = run_windows_bridge(config, logger, env, cancelable=not args.no_cancel)
+        cover.progress.announce("engine")
+        ensure_engine_vendored(config)
+        if engine_missing_abort(config, log=logger.error, uncover=cover.take_it_down):
+            signal_startup_resolved(config)
+            return 1
+
+        # Config validated and we are committing to launch the stack: past here any
+        # crash is logged through the excepthook installed above, so the launcher's
+        # silent-failure watch has done its job.
+        signal_startup_resolved(config)
+        # Leave the launcher a named interpreter to start the NEXT session through.
+        # Every child below is named as it is launched; this one process cannot be,
+        # because it is the one doing the naming -- see prepare_orchestrator_launcher.
+        prepare_orchestrator_launcher()
+        exit_code = run_windows_bridge(config, logger, env, cover)
+    except BaseException:
+        cover.take_it_down()  # else it stands out its staleness guard over the wreck
+        raise
     hand_over_if_asked(config, logger)  # last: the relay waits on the mutex above
     return exit_code
 

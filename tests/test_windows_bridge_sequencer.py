@@ -23,7 +23,7 @@ from fun_time.manifest import (
     write_windows_bridge_manifest,
 )
 from fun_time.monitors import MonitorInfo
-from fun_time.overlay_progress import STARTUP_PHASES, NullProgress, StartupCancelled
+from fun_time.overlay_progress import ROOM_PHASES, NullProgress, StartupCancelled
 from fun_time.player_status import (
     read_main_player_status,
 )
@@ -815,7 +815,7 @@ class TestProgressReporting:
     """run_startup_sequence reports progress via the callback."""
 
     def test_hide_windows_reports_every_phase_in_the_table_in_order(self, cfg_factory, tmp_path):
-        """The loading-screen path fires exactly the phases the bar is built from.
+        """The loading-screen path fires exactly the phases of the room's own build.
 
         The bar is weighted by these phases and closes when the last one lands on
         the total, so a phase fired out of order — or one skipped, or one the
@@ -834,7 +834,7 @@ class TestProgressReporting:
                 hide_windows=True,
             )
 
-        assert progress.phases == [phase.key for phase in STARTUP_PHASES]
+        assert progress.phases == [phase.key for phase in ROOM_PHASES]
 
     def test_null_progress_accepted_silently(self, cfg_factory, tmp_path):
         """NullProgress should work as a no-op."""

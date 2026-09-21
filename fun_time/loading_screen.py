@@ -12,7 +12,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from .overlay_window import OverlayWindow
+from .overlay_progress import STARTUP_PHASES
 
 # Distinct from the dashboard's "Fun Time": a title lookup meaning the dashboard
 # must never resolve this cover.  Borderless, so the title is never rendered.
@@ -29,10 +29,13 @@ def main() -> None:
         print("Usage: python -m fun_time.loading_screen <progress_file>", file=sys.stderr)
         sys.exit(1)
 
+    # Tk is the screen's own; the launch imports this module for the title.
+    from .overlay_window import OverlayWindow  # noqa: PLC0415
+
     OverlayWindow(
         Path(sys.argv[1]),
         title=WINDOW_TITLE,
-        status="Starting...",
+        status=STARTUP_PHASES[0].message,
         stale_timeout_s=STALE_TIMEOUT_S,
     ).run()
 

@@ -32,7 +32,22 @@ EXAMPLE_CONTENT = PROJECT_DIR / "content.example.json"
 # content, which is where the module-level overlay reads live.
 _STARTUP_MODULES = (
     "fun_time.orchestrator",     # python -m fun_time.orchestrator
+    # The session machinery, which the launch loads a second later, under the
+    # cover: the overlay reads above are on its side of that import.
+    "fun_time.windows_bridge_orchestrator",
     "fun_time.voice_commands",   # module-level load_content()["clip_jump_phrases"]
+)
+
+# What may not be loaded to raise the cover, all of it seconds of import on a
+# cold machine: the session machinery and the libraries under it.  Each used to
+# load before anything was on screen, which is what he was watching a bare
+# desktop for.
+_NOT_BEFORE_THE_COVER = (
+    "fun_time.windows_bridge_orchestrator",
+    "numpy",
+    "cv2",
+    "PyQt6.QtWidgets",
+    "tkinter",
 )
 
 # Overlay keys read at import time by the launch graph; each must be present in
@@ -87,6 +102,22 @@ def test_a_missing_required_overlay_key_fails_the_import(tmp_path, required_key)
     assert required_key in result.stderr
 
 
+def test_the_launch_loads_nothing_the_cover_does_not_need():
+    """The first thing a launch does is cover the monitors, so what it imports
+    to get there is what he waits through.  The rest loads under the cover."""
+    result = subprocess.run(
+        [sys.executable, "-c",
+         "import fun_time.orchestrator, sys;"
+         f"print([m for m in {_NOT_BEFORE_THE_COVER!r} if m in sys.modules])"],
+        cwd=PROJECT_DIR, capture_output=True, text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.strip() == "[]", (
+        f"the launch loads {result.stdout.strip()} before it can raise the cover"
+    )
+
+
 def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
     """The one module-level side effect on the launch path, pinned in place.
 
@@ -101,7 +132,9 @@ def test_the_sys_path_override_still_sits_between_the_two_import_blocks():
     """
     tree = ast.parse((PROJECT_DIR / "fun_time" / "orchestrator.py").read_text(encoding="utf-8"))
     provides = applies = uses = None
-    for node in tree.body:
+    # The bridge import is inside the call that runs the session, not at the top
+    # of the module, so the walk reaches into the functions to find it.
+    for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module == "checkout_overrides":
             provides = node.lineno
         elif (isinstance(node, ast.Expr) and isinstance(node.value, ast.Call)

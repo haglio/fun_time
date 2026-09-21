@@ -42,6 +42,7 @@ from fun_time.child_launch import no_child_log, no_console_window, open_child_lo
 from fun_time.config import DEFAULT_CONFIG_PATH, load_config
 from fun_time.engine_preflight import engine_missing_abort
 from fun_time.engine_vendoring import ensure_engine_vendored
+from fun_time.event_log import open_event_log
 from fun_time.hosted_origenerator import bring_up_the_hosted_app
 from fun_time.manifest import (
     LaunchManifest,
@@ -125,7 +126,6 @@ from fun_time.windows_bridge_orchestrator import (
     clear_last_sessions_leftovers,
     kill_recorded_child,
     let_go_of_a_kept_origenerator,
-    open_event_log,
     see_the_hosted_app_out,
     silence_the_players,
     start_hud_priming,
