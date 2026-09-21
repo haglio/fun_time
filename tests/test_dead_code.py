@@ -219,11 +219,11 @@ def test_no_module_reaches_into_another_ones_privates():
 # 7908 since 2026-09-21, when twenty comment blocks stopped replaying the
 # incident that produced the rule and said the rule instead, in the present
 # tense -- and the imports that stayed local said why in one line each.
-MAX_PROSE_LINES = 7908
-
-# What the count was against at the last ratchet, so the norm the audit
-# measured stays readable. Reported on failure; not asserted.
-_PROSE_RATIO_AT_RATCHET = 0.4553
+# 7828 since 2026-09-21, when the resume and the branch-seed stopped restating
+# docs/resuming-a-session.md and their own test names: eleven docstrings and two
+# comment blocks said what a named test already asserts, and the four flags a
+# resumed session re-asserts are written down in one place rather than two.
+MAX_PROSE_LINES = 7828
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:
@@ -278,9 +278,8 @@ def test_prose_does_not_outgrow_the_code_it_explains():
 
     assert prose <= MAX_PROSE_LINES, (
         f"{prose} prose lines (ceiling {MAX_PROSE_LINES}), against {code} of code "
-        f"-- {prose / code:.4f} per line, from {_PROSE_RATIO_AT_RATCHET} at the last "
-        "ratchet. Delete a stale block, or move what it says into a name or a "
-        "test; lower MAX_PROSE_LINES when you do."
+        f"-- {prose / code:.4f} per line. Delete a stale block, or move what it "
+        "says into a name or a test; lower MAX_PROSE_LINES when you do."
     )
 
 
