@@ -45,7 +45,7 @@ VIDEO_ONLY_META = {
     "video": {
         "prompt": "JUST A VIDEO",
         "model": "Video v3",
-        "action": "Pov Epsilon",
+        "action": "Side Epsilon",
         "resolution": "1280x720",
         "aspect_ratio": "16:9",
         "quality": "720p",
@@ -83,7 +83,7 @@ def test_payload_for_video_only_targets_video_no_negative():
     assert payload["positive"] == "JUST A VIDEO"
     assert payload["negative"] == ""
     assert payload["video_prompt"] == ""
-    assert ["Action", "Pov Epsilon"] in payload["settings"]
+    assert ["Action", "Side Epsilon"] in payload["settings"]
 
 
 def test_payload_skips_empty_setting_values():
