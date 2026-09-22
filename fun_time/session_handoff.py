@@ -311,12 +311,12 @@ def hand_over_if_asked(config, session_logger: logging.Logger) -> HandoffTarget 
     if not handoff.cancelable:
         command.append("--no-cancel")
     # Its own log: dying on import is the one failure it cannot report itself.
-    log = open_child_log(config.paths.state_dir / "session_handoff.log", command)
-    subprocess.Popen(
-        command, cwd=str(config.project_dir),
-        stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-        **hidden_subprocess_kwargs(creationflags=subprocess.DETACHED_PROCESS),
-    )
+    with open_child_log(config.paths.state_dir / "session_handoff.log", command) as log:
+        subprocess.Popen(
+            command, cwd=str(config.project_dir),
+            stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            **hidden_subprocess_kwargs(creationflags=subprocess.DETACHED_PROCESS),
+        )
     return target
 
 
@@ -355,12 +355,12 @@ def start_the_session(
     command = [named, "-m", target.module, "--config", str(config_path)]
     if not cancelable:
         command.append("--no-cancel")
-    log = open_child_log(Path(state_dir) / target.launcher_log, command)
-    logger.info("Starting %s: %s", target.app_name, subprocess.list2cmdline(command))
-    return subprocess.Popen(
-        command, cwd=str(project_dir), stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-        **hidden_subprocess_kwargs(),
-    )
+    with open_child_log(Path(state_dir) / target.launcher_log, command) as log:
+        logger.info("Starting %s: %s", target.app_name, subprocess.list2cmdline(command))
+        return subprocess.Popen(
+            command, cwd=str(project_dir), stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+            **hidden_subprocess_kwargs(),
+        )
 
 
 def wait_for_the_session_to_come_up(
