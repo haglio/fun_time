@@ -817,18 +817,33 @@ class RootsLeftBehind(OSError):
     """What a run could not take away again, and why."""
 
 
-def clear_run_roots() -> None:
+# How long the end of a run waits for its last sessions' players to let go of
+# their logs: the minute a session is given to close itself.
+RELEASE_BUDGET_S = QUIT_BUDGET_S
+
+
+def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:
     """Delete every root this run built, and say which ones would not go."""
-    refused = []
-    for root in RUN_ROOTS:
-        try:
-            remove_scratch(root)
-        except OSError as refusal:
-            refused.append(f"{root}: {refusal}")
+    deadline = time.monotonic() + budget_s
+    refused = _remove_each(RUN_ROOTS)
+    while refused and time.monotonic() < deadline:
+        sleep(0.5)
+        refused = _remove_each(root for root, _refusal in refused)
     RUN_ROOTS.clear()
     if refused:
         raise RootsLeftBehind(
-            "this run's temp roots are still in the system temp dir:\n" + "\n".join(refused))
+            "this run's temp roots are still in the system temp dir:\n"
+            + "\n".join(f"{root}: {refusal}" for root, refusal in refused))
+
+
+def _remove_each(roots) -> list[tuple[Path, OSError]]:
+    refused = []
+    for root in roots:
+        try:
+            remove_scratch(root)
+        except OSError as refusal:
+            refused.append((root, refusal))
+    return refused
 
 
 # How long a draw may spend probing what it drew before it gives up.  Every
