@@ -38,6 +38,7 @@ from fun_time.windows_bridge_orchestrator import (
     kill_process_tree,
     kill_recorded_child,
 )
+from tests.scratch import remove_scratch
 
 from .hidden_desktop import (
     HIDDEN_DESKTOP_NAME,
@@ -781,34 +782,53 @@ def build_integration_config(tmp_path: Path) -> Path:
     return config_path
 
 
+# Every temp root this run has built.  A root goes on the list the moment it
+# exists rather than when the test that built it is done with it: two VR tests
+# never said they were done, and each run left their roots in the system temp
+# dir for good -- 196 of the 1,633 standing there came from the three days
+# before this was written.
+RUN_ROOTS: list[Path] = []
+
+
 def build_integration_temp_root() -> Path:
-    return Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
+    root = Path(tempfile.mkdtemp(prefix="fun_time_integration_")).resolve()
+    RUN_ROOTS.append(root)
+    return root
 
 
-RETIRED_ROOTS: list[Path] = []
-
-
-def retire_temp_root(temp_root: Path) -> None:
-    RETIRED_ROOTS.append(Path(temp_root))
-
-
-def clear_retired_roots(*, run_failed: bool, keep_in: Path) -> Path | None:
-    kept = None
-    if run_failed and RETIRED_ROOTS:
-        stamp = time.strftime("%Y%m%d-%H%M%S")
-        kept = Path(keep_in) / stamp
-        suffix = 1
-        while kept.exists():
-            suffix += 1
-            kept = Path(keep_in) / f"{stamp}.{suffix}"
-        for number, root in enumerate(RETIRED_ROOTS, 1):
-            state = root / "integration_runtime" / "state"
-            if state.is_dir():
-                shutil.copytree(state, kept / f"{number:02d}-{root.name}")
-    for root in RETIRED_ROOTS:
-        shutil.rmtree(root, ignore_errors=True)
-    RETIRED_ROOTS.clear()
+def keep_every_sessions_logs(keep_in: Path) -> Path | None:
+    """Copy what each session of this run logged into a dated dir under *keep_in*."""
+    if not RUN_ROOTS:
+        return None
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    kept = Path(keep_in) / stamp
+    suffix = 1
+    while kept.exists():
+        suffix += 1
+        kept = Path(keep_in) / f"{stamp}.{suffix}"
+    for number, root in enumerate(RUN_ROOTS, 1):
+        state = root / "integration_runtime" / "state"
+        if state.is_dir():
+            shutil.copytree(state, kept / f"{number:02d}-{root.name}")
     return kept
+
+
+class RootsLeftBehind(OSError):
+    """What a run could not take away again, and why."""
+
+
+def clear_run_roots() -> None:
+    """Delete every root this run built, and say which ones would not go."""
+    refused = []
+    for root in RUN_ROOTS:
+        try:
+            remove_scratch(root)
+        except OSError as refusal:
+            refused.append(f"{root}: {refusal}")
+    RUN_ROOTS.clear()
+    if refused:
+        raise RootsLeftBehind(
+            "this run's temp roots are still in the system temp dir:\n" + "\n".join(refused))
 
 
 # How long a draw may spend probing what it drew before it gives up.  Every

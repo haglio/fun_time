@@ -28,7 +28,6 @@ from .integration_support import (
     build_integration_config,
     build_integration_temp_root,
     published_status,
-    retire_temp_root,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -47,7 +46,6 @@ def shared_integration_session():
         yield session
     finally:
         session.stop()
-        retire_temp_root(temp_root)
 
 
 @pytest.fixture
@@ -60,7 +58,6 @@ def isolated_integration_session():
         yield session
     finally:
         session.stop()
-        retire_temp_root(temp_root)
 
 
 def test_fun_time_startup_runtime_smoke(shared_integration_session: FunTimeIntegrationSession):
@@ -816,7 +813,6 @@ def test_fun_time_reopens_on_the_video_it_was_closed_on():
         )
     finally:
         second.stop()
-        retire_temp_root(temp_root)
 
 
 def test_fun_time_quit_cleans_up_processes():
@@ -846,5 +842,4 @@ def test_fun_time_quit_cleans_up_processes():
         )
     finally:
         session.stop()
-        retire_temp_root(temp_root)
 

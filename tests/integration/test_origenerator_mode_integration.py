@@ -55,7 +55,6 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
-    retire_temp_root,
 )
 
 pytestmark = [
@@ -320,7 +319,6 @@ def hosted_session():
         yield session, hwnd
     finally:
         session.stop()
-        retire_temp_root(temp_root)
 
 
 def _wait(predicate, *, timeout: float, desc: str):
@@ -543,7 +541,6 @@ def test_entering_the_mode_on_a_real_session_leaves_its_shows_on_top():
             time.sleep(0.5)
     finally:
         session.stop()
-        retire_temp_root(temp_root)
 
 
 def _panel_of(hud_file: Path, player: Player):
@@ -599,4 +596,3 @@ def test_an_origenerator_already_open_is_taken_into_the_session_rather_than_doub
     finally:
         session.stop()
         kill_process_tree(open_app.pid)
-        retire_temp_root(temp_root)

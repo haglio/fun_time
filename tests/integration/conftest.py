@@ -25,7 +25,12 @@ from pathlib import Path
 import pytest
 
 from .hidden_desktop import REFUSED_EXIT_CODE, on_hidden_desktop, require_hidden_desktop
-from .integration_support import clear_retired_roots, close_udp_sinks
+from .integration_support import (
+    RootsLeftBehind,
+    clear_run_roots,
+    close_udp_sinks,
+    keep_every_sessions_logs,
+)
 
 # Only on the desktop this suite is allowed to run on.  Importing this file is not
 # the same thing as running it: a unit run that merely *recurses* into this
@@ -85,10 +90,17 @@ FAILURE_EVIDENCE = Path(__file__).resolve().parents[2] / "state" / "integration_
 
 
 def pytest_sessionfinish(session, exitstatus):
-    kept = clear_retired_roots(run_failed=exitstatus != 0, keep_in=FAILURE_EVIDENCE)
-    if kept is not None:
-        print(f"\n[integration] every session's logs from this failed run are in {kept}",
-              file=sys.stderr, flush=True)
+    if exitstatus != 0:
+        kept = keep_every_sessions_logs(FAILURE_EVIDENCE)
+        if kept is not None:
+            print(f"\n[integration] every session's logs from this failed run are in {kept}",
+                  file=sys.stderr, flush=True)
+    try:
+        clear_run_roots()
+    except RootsLeftBehind as left_behind:
+        # pytest.exit rather than letting it propagate, for the reason the
+        # refusal above gives: a hook's exception reads as a broken harness.
+        pytest.exit(str(left_behind), returncode=exitstatus or pytest.ExitCode.TESTS_FAILED)
 
 
 @pytest.fixture(autouse=True)
