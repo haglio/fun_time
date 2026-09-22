@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import re
 import string
+import threading
 from pathlib import Path
 from unittest.mock import patch
 
@@ -98,12 +99,13 @@ def _backspace() -> QKeyEvent:
 
 
 @pytest.fixture
-def browser():
+def browser(tmp_path):
     """Build LibraryBrowserWindow(s) that always close with the test.
 
     Each construction is a real top-level Qt window in the shared session
     QApplication; before this factory, thirty were built per run and three
-    ever closed, the rest living on for the whole session.
+    ever closed, the rest living on for the whole session.  It asks for
+    ``tmp_path`` so as to be torn down before it.
     """
     opened: list[LibraryBrowserWindow] = []
 
@@ -115,6 +117,11 @@ def browser():
     yield build
     for window in opened:
         window.close()
+    # A still being cut from a video in tmp_path holds that video open, and
+    # Windows will not delete an open file.
+    for extractor in threading.enumerate():
+        if extractor.name == "library-thumbnails":
+            extractor.join(timeout=10.0)
 
 
 def test_a_browse_opens_on_the_librarys_own_folders(browser, tmp_path: Path):
