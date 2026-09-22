@@ -57,9 +57,20 @@ def test_a_root_that_will_not_go_is_named_and_the_others_still_do(tmp_path: Path
 
     with (held / "integration_runtime" / "state" / "main_player.log").open("a"):
         with pytest.raises(RootsLeftBehind, match="held"):
-            clear_run_roots()
+            clear_run_roots(budget_s=0)
 
     assert not goes.exists()
+
+
+def test_a_player_still_on_its_way_out_is_waited_for(tmp_path: Path):
+    """The last session's players are killed with taskkill /F, which returns
+    before they have finished going."""
+    root = _a_session_root(tmp_path, "going")
+
+    with (root / "integration_runtime" / "state" / "main_player.log").open("a") as log:
+        clear_run_roots(budget_s=60.0, sleep=lambda _seconds: log.close())
+
+    assert not root.exists()
 
 
 def test_a_failed_run_keeps_each_sessions_logs(tmp_path: Path):
