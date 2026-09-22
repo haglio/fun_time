@@ -36,7 +36,6 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
-    retire_temp_root,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -156,4 +155,3 @@ def test_the_room_is_finished_when_the_cover_lifts():
         )
     finally:
         session.stop()
-        retire_temp_root(temp_root)

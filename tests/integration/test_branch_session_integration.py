@@ -27,7 +27,6 @@ from .integration_support import (
     FunTimeIntegrationSession,
     build_integration_config,
     build_integration_temp_root,
-    retire_temp_root,
 )
 
 pytestmark = pytest.mark.skipif(
@@ -86,7 +85,6 @@ def branch_checkout_session():
         yield session, branch_checkout
     finally:
         session.stop()
-        retire_temp_root(temp_root)
 
 
 def test_a_branch_session_runs_the_branch_checkouts_code(branch_checkout_session):
