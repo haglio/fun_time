@@ -3,8 +3,6 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
-import uuid
 from pathlib import Path
 
 # Render Qt offscreen for the whole unit suite. Agents run these GUI tests on every
@@ -37,6 +35,7 @@ from fun_time import loading_cover, win32, windows_bridge_orchestrator
 from fun_time.config import DEFAULT_CONFIG_PATH
 from fun_time.media_metadata import reset_group_index_cache
 from tests.logging_state import logging_given_back
+from tests.scratch import scratch_dir
 
 # test_real_config_launchable is a check on THIS MACHINE's state — the
 # git-ignored real config — not on the code.  Off the machine (CI, public
@@ -67,7 +66,7 @@ _MUTATING_USER32_CALLS = (
 
 @pytest.fixture(autouse=True)
 def _never_mutate_a_real_window(monkeypatch):
-    """Neutralise the win32 calls that MOVE/topmost/activate/close a window, so no
+    """Neutralize the win32 calls that MOVE/topmost/activate/close a window, so no
     unit test can touch the user's live windows.
 
     Only the mutating primitives are stubbed; the readers (``GetWindowLongW``,
@@ -179,7 +178,7 @@ TMP_ROOT = Path(
 def tmp_path() -> Path:
     """Replace pytest's builtin ``tmp_path`` with a checkout-local scratch dir.
 
-    Each test gets ``.tmp-pytest-local/case_<uuid>``, removed in the finally —
+    Each test gets ``.tmp-pytest-local/case_<uuid>``, removed when it ends —
     including on failure, so unlike pytest's own fixture there is no
     retained-last-3-runs debris to inspect afterwards.  Note the trade-offs:
     the scratch tree lives inside the checkout (git-ignored, but on a synced
@@ -187,13 +186,8 @@ def tmp_path() -> Path:
     the system temp dir, so the two are not interchangeable.  Set
     ``FUN_TIME_PYTEST_TMP_ROOT`` to relocate it.
     """
-    TMP_ROOT.mkdir(parents=True, exist_ok=True)
-    path = (TMP_ROOT / f"case_{uuid.uuid4().hex}").resolve()
-    path.mkdir()
-    try:
+    with scratch_dir(TMP_ROOT) as path:
         yield path
-    finally:
-        shutil.rmtree(path, ignore_errors=True)
 
 
 @pytest.fixture(autouse=True, scope="session")
