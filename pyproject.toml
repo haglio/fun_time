@@ -28,7 +28,7 @@ dependencies = [
     "shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.129",
     # The family's listener: it brings vosk and sounddevice, and hears for this
     # app, Evolver's backfill tool and Origenerator alike.
-    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.14",
+    "voice-core @ git+https://github.com/haglio/voice_core@v0.1.18",
     "numpy>=2.4,<3",
     "opencv-python>=4.8,<5",
     "pillow>=12,<13",

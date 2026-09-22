@@ -4,7 +4,7 @@
 app-support @ git+https://github.com/haglio/app_support@v0.1.156
 shared-ui @ git+https://github.com/haglio/shared_ui@v0.1.129
 player-core @ git+https://github.com/haglio/player_core@v0.1.300
-voice-core @ git+https://github.com/haglio/voice_core@v0.1.14
+voice-core @ git+https://github.com/haglio/voice_core@v0.1.18
 numpy
 opencv-python
 pillow
