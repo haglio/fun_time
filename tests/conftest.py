@@ -31,9 +31,16 @@ from fun_time.checkout_overrides import apply_genau_dirs_to_sys_path
 
 apply_genau_dirs_to_sys_path()
 
-from fun_time import loading_cover, win32, windows_bridge_orchestrator
+from fun_time import (
+    loading_cover,
+    orchestrator,
+    session_handoff,
+    win32,
+    windows_bridge_orchestrator,
+)
 from fun_time.config import DEFAULT_CONFIG_PATH
 from fun_time.media_metadata import reset_group_index_cache
+from fun_time_vr import orchestrator as vr_orchestrator
 from tests.logging_state import logging_given_back
 from tests.scratch import scratch_dir
 
@@ -128,6 +135,21 @@ def _never_wait_out_a_window_no_test_opened(request, monkeypatch):
         monkeypatch.setattr(module, "wait_for_window_by_title", lambda _title, **_kwargs: 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "CLOSING_SCREEN_READY_TIMEOUT_S", 0)
     monkeypatch.setattr(windows_bridge_orchestrator, "POST_LOADING_RESOLVE_TIMEOUT_S", 0)
+
+
+@pytest.fixture(autouse=True)
+def _never_leave_a_cover_heartbeat_running(monkeypatch):
+    """Keep a session's crossing-cover heartbeat from outliving its test.
+
+    Each session and the relay between them keep the cover up from a thread
+    that reads the progress file in their state dir once a second for the
+    rest of the process's life -- in a unit run, the rest of the suite.  One
+    caught reading as its test's tmp_path went held the file open, and
+    Windows will not delete an open file.  The heartbeat's own tests call it
+    by the name they imported, which this leaves alone.
+    """
+    for module in (orchestrator, session_handoff, vr_orchestrator):
+        monkeypatch.setattr(module, "keep_the_crossing_cover", lambda _state_dir: None)
 
 
 @pytest.fixture(autouse=True)
