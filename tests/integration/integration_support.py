@@ -818,8 +818,10 @@ class RootsLeftBehind(OSError):
 
 
 # How long the end of a run waits for its last sessions' players to let go of
-# their logs: the minute a session is given to close itself.
-RELEASE_BUDGET_S = QUIT_BUDGET_S
+# their logs.  stop() reaps them, but a player takes a while to finish going:
+# 22 to 59 seconds on a machine the flake gate kept busy, and a minute was once
+# not enough.
+RELEASE_BUDGET_S = 180.0
 
 
 def clear_run_roots(*, budget_s: float = RELEASE_BUDGET_S, sleep=time.sleep) -> None:

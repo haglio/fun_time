@@ -73,6 +73,12 @@ def test_a_player_still_on_its_way_out_is_waited_for(tmp_path: Path):
     assert not root.exists()
 
 
+def test_the_wait_outlasts_the_slowest_player_measured_on_a_busy_machine():
+    """59 seconds from a session's stop to its last player gone, with the flake
+    gate keeping every core busy."""
+    assert integration_support.RELEASE_BUDGET_S >= 2 * 59
+
+
 def test_a_failed_run_keeps_each_sessions_logs(tmp_path: Path):
     roots = [_a_session_root(tmp_path, "one"), _a_session_root(tmp_path, "two")]
 
