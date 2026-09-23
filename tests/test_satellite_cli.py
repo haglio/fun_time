@@ -18,7 +18,7 @@ def test_resolve_playlist_without_a_file_is_empty():
     assert resolve_playlist(args) == []
 
 
-def test_audio_muted_from_the_flag():
+def test_audio_muted_from_the_flag(unmuted):
     assert audio_muted(build_parser().parse_args(["--no-audio"])) is True
     assert audio_muted(build_parser().parse_args([])) is False
 

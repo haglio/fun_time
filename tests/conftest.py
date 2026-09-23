@@ -17,6 +17,7 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 # also runs the live players.  tests/integration/conftest.py takes both off
 # again on the hidden desktop, where the real windows are the point.
 os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
+os.environ["FUN_TIME_MUTE_AUDIO"] = "1"
 
 import pytest
 from PyQt6.QtWidgets import QApplication
@@ -180,6 +181,11 @@ def _never_inherit_the_integration_flag(monkeypatch):
     point.
     """
     monkeypatch.delenv("FUN_TIME_RUN_INTEGRATION", raising=False)
+
+
+@pytest.fixture
+def unmuted(monkeypatch):
+    monkeypatch.delenv("FUN_TIME_MUTE_AUDIO")
 
 
 @pytest.fixture(autouse=True)
