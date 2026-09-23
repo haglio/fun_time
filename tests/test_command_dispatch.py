@@ -2793,12 +2793,22 @@ def test_genau_clip_commands_write_cmd_file(tmp_path: Path):
         ("genau_clip_seconds_down", "CLIP_SECONDS_DOWN"),
         ("genau_clip_seconds_up", "CLIP_SECONDS_UP"),
         ("genau_weird_clip", "WEIRD"),
+        ("genau_flip_ends", "FLIP_ENDS"),
     ):
         config = _make_config(tmp_path / command)
         new_state, ops = dispatch_command(command, _make_state(main_mode=MainMode.GENAU), config)
 
         assert config.genau_cmd_file.read_text(encoding="utf-8") == verb + "\n"
         assert ops == []
+
+
+def test_a_flip_said_over_a_video_leaves_genaus_hidden_clip_alone(tmp_path: Path):
+    config = _make_config(tmp_path)
+
+    new_state, ops = dispatch_command("genau_flip_ends", _make_state(main_mode=MainMode.VIDEO), config)
+
+    assert not config.genau_cmd_file.exists()
+    assert (new_state, ops) == (_make_state(main_mode=MainMode.VIDEO), [])
 
 
 def test_genau_clip_seconds_writes_a_numeric_cmd(tmp_path: Path):

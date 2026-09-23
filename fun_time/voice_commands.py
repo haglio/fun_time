@@ -79,6 +79,7 @@ def build_voice_commands(
     *,
     filter_commands: Mapping[str, str] | None = None,
     clip_jump_phrases: tuple[str, ...] | None = None,
+    clip_flip_phrases: tuple[str, ...] | None = None,
     origenerator_phrases: tuple[str, ...] | None = None,
 ) -> Mapping[str, str]:
     """The spoken vocabulary, built as a read-only value.
@@ -244,6 +245,9 @@ def build_voice_commands(
     if clip_jump_phrases is None:
         clip_jump_phrases = tuple(load_content()["clip_jump_phrases"])
     commands.update(dict.fromkeys(clip_jump_phrases, "main_player_clip_jump"))
+    if clip_flip_phrases is None:
+        clip_flip_phrases = tuple(load_content()["clip_flip_phrases"])
+    commands.update(dict.fromkeys(clip_flip_phrases, "genau_flip_ends"))
 
     # The hotkeys & voice reference popup toggles from several spoken names, and
     # closes from any of them prefixed with "close".

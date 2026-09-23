@@ -54,6 +54,7 @@ class MainSlot:
     # Whether the player is already at every default, which leaves its reset
     # nothing to put back -- the button is drawn faded and takes no press.
     nothing_to_reset: bool = False
+    flipped: bool = False
 
 
 # The glyphs this console types, as against the family's marks it names below.
@@ -81,6 +82,7 @@ RETRACT_ICON = shared_mark("retract")
 RELEASE_ICON = shared_mark("release")
 CONTROL_OFF_ICON = shared_mark("control_off")
 QUARTER_ICON = shared_mark("quarter_offset")
+FLIP_ENDS_ICON = shared_mark("flip_ends")
 WAVE_ICON = shared_mark("wave")
 
 MODE_BUTTONS = (
@@ -283,8 +285,11 @@ def _transport_row(slot: MainSlot) -> tuple[Button, ...]:
                    else "Show only the pictures that have been enhanced",
                    lit=slot.enhanced_filter, enhanced=True, group_break=True),
         )),
-        Button("genau_weird_clip", TRASH_ICON, "Mark weird — move it out",
-               danger=True, group_break=slot.enhanced_filter is None),
+        Button("genau_flip_ends", FLIP_ENDS_ICON,
+               "Flipped — this clip stays that way; press to put it back" if slot.flipped
+               else "Flip this clip, for a picture running opposite the OSR2 — it stays flipped",
+               lit=slot.flipped, group_break=True),
+        Button("genau_weird_clip", TRASH_ICON, "Mark weird — move it out", danger=True),
         *_browse_order_buttons(slot),
     )
 

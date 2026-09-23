@@ -163,6 +163,9 @@ class TestVoiceCommands:
         assert VOICE_COMMANDS["weird clip"] == "genau_weird_clip"
         assert VOICE_COMMANDS["weird"] == "active_trash"
 
+    def test_the_overlay_says_the_words_that_flip_genaus_clip(self):
+        assert build_voice_commands(clip_flip_phrases=("flip alpha",))["flip alpha"] == "genau_flip_ends"
+
     def test_holding_a_genau_clip_is_the_main_lock_and_nothing_of_its_own(self):
         """It was a phrase and a padlock beside auto advance's arming; the two
         could disagree, and the console carried a second lock next to the main player's."""

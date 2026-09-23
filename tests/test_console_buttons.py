@@ -139,6 +139,16 @@ class TestTransport:
         assert "genau_next_clip" in actions
         assert "genau_weird_clip" in actions
 
+    def test_genau_can_flip_the_clip_up_half_a_loop(self):
+        flip = _button(MainSlot(main_mode=MainMode.GENAU), "genau_flip_ends")
+
+        assert shared_mark_name(flip.glyph) == "flip_ends"
+        assert flip.lit is False
+        assert _button(MainSlot(main_mode=MainMode.GENAU, flipped=True), "genau_flip_ends").lit is True
+
+    def test_a_video_has_no_clip_to_flip(self):
+        assert "genau_flip_ends" not in _actions(MainSlot(main_mode=MainMode.VIDEO))
+
     def test_genau_offers_no_video_only_actions(self):
         """Nudge, open, clip and record act on a video; Genau's clips are not one."""
         actions = _actions(MainSlot(main_mode=MainMode.GENAU))
