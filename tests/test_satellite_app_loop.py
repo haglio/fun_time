@@ -183,7 +183,7 @@ def test_a_press_on_the_scrubber_seeks_the_clip(tmp_path):
     assert abs(player.seeks[0] - player.duration_ms / 2) <= player.duration_ms / (x1 - x0)
 
 
-def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path):
+def test_a_press_on_the_volume_chip_unmutes_this_player(tmp_path, unmuted):
     """The speaker at the left end of the chip, which is placed from the
     window's lower-right corner — a satellite opens muted and this is the way
     to hear one."""

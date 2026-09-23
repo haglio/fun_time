@@ -132,13 +132,11 @@ class TestLibrarySource:
 
 
 class TestAudioMuted:
-    def test_default_is_unmuted(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    def test_default_is_unmuted(self, unmuted):
         args = build_parser({}).parse_args([])
         assert audio_muted(args) is False
 
-    def test_no_audio_flag_mutes(self, monkeypatch):
-        monkeypatch.delenv("FUN_TIME_MUTE_AUDIO", raising=False)
+    def test_no_audio_flag_mutes(self, unmuted):
         args = build_parser({}).parse_args(["--no-audio"])
         assert audio_muted(args) is True
 

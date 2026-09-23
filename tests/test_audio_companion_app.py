@@ -65,7 +65,7 @@ class TestTheFlagFilesThisProcessReads:
         (" 1 \n", True), ("\ufeff1", True),
     ])
     def test_that_reader_is_the_one_this_process_hands_its_runtime(
-            self, tmp_path, cfg_path, text: str, expected: bool):
+            self, tmp_path, cfg_path, unmuted, text: str, expected: bool):
         """Not the library function in the abstract — the closure `main` builds.
         Invert it and the companion plays whenever genau mode is OFF; nothing
         else in the suite would notice."""
@@ -76,7 +76,7 @@ class TestTheFlagFilesThisProcessReads:
         assert read_flag(path) is expected
 
     def test_and_a_flag_file_that_is_not_there_yet_is_not_true_either(
-            self, tmp_path, cfg_path):
+            self, tmp_path, cfg_path, unmuted):
         read_flag = self._reader_the_runtime_was_given(tmp_path, cfg_path)
 
         assert read_flag(tmp_path / "never_written.txt") is False
@@ -359,7 +359,7 @@ class TestWhenTheSoundWillNotDoWhatItIsAsked:
         assert controller.normalize_position(clip, 12.5) == 12.5
 
     def test_measuring_a_clip_is_where_the_sound_librarys_failures_live(
-            self, tmp_path, cfg_path):
+            self, tmp_path, cfg_path, unmuted):
         """main binds the measurement, so the controller can take any source
         that answers None — and the warning names the clip."""
         (tmp_path / "audio").mkdir(exist_ok=True)
