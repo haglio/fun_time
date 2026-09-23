@@ -136,6 +136,7 @@ class GenauStatus:
     # and from a Genau too old to say.  Genau rescans its folder every launch and
     # opens at the top of it, so this is the only record of where a session was.
     clip: str = ""
+    flipped: bool = False
 
 
 def _status_bool(values: dict[str, str], key: str, *, default: bool = False) -> bool:
@@ -159,6 +160,7 @@ def read_genau_status(path: Path) -> GenauStatus:
             locked=_status_bool(values, "locked", default=True),
             shape=values.get("shape", "sine").strip(),
             clip=values.get("clip", "").strip(),
+            flipped=_status_bool(values, "flipped"),
         )
     except (OSError, ValueError):
         return GenauStatus()

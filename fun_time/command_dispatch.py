@@ -1552,6 +1552,13 @@ def _speed(main_player_cmd: str | None, genau_cmd: str | None, by_driver: bool,
     return state, []
 
 
+def _flip_genaus_clip_on_screen(state: BridgeState, config: BridgeConfig,
+                                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
+    if main_player_displays(state.main_mode):
+        return state, []
+    return _forward_to_genau("FLIP_ENDS", state, config, _target_path)
+
+
 def _save_clip(state: BridgeState, _config: BridgeConfig,
                _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """Ask the loop for a clipper save — asked for, not run: clipper boots a
@@ -1656,6 +1663,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers[OSR2_CONTROL_BUTTONS[OSR2_DRIVING]] = _robot_hand_release
     handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
     handlers["clipper_save"] = _save_clip
+    handlers["genau_flip_ends"] = _flip_genaus_clip_on_screen
     handlers["genau_filter_enhanced"] = _filter_the_shows_enhanced
     handlers.update({cmd: _words_for_a_show_that_is_not_up
                      for cmd in _ORIGENERATOR_SPEECH if cmd not in handlers})

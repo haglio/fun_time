@@ -28,5 +28,8 @@
   "clip_jump_phrases": [
     "clip jump",
     "jump back"
+  ],
+  "clip_flip_phrases": [
+    "flip ends"
   ]
 }

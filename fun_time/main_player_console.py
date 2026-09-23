@@ -83,6 +83,7 @@ def console_model(inputs: MainSlotInputs) -> ConsoleModel:
         jump_to=main_player.jump_to,
         osr2_control=inputs.osr2_control,
         nothing_to_reset=inputs.nothing_to_reset,
+        flipped=genau.flipped,
     )
     return ConsoleModel(
         main_mode=inputs.main_mode,

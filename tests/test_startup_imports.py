@@ -52,7 +52,7 @@ _NOT_BEFORE_THE_COVER = (
 
 # Overlay keys read at import time by the launch graph; each must be present in
 # the committed example or the graph refuses to import.
-_IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "acts")
+_IMPORT_TIME_OVERLAY_KEYS = ("clip_jump_phrases", "clip_flip_phrases", "acts")
 
 
 def _import_startup_graph(content_overlay: Path) -> subprocess.CompletedProcess:

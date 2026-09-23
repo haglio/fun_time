@@ -286,6 +286,14 @@ def test_read_genau_status_reads_no_clip_before_one_is_up(tmp_path: Path):
     assert read_genau_status(tmp_path / "missing.txt").clip == ""
 
 
+def test_read_genau_status_says_whether_the_clip_up_is_flipped(tmp_path: Path):
+    status_file = tmp_path / "genau_status.txt"
+    status_file.write_text("clip=C:\\clips\\alpha.mp4\nflipped=1\n", encoding="utf-8")
+
+    assert read_genau_status(status_file).flipped is True
+    assert read_genau_status(tmp_path / "missing.txt").flipped is False
+
+
 def test_read_main_player_status_parses_the_range_a_running_loop_holds(tmp_path: Path):
     """A loop lives in the player process, so the only record of one is what the main player
     publishes — which is how a reopened session can be handed it back."""

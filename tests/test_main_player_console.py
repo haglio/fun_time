@@ -138,6 +138,12 @@ class TestPayload:
             assert payload.locked is expected
             assert _button(payload, "main_lock").lit is expected
 
+    def test_the_flip_button_lights_for_the_clip_genau_says_is_flipped(self):
+        flipped = _payload(main_mode=MainMode.GENAU, genau=GenauStatus(flipped=True))
+
+        assert _button(flipped, "genau_flip_ends").lit is True
+        assert _button(_payload(main_mode=MainMode.GENAU), "genau_flip_ends").lit is False
+
     def test_genaus_pace_is_named_on_its_lock(self):
         """Genau publishes how long an unheld clip stays up, and the lock in genau
         mode says so on hover -- the only place the number is spelled out."""

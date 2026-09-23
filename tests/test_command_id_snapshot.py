@@ -125,6 +125,7 @@ EXPECTED_COMMAND_IDS = HUD_ONLY_COMMAND_IDS + (
     "genau_activate",
     "genau_clip_seconds_down",
     "genau_clip_seconds_up",
+    "genau_flip_ends",
     "genau_next_clip",
     "genau_prev_clip",
     "genau_weird_clip",

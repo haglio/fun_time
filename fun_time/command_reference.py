@@ -278,6 +278,12 @@ _SECTIONS: tuple[_Section, ...] = (
             _Row("Previous Genau clip", ("M",), ("genau_prev_clip",)),
             _Row("Next Genau clip", (".",), ("genau_next_clip",)),
             _Row("Mark the Genau clip weird — skip it, and out of rotation", ("K",), ("genau_weird_clip",)),
+            _Row(
+                "Flip the Genau clip half a loop, for a picture running opposite the "
+                "OSR2 — it stays flipped, and saying it again puts it back",
+                (),
+                ("genau_flip_ends",),
+            ),
             # The same two commands the main player's section carries: one sound level reaches
             # both sinks, and which is audible is which mode owns the display.
             _Row("Volume down / up, in tenths — the clip music", (), ("audio_volume_down", "audio_volume_up")),
