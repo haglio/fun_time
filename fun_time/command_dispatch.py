@@ -13,8 +13,6 @@ from player_core.console import (
     OSR2_CONTROL_BUTTONS,
     OSR2_CONTROL_OFF,
     OSR2_DRIVING,
-    OSR2_PARKED,
-    OSR2_RETRACTED,
 )
 from player_core.file_channel import append_command
 from player_core.hud_status import F_MODE_LABEL, LATEST_LABEL, SHUFFLE_LABEL
@@ -33,7 +31,7 @@ from player_core.player_verbs import (
 
 from .audio_volume import MAX_VOLUME, MIN_VOLUME, VOLUME_STEP, publish_audio_level
 from .bridge_records import BridgeConfig, WindowOp
-from .broker_control import PARK_CMD, RESUME_CMD, RETRACT_CMD, write_broker_command
+from .broker_control import HOLD_VERB, PARK_CMD, RESUME_CMD, write_broker_command
 from .content import load_web_providers
 from .event_log import (
     FAVORITE,
@@ -1451,15 +1449,12 @@ def _forward_to_genau(verb: str, state: BridgeState, config: BridgeConfig,
     return state, []
 
 
-_BROKER_BY_HOLD = {OSR2_PARKED: PARK_CMD, OSR2_RETRACTED: RETRACT_CMD}
-
-
 def _robot_hand_hold(control: str, state: BridgeState, config: BridgeConfig,
                 _target_path: str) -> tuple[BridgeState, list[WindowOp]]:
     """park / retract: the broker takes the device to that end and keeps it there,
     while the arbiter has both engines play on with nothing of them heard."""
     if config.broker_cmd_file is not None:
-        write_broker_command(config.broker_cmd_file, _BROKER_BY_HOLD[control])
+        write_broker_command(config.broker_cmd_file, HOLD_VERB[control])
     return replace(state, osr2_control=control), []
 
 
@@ -1667,7 +1662,7 @@ def _build_handlers() -> dict[str, Handler]:
     handlers.update({cmd: partial(_forward_to_genau, verb)
                      for cmd, verb in _GENAU_CMD_MAP.items()})
     handlers.update({OSR2_CONTROL_BUTTONS[control]: partial(_robot_hand_hold, control)
-                     for control in _BROKER_BY_HOLD})
+                     for control in HOLD_VERB})
     handlers[OSR2_CONTROL_BUTTONS[OSR2_DRIVING]] = _robot_hand_release
     handlers[OSR2_CONTROL_BUTTONS[OSR2_CONTROL_OFF]] = _osr2_control_off
     handlers["clipper_save"] = _save_clip

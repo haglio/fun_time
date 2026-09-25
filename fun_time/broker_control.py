@@ -9,6 +9,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from player_core.console import OSR2_PARKED, OSR2_RETRACTED
+
 # Send the OSR2 home and hold it there.  The broker fires the park a second
 # later (``L00000I500``: position 0 over half a second) and mutes the script
 # feed meanwhile, so an in-flight tail cannot immediately undo it.
@@ -20,6 +22,8 @@ RETRACT_CMD = "RETRACT"
 # Hand the device back to the script feed: cancels a park or retract that has
 # not fired yet and lifts the mute.
 RESUME_CMD = "RESUME"
+
+HOLD_VERB = {OSR2_PARKED: PARK_CMD, OSR2_RETRACTED: RETRACT_CMD}
 
 
 def write_broker_command(cmd_file: str | Path, verb: str) -> None:

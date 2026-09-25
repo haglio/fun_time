@@ -14,7 +14,7 @@ from player_core.playlist import PlaylistItem
 logger = logging.getLogger(__name__)
 
 from .bridge_records import SatelliteChannel
-from .broker_control import PARK_CMD, write_broker_command
+from .broker_control import write_broker_command
 from .mode_plan import build_mode_switch_plan
 from .modes import (
     PLAYLIST_LANDSCAPE,
@@ -418,8 +418,7 @@ def apply_enter_omnipause(
     append_command(Path(genau_cmd_file), "PAUSE")
     if broker_cmd_file is not None:
         write_broker_command(broker_cmd_file, plan.broker_command)
-        if plan.broker_command == PARK_CMD:
-            append_command(Path(genau_cmd_file), "PARK")
+        append_command(Path(genau_cmd_file), plan.broker_command)
     return OmniPauseFlowResult(
         next_omni_paused=plan.next_omni_paused,
         log_message=plan.log_message,

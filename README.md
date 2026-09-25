@@ -386,7 +386,7 @@ The mute reaches the two sinks differently, which is why `SET_VOLUME` carries tw
 
 - `Esc` toggles OmniPause; `Space` enters it.
 - While OmniPaused, the global hotkeys are suspended — only `Esc` (toggle OmniPause) and `Ctrl+Alt+Q` (quit) stay active.
-- Entering it parks the OSR2, and in Genau mode Genau's picture goes home with the device: it holds for the second the broker waits, then glides to the clip's parked end as the device settles there. Control off does the same. `Shift+Esc` sends the device to the far end instead, and the picture stays where it stopped.
+- Entering it parks the OSR2, and in Genau mode Genau's picture goes home with the device: it holds for the second the broker waits, then glides to the clip's parked end as the device settles there. `Shift+Esc` sends the device to the far end instead, and the picture goes there with it. Control off, park and retract hold the picture with the device the same way, and when the Robot Hand takes the device back the picture eases onto its motion as the device does.
 
 ### The satellites' scrubber and volume chip
 

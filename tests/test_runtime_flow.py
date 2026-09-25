@@ -643,7 +643,7 @@ def test_apply_enter_omnipause_relief_retracts_and_still_freezes_everything(flow
     assert flow_files["main_player_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["genau_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["audio_paused_file"].read_text(encoding="utf-8") == "1"
-    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\n"
+    assert flow_files["genau_cmd_file"].read_text(encoding="utf-8") == "PAUSE\nRETRACT\n"
     assert flow_files["portrait_paused_file"].read_text(encoding="utf-8") == "1"
     assert flow_files["landscape_paused_file"].read_text(encoding="utf-8") == "1"
 
