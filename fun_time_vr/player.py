@@ -487,6 +487,11 @@ def _in_the_slot(screen, picture, projection) -> tuple[Hanging, ...]:
                     mesh=screen, picture=picture),)
 
 
+def _metadata_root(manifest) -> Path | None:
+    raw = manifest.regen.metadata_root.strip()
+    return Path(raw) if raw else None
+
+
 class _MainUnit(_VideoUnit):
     screen_name = MAIN  # NOT `screen`, which every unit uses for its _HangingScreen
     SPOTS = {MAIN: Placement(0.0, 0.0, MAIN_WIDTH_DEG)}  # level and straight ahead
@@ -509,7 +514,6 @@ class _MainUnit(_VideoUnit):
         commands = manifest.commands
         self.cmd_file = Path(commands.main_player_cmd_file)
         self.paused_file = Path(commands.main_player_paused_file)
-        metadata_raw = manifest.regen.metadata_root.strip()
         driver = FunscriptTCodeDriver(_SaysWhenItFirstMoves(
             UdpTCodeSink(vr.tcode_udp_host, vr.tcode_udp_port), "main",
         ))
@@ -517,7 +521,7 @@ class _MainUnit(_VideoUnit):
             player=self.player,
             driver=driver,
             playlist_file=Path(commands.main_player_playlist_file),
-            metadata_root=Path(metadata_raw) if metadata_raw else None,
+            metadata_root=_metadata_root(manifest),
             vr_dirs=tuple(
                 vr.library_dirs
             ),
@@ -1341,11 +1345,12 @@ class _LibraryUnit:
     def __init__(
         self, *, remembered: Mapping[str, Placement], flag: Path, host,
         main_player_cmd_file: Path, main_player_status_file: Path,
-        dashboard_cmd_file: Path,
+        dashboard_cmd_file: Path, metadata_root: Path | None,
     ) -> None:
         self._flag = flag
         self._host = host
         self._main_player_cmd_file = main_player_cmd_file
+        self._metadata_root = metadata_root
         self._main_player_status_file = main_player_status_file
         self._dashboard_cmd_file = dashboard_cmd_file
         self._shown = ShownWhileAsked()
@@ -1394,7 +1399,8 @@ class _LibraryUnit:
         for answer in self._host.answers():
             said, _, video = answer.partition(" ")
             if said == PICKED:
-                append_command(self._main_player_cmd_file, play_file(scripted_item(video)))
+                append_command(self._main_player_cmd_file,
+                               play_file(scripted_item(video, self._metadata_root)))
             if said in (PICKED, DISMISSED):
                 self._shown.put_away()
                 append_command(self._dashboard_cmd_file, BROWSE_LIBRARY_CLOSE)
@@ -2041,6 +2047,7 @@ def _run(manifest: LaunchManifest, vr: VrSettings, manifest_path: Path) -> int:
         main_player_cmd_file=Path(commands.main_player_cmd_file),
         main_player_status_file=Path(commands.main_player_status_file),
         dashboard_cmd_file=Path(commands.dashboard_cmd_file),
+        metadata_root=_metadata_root(manifest),
     )
     keeper = _LayoutKeeper(layout_path, remembered)
     scene_ready = SceneReady(scene_ready_file(state_dir))

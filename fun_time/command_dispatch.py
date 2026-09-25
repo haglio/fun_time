@@ -953,6 +953,7 @@ def _dispatch_main_reorder(
             main_player_cmd_file=config.main_player_cmd_file,
             start_at_top=True,
             shapes=main_video_shapes(state, config),
+            metadata_root=config.regen_metadata_root,
         )
     else:
         state = replace(state, genau_latest=recent)
@@ -998,6 +999,7 @@ def _dispatch_main_projection(
             state_dir=config.state_dir,
             main_player_cmd_file=config.main_player_cmd_file,
             shapes=main_video_shapes(state, config),
+            metadata_root=config.regen_metadata_root,
         )
     label = _PROJECTION_LABELS[(plays_vr, plays_flat)]
     logger.info("Main player shapes: %s", label)
@@ -1036,6 +1038,7 @@ def _dispatch_main_reset(
             main_player_cmd_file=config.main_player_cmd_file,
             start_at_top=True,
             shapes=main_video_shapes(state, config),
+            metadata_root=config.regen_metadata_root,
         )
     if main_player_displays(state.main_mode):
         for verb in _MAIN_PLAYER_RESET_VERBS:

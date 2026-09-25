@@ -23,6 +23,7 @@ from fun_time.modes import (
     read_favs_content,
     shuffle_paths,
     sort_paths_by_recency,
+    write_main_player_playlist_file,
 )
 
 
@@ -243,9 +244,7 @@ def test_a_video_outside_the_mirrored_tree_names_no_funscript():
     assert build_mirrored_funscript_path(r"C:\other\path\clip.mp4") == ""
 
 
-def test_has_handcrafted_funscript_needs_only_the_video_path(tmp_path: Path):
-    """The mirrored tree is derivable from the clip's own path, so nothing has to
-    be told where the scripts live."""
+def test_a_clip_in_the_library_needs_only_its_own_path_to_find_its_script(tmp_path: Path):
     video = tmp_path / "videos" / "videos" / "2D" / "AI" / "portrait" / "clip.mp4"
     script = tmp_path / "videos" / "scripts" / "scripts" / "2D" / "AI" / "portrait" / "clip.funscript"
     script.parent.mkdir(parents=True)
@@ -294,6 +293,63 @@ def test_a_marker_without_a_script_is_not_f_modes_either(tmp_path: Path):
 def test_the_marker_path_is_empty_off_the_library(tmp_path: Path):
     assert build_generated_marker_path(r"C:\other\path\clip.mp4") == ""
     assert matching_funscript(r"C:\other\path\clip.mp4") is None
+
+
+def test_a_video_kept_off_the_librarys_drive_pairs_with_the_librarys_own_script(tmp_path: Path):
+    library = tmp_path / "library" / "videos"
+    kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "scene one.mp4"
+    script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+
+    assert matching_funscript(str(kept), metadata_root=library / "metadata") == str(script)
+
+
+def test_a_kept_video_is_f_modes_unless_the_librarys_own_tree_marks_its_script(tmp_path: Path):
+    library = tmp_path / "library" / "videos"
+    kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "scene one.mp4"
+    script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+    metadata_root = library / "metadata"
+    assert has_handcrafted_funscript(str(kept), metadata_root=metadata_root)
+
+    marker = library / "scripts" / "generated" / "VR" / "finished" / "scene one.generated"
+    marker.parent.mkdir(parents=True)
+    marker.touch()
+
+    assert not has_handcrafted_funscript(str(kept), metadata_root=metadata_root)
+
+
+def test_the_main_players_playlist_pairs_a_kept_video_with_the_librarys_script(tmp_path: Path):
+    library = tmp_path / "library" / "videos"
+    kept = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished" / "scene one.mp4"
+    script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+    playlist = tmp_path / "main_player_playlist.txt"
+
+    write_main_player_playlist_file(playlist, [str(kept)], metadata_root=library / "metadata")
+
+    assert str(script) in _lines(playlist)[0]
+
+
+def test_f_mode_keeps_a_kept_video_whose_hand_written_script_is_in_the_library(tmp_path: Path):
+    library = tmp_path / "library" / "videos"
+    kept_dir = tmp_path / "cloud" / "videos" / "videos" / "VR" / "finished"
+    kept = kept_dir / "scene one.mp4"
+    unscripted = kept_dir / "scene two.mp4"
+    kept_dir.mkdir(parents=True)
+    for video in (kept, unscripted):
+        video.write_text("x", encoding="utf-8")
+    script = library / "scripts" / "scripts" / "VR" / "finished" / "scene one.funscript"
+    script.parent.mkdir(parents=True)
+    script.write_text("{}", encoding="utf-8")
+
+    paths = build_main_playlist_paths(str(kept_dir), True, rng=random.Random(1),
+                                      metadata_root=library / "metadata")
+
+    assert paths == [str(kept)]
 
 
 # --- read_favs_content / is_favorite_path edge cases ---

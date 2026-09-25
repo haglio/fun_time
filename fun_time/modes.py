@@ -60,37 +60,43 @@ GENERATED_MARKER = "\\videos\\scripts\\generated\\"
 GENERATED_SUFFIX = ".generated"
 
 
-def _mirrored_path(video_path: str, marker: str, suffix: str) -> str:
+def _as_in_the_library(normalized: str, metadata_root: Path | None) -> str:
+    if metadata_root is None:
+        return normalized
+    return str(metadata_root.parent.parent) + LIBRARY_MARKER + normalized.split(LIBRARY_MARKER, 1)[1]
+
+
+def _mirrored_path(video_path: str, marker: str, suffix: str, metadata_root: Path | None) -> str:
     normalized = str(Path(video_path))
     if LIBRARY_MARKER not in normalized:
         return ""
-    mirrored = normalized.replace(LIBRARY_MARKER, marker, 1)
+    mirrored = _as_in_the_library(normalized, metadata_root).replace(LIBRARY_MARKER, marker, 1)
     return str(Path(mirrored).with_suffix(suffix))
 
 
-def build_mirrored_funscript_path(video_path: str) -> str:
-    return _mirrored_path(video_path, SCRIPTS_MARKER, ".funscript")
+def build_mirrored_funscript_path(video_path: str, metadata_root: Path | None = None) -> str:
+    return _mirrored_path(video_path, SCRIPTS_MARKER, ".funscript", metadata_root)
 
 
-def build_generated_marker_path(video_path: str) -> str:
-    return _mirrored_path(video_path, GENERATED_MARKER, GENERATED_SUFFIX)
+def build_generated_marker_path(video_path: str, metadata_root: Path | None = None) -> str:
+    return _mirrored_path(video_path, GENERATED_MARKER, GENERATED_SUFFIX, metadata_root)
 
 
-def matching_funscript(video_path: str) -> str | None:
+def matching_funscript(video_path: str, metadata_root: Path | None = None) -> str | None:
     """The funscript mirrored beside *video_path*, or None when there is none."""
-    mirrored = build_mirrored_funscript_path(video_path)
+    mirrored = build_mirrored_funscript_path(video_path, metadata_root)
     return mirrored if mirrored and Path(mirrored).exists() else None
 
 
-def has_matching_funscript(video_path: str) -> bool:
-    return matching_funscript(video_path) is not None
+def has_matching_funscript(video_path: str, metadata_root: Path | None = None) -> bool:
+    return matching_funscript(video_path, metadata_root) is not None
 
 
-def has_handcrafted_funscript(video_path: str) -> bool:
+def has_handcrafted_funscript(video_path: str, metadata_root: Path | None = None) -> bool:
     """Whether a person wrote *video_path*'s funscript — what F-mode plays."""
-    if not has_matching_funscript(video_path):
+    if not has_matching_funscript(video_path, metadata_root):
         return False
-    marker = build_generated_marker_path(video_path)
+    marker = build_generated_marker_path(video_path, metadata_root)
     return not (marker and Path(marker).exists())
 
 
@@ -168,7 +174,8 @@ class VideoShapes:
 def build_main_playlist_paths(main_sources: str, scripted_filter: bool, *,
                               recent: bool = False,
                               rng: random.Random | None = None,
-                              shapes: VideoShapes | None = None) -> list[str]:
+                              shapes: VideoShapes | None = None,
+                              metadata_root: Path | None = None) -> list[str]:
     """The main player's playlist, narrowed as the session asks and in its order.
 
     *recent* is Latest — newest-first — and its absence is Shuffle, the same two
@@ -180,7 +187,8 @@ def build_main_playlist_paths(main_sources: str, scripted_filter: bool, *,
     """
     files = collect_video_files(main_sources)
     if scripted_filter:
-        files = [full_path for full_path in files if has_handcrafted_funscript(full_path)]
+        files = [full_path for full_path in files
+                 if has_handcrafted_funscript(full_path, metadata_root)]
     if shapes is not None:
         files = shapes.keep(files)
     return order_paths(files, recent=recent, rng=rng)
@@ -346,15 +354,16 @@ def write_playlist_file(path: Path, paths: list[str]) -> None:
     write_playlist(path, [PlaylistItem(Path(video_path)) for video_path in paths])
 
 
-def scripted_item(video_path: str) -> PlaylistItem:
+def scripted_item(video_path: str, metadata_root: Path | None = None) -> PlaylistItem:
     """*video_path* paired with the funscript mirrored beside it, when it has one."""
-    funscript = matching_funscript(video_path)
+    funscript = matching_funscript(video_path, metadata_root)
     return PlaylistItem(Path(video_path), Path(funscript) if funscript else None)
 
 
-def write_main_player_playlist_file(path: Path, video_paths: list[str]) -> None:
+def write_main_player_playlist_file(path: Path, video_paths: list[str], *,
+                                    metadata_root: Path | None = None) -> None:
     """Write the main player's playlist, pairing each video with its funscript when it has one."""
-    write_playlist(path, [scripted_item(video_path) for video_path in video_paths])
+    write_playlist(path, [scripted_item(video_path, metadata_root) for video_path in video_paths])
 
 
 def build_one_satellite_playlist(
@@ -414,7 +423,7 @@ def build_satellite_playlists(
 
 
 def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filter: bool,
-                        recent: bool = False) -> None:
+                        recent: bool = False, metadata_root: Path | None = None) -> None:
     """Build and write the main player's playlist alone.
 
     The one-player counterpart to :func:`build_all_playlists`, for a startup
@@ -427,7 +436,10 @@ def build_main_playlist(playlist_file: Path, main_sources: str, *, scripted_filt
     HUDs say F-mode is what this rebuild would otherwise leave standing.
     """
     write_main_player_playlist_file(
-        playlist_file, build_main_playlist_paths(main_sources, scripted_filter, recent=recent))
+        playlist_file,
+        build_main_playlist_paths(main_sources, scripted_filter, recent=recent,
+                                  metadata_root=metadata_root),
+        metadata_root=metadata_root)
 
 
 def build_all_playlists(
@@ -455,5 +467,6 @@ def build_all_playlists(
     )
     write_main_player_playlist_file(
         build_playlist_file_path(state_dir, PLAYLIST_MAIN_PLAYER),
-        build_main_playlist_paths(main_sources, False, rng=rng),
+        build_main_playlist_paths(main_sources, False, rng=rng, metadata_root=metadata_root),
+        metadata_root=metadata_root,
     )

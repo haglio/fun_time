@@ -853,7 +853,8 @@ def test_start_core_session_rebuilds_the_primary_under_the_resumed_f_mode(tmp_pa
         _run_start_core_session(kwargs)
 
     rebuild.assert_called_once_with(
-        state_dir / "main_player_playlist.tsv", kwargs["main_sources"], scripted_filter=True, recent=True
+        state_dir / "main_player_playlist.tsv", kwargs["main_sources"], scripted_filter=True, recent=True,
+        metadata_root=kwargs["regen_metadata_root"],
     )
 
 
