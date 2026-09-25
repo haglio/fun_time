@@ -89,17 +89,14 @@ class TestNobodyDriving:
 
         assert genau(driver).splitlines() == _HELD_VERBS
 
-    def test_control_off_pauses_genau_rather_than_holding_it_somewhere(self, tmp_path):
-        """The press itself settles the device home through the broker; all this
-        has to do is see that nothing sends to it afterwards, which a paused
-        Genau does by stopping rather than by naming a new place to be."""
+    def test_control_off_stops_genau_and_tells_it_the_device_is_going_home(self, tmp_path):
         driver = make_driver(tmp_path)
         publish_main_player(driver)
 
         driver.sync("video", paused=False, control=OSR2_CONTROL_OFF)
 
         assert main_player(driver) == "SET_TCODE_ENABLED 0"
-        assert genau(driver).splitlines() == ["PAUSE"]
+        assert genau(driver).splitlines() == ["PAUSE", "PARK"]
 
     def test_the_hold_is_re_stated_on_the_heartbeat_and_not_every_tick(self, tmp_path):
         """Re-stated, so an output switched on from a key or a spoken word goes

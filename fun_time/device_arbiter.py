@@ -142,7 +142,7 @@ class DeviceArbiter:
         now = self._clock()
         if self._asserted_control == control and now - self._asserted_at < REASSERT_S:
             return
-        genau = ("RESUME", TCODE_OFF) if control in _HELD else ("PAUSE",)
+        genau = ("RESUME", TCODE_OFF) if control in _HELD else ("PAUSE", "PARK")
         queued = [append_command(self.main_player_cmd_file, TCODE_OFF)]
         queued += [append_command(self.genau_cmd_file, verb) for verb in genau]
         if all(queued):
