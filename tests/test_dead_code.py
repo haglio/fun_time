@@ -236,7 +236,10 @@ def test_no_module_reaches_into_another_ones_privates():
 # which the lock's own tests in test_command_dispatch.py are named for.
 # 7805 the same day: the main player's window stopped answering keys of its
 # own, Fun Time's hotkeys being the room's keyboard, so the table of them went.
-MAX_PROSE_LINES = 7795
+# 7787 the same day: the heatmap strip builds its colors across the track of
+# the frame it is handed, so the painter's paragraph telling its caller to do
+# that went, and the plain bar standing in for it is timeline_bgra's own branch.
+MAX_PROSE_LINES = 7787
 
 
 def _prose_and_code(path: Path) -> tuple[int, int]:

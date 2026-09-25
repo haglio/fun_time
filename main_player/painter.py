@@ -6,12 +6,9 @@ every painted frame: the timeline along the lower edge, the time readout at its
 left, the console in the top-left corner, the volume chip above the timeline's
 right-hand end, and the loop's two frames above their marks.
 
-The order they are built in carries three rules that nothing outside this module
+The order they are built in carries two rules that nothing outside this module
 can see:
 
-* The heatmap's color row is built at the INSET TRACK's width and framed at the
-  WINDOW's, so the strip lines up with the plain bar underneath it.  One width
-  for the row and another for the frame is not a slip.
 * The room's two published files are read before anything drawn believes them,
   and the motion is read through the gate before the console panel is built out
   of it -- otherwise the pill and the line describe the frame before this one.
@@ -21,16 +18,16 @@ can see:
   thumbnails are drawn last and composite second from the lower edge.
 
 Lived inline in ``main_player.app``'s run loop, where a frame could not be painted
-without a window and libmpv, so none of the three had a test.
+without a window and libmpv, so neither had a test.
 """
 from __future__ import annotations
 
 from player_core.console_hud import ConsoleHud, hud_xy, with_playback_speed
 from player_core.playhead import PlayheadHudPainter, readout_xy, video_playhead
-from player_core.timeline import bar_track_x, progress_bar_bgra
+from player_core.timeline import bar_track_x
 from player_core.volume import VolumeHudPainter, chip_xy
 
-from .overlay import heatmap_bgra, loop_thumbnail_xys, timeline_height
+from .overlay import loop_thumbnail_xys, timeline_bgra, timeline_height
 
 # Overlay ids (stable so each frame updates in place).
 _OV_HEATMAP = 0
@@ -111,12 +108,8 @@ class Painter:
 
     def _timeline(self, win_w: int, win_h: int) -> None:
         session = self._session
-        # The heatmap fills the inset track, so build its color row at track
-        # width; heatmap_bgra frames it full-width to line up with the plain bar.
-        tx0, tx1 = bar_track_x(win_w)
         self._heatmap.update(
-            session.current_video, session.current_funscript, session.duration_ms,
-            tx1 - tx0,
+            session.current_video, session.current_funscript, session.duration_ms, win_w,
             loop_state=session.loop_state,
             record_in_ms=session.record_in_ms,
             position_ms=session.position_ms,
@@ -124,15 +117,9 @@ class Painter:
         if session.showing_picture:
             self._player.remove_overlay(_OV_HEATMAP)
             return
-        hb = heatmap_bgra(self._heatmap, session.position_ms, session.loop_bounds, win_w)
-        if hb is None:
-            # Unscripted video: a plain clickable progress bar instead, still
-            # showing the playcursor and any loop in/out marks.
-            hb = progress_bar_bgra(
-                session.position_ms, session.duration_ms, session.loop_bounds,
-                win_w, record_in_ms=session.record_in_ms,
-            )
-        self._player.overlay(_OV_HEATMAP, 0, win_h - hb.shape[0], hb)
+        bar = timeline_bgra(self._heatmap, session.position_ms, session.loop_bounds, win_w,
+                            record_in_ms=session.record_in_ms)
+        self._player.overlay(_OV_HEATMAP, 0, win_h - bar.shape[0], bar)
 
     def _readout(self, win_w: int, win_h: int) -> None:
         session = self._session
